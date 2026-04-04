@@ -1,5 +1,5 @@
 /*
-		i Beam 작도를 위한 JS  v000
+		i Beam 작도를 위한 JS  v000 (KonvaViewer 적용)
 */
 const odxf_ibeam 	= dxf_generator();
 const scvs_ibeam  = "ibeamplot";		// canvas name
@@ -7,15 +7,11 @@ const scvs_ibeam  = "ibeamplot";		// canvas name
 function ibeam_click() {
  
     // 1. 사이드바(nav) 및 메인 콘텐츠(main) 레이아웃 조정
-    const sidebarNav = document.querySelector('nav.sidebar');
     const mainContent = document.getElementById('wrap_main');
 
-//    if (sidebarNav) sidebarNav.classList.add('d-none');
-//	
     if (mainContent) {
         mainContent.classList.remove('col-md-9', 'col-lg-10');
         mainContent.classList.add('col-md-12', 'col-lg-12');
-//		
     }
     
     var omain = document.getElementById("wrap_main");	
@@ -23,7 +19,7 @@ function ibeam_click() {
     // HTML 생성
     var shtml = "";
 	
-	// [수정] 뷰포트 높이 계산 변경 (더 넉넉한 하단 여백 확보)
+	// 뷰포트 높이 계산 변경 (더 넉넉한 하단 여백 확보)
     let dynamicHeight = "calc(100vh - 100px)"; 
 
 	shtml += "<div class='container-fluid px-4' style='height: " + dynamicHeight + "; margin-top: 10px; margin-bottom: 20px;'>";
@@ -35,13 +31,12 @@ function ibeam_click() {
 	// 카드를 d-flex flex-column으로 설정하여 헤더-바디-푸터를 수직으로 정렬합니다.
 	shtml += "          <div class='card shadow-sm h-100 d-flex flex-column' style='overflow: hidden;'>"; 
 
-	// 1. 헤더에 버튼 추가 (기존 위치)
+	// 1. 헤더에 버튼 추가
 	shtml += "              <div class='card-header bg-secondary text-white flex-shrink-0 d-flex justify-content-between align-items-center'>";
 	shtml += "                  <h6 class='mb-0'>DIMENSION (mm)</h6>"; 
-//	shtml += "                  <button class='btn btn-sm btn-outline-light' onclick='toggleDimensionImage()'>VIEW GUIDE</button>";
 	shtml += "              </div>";	
 
-	// [핵심] flex-grow-1을 주어 남은 공간을 다 차지하게 하고, 이 영역에만 스크롤을 발생시킵니다.
+	// flex-grow-1을 주어 남은 공간을 다 차지하게 하고, 이 영역에만 스크롤을 발생시킵니다.
 	shtml += "              <div class='card-body overflow-auto flex-grow-1' style='min-height: 0; padding-bottom: 0;'>"; 
 	shtml += "                  <div class='pe-1'>";
 	
@@ -49,9 +44,9 @@ function ibeam_click() {
 	
 	shtml += createLabel('INPUT One by One') 	
 	
-    shtml += createRowInput('I beam Height', 'dh',  1500, 'fdraw_ibeam()');			// see liftinglug.js
-    shtml += createRowInput('I beam Top Width','dbt', 1235, 'fdraw_ibeam()');			// see liftinglug.js
-    shtml += createRowInput('I beam Bottom Width','dbb', 985, 'fdraw_ibeam()');			// see liftinglug.js
+    shtml += createRowInput('I beam Height', 'dh',  1500, 'fdraw_ibeam()');
+    shtml += createRowInput('I beam Top Width','dbt', 1235, 'fdraw_ibeam()');
+    shtml += createRowInput('I beam Bottom Width','dbb', 985, 'fdraw_ibeam()');
     shtml += createRowInput('Top Flange Thickness','dttf', 85, 'fdraw_ibeam()');
     shtml += createRowInput('Top Hunch Thickness','dttf1', 45, 'fdraw_ibeam()');
     shtml += createRowInput('Bottom Flange Thickness','dtbf', 135, 'fdraw_ibeam()');
@@ -69,7 +64,7 @@ function ibeam_click() {
     shtml += "                  </div>";
     shtml += "              </div>";
 
-	// [고정] card-footer는 flex-shrink-0에 의해 절대 크기가 줄어들거나 스크롤 영역에 포함되지 않습니다.
+	// card-footer (DXF 다운로드 버튼)
 	shtml += "              <div class='card-footer bg-white border-top flex-shrink-0 p-2 align-items-center justify-content-center text-center'>";
 	shtml += "                  <button class='btn btn-dark w-75 py-2 mb-0 shadow-sm' onclick='odxf_ibeam.download(\"IBeam.dxf\")'>";
 	shtml += "                      DXF DOWNLOAD";
@@ -79,17 +74,17 @@ function ibeam_click() {
 	
 	shtml += "      </div>";
 				
-    // --- 오른쪽: 도면 뷰어 영역 (여백 제거 버전) ---
+    // --- 오른쪽: 도면 뷰어 영역 ---
     shtml += "      <div class='col-lg-8 h-100'>";
-    shtml += "          <div class='card shadow-sm h-100 d-flex flex-column' style='overflow: hidden;'>"; // 라운드 코너 밖으로 도면이 나가지 않게 조절
+    shtml += "          <div class='card shadow-sm h-100 d-flex flex-column' style='overflow: hidden;'>";
     shtml += "              <div class='card-header bg-secondary flex-shrink-0'>";
-    shtml += "                  <h6 class='mb-0 text-white'>DRAWING VIEW</h6>";
+    // ★ 타이틀 변경
+    shtml += "                  <h6 class='mb-0 text-white'>DRAWING VIEW (Synchronized Zoom/Pan)</h6>";
     shtml += "              </div>";
     
-    // [수정] card-body가 flex-grow-1로서 남은 모든 하단 공간을 차지하게 함
-    // 하단 푸터를 아예 삭제하여 도면이 카드 끝까지 내려오도록 설정
+    // ★ 마우스 커서 속성(cursor: grab) 추가
     shtml += "              <div class='card-body p-0 flex-grow-1' style='min-height: 0; position: relative;'>";
-    shtml += "                  <div id='" + scvs_ibeam + "' style='position: absolute; top:0; left:0; width:100%; height:100%; background-color:#000;'></div>";
+    shtml += "                  <div id='" + scvs_ibeam + "' style='position: absolute; top:0; left:0; width:100%; height:100%; background-color:#000; cursor: grab;'></div>";
     shtml += "              </div>";
     
     shtml += "          </div>";
@@ -97,123 +92,80 @@ function ibeam_click() {
             
     shtml += "  </div>"; 
     shtml += "</div>";
-
-	// 2. [추가] 드래그 가능한 플로팅 이미지 창
-//	// z-index를 높게 설정하여 모든 요소 위에 뜨게 합니다.
-//	shtml += "<div id='floating_img_win' style='display:none; position: fixed; top: 100px; left: 50%; transform: translateX(-50%); width: 500px; background: white; border-radius: 8px; box-shadow: 0 10px 25px rgba(0,0,0,0.3); z-index: 9999; overflow: hidden;'>";
-//
-//	// 드래그 핸들이 될 헤더
-//	shtml += "  <div id='floating_header' style='padding: 10px 15px; background: #343a40; color: white; cursor: move; display: flex; justify-content: space-between; align-items: center; user-select: none;'>";
-//	shtml += "      <span style='font-size: 0.85rem; font-weight: bold;'>Dimension Guide</span>";
-//	shtml += "      <span style='cursor: pointer; font-size: 20px; line-height: 1;' onclick='toggleDimensionImage()'>&times;</span>"; // X 버튼
-//	shtml += "  </div>";
-//
-//	// 이미지 영역
-//	shtml += "  <div style='padding: 10px; text-align: center; background: #f8f9fa;'>";
-//	shtml += "      <img src='/images/box1cell_vars.png' style='max-width: 100%; height: auto; display: block; border: 1px solid #ddd;'>";
-//	shtml += "  </div>";
-//
-//	shtml += "</div>";
-	
+ 
     omain.innerHTML = shtml;
 
-//	// 드래그 기능 활성화 함수 호출
-//	initDraggable(document.getElementById("floating_img_win"), document.getElementById("floating_header"));	// see common.js
- 
     // 초기 드로잉 실행
     fdraw_ibeam();
-	
 }
 
-	// 입력 필드에서 값을 읽어옵니다.
-	function getParams_ibeam() {
-		// 값을 가져오는 헬퍼 함수
-		const getValue = (id) => {
-			const el = document.getElementById(id);
-			return el ? Number(el.value) : 0;
-		};
+// 입력 필드에서 값을 읽어옵니다.
+function getParams_ibeam() {
+    const getValue = (id) => {
+        const el = document.getElementById(id);
+        return el ? Number(el.value) : 0;
+    };
 
-		// 1. aparam 객체 생성
-		let aparam = {
-			dh: getValue('dh'), dbt: getValue('dbt'), dbb: getValue('dbb'),
-			dttf: getValue('dttf'), dttf1: getValue('dttf1'), 
-			dtbf: getValue('dtbf'), dtbf1: getValue('dtbf1'), 
-			dtw: getValue('dtw'),
-			drtf: getValue('drtf'), drwt: getValue('drwt'), drwb: getValue('drwb'), drbf: getValue('drbf'),
-			dchb: getValue('dchb')
-		};
-		
-		let dseg_leng = getValue('dseg_leng');
+    let aparam = {
+        dh: getValue('dh'), dbt: getValue('dbt'), dbb: getValue('dbb'),
+        dttf: getValue('dttf'), dttf1: getValue('dttf1'), 
+        dtbf: getValue('dtbf'), dtbf1: getValue('dtbf1'), 
+        dtw: getValue('dtw'),
+        drtf: getValue('drtf'), drwt: getValue('drwt'), drwb: getValue('drwb'), drbf: getValue('drbf'),
+        dchb: getValue('dchb')
+    };
+    
+    let dseg_leng = getValue('dseg_leng');
+    let combText = [ ...Object.values(aparam) ].join(',');
 
-		// 3. b와 e의 모든 value만 뽑아서 쉼표로 연결된 텍스트 생성
-		// b의 모든 값들 + e의 모든 값들을 하나의 배열로 합친 뒤 join 합니다.
-		let combText = [
-			...Object.values(aparam)
-		].join(',');
+    return { aparam, dseg_leng, combText };
+}
 
+function putParams_ibeam(textareaId) {
+    const textarea = document.getElementById(textareaId);
+    if (!textarea) return;
 
-		// 4. 결과 반환 (combinedText 추가)
-		return { aparam, dseg_leng, combText };
-	}
+    const lines = textarea.value.split('\n');
+    if (lines.length < 2) return; 
 
-	function putParams_ibeam(textareaId) {
-		const textarea = document.getElementById(textareaId);
-		if (!textarea) return;
+    const values = lines[0].split(',');
+    const dseg_leng = lines[1];
 
-		// 1. 엔터 키(줄바꿈)를 기준으로 첫 번째 줄(Begin)과 두 번째 줄(End) 분리
-		const lines = textarea.value.split('\n');
-		if (lines.length < 2) return; // 최소 두 줄이 있어야 함
+    const keys = [
+        'dh', 'dbt', 'dbb', 'dttf', 'dttf1', 'dtbf', 'dtbf1',
+        'dtw', 'drtf', 'drwt', 'drwb', 'drbf', 'dchb'
+    ];
 
-		// 2. 각 줄을 쉼표(,)로 분리하여 배열 생성
-		const values = lines[0].split(',');
-		const dseg_leng = lines[1];
+    keys.forEach((key, index) => {
+        if (values[index] !== undefined) {
+            const elS = document.getElementById( key );
+            if (elS) elS.value = values[index].trim();
+        }			
+    });
 
-		// 3. 매칭될 ID 리스트 (getParams에서 정의한 순서와 동일해야 함)
-		const keys = [
-			'dh', 'dbt', 'dbb', 'dttf', 'dttf1', 'dtbf', 'dtbf1',
-			'dtw', 
-			'drtf', 'drwt', 'drwb', 'drbf',
-			'dchb'
-		];
+    if ( dseg_leng !== undefined) {
+        const elE = document.getElementById( "dseg_leng" );
+        if (elE) elE.value = dseg_leng;
+    }
 
-		// 4. 각각의 input 태그에 값 할당 (_s 와 _e)
-		keys.forEach((key, index) => {
-			// 단면값 넣기
-			if (values[index] !== undefined) {
-				const elS = document.getElementById( key );
-				if (elS) elS.value = values[index].trim();
-			}			
-		});
-
-		if ( dseg_leng !== undefined) {
-			const elE = document.getElementById( "dseg_leng" );
-			if (elE) elE.value = dseg_leng;
-		}
-
-		// 5. 값이 변경된 후 도면 갱신이 필요하다면 호출
-		if (typeof fdraw_box1cell === 'function') {
-			fdraw_ibeam();
-		}
-	}
+    // ★ 오타 수정: fdraw_box1cell -> fdraw_ibeam
+    if (typeof fdraw_ibeam === 'function') {
+        fdraw_ibeam();
+    }
+}
 
 function fdraw_ibeam(){
 
-	/*		
-		Load data
-	*/		
+	/* Load data */		
 	let auserdata = getParams_ibeam();
-
 	let aparam = auserdata.aparam;
-	       
 	let dleng = auserdata.dseg_leng;  
 	
 	let ouserTextArea = document.getElementById('sUserText');
 
     if (ouserTextArea) {
-        // 백틱(`)을 사용하면 코드 상에서 엔터를 치는 것만으로도 줄바꿈이 적용됩니다.
         ouserTextArea.value = auserdata.combText + "\n" + dleng;
     }	
-
 
 	// data loading
 	let { dh, dbt, dbb, dttf, dttf1, dtbf, dtbf1, dtw, drtf, drwt, drwb, drbf, dchb } = aparam;
@@ -221,19 +173,9 @@ function fdraw_ibeam(){
 	var dOx, dOx_side, dOx_top, dOx_bot;
 	var dOy, dOy_side, dOy_top, dOy_bot;
 	
-	/*		
-			--- data check
-	*/		
-
-	/*		
-			--- 좌표 계산 ---
-	*/		
-
-	/*		
-		PLOTLY CANVAS : activate & draw
-	*/		
-
-	var ocvs	= PlotlyViewer(scvs_ibeam, true, "black");
+	/* KONVA CANVAS : activate & draw */		
+    // ★ PlotlyViewer 대신 KonvaViewer 호출!
+	var ocvs = new KonvaViewer(scvs_ibeam);
 
 	// 레이어
 	var alayer = ['ibeam_solid', 'ibeam_hidden', 'ibeam_center'];
@@ -242,9 +184,7 @@ function fdraw_ibeam(){
 	ocvs.addLayer( alayer[1], 'cyan', 'hidden', 1.5);
 	ocvs.addLayer( alayer[2], 'red',  'solid', 1.5);
 
-	/*		
-		DXF Preparation
-	*/		
+	/* DXF Preparation */		
 	odxf_ibeam.init();
 	odxf_ibeam.layer( alayer[0], 4, "CONTINUOUS");
 	odxf_ibeam.layer( alayer[1], 4, "HIDDEN");
@@ -318,9 +258,7 @@ function fdraw_ibeam(){
 	let chf_br = geo_chamfer( pbfr, pbr, pbc, dchb);
 
 
-	/*
-	  draw canvas : front
-	*/
+	/* draw canvas : front */
 	let ddim_ext = 20;	// 디멘젼 길이
 	let ddim_off = 20;	// 구조물에서 이격
 	
@@ -329,15 +267,12 @@ function fdraw_ibeam(){
 	dOx = 0	, dOy = 0;
 	
 	if( drtf == 0){
-	  
 	  ocvs.addLine(sview, ptl.x, ptl.y, ptfl.x, ptfl.y, alayer[0] );  
 		odxf_ibeam.line( dOx + ptl.x, dOy + ptl.y, dOx + ptfl.x, dOy + ptfl.y, alayer[0] );
 
 	  ocvs.addLine(sview, ptr.x, ptr.y, ptfr.x, ptfr.y, alayer[0] );  
 		odxf_ibeam.line( dOx + ptr.x, dOy + ptr.y, dOx + ptfr.x, dOy + ptfr.y, alayer[0] );
-	  
 	} else {
-	  
 	  ocvs.addLine(sview, ptl.x, ptl.y, fil_tl.xb, fil_tl.yb, alayer[0] ); 
 	  ocvs.addArc(sview, fil_tl.ox, fil_tl.oy, fil_tl.r, fil_tl.angb, fil_tl.ange, alayer[0]);
 		odxf_ibeam.line( dOx + ptl.x, dOy + ptl.y, dOx + fil_tl.xb, dOy + fil_tl.yb, alayer[0] );
@@ -347,243 +282,184 @@ function fdraw_ibeam(){
 	  ocvs.addArc(sview, fil_tr.ox, fil_tr.oy, fil_tr.r, fil_tr.angb, fil_tr.ange, alayer[0]);
 		odxf_ibeam.line( dOx + ptr.x, dOy + ptr.y, dOx + fil_tr.xb, dOy + fil_tr.yb, alayer[0] );
 		odxf_ibeam.arc( dOx + fil_tr.ox, dOy + fil_tr.oy, fil_tr.r, fil_tr.angb, fil_tr.ange, alayer[0] );
-
 	}
 	
 	if( drwt == 0){
-	  
 	  if( drtf == 0){
-		
 		ocvs.addLine(sview, ptfl.x, ptfl.y, pwtl.x, pwtl.y, alayer[0] );    
 			odxf_ibeam.line( dOx + ptfl.x, dOy + ptfl.y, dOx + pwtl.x, dOy + pwtl.y, alayer[0] );
 		
 		ocvs.addLine(sview, ptfr.x, ptfr.y, pwtr.x, pwtr.y, alayer[0] );            
 			odxf_ibeam.line( dOx + ptfr.x, dOy + ptfr.y, dOx + pwtr.x, dOy + pwtr.y, alayer[0] );
-		
 	  }else{
-		
 		ocvs.addLine(sview, fil_tl.xe, fil_tl.ye, pwtl.x, pwtl.y, alayer[0] );            
 			odxf_ibeam.line( dOx + fil_tl.xe, dOy + fil_tl.ye, dOx + pwtl.x, dOy + pwtl.y, alayer[0] );
 		
 		ocvs.addLine(sview, fil_tr.xe, fil_tr.ye, pwtr.x, pwtr.y, alayer[0] );            
 			odxf_ibeam.line( dOx + fil_tr.xe, dOy + fil_tr.ye, dOx + pwtr.x, dOy + pwtr.y, alayer[0] );
 	  }
-	  
 	} else {
-
 	  if( drtf == 0){
-		
 		ocvs.addLine(sview, ptfl.x, ptfl.y, fil_wtl.xb, fil_wtl.yb, alayer[0] );            
 			odxf_ibeam.line( dOx + ptfl.x, dOy + ptfl.y, dOx + fil_wtl.xb, dOy + fil_wtl.yb, alayer[0] );
 		
 		ocvs.addLine(sview, ptfr.x, ptfr.y, fil_wtr.xb, fil_wtr.yb, alayer[0] );            
 			odxf_ibeam.line( dOx + ptfr.x, dOy + ptfr.y, dOx + fil_wtr.xb, dOy + fil_wtr.yb, alayer[0] );
-		
 	  }else{
-		
 		ocvs.addLine(sview, fil_tl.xe, fil_tl.ye, fil_wtl.xb, fil_wtl.yb, alayer[0] );            
 			odxf_ibeam.line( dOx + fil_tl.xe, dOy + fil_tl.ye, dOx + fil_wtl.xb, dOy + fil_wtl.yb, alayer[0] );
 		
 		ocvs.addLine(sview, fil_tr.xe, fil_tr.ye, fil_wtr.xb, fil_wtr.yb, alayer[0] );            
 			odxf_ibeam.line( dOx + fil_tr.xe, dOy + fil_tr.ye, dOx + fil_wtr.xb, dOy + fil_wtr.yb, alayer[0] );
-		
 	  }
-	  
 	  ocvs.addArc(sview, fil_wtl.ox, fil_wtl.oy, fil_wtl.r, fil_wtl.angb, fil_wtl.ange, alayer[0]);        
 		odxf_ibeam.arc( dOx + fil_wtl.ox, dOy + fil_wtl.oy, fil_wtl.r, fil_wtl.angb, fil_wtl.ange, alayer[0] );
-	  
 	  ocvs.addArc(sview, fil_wtr.ox, fil_wtr.oy, fil_wtr.r, fil_wtr.angb, fil_wtr.ange, alayer[0]);        
 		odxf_ibeam.arc( dOx + fil_wtr.ox, dOy + fil_wtr.oy, fil_wtr.r, fil_wtr.angb, fil_wtr.ange, alayer[0] );
-	  
 	}
 	
 	if( drwb == 0){
-
 	  if( drwt == 0){
-		
 		ocvs.addLine(sview, pwtl.x, pwtl.y, pwbl.x, pwbl.y, alayer[0] );  
 			odxf_ibeam.line( dOx + pwtl.x, dOy + pwtl.y, dOx + pwbl.x, dOy + pwbl.y, alayer[0] );
 		
 		ocvs.addLine(sview, pwtr.x, pwtr.y, pwbr.x, pwbr.y, alayer[0] );  
 			odxf_ibeam.line( dOx + pwtr.x, dOy + pwtr.y, dOx + pwbr.x, dOy + pwbr.y, alayer[0] );
-		
 	  }else{
-		
 		ocvs.addLine(sview, fil_wtl.xe, fil_wtl.ye, pwbl.x, pwbl.y, alayer[0] );            
 			odxf_ibeam.line( dOx + fil_wtl.xe, dOy + fil_wtl.ye, dOx + pwbl.x, dOy + pwbl.y, alayer[0] );
 		
 		ocvs.addLine(sview, fil_wtr.xe, fil_wtr.ye, pwbr.x, pwbr.y, alayer[0] );            
 			odxf_ibeam.line( dOx + fil_wtr.xe, dOy + fil_wtr.ye, dOx + pwbr.x, dOy + pwbr.y, alayer[0] );
 	  }
-
 	} else {
-
 	  if( drwt == 0){
-		
 		ocvs.addLine(sview, pwtl.x, pwtl.y, fil_wbl.xb, fil_wbl.yb, alayer[0] );    
 			odxf_ibeam.line( dOx + pwtl.x, dOy + pwtl.y, dOx + fil_wbl.xb, dOy + fil_wbl.yb, alayer[0] );
 		
 		ocvs.addLine(sview, pwtr.x, pwtr.y, fil_wbr.xb, fil_wbr.yb, alayer[0] );            
 			odxf_ibeam.line( dOx + pwtr.x, dOy + pwtr.y, dOx + fil_wbr.xb, dOy + fil_wbr.yb, alayer[0] );
-		
 	  }else{
-		
 		ocvs.addLine(sview, fil_wtl.xe, fil_wtl.ye, fil_wbl.xb, fil_wbl.yb, alayer[0] );            
 			odxf_ibeam.line( dOx + fil_wtl.xe, dOy + fil_wtl.ye, dOx + fil_wbl.xb, dOy + fil_wbl.yb, alayer[0] );
 		
 		ocvs.addLine(sview, fil_wtr.xe, fil_wtr.ye, fil_wbr.xb, fil_wbr.yb, alayer[0] );            
 			odxf_ibeam.line( dOx + fil_wtr.xe, dOy + fil_wtr.ye, dOx + fil_wbr.xb, dOy + fil_wbr.yb, alayer[0] );
 	  }
-
 	  ocvs.addArc(sview, fil_wbl.ox, fil_wbl.oy, fil_wbl.r, fil_wbl.angb, fil_wbl.ange, alayer[0]);
 		odxf_ibeam.arc( dOx + fil_wbl.ox, dOy + fil_wbl.oy, fil_wbl.r, fil_wbl.angb, fil_wbl.ange, alayer[0] );
-	  
 	  ocvs.addArc(sview, fil_wbr.ox, fil_wbr.oy, fil_wbr.r, fil_wbr.angb, fil_wbr.ange, alayer[0]);
 		odxf_ibeam.arc( dOx + fil_wbr.ox, dOy + fil_wbr.oy, fil_wbr.r, fil_wbr.angb, fil_wbr.ange, alayer[0] );
-	  
 	}
 	
 	if( drbf == 0){
-
 	  if( drwb == 0){
-		
 		ocvs.addLine(sview, pwbl.x, pwbl.y, pbfl.x, pbfl.y, alayer[0] );  
 			odxf_ibeam.line( dOx + pwbl.x, dOy + pwbl.y, dOx + pbfl.x, dOy + pbfl.y, alayer[0] );
 		
 		ocvs.addLine(sview, pwbr.x, pwbr.y, pbfr.x, pbfr.y, alayer[0] );  
 			odxf_ibeam.line( dOx + pwbr.x, dOy + pwbr.y, dOx + pbfr.x, dOy + pbfr.y, alayer[0] );
-		
 	  }else{
-		
 		ocvs.addLine(sview, fil_wbl.xe, fil_wbl.ye, pbfl.x, pbfl.y, alayer[0] );            
 			odxf_ibeam.line( dOx + fil_wbl.xe, dOy + fil_wbl.ye, dOx + pbfl.x, dOy + pbfl.y, alayer[0] );
 		
 		ocvs.addLine(sview, fil_wbr.xe, fil_wbr.ye, pbfr.x, pbfr.y, alayer[0] );            
 			odxf_ibeam.line( dOx + fil_wbr.xe, dOy + fil_wbr.ye, dOx + pbfr.x, dOy + pbfr.y, alayer[0] );
 	  }
-	  
 	} else {
-
 	  if( drwb == 0){
-		
 		ocvs.addLine(sview, pwbl.x, pwbl.y, fil_bl.xb, fil_bl.yb, alayer[0] );  
 			odxf_ibeam.line( dOx + pwbl.x, dOy + pwbl.y, dOx + fil_bl.xb, dOy + fil_bl.yb, alayer[0] );
 		
 		ocvs.addLine(sview, pwbr.x, pwbr.y, fil_br.xb, fil_br.yb, alayer[0] );  
 			odxf_ibeam.line( dOx + pwbr.x, dOy + pwbr.y, dOx + fil_br.xb, dOy + fil_br.yb, alayer[0] );
-		
 	  }else{
-		
 		ocvs.addLine(sview, fil_wbl.xe, fil_wbl.ye, fil_bl.xb, fil_bl.yb, alayer[0] );            
 			odxf_ibeam.line( dOx + fil_wbl.xe, dOy + fil_wbl.ye, dOx + fil_bl.xb, dOy + fil_bl.yb, alayer[0] );
 		
 		ocvs.addLine(sview, fil_wbr.xe, fil_wbr.ye, fil_br.xb, fil_br.yb, alayer[0] );            
 			odxf_ibeam.line( dOx + fil_wbr.xe, dOy + fil_wbr.ye, dOx + fil_br.xb, dOy + fil_br.yb, alayer[0] );
 	  }
-	  
 	  ocvs.addArc(sview, fil_bl.ox, fil_bl.oy, fil_bl.r, fil_bl.angb, fil_bl.ange, alayer[0]);
 		odxf_ibeam.arc( dOx + fil_bl.ox, dOy + fil_bl.oy, fil_bl.r, fil_bl.angb, fil_bl.ange, alayer[0] );
-	  
 	  ocvs.addArc(sview, fil_br.ox, fil_br.oy, fil_br.r, fil_br.angb, fil_br.ange, alayer[0]);
 		odxf_ibeam.arc( dOx + fil_br.ox, dOy + fil_br.oy, fil_br.r, fil_br.angb, fil_br.ange, alayer[0] );
-	  
 	}
 	
 	if( dchb == 0){
-
 	  if( drbf == 0){
-		
 		ocvs.addLine(sview, pbfl.x, pbfl.y, pbl.x, pbl.y, alayer[0] ); 
 			odxf_ibeam.line( dOx + pbfl.x, dOy + pbfl.y, dOx + pbl.x, dOy + pbl.y, alayer[0] );
 		
 		ocvs.addLine(sview, pbfr.x, pbfr.y, pbr.x, pbr.y, alayer[0] ); 
 			odxf_ibeam.line( dOx + pbfr.x, dOy + pbfr.y, dOx + pbr.x, dOy + pbr.y, alayer[0] );
-		
 	  }else{
-		
 		ocvs.addLine(sview, fil_bl.xe, fil_bl.ye, pbl.x, pbl.y, alayer[0] );            
 			odxf_ibeam.line( dOx + fil_bl.xe, dOy + fil_bl.ye, dOx + pbl.x, dOy + pbl.y, alayer[0] );
 		
 		ocvs.addLine(sview, fil_br.xe, fil_br.ye, pbr.x, pbr.y, alayer[0] );            
 			odxf_ibeam.line( dOx + fil_br.xe, dOy + fil_br.ye, dOx + pbr.x, dOy + pbr.y, alayer[0] );
 	  }
-	  
 	} else {
-
 	  if( drbf == 0){
-		
 		ocvs.addLine(sview, pbfl.x, pbfl.y, chf_bl.xb, chf_bl.yb, alayer[0] ); 
 			odxf_ibeam.line( dOx + pbfl.x, dOy + pbfl.y, dOx + chf_bl.xb, dOy + chf_bl.yb, alayer[0] );
 		
 		ocvs.addLine(sview, pbfr.x, pbfr.y, chf_br.xb, chf_br.yb, alayer[0] ); 
 			odxf_ibeam.line( dOx + pbfr.x, dOy + pbfr.y, dOx + chf_br.xb, dOy + chf_br.yb, alayer[0] );
-		
 	  }else{
-		
 		ocvs.addLine(sview, fil_bl.xe, fil_bl.ye, chf_bl.xb, chf_bl.yb, alayer[0] );            
 			odxf_ibeam.line( dOx + fil_bl.xe, dOy + fil_bl.ye, dOx + chf_bl.xb, dOy + chf_bl.yb, alayer[0] );
 		
 		ocvs.addLine(sview, fil_br.xe, fil_br.ye, chf_br.xb, chf_br.yb, alayer[0] );            
 			odxf_ibeam.line( dOx + fil_br.xe, dOy + fil_br.ye, dOx + chf_br.xb, dOy + chf_br.yb, alayer[0] );
 	  }
-	  
 	  ocvs.addLine(sview, chf_bl.xb, chf_bl.yb, chf_bl.xe, chf_bl.ye, alayer[0] );  
 			odxf_ibeam.line( dOx + chf_bl.xb, dOy + chf_bl.yb, dOx + chf_bl.xe, dOy + chf_bl.ye, alayer[0] );
-	  
 	  ocvs.addLine(sview, chf_br.xb, chf_br.yb, chf_br.xe, chf_br.ye, alayer[0] );  
 			odxf_ibeam.line( dOx + chf_br.xb, dOy + chf_br.yb, dOx + chf_br.xe, dOy + chf_br.ye, alayer[0] );
-	  
 	}
 	
 	ocvs.addLine(sview, ptl.x, ptl.y, ptr.x, ptr.y, alayer[0] );  
 		odxf_ibeam.line( dOx + ptl.x, dOy + ptl.y, dOx + ptr.x, dOy + ptr.y, alayer[0] );
 	
 	if( dchb == 0 ){
-		
 		ocvs.addLine(sview, pbl.x, pbl.y, pbr.x, pbr.y, alayer[0] );  
 			odxf_ibeam.line( dOx + pbl.x, dOy + pbl.y, dOx + pbr.x, dOy + pbr.y, alayer[0] );
-		
 	} else {
-
 		ocvs.addLine(sview, chf_bl.xe, chf_bl.ye, chf_br.xe, chf_br.ye, alayer[0] );  
 			odxf_ibeam.line( dOx + chf_bl.xe, dOy + chf_bl.ye, dOx + chf_br.xe, dOy + chf_br.ye, alayer[0] );
-		
 	}
 
-		// dim line	
-		ocvs.addDimLinear(sview, Math.min(pbl.x, ptl.x) - ddim_off , pbl.y, Math.min(pbl.x, ptl.x)- ddim_off, ptl.y, ddim_ext * 6);
-		ocvs.addDimLinear(sview, Math.min(pbl.x, ptl.x) - ddim_off , pbl.y, Math.min(pbl.x, ptl.x)- ddim_off, pbfl.y, ddim_ext * 3);
-		ocvs.addDimLinear(sview, Math.min(pbl.x, ptl.x) - ddim_off , pbfl.y, Math.min(pbl.x, ptl.x)- ddim_off, pwbl.y, ddim_ext * 3);
-		ocvs.addDimLinear(sview, Math.min(pbl.x, ptl.x) - ddim_off , pwbl.y, Math.min(pbl.x, ptl.x)- ddim_off, pwtl.y, ddim_ext * 3);
-		ocvs.addDimLinear(sview, Math.min(pbl.x, ptl.x) - ddim_off , pwtl.y, Math.min(pbl.x, ptl.x)- ddim_off, ptfl.y, ddim_ext * 3);
-		ocvs.addDimLinear(sview, Math.min(pbl.x, ptl.x) - ddim_off , ptfl.y, Math.min(pbl.x, ptl.x)- ddim_off, ptl.y, ddim_ext * 3);
+    // dim line	
+    ocvs.addDimLinear(sview, Math.min(pbl.x, ptl.x) - ddim_off , pbl.y, Math.min(pbl.x, ptl.x)- ddim_off, ptl.y, ddim_ext * 6);
+    ocvs.addDimLinear(sview, Math.min(pbl.x, ptl.x) - ddim_off , pbl.y, Math.min(pbl.x, ptl.x)- ddim_off, pbfl.y, ddim_ext * 3);
+    ocvs.addDimLinear(sview, Math.min(pbl.x, ptl.x) - ddim_off , pbfl.y, Math.min(pbl.x, ptl.x)- ddim_off, pwbl.y, ddim_ext * 3);
+    ocvs.addDimLinear(sview, Math.min(pbl.x, ptl.x) - ddim_off , pwbl.y, Math.min(pbl.x, ptl.x)- ddim_off, pwtl.y, ddim_ext * 3);
+    ocvs.addDimLinear(sview, Math.min(pbl.x, ptl.x) - ddim_off , pwtl.y, Math.min(pbl.x, ptl.x)- ddim_off, ptfl.y, ddim_ext * 3);
+    ocvs.addDimLinear(sview, Math.min(pbl.x, ptl.x) - ddim_off , ptfl.y, Math.min(pbl.x, ptl.x)- ddim_off, ptl.y, ddim_ext * 3);
 
-		ocvs.addDimLinear(sview, ptl.x , ptl.y + ddim_off, ptr.x, ptr.y + ddim_off, ddim_ext * 6);
-		ocvs.addDimLinear(sview, ptl.x , ptl.y + ddim_off, pwtl.x, ptl.y + ddim_off, ddim_ext * 3);
-		ocvs.addDimLinear(sview, pwtl.x , ptl.y + ddim_off, pwtr.x, ptr.y + ddim_off, ddim_ext * 3);
-		ocvs.addDimLinear(sview, pwtr.x , ptl.y + ddim_off, ptr.x, ptr.y + ddim_off, ddim_ext * 3);
+    ocvs.addDimLinear(sview, ptl.x , ptl.y + ddim_off, ptr.x, ptr.y + ddim_off, ddim_ext * 6);
+    ocvs.addDimLinear(sview, ptl.x , ptl.y + ddim_off, pwtl.x, ptl.y + ddim_off, ddim_ext * 3);
+    ocvs.addDimLinear(sview, pwtl.x , ptl.y + ddim_off, pwtr.x, ptr.y + ddim_off, ddim_ext * 3);
+    ocvs.addDimLinear(sview, pwtr.x , ptl.y + ddim_off, ptr.x, ptr.y + ddim_off, ddim_ext * 3);
 
-		ocvs.addDimLinear(sview, pbl.x , pbl.y - ddim_off, pbr.x, pbr.y - ddim_off, ddim_ext * -6);
-		ocvs.addDimLinear(sview, pbl.x , pbl.y - ddim_off, pwbl.x, pbl.y - ddim_off, ddim_ext * -3);
-		ocvs.addDimLinear(sview, pwbl.x , pbl.y - ddim_off, pwbr.x, pbr.y - ddim_off, ddim_ext * -3);
-		ocvs.addDimLinear(sview, pwbr.x , pbl.y - ddim_off, pbr.x, pbr.y - ddim_off, ddim_ext * -3);
-		
-		ocvs.addDimRadius(sview, fil_tr.ox, fil_tr.oy, fil_tr.r, -45);		
-		ocvs.addDimRadius(sview, fil_wtr.ox, fil_wtr.oy, fil_wtr.r, 135);		
-		ocvs.addDimRadius(sview, fil_wbr.ox, fil_wbr.oy, fil_wbr.r, 225);		
-		ocvs.addDimRadius(sview, fil_br.ox, fil_br.oy, fil_br.r, 45);		
+    ocvs.addDimLinear(sview, pbl.x , pbl.y - ddim_off, pbr.x, pbr.y - ddim_off, ddim_ext * -6);
+    ocvs.addDimLinear(sview, pbl.x , pbl.y - ddim_off, pwbl.x, pbl.y - ddim_off, ddim_ext * -3);
+    ocvs.addDimLinear(sview, pwbl.x , pbl.y - ddim_off, pwbr.x, pbr.y - ddim_off, ddim_ext * -3);
+    ocvs.addDimLinear(sview, pwbr.x , pbl.y - ddim_off, pbr.x, pbr.y - ddim_off, ddim_ext * -3);
+    
+    ocvs.addDimRadius(sview, fil_tr.ox, fil_tr.oy, fil_tr.r, -45);		
+    ocvs.addDimRadius(sview, fil_wtr.ox, fil_wtr.oy, fil_wtr.r, 135);		
+    ocvs.addDimRadius(sview, fil_wbr.ox, fil_wbr.oy, fil_wbr.r, 225);		
+    ocvs.addDimRadius(sview, fil_br.ox, fil_br.oy, fil_br.r, 45);		
 
-		if( ! dchb == 0 ){
-
-			ocvs.addDimLinear(sview, chf_br.xb + ddim_off, chf_br.ye , chf_br.xb + ddim_off, chf_br.yb, ddim_ext * -6);
-			
-		}
+    if( ! dchb == 0 ){
+        ocvs.addDimLinear(sview, chf_br.xb + ddim_off, chf_br.ye , chf_br.xb + ddim_off, chf_br.yb, ddim_ext * -6);
+    }
 	
 
-	/*
-	  draw canvas : Top
-	*/
-
+	/* draw canvas : Top */
 	dOx_top = 0									, dOy_top = dh * 3.0;
 
 	sview ='top';		
@@ -606,17 +482,16 @@ function fdraw_ibeam(){
 		odxf_ibeam.line( dOx_top + pwtr.x, dOy_top - dleng / 2, dOx_top + pwtr.x, dOy_top + dleng / 2, alayer[0] );
 
 
-		// dim line	
-		ocvs.addDimLinear(sview, ptl.x - ddim_off, - dleng / 2, ptl.x - ddim_off, dleng / 2, ddim_ext * 6);
-		
-		ocvs.addDimLinear(sview, ptl.x  , dleng / 2,  ptr.x, dleng / 2, ddim_ext * 6);
-		ocvs.addDimLinear(sview, ptl.x  , dleng / 2, pwtl.x, dleng / 2, ddim_ext * 3);
-		ocvs.addDimLinear(sview, pwtl.x , dleng / 2, pwtr.x, dleng / 2, ddim_ext * 3);
-		ocvs.addDimLinear(sview, pwtr.x , dleng / 2,  ptr.x, dleng / 2, ddim_ext * 3);
+    // dim line	
+    ocvs.addDimLinear(sview, ptl.x - ddim_off, - dleng / 2, ptl.x - ddim_off, dleng / 2, ddim_ext * 6);
+    
+    ocvs.addDimLinear(sview, ptl.x  , dleng / 2,  ptr.x, dleng / 2, ddim_ext * 6);
+    ocvs.addDimLinear(sview, ptl.x  , dleng / 2, pwtl.x, dleng / 2, ddim_ext * 3);
+    ocvs.addDimLinear(sview, pwtl.x , dleng / 2, pwtr.x, dleng / 2, ddim_ext * 3);
+    ocvs.addDimLinear(sview, pwtr.x , dleng / 2,  ptr.x, dleng / 2, ddim_ext * 3);
 
-	/*
-	  draw canvas : Bottom
-	*/
+
+	/* draw canvas : Bottom */
 	dOx_bot = Math.max(dbt, dbb, dleng) * 3		, dOy_bot = dh * 3.0;
 
 	sview ='bottom';		
@@ -635,9 +510,8 @@ function fdraw_ibeam(){
 	
 	// chamfer line
 	if( ! dchb == 0 ){
-		
 		ocvs.addLine(sview, chf_bl.xe, - dleng / 2, chf_bl.xe, + dleng / 2, alayer[0] );  
-		ocvs.addLine(sview, chf_br.xe, - dleng / 2, chf_br.xe, + dleng / 2, alayer[0] );  		
+		ocvs.addLine(sview, chf_br.xe, - dleng / 2, chf_br.xe, + dleng / 2, alayer[0] );   		
 			odxf_ibeam.line( dOx_bot + chf_bl.xe, dOy_bot - dleng / 2, dOx_bot + chf_bl.xe, dOy_bot + dleng / 2, alayer[0] );
 			odxf_ibeam.line( dOx_bot + chf_br.xe, dOy_bot - dleng / 2, dOx_bot + chf_br.xe, dOy_bot + dleng / 2, alayer[0] );
 	}
@@ -647,23 +521,20 @@ function fdraw_ibeam(){
 		odxf_ibeam.line( dOx_bot + pwbl.x, dOy_bot - dleng / 2, dOx_bot + pwbl.x, dOy_bot + dleng / 2, alayer[0] );
 		odxf_ibeam.line( dOx_bot + pwbr.x, dOy_bot - dleng / 2, dOx_bot + pwbr.x, dOy_bot + dleng / 2, alayer[0] );
 
-		// dim line	
-		ocvs.addDimLinear(sview, pbl.x - ddim_off, - dleng / 2, pbl.x - ddim_off, dleng / 2, ddim_ext * 6);
-	
-		ocvs.addDimLinear(sview,  pbl.x , dleng / 2,  pbr.x, dleng / 2, ddim_ext * 6);
-		ocvs.addDimLinear(sview,  pbl.x , dleng / 2, pwbl.x, dleng / 2, ddim_ext * 3);
-		ocvs.addDimLinear(sview, pwbl.x , dleng / 2, pwbr.x, dleng / 2, ddim_ext * 3);
-		ocvs.addDimLinear(sview, pwbr.x , dleng / 2,  pbr.x, dleng / 2, ddim_ext * 3);
-		
+    // dim line	
+    ocvs.addDimLinear(sview, pbl.x - ddim_off, - dleng / 2, pbl.x - ddim_off, dleng / 2, ddim_ext * 6);
+
+    ocvs.addDimLinear(sview,  pbl.x , dleng / 2,  pbr.x, dleng / 2, ddim_ext * 6);
+    ocvs.addDimLinear(sview,  pbl.x , dleng / 2, pwbl.x, dleng / 2, ddim_ext * 3);
+    ocvs.addDimLinear(sview, pwbl.x , dleng / 2, pwbr.x, dleng / 2, ddim_ext * 3);
+    ocvs.addDimLinear(sview, pwbr.x , dleng / 2,  pbr.x, dleng / 2, ddim_ext * 3);
+    
 	if( ! dchb == 0 ){
-		
 		ocvs.addDimLinear(sview, chf_br.xe , -dleng / 2, chf_br.xb, -dleng / 2, ddim_ext * -3);
-	
 	}
 
-	/*
-	  draw canvas : Side
-	*/
+
+	/* draw canvas : Side */
 	dOx_side = Math.max(dbt, dbb, dleng) * 3	, dOy_side = 0;
 
 	sview ='side';		
@@ -686,7 +557,6 @@ function fdraw_ibeam(){
 	
 	// chamfer line
 	if( ! dchb == 0 ){
-		
 		ocvs.addLine(sview, - dleng / 2, chf_bl.yb, dleng / 2, chf_br.yb, alayer[0] );  
 			odxf_ibeam.line( dOx_side - dleng / 2, dOy_side + chf_bl.yb, dOx_side + dleng / 2, dOy_side + chf_br.yb, alayer[0] );
 	}
@@ -696,27 +566,20 @@ function fdraw_ibeam(){
 		odxf_ibeam.line( dOx_side - dleng / 2, dOy_side + pbl.y, dOx_side - dleng / 2, dOy_side + ptl.y, alayer[0] );
 		odxf_ibeam.line( dOx_side + dleng / 2, dOy_side + pbl.y, dOx_side + dleng / 2, dOy_side + ptl.y, alayer[0] );
 	
-		// dim line	
-		ocvs.addDimLinear(sview, -dleng / 2 - ddim_off ,  pbl.y, -dleng / 2- ddim_off,  ptl.y, ddim_ext * 6);
-		ocvs.addDimLinear(sview, -dleng / 2 - ddim_off ,  pbl.y, -dleng / 2- ddim_off, pbfl.y, ddim_ext * 3);
-		ocvs.addDimLinear(sview, -dleng / 2 - ddim_off , pbfl.y, -dleng / 2- ddim_off, pwbl.y, ddim_ext * 3);
-		ocvs.addDimLinear(sview, -dleng / 2 - ddim_off , pwbl.y, -dleng / 2- ddim_off, pwtl.y, ddim_ext * 3);
-		ocvs.addDimLinear(sview, -dleng / 2 - ddim_off , pwtl.y, -dleng / 2- ddim_off, ptfl.y, ddim_ext * 3);
-		ocvs.addDimLinear(sview, -dleng / 2 - ddim_off , ptfl.y, -dleng / 2- ddim_off,  ptl.y, ddim_ext * 3);
+    // dim line	
+    ocvs.addDimLinear(sview, -dleng / 2 - ddim_off ,  pbl.y, -dleng / 2- ddim_off,  ptl.y, ddim_ext * 6);
+    ocvs.addDimLinear(sview, -dleng / 2 - ddim_off ,  pbl.y, -dleng / 2- ddim_off, pbfl.y, ddim_ext * 3);
+    ocvs.addDimLinear(sview, -dleng / 2 - ddim_off , pbfl.y, -dleng / 2- ddim_off, pwbl.y, ddim_ext * 3);
+    ocvs.addDimLinear(sview, -dleng / 2 - ddim_off , pwbl.y, -dleng / 2- ddim_off, pwtl.y, ddim_ext * 3);
+    ocvs.addDimLinear(sview, -dleng / 2 - ddim_off , pwtl.y, -dleng / 2- ddim_off, ptfl.y, ddim_ext * 3);
+    ocvs.addDimLinear(sview, -dleng / 2 - ddim_off , ptfl.y, -dleng / 2- ddim_off,  ptl.y, ddim_ext * 3);
 
-		if( ! dchb == 0 ){
+    if( ! dchb == 0 ){
+        ocvs.addDimLinear(sview, dleng / 2 + ddim_off, chf_br.ye , dleng / 2 + ddim_off, chf_br.yb, ddim_ext * -6);
+    }
+    
+    ocvs.addDimLinear(sview, -dleng / 2, ptl.y, dleng / 2, ptl.y, ddim_ext * 6);
 
-			ocvs.addDimLinear(sview, dleng / 2 + ddim_off, chf_br.ye , dleng / 2 + ddim_off, chf_br.yb, ddim_ext * -6);
-			
-		}
-		
-		ocvs.addDimLinear(sview, -dleng / 2, ptl.y, dleng / 2, ptl.y, ddim_ext * 6);
-       
-	/*
-	  draw canvas : Top
-	*/
+	// 렌더링
 	ocvs.render();
-	   
-
 }
-   
