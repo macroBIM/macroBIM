@@ -8,9 +8,6 @@ const scvs_lug  = "liftinglugplot";		// canvas name
 // ==========================================
 // Konva.js Viewer Wrapper (4분할 독립 Viewports & 정밀 동기화)
 // ==========================================
-// ==========================================
-// Konva.js Viewer Wrapper (4분할 독립 Viewports & 정밀 동기화)
-// ==========================================
 class KonvaViewer {
     constructor(containerId) {
         let container = document.getElementById(containerId);
@@ -46,7 +43,7 @@ class KonvaViewer {
                 ]);
             });
             layer.find('.dimtext').forEach(text => {
-                text.fontSize(9 / newScale); // ★ 글자 크기를 12 -> 9로 작게 수정
+                text.fontSize(12 / newScale); // ★ 글자 크기를 12 -> 9로 작게 수정
                 text.offsetX(text.width() / 2);
                 // ★ 버그 수정: textNode가 아니라 text 입니다! + 글자와 선 사이 간격 띄우기
                 text.offsetY(text.height() + (4 / newScale)); 
@@ -268,7 +265,7 @@ class KonvaViewer {
 
         let textNode = new Konva.Text({
             x: (tox1 + tox2)/2, y: (toy1 + toy2)/2, text: len.toFixed(1),
-            fontSize: 9 / scale, fill: 'red', fontFamily: 'Arial', // ★ 12 -> 9
+            fontSize: 12 / scale, fill: 'red', fontFamily: 'Arial', // ★ 12 -> 9
             align: 'center', name: 'dimtext'
         });
         textNode.rotation(angle);
@@ -305,7 +302,7 @@ class KonvaViewer {
 
         let textNode = new Konva.Text({
             x: (tx + tpx)/2, y: (ty + tpy)/2, text: 'R' + r.toFixed(1),
-            fontSize: 9 / scale, fill: 'red', fontFamily: 'Arial', // ★ 12 -> 9
+            fontSize: 12 / scale, fill: 'red', fontFamily: 'Arial', // ★ 12 -> 9
             align: 'center', name: 'dimtext'
         });
         textNode.rotation(textAngle);
