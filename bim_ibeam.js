@@ -82,7 +82,7 @@ function ibeam_click() {
     shtml += "                  <h6 class='mb-0 text-white'>DRAWING VIEW (Synchronized Zoom/Pan)</h6>";
     
     // ⭐ 폰트 굵기(bold) 제거 및 패딩/글자 크기를 줄여서 헤더 높이 유지
-    shtml += "                  <button class='btn btn-light' style='padding: 2px 8px; font-size: 12px; line-height: 1.5;' onclick='fdraw_boltsplice()'>";
+    shtml += "                  <button class='btn btn-light' style='padding: 2px 8px; font-size: 12px; line-height: 1.5;' onclick='fdraw_ibeam()'>";
     shtml += "                      <i class='fa fa-refresh'></i> REGEN";
     shtml += "                  </button>";
     shtml += "              </div>";
