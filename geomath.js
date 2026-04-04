@@ -31,6 +31,14 @@
         }
     };
 
+// 벡터 외적을 통해 회전 방향 판단
+function geo_rotation(p1, p2, p3) {
+  var crossProduct = (p2.x - p1.x) * (p3.y - p1.y) - (p2.y - p1.y) * (p3.x - p1.x);
+
+  if (crossProduct > 0) return -1; // 반시계방향 (CCW)
+  if (crossProduct < 0) return 1;  // 시계방향 (CW)
+  return 0;                        // 일직선 (Collinear)
+}
 
 
 // 두 점 사이의 거리 계산 (2D/3D 대응)
