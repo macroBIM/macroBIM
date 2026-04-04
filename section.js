@@ -1,7 +1,9 @@
-// section.js
+//
+// section.js  v000
+//
 
     // =========================================================================
-    //  2. DATA CLASSES (SectionBase 롤백, 태그 및 ID 유지)  v04
+    //  2. DATA CLASSES (SectionBase 롤백, 태그 및 ID 유지)
     // =========================================================================
     class SectionBase {
         constructor(cx, cy, params) { 
