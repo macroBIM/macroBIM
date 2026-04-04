@@ -1,12 +1,10 @@
 /*
-    L형 측구(L-Gutter) 작도를 위한 JS (KonvaViewer 적용) v000
+    L형 측구(L-Gutter) 작도를 위한 통합 JS (KonvaViewer 적용)
 */
 const odxf_lgutter  = dxf_generator();
-const scvs_lgutter  = "lgutterplot";      // canvas name
+const scvs_lgutter  = "lgutterplot";
 
 function lgutter_click() {
-
-    // 1. 사이드바(nav) 및 메인 콘텐츠(main) 레이아웃 조정
     const mainContent = document.getElementById('wrap_main');
 
     if (mainContent) {
@@ -16,8 +14,6 @@ function lgutter_click() {
     
     var omain = document.getElementById("wrap_main");   
     var shtml = "";
-    
-    // 뷰포트 높이 계산 (하단 여백 확보)
     let dynamicHeight = "calc(100vh - 100px)"; 
 
     shtml += "<div class='container-fluid px-4' style='height: " + dynamicHeight + "; margin-top: 10px; margin-bottom: 20px;'>";
@@ -36,17 +32,22 @@ function lgutter_click() {
     shtml += createTextInput('sUserText', 'BATCH INPUT (CSV)','', 'putParams_lgutter(\"sUserText\"); fdraw_lgutter();');
     shtml += createLabel('INPUT One by One');
     
-    // L형 측구 변수 입력
-    shtml += createRowInput('Total Width (W)', 'dW', 1000, 'fdraw_lgutter()');
-    shtml += createRowInput('Total Height (H)', 'dH', 1200, 'fdraw_lgutter()');
-    shtml += createRowInput('Wall Thickness (tw)', 'dtw', 200, 'fdraw_lgutter()');
-    shtml += createRowInput('Base Thickness (tf)', 'dtf', 200, 'fdraw_lgutter()');
+    // 9개의 마스터 변수 + 길이(L) 입력
+    shtml += createRowInput('Total Width (B)', 'dB', 1000, 'fdraw_lgutter()');
+    shtml += createRowInput('Total Height (H)', 'dH', 500, 'fdraw_lgutter()');
+    shtml += createRowInput('Base Front Thick (tf1)', 'dtf1', 200, 'fdraw_lgutter()');
+    shtml += createRowInput('Base Back Thick (tf2)', 'dtf2', 240, 'fdraw_lgutter()');
+    shtml += createRowInput('Wall Top Width (tw1)', 'dtw1', 150, 'fdraw_lgutter()');
+    shtml += createRowInput('Wall Bottom Width (tw2)', 'dtw2', 200, 'fdraw_lgutter()');
+    shtml += createRowInput('Wall Vert. Lip (hw)', 'dhw', 100, 'fdraw_lgutter()');
+    shtml += createRowInput('Corner Haunch (hc)', 'dhc', 0, 'fdraw_lgutter()');
+    shtml += createRowInput('Top Chamfer (cr)', 'dcr', 20, 'fdraw_lgutter()');
+    
     shtml += createRowInput('Gutter Length (L)', 'dseg_leng', 2000, 'fdraw_lgutter()');
     
     shtml += "                  </div>";
     shtml += "              </div>";
 
-    // card-footer (DXF 다운로드 버튼)
     shtml += "              <div class='card-footer bg-white border-top flex-shrink-0 p-2 align-items-center justify-content-center text-center'>";
     shtml += "                  <button class='btn btn-dark w-75 py-2 mb-0 shadow-sm' onclick='odxf_lgutter.download(\"L_Gutter.dxf\")'>";
     shtml += "                      DXF DOWNLOAD";
@@ -58,20 +59,15 @@ function lgutter_click() {
     // --- 오른쪽: 도면 뷰어 영역 ---
     shtml += "      <div class='col-lg-8 h-100'>";
     shtml += "          <div class='card shadow-sm h-100 d-flex flex-column' style='overflow: hidden;'>"; 
-    
-    // 헤더 정렬 및 슬림 REGEN 버튼 추가
     shtml += "              <div class='card-header bg-secondary flex-shrink-0 d-flex justify-content-between align-items-center'>";
     shtml += "                  <h6 class='mb-0 text-white'>DRAWING VIEW (Synchronized Zoom/Pan)</h6>";
     shtml += "                  <button class='btn btn-light' style='padding: 2px 8px; font-size: 12px; line-height: 1.5;' onclick='fdraw_lgutter()'>";
     shtml += "                      <i class='fa fa-refresh'></i> REGEN";
     shtml += "                  </button>";
     shtml += "              </div>";
-    
-    // 마우스 커서 속성(cursor: grab)
     shtml += "              <div class='card-body p-0 flex-grow-1' style='min-height: 0; position: relative;'>";
     shtml += "                  <div id='" + scvs_lgutter + "' style='position: absolute; top:0; left:0; width:100%; height:100%; background-color:#000; cursor: grab;'></div>";
     shtml += "              </div>";
-    
     shtml += "          </div>";
     shtml += "      </div>";
             
@@ -79,12 +75,9 @@ function lgutter_click() {
     shtml += "</div>";
  
     omain.innerHTML = shtml;
-
-    // 초기 드로잉 실행
     fdraw_lgutter();
 }
 
-// 파라미터 가져오기
 function getParams_lgutter() {
     const getValue = (id) => {
         const el = document.getElementById(id);
@@ -92,10 +85,8 @@ function getParams_lgutter() {
     };
 
     let aparam = {
-        dW: getValue('dW'), 
-        dH: getValue('dH'), 
-        dtw: getValue('dtw'),
-        dtf: getValue('dtf')
+        dB: getValue('dB'), dH: getValue('dH'), dtf1: getValue('dtf1'), dtf2: getValue('dtf2'),
+        dtw1: getValue('dtw1'), dtw2: getValue('dtw2'), dhw: getValue('dhw'), dhc: getValue('dhc'), dcr: getValue('dcr')
     };
     
     let dseg_leng = getValue('dseg_leng');
@@ -104,7 +95,6 @@ function getParams_lgutter() {
     return { aparam, dseg_leng, combText };
 }
 
-// 파라미터 적용하기
 function putParams_lgutter(textareaId) {
     const textarea = document.getElementById(textareaId);
     if (!textarea) return;
@@ -115,7 +105,7 @@ function putParams_lgutter(textareaId) {
     const values = lines[0].split(',');
     const dseg_leng = lines[1];
 
-    const keys = ['dW', 'dH', 'dtw', 'dtf'];
+    const keys = ['dB', 'dH', 'dtf1', 'dtf2', 'dtw1', 'dtw2', 'dhw', 'dhc', 'dcr'];
 
     keys.forEach((key, index) => {
         if (values[index] !== undefined) {
@@ -132,166 +122,154 @@ function putParams_lgutter(textareaId) {
     if (typeof fdraw_lgutter === 'function') fdraw_lgutter();
 }
 
-// Canvas에 도면을 그립니다.
-function fdraw_lgutter() {
+// 스마트 다각형 꼭짓점 생성 알고리즘 (Front View 용)
+function getLGutterPoints(B, H, tf1, tf2, tw1, tw2, hw, hc, cr) {
+    let pts = [];
+    pts.push({x: 0, y: 0});
+    pts.push({x: B, y: 0});
+    pts.push({x: B, y: H});
 
-    /* Load data */     
+    // 상부 모따기 (Chamfer)
+    if (cr > 0) {
+        pts.push({x: B - tw1 + cr, y: H});
+        pts.push({x: B - tw1, y: H - cr});
+    } else {
+        pts.push({x: B - tw1, y: H});
+    }
+
+    // 하부 헌치(hc)와 수직부(hw) 간섭 처리
+    if (hw > hc) {
+        pts.push({x: B - tw2, y: tf2 + hw});
+        if (hc > 0) {
+            pts.push({x: B - tw2, y: tf2 + hc});
+            let baseY = tf1 + (tf2 - tf1) * (B - tw2 - hc) / (B - tw2);
+            pts.push({x: B - tw2 - hc, y: baseY});
+        } else {
+            pts.push({x: B - tw2, y: tf2});
+        }
+    } else {
+        if (hc > 0) {
+            pts.push({x: B - tw2, y: tf2 + hc});
+            let baseY = tf1 + (tf2 - tf1) * (B - tw2 - hc) / (B - tw2);
+            pts.push({x: B - tw2 - hc, y: baseY});
+        } else {
+            pts.push({x: B - tw2, y: tf2});
+        }
+    }
+    
+    pts.push({x: 0, y: tf1});
+    return pts;
+}
+
+
+function fdraw_lgutter() {
     let auserdata = getParams_lgutter();
     let aparam = auserdata.aparam;
     let dleng = auserdata.dseg_leng;  
     
     let ouserTextArea = document.getElementById('sUserText');
-    if (ouserTextArea) {
-        ouserTextArea.value = auserdata.combText + "\n" + dleng;
-    }   
+    if (ouserTextArea) ouserTextArea.value = auserdata.combText + "\n" + dleng;
 
-    let { dW, dH, dtw, dtf } = aparam;
+    let { dB, dH, dtf1, dtf2, dtw1, dtw2, dhw, dhc, dcr } = aparam;
 
-    // 검증 로직: 두께가 전체 폭/높이보다 클 수 없음
-    if(dtw >= dW) dtw = dW / 2;
-    if(dtf >= dH) dtf = dH / 2;
-
-    /* KONVA CANVAS */      
     var ocvs = new KonvaViewer(scvs_lgutter);
-
-    // 레이어
     var alayer = ['lgutter_solid', 'lgutter_hidden', 'lgutter_center'];
     ocvs.addLayer(alayer[0], 'cyan', 'solid', 1.5);
     ocvs.addLayer(alayer[1], 'cyan', 'hidden', 1.5);
     ocvs.addLayer(alayer[2], 'red',  'solid', 1.5);
 
-    /* DXF Preparation */       
-    var ddim_ext = 20;
     var ddim_off = 20;
     
     odxf_lgutter.init();
     odxf_lgutter.layer("lgutter_solid", 4, "CONTINUOUS");
     odxf_lgutter.layer("lgutter_hidden", 4, "HIDDEN");
-    odxf_lgutter.layer("lgutter_cent", 1, "CENTER");
 
-    // 원점 세팅
     var dOx = 0, dOy = 0;
-    var dOx_side = dW * 2 + ddim_off*4, dOy_side = 0;
+    var dOx_side = dB * 2 + ddim_off*4, dOy_side = 0;
     var dOx_top = 0, dOy_top = Math.max(dH, dleng) * 2;
-    var dOx_bot = dW * 2 + ddim_off*4, dOy_bot = Math.max(dH, dleng) * 2;
+    var dOx_bot = dB * 2 + ddim_off*4, dOy_bot = Math.max(dH, dleng) * 2;
 
-    let dp1x, dp1y, dp2x, dp2y;
     let sview;
 
-    /* ----------------------------------------------------
-       1. FRONT VIEW (단면도)
-    -----------------------------------------------------*/
+    /* 1. FRONT VIEW (단면도) */
     sview = 'front';
-    
-    // 점 정의
-    let p0 = {x: 0, y: 0};
-    let p1 = {x: dW, y: 0};
-    let p2 = {x: dW, y: dtf};
-    let p3 = {x: dtw, y: dtf};
-    let p4 = {x: dtw, y: dH};
-    let p5 = {x: 0, y: dH};
+    let pts = getLGutterPoints(dB, dH, dtf1, dtf2, dtw1, dtw2, dhw, dhc, dcr);
 
-    // Konva 드로잉
-    ocvs.addLine(sview, p0.x, p0.y, p1.x, p1.y, alayer[0]);
-    ocvs.addLine(sview, p1.x, p1.y, p2.x, p2.y, alayer[0]);
-    ocvs.addLine(sview, p2.x, p2.y, p3.x, p3.y, alayer[0]);
-    ocvs.addLine(sview, p3.x, p3.y, p4.x, p4.y, alayer[0]);
-    ocvs.addLine(sview, p4.x, p4.y, p5.x, p5.y, alayer[0]);
-    ocvs.addLine(sview, p5.x, p5.y, p0.x, p0.y, alayer[0]);
-
-    // DXF 드로잉
-    odxf_lgutter.line(dOx + p0.x, dOy + p0.y, dOx + p1.x, dOy + p1.y, alayer[0]);
-    odxf_lgutter.line(dOx + p1.x, dOy + p1.y, dOx + p2.x, dOy + p2.y, alayer[0]);
-    odxf_lgutter.line(dOx + p2.x, dOy + p2.y, dOx + p3.x, dOy + p3.y, alayer[0]);
-    odxf_lgutter.line(dOx + p3.x, dOy + p3.y, dOx + p4.x, dOy + p4.y, alayer[0]);
-    odxf_lgutter.line(dOx + p4.x, dOy + p4.y, dOx + p5.x, dOy + p5.y, alayer[0]);
-    odxf_lgutter.line(dOx + p5.x, dOy + p5.y, dOx + p0.x, dOy + p0.y, alayer[0]);
+    // 폴리곤 점들을 순회하며 라인 그리기 (Konva & DXF 동시 작도)
+    for (let i = 0; i < pts.length; i++) {
+        let pA = pts[i];
+        let pB = pts[(i + 1) % pts.length];
+        ocvs.addLine(sview, pA.x, pA.y, pB.x, pB.y, alayer[0]);
+        odxf_lgutter.line(dOx + pA.x, dOy + pA.y, dOx + pB.x, dOy + pB.y, alayer[0]);
+    }
 
     // 치수선 (Front)
-    ocvs.addDimLinear(sview, p0.x, p0.y, p1.x, p1.y, -ddim_off*2); // 전체 폭 (W)
-    ocvs.addDimLinear(sview, p0.x, p5.y, p4.x, p4.y, ddim_off*2);  // 벽체 폭 (tw)
-    ocvs.addDimLinear(sview, p4.x, p4.y, p2.x, p4.y, ddim_off*2);  // 내부 폭 (W - tw)
-    
-    ocvs.addDimLinear(sview, p0.x, p0.y, p5.x, p5.y, ddim_off*2);  // 전체 높이 (H)
-    ocvs.addDimLinear(sview, p1.x, p1.y, p2.x, p2.y, -ddim_off*2); // 기초 두께 (tf)
-    ocvs.addDimLinear(sview, p2.x, p2.y, p2.x, pH = p4.y, -ddim_off*2); // 내부 높이 (H - tf)
+    ocvs.addDimLinear(sview, 0, 0, dB, 0, -ddim_off*3); 
+    ocvs.addDimLinear(sview, dB, dH, dB, 0, ddim_off*3); 
+    ocvs.addDimLinear(sview, dB - dtw1, dH, dB, dH, ddim_off*2);
+    ocvs.addDimLinear(sview, 0, 0, 0, dtf1, -ddim_off*2);
 
-    /* ----------------------------------------------------
-       2. TOP VIEW (평면도)
-    -----------------------------------------------------*/
+    /* 2. TOP VIEW (평면도) */
     sview = 'top';
-
-    // 외곽 박스
-    ocvs.addLine(sview, 0, 0, dleng, 0, alayer[0]);
-    ocvs.addLine(sview, dleng, 0, dleng, dW, alayer[0]);
-    ocvs.addLine(sview, dleng, dW, 0, dW, alayer[0]);
-    ocvs.addLine(sview, 0, dW, 0, 0, alayer[0]);
+    ocvs.addLine(sview, 0, 0, dB, 0, alayer[0]);
+    ocvs.addLine(sview, dB, 0, dB, dleng, alayer[0]);
+    ocvs.addLine(sview, dB, dleng, 0, dleng, alayer[0]);
+    ocvs.addLine(sview, 0, dleng, 0, 0, alayer[0]);
     
-    // 벽체 경계선 (위에서 봤을 때 보이는 실선)
-    ocvs.addLine(sview, 0, dW - dtw, dleng, dW - dtw, alayer[0]);
+    // 내부 엣지선들
+    ocvs.addLine(sview, dB - dtw1, 0, dB - dtw1, dleng, alayer[0]);
+    if (dcr > 0) ocvs.addLine(sview, dB - dtw1 + dcr, 0, dB - dtw1 + dcr, dleng, alayer[0]);
+    ocvs.addLine(sview, dB - dtw2, 0, dB - dtw2, dleng, alayer[0]);
+    if (dhc > 0) ocvs.addLine(sview, dB - dtw2 - dhc, 0, dB - dtw2 - dhc, dleng, alayer[0]);
 
-    // DXF 드로잉
-    odxf_lgutter.line(dOx_top + 0, dOy_top + 0, dOx_top + dleng, dOy_top + 0, alayer[0]);
-    odxf_lgutter.line(dOx_top + dleng, dOy_top + 0, dOx_top + dleng, dOy_top + dW, alayer[0]);
-    odxf_lgutter.line(dOx_top + dleng, dOy_top + dW, dOx_top + 0, dOy_top + dW, alayer[0]);
-    odxf_lgutter.line(dOx_top + 0, dOy_top + dW, dOx_top + 0, dOy_top + 0, alayer[0]);
-    odxf_lgutter.line(dOx_top + 0, dOy_top + dW - dtw, dOx_top + dleng, dOy_top + dW - dtw, alayer[0]);
+    odxf_lgutter.line(dOx_top, dOy_top, dOx_top + dB, dOy_top, alayer[0]);
+    odxf_lgutter.line(dOx_top + dB, dOy_top, dOx_top + dB, dOy_top + dleng, alayer[0]);
+    odxf_lgutter.line(dOx_top + dB, dOy_top + dleng, dOx_top, dOy_top + dleng, alayer[0]);
+    odxf_lgutter.line(dOx_top, dOy_top + dleng, dOx_top, dOy_top, alayer[0]);
+    odxf_lgutter.line(dOx_top + dB - dtw1, dOy_top, dOx_top + dB - dtw1, dOy_top + dleng, alayer[0]);
+    ocvs.addDimLinear(sview, 0, 0, dB, 0, -ddim_off*2); 
+    ocvs.addDimLinear(sview, dB, 0, dB, dleng, -ddim_off*2); 
 
-    // 치수선 (Top)
-    ocvs.addDimLinear(sview, 0, 0, dleng, 0, -ddim_off*2); // 길이 (L)
-    ocvs.addDimLinear(sview, dleng, 0, dleng, dW, -ddim_off*2); // 전체 폭 (W)
-
-    /* ----------------------------------------------------
-       3. BOTTOM VIEW (저면도)
-    -----------------------------------------------------*/
+    /* 3. BOTTOM VIEW (저면도) */
     sview = 'bottom';
-
-    // 외곽 박스
-    ocvs.addLine(sview, 0, 0, dleng, 0, alayer[0]);
-    ocvs.addLine(sview, dleng, 0, dleng, dW, alayer[0]);
-    ocvs.addLine(sview, dleng, dW, 0, dW, alayer[0]);
-    ocvs.addLine(sview, 0, dW, 0, 0, alayer[0]);
+    ocvs.addLine(sview, 0, 0, dB, 0, alayer[0]);
+    ocvs.addLine(sview, dB, 0, dB, dleng, alayer[0]);
+    ocvs.addLine(sview, dB, dleng, 0, dleng, alayer[0]);
+    ocvs.addLine(sview, 0, dleng, 0, 0, alayer[0]);
     
-    // 벽체 경계선 (바닥에서 봤을 땐 안보이므로 점선)
-    ocvs.addLine(sview, 0, dW - dtw, dleng, dW - dtw, alayer[1]); // Hidden Line
+    // 보이지 않는 점선(Hidden) 처리
+    ocvs.addLine(sview, dB - dtw2, 0, dB - dtw2, dleng, alayer[1]); 
 
-    // DXF 드로잉
-    odxf_lgutter.line(dOx_bot + 0, dOy_bot + 0, dOx_bot + dleng, dOy_bot + 0, alayer[0]);
-    odxf_lgutter.line(dOx_bot + dleng, dOy_bot + 0, dOx_bot + dleng, dOy_bot + dW, alayer[0]);
-    odxf_lgutter.line(dOx_bot + dleng, dOy_bot + dW, dOx_bot + 0, dOy_bot + dW, alayer[0]);
-    odxf_lgutter.line(dOx_bot + 0, dOy_bot + dW, dOx_bot + 0, dOy_bot + 0, alayer[0]);
-    odxf_lgutter.line(dOx_bot + 0, dOy_bot + dW - dtw, dOx_bot + dleng, dOy_bot + dW - dtw, alayer[1]); // Hidden
+    odxf_lgutter.line(dOx_bot, dOy_bot, dOx_bot + dB, dOy_bot, alayer[0]);
+    odxf_lgutter.line(dOx_bot + dB, dOy_bot, dOx_bot + dB, dOy_bot + dleng, alayer[0]);
+    odxf_lgutter.line(dOx_bot + dB, dOy_bot + dleng, dOx_bot, dOy_bot + dleng, alayer[0]);
+    odxf_lgutter.line(dOx_bot, dOy_bot + dleng, dOx_bot, dOy_bot, alayer[0]);
+    odxf_lgutter.line(dOx_bot + dB - dtw2, dOy_bot, dOx_bot + dB - dtw2, dOy_bot + dleng, alayer[1]);
 
-    // 치수선 (Bottom)
-    ocvs.addDimLinear(sview, 0, 0, dleng, 0, -ddim_off*2); // 길이 (L)
-    ocvs.addDimLinear(sview, dleng, 0, dleng, dW, -ddim_off*2); // 전체 폭 (W)
+    ocvs.addDimLinear(sview, 0, 0, dB, 0, -ddim_off*2);
+    ocvs.addDimLinear(sview, dB, 0, dB, dleng, -ddim_off*2);
 
-    /* ----------------------------------------------------
-       4. SIDE VIEW (측면도 - 세로방향 절단면)
-    -----------------------------------------------------*/
+    /* 4. SIDE VIEW (측면도) */
     sview = 'side';
-
-    // 외곽 박스 (L x H)
     ocvs.addLine(sview, 0, 0, dleng, 0, alayer[0]);
     ocvs.addLine(sview, dleng, 0, dleng, dH, alayer[0]);
     ocvs.addLine(sview, dleng, dH, 0, dH, alayer[0]);
     ocvs.addLine(sview, 0, dH, 0, 0, alayer[0]);
 
-    // 기초판(Base)의 두께선 (옆에서 보면 실선)
-    ocvs.addLine(sview, 0, dtf, dleng, dtf, alayer[0]);
+    // 측면에서 보이는 수평선들
+    ocvs.addLine(sview, 0, dtf1, dleng, dtf1, alayer[0]);
+    if(dtf1 !== dtf2) ocvs.addLine(sview, 0, dtf2, dleng, dtf2, alayer[0]);
+    if(dhw > 0) ocvs.addLine(sview, 0, dtf2 + dhw, dleng, dtf2 + dhw, alayer[0]);
+    if(dcr > 0) ocvs.addLine(sview, 0, dH - dcr, dleng, dH - dcr, alayer[0]);
 
-    // DXF 드로잉
-    odxf_lgutter.line(dOx_side + 0, dOy_side + 0, dOx_side + dleng, dOy_side + 0, alayer[0]);
-    odxf_lgutter.line(dOx_side + dleng, dOy_side + 0, dOx_side + dleng, dOy_side + dH, alayer[0]);
-    odxf_lgutter.line(dOx_side + dleng, dOy_side + dH, dOx_side + 0, dOy_side + dH, alayer[0]);
-    odxf_lgutter.line(dOx_side + 0, dOy_side + dH, dOx_side + 0, dOy_side + 0, alayer[0]);
-    odxf_lgutter.line(dOx_side + 0, dOy_side + dtf, dOx_side + dleng, dOy_side + dtf, alayer[0]);
+    odxf_lgutter.line(dOx_side, dOy_side, dOx_side + dleng, dOy_side, alayer[0]);
+    odxf_lgutter.line(dOx_side + dleng, dOy_side, dOx_side + dleng, dOy_side + dH, alayer[0]);
+    odxf_lgutter.line(dOx_side + dleng, dOy_side + dH, dOx_side, dOy_side + dH, alayer[0]);
+    odxf_lgutter.line(dOx_side, dOy_side + dH, dOx_side, dOy_side, alayer[0]);
+    odxf_lgutter.line(dOx_side, dOy_side + dtf1, dOx_side + dleng, dOy_side + dtf1, alayer[0]);
 
-    // 치수선 (Side)
-    ocvs.addDimLinear(sview, 0, 0, dleng, 0, -ddim_off*2); // 길이 (L)
-    ocvs.addDimLinear(sview, dleng, 0, dleng, dH, -ddim_off*2); // 전체 높이 (H)
-    ocvs.addDimLinear(sview, 0, 0, 0, dtf, ddim_off*2); // 기초 두께 (tf)
+    ocvs.addDimLinear(sview, 0, 0, dleng, 0, -ddim_off*2); 
+    ocvs.addDimLinear(sview, dleng, 0, dleng, dH, -ddim_off*2); 
 
-    // 렌더링
     ocvs.render();
 }
