@@ -1,16 +1,12 @@
 /*
-  LIFTGING LUG를 위한 JS  v000 (Konva.js 버전)
-*/
-
-/*
-  LIFTGING LUG를 위한 JS  v000 (Konva.js 4분할 독립 화면 버전)
+  LIFTGING LUG를 위한 JS  v000 (Konva.js 4분할 완벽 동기화 버전)
 */
 
 const odxf_lug 	= dxf_generator();
 const scvs_lug  = "liftinglugplot";		// canvas name
 
 // ==========================================
-// Konva.js Viewer Wrapper (4분할 독립 Viewports)
+// Konva.js Viewer Wrapper (4분할 독립 Viewports & 동기화)
 // ==========================================
 class KonvaViewer {
     constructor(containerId) {
@@ -28,11 +24,64 @@ class KonvaViewer {
         this.layers = {};
         this.styles = {};
 
-        // 4개의 뷰를 각각 독립된 Stage로 생성
         const views = ['front', 'side', 'top', 'bottom'];
         
+        // 동기화 함수 (Pan & Zoom 상태를 다른 Viewport에 전파)
+        const syncStages = (sourceView) => {
+            const src = this.stages[sourceView];
+            const srcPos = src.position();
+            const srcScale = src.scaleX();
+
+            views.forEach(view => {
+                if (view === sourceView) return;
+                
+                const target = this.stages[view];
+                const oldScale = target.scaleX();
+                
+                let targetX = target.x();
+                let targetY = target.y();
+
+                // X축 동기화 그룹 (Front, Top, Bottom)
+                let syncX = ['front', 'top', 'bottom'].includes(sourceView) && ['front', 'top', 'bottom'].includes(view);
+                // Y축 동기화 그룹 (Front, Side)
+                let syncY = ['front', 'side'].includes(sourceView) && ['front', 'side'].includes(view);
+
+                if (syncX) {
+                    targetX = srcPos.x;
+                } else {
+                    // 비동기화 축은 해당 화면의 '정중앙'을 기준으로 Zoom in/out 되도록 보정
+                    let cw = target.width() / 2;
+                    let logicalX = (cw - targetX) / oldScale;
+                    targetX = cw - logicalX * srcScale;
+                }
+
+                if (syncY) {
+                    targetY = srcPos.y;
+                } else {
+                    let ch = target.height() / 2;
+                    let logicalY = (ch - targetY) / oldScale;
+                    targetY = ch - logicalY * srcScale;
+                }
+
+                target.scale({ x: srcScale, y: srcScale });
+                target.position({ x: targetX, y: targetY });
+
+                // 스케일 변경에 따른 선 굵기/텍스트 크기 역보정
+                this.layers[view].find('.shape').forEach(shape => {
+                    shape.strokeWidth(shape.getAttr('baseStrokeWidth') / srcScale);
+                });
+                this.layers[view].find('.dimtext').forEach(text => {
+                    text.fontSize(text.getAttr('baseFontSize') / srcScale);
+                    text.offsetX(text.width() / 2);
+                    text.offsetY(text.height() / 2);
+                });
+
+                target.batchDraw();
+            });
+        };
+
+        // 4개의 뷰 생성
         views.forEach(view => {
-            // 각 뷰를 담을 래퍼(Wrapper)
             const wrapper = document.createElement('div');
             wrapper.style.position = 'relative';
             wrapper.style.width = '100%';
@@ -41,7 +90,6 @@ class KonvaViewer {
             wrapper.style.overflow = 'hidden';
             container.appendChild(wrapper);
 
-            // 뷰 타이틀 라벨 표시 (좌측 상단)
             const label = document.createElement('div');
             label.innerText = view.toUpperCase() + ' VIEW';
             label.style.position = 'absolute';
@@ -50,11 +98,10 @@ class KonvaViewer {
             label.style.color = '#888';
             label.style.fontSize = '12px';
             label.style.fontWeight = 'bold';
-            label.style.pointerEvents = 'none'; // 드래그 방해 안 되게
+            label.style.pointerEvents = 'none';
             label.style.zIndex = '10';
             wrapper.appendChild(label);
 
-            // Konva 캔버스가 들어갈 div
             const div = document.createElement('div');
             div.id = `${containerId}_${view}`;
             div.style.width = '100%';
@@ -65,7 +112,7 @@ class KonvaViewer {
                 container: div.id,
                 width: div.clientWidth,
                 height: div.clientHeight,
-                draggable: true // Pan (드래그) 활성화
+                draggable: true
             });
             const layer = new Konva.Layer();
             stage.add(layer);
@@ -73,7 +120,12 @@ class KonvaViewer {
             this.stages[view] = stage;
             this.layers[view] = layer;
 
-            // Zoom (마우스 휠) 이벤트 독립 처리
+            // 드래그(Pan) 이벤트 연동
+            stage.on('dragmove', () => {
+                syncStages(view);
+            });
+
+            // 휠(Zoom) 이벤트 연동
             const scaleBy = 1.1;
             stage.on('wheel', (e) => {
                 e.evt.preventDefault();
@@ -96,7 +148,6 @@ class KonvaViewer {
                 };
                 stage.position(newPos);
                 
-                // ★ Zoom을 해도 선 굵기와 텍스트 크기가 일정하도록 역보정 처리
                 layer.find('.shape').forEach(shape => {
                     shape.strokeWidth(shape.getAttr('baseStrokeWidth') / newScale);
                 });
@@ -107,6 +158,7 @@ class KonvaViewer {
                 });
                 
                 stage.batchDraw();
+                syncStages(view); // 줌 변경사항 타 화면으로 전파
             });
         });
 
@@ -130,8 +182,6 @@ class KonvaViewer {
     }
 
     _getStyle(name) { return this.styles[name] || { stroke: 'white', dash: [], width: 1 }; }
-    
-    // 4분할 독립 좌표계이므로 오프셋 필요 없이 Y축 방향만 변환(Canvas는 아래가 +, CAD는 위가 +)
     _transformX(x) { return x; }
     _transformY(y) { return -y; } 
 
@@ -183,7 +233,6 @@ class KonvaViewer {
         let dx = x2 - x1; let dy = y2 - y1; let len = Math.sqrt(dx*dx + dy*dy); if(len === 0) return;
         let nx = -dy / len; let ny = dx / len;
         
-        // CAD 좌표계 기준 Normal 적용 후 Canvas 좌표계로 변환
         let tox1 = this._transformX(x1 + nx * gap); let toy1 = this._transformY(y1 + ny * gap);
         let tox2 = this._transformX(x2 + nx * gap); let toy2 = this._transformY(y2 + ny * gap);
         let tx1 = this._transformX(x1); let ty1 = this._transformY(y1);
@@ -226,40 +275,52 @@ class KonvaViewer {
     }
 
     render() {
+        // 1. 모든 뷰를 포괄할 수 있는 최적의 동일 Scale 계산
+        let minScale = Infinity;
+        let boxes = {};
+        Object.keys(this.stages).forEach(view => {
+            let box = this.layers[view].getClientRect({ skipTransform: true });
+            boxes[view] = box;
+            if (box.width > 0 && box.height > 0) {
+                let padding = 30;
+                let scaleX = this.stages[view].width() / (box.width + padding * 2);
+                let scaleY = this.stages[view].height() / (box.height + padding * 2);
+                minScale = Math.min(minScale, scaleX, scaleY);
+            }
+        });
+        if (minScale === Infinity) minScale = 1;
+
+        // 2. 전체 공통 스케일 적용 및 개별 센터링
         Object.keys(this.stages).forEach(view => {
             let stage = this.stages[view];
-            let layer = this.layers[view];
-            
-            let box = layer.getClientRect({ skipTransform: true });
-            if (box.width > 0 && box.height > 0) {
-                let padding = 30; // 여백 약간 축소
-                let scaleX = stage.width() / (box.width + padding * 2);
-                let scaleY = stage.height() / (box.height + padding * 2);
-                let scale = Math.min(scaleX, scaleY);
-                
-                // 각 뷰별로 중앙 맞춤 및 자동 스케일 (독립적)
-                stage.scale({x: scale, y: scale});
-                stage.position({
-                    x: stage.width() / 2 - (box.x + box.width / 2) * scale,
-                    y: stage.height() / 2 - (box.y + box.height / 2) * scale
-                });
+            let box = boxes[view];
+            stage.scale({x: minScale, y: minScale});
+            stage.position({
+                x: stage.width() / 2 - (box.x + box.width / 2) * minScale,
+                y: stage.height() / 2 - (box.y + box.height / 2) * minScale
+            });
+        });
 
-                // 스케일 적용에 따른 선 굵기/텍스트 크기 보정
-                layer.find('.shape').forEach(shape => { shape.strokeWidth(shape.getAttr('baseStrokeWidth') / scale); });
-                layer.find('.dimtext').forEach(text => { 
-                    text.fontSize(text.getAttr('baseFontSize') / scale);
-                    text.offsetX(text.width()/2); text.offsetY(text.height()/2);
-                });
-            }
-            stage.batchDraw();
+        // 3. 축 정렬 보정 (Front를 기준으로 강제 동기화)
+        let fPos = this.stages['front'].position();
+        this.stages['top'].x(fPos.x);
+        this.stages['bottom'].x(fPos.x);
+        this.stages['side'].y(fPos.y);
+
+        // 4. 스케일에 따른 선 굵기/텍스트 보정 후 렌더링
+        Object.keys(this.stages).forEach(view => {
+            let layer = this.layers[view];
+            layer.find('.shape').forEach(shape => { shape.strokeWidth(shape.getAttr('baseStrokeWidth') / minScale); });
+            layer.find('.dimtext').forEach(text => { 
+                text.fontSize(text.getAttr('baseFontSize') / minScale);
+                text.offsetX(text.width()/2); text.offsetY(text.height()/2);
+            });
+            this.stages[view].batchDraw();
         });
     }
 }
 // ==========================================
 
-
-// 이후 UI 생성 코드 (liftinglug_click, getParams, putParams 등)는 이전 답변과 동일합니다.
-// fdraw_liftinglug() 함수에서 ocvs.setViews() 호출부만 삭제하면 정상 작동합니다.
 
 function liftinglug_click() {
     const mainContent = document.getElementById('wrap_main');
@@ -311,7 +372,7 @@ function liftinglug_click() {
     shtml += "      <div class='col-lg-8 h-100'>";
     shtml += "          <div class='card shadow-sm h-100 d-flex flex-column' style='overflow: hidden;'>";
     shtml += "              <div class='card-header bg-secondary flex-shrink-0'>";
-    shtml += "                  <h6 class='mb-0 text-white'>DRAWING VIEW (4 Views - Independent Zoom/Pan)</h6>";
+    shtml += "                  <h6 class='mb-0 text-white'>DRAWING VIEW (Synchronized Zoom/Pan)</h6>";
     shtml += "              </div>";
     shtml += "              <div class='card-body p-0 flex-grow-1' style='min-height: 0; position: relative;'>";
     shtml += "                  <div id='" + scvs_lug + "' style='position: absolute; top:0; left:0; width:100%; height:100%; background-color:#000; cursor: grab;'></div>";
@@ -386,7 +447,7 @@ function fdraw_liftinglug() {
     }
     document.getElementById('padeyeT').min = lugT;
 
-    /* --- 좌표 계산 (수정 없음) --- */		
+    /* --- 좌표 계산 --- */		
     var dRx = 0; var dRy = ( lugH - outerR ) ;
     var dTxl, dTyl, dTxr, dTyr, darcb, darce;
     var dPbaselx = -lugW / 2, dPbasely = 0;
@@ -417,8 +478,7 @@ function fdraw_liftinglug() {
     }
     darcb = darcb * 180 / Math.PI; darce = darce * 180 / Math.PI;
 
-
-    /* --- KONVA 4분할 화면 드로잉 적용 --- */		
+    /* --- KONVA 드로잉 적용 --- */		
     var ocvs = new KonvaViewer(scvs_lug);
     
     ocvs.addLayer('lug_outline', 'cyan', 'solid', 2);
@@ -426,9 +486,6 @@ function fdraw_liftinglug() {
     ocvs.addLayer('padeye_outline', '#00ff00', 'solid', 2);
     ocvs.addLayer('padeye_hidden', '#00ff00', 'hidden', 1.5);
     ocvs.addLayer('lug_center', 'red', 'solid', 2);
-
-    // [FRONT, SIDE, TOP, BOTTOM 드로잉 코드 완전 동일 (이전 코드 재사용)]
-    // 각 뷰별로 독립된 좌표계에 알아서 그려짐
 
     //** front view **
     ocvs.addCircle('front', dRx, dRy, innerR, 'lug_outline');
@@ -509,10 +566,9 @@ function fdraw_liftinglug() {
     ocvs.addDimLinear('bottom',  -lugW/2,   -padeyeT/ 2,  -lugW/2, padeyeT / 2, dDimgap);
     ocvs.addDimLinear('bottom',   lugW/2,   -lugT/ 2,   lugW/2, lugT / 2, -dDimgap);
     
-    // 4개 분할 창에 각각 오토 스케일 및 센터링 적용
     ocvs.render();
 
-    /* --- DXF Preparation (기존 로직 유지) --- */		
+    /* --- DXF Preparation (원본과 완전히 동일) --- */
     var dDim_ext = 20;
     odxf_lug.init();
     odxf_lug.layer("lug_cent", 1, "CENTER");
@@ -565,7 +621,7 @@ function fdraw_liftinglug() {
     dp1x = dOx_top - padeyeR, dp1y = dOy_top - padeyeT/2; dp2x = dOx_top - padeyeR, dp2y = dOy_top - lugT/2; odxf_lug.line(dp1x, dp1y, dp2x, dp2y, "padeye");			
     dp1x = dOx_top - padeyeR, dp1y = dOy_top + padeyeT/2; dp2x = dOx_top - padeyeR, dp2y = dOy_top + lugT/2; odxf_lug.line(dp1x, dp1y, dp2x, dp2y, "padeye");			
     dp1x = dOx_top + padeyeR, dp1y = dOy_top - padeyeT/2; dp2x = dOx_top + padeyeR, dp2y = dOy_top - lugT/2; odxf_lug.line(dp1x, dp1y, dp2x, dp2y, "padeye");			
-    dp1x = dOx_top + padeyeR, dp1y = dOy_top + padeyeT/2; dp2x = dOx_top + padeyeR, dp2y = dOy_top + lugT/2; odxf_lug.line(dp1x, dp1y, dp2x, dp2y, "padeye");			
+    dp1x = dOx_top + padeyeR, dp1y = dOy_top + padeyeT/2; dp2x = dOx_top + padeyeR, dp2y = dOy_top + padeyeT/2; odxf_lug.line(dp1x, dp1y, dp2x, dp2y, "padeye");			
     dp1x = dOx_top - innerR, dp1y = dOy_top - padeyeT/2; dp2x = dOx_top - innerR, dp2y = dOy_top + padeyeT/2; odxf_lug.line(dp1x, dp1y, dp2x, dp2y, "lug_hidden");			
     dp1x = dOx_top + innerR, dp1y = dOy_top - padeyeT/2; dp2x = dOx_top + innerR, dp2y = dOy_top + padeyeT/2; odxf_lug.line(dp1x, dp1y, dp2x, dp2y, "lug_hidden");			
     dp1x = dOx_top, dp1y = dOy_top - padeyeT/2 - dDim_ext; dp2x = dOx_top, dp2y = dOy_top + padeyeT/2 + dDim_ext; odxf_lug.line(dp1x, dp1y, dp2x, dp2y, "lug_cent");			
