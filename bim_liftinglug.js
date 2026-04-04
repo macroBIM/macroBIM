@@ -45,7 +45,7 @@ class KonvaViewer {
             layer.find('.dimtext').forEach(text => {
                 text.fontSize(12 / newScale);
                 text.offsetX(text.width() / 2);
-                text.offsetY(textNode.height() + (5 / scale));
+                text.offsetY(textNode.height() * 0.9);
             });
         };
         
@@ -271,7 +271,7 @@ class KonvaViewer {
         });
         textNode.rotation(angle);
         textNode.offsetX(textNode.width()/2);
-        textNode.offsetY(textNode.height() + (5 / scale));
+        textNode.offsetY(textNode.height() * 0.9);
         group.add(textNode);
 
         this.layers[view].add(group);
@@ -307,7 +307,7 @@ class KonvaViewer {
         });
         textNode.rotation(textAngle);
         textNode.offsetX(textNode.width()/2);
-        textNode.offsetY(textNode.height() + (5 / scale));
+        textNode.offsetY(textNode.height() * 0.9);
         group.add(textNode);
 
         this.layers[view].add(group);
