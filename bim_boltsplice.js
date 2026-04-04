@@ -88,9 +88,14 @@ function boltsplice_click() {
     // --- 오른쪽: 도면 뷰어 영역 ---
     shtml += "      <div class='col-lg-8 h-100'>";
     shtml += "          <div class='card shadow-sm h-100 d-flex flex-column' style='overflow: hidden;'>"; 
-    shtml += "              <div class='card-header bg-secondary flex-shrink-0'>";
-    // ★ 타이틀 변경
+	// 헤더에 d-flex와 justify-content-between을 주어 텍스트는 왼쪽, 버튼은 오른쪽에 배치합니다.
+    shtml += "              <div class='card-header bg-secondary flex-shrink-0 d-flex justify-content-between align-items-center'>";
     shtml += "                  <h6 class='mb-0 text-white'>DRAWING VIEW (Synchronized Zoom/Pan)</h6>";
+    
+    // 클릭 시 fdraw_boltsplice()를 호출하여 도면을 재생성하고 초기 줌으로 되돌립니다.
+    shtml += "                  <button class='btn btn-sm btn-light' style='font-weight:bold;' onclick='fdraw_boltsplice()'>";
+    shtml += "                      <i class='fa fa-refresh'></i> REGEN";
+    shtml += "                  </button>";
     shtml += "              </div>";
     
     // ★ 마우스 커서 속성(cursor: grab) 추가
