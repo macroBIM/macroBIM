@@ -1,5 +1,5 @@
 /*
-  LIFTGING LUG를 위한 JS  v000 (Konva.js 치수선 Arrow 적용 및 4분할 동기화)
+  LIFTGING LUG를 위한 JS  v000 (Konva.js 치수선 Arrow 적용 및 4분할 동기화 & DXF 버그 수정)
 */
 
 const odxf_lug 	= dxf_generator();
@@ -311,7 +311,10 @@ function fdraw_liftinglug() {
     dp1x = dOx_top - padeyeR, dp1y = dOy_top - padeyeT/2; dp2x = dOx_top - padeyeR, dp2y = dOy_top - lugT/2; odxf_lug.line(dp1x, dp1y, dp2x, dp2y, "padeye");			
     dp1x = dOx_top - padeyeR, dp1y = dOy_top + padeyeT/2; dp2x = dOx_top - padeyeR, dp2y = dOy_top + lugT/2; odxf_lug.line(dp1x, dp1y, dp2x, dp2y, "padeye");			
     dp1x = dOx_top + padeyeR, dp1y = dOy_top - padeyeT/2; dp2x = dOx_top + padeyeR, dp2y = dOy_top - lugT/2; odxf_lug.line(dp1x, dp1y, dp2x, dp2y, "padeye");			
-    dp1x = dOx_top + padeyeR, dp1y = dOy_top + padeyeT/2; dp2x = dOx_top + padeyeR, dp2y = dOy_top + padeyeT/2; odxf_lug.line(dp1x, dp1y, dp2x, dp2y, "padeye");			
+    
+    // ⭐ [DXF 버그 수정] dp2y 값이 dOy_top + padeyeT/2 로 잘못되어 있던 부분을 lugT/2 로 수정
+    dp1x = dOx_top + padeyeR, dp1y = dOy_top + padeyeT/2; dp2x = dOx_top + padeyeR, dp2y = dOy_top + lugT/2; odxf_lug.line(dp1x, dp1y, dp2x, dp2y, "padeye");			
+    
     dp1x = dOx_top - innerR, dp1y = dOy_top - padeyeT/2; dp2x = dOx_top - innerR, dp2y = dOy_top + padeyeT/2; odxf_lug.line(dp1x, dp1y, dp2x, dp2y, "lug_hidden");			
     dp1x = dOx_top + innerR, dp1y = dOy_top - padeyeT/2; dp2x = dOx_top + innerR, dp2y = dOy_top + padeyeT/2; odxf_lug.line(dp1x, dp1y, dp2x, dp2y, "lug_hidden");			
     dp1x = dOx_top, dp1y = dOy_top - padeyeT/2 - dDim_ext; dp2x = dOx_top, dp2y = dOy_top + padeyeT/2 + dDim_ext; odxf_lug.line(dp1x, dp1y, dp2x, dp2y, "lug_cent");			
@@ -327,7 +330,10 @@ function fdraw_liftinglug() {
     dp1x = dOx_bot - padeyeR, dp1y = dOy_bot - padeyeT/2; dp2x = dOx_bot - padeyeR, dp2y = dOy_bot - lugT/2; odxf_lug.line(dp1x, dp1y, dp2x, dp2y, "padeye");			
     dp1x = dOx_bot - padeyeR, dp1y = dOy_bot + padeyeT/2; dp2x = dOx_bot - padeyeR, dp2y = dOy_bot + lugT/2; odxf_lug.line(dp1x, dp1y, dp2x, dp2y, "padeye");			
     dp1x = dOx_bot + padeyeR, dp1y = dOy_bot - padeyeT/2; dp2x = dOx_bot + padeyeR, dp2y = dOy_bot - lugT/2; odxf_lug.line(dp1x, dp1y, dp2x, dp2y, "padeye");			
-    dp1x = dOx_bot + padeyeR, dp1y = dOy_bot + padeyeT/2; dp2x = dOx_bot + padeyeR, dp2y = dOy_bot + padeyeT/2; odxf_lug.line(dp1x, dp1y, dp2x, dp2y, "padeye");			
+    
+    // ⭐ [DXF 버그 수정] dp2y 값이 dOy_bot + padeyeT/2 로 잘못되어 있던 부분을 lugT/2 로 수정
+    dp1x = dOx_bot + padeyeR, dp1y = dOy_bot + padeyeT/2; dp2x = dOx_bot + padeyeR, dp2y = dOy_bot + lugT/2; odxf_lug.line(dp1x, dp1y, dp2x, dp2y, "padeye");			
+    
     dp1x = dOx_bot - innerR, dp1y = dOy_bot - padeyeT/2; dp2x = dOx_bot - innerR, dp2y = dOy_bot + padeyeT/2; odxf_lug.line(dp1x, dp1y, dp2x, dp2y, "lug_hidden");			
     dp1x = dOx_bot + innerR, dp1y = dOy_bot - padeyeT/2; dp2x = dOx_bot + innerR, dp2y = dOy_bot + padeyeT/2; odxf_lug.line(dp1x, dp1y, dp2x, dp2y, "lug_hidden");			
     dp1x = dOx_bot, dp1y = dOy_bot - padeyeT/2 - dDim_ext; dp2x = dOx_bot, dp2y = dOy_bot + padeyeT/2 + dDim_ext; odxf_lug.line(dp1x, dp1y, dp2x, dp2y, "lug_cent");			
