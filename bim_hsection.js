@@ -61,11 +61,16 @@ function hsection_click() {
     // --- 오른쪽: 도면 뷰어 영역 ---
     shtml += "      <div class='col-lg-8 h-100'>";
     shtml += "          <div class='card shadow-sm h-100 d-flex flex-column' style='overflow: hidden;'>"; 
-    shtml += "              <div class='card-header bg-secondary flex-shrink-0'>";
-    // ★ 타이틀 변경
+	// 헤더 정렬 유지
+    shtml += "              <div class='card-header bg-secondary flex-shrink-0 d-flex justify-content-between align-items-center'>";
     shtml += "                  <h6 class='mb-0 text-white'>DRAWING VIEW (Synchronized Zoom/Pan)</h6>";
-    shtml += "              </div>";
     
+    // ⭐ 폰트 굵기(bold) 제거 및 패딩/글자 크기를 줄여서 헤더 높이 유지
+    shtml += "                  <button class='btn btn-light' style='padding: 2px 8px; font-size: 12px; line-height: 1.5;' onclick='fdraw_hsection()'>";
+    shtml += "                      <i class='fa fa-refresh'></i> REGEN";
+    shtml += "                  </button>";
+    shtml += "              </div>";
+	
     // ★ 마우스 커서 속성(cursor: grab) 추가
     shtml += "              <div class='card-body p-0 flex-grow-1' style='min-height: 0; position: relative;'>";
     shtml += "                  <div id='" + scvs_hsec + "' style='position: absolute; top:0; left:0; width:100%; height:100%; background-color:#000; cursor: grab;'></div>";
