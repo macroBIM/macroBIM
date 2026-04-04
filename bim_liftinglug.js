@@ -1,24 +1,24 @@
 /*
-  LIFTGING LUG를 위한 JS  v000 (Konva.js 4분할 완벽 동기화 버전)
+  LIFTGING LUG를 위한 JS  v000 (Konva.js 4분할 완벽 동기화 버전 - Top/Bottom 전체 동기화)
 */
 
 const odxf_lug 	= dxf_generator();
 const scvs_lug  = "liftinglugplot";		// canvas name
 
 // ==========================================
-// Konva.js Viewer Wrapper (4분할 독립 Viewports & 동기화)
+// Konva.js Viewer Wrapper (4분할 독립 Viewports & 정밀 동기화)
 // ==========================================
 class KonvaViewer {
     constructor(containerId) {
         let container = document.getElementById(containerId);
-        container.innerHTML = ""; // 기존 내용 초기화
+        container.innerHTML = ""; 
         
         // CSS Grid를 활용하여 4분할 레이아웃 생성
         container.style.display = 'grid';
         container.style.gridTemplateColumns = '1fr 1fr';
         container.style.gridTemplateRows = '1fr 1fr';
         container.style.gap = '2px';
-        container.style.backgroundColor = '#444'; // 구분선 역할 색상
+        container.style.backgroundColor = '#444';
 
         this.stages = {};
         this.layers = {};
@@ -41,10 +41,14 @@ class KonvaViewer {
                 let targetX = target.x();
                 let targetY = target.y();
 
-                // X축 동기화 그룹 (Front, Top, Bottom)
+                // 1. X축 동기화 그룹: Front, Top, Bottom은 좌우로 같이 움직임
                 let syncX = ['front', 'top', 'bottom'].includes(sourceView) && ['front', 'top', 'bottom'].includes(view);
-                // Y축 동기화 그룹 (Front, Side)
-                let syncY = ['front', 'side'].includes(sourceView) && ['front', 'side'].includes(view);
+                
+                // 2. Y축 동기화 그룹: 
+                // - Front와 Side는 위아래로 같이 움직임
+                // - Top과 Bottom은 위아래로 같이 움직임
+                let syncY = (['front', 'side'].includes(sourceView) && ['front', 'side'].includes(view)) ||
+                            (['top', 'bottom'].includes(sourceView) && ['top', 'bottom'].includes(view));
 
                 if (syncX) {
                     targetX = srcPos.x;
@@ -301,11 +305,15 @@ class KonvaViewer {
             });
         });
 
-        // 3. 축 정렬 보정 (Front를 기준으로 강제 동기화)
+        // 3. 축 정렬 보정 (초기 렌더링 시 완벽한 동기화를 위한 정렬)
         let fPos = this.stages['front'].position();
-        this.stages['top'].x(fPos.x);
-        this.stages['bottom'].x(fPos.x);
-        this.stages['side'].y(fPos.y);
+        this.stages['side'].y(fPos.y); // Front와 Side Y 정렬
+        
+        this.stages['top'].x(fPos.x); // Front와 Top X 정렬
+        this.stages['bottom'].x(fPos.x); // Front와 Bottom X 정렬
+
+        let tPos = this.stages['top'].position();
+        this.stages['bottom'].y(tPos.y); // Top과 Bottom Y 정렬 (위아래 완벽 동기화 적용)
 
         // 4. 스케일에 따른 선 굵기/텍스트 보정 후 렌더링
         Object.keys(this.stages).forEach(view => {
@@ -568,7 +576,7 @@ function fdraw_liftinglug() {
     
     ocvs.render();
 
-    /* --- DXF Preparation (원본과 완전히 동일) --- */
+    /* --- DXF Preparation --- */
     var dDim_ext = 20;
     odxf_lug.init();
     odxf_lug.layer("lug_cent", 1, "CENTER");
@@ -580,7 +588,7 @@ function fdraw_liftinglug() {
     var dOx_side = lugW * 1.5, dOy_side = 0;
     var dOx_top = 0, dOy_top = lugH * 1.5;
     var dOx_bot = lugW * 1.5, dOy_bot = lugH * 1.5;
-    var dp1x, dp1y, dp2x, dp2y, dradius;
+    var dp1x, dp1y, dp2x, dp2y;
 
     /** front view **/
     dp1x = dOx + dTlx, dp1y = dOy + dTly; dp2x = dOx + dPbase1lx, dp2y = dOy + dPbase1ly; odxf_lug.line(dp1x, dp1y, dp2x, dp2y, "lug_solid");			
