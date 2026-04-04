@@ -1,22 +1,17 @@
 /*
-	Channel 형강 작도를 위한 JS  v000
+	Channel 형강 작도를 위한 JS  v000 (KonvaViewer 적용)
 */
 const odxf_channel 	= dxf_generator();
 const scvs_channel  = "channelplot";		// canvas name
 
-
 function channel_click() {
 
     // 1. 사이드바(nav) 및 메인 콘텐츠(main) 레이아웃 조정
-    const sidebarNav = document.querySelector('nav.sidebar');
     const mainContent = document.getElementById('wrap_main');
 
-//    if (sidebarNav) sidebarNav.classList.add('d-none');
-//	
     if (mainContent) {
         mainContent.classList.remove('col-md-9', 'col-lg-10');
         mainContent.classList.add('col-md-12', 'col-lg-12');
-//		
     }
     
     var omain = document.getElementById("wrap_main");	
@@ -24,7 +19,7 @@ function channel_click() {
     // HTML 생성
     var shtml = "";
 	
-	// [수정] 뷰포트 높이 계산 변경 (더 넉넉한 하단 여백 확보)
+	// 뷰포트 높이 계산 변경 (더 넉넉한 하단 여백 확보)
     let dynamicHeight = "calc(100vh - 100px)"; 
 
 	shtml += "<div class='container-fluid px-4' style='height: " + dynamicHeight + "; margin-top: 10px; margin-bottom: 20px;'>";
@@ -36,13 +31,12 @@ function channel_click() {
 	// 카드를 d-flex flex-column으로 설정하여 헤더-바디-푸터를 수직으로 정렬합니다.
 	shtml += "          <div class='card shadow-sm h-100 d-flex flex-column' style='overflow: hidden;'>"; 
 
-	// 1. 헤더에 버튼 추가 (기존 위치)
+	// 1. 헤더에 버튼 추가
 	shtml += "              <div class='card-header bg-secondary text-white flex-shrink-0 d-flex justify-content-between align-items-center'>";
 	shtml += "                  <h6 class='mb-0'>DIMENSION (mm)</h6>"; 
-//	shtml += "                  <button class='btn btn-sm btn-outline-light' onclick='toggleDimensionImage()'>VIEW GUIDE</button>";
 	shtml += "              </div>";	
 
-	// [핵심] flex-grow-1을 주어 남은 공간을 다 차지하게 하고, 이 영역에만 스크롤을 발생시킵니다.
+	// flex-grow-1을 주어 남은 공간을 다 차지하게 하고, 이 영역에만 스크롤을 발생시킵니다.
 	shtml += "              <div class='card-body overflow-auto flex-grow-1' style='min-height: 0; padding-bottom: 0;'>"; 
 	shtml += "                  <div class='pe-1'>";
 	
@@ -50,20 +44,18 @@ function channel_click() {
 	
 	shtml += createLabel('INPUT One by One') 	
 	
-    shtml += createRowInput('Channel Height', 'dsech',  300, 'fdraw_channel()');			// see liftinglug.js
-    shtml += createRowInput('Channel Width','db', 90, 'fdraw_channel()');			// see liftinglug.js
+    shtml += createRowInput('Channel Height', 'dsech',  300, 'fdraw_channel()');
+    shtml += createRowInput('Channel Width','db', 90, 'fdraw_channel()');
     shtml += createRowInput('Web Thickness','dtw', 12, 'fdraw_channel()');
     shtml += createRowInput('Flange Thickness','dtf', 16, 'fdraw_channel()');
-	
     shtml += createRowInput('Radius on Web<br> (R = 0 if not necessary)','drw',  19, 'fdraw_channel()');
     shtml += createRowInput('Radius on Flange <br> (R = 0 if not necessary)','drf', 9.5, 'fdraw_channel()');
-	
     shtml += createRowInput('Channel Length','dseg_leng', 500, 'fdraw_channel()');
 	
     shtml += "                  </div>";
     shtml += "              </div>";
 
-	// [고정] card-footer는 flex-shrink-0에 의해 절대 크기가 줄어들거나 스크롤 영역에 포함되지 않습니다.
+	// card-footer (DXF 다운로드)
 	shtml += "              <div class='card-footer bg-white border-top flex-shrink-0 p-2 align-items-center justify-content-center text-center'>";
 	shtml += "                  <button class='btn btn-dark w-75 py-2 mb-0 shadow-sm' onclick='odxf_channel.download(\"Channel.dxf\")'>";
 	shtml += "                      DXF DOWNLOAD";
@@ -73,17 +65,17 @@ function channel_click() {
 	
 	shtml += "      </div>";
 				
-    // --- 오른쪽: 도면 뷰어 영역 (여백 제거 버전) ---
+    // --- 오른쪽: 도면 뷰어 영역 ---
     shtml += "      <div class='col-lg-8 h-100'>";
-    shtml += "          <div class='card shadow-sm h-100 d-flex flex-column' style='overflow: hidden;'>"; // 라운드 코너 밖으로 도면이 나가지 않게 조절
+    shtml += "          <div class='card shadow-sm h-100 d-flex flex-column' style='overflow: hidden;'>"; 
     shtml += "              <div class='card-header bg-secondary flex-shrink-0'>";
-    shtml += "                  <h6 class='mb-0 text-white'>DRAWING VIEW</h6>";
+    // ★ 타이틀 변경
+    shtml += "                  <h6 class='mb-0 text-white'>DRAWING VIEW (Synchronized Zoom/Pan)</h6>";
     shtml += "              </div>";
     
-    // [수정] card-body가 flex-grow-1로서 남은 모든 하단 공간을 차지하게 함
-    // 하단 푸터를 아예 삭제하여 도면이 카드 끝까지 내려오도록 설정
+    // ★ 마우스 커서 속성(cursor: grab) 추가
     shtml += "              <div class='card-body p-0 flex-grow-1' style='min-height: 0; position: relative;'>";
-    shtml += "                  <div id='" + scvs_channel + "' style='position: absolute; top:0; left:0; width:100%; height:100%; background-color:#000;'></div>";
+    shtml += "                  <div id='" + scvs_channel + "' style='position: absolute; top:0; left:0; width:100%; height:100%; background-color:#000; cursor: grab;'></div>";
     shtml += "              </div>";
     
     shtml += "          </div>";
@@ -92,115 +84,73 @@ function channel_click() {
     shtml += "  </div>"; 
     shtml += "</div>";
 
-	// 2. [추가] 드래그 가능한 플로팅 이미지 창
-//	// z-index를 높게 설정하여 모든 요소 위에 뜨게 합니다.
-//	shtml += "<div id='floating_img_win' style='display:none; position: fixed; top: 100px; left: 50%; transform: translateX(-50%); width: 500px; background: white; border-radius: 8px; box-shadow: 0 10px 25px rgba(0,0,0,0.3); z-index: 9999; overflow: hidden;'>";
-//
-//	// 드래그 핸들이 될 헤더
-//	shtml += "  <div id='floating_header' style='padding: 10px 15px; background: #343a40; color: white; cursor: move; display: flex; justify-content: space-between; align-items: center; user-select: none;'>";
-//	shtml += "      <span style='font-size: 0.85rem; font-weight: bold;'>Dimension Guide</span>";
-//	shtml += "      <span style='cursor: pointer; font-size: 20px; line-height: 1;' onclick='toggleDimensionImage()'>&times;</span>"; // X 버튼
-//	shtml += "  </div>";
-//
-//	// 이미지 영역
-//	shtml += "  <div style='padding: 10px; text-align: center; background: #f8f9fa;'>";
-//	shtml += "      <img src='/images/box1cell_vars.png' style='max-width: 100%; height: auto; display: block; border: 1px solid #ddd;'>";
-//	shtml += "  </div>";
-//
-//	shtml += "</div>";
-
- 
     omain.innerHTML = shtml;
 
     // 초기 드로잉 실행
     fdraw_channel();
-	
 }
 
-	// 입력 필드에서 값을 읽어옵니다.
-	function getParams_channel() {
-		// 값을 가져오는 헬퍼 함수
-		const getValue = (id) => {
-			const el = document.getElementById(id);
-			return el ? Number(el.value) : 0;
-		};
+// 입력 필드에서 값을 읽어옵니다.
+function getParams_channel() {
+    const getValue = (id) => {
+        const el = document.getElementById(id);
+        return el ? Number(el.value) : 0;
+    };
 
-		// 1. aparam 객체 생성
-		let aparam = {
-			dh: getValue('dsech'), 
-			db: getValue('db'), 
-			dtw: getValue('dtw'),
-			dtf: getValue('dtf'),
-			drw: getValue('drw'), drf: getValue('drf')
-		};
-		
-		let dseg_leng = getValue('dseg_leng');
+    let aparam = {
+        dh: getValue('dsech'), 
+        db: getValue('db'), 
+        dtw: getValue('dtw'),
+        dtf: getValue('dtf'),
+        drw: getValue('drw'), drf: getValue('drf')
+    };
+    
+    let dseg_leng = getValue('dseg_leng');
+    let combText = [ ...Object.values(aparam) ].join(',');
 
-		// 3. b와 e의 모든 value만 뽑아서 쉼표로 연결된 텍스트 생성
-		// b의 모든 값들 + e의 모든 값들을 하나의 배열로 합친 뒤 join 합니다.
-		let combText = [
-			...Object.values(aparam)
-		].join(',');
+    return { aparam, dseg_leng, combText };
+}
 
+function putParams_channel(textareaId) {
+    const textarea = document.getElementById(textareaId);
+    if (!textarea) return;
 
-		// 4. 결과 반환 (combinedText 추가)
-		return { aparam, dseg_leng, combText };
-	}
+    const lines = textarea.value.split('\n');
+    if (lines.length < 2) return; 
 
-	function putParams_channel(textareaId) {
-		const textarea = document.getElementById(textareaId);
-		if (!textarea) return;
+    const values = lines[0].split(',');
+    const dseg_leng = lines[1];
 
-		// 1. 엔터 키(줄바꿈)를 기준으로 첫 번째 줄(Begin)과 두 번째 줄(End) 분리
-		const lines = textarea.value.split('\n');
-		if (lines.length < 2) return; // 최소 세 줄이 있어야 함
+    const keys = [ 'dsech', 'db', 'dtw', 'dtf', 'drw', 'drf' ];
 
-		// 2. 각 줄을 쉼표(,)로 분리하여 배열 생성
-		const values = lines[0].split(',');
-		const dseg_leng = lines[1];
+    keys.forEach((key, index) => {
+        if (values[index] !== undefined) {
+            const elS = document.getElementById( key );
+            if (elS) elS.value = values[index].trim();
+        }			
+    });
 
-		// 3. 매칭될 ID 리스트 (getParams에서 정의한 순서와 동일해야 함)
-		const keys = [
-			'dsech', 'db', 'dtw', 'dtf', 'drw', 'drf'
-		];
+    if ( dseg_leng !== undefined) {
+        const elE = document.getElementById( "dseg_leng" );
+        if (elE) elE.value = dseg_leng;
+    }
 
-		// 4. 각각의 input 태그에 값 할당 (_s 와 _e)
-		keys.forEach((key, index) => {
-			// 단면값 넣기
-			if (values[index] !== undefined) {
-				const elS = document.getElementById( key );
-				if (elS) elS.value = values[index].trim();
-			}			
-		});
-
-		if ( dseg_leng !== undefined) {
-			const elE = document.getElementById( "dseg_leng" );
-			if (elE) elE.value = dseg_leng;
-		}
-
-		// 5. 값이 변경된 후 도면 갱신이 필요하다면 호출
-		if (typeof fdraw_channel === 'function') {
-			fdraw_channel();
-		}
-	}
+    if (typeof fdraw_channel === 'function') {
+        fdraw_channel();
+    }
+}
 
 
-// Canvas에 러그 도면을 그립니다.
+// Canvas에 도면을 그립니다.
 function fdraw_channel() {
 
-	/*		
-		Load data
-	*/		
+	/* Load data */		
 	let auserdata = getParams_channel();
-
 	let aparam = auserdata.aparam;
-	       
 	let dleng = auserdata.dseg_leng;  
 	
 	let ouserTextArea = document.getElementById('sUserText');
-
     if (ouserTextArea) {
-        // 백틱(`)을 사용하면 코드 상에서 엔터를 치는 것만으로도 줄바꿈이 적용됩니다.
         ouserTextArea.value = auserdata.combText + "\n" + dleng;
     }	
 
@@ -210,20 +160,9 @@ function fdraw_channel() {
 	var dOx, dOx_side, dOx_top, dOx_bot;
 	var dOy, dOy_side, dOy_top, dOy_bot;
 
-	/*		
-			--- data check
-	*/		
-
-	/*		
-			--- 좌표 계산 ---
-	*/		
-
-
-	/*		
-		PLOTLY CANVAS : activate & draw
-	*/		
-
-	var ocvs	= PlotlyViewer(scvs_channel, true, "black");
+	/* KONVA CANVAS : activate & draw */		
+    // ★ PlotlyViewer 대신 KonvaViewer를 호출합니다!
+	var ocvs = new KonvaViewer(scvs_channel);
 
 	// 레이어
 	var alayer = ['channel_solid', 'channel_hidden', 'channel_center'];
@@ -232,9 +171,7 @@ function fdraw_channel() {
 	ocvs.addLayer( alayer[1], 'cyan', 'hidden', 1.5);
 	ocvs.addLayer( alayer[2], 'red', 'solid', 1.5);
 
-	/*		
-		DXF Preparation
-	*/		
+	/* DXF Preparation */		
 	odxf_channel.init();
 	odxf_channel.layer( alayer[0], 4, "CONTINUOUS");
 	odxf_channel.layer( alayer[1], 4, "HIDDEN");
@@ -260,10 +197,10 @@ function fdraw_channel() {
 	let ptm = {x:0, y:0};  // 상부 플랜지 중앙
 	let pbm = {x:0, y:0};  // 하부 플랜지 중앙
 
-	let filtf = {ox:0, oy:0, r:0, angb:0, ange:0} //
-	let filtw = {ox:0, oy:0, r:0, angb:0, ange:0} //
-	let filbw = {ox:0, oy:0, r:0, angb:0, ange:0} //
-	let filbf = {ox:0, oy:0, r:0, angb:0, ange:0} //
+	let filtf = {ox:0, oy:0, r:0, angb:0, ange:0} 
+	let filtw = {ox:0, oy:0, r:0, angb:0, ange:0} 
+	let filbw = {ox:0, oy:0, r:0, angb:0, ange:0} 
+	let filbf = {ox:0, oy:0, r:0, angb:0, ange:0} 
 
 	var ddl, dtl;
 	var dang1, dang2, dang, dangb, dange;
@@ -273,9 +210,7 @@ function fdraw_channel() {
 	dOx_top = 0									, dOy_top = Math.max( dh, dleng, db ) * 3.0;
 	dOx_bot = Math.max( dh, dleng ) * 3	, dOy_bot = Math.max( dh, dleng, db ) * 3.0;
 
-	/*
-	  외곽선
-	*/
+	/* 외곽선 */
 	// vertical line
 	pbw.x = dOx  	, pbw.y = dOy ;
 	ptw.x = dOx 	, ptw.y = dOy + dh;
@@ -293,9 +228,7 @@ function fdraw_channel() {
 	ptm.x = dOx + dtw + ( db - dtw ) / 2;
 	ptm.y = dOy + dh - dtf;        
 		
-	/*
-	  하부 플랜지 필렛
-	*/
+	/* 하부 플랜지 필렛 */
 	//  하부 DL 계산
 	ddl = Math.sqrt( ( ( db - dtw ) / 2 - drf ) * (  ( db - dtw ) / 2 - drf ) + dtf * dtf ) ;
 	//  하부 TL 계산
@@ -305,7 +238,7 @@ function fdraw_channel() {
 	dang1 = Math.acos( dtf / ddl );
 	dang2 = Math.acos( dtl / ddl );
 	dang = Math.PI / 2 - dang1 - dang2;
-	//alert( ddl + " " + dtl + "  " + dang1 * 180 / Math.PI )        
+	
 	// 접점 산정
 	ptbf.x   = pbm.x + dtl * Math.cos(dang);
 	ptbf.y   = pbm.y - dtl * Math.sin(dang);
@@ -342,9 +275,7 @@ function fdraw_channel() {
 				
 	}
 
-	/*
-	  하부 복부 필렛
-	*/
+	/* 하부 복부 필렛 */
 	//  1) 복부와 접점 계산
 	var dx, dy, dtl2, ddl2;
 
@@ -363,14 +294,12 @@ function fdraw_channel() {
 	pib.y = pwb.y;
 
 	if( drw > 0){
-	  
 	  //  복부측 하부 fillet arc
 	  filbw.ox = dOx + dtw + drw;
 	  filbw.oy = pwb.y + dtl2;
 	  filbw.r = drw;
 	  filbw.angb = 180;
 	  filbw.ange = 180 + ( Math.PI / 2 - dang ) * 180 / Math.PI;
-	  
 	}
 	//  복부교점 및 하부접점 정확히 산정
 	pwb.x = pwb.x ;
@@ -380,9 +309,7 @@ function fdraw_channel() {
 	ptbw.y = pbm.y + ( ddl2 - dtl2 ) * Math.sin( dang );
 
 
-	/*
-	  상부 복부 필렛
-	*/
+	/* 상부 복부 필렛 */
 	//  복부측 교점
 	pwt.x = ptm.x - ddl2 * Math.cos( dang );
 	pwt.y = ptm.y - ddl2 * Math.sin( dang );
@@ -397,7 +324,6 @@ function fdraw_channel() {
 	  filtw.r = drw;
 	  filtw.ange = 180;
 	  filtw.angb = 180 - ( Math.PI / 2 - dang ) * 180 / Math.PI;
-
 	}
 
 	//  복부교점 및 하부접점 정확히 산정
@@ -407,9 +333,7 @@ function fdraw_channel() {
 	pttw.x = ptm.x - ( ddl2 - dtl2 ) * Math.cos( dang );
 	pttw.y = ptm.y - ( ddl2 - dtl2 ) * Math.sin( dang );        
 
-	/*
-	  draw canvas
-	*/
+	/* draw canvas */
 	let ddim_ext = 20;	// 디멘젼 길이
 	let ddim_off = 20;	// 구조물에서 이격
 	
@@ -443,9 +367,7 @@ function fdraw_channel() {
 		odxf_channel.line( dOx + ptbw.x, dOy + ptbw.y, dOx + ptbf.x, dOy + ptbf.y, alayer[0] );  // inner bot hori
 		odxf_channel.line( dOx + pttw.x, dOy + pttw.y, dOx + pttf.x, dOy + pttf.y, alayer[0] );  // inner top hori
 
-	  
 	  if( drf > 0 ){
-		
 		ocvs.addArc(sview, filbf.ox, filbf.oy, filbf.r, filbf.angb, filbf.ange, alayer[0]);
 		ocvs.addArc(sview, filtf.ox, filtf.oy, filtf.r, filtf.angb, filtf.ange, alayer[0]);
 		
@@ -453,20 +375,16 @@ function fdraw_channel() {
 		
 		odxf_channel.arc( dOx + filbf.ox, dOy + filbf.oy, filbf.r, filbf.angb, filbf.ange, alayer[0] );
 		odxf_channel.arc( dOx + filtf.ox, dOy + filtf.oy, filtf.r, filtf.angb, filtf.ange, alayer[0] );
-				
 	  } else {
-
 		// 플랜지 끝단 수직선
 		ocvs.addLine(sview, pbf.x, pbf.y, ptbf.x, ptbf.y, alayer[0] );
 		ocvs.addLine(sview, pttf.x, pttf.y, ptf.x, ptf.y, alayer[0] );
 		
 		odxf_channel.line( dOx + pbf.x, dOy + pbf.y, dOx + ptbf.x, dOy + ptbf.y, alayer[0] );  // inner top hori
 		odxf_channel.line( dOx + pttf.x, dOy + pttf.y, dOx + ptf.x, dOy + ptf.y, alayer[0] );  // inner top hori
-		
 	  }
 	  
 	  if( drw > 0 ){
-		
 		ocvs.addArc(sview, filbw.ox, filbw.oy, filbw.r, filbw.angb, filbw.ange, alayer[0]);
 		ocvs.addArc(sview, filtw.ox, filtw.oy, filtw.r, filtw.angb, filtw.ange, alayer[0]);
 
@@ -474,8 +392,6 @@ function fdraw_channel() {
 		
 		odxf_channel.arc( dOx + filbw.ox, dOy + filbw.oy, filbw.r, filbw.angb, filbw.ange, alayer[0] );
 		odxf_channel.arc( dOx + filtw.ox, dOy + filtw.oy, filtw.r, filtw.angb, filtw.ange, alayer[0] );
-		
-				 
 	  }
 	  
 	// top
@@ -553,8 +469,6 @@ function fdraw_channel() {
 		odxf_channel.line( dOx_side - dleng / 2, dOy_side + pbw.y, dOx_side - dleng / 2, dOy_side + ptw.y, alayer[0] );  // inner top hori
 		odxf_channel.line( dOx_side + dleng / 2, dOy_side + pbw.y, dOx_side + dleng / 2, dOy_side + ptw.y, alayer[0] );  // inner top hori
 
-		
 	// regen
 	ocvs.render();
-	
 }
