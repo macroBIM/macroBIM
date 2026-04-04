@@ -8,6 +8,9 @@ const scvs_lug  = "liftinglugplot";		// canvas name
 // ==========================================
 // Konva.js Viewer Wrapper (4분할 독립 Viewports & 정밀 동기화)
 // ==========================================
+// ==========================================
+// Konva.js Viewer Wrapper (4분할 독립 Viewports & 정밀 동기화)
+// ==========================================
 class KonvaViewer {
     constructor(containerId) {
         let container = document.getElementById(containerId);
@@ -29,23 +32,24 @@ class KonvaViewer {
         // 줌(Zoom) 비율에 맞춰 화살표 크기, 텍스트 크기, 보조선 갭을 스크린 픽셀에 맞게 역보정
         this.updateScaleUI = (layer, newScale) => {
             layer.find('.dimarrow').forEach(arrow => {
-                arrow.pointerLength(10 / newScale);
-                arrow.pointerWidth(8 / newScale);
+                arrow.pointerLength(8 / newScale); // 화살표 크기도 살짝 줄임
+                arrow.pointerWidth(6 / newScale);
             });
             layer.find('.extline').forEach(line => {
                 let unx = line.getAttr('unx'), uny = line.getAttr('uny');
                 let tx = line.getAttr('tx'), ty = line.getAttr('ty');
                 let tox = line.getAttr('tox'), toy = line.getAttr('toy');
-                // 객체에서 2px 띄우고, 치수선 밖으로 5px 연장 (화면 픽셀 기준 보정)
+                // 객체에서 2px 띄우고, 치수선 밖으로 4px 연장 (화면 픽셀 기준 보정)
                 line.points([
                     tx + unx * (2 / newScale), ty + uny * (2 / newScale),
-                    tox + unx * (5 / newScale), toy + uny * (5 / newScale)
+                    tox + unx * (4 / newScale), toy + uny * (4 / newScale)
                 ]);
             });
             layer.find('.dimtext').forEach(text => {
-                text.fontSize(12 / newScale);
+                text.fontSize(9 / newScale); // ★ 글자 크기를 12 -> 9로 작게 수정
                 text.offsetX(text.width() / 2);
-                text.offsetY(textNode.height() * 0.8);
+                // ★ 버그 수정: textNode가 아니라 text 입니다! + 글자와 선 사이 간격 띄우기
+                text.offsetY(text.height() + (4 / newScale)); 
             });
         };
         
@@ -119,7 +123,6 @@ class KonvaViewer {
 
             const stage = new Konva.Stage({
                 container: div.id,
-                // DOM 렌더링 지연 시 fallback 대비
                 width: div.offsetWidth || 400,
                 height: div.offsetHeight || 300,
                 draggable: true
@@ -178,7 +181,6 @@ class KonvaViewer {
     _transformX(x) { return x; }
     _transformY(y) { return -y; } 
 
-    // strokeScaleEnabled: false 를 적용하여 화면 확대 시에도 선 굵기를 1px 단위로 고정합니다.
     addLine(view, x1, y1, x2, y2, layerName) {
         if(!this.layers[view]) return;
         let st = this._getStyle(layerName);
@@ -216,7 +218,7 @@ class KonvaViewer {
         }));
     }
 
-    // ★ 업그레이드 된 선형 치수선 (Arrow + 보조선 + 빨간 텍스트)
+    // ★ 업그레이드 된 선형 치수선
     addDimLinear(view, x1, y1, x2, y2, gap) {
         if(!this.layers[view]) return;
         let dx = x2 - x1; let dy = y2 - y1; let len = Math.sqrt(dx*dx + dy*dy); if(len === 0) return;
@@ -234,7 +236,7 @@ class KonvaViewer {
         let arrow = new Konva.Arrow({
             points: [tox1, toy1, tox2, toy2],
             stroke: 'red', fill: 'red', strokeWidth: 1,
-            pointerLength: 10 / scale, pointerWidth: 8 / scale,
+            pointerLength: 8 / scale, pointerWidth: 6 / scale, // 화살표 크기 축소
             pointerAtBeginning: true, strokeScaleEnabled: false,
             name: 'dimarrow'
         });
@@ -247,7 +249,7 @@ class KonvaViewer {
             let unx = vdx1/vlen; let uny = vdy1/vlen;
             let createExtLine = (tx, ty, tox, toy) => {
                 let line = new Konva.Line({
-                    points: [tx + unx * (2/scale), ty + uny * (2/scale), tox + unx * (5/scale), toy + uny * (5/scale)],
+                    points: [tx + unx * (2/scale), ty + uny * (2/scale), tox + unx * (4/scale), toy + uny * (4/scale)],
                     stroke: 'red', strokeWidth: 1, strokeScaleEnabled: false, name: 'extline'
                 });
                 line.setAttr('unx', unx); line.setAttr('uny', uny);
@@ -266,12 +268,13 @@ class KonvaViewer {
 
         let textNode = new Konva.Text({
             x: (tox1 + tox2)/2, y: (toy1 + toy2)/2, text: len.toFixed(1),
-            fontSize: 12 / scale, fill: 'red', fontFamily: 'Arial',
+            fontSize: 9 / scale, fill: 'red', fontFamily: 'Arial', // ★ 12 -> 9
             align: 'center', name: 'dimtext'
         });
         textNode.rotation(angle);
         textNode.offsetX(textNode.width()/2);
-        textNode.offsetY(textNode.height() * 0.8);
+        // ★ 글자와 선 사이 간격 띄우기
+        textNode.offsetY(textNode.height() + (4 / scale)); 
         group.add(textNode);
 
         this.layers[view].add(group);
@@ -291,7 +294,7 @@ class KonvaViewer {
         let arrow = new Konva.Arrow({
             points: [tx, ty, tpx, tpy],
             stroke: 'red', fill: 'red', strokeWidth: 1, dash: [4, 4],
-            pointerLength: 10 / scale, pointerWidth: 8 / scale,
+            pointerLength: 8 / scale, pointerWidth: 6 / scale, // 화살표 크기 축소
             strokeScaleEnabled: false, name: 'dimarrow'
         });
         group.add(arrow);
@@ -302,19 +305,20 @@ class KonvaViewer {
 
         let textNode = new Konva.Text({
             x: (tx + tpx)/2, y: (ty + tpy)/2, text: 'R' + r.toFixed(1),
-            fontSize: 12 / scale, fill: 'red', fontFamily: 'Arial',
+            fontSize: 9 / scale, fill: 'red', fontFamily: 'Arial', // ★ 12 -> 9
             align: 'center', name: 'dimtext'
         });
         textNode.rotation(textAngle);
         textNode.offsetX(textNode.width()/2);
-        textNode.offsetY(textNode.height() * 0.8);
+        // ★ 글자와 선 사이 간격 띄우기
+        textNode.offsetY(textNode.height() + (4 / scale)); 
         group.add(textNode);
 
         this.layers[view].add(group);
     }
 
     render() {
-        // setTimeout을 통해 DOM 최적화 후 사이즈 다시 잡기 (Blank 화면 방지)
+        // setTimeout을 통해 DOM 최적화 후 사이즈 다시 잡기
         setTimeout(() => {
             let minScale = Infinity;
             let boxes = {};
@@ -329,7 +333,7 @@ class KonvaViewer {
                 let box = this.layers[view].getClientRect({ skipTransform: true });
                 boxes[view] = box;
                 if (box.width > 0 && box.height > 0) {
-                    let padding = 30;
+                    let padding = 40;
                     let scaleX = this.stages[view].width() / (box.width + padding * 2);
                     let scaleY = this.stages[view].height() / (box.height + padding * 2);
                     minScale = Math.min(minScale, scaleX, scaleY);
@@ -348,7 +352,7 @@ class KonvaViewer {
                 });
             });
 
-            // 3. 축 정렬 보정 (초기 렌더링 시 완벽한 동기화를 위한 정렬)
+            // 3. 축 정렬 보정
             let fPos = this.stages['front'].position();
             this.stages['side'].y(fPos.y); 
             this.stages['top'].x(fPos.x); 
@@ -357,7 +361,7 @@ class KonvaViewer {
             let tPos = this.stages['top'].position();
             this.stages['bottom'].y(tPos.y); 
 
-            // 4. 스케일에 따른 텍스트 보정 후 렌더링
+            // 4. 스케일에 따른 텍스트/화살표 보정 후 렌더링
             Object.keys(this.stages).forEach(view => {
                 this.updateScaleUI(this.layers[view], minScale);
                 this.stages[view].batchDraw();
@@ -365,6 +369,7 @@ class KonvaViewer {
         }, 50);
     }
 }
+// ==========================================
 // ==========================================
 
 
