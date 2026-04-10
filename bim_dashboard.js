@@ -1,4 +1,4 @@
-/** v014
+/** v015
  * @file bim_dashboard.js
  * @description Frame 메뉴 클릭 시 사이드바와 대시보드 메인 화면을 동적으로 렌더링하는 스크립트
  */
@@ -19,35 +19,54 @@ if (!window.sidebarCleanupRegistered) {
 }
 
 function dashboard_click() {
-    const contentDiv = document.getElementById('wrap_main');
+    let contentDiv = document.getElementById('wrap_main');
     let sideDiv = document.getElementById('wrap_side');
     
     if (!contentDiv) return;
 
     // ==========================================
-    // ⭐ [핵심 복구 로직] Steel Section 등이 사이드바를 숨기거나 삭제했을 때의 강제 부활
+    // 🚨 [핵심] Steel Section 등 타 메뉴의 방해 공작 원천 차단 및 복구
     // ==========================================
-    const sidebarContainer = document.querySelector('.sidebar');
-    if (sidebarContainer) {
-        sidebarContainer.style.display = ''; // 다른 메뉴가 걸어둔 display: none 강제 해제
-        sidebarContainer.classList.remove('d-none');
+    // 1. 사이드바 컨테이너 찾기 (없으면 부모 태그 기반으로 추적)
+    let sideNav = sideDiv ? sideDiv.closest('nav') : document.querySelector('.sidebar') || document.querySelector('nav.bg-light');
+
+    // 2. 다른 메뉴가 컨테이너를 아예 날려버렸다면 강제 재건축
+    if (!sideNav) {
+        const containerFluid = document.querySelector('.container-fluid.pt-5') || contentDiv.parentNode;
+        sideNav = document.createElement('nav');
+        containerFluid.insertBefore(sideNav, contentDiv);
     }
 
-    // 만약 다른 스크립트가 wrap_side 태그 자체를 아예 삭제해버렸다면 재생성
-    if (!sideDiv && sidebarContainer) {
-        const stickyDiv = sidebarContainer.querySelector('.sidebar-sticky');
-        if (stickyDiv) {
-            sideDiv = document.createElement('ul');
-            sideDiv.id = 'wrap_side';
-            stickyDiv.appendChild(sideDiv);
+    // 3. 다른 메뉴가 뜯어버린 클래스명(이름표) 완벽 복구 & 강제 숨김 무력화
+    if (sideNav) {
+        sideNav.className = 'col-md-2 d-md-block bg-light sidebar';
+        sideNav.style.setProperty('display', 'block', 'important');
+        sideNav.style.setProperty('visibility', 'visible', 'important');
+    }
+
+    // 4. 내부 wrap_side가 파괴되었다면 재생성
+    if (!sideDiv && sideNav) {
+        let stickyDiv = sideNav.querySelector('.sidebar-sticky');
+        if (!stickyDiv) {
+            sideNav.innerHTML = '<div class="sidebar-sticky mt-3"></div>';
+            stickyDiv = sideNav.querySelector('.sidebar-sticky');
         }
+        stickyDiv.innerHTML = '<ul class="nav flex-column" id="wrap_side"></ul>';
+        sideDiv = document.getElementById('wrap_side');
     }
 
+    // 5. wrap_side 클래스 & 표시 상태 강제 복구
     if (sideDiv) {
-        sideDiv.style.display = ''; 
-        sideDiv.style.visibility = 'visible';
-        sideDiv.className = 'nav flex-column'; // 원래 부트스트랩 클래스명 복구
+        sideDiv.className = 'nav flex-column';
+        sideDiv.style.setProperty('display', 'block', 'important');
+        sideDiv.style.setProperty('visibility', 'visible', 'important');
     }
+
+    // 6. 메인 콘텐츠 폭도 원래대로 강제 복구 (Steel Section이 전체 폭으로 늘려버린 것 방어)
+    if (contentDiv) {
+        contentDiv.className = 'col-md-9 ml-sm-auto col-lg-10 px-4 h-100';
+    }
+
 
     // ==========================================
     // 0. 아이콘 강제 로드
@@ -65,8 +84,8 @@ function dashboard_click() {
     // ==========================================
     contentDiv.innerHTML = `
         <style>
-            /* 레이아웃 강제 변경 (Frame 메뉴 전용) - 숨김 방지를 위해 display: block !important 추가 */
-            .sidebar { display: block !important; position: fixed !important; top: 56px !important; bottom: 0 !important; left: 0 !important; width: 260px !important; max-width: 260px !important; flex: 0 0 260px !important; background-color: #1e2b37 !important; padding: 0 !important; z-index: 1000; overflow-y: auto; }
+            /* 레이아웃 강제 변경 (Frame 메뉴 전용) */
+            .sidebar { position: fixed !important; top: 56px !important; bottom: 0 !important; left: 0 !important; width: 260px !important; max-width: 260px !important; flex: 0 0 260px !important; background-color: #1e2b37 !important; padding: 0 !important; z-index: 1000; overflow-y: auto; }
             #wrap_main { margin-left: 260px !important; width: calc(100% - 260px) !important; max-width: calc(100% - 260px) !important; flex: 0 0 calc(100% - 260px) !important; padding-top: 20px; }
             #wrap_side { padding-top: 0px; }
 
