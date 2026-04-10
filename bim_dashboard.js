@@ -1,4 +1,4 @@
-/** v005
+/** v006
  * @file bim_dashboard.js
  * @description Frame 메뉴 클릭 시 사이드바와 대시보드 메인 화면을 동적으로 렌더링하는 스크립트
  */
@@ -8,17 +8,6 @@ function dashboard_click() {
     const sideDiv = document.getElementById('wrap_side');
     
     if (!contentDiv) return;
-
-    // ==========================================
-    // 0. 최신 아이콘(FontAwesome 6.4.0) 동적 로드 (핵심 해결책)
-    // ==========================================
-    if (!document.getElementById('fa-v6')) {
-        const fontAwesome = document.createElement('link');
-        fontAwesome.id = 'fa-v6';
-        fontAwesome.rel = 'stylesheet';
-        fontAwesome.href = 'https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css';
-        document.head.appendChild(fontAwesome);
-    }
 
     // ==========================================
     // 1. 대시보드 메인 화면 (HTML + CSS)
@@ -73,7 +62,6 @@ function dashboard_click() {
                 font-size: 1.8rem;
                 margin-bottom: 12px;
             }
-            /* 아이콘 배경과 색상 강제 지정 */
             .bg-light-primary { background: #eef0ff; color: #666ee8 !important; }
             .bg-light-success { background: #e6fffa; color: #38c172 !important; }
             .bg-light-warning { background: #fff8e6; color: #f6993f !important; }
@@ -84,34 +72,34 @@ function dashboard_click() {
     const dashboardHTML = `
         <div class="d-flex justify-content-between align-items-center mb-4">
             <h4 class="fw-bold">Frame Analysis Dashboard</h4>
-            <div class="text-muted"><i class="far fa-calendar-alt"></i> 2026. 04. 10</div>
+            <div class="text-muted"><i class="fa fa-calendar"></i> 2026. 04. 10</div>
         </div>
 
         <div class="row mb-2">
             <div class="col-md-3">
                 <div class="card stats-card">
-                    <div class="stats-icon bg-light-primary"><i class="fas fa-weight-hanging"></i></div>
+                    <div class="stats-icon bg-light-primary"><i class="fa fa-shopping-bag"></i></div>
                     <small class="text-muted mb-1">강재 중량</small>
                     <div class="h5 mb-0 fw-bold">14.52 ton</div>
                 </div>
             </div>
             <div class="col-md-3">
                 <div class="card stats-card">
-                    <div class="stats-icon bg-light-success"><i class="fas fa-bolt"></i></div>
+                    <div class="stats-icon bg-light-success"><i class="fa fa-bolt"></i></div>
                     <small class="text-muted mb-1">볼트 수 (M20)</small>
                     <div class="h5 mb-0 fw-bold">182 EA</div>
                 </div>
             </div>
             <div class="col-md-3">
                 <div class="card stats-card">
-                    <div class="stats-icon bg-light-warning"><i class="fas fa-project-diagram"></i></div>
+                    <div class="stats-icon bg-light-warning"><i class="fa fa-share-alt"></i></div>
                     <small class="text-muted mb-1">총 노드 수</small>
                     <div class="h5 mb-0 fw-bold">24 EA</div>
                 </div>
             </div>
             <div class="col-md-3">
                 <div class="card stats-card">
-                    <div class="stats-icon bg-light-danger"><i class="fas fa-won-sign"></i></div>
+                    <div class="stats-icon bg-light-danger"><i class="fa fa-krw"></i></div>
                     <small class="text-muted mb-1">예상 견적</small>
                     <div class="h5 mb-0 fw-bold">2,140 만원</div>
                 </div>
@@ -121,13 +109,13 @@ function dashboard_click() {
         <div class="row">
             <div class="col-md-6">
                 <div class="card">
-                    <div class="card-header d-flex justify-content-between"><span>Front View (정면)</span><i class="fas fa-expand-alt text-muted"></i></div>
+                    <div class="card-header d-flex justify-content-between"><span>Front View (정면)</span><i class="fa fa-arrows-alt text-muted"></i></div>
                     <div class="view-port"><span class="view-tag">2D WIREFRAME</span></div>
                 </div>
             </div>
             <div class="col-md-6">
                 <div class="card border-primary">
-                    <div class="card-header d-flex justify-content-between bg-primary text-white"><span>3D Perspective</span><i class="fas fa-cube"></i></div>
+                    <div class="card-header d-flex justify-content-between bg-primary text-white"><span>3D Perspective</span><i class="fa fa-cube"></i></div>
                     <div class="view-port" style="background: radial-gradient(circle, #2c3e50 0%, #000 100%);"><span class="view-tag bg-warning text-dark">RENDERED</span></div>
                 </div>
             </div>
@@ -149,7 +137,7 @@ function dashboard_click() {
     contentDiv.innerHTML = dashboardStyles + dashboardHTML;
 
     // ==========================================
-    // 2. 사이드바 화면 (다크 테마 + 최신 아이콘)
+    // 2. 사이드바 화면 (FontAwesome 4.7 호환 클래스)
     // ==========================================
     if (sideDiv) {
         const sideStyles = `
@@ -213,20 +201,20 @@ function dashboard_click() {
 
         const sideHTML = `
             <div class="side-header">
-                <i class="fas fa-drafting-compass"></i> MASTER BIM
+                <i class="fa fa-compass"></i> MASTER BIM
             </div>
             
             <li class="side-menu-label">Main Menu</li>
-            <li class="side-item"><a href="#" class="side-link"><i class="fas fa-columns"></i> Dashboard</a></li>
+            <li class="side-item"><a href="#" class="side-link"><i class="fa fa-columns"></i> Dashboard</a></li>
             
             <li class="side-menu-label">Structural Design</li>
-            <li class="side-item"><a href="#" class="side-link"><i class="fas fa-vector-square"></i> 단면 입력 (Sections)</a></li>
-            <li class="side-item active"><a href="#" class="side-link"><i class="fas fa-project-diagram"></i> 뼈대 구성 (Frame)</a></li>
-            <li class="side-item"><a href="#" class="side-link"><i class="fas fa-link"></i> 연결부 정의 (Nodes)</a></li>
+            <li class="side-item"><a href="#" class="side-link"><i class="fa fa-square-o"></i> 단면 입력 (Sections)</a></li>
+            <li class="side-item active"><a href="#" class="side-link"><i class="fa fa-sitemap"></i> 뼈대 구성 (Frame)</a></li>
+            <li class="side-item"><a href="#" class="side-link"><i class="fa fa-link"></i> 연결부 정의 (Nodes)</a></li>
             
             <li class="side-menu-label">Production</li>
-            <li class="side-item"><a href="#" class="side-link"><i class="fas fa-file-invoice"></i> 물량 리스트 (BOM)</a></li>
-            <li class="side-item"><a href="#" class="side-link"><i class="fas fa-print"></i> 도면 생성 (DWG)</a></li>
+            <li class="side-item"><a href="#" class="side-link"><i class="fa fa-file-text-o"></i> 물량 리스트 (BOM)</a></li>
+            <li class="side-item"><a href="#" class="side-link"><i class="fa fa-print"></i> 도면 생성 (DWG)</a></li>
         `;
 
         sideDiv.innerHTML = sideStyles + sideHTML;
