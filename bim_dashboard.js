@@ -1,4 +1,4 @@
-/** v016
+/** v017
  * @file bim_dashboard.js
  * @description Frame 메뉴 클릭 시 사이드바와 대시보드 메인 화면을 동적으로 렌더링하는 스크립트
  */
@@ -27,20 +27,24 @@ function dashboard_click() {
     // ==========================================
     // 🚨 [핵심] Steel Section 등 타 메뉴의 방해 공작 원천 차단 및 복구
     // ==========================================
+    // 1. 사이드바 컨테이너 찾기
     let sideNav = sideDiv ? sideDiv.closest('nav') : document.querySelector('.sidebar') || document.querySelector('nav.bg-light');
 
+    // 2. 다른 메뉴가 컨테이너를 아예 날려버렸다면 강제 재건축
     if (!sideNav) {
         const containerFluid = document.querySelector('.container-fluid.pt-5') || contentDiv.parentNode;
         sideNav = document.createElement('nav');
         containerFluid.insertBefore(sideNav, contentDiv);
     }
 
+    // 3. 다른 메뉴가 뜯어버린 클래스명 완벽 복구 & 강제 숨김 무력화
     if (sideNav) {
         sideNav.className = 'col-md-2 d-md-block bg-light sidebar';
         sideNav.style.setProperty('display', 'block', 'important');
         sideNav.style.setProperty('visibility', 'visible', 'important');
     }
 
+    // 4. 내부 wrap_side가 파괴되었다면 재생성
     if (!sideDiv && sideNav) {
         let stickyDiv = sideNav.querySelector('.sidebar-sticky');
         if (!stickyDiv) {
@@ -51,15 +55,18 @@ function dashboard_click() {
         sideDiv = document.getElementById('wrap_side');
     }
 
+    // 5. wrap_side 클래스 & 표시 상태 강제 복구
     if (sideDiv) {
         sideDiv.className = 'nav flex-column';
         sideDiv.style.setProperty('display', 'block', 'important');
         sideDiv.style.setProperty('visibility', 'visible', 'important');
     }
 
+    // 6. 메인 콘텐츠 폭도 원래대로 강제 복구
     if (contentDiv) {
         contentDiv.className = 'col-md-9 ml-sm-auto col-lg-10 px-4 h-100';
     }
+
 
     // ==========================================
     // 0. 아이콘 강제 로드
@@ -85,8 +92,8 @@ function dashboard_click() {
             /* 대시보드 메인 카드 디자인 */
             #frame-dashboard-scope .card { border: none; border-radius: 15px; box-shadow: 0 4px 20px 0 rgba(0,0,0,.05); margin-bottom: 1.8rem; background: #fff; }
             
-            /* 💡 수정 포인트: 헤더 폰트 굵기를 600에서 400으로 조절하여 얇게 변경 */
-            #frame-dashboard-scope .card-header { background: transparent; border-bottom: 1px solid #f0f0f0; padding: 1.2rem; font-weight: 400; }
+            /* 💡 수정 포인트: 헤더 폰트 굵기를 600에서 400으로 조절하고, 패딩을 1.2rem에서 0.6rem으로 절반으로 줄여 얇게 변경 */
+            #frame-dashboard-scope .card-header { background: transparent; border-bottom: 1px solid #f0f0f0; padding: 0.6rem; font-weight: 400; }
             
             #frame-dashboard-scope .view-port { background: #1a1a1a; height: 380px; border-radius: 0 0 15px 15px; position: relative; }
             #frame-dashboard-scope .view-tag { position: absolute; top: 15px; left: 15px; background: rgba(102, 110, 232, 0.8); color: white; padding: 4px 12px; border-radius: 20px; font-size: 0.7rem; font-weight: bold; }
@@ -136,7 +143,7 @@ function dashboard_click() {
                 </div>
                 <div class="col-md-3">
                     <div class="card stats-card">
-                        <div class="stats-icon bg-light-danger"><i class="fa fa-usd"></i></div>
+                        <div class="stats-icon bg-light-danger"><i class="fa fa-krw"></i></div>
                         <small class="text-muted mb-1">Estimated Cost</small>
                         <div class="h5 mb-0 fw-bold">21.4M KRW</div>
                     </div>
