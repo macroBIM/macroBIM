@@ -1,18 +1,20 @@
-/** v 002
+/** v 003
  * =========================================================================
- * ⬛ Dashboard Module (dashboard.js)
- * Description: Fits exactly into wrap_main and wrap_side of index.html
+ * ⬛ Dashboard Module (bim_dashboard.js)
+ * Description: Fits exactly into wrap_main and wrap_side (ul>li structure fixed)
  * =========================================================================
  */
+
+console.log("bim_dashboard.js v003 loaded!"); // 스크립트 정상 로드 확인용
 
 function dashboard_click() {
     // 1. CSS 동적 로드
     loadDashboardStyles();
 
-    // 2. 우측 메인 컨텐츠 영역 (7-Viewport Grid) 렌더링
+    // 2. 우측 메인 컨텐츠 영역 렌더링
     const targetMain = document.getElementById('wrap_main');
     if (!targetMain) {
-        console.error("본문이 들어갈 컨테이너(wrap_main)를 찾지 못했습니다.");
+        console.error("오류: wrap_main 컨테이너를 찾을 수 없습니다.");
         return; 
     }
 
@@ -21,7 +23,7 @@ function dashboard_click() {
             <div class="d-flex justify-content-between align-items-center mb-3">
                 <h4 class="fw-bold text-dark">
                     <i class="fa fa-tachometer" aria-hidden="true"></i> Frame Analysis Dashboard
-                    <span class="badge badge-secondary ml-2" style="font-size: 0.8rem;">v002</span>
+                    <span class="badge bg-secondary ml-2" style="font-size: 0.8rem;">v003</span>
                 </h4>
                 <div class="text-muted" id="current-date"><i class="fa fa-calendar" aria-hidden="true"></i> Loading Date...</div>
             </div>
@@ -69,7 +71,7 @@ function dashboard_click() {
                             <i class="fa fa-expand"></i>
                         </div>
                         <div class="view-port" id="vp-3d" style="height: 400px; background: radial-gradient(circle, #2c3e50 0%, #000 100%);">
-                            <span class="view-tag badge badge-warning position-absolute mt-2 ml-2">RENDERED</span>
+                            <span class="view-tag badge bg-warning text-dark position-absolute mt-2 ml-2">RENDERED</span>
                         </div>
                     </div>
                 </div>
@@ -79,37 +81,37 @@ function dashboard_click() {
                 <div class="col-md-6 mb-3">
                     <div class="card shadow-sm border-0">
                         <div class="card-header bg-light py-2 font-weight-bold">Front View (정면도)</div>
-                        <div class="view-port bg-dark" id="vp-front" style="height: 250px;"><span class="view-tag badge badge-info position-absolute mt-2 ml-2">2D WIREFRAME</span></div>
+                        <div class="view-port bg-dark" id="vp-front" style="height: 250px;"><span class="view-tag badge bg-info text-white position-absolute mt-2 ml-2">2D WIREFRAME</span></div>
                     </div>
                 </div>
                 <div class="col-md-6 mb-3">
                     <div class="card shadow-sm border-0">
                         <div class="card-header bg-light py-2 font-weight-bold">Back View (배면도)</div>
-                        <div class="view-port bg-dark" id="vp-back" style="height: 250px;"><span class="view-tag badge badge-info position-absolute mt-2 ml-2">2D WIREFRAME</span></div>
+                        <div class="view-port bg-dark" id="vp-back" style="height: 250px;"><span class="view-tag badge bg-info text-white position-absolute mt-2 ml-2">2D WIREFRAME</span></div>
                     </div>
                 </div>
                 <div class="col-md-6 mb-3">
                     <div class="card shadow-sm border-0">
                         <div class="card-header bg-light py-2 font-weight-bold">Left View (좌측면도)</div>
-                        <div class="view-port bg-dark" id="vp-left" style="height: 250px;"><span class="view-tag badge badge-info position-absolute mt-2 ml-2">2D WIREFRAME</span></div>
+                        <div class="view-port bg-dark" id="vp-left" style="height: 250px;"><span class="view-tag badge bg-info text-white position-absolute mt-2 ml-2">2D WIREFRAME</span></div>
                     </div>
                 </div>
                 <div class="col-md-6 mb-3">
                     <div class="card shadow-sm border-0">
                         <div class="card-header bg-light py-2 font-weight-bold">Right View (우측면도)</div>
-                        <div class="view-port bg-dark" id="vp-right" style="height: 250px;"><span class="view-tag badge badge-info position-absolute mt-2 ml-2">2D WIREFRAME</span></div>
+                        <div class="view-port bg-dark" id="vp-right" style="height: 250px;"><span class="view-tag badge bg-info text-white position-absolute mt-2 ml-2">2D WIREFRAME</span></div>
                     </div>
                 </div>
                 <div class="col-md-6 mb-3">
                     <div class="card shadow-sm border-0">
                         <div class="card-header bg-light py-2 font-weight-bold">Top View (평면도)</div>
-                        <div class="view-port bg-dark" id="vp-top" style="height: 250px;"><span class="view-tag badge badge-info position-absolute mt-2 ml-2">2D WIREFRAME</span></div>
+                        <div class="view-port bg-dark" id="vp-top" style="height: 250px;"><span class="view-tag badge bg-info text-white position-absolute mt-2 ml-2">2D WIREFRAME</span></div>
                     </div>
                 </div>
                 <div class="col-md-6 mb-3">
                     <div class="card shadow-sm border-0">
                         <div class="card-header bg-light py-2 font-weight-bold">Bottom View (앙시도)</div>
-                        <div class="view-port bg-dark" id="vp-bottom" style="height: 250px;"><span class="view-tag badge badge-info position-absolute mt-2 ml-2">2D WIREFRAME</span></div>
+                        <div class="view-port bg-dark" id="vp-bottom" style="height: 250px;"><span class="view-tag badge bg-info text-white position-absolute mt-2 ml-2">2D WIREFRAME</span></div>
                     </div>
                 </div>
             </div>
@@ -117,16 +119,16 @@ function dashboard_click() {
     `;
     targetMain.innerHTML = dashboardMainHTML;
 
-    // 3. 좌측 사이드바 영역 렌더링 (단면 입력 폼 등)
+    // 3. 좌측 사이드바 렌더링 (ul 안에 들어가므로 li 태그로 감쌈)
     const targetSide = document.getElementById('wrap_side');
     if (targetSide) {
         const sideHTML = `
-            <h6 class="sidebar-heading d-flex justify-content-between align-items-center px-3 mt-4 mb-1 text-muted">
-                <span>Frame Control</span>
-            </h6>
-            <div class="p-3">
-                <div class="form-group">
-                    <label for="materialSelect" class="font-weight-bold"><i class="fa fa-cubes mr-1"></i>Material</label>
+            <li class="nav-item px-3 mt-4">
+                <h6 class="sidebar-heading d-flex justify-content-between align-items-center mb-2 text-muted font-weight-bold">
+                    <span>Frame Control</span>
+                </h6>
+                <div class="form-group mb-2">
+                    <label for="materialSelect" style="font-size: 0.9rem;"><i class="fa fa-cubes mr-1"></i>Material</label>
                     <select class="form-control form-control-sm" id="materialSelect">
                         <option>SM355</option>
                         <option>SM490</option>
@@ -134,13 +136,10 @@ function dashboard_click() {
                     </select>
                 </div>
                 <hr>
-                <button class="btn btn-primary btn-sm btn-block mt-3" onclick="alert('뷰 업데이트 예정')">
+                <button class="btn btn-primary btn-sm btn-block mt-2" onclick="alert('도면 생성 엔진 로드 대기중...')">
                     <i class="fa fa-refresh mr-1"></i> Update Views
                 </button>
-                <button class="btn btn-outline-success btn-sm btn-block mt-2">
-                    <i class="fa fa-download mr-1"></i> Export Data
-                </button>
-            </div>
+            </li>
         `;
         targetSide.innerHTML = sideHTML;
     }
@@ -151,8 +150,6 @@ function dashboard_click() {
         const today = new Date();
         dateEl.innerHTML = `<i class="fa fa-calendar" aria-hidden="true"></i> ${today.getFullYear()}. ${String(today.getMonth()+1).padStart(2, '0')}. ${String(today.getDate()).padStart(2, '0')}`;
     }
-
-    console.log("Dashboard v002 loaded exactly into wrap_main and wrap_side.");
 }
 
 function loadDashboardStyles() {
