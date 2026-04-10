@@ -1,20 +1,19 @@
 /** v000
  * =========================================================================
- * ⬛ BIM Frame Dashboard Module (bim_frame.js)
+ * ⬛ Dashboard Module (dashboard.js)
  * Description: Renders the 4-split view structural dashboard
  * =========================================================================
  */
 
-function bimframe_click() {
+function dashboard_click() {
     // 1. CSS 동적 로드 (아직 로드되지 않은 경우)
-    loadBimFrameStyles();
+    loadDashboardStyles();
 
-    // 2. 화면에 렌더링될 HTML 템플릿 (사이드바 제외, 순수 대시보드 컨텐츠 영역만)
-    // 참고: index1.html에 이미 좌측 메뉴가 있으므로, 우측의 Content 영역만 교체하는 것이 좋습니다.
+    // 2. 화면에 렌더링될 HTML 템플릿
     const dashboardHTML = `
-        <div id="bim-dashboard-content" style="padding: 20px; background-color: #f4f5fa; min-height: 100vh;">
+        <div id="dashboard-content" style="padding: 20px; background-color: #f4f5fa; min-height: 100vh;">
             <div class="d-flex justify-content-between align-items-center mb-4">
-                <h4 class="fw-bold"><i class="fas fa-project-diagram"></i> Frame Analysis Dashboard</h4>
+                <h4 class="fw-bold"><i class="fas fa-columns"></i> Frame Analysis Dashboard</h4>
                 <div class="text-muted" id="current-date"><i class="far fa-calendar-alt"></i> Loading Date...</div>
             </div>
 
@@ -75,7 +74,6 @@ function bimframe_click() {
     `;
 
     // 3. index1.html의 메인 컨텐츠 영역을 찾아 HTML 주입
-    // (주의: 'main-content-area'는 실제 index1.html에서 우측 컨텐츠를 담는 div의 ID로 변경해주세요)
     const targetContainer = document.getElementById('renderContainer') || document.getElementById('main-content-area') || document.body;
     
     if (targetContainer) {
@@ -89,21 +87,19 @@ function bimframe_click() {
             dateEl.innerHTML = `<i class="far fa-calendar-alt"></i> ${today.getFullYear()}. ${String(today.getMonth()+1).padStart(2, '0')}. ${String(today.getDate()).padStart(2, '0')}`;
         }
 
-        console.log("BIM Frame Dashboard loaded successfully.");
+        console.log("Dashboard loaded successfully.");
         
-        // 향후 이곳에 4분할 뷰포트(vp-front, vp-3d 등)에 Three.js나 Konva 캔버스를 마운트하는 함수를 호출할 수 있습니다.
-        // initDashboardCanvases(); 
     } else {
-        console.error("Target container for BIM Frame not found.");
+        console.error("Target container for Dashboard not found.");
     }
 }
 
 // 대시보드 전용 CSS를 동적으로 문서 Head에 추가하는 헬퍼 함수
-function loadBimFrameStyles() {
-    if (document.getElementById('bimframe-styles')) return; // 이미 로드되었다면 스킵
+function loadDashboardStyles() {
+    if (document.getElementById('dashboard-styles')) return; // 이미 로드되었다면 스킵
 
     const style = document.createElement('style');
-    style.id = 'bimframe-styles';
+    style.id = 'dashboard-styles';
     style.innerHTML = `
         /* Card Styling */
         .card { border: none; border-radius: 15px; box-shadow: 0 4px 20px 0 rgba(0,0,0,.05); margin-bottom: 1.8rem; background: #fff; }
