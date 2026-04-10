@@ -1,6 +1,6 @@
-/** v017
+/** v018
  * @file bim_dashboard.js
- * @description Frame 메뉴 클릭 시 사이드바와 대시보드 메인 화면을 동적으로 렌더링하는 스크립트
+ * @description Frame 메뉴 클릭 시 EasyAdmin 스타일의 사이드바와 대시보드를 렌더링하는 스크립트
  */
 
 // ==========================================
@@ -25,26 +25,22 @@ function dashboard_click() {
     if (!contentDiv) return;
 
     // ==========================================
-    // 🚨 [핵심] Steel Section 등 타 메뉴의 방해 공작 원천 차단 및 복구
+    // 🚨 [핵심] 타 메뉴 방해 공작 원천 차단 및 복구
     // ==========================================
-    // 1. 사이드바 컨테이너 찾기
     let sideNav = sideDiv ? sideDiv.closest('nav') : document.querySelector('.sidebar') || document.querySelector('nav.bg-light');
 
-    // 2. 다른 메뉴가 컨테이너를 아예 날려버렸다면 강제 재건축
     if (!sideNav) {
         const containerFluid = document.querySelector('.container-fluid.pt-5') || contentDiv.parentNode;
         sideNav = document.createElement('nav');
         containerFluid.insertBefore(sideNav, contentDiv);
     }
 
-    // 3. 다른 메뉴가 뜯어버린 클래스명 완벽 복구 & 강제 숨김 무력화
     if (sideNav) {
         sideNav.className = 'col-md-2 d-md-block bg-light sidebar';
         sideNav.style.setProperty('display', 'block', 'important');
         sideNav.style.setProperty('visibility', 'visible', 'important');
     }
 
-    // 4. 내부 wrap_side가 파괴되었다면 재생성
     if (!sideDiv && sideNav) {
         let stickyDiv = sideNav.querySelector('.sidebar-sticky');
         if (!stickyDiv) {
@@ -55,14 +51,12 @@ function dashboard_click() {
         sideDiv = document.getElementById('wrap_side');
     }
 
-    // 5. wrap_side 클래스 & 표시 상태 강제 복구
     if (sideDiv) {
         sideDiv.className = 'nav flex-column';
         sideDiv.style.setProperty('display', 'block', 'important');
         sideDiv.style.setProperty('visibility', 'visible', 'important');
     }
 
-    // 6. 메인 콘텐츠 폭도 원래대로 강제 복구
     if (contentDiv) {
         contentDiv.className = 'col-md-9 ml-sm-auto col-lg-10 px-4 h-100';
     }
@@ -80,71 +74,97 @@ function dashboard_click() {
     }
 
     // ==========================================
-    // 1. 메인 화면 & 통합 CSS 주입
+    // 1. 메인 화면 & EasyAdmin 스타일 CSS 주입
     // ==========================================
     contentDiv.innerHTML = `
         <style>
-            /* 레이아웃 강제 변경 (Frame 메뉴 전용) */
-            .sidebar { display: block !important; position: fixed !important; top: 56px !important; bottom: 0 !important; left: 0 !important; width: 260px !important; max-width: 260px !important; flex: 0 0 260px !important; background-color: #1e2b37 !important; padding: 0 !important; z-index: 1000; overflow-y: auto; }
-            #wrap_main { margin-left: 260px !important; width: calc(100% - 260px) !important; max-width: calc(100% - 260px) !important; flex: 0 0 calc(100% - 260px) !important; padding-top: 20px; }
+            /* EasyAdmin 전체 배경 느낌 (body 배경색이 영향을 덜 받도록 main padding 내에서 처리) */
+            #wrap_main { background-color: #f4f6f9 !important; min-height: 100vh; }
+            
+            /* 사이드바 레이아웃 강제 변경 */
+            .sidebar { display: block !important; position: fixed !important; top: 56px !important; bottom: 0 !important; left: 0 !important; width: 260px !important; max-width: 260px !important; flex: 0 0 260px !important; background-color: #2f353a !important; padding: 0 !important; z-index: 1000; overflow-y: auto; box-shadow: 2px 0 10px rgba(0,0,0,0.1); }
+            #wrap_main { margin-left: 260px !important; width: calc(100% - 260px) !important; max-width: calc(100% - 260px) !important; flex: 0 0 calc(100% - 260px) !important; padding-top: 25px; padding-bottom: 40px; }
             #wrap_side { padding-top: 0px; }
 
-            /* 대시보드 메인 카드 디자인 */
-            #frame-dashboard-scope .card { border: none; border-radius: 15px; box-shadow: 0 4px 20px 0 rgba(0,0,0,.05); margin-bottom: 1.8rem; background: #fff; }
+            /* 💡 EasyAdmin 스타일 카드 디자인 */
+            #frame-dashboard-scope .card { 
+                border: none; 
+                border-radius: 0.5rem; /* 더 둥글고 세련된 모서리 */
+                box-shadow: 0 2px 12px rgba(0,0,0,0.06); /* EasyAdmin 특유의 부드러운 그림자 */
+                margin-bottom: 2rem; 
+                background: #fff; 
+                transition: all 0.3s ease;
+            }
+            #frame-dashboard-scope .card:hover { box-shadow: 0 4px 15px rgba(0,0,0,0.1); } /* 마우스 오버 시 살짝 뜨는 효과 */
             
-            /* 💡 수정 포인트: 헤더 폰트 굵기를 600에서 400으로 조절하고, 패딩을 1.2rem에서 0.6rem으로 절반으로 줄여 얇게 변경 */
-            #frame-dashboard-scope .card-header { background: transparent; border-bottom: 1px solid #f0f0f0; padding: 0.6rem; font-weight: 400; }
+            /* 카드 헤더 (더 플랫하고 깔끔하게) */
+            #frame-dashboard-scope .card-header { 
+                background: #fff; 
+                border-bottom: 1px solid #edf1f5; 
+                padding: 1rem 1.25rem; 
+                font-weight: 600; 
+                color: #495057;
+                border-radius: 0.5rem 0.5rem 0 0;
+                font-size: 0.95rem;
+            }
             
-            #frame-dashboard-scope .view-port { background: #1a1a1a; height: 380px; border-radius: 0 0 15px 15px; position: relative; }
-            #frame-dashboard-scope .view-tag { position: absolute; top: 15px; left: 15px; background: rgba(102, 110, 232, 0.8); color: white; padding: 4px 12px; border-radius: 20px; font-size: 0.7rem; font-weight: bold; }
-            #frame-dashboard-scope .stats-card { padding: 1.5rem; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; }
-            #frame-dashboard-scope .stats-icon { width: 60px; height: 60px; border-radius: 15px; display: flex; align-items: center; justify-content: center; font-size: 1.8rem; margin-bottom: 12px; }
-            #frame-dashboard-scope .bg-light-primary { background: #eef0ff; color: #666ee8 !important; }
-            #frame-dashboard-scope .bg-light-success { background: #e6fffa; color: #38c172 !important; }
-            #frame-dashboard-scope .bg-light-warning { background: #fff8e6; color: #f6993f !important; }
-            #frame-dashboard-scope .bg-light-danger { background: #fff5f5; color: #e3342f !important; }
+            /* 뷰포트 */
+            #frame-dashboard-scope .view-port { background: #222d32; height: 360px; border-radius: 0 0 0.5rem 0.5rem; position: relative; }
+            #frame-dashboard-scope .view-tag { position: absolute; top: 15px; left: 15px; background: rgba(52, 144, 220, 0.9); color: white; padding: 4px 12px; border-radius: 20px; font-size: 0.65rem; font-weight: bold; letter-spacing: 0.5px; }
+            
+            /* 통계 카드 (EasyAdmin 위젯 스타일) */
+            #frame-dashboard-scope .stats-card { padding: 1.8rem 1.5rem; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; }
+            #frame-dashboard-scope .stats-icon { width: 65px; height: 65px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 1.8rem; margin-bottom: 15px; }
+            #frame-dashboard-scope .stats-card small { font-weight: 600; letter-spacing: 0.5px; margin-bottom: 5px; font-size: 0.8rem; }
+            #frame-dashboard-scope .stats-card .h5 { font-size: 1.4rem; color: #333; }
 
-            /* 사이드바 전용 스타일 */
-            .frame-side-header { padding: 25px 25px 10px; font-size: 1.3rem; font-weight: 700; color: #fff !important; letter-spacing: 1px; list-style: none; }
-            .frame-side-menu-label { padding: 15px 25px 5px 25px; font-size: 0.75rem; text-transform: uppercase; color: #6b7d8d !important; font-weight: bold; list-style: none; }
+            /* 색상 팔레트 (EasyAdmin 톤) */
+            #frame-dashboard-scope .bg-light-primary { background: #e3f2fd; color: #3490dc !important; }
+            #frame-dashboard-scope .bg-light-success { background: #e2f4ec; color: #38c172 !important; }
+            #frame-dashboard-scope .bg-light-warning { background: #fef1e2; color: #f6993f !important; }
+            #frame-dashboard-scope .bg-light-danger { background: #fbeae9; color: #e3342f !important; }
+
+            /* EasyAdmin 사이드바 전용 스타일 */
+            .frame-side-header { padding: 25px 25px 15px; font-size: 1.4rem; font-weight: 700; color: #fff !important; letter-spacing: 1.5px; list-style: none; text-align: center; border-bottom: 1px solid rgba(255,255,255,0.05); margin-bottom: 10px; }
+            .frame-side-menu-label { padding: 20px 25px 10px 25px; font-size: 0.7rem; text-transform: uppercase; color: #8aa4af !important; font-weight: 700; list-style: none; letter-spacing: 1px; }
             .frame-side-item { list-style: none; }
-            .frame-side-link { padding: 12px 25px; display: flex; align-items: center; color: #bacddc !important; text-decoration: none !important; transition: 0.3s; border-left: 4px solid transparent; }
-            .frame-side-link:hover, .frame-side-item.active .frame-side-link { color: #fff !important; background: rgba(255,255,255,0.05); border-left: 4px solid #666ee8 !important; }
-            .frame-side-link i { margin-right: 15px; width: 20px; text-align: center; }
+            .frame-side-link { padding: 12px 25px; display: flex; align-items: center; color: #b8c7ce !important; text-decoration: none !important; transition: 0.3s; border-left: 3px solid transparent; font-size: 0.9rem; }
+            .frame-side-link:hover, .frame-side-item.active .frame-side-link { color: #fff !important; background: #222d32; border-left: 3px solid #3490dc !important; }
+            .frame-side-link i { margin-right: 15px; width: 20px; text-align: center; font-size: 1.1rem; }
         </style>
 
         <div id="frame-dashboard-scope">
-            <div class="d-flex justify-content-between align-items-center mb-4">
-                <h4 class="fw-bold">Frame Analysis Dashboard</h4>
-                <div class="text-muted"><i class="fa fa-calendar"></i> 2026. 04. 10</div>
+            <div class="d-flex justify-content-between align-items-center mb-4 pb-2">
+                <h4 class="fw-bold m-0" style="color: #333;">Frame Analysis Dashboard</h4>
+                <div class="text-muted bg-white px-3 py-2 rounded shadow-sm" style="font-size: 0.9rem;"><i class="fa fa-calendar mr-2"></i> 2026. 04. 10</div>
             </div>
 
-            <div class="row mb-2">
+            <div class="row mb-3">
                 <div class="col-md-3">
                     <div class="card stats-card">
                         <div class="stats-icon bg-light-primary"><i class="fa fa-shopping-bag"></i></div>
-                        <small class="text-muted mb-1">Steel Weight</small>
+                        <small class="text-muted">STEEL WEIGHT</small>
                         <div class="h5 mb-0 fw-bold">14.52 ton</div>
                     </div>
                 </div>
                 <div class="col-md-3">
                     <div class="card stats-card">
                         <div class="stats-icon bg-light-success"><i class="fa fa-bolt"></i></div>
-                        <small class="text-muted mb-1">Bolt Count (M20)</small>
+                        <small class="text-muted">BOLT COUNT (M20)</small>
                         <div class="h5 mb-0 fw-bold">182 EA</div>
                     </div>
                 </div>
                 <div class="col-md-3">
                     <div class="card stats-card">
                         <div class="stats-icon bg-light-warning"><i class="fa fa-share-alt"></i></div>
-                        <small class="text-muted mb-1">Total Nodes</small>
+                        <small class="text-muted">TOTAL NODES</small>
                         <div class="h5 mb-0 fw-bold">24 EA</div>
                     </div>
                 </div>
                 <div class="col-md-3">
                     <div class="card stats-card">
                         <div class="stats-icon bg-light-danger"><i class="fa fa-krw"></i></div>
-                        <small class="text-muted mb-1">Estimated Cost</small>
+                        <small class="text-muted">ESTIMATED COST</small>
                         <div class="h5 mb-0 fw-bold">21.4M KRW</div>
                     </div>
                 </div>
@@ -152,43 +172,43 @@ function dashboard_click() {
 
             <div class="row">
                 <div class="col-md-6">
-                    <div class="card border-primary">
-                        <div class="card-header d-flex justify-content-between bg-primary text-white"><span>3D Perspective</span><i class="fa fa-cube"></i></div>
-                        <div class="view-port" style="background: radial-gradient(circle, #2c3e50 0%, #000 100%);"><span class="view-tag bg-warning text-dark">RENDERED</span></div>
+                    <div class="card" style="border-top: 3px solid #3490dc;">
+                        <div class="card-header d-flex justify-content-between"><span>3D Perspective</span><i class="fa fa-cube text-primary"></i></div>
+                        <div class="view-port" style="background: radial-gradient(circle, #2f353a 0%, #1a1a1a 100%);"><span class="view-tag bg-warning text-dark">RENDERED</span></div>
                     </div>
                 </div>
                 <div class="col-md-6">
-                    <div class="card">
+                    <div class="card" style="border-top: 3px solid #6c757d;">
                         <div class="card-header d-flex justify-content-between"><span>Front View</span><i class="fa fa-arrows-alt text-muted"></i></div>
                         <div class="view-port"><span class="view-tag">2D WIREFRAME</span></div>
                     </div>
                 </div>
                 <div class="col-md-6">
-                    <div class="card">
+                    <div class="card" style="border-top: 3px solid #6c757d;">
                         <div class="card-header d-flex justify-content-between"><span>Back View</span><i class="fa fa-arrows-alt text-muted"></i></div>
                         <div class="view-port"><span class="view-tag">2D WIREFRAME</span></div>
                     </div>
                 </div>
                 <div class="col-md-6">
-                    <div class="card">
+                    <div class="card" style="border-top: 3px solid #6c757d;">
                         <div class="card-header">Top View</div>
                         <div class="view-port"><span class="view-tag">2D WIREFRAME</span></div>
                     </div>
                 </div>
                 <div class="col-md-6">
-                    <div class="card">
+                    <div class="card" style="border-top: 3px solid #6c757d;">
                         <div class="card-header">Bottom View</div>
                         <div class="view-port"><span class="view-tag">2D WIREFRAME</span></div>
                     </div>
                 </div>
                 <div class="col-md-6">
-                    <div class="card">
+                    <div class="card" style="border-top: 3px solid #6c757d;">
                         <div class="card-header">Left View</div>
                         <div class="view-port"><span class="view-tag">2D WIREFRAME</span></div>
                     </div>
                 </div>
                 <div class="col-md-6">
-                    <div class="card">
+                    <div class="card" style="border-top: 3px solid #6c757d;">
                         <div class="card-header">Right View</div>
                         <div class="view-port"><span class="view-tag">2D WIREFRAME</span></div>
                     </div>
@@ -198,16 +218,16 @@ function dashboard_click() {
     `;
 
     // ==========================================
-    // 2. 사이드바 화면 HTML (영문화)
+    // 2. 사이드바 화면 HTML (EasyAdmin 영문화)
     // ==========================================
     if (sideDiv) {
         sideDiv.innerHTML = `
             <li class="frame-side-header">
-                <i class="fa fa-compass"></i> MASTER BIM
+                <i class="fa fa-compass text-primary mr-2"></i> MASTER BIM
             </li>
             
             <li class="frame-side-menu-label">Main Menu</li>
-            <li class="frame-side-item"><a href="#" class="frame-side-link"><i class="fa fa-columns"></i> Dashboard</a></li>
+            <li class="frame-side-item"><a href="#" class="frame-side-link"><i class="fa fa-tachometer"></i> Dashboard</a></li>
             
             <li class="frame-side-menu-label">Structural Design</li>
             <li class="frame-side-item"><a href="#" class="frame-side-link"><i class="fa fa-square-o"></i> Sections</a></li>
