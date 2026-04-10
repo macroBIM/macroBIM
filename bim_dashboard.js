@@ -1,6 +1,6 @@
-/** v019
+/** v020
  * @file bim_dashboard.js
- * @description Frame 메뉴 클릭 시 올 화이트 EasyAdmin 스타일 대시보드를 렌더링하는 스크립트
+ * @description Frame 메뉴 클릭 시 '진짜' EasyAdmin 스타일의 사이드바와 대시보드를 렌더링하는 스크립트
  */
 
 // ==========================================
@@ -36,7 +36,7 @@ function dashboard_click() {
     }
 
     if (sideNav) {
-        sideNav.className = 'col-md-2 d-md-block bg-light sidebar';
+        sideNav.className = 'col-md-2 d-md-block sidebar'; /* bg-light 제거 (우리가 직접 제어) */
         sideNav.style.setProperty('display', 'block', 'important');
         sideNav.style.setProperty('visibility', 'visible', 'important');
     }
@@ -73,151 +73,195 @@ function dashboard_click() {
     }
 
     // ==========================================
-    // 1. 메인 화면 & 올 화이트 CSS 주입
+    // 1. 메인 화면 & 찐 EasyAdmin 스타일 CSS 주입
     // ==========================================
     contentDiv.innerHTML = `
         <style>
-            /* 메인 배경색 (아주 옅은 회색으로 흰색 카드들이 돋보이게 함) */
-            #wrap_main { background-color: #f4f6f9 !important; min-height: 100vh; }
+            /* 메인 배경색 (EasyAdmin 특유의 옅은 회색) */
+            #wrap_main { background-color: #f4f6f9 !important; min-height: 100vh; padding-top: 30px !important; padding-bottom: 40px !important; }
             
-            /* 사이드바 화이트 테마 변경 */
-            .sidebar { display: block !important; position: fixed !important; top: 56px !important; bottom: 0 !important; left: 0 !important; width: 260px !important; max-width: 260px !important; flex: 0 0 260px !important; background-color: #ffffff !important; padding: 0 !important; z-index: 1000; overflow-y: auto; box-shadow: 2px 0 10px rgba(0,0,0,0.05); border-right: 1px solid #edf1f5; }
-            #wrap_main { margin-left: 260px !important; width: calc(100% - 260px) !important; max-width: calc(100% - 260px) !important; flex: 0 0 calc(100% - 260px) !important; padding-top: 25px; padding-bottom: 40px; }
+            /* 사이드바 화이트 테마 완벽 클론 */
+            .sidebar { display: block !important; position: fixed !important; top: 56px !important; bottom: 0 !important; left: 0 !important; width: 260px !important; max-width: 260px !important; flex: 0 0 260px !important; background-color: #ffffff !important; padding: 0 !important; z-index: 1000; overflow-y: auto; box-shadow: 0 0 15px rgba(0,0,0,0.05); border-right: 1px solid #e9ecef; }
+            #wrap_main { margin-left: 260px !important; width: calc(100% - 260px) !important; max-width: calc(100% - 260px) !important; flex: 0 0 calc(100% - 260px) !important; }
             #wrap_side { padding-top: 0px; }
 
-            /* 카드 디자인 */
+            /* 💡 진짜 EasyAdmin 스타일 카드 */
             #frame-dashboard-scope .card { 
-                border: none; 
-                border-radius: 0.5rem; 
-                box-shadow: 0 2px 12px rgba(0,0,0,0.04); 
-                margin-bottom: 2rem; 
+                border: 1px solid rgba(0,0,0,0.05); 
+                border-radius: 0.4rem; 
+                box-shadow: 0 1px 3px rgba(0,0,0,0.02); 
+                margin-bottom: 1.5rem; 
                 background: #fff; 
-                transition: all 0.3s ease;
             }
-            #frame-dashboard-scope .card:hover { box-shadow: 0 4px 15px rgba(0,0,0,0.08); } 
             
-            /* 카드 플랫 헤더 */
+            /* 카드 헤더 (플랫, 밑줄 없음, 패딩 조절) */
             #frame-dashboard-scope .card-header { 
                 background: #fff; 
-                border-bottom: 1px solid #edf1f5; 
-                padding: 1rem 1.25rem; 
+                border-bottom: none; 
+                padding: 1.2rem 1.25rem 0.5rem; 
                 font-weight: 600; 
-                color: #495057;
-                border-radius: 0.5rem 0.5rem 0 0;
-                font-size: 0.95rem;
+                color: #212529;
+                border-radius: 0.4rem 0.4rem 0 0;
+                font-size: 1rem;
             }
             
-            /* 💡 뷰포트 화이트 & 모던 도트 그리드 테마 */
+            /* 뷰포트 영역 */
             #frame-dashboard-scope .view-port { 
-                background-color: #fcfcfc; 
-                background-image: radial-gradient(#d1d5db 1px, transparent 1px);
+                background-color: #f8f9fa; 
+                background-image: radial-gradient(#dee2e6 1px, transparent 1px);
                 background-size: 20px 20px;
-                height: 360px; 
-                border-radius: 0 0 0.5rem 0.5rem; 
+                height: 320px; 
+                border-radius: 0 0 0.4rem 0.4rem; 
                 position: relative; 
+                border-top: 1px solid #f1f3f5;
             }
-            #frame-dashboard-scope .view-tag { position: absolute; top: 15px; left: 15px; background: rgba(52, 144, 220, 0.9); color: white; padding: 4px 12px; border-radius: 20px; font-size: 0.65rem; font-weight: bold; letter-spacing: 0.5px; box-shadow: 0 2px 5px rgba(0,0,0,0.1); }
+            #frame-dashboard-scope .view-tag { position: absolute; top: 15px; left: 15px; background: rgba(0, 123, 255, 0.85); color: white; padding: 3px 10px; border-radius: 4px; font-size: 0.7rem; font-weight: 600; letter-spacing: 0.5px; }
             
-            /* 통계 카드 */
-            #frame-dashboard-scope .stats-card { padding: 1.8rem 1.5rem; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; }
-            #frame-dashboard-scope .stats-icon { width: 65px; height: 65px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 1.8rem; margin-bottom: 15px; }
-            #frame-dashboard-scope .stats-card small { font-weight: 600; letter-spacing: 0.5px; margin-bottom: 5px; font-size: 0.8rem; }
-            #frame-dashboard-scope .stats-card .h5 { font-size: 1.4rem; color: #333; }
+            /* 💡 찐 EasyAdmin 통계 카드 (좌측 숫자, 우측 파스텔 아이콘) */
+            #frame-dashboard-scope .stats-card { 
+                padding: 1.5rem; 
+                display: flex; 
+                flex-direction: row; /* 가로 배치 */
+                align-items: center; 
+                justify-content: space-between; /* 양끝 정렬 */
+                text-align: left; 
+            }
+            #frame-dashboard-scope .stats-info {
+                display: flex;
+                flex-direction: column;
+            }
+            #frame-dashboard-scope .stats-card small { font-weight: 500; color: #6c757d; margin-bottom: 0.2rem; font-size: 0.85rem; }
+            #frame-dashboard-scope .stats-card .h4 { font-size: 1.5rem; font-weight: 700; color: #212529; margin-bottom: 0; }
+            
+            /* 네모난 둥근 모서리 아이콘 (EasyAdmin 특징) */
+            #frame-dashboard-scope .stats-icon { 
+                width: 48px; 
+                height: 48px; 
+                border-radius: 0.4rem; 
+                display: flex; 
+                align-items: center; 
+                justify-content: center; 
+                font-size: 1.3rem; 
+            }
 
-            /* 색상 팔레트 */
-            #frame-dashboard-scope .bg-light-primary { background: #e3f2fd; color: #3490dc !important; }
-            #frame-dashboard-scope .bg-light-success { background: #e2f4ec; color: #38c172 !important; }
-            #frame-dashboard-scope .bg-light-warning { background: #fef1e2; color: #f6993f !important; }
-            #frame-dashboard-scope .bg-light-danger { background: #fbeae9; color: #e3342f !important; }
+            /* 파스텔톤 색상 팔레트 */
+            #frame-dashboard-scope .bg-light-primary { background: #e0f3ff; color: #007bff; }
+            #frame-dashboard-scope .bg-light-success { background: #d4f5e3; color: #28a745; }
+            #frame-dashboard-scope .bg-light-warning { background: #fff0d4; color: #fd7e14; }
+            #frame-dashboard-scope .bg-light-danger { background: #fde1e1; color: #dc3545; }
 
-            /* 💡 사이드바 화이트 테마 폰트 컬러 조정 */
-            .frame-side-header { padding: 25px 25px 15px; font-size: 1.4rem; font-weight: 800; color: #343a40 !important; letter-spacing: 1px; list-style: none; text-align: center; border-bottom: 1px solid #edf1f5; margin-bottom: 10px; }
-            .frame-side-menu-label { padding: 20px 25px 10px 25px; font-size: 0.7rem; text-transform: uppercase; color: #adb5bd !important; font-weight: 700; list-style: none; letter-spacing: 1px; }
-            .frame-side-item { list-style: none; }
-            .frame-side-link { padding: 12px 25px; display: flex; align-items: center; color: #495057 !important; text-decoration: none !important; transition: 0.3s; border-left: 3px solid transparent; font-size: 0.95rem; font-weight: 500; }
-            .frame-side-link:hover, .frame-side-item.active .frame-side-link { color: #3490dc !important; background: #f8f9fa; border-left: 3px solid #3490dc !important; }
-            .frame-side-link i { margin-right: 15px; width: 20px; text-align: center; font-size: 1.1rem; color: #a1aab2; transition: 0.3s; }
-            .frame-side-link:hover i, .frame-side-item.active .frame-side-link i { color: #3490dc; }
+            /* 💡 사이드바 찐 EasyAdmin 클론 */
+            .frame-side-header { padding: 20px 25px; font-size: 1.2rem; font-weight: 700; color: #212529 !important; letter-spacing: 0px; list-style: none; text-align: left; display: flex; align-items: center; }
+            .frame-side-header i { font-size: 1.5rem; color: #007bff; margin-right: 10px; }
+            .frame-side-header span { font-size: 0.8rem; font-weight: 400; color: #6c757d; display: block; margin-top: -3px;}
+
+            .frame-side-menu-label { padding: 15px 25px 5px 25px; font-size: 0.7rem; text-transform: uppercase; color: #adb5bd !important; font-weight: 600; list-style: none; letter-spacing: 0.5px; }
+            .frame-side-item { list-style: none; margin: 2px 10px; /* 좌우 여백 */ }
+            .frame-side-link { padding: 10px 15px; display: flex; align-items: center; color: #495057 !important; text-decoration: none !important; transition: 0.2s; border-radius: 0.4rem; font-size: 0.9rem; font-weight: 500; }
+            
+            /* EasyAdmin Hover & Active 효과 (배경색과 파란 글씨) */
+            .frame-side-link:hover { color: #007bff !important; background: #f8f9fa; }
+            .frame-side-item.active .frame-side-link { color: #007bff !important; background: #e0f3ff; font-weight: 600; }
+            
+            .frame-side-link i { margin-right: 12px; width: 20px; text-align: center; font-size: 1.1rem; color: #adb5bd; transition: 0.2s; }
+            .frame-side-link:hover i, .frame-side-item.active .frame-side-link i { color: #007bff; }
         </style>
 
         <div id="frame-dashboard-scope">
-            <div class="d-flex justify-content-between align-items-center mb-4 pb-2">
-                <h4 class="fw-bold m-0" style="color: #333;">Frame Analysis Dashboard</h4>
-                <div class="text-muted bg-white px-3 py-2 rounded shadow-sm border" style="font-size: 0.9rem; border-color: #edf1f5 !important;"><i class="fa fa-calendar mr-2"></i> 2026. 04. 10</div>
+            <div class="mb-4">
+                <h3 class="fw-bold mb-1" style="color: #212529; font-size: 1.75rem;">Frame Analysis Dashboard</h3>
+                <p class="text-muted" style="font-size: 0.9rem;">Here's what's happening with your structure today.</p>
             </div>
 
             <div class="row mb-3">
                 <div class="col-md-3">
                     <div class="card stats-card">
-                        <div class="stats-icon bg-light-primary"><i class="fa fa-shopping-bag"></i></div>
-                        <small class="text-muted">STEEL WEIGHT</small>
-                        <div class="h5 mb-0 fw-bold">14.52 ton</div>
+                        <div class="stats-info">
+                            <small>Total Steel Weight</small>
+                            <div class="h4">14.52 ton</div>
+                        </div>
+                        <div class="stats-icon bg-light-primary"><i class="fa fa-cubes"></i></div>
                     </div>
                 </div>
                 <div class="col-md-3">
                     <div class="card stats-card">
-                        <div class="stats-icon bg-light-success"><i class="fa fa-bolt"></i></div>
-                        <small class="text-muted">BOLT COUNT (M20)</small>
-                        <div class="h5 mb-0 fw-bold">182 EA</div>
+                        <div class="stats-info">
+                            <small>Bolt Count (M20)</small>
+                            <div class="h4">182 EA</div>
+                        </div>
+                        <div class="stats-icon bg-light-success"><i class="fa fa-wrench"></i></div>
                     </div>
                 </div>
                 <div class="col-md-3">
                     <div class="card stats-card">
+                        <div class="stats-info">
+                            <small>Total Nodes</small>
+                            <div class="h4">24 EA</div>
+                        </div>
                         <div class="stats-icon bg-light-warning"><i class="fa fa-share-alt"></i></div>
-                        <small class="text-muted">TOTAL NODES</small>
-                        <div class="h5 mb-0 fw-bold">24 EA</div>
                     </div>
                 </div>
                 <div class="col-md-3">
                     <div class="card stats-card">
+                        <div class="stats-info">
+                            <small>Estimated Cost</small>
+                            <div class="h4">21.4M KRW</div>
+                        </div>
                         <div class="stats-icon bg-light-danger"><i class="fa fa-krw"></i></div>
-                        <small class="text-muted">ESTIMATED COST</small>
-                        <div class="h5 mb-0 fw-bold">21.4M KRW</div>
                     </div>
                 </div>
             </div>
 
             <div class="row">
                 <div class="col-md-6">
-                    <div class="card" style="border-top: 3px solid #3490dc;">
-                        <div class="card-header d-flex justify-content-between"><span>3D Perspective</span><i class="fa fa-cube text-primary"></i></div>
-                        <div class="view-port" style="background: radial-gradient(circle, #ffffff 0%, #e2e8f0 100%); background-image: none;"><span class="view-tag bg-warning text-dark">RENDERED</span></div>
+                    <div class="card">
+                        <div class="card-header d-flex justify-content-between align-items-center">
+                            <span>3D Perspective</span>
+                            <span style="font-size: 0.75rem; color: #28a745; background: #d4f5e3; padding: 2px 8px; border-radius: 4px; font-weight: 600;">RENDERED</span>
+                        </div>
+                        <div class="view-port" style="background-image: none; background: #212529;"></div>
                     </div>
                 </div>
                 <div class="col-md-6">
-                    <div class="card" style="border-top: 3px solid #6c757d;">
-                        <div class="card-header d-flex justify-content-between"><span>Front View</span><i class="fa fa-arrows-alt text-muted"></i></div>
-                        <div class="view-port"><span class="view-tag">2D WIREFRAME</span></div>
+                    <div class="card">
+                        <div class="card-header d-flex justify-content-between align-items-center">
+                            <span>Front View</span>
+                            <i class="fa fa-expand text-muted" style="cursor: pointer;"></i>
+                        </div>
+                        <div class="view-port"><span class="view-tag" style="background: rgba(108, 117, 125, 0.8);">2D WIREFRAME</span></div>
                     </div>
                 </div>
                 <div class="col-md-6">
-                    <div class="card" style="border-top: 3px solid #6c757d;">
-                        <div class="card-header d-flex justify-content-between"><span>Back View</span><i class="fa fa-arrows-alt text-muted"></i></div>
-                        <div class="view-port"><span class="view-tag">2D WIREFRAME</span></div>
+                    <div class="card">
+                        <div class="card-header d-flex justify-content-between align-items-center">
+                            <span>Back View</span>
+                            <i class="fa fa-expand text-muted" style="cursor: pointer;"></i>
+                        </div>
+                        <div class="view-port"><span class="view-tag" style="background: rgba(108, 117, 125, 0.8);">2D WIREFRAME</span></div>
                     </div>
                 </div>
                 <div class="col-md-6">
-                    <div class="card" style="border-top: 3px solid #6c757d;">
+                    <div class="card">
                         <div class="card-header">Top View</div>
-                        <div class="view-port"><span class="view-tag">2D WIREFRAME</span></div>
+                        <div class="view-port"><span class="view-tag" style="background: rgba(108, 117, 125, 0.8);">2D WIREFRAME</span></div>
                     </div>
                 </div>
                 <div class="col-md-6">
-                    <div class="card" style="border-top: 3px solid #6c757d;">
+                    <div class="card">
                         <div class="card-header">Bottom View</div>
-                        <div class="view-port"><span class="view-tag">2D WIREFRAME</span></div>
+                        <div class="view-port"><span class="view-tag" style="background: rgba(108, 117, 125, 0.8);">2D WIREFRAME</span></div>
                     </div>
                 </div>
                 <div class="col-md-6">
-                    <div class="card" style="border-top: 3px solid #6c757d;">
+                    <div class="card">
                         <div class="card-header">Left View</div>
-                        <div class="view-port"><span class="view-tag">2D WIREFRAME</span></div>
+                        <div class="view-port"><span class="view-tag" style="background: rgba(108, 117, 125, 0.8);">2D WIREFRAME</span></div>
                     </div>
                 </div>
                 <div class="col-md-6">
-                    <div class="card" style="border-top: 3px solid #6c757d;">
+                    <div class="card">
                         <div class="card-header">Right View</div>
-                        <div class="view-port"><span class="view-tag">2D WIREFRAME</span></div>
+                        <div class="view-port"><span class="view-tag" style="background: rgba(108, 117, 125, 0.8);">2D WIREFRAME</span></div>
                     </div>
                 </div>
             </div>
@@ -225,16 +269,22 @@ function dashboard_click() {
     `;
 
     // ==========================================
-    // 2. 사이드바 화면 HTML (EasyAdmin 화이트 테마)
+    // 2. 사이드바 화면 HTML (EasyAdmin 완벽 클론)
     // ==========================================
     if (sideDiv) {
         sideDiv.innerHTML = `
             <li class="frame-side-header">
-                <i class="fa fa-compass text-primary mr-2"></i> MASTER BIM
+                <i class="fa fa-cube"></i>
+                <div>
+                    MASTER BIM
+                    <span>ADMIN PANEL</span>
+                </div>
             </li>
             
+            <hr style="margin: 0 15px 10px 15px; border-top: 1px solid #e9ecef;">
+            
             <li class="frame-side-menu-label">Main Menu</li>
-            <li class="frame-side-item"><a href="#" class="frame-side-link"><i class="fa fa-tachometer"></i> Dashboard</a></li>
+            <li class="frame-side-item"><a href="#" class="frame-side-link"><i class="fa fa-th-large"></i> Dashboard</a></li>
             
             <li class="frame-side-menu-label">Structural Design</li>
             <li class="frame-side-item"><a href="#" class="frame-side-link"><i class="fa fa-square-o"></i> Sections</a></li>
