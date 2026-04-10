@@ -1,4 +1,4 @@
-/** v006
+/** v007
  * @file bim_dashboard.js
  * @description Frame 메뉴 클릭 시 사이드바와 대시보드 메인 화면을 동적으로 렌더링하는 스크립트
  */
@@ -108,15 +108,27 @@ function dashboard_click() {
 
         <div class="row">
             <div class="col-md-6">
+                <div class="card border-primary">
+                    <div class="card-header d-flex justify-content-between bg-primary text-white"><span>3D Perspective</span><i class="fa fa-cube"></i></div>
+                    <div class="view-port" style="background: radial-gradient(circle, #2c3e50 0%, #000 100%);"><span class="view-tag bg-warning text-dark">RENDERED</span></div>
+                </div>
+            </div>
+            <div class="col-md-6">
                 <div class="card">
                     <div class="card-header d-flex justify-content-between"><span>Front View (정면)</span><i class="fa fa-arrows-alt text-muted"></i></div>
                     <div class="view-port"><span class="view-tag">2D WIREFRAME</span></div>
                 </div>
             </div>
             <div class="col-md-6">
-                <div class="card border-primary">
-                    <div class="card-header d-flex justify-content-between bg-primary text-white"><span>3D Perspective</span><i class="fa fa-cube"></i></div>
-                    <div class="view-port" style="background: radial-gradient(circle, #2c3e50 0%, #000 100%);"><span class="view-tag bg-warning text-dark">RENDERED</span></div>
+                <div class="card">
+                    <div class="card-header d-flex justify-content-between"><span>Front View (정면)</span><i class="fa fa-arrows-alt text-muted"></i></div>
+                    <div class="view-port"><span class="view-tag">2D WIREFRAME</span></div>
+                </div>
+            </div>
+            <div class="col-md-6">
+                <div class="card">
+                    <div class="card-header d-flex justify-content-between"><span>Back View (정면)</span><i class="fa fa-arrows-alt text-muted"></i></div>
+                    <div class="view-port"><span class="view-tag">2D WIREFRAME</span></div>
                 </div>
             </div>
             <div class="col-md-6">
@@ -127,7 +139,19 @@ function dashboard_click() {
             </div>
             <div class="col-md-6">
                 <div class="card">
-                    <div class="card-header">Side View (측면)</div>
+                    <div class="card-header">Bottom View (평면)</div>
+                    <div class="view-port"><span class="view-tag">2D WIREFRAME</span></div>
+                </div>
+            </div>
+            <div class="col-md-6">
+                <div class="card">
+                    <div class="card-header">Left View (측면)</div>
+                    <div class="view-port"><span class="view-tag">2D WIREFRAME</span></div>
+                </div>
+            </div>
+            <div class="col-md-6">
+                <div class="card">
+                    <div class="card-header">Right View (측면)</div>
                     <div class="view-port"><span class="view-tag">2D WIREFRAME</span></div>
                 </div>
             </div>
