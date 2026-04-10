@@ -1,6 +1,6 @@
-/** v018
+/** v019
  * @file bim_dashboard.js
- * @description Frame 메뉴 클릭 시 EasyAdmin 스타일의 사이드바와 대시보드를 렌더링하는 스크립트
+ * @description Frame 메뉴 클릭 시 올 화이트 EasyAdmin 스타일 대시보드를 렌더링하는 스크립트
  */
 
 // ==========================================
@@ -61,7 +61,6 @@ function dashboard_click() {
         contentDiv.className = 'col-md-9 ml-sm-auto col-lg-10 px-4 h-100';
     }
 
-
     // ==========================================
     // 0. 아이콘 강제 로드
     // ==========================================
@@ -74,30 +73,30 @@ function dashboard_click() {
     }
 
     // ==========================================
-    // 1. 메인 화면 & EasyAdmin 스타일 CSS 주입
+    // 1. 메인 화면 & 올 화이트 CSS 주입
     // ==========================================
     contentDiv.innerHTML = `
         <style>
-            /* EasyAdmin 전체 배경 느낌 (body 배경색이 영향을 덜 받도록 main padding 내에서 처리) */
+            /* 메인 배경색 (아주 옅은 회색으로 흰색 카드들이 돋보이게 함) */
             #wrap_main { background-color: #f4f6f9 !important; min-height: 100vh; }
             
-            /* 사이드바 레이아웃 강제 변경 */
-            .sidebar { display: block !important; position: fixed !important; top: 56px !important; bottom: 0 !important; left: 0 !important; width: 260px !important; max-width: 260px !important; flex: 0 0 260px !important; background-color: #2f353a !important; padding: 0 !important; z-index: 1000; overflow-y: auto; box-shadow: 2px 0 10px rgba(0,0,0,0.1); }
+            /* 사이드바 화이트 테마 변경 */
+            .sidebar { display: block !important; position: fixed !important; top: 56px !important; bottom: 0 !important; left: 0 !important; width: 260px !important; max-width: 260px !important; flex: 0 0 260px !important; background-color: #ffffff !important; padding: 0 !important; z-index: 1000; overflow-y: auto; box-shadow: 2px 0 10px rgba(0,0,0,0.05); border-right: 1px solid #edf1f5; }
             #wrap_main { margin-left: 260px !important; width: calc(100% - 260px) !important; max-width: calc(100% - 260px) !important; flex: 0 0 calc(100% - 260px) !important; padding-top: 25px; padding-bottom: 40px; }
             #wrap_side { padding-top: 0px; }
 
-            /* 💡 EasyAdmin 스타일 카드 디자인 */
+            /* 카드 디자인 */
             #frame-dashboard-scope .card { 
                 border: none; 
-                border-radius: 0.5rem; /* 더 둥글고 세련된 모서리 */
-                box-shadow: 0 2px 12px rgba(0,0,0,0.06); /* EasyAdmin 특유의 부드러운 그림자 */
+                border-radius: 0.5rem; 
+                box-shadow: 0 2px 12px rgba(0,0,0,0.04); 
                 margin-bottom: 2rem; 
                 background: #fff; 
                 transition: all 0.3s ease;
             }
-            #frame-dashboard-scope .card:hover { box-shadow: 0 4px 15px rgba(0,0,0,0.1); } /* 마우스 오버 시 살짝 뜨는 효과 */
+            #frame-dashboard-scope .card:hover { box-shadow: 0 4px 15px rgba(0,0,0,0.08); } 
             
-            /* 카드 헤더 (더 플랫하고 깔끔하게) */
+            /* 카드 플랫 헤더 */
             #frame-dashboard-scope .card-header { 
                 background: #fff; 
                 border-bottom: 1px solid #edf1f5; 
@@ -108,35 +107,43 @@ function dashboard_click() {
                 font-size: 0.95rem;
             }
             
-            /* 뷰포트 */
-            #frame-dashboard-scope .view-port { background: #222d32; height: 360px; border-radius: 0 0 0.5rem 0.5rem; position: relative; }
-            #frame-dashboard-scope .view-tag { position: absolute; top: 15px; left: 15px; background: rgba(52, 144, 220, 0.9); color: white; padding: 4px 12px; border-radius: 20px; font-size: 0.65rem; font-weight: bold; letter-spacing: 0.5px; }
+            /* 💡 뷰포트 화이트 & 모던 도트 그리드 테마 */
+            #frame-dashboard-scope .view-port { 
+                background-color: #fcfcfc; 
+                background-image: radial-gradient(#d1d5db 1px, transparent 1px);
+                background-size: 20px 20px;
+                height: 360px; 
+                border-radius: 0 0 0.5rem 0.5rem; 
+                position: relative; 
+            }
+            #frame-dashboard-scope .view-tag { position: absolute; top: 15px; left: 15px; background: rgba(52, 144, 220, 0.9); color: white; padding: 4px 12px; border-radius: 20px; font-size: 0.65rem; font-weight: bold; letter-spacing: 0.5px; box-shadow: 0 2px 5px rgba(0,0,0,0.1); }
             
-            /* 통계 카드 (EasyAdmin 위젯 스타일) */
+            /* 통계 카드 */
             #frame-dashboard-scope .stats-card { padding: 1.8rem 1.5rem; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; }
             #frame-dashboard-scope .stats-icon { width: 65px; height: 65px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 1.8rem; margin-bottom: 15px; }
             #frame-dashboard-scope .stats-card small { font-weight: 600; letter-spacing: 0.5px; margin-bottom: 5px; font-size: 0.8rem; }
             #frame-dashboard-scope .stats-card .h5 { font-size: 1.4rem; color: #333; }
 
-            /* 색상 팔레트 (EasyAdmin 톤) */
+            /* 색상 팔레트 */
             #frame-dashboard-scope .bg-light-primary { background: #e3f2fd; color: #3490dc !important; }
             #frame-dashboard-scope .bg-light-success { background: #e2f4ec; color: #38c172 !important; }
             #frame-dashboard-scope .bg-light-warning { background: #fef1e2; color: #f6993f !important; }
             #frame-dashboard-scope .bg-light-danger { background: #fbeae9; color: #e3342f !important; }
 
-            /* EasyAdmin 사이드바 전용 스타일 */
-            .frame-side-header { padding: 25px 25px 15px; font-size: 1.4rem; font-weight: 700; color: #fff !important; letter-spacing: 1.5px; list-style: none; text-align: center; border-bottom: 1px solid rgba(255,255,255,0.05); margin-bottom: 10px; }
-            .frame-side-menu-label { padding: 20px 25px 10px 25px; font-size: 0.7rem; text-transform: uppercase; color: #8aa4af !important; font-weight: 700; list-style: none; letter-spacing: 1px; }
+            /* 💡 사이드바 화이트 테마 폰트 컬러 조정 */
+            .frame-side-header { padding: 25px 25px 15px; font-size: 1.4rem; font-weight: 800; color: #343a40 !important; letter-spacing: 1px; list-style: none; text-align: center; border-bottom: 1px solid #edf1f5; margin-bottom: 10px; }
+            .frame-side-menu-label { padding: 20px 25px 10px 25px; font-size: 0.7rem; text-transform: uppercase; color: #adb5bd !important; font-weight: 700; list-style: none; letter-spacing: 1px; }
             .frame-side-item { list-style: none; }
-            .frame-side-link { padding: 12px 25px; display: flex; align-items: center; color: #b8c7ce !important; text-decoration: none !important; transition: 0.3s; border-left: 3px solid transparent; font-size: 0.9rem; }
-            .frame-side-link:hover, .frame-side-item.active .frame-side-link { color: #fff !important; background: #222d32; border-left: 3px solid #3490dc !important; }
-            .frame-side-link i { margin-right: 15px; width: 20px; text-align: center; font-size: 1.1rem; }
+            .frame-side-link { padding: 12px 25px; display: flex; align-items: center; color: #495057 !important; text-decoration: none !important; transition: 0.3s; border-left: 3px solid transparent; font-size: 0.95rem; font-weight: 500; }
+            .frame-side-link:hover, .frame-side-item.active .frame-side-link { color: #3490dc !important; background: #f8f9fa; border-left: 3px solid #3490dc !important; }
+            .frame-side-link i { margin-right: 15px; width: 20px; text-align: center; font-size: 1.1rem; color: #a1aab2; transition: 0.3s; }
+            .frame-side-link:hover i, .frame-side-item.active .frame-side-link i { color: #3490dc; }
         </style>
 
         <div id="frame-dashboard-scope">
             <div class="d-flex justify-content-between align-items-center mb-4 pb-2">
                 <h4 class="fw-bold m-0" style="color: #333;">Frame Analysis Dashboard</h4>
-                <div class="text-muted bg-white px-3 py-2 rounded shadow-sm" style="font-size: 0.9rem;"><i class="fa fa-calendar mr-2"></i> 2026. 04. 10</div>
+                <div class="text-muted bg-white px-3 py-2 rounded shadow-sm border" style="font-size: 0.9rem; border-color: #edf1f5 !important;"><i class="fa fa-calendar mr-2"></i> 2026. 04. 10</div>
             </div>
 
             <div class="row mb-3">
@@ -174,7 +181,7 @@ function dashboard_click() {
                 <div class="col-md-6">
                     <div class="card" style="border-top: 3px solid #3490dc;">
                         <div class="card-header d-flex justify-content-between"><span>3D Perspective</span><i class="fa fa-cube text-primary"></i></div>
-                        <div class="view-port" style="background: radial-gradient(circle, #2f353a 0%, #1a1a1a 100%);"><span class="view-tag bg-warning text-dark">RENDERED</span></div>
+                        <div class="view-port" style="background: radial-gradient(circle, #ffffff 0%, #e2e8f0 100%); background-image: none;"><span class="view-tag bg-warning text-dark">RENDERED</span></div>
                     </div>
                 </div>
                 <div class="col-md-6">
@@ -218,7 +225,7 @@ function dashboard_click() {
     `;
 
     // ==========================================
-    // 2. 사이드바 화면 HTML (EasyAdmin 영문화)
+    // 2. 사이드바 화면 HTML (EasyAdmin 화이트 테마)
     // ==========================================
     if (sideDiv) {
         sideDiv.innerHTML = `
