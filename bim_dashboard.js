@@ -1,26 +1,20 @@
-/** v012
+/** v013
  * @file bim_dashboard.js
  * @description Frame 메뉴 클릭 시 사이드바와 대시보드 메인 화면을 동적으로 렌더링하는 스크립트
  */
 
 // ==========================================
-// ⭐ [핵심 추가] 다른 메뉴 이동 시 사이드바 자동 초기화 (클린업 로직)
+// 다른 메뉴 이동 시 사이드바 찌꺼기 자동 초기화
 // ==========================================
 if (!window.sidebarCleanupRegistered) {
     document.addEventListener('click', function(event) {
-        // 클릭된 요소가 상단 네비게이션 메뉴(.nav-link)인지 확인
         const clickedMenu = event.target.closest('.nav-link');
         
-        // 상단 메뉴를 클릭했는데, 그게 'Frame'(id="dashboard") 메뉴가 아닐 경우
         if (clickedMenu && clickedMenu.id !== 'dashboard' && clickedMenu.closest('#navbarsExampleDefault')) {
             const sideDiv = document.getElementById('wrap_side');
-            if (sideDiv) {
-                // 사이드바 내부를 완전히 비워서 다른 화면(H Section 등)에 간섭하지 않도록 함
-                sideDiv.innerHTML = '';
-            }
+            if (sideDiv) sideDiv.innerHTML = '';
         }
     });
-    // 이벤트 리스너가 중복 등록되지 않도록 플래그 설정
     window.sidebarCleanupRegistered = true;
 }
 
@@ -42,7 +36,8 @@ function dashboard_click() {
     }
 
     // ==========================================
-    // 1. 메인 화면 & 자동 삭제형 CSS 주입
+    // 1. 메인 화면 & 통합 CSS 주입
+    // (사이드바 스타일도 여기에 넣어서 HTML 규칙 위반을 방지하고 다른 메뉴 간섭을 막음)
     // ==========================================
     contentDiv.innerHTML = `
         <style>
@@ -51,7 +46,7 @@ function dashboard_click() {
             #wrap_main { margin-left: 260px !important; width: calc(100% - 260px) !important; max-width: calc(100% - 260px) !important; flex: 0 0 calc(100% - 260px) !important; padding-top: 20px; }
             #wrap_side { padding-top: 0px; }
 
-            /* 카드 디자인 */
+            /* 대시보드 메인 카드 디자인 */
             #frame-dashboard-scope .card { border: none; border-radius: 15px; box-shadow: 0 4px 20px 0 rgba(0,0,0,.05); margin-bottom: 1.8rem; background: #fff; }
             #frame-dashboard-scope .card-header { background: transparent; border-bottom: 1px solid #f0f0f0; padding: 1.2rem; font-weight: 600; }
             #frame-dashboard-scope .view-port { background: #1a1a1a; height: 380px; border-radius: 0 0 15px 15px; position: relative; }
@@ -62,6 +57,14 @@ function dashboard_click() {
             #frame-dashboard-scope .bg-light-success { background: #e6fffa; color: #38c172 !important; }
             #frame-dashboard-scope .bg-light-warning { background: #fff8e6; color: #f6993f !important; }
             #frame-dashboard-scope .bg-light-danger { background: #fff5f5; color: #e3342f !important; }
+
+            /* 사이드바 전용 스타일 (오염 방지를 위해 고유 클래스명 부여) */
+            .frame-side-header { padding: 25px 25px 10px; font-size: 1.3rem; font-weight: 700; color: #fff !important; letter-spacing: 1px; list-style: none; }
+            .frame-side-menu-label { padding: 15px 25px 5px 25px; font-size: 0.75rem; text-transform: uppercase; color: #6b7d8d !important; font-weight: bold; list-style: none; }
+            .frame-side-item { list-style: none; }
+            .frame-side-link { padding: 12px 25px; display: flex; align-items: center; color: #bacddc !important; text-decoration: none !important; transition: 0.3s; border-left: 4px solid transparent; }
+            .frame-side-link:hover, .frame-side-item.active .frame-side-link { color: #fff !important; background: rgba(255,255,255,0.05); border-left: 4px solid #666ee8 !important; }
+            .frame-side-link i { margin-right: 15px; width: 20px; text-align: center; }
         </style>
 
         <div id="frame-dashboard-scope">
@@ -149,36 +152,26 @@ function dashboard_click() {
     `;
 
     // ==========================================
-    // 2. 사이드바 화면 HTML 및 CSS
+    // 2. 사이드바 화면 HTML
+    // (HTML 규칙 준수: ul 내부에는 오직 li 태그만 배치!)
     // ==========================================
     if (sideDiv) {
         sideDiv.innerHTML = `
-            <style>
-                #frame-sidebar-scope .side-header { padding: 25px 25px 10px; font-size: 1.3rem; font-weight: 700; color: #fff; letter-spacing: 1px; }
-                #frame-sidebar-scope .side-menu-label { padding: 15px 25px 5px 25px; font-size: 0.75rem; text-transform: uppercase; color: #6b7d8d; font-weight: bold; }
-                #frame-sidebar-scope .side-item { list-style: none; }
-                #frame-sidebar-scope .side-link { padding: 12px 25px; display: flex; align-items: center; color: #bacddc; text-decoration: none; transition: 0.3s; border-left: 4px solid transparent; }
-                #frame-sidebar-scope .side-link:hover, #frame-sidebar-scope .side-item.active .side-link { color: #fff; background: rgba(255,255,255,0.05); border-left: 4px solid #666ee8; }
-                #frame-sidebar-scope .side-link i { margin-right: 15px; width: 20px; text-align: center; }
-            </style>
-
-            <div id="frame-sidebar-scope">
-                <li class="side-header">
-                    <i class="fa fa-compass"></i> MASTER BIM
-                </li>
-                
-                <li class="side-menu-label">Main Menu</li>
-                <li class="side-item"><a href="#" class="side-link"><i class="fa fa-columns"></i> Dashboard</a></li>
-                
-                <li class="side-menu-label">Structural Design</li>
-                <li class="side-item"><a href="#" class="side-link"><i class="fa fa-square-o"></i> 단면 입력 (Sections)</a></li>
-                <li class="side-item active"><a href="#" class="side-link"><i class="fa fa-sitemap"></i> 뼈대 구성 (Frame)</a></li>
-                <li class="side-item"><a href="#" class="side-link"><i class="fa fa-link"></i> 연결부 정의 (Nodes)</a></li>
-                
-                <li class="side-menu-label">Production</li>
-                <li class="side-item"><a href="#" class="side-link"><i class="fa fa-file-text-o"></i> 물량 리스트 (BOM)</a></li>
-                <li class="side-item"><a href="#" class="side-link"><i class="fa fa-print"></i> 도면 생성 (DWG)</a></li>
-            </div>
+            <li class="frame-side-header">
+                <i class="fa fa-compass"></i> MASTER BIM
+            </li>
+            
+            <li class="frame-side-menu-label">Main Menu</li>
+            <li class="frame-side-item"><a href="#" class="frame-side-link"><i class="fa fa-columns"></i> Dashboard</a></li>
+            
+            <li class="frame-side-menu-label">Structural Design</li>
+            <li class="frame-side-item"><a href="#" class="frame-side-link"><i class="fa fa-square-o"></i> 단면 입력 (Sections)</a></li>
+            <li class="frame-side-item active"><a href="#" class="frame-side-link"><i class="fa fa-sitemap"></i> 뼈대 구성 (Frame)</a></li>
+            <li class="frame-side-item"><a href="#" class="frame-side-link"><i class="fa fa-link"></i> 연결부 정의 (Nodes)</a></li>
+            
+            <li class="frame-side-menu-label">Production</li>
+            <li class="frame-side-item"><a href="#" class="frame-side-link"><i class="fa fa-file-text-o"></i> 물량 리스트 (BOM)</a></li>
+            <li class="frame-side-item"><a href="#" class="frame-side-link"><i class="fa fa-print"></i> 도면 생성 (DWG)</a></li>
         `;
     }
 }
