@@ -1,18 +1,21 @@
-/** v001
+/** v002
  * @file bim_dashboard.js
- * @description Frame 메뉴 클릭 시 대시보드를 동적으로 렌더링하는 스크립트
+ * @description Frame 메뉴 클릭 시 사이드바와 대시보드 메인 화면을 동적으로 렌더링하는 스크립트
  */
 
 function dashboard_click() {
-    // 1. 타겟 ID를 'content'에서 현재 HTML 구조에 맞는 'wrap_main'으로 변경
+    // 1. 타겟 ID 설정
     const contentDiv = document.getElementById('wrap_main');
+    const sideDiv = document.getElementById('wrap_side');
     
     if (!contentDiv) {
         console.error("id가 'wrap_main'인 DOM 요소를 찾을 수 없습니다.");
         return;
     }
 
-    // 2. 대시보드 전용 CSS 스타일 정의 (HTML에 누락된 스타일을 동적으로 추가)
+    // ==========================================
+    // 2. 대시보드 메인 화면 (CSS + HTML)
+    // ==========================================
     const dashboardStyles = `
         <style>
             .card {
@@ -67,7 +70,6 @@ function dashboard_click() {
         </style>
     `;
 
-    // 3. 대시보드 HTML 구조 정의
     const dashboardHTML = `
         <div class="d-flex justify-content-between align-items-center mb-4">
             <h4 class="fw-bold">Frame Analysis Dashboard</h4>
@@ -129,6 +131,57 @@ function dashboard_click() {
         </div>
     `;
 
-    // DOM 업데이트 (스타일 + HTML 동시 주입)
+    // 메인 화면 렌더링
     contentDiv.innerHTML = dashboardStyles + dashboardHTML;
+
+    // ==========================================
+    // 3. 사이드바 화면 (CSS + HTML)
+    // ==========================================
+    if (sideDiv) {
+        const sideStyles = `
+            <style>
+                .side-menu-label {
+                    padding: 15px 15px 5px 15px;
+                    font-size: 0.75rem;
+                    text-transform: uppercase;
+                    color: #6b7d8d;
+                    font-weight: bold;
+                    list-style: none;
+                }
+                .side-item { list-style: none; }
+                .side-link {
+                    padding: 10px 15px;
+                    display: block;
+                    color: #404e67;
+                    text-decoration: none;
+                    transition: 0.3s;
+                    font-weight: 500;
+                    border-left: 4px solid transparent;
+                }
+                .side-link:hover, .side-item.active .side-link {
+                    color: #666ee8;
+                    background: rgba(102, 110, 232, 0.05);
+                    border-left: 4px solid #666ee8;
+                }
+                .side-link i { margin-right: 10px; width: 20px; text-align: center; }
+            </style>
+        `;
+
+        const sideHTML = `
+            <li class="side-menu-label">Main Menu</li>
+            <li class="side-item"><a href="#" class="side-link"><i class="fa fa-th-large"></i> Dashboard</a></li>
+            
+            <li class="side-menu-label">Structural Design</li>
+            <li class="side-item"><a href="#" class="side-link"><i class="fa fa-pencil-square-o"></i> 단면 입력 (Sections)</a></li>
+            <li class="side-item active"><a href="#" class="side-link"><i class="fa fa-sitemap"></i> 뼈대 구성 (Frame)</a></li>
+            <li class="side-item"><a href="#" class="side-link"><i class="fa fa-link"></i> 연결부 정의 (Nodes)</a></li>
+            
+            <li class="side-menu-label">Production</li>
+            <li class="side-item"><a href="#" class="side-link"><i class="fa fa-file-text-o"></i> 물량 리스트 (BOM)</a></li>
+            <li class="side-item"><a href="#" class="side-link"><i class="fa fa-print"></i> 도면 생성 (DWG)</a></li>
+        `;
+
+        // 사이드바 렌더링
+        sideDiv.innerHTML = sideStyles + sideHTML;
+    }
 }
