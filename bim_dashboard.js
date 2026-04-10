@@ -1,4 +1,4 @@
-/** v003
+/** v004
  * @file bim_dashboard.js
  * @description Frame 메뉴 클릭 시 사이드바와 대시보드 메인 화면을 동적으로 렌더링하는 스크립트
  */
@@ -44,21 +44,26 @@ function dashboard_click() {
                 font-size: 0.7rem;
                 font-weight: bold;
             }
+            /* 통계 카드 디자인 원상복구 (중앙 정렬 및 여백 조정) */
             .stats-card {
                 padding: 1.5rem;
                 display: flex;
+                flex-direction: column;
                 align-items: center;
+                justify-content: center;
+                text-align: center;
             }
             .stats-icon {
-                width: 50px;
-                height: 50px;
-                border-radius: 12px;
+                width: 60px;
+                height: 60px;
+                border-radius: 15px;
                 display: flex;
                 align-items: center;
                 justify-content: center;
-                font-size: 1.5rem;
-                margin-right: 15px;
+                font-size: 1.8rem;
+                margin-bottom: 12px;
             }
+            /* 아이콘 배경색상 */
             .bg-light-primary { background: #eef0ff; color: #666ee8 !important; }
             .bg-light-success { background: #e6fffa; color: #38c172 !important; }
             .bg-light-warning { background: #fff8e6; color: #f6993f !important; }
@@ -75,26 +80,30 @@ function dashboard_click() {
         <div class="row mb-2">
             <div class="col-md-3">
                 <div class="card stats-card">
-                    <div class="stats-icon bg-light-primary"><i class="fa fa-briefcase"></i></div>
-                    <div><small class="text-muted">강재 중량</small><div class="h5 mb-0 fw-bold">14.52 ton</div></div>
+                    <div class="stats-icon bg-light-primary"><i class="fa fa-shopping-bag"></i></div>
+                    <small class="text-muted mb-1">강재 중량</small>
+                    <div class="h5 mb-0 fw-bold">14.52 ton</div>
                 </div>
             </div>
             <div class="col-md-3">
                 <div class="card stats-card">
                     <div class="stats-icon bg-light-success"><i class="fa fa-bolt"></i></div>
-                    <div><small class="text-muted">볼트 수 (M20)</small><div class="h5 mb-0 fw-bold">182 EA</div></div>
+                    <small class="text-muted mb-1">볼트 수 (M20)</small>
+                    <div class="h5 mb-0 fw-bold">182 EA</div>
                 </div>
             </div>
             <div class="col-md-3">
                 <div class="card stats-card">
-                    <div class="stats-icon bg-light-warning"><i class="fa fa-share-alt"></i></div>
-                    <div><small class="text-muted">총 노드 수</small><div class="h5 mb-0 fw-bold">24 EA</div></div>
+                    <div class="stats-icon bg-light-warning"><i class="fa fa-stop"></i></div>
+                    <small class="text-muted mb-1">총 노드 수</small>
+                    <div class="h5 mb-0 fw-bold">24 EA</div>
                 </div>
             </div>
             <div class="col-md-3">
                 <div class="card stats-card">
                     <div class="stats-icon bg-light-danger"><i class="fa fa-krw"></i></div>
-                    <div><small class="text-muted">예상 견적</small><div class="h5 mb-0 fw-bold">2,140 만원</div></div>
+                    <small class="text-muted mb-1">예상 견적</small>
+                    <div class="h5 mb-0 fw-bold">2,140 만원</div>
                 </div>
             </div>
         </div>
@@ -130,25 +139,23 @@ function dashboard_click() {
     contentDiv.innerHTML = dashboardStyles + dashboardHTML;
 
     // ==========================================
-    // 2. 사이드바 화면 (강제 레이아웃 CSS + HTML)
+    // 2. 사이드바 화면 (다크 테마 + 아이콘 복구)
     // ==========================================
     if (sideDiv) {
         const sideStyles = `
             <style>
-                /* 사이드바 강제 고정 및 어두운 테마 적용 (기존 Bootstrap 클래스 무시) */
                 .sidebar {
                     position: fixed !important;
-                    top: 56px !important; /* 상단 네비게이션 바 바로 아래부터 시작 */
+                    top: 56px !important; 
                     bottom: 0 !important;
                     left: 0 !important;
                     width: 260px !important;
-                    background-color: #1e2b37 !important; /* 원래 원하시던 어두운 남색 배경 */
+                    background-color: #1e2b37 !important; /* 원하시는 다크 네이비 배경 */
                     padding: 0 !important;
                     z-index: 1000;
                     overflow-y: auto;
                 }
                 
-                /* 메인 콘텐츠가 사이드바에 가려지지 않게 여백 추가 */
                 #wrap_main {
                     margin-left: 260px !important;
                     width: calc(100% - 260px) !important;
@@ -157,8 +164,17 @@ function dashboard_click() {
                 }
 
                 #wrap_side {
-                    padding-top: 15px;
+                    padding-top: 0px;
                 }
+
+                .side-header {
+                    padding: 25px 25px 10px;
+                    font-size: 1.3rem;
+                    font-weight: 700;
+                    color: #fff;
+                    letter-spacing: 1px;
+                }
+
                 .side-menu-label {
                     padding: 15px 25px 5px 25px;
                     font-size: 0.75rem;
@@ -169,7 +185,8 @@ function dashboard_click() {
                 .side-item { list-style: none; }
                 .side-link {
                     padding: 12px 25px;
-                    display: block;
+                    display: flex;
+                    align-items: center;
                     color: #bacddc;
                     text-decoration: none;
                     transition: 0.3s;
@@ -185,11 +202,15 @@ function dashboard_click() {
         `;
 
         const sideHTML = `
+            <div class="side-header">
+                <i class="fa fa-connectdevelop"></i> MASTER BIM
+            </div>
+            
             <li class="side-menu-label">Main Menu</li>
-            <li class="side-item"><a href="#" class="side-link"><i class="fa fa-th-large"></i> Dashboard</a></li>
+            <li class="side-item"><a href="#" class="side-link"><i class="fa fa-columns"></i> Dashboard</a></li>
             
             <li class="side-menu-label">Structural Design</li>
-            <li class="side-item"><a href="#" class="side-link"><i class="fa fa-pencil-square-o"></i> 단면 입력 (Sections)</a></li>
+            <li class="side-item"><a href="#" class="side-link"><i class="fa fa-square-o"></i> 단면 입력 (Sections)</a></li>
             <li class="side-item active"><a href="#" class="side-link"><i class="fa fa-sitemap"></i> 뼈대 구성 (Frame)</a></li>
             <li class="side-item"><a href="#" class="side-link"><i class="fa fa-link"></i> 연결부 정의 (Nodes)</a></li>
             
