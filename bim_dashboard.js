@@ -1,15 +1,15 @@
-/** v000
+/** v001
  * =========================================================================
  * ⬛ Dashboard Module (dashboard.js)
- * Description: Renders the 4-split view structural dashboard
+ * Description: 7-Viewport Layout (1 Full 3D + 6 Orthogonal Views)
  * =========================================================================
  */
 
 function dashboard_click() {
-    // 1. CSS 동적 로드 (아직 로드되지 않은 경우)
+    // 1. CSS 동적 로드
     loadDashboardStyles();
 
-    // 2. 화면에 렌더링될 HTML 템플릿
+    // 2. 대시보드 본문 HTML 템플릿 (7개 뷰포트 포함)
     const dashboardHTML = `
         <div id="dashboard-content" style="padding: 20px; background-color: #f4f5fa; min-height: 100vh;">
             <div class="d-flex justify-content-between align-items-center mb-4">
@@ -44,76 +44,100 @@ function dashboard_click() {
                 </div>
             </div>
 
+            <div class="row mb-2">
+                <div class="col-12">
+                    <div class="card border-primary">
+                        <div class="card-header d-flex justify-content-between bg-primary text-white">
+                            <span><i class="fas fa-cube me-2"></i>3D Perspective View</span>
+                            <i class="fas fa-expand-alt"></i>
+                        </div>
+                        <div class="view-port" id="vp-3d" style="height: 500px; background: radial-gradient(circle, #2c3e50 0%, #000 100%);">
+                            <span class="view-tag bg-warning text-dark">RENDERED</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
             <div class="row">
                 <div class="col-md-6">
                     <div class="card">
-                        <div class="card-header d-flex justify-content-between"><span>Front View (정면)</span><i class="fas fa-expand-alt text-muted"></i></div>
+                        <div class="card-header">Front View (정면도)</div>
                         <div class="view-port" id="vp-front"><span class="view-tag">2D WIREFRAME</span></div>
                     </div>
                 </div>
                 <div class="col-md-6">
-                    <div class="card border-primary">
-                        <div class="card-header d-flex justify-content-between bg-primary text-white"><span>3D Perspective</span><i class="fas fa-cube"></i></div>
-                        <div class="view-port" id="vp-3d" style="background: radial-gradient(circle, #2c3e50 0%, #000 100%);"><span class="view-tag bg-warning text-dark">RENDERED</span></div>
+                    <div class="card">
+                        <div class="card-header">Back View (배면도)</div>
+                        <div class="view-port" id="vp-back"><span class="view-tag">2D WIREFRAME</span></div>
+                    </div>
+                </div>
+
+                <div class="col-md-6">
+                    <div class="card">
+                        <div class="card-header">Left View (좌측면도)</div>
+                        <div class="view-port" id="vp-left"><span class="view-tag">2D WIREFRAME</span></div>
                     </div>
                 </div>
                 <div class="col-md-6">
                     <div class="card">
-                        <div class="card-header">Top View (평면)</div>
+                        <div class="card-header">Right View (우측면도)</div>
+                        <div class="view-port" id="vp-right"><span class="view-tag">2D WIREFRAME</span></div>
+                    </div>
+                </div>
+
+                <div class="col-md-6">
+                    <div class="card">
+                        <div class="card-header">Top View (평면도)</div>
                         <div class="view-port" id="vp-top"><span class="view-tag">2D WIREFRAME</span></div>
                     </div>
                 </div>
                 <div class="col-md-6">
                     <div class="card">
-                        <div class="card-header">Side View (측면)</div>
-                        <div class="view-port" id="vp-side"><span class="view-tag">2D WIREFRAME</span></div>
+                        <div class="card-header">Bottom View (앙시도)</div>
+                        <div class="view-port" id="vp-bottom"><span class="view-tag">2D WIREFRAME</span></div>
                     </div>
                 </div>
             </div>
         </div>
     `;
 
-    // 3. index1.html의 메인 컨텐츠 영역을 찾아 HTML 주입
-    const targetContainer = document.getElementById('renderContainer') || document.getElementById('main-content-area') || document.body;
+    // 3. 타겟 컨테이너 찾기 (메뉴가 날아가지 않도록 안전장치 강화)
+    // HTML 파일에서 우측 본문 영역을 감싸는 div의 id를 우선적으로 찾습니다.
+    let targetContainer = document.getElementById('content') || document.getElementById('renderContainer') || document.getElementById('main-content');
     
-    if (targetContainer) {
-        // 기존 내용을 지우고 새로운 대시보드로 교체
-        targetContainer.innerHTML = dashboardHTML;
-        
-        // 날짜 자동 업데이트
-        const dateEl = document.getElementById('current-date');
-        if(dateEl) {
-            const today = new Date();
-            dateEl.innerHTML = `<i class="far fa-calendar-alt"></i> ${today.getFullYear()}. ${String(today.getMonth()+1).padStart(2, '0')}. ${String(today.getDate()).padStart(2, '0')}`;
-        }
-
-        console.log("Dashboard loaded successfully.");
-        
-    } else {
-        console.error("Target container for Dashboard not found.");
+    // 만약 해당하는 컨테이너를 찾지 못했다면 경고를 띄웁니다.
+    if (!targetContainer) {
+        console.error("본문이 들어갈 컨테이너를 찾지 못했습니다. index.html의 오른쪽 영역 ID를 확인해주세요.");
+        alert("화면 오류: 우측 본문 영역(content)을 찾을 수 없어 대시보드를 띄울 수 없습니다.");
+        return; 
     }
+
+    // 기존 내용(빈 화면 등)을 지우고 새로운 대시보드로 교체
+    targetContainer.innerHTML = dashboardHTML;
+    
+    // 날짜 자동 업데이트
+    const dateEl = document.getElementById('current-date');
+    if(dateEl) {
+        const today = new Date();
+        dateEl.innerHTML = `<i class="far fa-calendar-alt"></i> ${today.getFullYear()}. ${String(today.getMonth()+1).padStart(2, '0')}. ${String(today.getDate()).padStart(2, '0')}`;
+    }
+
+    console.log("Dashboard with 7 viewports loaded successfully.");
 }
 
-// 대시보드 전용 CSS를 동적으로 문서 Head에 추가하는 헬퍼 함수
+// 대시보드 전용 CSS를 동적으로 문서 Head에 추가
 function loadDashboardStyles() {
-    if (document.getElementById('dashboard-styles')) return; // 이미 로드되었다면 스킵
+    if (document.getElementById('dashboard-styles')) return;
 
     const style = document.createElement('style');
     style.id = 'dashboard-styles';
     style.innerHTML = `
-        /* Card Styling */
-        .card { border: none; border-radius: 15px; box-shadow: 0 4px 20px 0 rgba(0,0,0,.05); margin-bottom: 1.8rem; background: #fff; }
-        .card-header { background: transparent; border-bottom: 1px solid #f0f0f0; padding: 1.2rem; font-weight: 600; }
-        
-        /* Viewport Styling */
-        .view-port { background: #1a1a1a; height: 380px; border-radius: 0 0 15px 15px; position: relative; overflow: hidden; }
-        .view-tag { position: absolute; top: 15px; left: 15px; background: rgba(102, 110, 232, 0.8); color: white; padding: 4px 12px; border-radius: 20px; font-size: 0.7rem; font-weight: bold; z-index: 10; }
-        
-        /* Stats Badge Styling */
-        .stats-card { padding: 1.5rem; display: flex; align-items: center; }
-        .stats-icon { width: 50px; height: 50px; border-radius: 12px; display: flex; align-items: center; justify-content: center; font-size: 1.5rem; margin-right: 15px; }
-        
-        /* Helpers */
+        .card { border: none; border-radius: 12px; box-shadow: 0 4px 15px 0 rgba(0,0,0,.05); margin-bottom: 1.5rem; background: #fff; overflow: hidden; }
+        .card-header { background: #fff; border-bottom: 1px solid #f0f0f0; padding: 1rem 1.2rem; font-weight: 600; font-size: 0.95rem; }
+        .view-port { background: #151515; height: 320px; position: relative; overflow: hidden; }
+        .view-tag { position: absolute; top: 10px; left: 10px; background: rgba(102, 110, 232, 0.8); color: white; padding: 3px 10px; border-radius: 15px; font-size: 0.65rem; font-weight: bold; z-index: 10; letter-spacing: 0.5px; }
+        .stats-card { padding: 1.2rem; display: flex; align-items: center; border-radius: 12px; }
+        .stats-icon { width: 45px; height: 45px; border-radius: 10px; display: flex; align-items: center; justify-content: center; font-size: 1.3rem; margin-right: 12px; }
         .bg-light-primary { background: #eef0ff; }
         .bg-light-success { background: #e6fffa; }
         .bg-light-warning { background: #fff8e6; }
