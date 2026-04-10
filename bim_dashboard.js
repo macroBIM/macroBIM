@@ -1,4 +1,4 @@
-/** v015
+/** v016
  * @file bim_dashboard.js
  * @description Frame 메뉴 클릭 시 사이드바와 대시보드 메인 화면을 동적으로 렌더링하는 스크립트
  */
@@ -27,24 +27,20 @@ function dashboard_click() {
     // ==========================================
     // 🚨 [핵심] Steel Section 등 타 메뉴의 방해 공작 원천 차단 및 복구
     // ==========================================
-    // 1. 사이드바 컨테이너 찾기 (없으면 부모 태그 기반으로 추적)
     let sideNav = sideDiv ? sideDiv.closest('nav') : document.querySelector('.sidebar') || document.querySelector('nav.bg-light');
 
-    // 2. 다른 메뉴가 컨테이너를 아예 날려버렸다면 강제 재건축
     if (!sideNav) {
         const containerFluid = document.querySelector('.container-fluid.pt-5') || contentDiv.parentNode;
         sideNav = document.createElement('nav');
         containerFluid.insertBefore(sideNav, contentDiv);
     }
 
-    // 3. 다른 메뉴가 뜯어버린 클래스명(이름표) 완벽 복구 & 강제 숨김 무력화
     if (sideNav) {
         sideNav.className = 'col-md-2 d-md-block bg-light sidebar';
         sideNav.style.setProperty('display', 'block', 'important');
         sideNav.style.setProperty('visibility', 'visible', 'important');
     }
 
-    // 4. 내부 wrap_side가 파괴되었다면 재생성
     if (!sideDiv && sideNav) {
         let stickyDiv = sideNav.querySelector('.sidebar-sticky');
         if (!stickyDiv) {
@@ -55,18 +51,15 @@ function dashboard_click() {
         sideDiv = document.getElementById('wrap_side');
     }
 
-    // 5. wrap_side 클래스 & 표시 상태 강제 복구
     if (sideDiv) {
         sideDiv.className = 'nav flex-column';
         sideDiv.style.setProperty('display', 'block', 'important');
         sideDiv.style.setProperty('visibility', 'visible', 'important');
     }
 
-    // 6. 메인 콘텐츠 폭도 원래대로 강제 복구 (Steel Section이 전체 폭으로 늘려버린 것 방어)
     if (contentDiv) {
         contentDiv.className = 'col-md-9 ml-sm-auto col-lg-10 px-4 h-100';
     }
-
 
     // ==========================================
     // 0. 아이콘 강제 로드
@@ -85,13 +78,16 @@ function dashboard_click() {
     contentDiv.innerHTML = `
         <style>
             /* 레이아웃 강제 변경 (Frame 메뉴 전용) */
-            .sidebar { position: fixed !important; top: 56px !important; bottom: 0 !important; left: 0 !important; width: 260px !important; max-width: 260px !important; flex: 0 0 260px !important; background-color: #1e2b37 !important; padding: 0 !important; z-index: 1000; overflow-y: auto; }
+            .sidebar { display: block !important; position: fixed !important; top: 56px !important; bottom: 0 !important; left: 0 !important; width: 260px !important; max-width: 260px !important; flex: 0 0 260px !important; background-color: #1e2b37 !important; padding: 0 !important; z-index: 1000; overflow-y: auto; }
             #wrap_main { margin-left: 260px !important; width: calc(100% - 260px) !important; max-width: calc(100% - 260px) !important; flex: 0 0 calc(100% - 260px) !important; padding-top: 20px; }
             #wrap_side { padding-top: 0px; }
 
             /* 대시보드 메인 카드 디자인 */
             #frame-dashboard-scope .card { border: none; border-radius: 15px; box-shadow: 0 4px 20px 0 rgba(0,0,0,.05); margin-bottom: 1.8rem; background: #fff; }
-            #frame-dashboard-scope .card-header { background: transparent; border-bottom: 1px solid #f0f0f0; padding: 1.2rem; font-weight: 600; }
+            
+            /* 💡 수정 포인트: 헤더 폰트 굵기를 600에서 400으로 조절하여 얇게 변경 */
+            #frame-dashboard-scope .card-header { background: transparent; border-bottom: 1px solid #f0f0f0; padding: 1.2rem; font-weight: 400; }
+            
             #frame-dashboard-scope .view-port { background: #1a1a1a; height: 380px; border-radius: 0 0 15px 15px; position: relative; }
             #frame-dashboard-scope .view-tag { position: absolute; top: 15px; left: 15px; background: rgba(102, 110, 232, 0.8); color: white; padding: 4px 12px; border-radius: 20px; font-size: 0.7rem; font-weight: bold; }
             #frame-dashboard-scope .stats-card { padding: 1.5rem; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; }
@@ -120,29 +116,29 @@ function dashboard_click() {
                 <div class="col-md-3">
                     <div class="card stats-card">
                         <div class="stats-icon bg-light-primary"><i class="fa fa-shopping-bag"></i></div>
-                        <small class="text-muted mb-1">강재 중량</small>
+                        <small class="text-muted mb-1">Steel Weight</small>
                         <div class="h5 mb-0 fw-bold">14.52 ton</div>
                     </div>
                 </div>
                 <div class="col-md-3">
                     <div class="card stats-card">
                         <div class="stats-icon bg-light-success"><i class="fa fa-bolt"></i></div>
-                        <small class="text-muted mb-1">볼트 수 (M20)</small>
+                        <small class="text-muted mb-1">Bolt Count (M20)</small>
                         <div class="h5 mb-0 fw-bold">182 EA</div>
                     </div>
                 </div>
                 <div class="col-md-3">
                     <div class="card stats-card">
                         <div class="stats-icon bg-light-warning"><i class="fa fa-share-alt"></i></div>
-                        <small class="text-muted mb-1">총 노드 수</small>
+                        <small class="text-muted mb-1">Total Nodes</small>
                         <div class="h5 mb-0 fw-bold">24 EA</div>
                     </div>
                 </div>
                 <div class="col-md-3">
                     <div class="card stats-card">
-                        <div class="stats-icon bg-light-danger"><i class="fa fa-krw"></i></div>
-                        <small class="text-muted mb-1">예상 견적</small>
-                        <div class="h5 mb-0 fw-bold">2,140 만원</div>
+                        <div class="stats-icon bg-light-danger"><i class="fa fa-usd"></i></div>
+                        <small class="text-muted mb-1">Estimated Cost</small>
+                        <div class="h5 mb-0 fw-bold">21.4M KRW</div>
                     </div>
                 </div>
             </div>
@@ -156,37 +152,37 @@ function dashboard_click() {
                 </div>
                 <div class="col-md-6">
                     <div class="card">
-                        <div class="card-header d-flex justify-content-between"><span>Front View (정면)</span><i class="fa fa-arrows-alt text-muted"></i></div>
+                        <div class="card-header d-flex justify-content-between"><span>Front View</span><i class="fa fa-arrows-alt text-muted"></i></div>
                         <div class="view-port"><span class="view-tag">2D WIREFRAME</span></div>
                     </div>
                 </div>
                 <div class="col-md-6">
                     <div class="card">
-                        <div class="card-header d-flex justify-content-between"><span>Back View (배면)</span><i class="fa fa-arrows-alt text-muted"></i></div>
+                        <div class="card-header d-flex justify-content-between"><span>Back View</span><i class="fa fa-arrows-alt text-muted"></i></div>
                         <div class="view-port"><span class="view-tag">2D WIREFRAME</span></div>
                     </div>
                 </div>
                 <div class="col-md-6">
                     <div class="card">
-                        <div class="card-header">Top View (평면)</div>
+                        <div class="card-header">Top View</div>
                         <div class="view-port"><span class="view-tag">2D WIREFRAME</span></div>
                     </div>
                 </div>
                 <div class="col-md-6">
                     <div class="card">
-                        <div class="card-header">Bottom View (저면)</div>
+                        <div class="card-header">Bottom View</div>
                         <div class="view-port"><span class="view-tag">2D WIREFRAME</span></div>
                     </div>
                 </div>
                 <div class="col-md-6">
                     <div class="card">
-                        <div class="card-header">Left View (좌측면)</div>
+                        <div class="card-header">Left View</div>
                         <div class="view-port"><span class="view-tag">2D WIREFRAME</span></div>
                     </div>
                 </div>
                 <div class="col-md-6">
                     <div class="card">
-                        <div class="card-header">Right View (우측면)</div>
+                        <div class="card-header">Right View</div>
                         <div class="view-port"><span class="view-tag">2D WIREFRAME</span></div>
                     </div>
                 </div>
@@ -195,7 +191,7 @@ function dashboard_click() {
     `;
 
     // ==========================================
-    // 2. 사이드바 화면 HTML
+    // 2. 사이드바 화면 HTML (영문화)
     // ==========================================
     if (sideDiv) {
         sideDiv.innerHTML = `
@@ -207,13 +203,13 @@ function dashboard_click() {
             <li class="frame-side-item"><a href="#" class="frame-side-link"><i class="fa fa-columns"></i> Dashboard</a></li>
             
             <li class="frame-side-menu-label">Structural Design</li>
-            <li class="frame-side-item"><a href="#" class="frame-side-link"><i class="fa fa-square-o"></i> 단면 입력 (Sections)</a></li>
-            <li class="frame-side-item active"><a href="#" class="frame-side-link"><i class="fa fa-sitemap"></i> 뼈대 구성 (Frame)</a></li>
-            <li class="frame-side-item"><a href="#" class="frame-side-link"><i class="fa fa-link"></i> 연결부 정의 (Nodes)</a></li>
+            <li class="frame-side-item"><a href="#" class="frame-side-link"><i class="fa fa-square-o"></i> Sections</a></li>
+            <li class="frame-side-item active"><a href="#" class="frame-side-link"><i class="fa fa-sitemap"></i> Frame</a></li>
+            <li class="frame-side-item"><a href="#" class="frame-side-link"><i class="fa fa-link"></i> Nodes</a></li>
             
             <li class="frame-side-menu-label">Production</li>
-            <li class="frame-side-item"><a href="#" class="frame-side-link"><i class="fa fa-file-text-o"></i> 물량 리스트 (BOM)</a></li>
-            <li class="frame-side-item"><a href="#" class="frame-side-link"><i class="fa fa-print"></i> 도면 생성 (DWG)</a></li>
+            <li class="frame-side-item"><a href="#" class="frame-side-link"><i class="fa fa-file-text-o"></i> BOM</a></li>
+            <li class="frame-side-item"><a href="#" class="frame-side-link"><i class="fa fa-print"></i> DWG</a></li>
         `;
     }
 }
