@@ -1,4 +1,4 @@
-/** v013
+/** v014
  * @file bim_dashboard.js
  * @description Frame 메뉴 클릭 시 사이드바와 대시보드 메인 화면을 동적으로 렌더링하는 스크립트
  */
@@ -20,9 +20,34 @@ if (!window.sidebarCleanupRegistered) {
 
 function dashboard_click() {
     const contentDiv = document.getElementById('wrap_main');
-    const sideDiv = document.getElementById('wrap_side');
+    let sideDiv = document.getElementById('wrap_side');
     
     if (!contentDiv) return;
+
+    // ==========================================
+    // ⭐ [핵심 복구 로직] Steel Section 등이 사이드바를 숨기거나 삭제했을 때의 강제 부활
+    // ==========================================
+    const sidebarContainer = document.querySelector('.sidebar');
+    if (sidebarContainer) {
+        sidebarContainer.style.display = ''; // 다른 메뉴가 걸어둔 display: none 강제 해제
+        sidebarContainer.classList.remove('d-none');
+    }
+
+    // 만약 다른 스크립트가 wrap_side 태그 자체를 아예 삭제해버렸다면 재생성
+    if (!sideDiv && sidebarContainer) {
+        const stickyDiv = sidebarContainer.querySelector('.sidebar-sticky');
+        if (stickyDiv) {
+            sideDiv = document.createElement('ul');
+            sideDiv.id = 'wrap_side';
+            stickyDiv.appendChild(sideDiv);
+        }
+    }
+
+    if (sideDiv) {
+        sideDiv.style.display = ''; 
+        sideDiv.style.visibility = 'visible';
+        sideDiv.className = 'nav flex-column'; // 원래 부트스트랩 클래스명 복구
+    }
 
     // ==========================================
     // 0. 아이콘 강제 로드
@@ -37,12 +62,11 @@ function dashboard_click() {
 
     // ==========================================
     // 1. 메인 화면 & 통합 CSS 주입
-    // (사이드바 스타일도 여기에 넣어서 HTML 규칙 위반을 방지하고 다른 메뉴 간섭을 막음)
     // ==========================================
     contentDiv.innerHTML = `
         <style>
-            /* 레이아웃 강제 변경 (Frame 메뉴 전용) */
-            .sidebar { position: fixed !important; top: 56px !important; bottom: 0 !important; left: 0 !important; width: 260px !important; max-width: 260px !important; flex: 0 0 260px !important; background-color: #1e2b37 !important; padding: 0 !important; z-index: 1000; overflow-y: auto; }
+            /* 레이아웃 강제 변경 (Frame 메뉴 전용) - 숨김 방지를 위해 display: block !important 추가 */
+            .sidebar { display: block !important; position: fixed !important; top: 56px !important; bottom: 0 !important; left: 0 !important; width: 260px !important; max-width: 260px !important; flex: 0 0 260px !important; background-color: #1e2b37 !important; padding: 0 !important; z-index: 1000; overflow-y: auto; }
             #wrap_main { margin-left: 260px !important; width: calc(100% - 260px) !important; max-width: calc(100% - 260px) !important; flex: 0 0 calc(100% - 260px) !important; padding-top: 20px; }
             #wrap_side { padding-top: 0px; }
 
@@ -58,7 +82,7 @@ function dashboard_click() {
             #frame-dashboard-scope .bg-light-warning { background: #fff8e6; color: #f6993f !important; }
             #frame-dashboard-scope .bg-light-danger { background: #fff5f5; color: #e3342f !important; }
 
-            /* 사이드바 전용 스타일 (오염 방지를 위해 고유 클래스명 부여) */
+            /* 사이드바 전용 스타일 */
             .frame-side-header { padding: 25px 25px 10px; font-size: 1.3rem; font-weight: 700; color: #fff !important; letter-spacing: 1px; list-style: none; }
             .frame-side-menu-label { padding: 15px 25px 5px 25px; font-size: 0.75rem; text-transform: uppercase; color: #6b7d8d !important; font-weight: bold; list-style: none; }
             .frame-side-item { list-style: none; }
@@ -153,7 +177,6 @@ function dashboard_click() {
 
     // ==========================================
     // 2. 사이드바 화면 HTML
-    // (HTML 규칙 준수: ul 내부에는 오직 li 태그만 배치!)
     // ==========================================
     if (sideDiv) {
         sideDiv.innerHTML = `
