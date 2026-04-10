@@ -1,4 +1,4 @@
-/** v008
+/** v009
  * @file bim_dashboard.js
  * @description Frame 메뉴 클릭 시 사이드바와 대시보드 메인 화면을 동적으로 렌더링하는 스크립트
  */
@@ -8,6 +8,17 @@ function dashboard_click() {
     const sideDiv = document.getElementById('wrap_side');
     
     if (!contentDiv) return;
+
+    // ==========================================
+    // 0. 아이콘 강제 로드 (HTML의 rel="stylesheet" 누락 방어)
+    // ==========================================
+    if (!document.getElementById('fa-v4-fixed')) {
+        const fontAwesome = document.createElement('link');
+        fontAwesome.id = 'fa-v4-fixed';
+        fontAwesome.rel = 'stylesheet'; // 이 부분이 없어서 그림이 안 나왔던 것입니다!
+        fontAwesome.href = 'https://cdnjs.cloudflare.com/ajax/libs/font-awesome/4.7.0/css/font-awesome.min.css';
+        document.head.appendChild(fontAwesome);
+    }
 
     // ==========================================
     // 1. 대시보드 메인 화면 (HTML + CSS)
