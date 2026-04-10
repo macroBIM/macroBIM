@@ -259,9 +259,9 @@ function dashboard_click() {
                 </a>
                 <div class="collapse" id="sectionsCollapse">
                     <ul class="frame-side-submenu pb-2">
-                        <li><a href="#" class="frame-sub-link" onclick="hsection_click();">H Section</a></li>
-                        <li><a href="#" class="frame-sub-link" onclick="ibeam_click();">I beam</a></li>
-                        <li><a href="#" class="frame-sub-link" onclick="channel_click();">C Channel</a></li>
+                        <li><a href="#" class="frame-sub-link" onclick="">H Section</a></li>
+                        <li><a href="#" class="frame-sub-link" onclick="">I beam</a></li>
+                        <li><a href="#" class="frame-sub-link" onclick="">C Channel</a></li>
                     </ul>
                 </div>
             </li>
