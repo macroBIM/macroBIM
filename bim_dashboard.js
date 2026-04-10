@@ -1,4 +1,4 @@
-/** v009
+/** v010
  * @file bim_dashboard.js
  * @description Frame 메뉴 클릭 시 사이드바와 대시보드 메인 화면을 동적으로 렌더링하는 스크립트
  */
@@ -10,77 +10,53 @@ function dashboard_click() {
     if (!contentDiv) return;
 
     // ==========================================
-    // 0. 아이콘 강제 로드 (HTML의 rel="stylesheet" 누락 방어)
+    // 0. 아이콘 강제 로드 (단 1회만 안전하게 추가)
     // ==========================================
     if (!document.getElementById('fa-v4-fixed')) {
         const fontAwesome = document.createElement('link');
         fontAwesome.id = 'fa-v4-fixed';
-        fontAwesome.rel = 'stylesheet'; // 이 부분이 없어서 그림이 안 나왔던 것입니다!
+        fontAwesome.rel = 'stylesheet';
         fontAwesome.href = 'https://cdnjs.cloudflare.com/ajax/libs/font-awesome/4.7.0/css/font-awesome.min.css';
         document.head.appendChild(fontAwesome);
     }
 
     // ==========================================
-    // 1. 대시보드 메인 화면 (HTML + CSS)
+    // 1. 대시보드 & 사이드바 CSS (헤더에 1회만 주입)
     // ==========================================
-    const dashboardStyles = `
-        <style>
-            .card {
-                border: none;
-                border-radius: 15px;
-                box-shadow: 0 4px 20px 0 rgba(0,0,0,.05);
-                margin-bottom: 1.8rem;
-                background: #fff;
-            }
-            .card-header {
-                background: transparent;
-                border-bottom: 1px solid #f0f0f0;
-                padding: 1.2rem;
-                font-weight: 600;
-            }
-            .view-port {
-                background: #1a1a1a;
-                height: 380px;
-                border-radius: 0 0 15px 15px;
-                position: relative;
-            }
-            .view-tag {
-                position: absolute;
-                top: 15px;
-                left: 15px;
-                background: rgba(102, 110, 232, 0.8);
-                color: white;
-                padding: 4px 12px;
-                border-radius: 20px;
-                font-size: 0.7rem;
-                font-weight: bold;
-            }
-            .stats-card {
-                padding: 1.5rem;
-                display: flex;
-                flex-direction: column;
-                align-items: center;
-                justify-content: center;
-                text-align: center;
-            }
-            .stats-icon {
-                width: 60px;
-                height: 60px;
-                border-radius: 15px;
-                display: flex;
-                align-items: center;
-                justify-content: center;
-                font-size: 1.8rem;
-                margin-bottom: 12px;
-            }
+    if (!document.getElementById('frame-dashboard-css')) {
+        const style = document.createElement('style');
+        style.id = 'frame-dashboard-css';
+        style.innerHTML = `
+            /* Main Dashboard Styles */
+            .card { border: none; border-radius: 15px; box-shadow: 0 4px 20px 0 rgba(0,0,0,.05); margin-bottom: 1.8rem; background: #fff; }
+            .card-header { background: transparent; border-bottom: 1px solid #f0f0f0; padding: 1.2rem; font-weight: 600; }
+            .view-port { background: #1a1a1a; height: 380px; border-radius: 0 0 15px 15px; position: relative; }
+            .view-tag { position: absolute; top: 15px; left: 15px; background: rgba(102, 110, 232, 0.8); color: white; padding: 4px 12px; border-radius: 20px; font-size: 0.7rem; font-weight: bold; }
+            .stats-card { padding: 1.5rem; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; }
+            .stats-icon { width: 60px; height: 60px; border-radius: 15px; display: flex; align-items: center; justify-content: center; font-size: 1.8rem; margin-bottom: 12px; }
             .bg-light-primary { background: #eef0ff; color: #666ee8 !important; }
             .bg-light-success { background: #e6fffa; color: #38c172 !important; }
             .bg-light-warning { background: #fff8e6; color: #f6993f !important; }
             .bg-light-danger { background: #fff5f5; color: #e3342f !important; }
-        </style>
-    `;
 
-    const dashboardHTML = `
+            /* Sidebar Styles */
+            .sidebar { position: fixed !important; top: 56px !important; bottom: 0 !important; left: 0 !important; width: 260px !important; background-color: #1e2b37 !important; padding: 0 !important; z-index: 1000; overflow-y: auto; }
+            #wrap_main { margin-left: 260px !important; width: calc(100% - 260px) !important; max-width: 100% !important; padding-top: 20px; }
+            #wrap_side { padding-top: 0px; }
+            .side-header { padding: 25px 25px 10px; font-size: 1.3rem; font-weight: 700; color: #fff; letter-spacing: 1px; }
+            .side-menu-label { padding: 15px 25px 5px 25px; font-size: 0.75rem; text-transform: uppercase; color: #6b7d8d; font-weight: bold; }
+            .side-item { list-style: none; }
+            .side-link { padding: 12px 25px; display: flex; align-items: center; color: #bacddc; text-decoration: none; transition: 0.3s; border-left: 4px solid transparent; }
+            .side-link:hover, .side-item.active .side-link { color: #fff; background: rgba(255,255,255,0.05); border-left: 4px solid #666ee8; }
+            .side-link i { margin-right: 15px; width: 20px; text-align: center; }
+        `;
+        document.head.appendChild(style);
+    }
+
+    // ==========================================
+    // 2. 대시보드 메인 화면 HTML (순수 HTML만 유지)
+    // ==========================================
+    contentDiv.innerHTML = `
         <div class="d-flex justify-content-between align-items-center mb-4">
             <h4 class="fw-bold">Frame Analysis Dashboard</h4>
             <div class="text-muted"><i class="fa fa-calendar"></i> 2026. 04. 10</div>
@@ -163,75 +139,14 @@ function dashboard_click() {
         </div>
     `;
 
-    contentDiv.innerHTML = dashboardStyles + dashboardHTML;
-
     // ==========================================
-    // 2. 사이드바 화면 (FontAwesome 4.7 호환 클래스)
+    // 3. 사이드바 화면 HTML (태그 오류 수정 완료: div -> li)
     // ==========================================
     if (sideDiv) {
-        const sideStyles = `
-            <style>
-                .sidebar {
-                    position: fixed !important;
-                    top: 56px !important; 
-                    bottom: 0 !important;
-                    left: 0 !important;
-                    width: 260px !important;
-                    background-color: #1e2b37 !important;
-                    padding: 0 !important;
-                    z-index: 1000;
-                    overflow-y: auto;
-                }
-                
-                #wrap_main {
-                    margin-left: 260px !important;
-                    width: calc(100% - 260px) !important;
-                    max-width: 100% !important;
-                    padding-top: 20px;
-                }
-
-                #wrap_side {
-                    padding-top: 0px;
-                }
-
-                .side-header {
-                    padding: 25px 25px 10px;
-                    font-size: 1.3rem;
-                    font-weight: 700;
-                    color: #fff;
-                    letter-spacing: 1px;
-                }
-
-                .side-menu-label {
-                    padding: 15px 25px 5px 25px;
-                    font-size: 0.75rem;
-                    text-transform: uppercase;
-                    color: #6b7d8d;
-                    font-weight: bold;
-                }
-                .side-item { list-style: none; }
-                .side-link {
-                    padding: 12px 25px;
-                    display: flex;
-                    align-items: center;
-                    color: #bacddc;
-                    text-decoration: none;
-                    transition: 0.3s;
-                    border-left: 4px solid transparent;
-                }
-                .side-link:hover, .side-item.active .side-link {
-                    color: #fff;
-                    background: rgba(255,255,255,0.05);
-                    border-left: 4px solid #666ee8;
-                }
-                .side-link i { margin-right: 15px; width: 20px; text-align: center; }
-            </style>
-        `;
-
-        const sideHTML = `
-            <div class="side-header">
+        sideDiv.innerHTML = `
+            <li class="side-header">
                 <i class="fa fa-compass"></i> MASTER BIM
-            </div>
+            </li>
             
             <li class="side-menu-label">Main Menu</li>
             <li class="side-item"><a href="#" class="side-link"><i class="fa fa-columns"></i> Dashboard</a></li>
@@ -245,7 +160,5 @@ function dashboard_click() {
             <li class="side-item"><a href="#" class="side-link"><i class="fa fa-file-text-o"></i> 물량 리스트 (BOM)</a></li>
             <li class="side-item"><a href="#" class="side-link"><i class="fa fa-print"></i> 도면 생성 (DWG)</a></li>
         `;
-
-        sideDiv.innerHTML = sideStyles + sideHTML;
     }
 }
