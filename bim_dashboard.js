@@ -1,7 +1,28 @@
-/** v011
+/** v012
  * @file bim_dashboard.js
  * @description Frame 메뉴 클릭 시 사이드바와 대시보드 메인 화면을 동적으로 렌더링하는 스크립트
  */
+
+// ==========================================
+// ⭐ [핵심 추가] 다른 메뉴 이동 시 사이드바 자동 초기화 (클린업 로직)
+// ==========================================
+if (!window.sidebarCleanupRegistered) {
+    document.addEventListener('click', function(event) {
+        // 클릭된 요소가 상단 네비게이션 메뉴(.nav-link)인지 확인
+        const clickedMenu = event.target.closest('.nav-link');
+        
+        // 상단 메뉴를 클릭했는데, 그게 'Frame'(id="dashboard") 메뉴가 아닐 경우
+        if (clickedMenu && clickedMenu.id !== 'dashboard' && clickedMenu.closest('#navbarsExampleDefault')) {
+            const sideDiv = document.getElementById('wrap_side');
+            if (sideDiv) {
+                // 사이드바 내부를 완전히 비워서 다른 화면(H Section 등)에 간섭하지 않도록 함
+                sideDiv.innerHTML = '';
+            }
+        }
+    });
+    // 이벤트 리스너가 중복 등록되지 않도록 플래그 설정
+    window.sidebarCleanupRegistered = true;
+}
 
 function dashboard_click() {
     const contentDiv = document.getElementById('wrap_main');
@@ -10,7 +31,7 @@ function dashboard_click() {
     if (!contentDiv) return;
 
     // ==========================================
-    // 0. 아이콘 강제 로드 (이것만 head에 안전하게 유지)
+    // 0. 아이콘 강제 로드
     // ==========================================
     if (!document.getElementById('fa-v4-fixed')) {
         const fontAwesome = document.createElement('link');
@@ -22,7 +43,6 @@ function dashboard_click() {
 
     // ==========================================
     // 1. 메인 화면 & 자동 삭제형 CSS 주입
-    // (이 화면을 벗어나면 스타일이 자동으로 소멸되어 다른 메뉴에 영향을 주지 않음)
     // ==========================================
     contentDiv.innerHTML = `
         <style>
@@ -31,7 +51,7 @@ function dashboard_click() {
             #wrap_main { margin-left: 260px !important; width: calc(100% - 260px) !important; max-width: calc(100% - 260px) !important; flex: 0 0 calc(100% - 260px) !important; padding-top: 20px; }
             #wrap_side { padding-top: 0px; }
 
-            /* 다른 메뉴의 Card 디자인을 해치지 않도록 이름표(#frame-dashboard-scope) 내부만 적용 */
+            /* 카드 디자인 */
             #frame-dashboard-scope .card { border: none; border-radius: 15px; box-shadow: 0 4px 20px 0 rgba(0,0,0,.05); margin-bottom: 1.8rem; background: #fff; }
             #frame-dashboard-scope .card-header { background: transparent; border-bottom: 1px solid #f0f0f0; padding: 1.2rem; font-weight: 600; }
             #frame-dashboard-scope .view-port { background: #1a1a1a; height: 380px; border-radius: 0 0 15px 15px; position: relative; }
