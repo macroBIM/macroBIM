@@ -1,4 +1,4 @@
-/** v020
+/** v021
  * @file bim_dashboard.js
  * @description Frame 메뉴 클릭 시 '진짜' EasyAdmin 스타일의 사이드바와 대시보드를 렌더링하는 스크립트
  */
@@ -36,7 +36,7 @@ function dashboard_click() {
     }
 
     if (sideNav) {
-        sideNav.className = 'col-md-2 d-md-block sidebar'; /* bg-light 제거 (우리가 직접 제어) */
+        sideNav.className = 'col-md-2 d-md-block sidebar'; 
         sideNav.style.setProperty('display', 'block', 'important');
         sideNav.style.setProperty('visibility', 'visible', 'important');
     }
@@ -77,94 +77,57 @@ function dashboard_click() {
     // ==========================================
     contentDiv.innerHTML = `
         <style>
-            /* 메인 배경색 (EasyAdmin 특유의 옅은 회색) */
+            /* 메인 배경색 */
             #wrap_main { background-color: #f4f6f9 !important; min-height: 100vh; padding-top: 30px !important; padding-bottom: 40px !important; }
             
-            /* 사이드바 화이트 테마 완벽 클론 */
+            /* 사이드바 화이트 테마 */
             .sidebar { display: block !important; position: fixed !important; top: 56px !important; bottom: 0 !important; left: 0 !important; width: 260px !important; max-width: 260px !important; flex: 0 0 260px !important; background-color: #ffffff !important; padding: 0 !important; z-index: 1000; overflow-y: auto; box-shadow: 0 0 15px rgba(0,0,0,0.05); border-right: 1px solid #e9ecef; }
             #wrap_main { margin-left: 260px !important; width: calc(100% - 260px) !important; max-width: calc(100% - 260px) !important; flex: 0 0 calc(100% - 260px) !important; }
             #wrap_side { padding-top: 0px; }
 
-            /* 💡 진짜 EasyAdmin 스타일 카드 */
-            #frame-dashboard-scope .card { 
-                border: 1px solid rgba(0,0,0,0.05); 
-                border-radius: 0.4rem; 
-                box-shadow: 0 1px 3px rgba(0,0,0,0.02); 
-                margin-bottom: 1.5rem; 
-                background: #fff; 
-            }
+            #frame-dashboard-scope .card { border: 1px solid rgba(0,0,0,0.05); border-radius: 0.4rem; box-shadow: 0 1px 3px rgba(0,0,0,0.02); margin-bottom: 1.5rem; background: #fff; }
+            #frame-dashboard-scope .card-header { background: #fff; border-bottom: none; padding: 1.2rem 1.25rem 0.5rem; font-weight: 600; color: #212529; border-radius: 0.4rem 0.4rem 0 0; font-size: 1rem; }
             
-            /* 카드 헤더 (플랫, 밑줄 없음, 패딩 조절) */
-            #frame-dashboard-scope .card-header { 
-                background: #fff; 
-                border-bottom: none; 
-                padding: 1.2rem 1.25rem 0.5rem; 
-                font-weight: 600; 
-                color: #212529;
-                border-radius: 0.4rem 0.4rem 0 0;
-                font-size: 1rem;
-            }
-            
-            /* 뷰포트 영역 */
-            #frame-dashboard-scope .view-port { 
-                background-color: #f8f9fa; 
-                background-image: radial-gradient(#dee2e6 1px, transparent 1px);
-                background-size: 20px 20px;
-                height: 320px; 
-                border-radius: 0 0 0.4rem 0.4rem; 
-                position: relative; 
-                border-top: 1px solid #f1f3f5;
-            }
+            #frame-dashboard-scope .view-port { background-color: #f8f9fa; background-image: radial-gradient(#dee2e6 1px, transparent 1px); background-size: 20px 20px; height: 320px; border-radius: 0 0 0.4rem 0.4rem; position: relative; border-top: 1px solid #f1f3f5; }
             #frame-dashboard-scope .view-tag { position: absolute; top: 15px; left: 15px; background: rgba(0, 123, 255, 0.85); color: white; padding: 3px 10px; border-radius: 4px; font-size: 0.7rem; font-weight: 600; letter-spacing: 0.5px; }
             
-            /* 💡 찐 EasyAdmin 통계 카드 (좌측 숫자, 우측 파스텔 아이콘) */
-            #frame-dashboard-scope .stats-card { 
-                padding: 1.5rem; 
-                display: flex; 
-                flex-direction: row; /* 가로 배치 */
-                align-items: center; 
-                justify-content: space-between; /* 양끝 정렬 */
-                text-align: left; 
-            }
-            #frame-dashboard-scope .stats-info {
-                display: flex;
-                flex-direction: column;
-            }
+            #frame-dashboard-scope .stats-card { padding: 1.5rem; display: flex; flex-direction: row; align-items: center; justify-content: space-between; text-align: left; }
+            #frame-dashboard-scope .stats-info { display: flex; flex-direction: column; }
             #frame-dashboard-scope .stats-card small { font-weight: 500; color: #6c757d; margin-bottom: 0.2rem; font-size: 0.85rem; }
             #frame-dashboard-scope .stats-card .h4 { font-size: 1.5rem; font-weight: 700; color: #212529; margin-bottom: 0; }
-            
-            /* 네모난 둥근 모서리 아이콘 (EasyAdmin 특징) */
-            #frame-dashboard-scope .stats-icon { 
-                width: 48px; 
-                height: 48px; 
-                border-radius: 0.4rem; 
-                display: flex; 
-                align-items: center; 
-                justify-content: center; 
-                font-size: 1.3rem; 
-            }
+            #frame-dashboard-scope .stats-icon { width: 48px; height: 48px; border-radius: 0.4rem; display: flex; align-items: center; justify-content: center; font-size: 1.3rem; }
 
-            /* 파스텔톤 색상 팔레트 */
             #frame-dashboard-scope .bg-light-primary { background: #e0f3ff; color: #007bff; }
             #frame-dashboard-scope .bg-light-success { background: #d4f5e3; color: #28a745; }
             #frame-dashboard-scope .bg-light-warning { background: #fff0d4; color: #fd7e14; }
             #frame-dashboard-scope .bg-light-danger { background: #fde1e1; color: #dc3545; }
 
-            /* 💡 사이드바 찐 EasyAdmin 클론 */
+            /* 사이드바 스타일 */
             .frame-side-header { padding: 20px 25px; font-size: 1.2rem; font-weight: 700; color: #212529 !important; letter-spacing: 0px; list-style: none; text-align: left; display: flex; align-items: center; }
             .frame-side-header i { font-size: 1.5rem; color: #007bff; margin-right: 10px; }
             .frame-side-header span { font-size: 0.8rem; font-weight: 400; color: #6c757d; display: block; margin-top: -3px;}
 
             .frame-side-menu-label { padding: 15px 25px 5px 25px; font-size: 0.7rem; text-transform: uppercase; color: #adb5bd !important; font-weight: 600; list-style: none; letter-spacing: 0.5px; }
-            .frame-side-item { list-style: none; margin: 2px 10px; /* 좌우 여백 */ }
-            .frame-side-link { padding: 10px 15px; display: flex; align-items: center; color: #495057 !important; text-decoration: none !important; transition: 0.2s; border-radius: 0.4rem; font-size: 0.9rem; font-weight: 500; }
+            .frame-side-item { list-style: none; margin: 2px 10px; }
+            .frame-side-link { padding: 10px 15px; display: flex; align-items: center; color: #495057 !important; text-decoration: none !important; transition: 0.2s; border-radius: 0.4rem; font-size: 0.9rem; font-weight: 500; cursor: pointer; }
             
-            /* EasyAdmin Hover & Active 효과 (배경색과 파란 글씨) */
             .frame-side-link:hover { color: #007bff !important; background: #f8f9fa; }
             .frame-side-item.active .frame-side-link { color: #007bff !important; background: #e0f3ff; font-weight: 600; }
             
             .frame-side-link i { margin-right: 12px; width: 20px; text-align: center; font-size: 1.1rem; color: #adb5bd; transition: 0.2s; }
             .frame-side-link:hover i, .frame-side-item.active .frame-side-link i { color: #007bff; }
+
+            /* 💡 서브메뉴 (Accordion) 전용 스타일 */
+            .menu-collapse-toggle .toggle-arrow { transition: transform 0.3s ease; margin-left: auto; margin-right: 0 !important; font-size: 0.9rem; }
+            .menu-collapse-toggle[aria-expanded="true"] .toggle-arrow { transform: rotate(180deg); }
+            
+            .frame-side-submenu { list-style: none; padding: 0; margin: 0; }
+            .frame-sub-link { padding: 8px 15px 8px 45px; display: block; color: #6c757d !important; text-decoration: none !important; font-size: 0.85rem; position: relative; transition: 0.2s; border-radius: 0.4rem; margin: 2px 10px; }
+            .frame-sub-link:hover { color: #007bff !important; background: #f8f9fa; }
+            
+            /* EasyAdmin 특유의 서브메뉴 도트(•) 아이콘 */
+            .frame-sub-link::before { content: '•'; position: absolute; left: 25px; top: 50%; transform: translateY(-50%); font-size: 1.2rem; color: #dee2e6; transition: 0.2s; }
+            .frame-sub-link:hover::before { color: #007bff; }
         </style>
 
         <div id="frame-dashboard-scope">
@@ -269,7 +232,7 @@ function dashboard_click() {
     `;
 
     // ==========================================
-    // 2. 사이드바 화면 HTML (EasyAdmin 완벽 클론)
+    // 2. 사이드바 화면 HTML (EasyAdmin 서브메뉴 적용)
     // ==========================================
     if (sideDiv) {
         sideDiv.innerHTML = `
@@ -287,7 +250,22 @@ function dashboard_click() {
             <li class="frame-side-item"><a href="#" class="frame-side-link"><i class="fa fa-th-large"></i> Dashboard</a></li>
             
             <li class="frame-side-menu-label">Structural Design</li>
-            <li class="frame-side-item"><a href="#" class="frame-side-link"><i class="fa fa-square-o"></i> Sections</a></li>
+            
+            <li class="frame-side-item">
+                <a href="#sectionsCollapse" data-bs-toggle="collapse" aria-expanded="false" class="frame-side-link menu-collapse-toggle">
+                    <i class="fa fa-square-o"></i> 
+                    <span style="flex-grow: 1;">Sections</span>
+                    <i class="fa fa-angle-down toggle-arrow"></i>
+                </a>
+                <div class="collapse" id="sectionsCollapse">
+                    <ul class="frame-side-submenu pb-2">
+                        <li><a href="#" class="frame-sub-link" onclick="hsection_click();">H Section</a></li>
+                        <li><a href="#" class="frame-sub-link" onclick="ibeam_click();">I beam</a></li>
+                        <li><a href="#" class="frame-sub-link" onclick="channel_click();">C Channel</a></li>
+                    </ul>
+                </div>
+            </li>
+
             <li class="frame-side-item active"><a href="#" class="frame-side-link"><i class="fa fa-sitemap"></i> Frame</a></li>
             <li class="frame-side-item"><a href="#" class="frame-side-link"><i class="fa fa-link"></i> Nodes</a></li>
             
