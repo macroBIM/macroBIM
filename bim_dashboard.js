@@ -1,20 +1,16 @@
-/** v002
+/** v003
  * @file bim_dashboard.js
  * @description Frame 메뉴 클릭 시 사이드바와 대시보드 메인 화면을 동적으로 렌더링하는 스크립트
  */
 
 function dashboard_click() {
-    // 1. 타겟 ID 설정
     const contentDiv = document.getElementById('wrap_main');
     const sideDiv = document.getElementById('wrap_side');
     
-    if (!contentDiv) {
-        console.error("id가 'wrap_main'인 DOM 요소를 찾을 수 없습니다.");
-        return;
-    }
+    if (!contentDiv) return;
 
     // ==========================================
-    // 2. 대시보드 메인 화면 (CSS + HTML)
+    // 1. 대시보드 메인 화면 (HTML + CSS)
     // ==========================================
     const dashboardStyles = `
         <style>
@@ -131,39 +127,60 @@ function dashboard_click() {
         </div>
     `;
 
-    // 메인 화면 렌더링
     contentDiv.innerHTML = dashboardStyles + dashboardHTML;
 
     // ==========================================
-    // 3. 사이드바 화면 (CSS + HTML)
+    // 2. 사이드바 화면 (강제 레이아웃 CSS + HTML)
     // ==========================================
     if (sideDiv) {
         const sideStyles = `
             <style>
+                /* 사이드바 강제 고정 및 어두운 테마 적용 (기존 Bootstrap 클래스 무시) */
+                .sidebar {
+                    position: fixed !important;
+                    top: 56px !important; /* 상단 네비게이션 바 바로 아래부터 시작 */
+                    bottom: 0 !important;
+                    left: 0 !important;
+                    width: 260px !important;
+                    background-color: #1e2b37 !important; /* 원래 원하시던 어두운 남색 배경 */
+                    padding: 0 !important;
+                    z-index: 1000;
+                    overflow-y: auto;
+                }
+                
+                /* 메인 콘텐츠가 사이드바에 가려지지 않게 여백 추가 */
+                #wrap_main {
+                    margin-left: 260px !important;
+                    width: calc(100% - 260px) !important;
+                    max-width: 100% !important;
+                    padding-top: 20px;
+                }
+
+                #wrap_side {
+                    padding-top: 15px;
+                }
                 .side-menu-label {
-                    padding: 15px 15px 5px 15px;
+                    padding: 15px 25px 5px 25px;
                     font-size: 0.75rem;
                     text-transform: uppercase;
                     color: #6b7d8d;
                     font-weight: bold;
-                    list-style: none;
                 }
                 .side-item { list-style: none; }
                 .side-link {
-                    padding: 10px 15px;
+                    padding: 12px 25px;
                     display: block;
-                    color: #404e67;
+                    color: #bacddc;
                     text-decoration: none;
                     transition: 0.3s;
-                    font-weight: 500;
                     border-left: 4px solid transparent;
                 }
                 .side-link:hover, .side-item.active .side-link {
-                    color: #666ee8;
-                    background: rgba(102, 110, 232, 0.05);
+                    color: #fff;
+                    background: rgba(255,255,255,0.05);
                     border-left: 4px solid #666ee8;
                 }
-                .side-link i { margin-right: 10px; width: 20px; text-align: center; }
+                .side-link i { margin-right: 15px; width: 20px; text-align: center; }
             </style>
         `;
 
@@ -181,7 +198,6 @@ function dashboard_click() {
             <li class="side-item"><a href="#" class="side-link"><i class="fa fa-print"></i> 도면 생성 (DWG)</a></li>
         `;
 
-        // 사이드바 렌더링
         sideDiv.innerHTML = sideStyles + sideHTML;
     }
 }
