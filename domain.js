@@ -1,5 +1,5 @@
 // =========================================================================
-// 🟦 PART 1: DOMAIN LOGIC (domain.js)  v002
+// 🟦 PART 1: DOMAIN LOGIC (domain.js)  v003
 // =========================================================================
 
 const CONFIG = {
@@ -27,11 +27,18 @@ const Domain = {
     lrebarList: [],
     activeRebarIndex: 0,
     isPaused: false,
+    lrebarReady: false,
 
-    togglePause: () => { 
-        Domain.isPaused = !Domain.isPaused; 
+    togglePause: () => {
+        Domain.isPaused = !Domain.isPaused;
         const btn = document.getElementById("btnPause");
         if(btn) btn.innerHTML = Domain.isPaused ? "▶ Start" : "⏸ Pause";
+    },
+
+    startLrebar: () => {
+        Domain.lrebarReady = true;
+        const btn = document.getElementById("btnStartLrebar");
+        if (btn) { btn.innerHTML = "Running..."; btn.disabled = true; btn.style.opacity = "0.5"; }
     },
 
     buildModel: (secType) => {
@@ -40,6 +47,7 @@ const Domain = {
         Domain.lrebarList = [];
         Domain.activeRebarIndex = 0;
         Domain.isPaused = false;
+        Domain.lrebarReady = false;
 
         if (secType === "TBEAM") {
             Domain.currentSection = new TBeam(0, 0, CONFIG.TBEAM);
@@ -279,7 +287,7 @@ const Domain = {
             if (currentRebar.state === "FORMED") {
                 Domain.activeRebarIndex++;
             }
-        } else if (Domain.lrebarList.length > 0) {
+        } else if (Domain.lrebarList.length > 0 && Domain.lrebarReady) {
             const coverWalls = Physics.buildCoverWalls(Domain.currentSection.walls);
             Domain.lrebarList.forEach(group => {
                 LRebarEngine.step(group, coverWalls);

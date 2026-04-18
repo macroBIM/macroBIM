@@ -1,5 +1,5 @@
 // =========================================================================
-// ⬛ PART 2: UI & RENDERING (ui.js)  v000
+// ⬛ PART 2: UI & RENDERING (ui.js)  v001
 // =========================================================================
 
 const UI = {
@@ -57,9 +57,11 @@ const UI = {
         UI.lrebarGroup.destroyChildren();
         UI.rebarGroup.destroyChildren();
         UI.debugGroup.destroyChildren();
+        let lrebarBtn = document.getElementById("btnStartLrebar");
+        if (lrebarBtn) lrebarBtn.remove();
 
         let secType = document.getElementById("sectionSelect").value;
-        
+
         // Domain 내부 데이터로 빌드
         Domain.buildModel(secType);
 
@@ -196,19 +198,82 @@ const UI = {
 
         Domain.lrebarList.forEach(group => {
             const r = Math.max(group.dia / 2, secType === "TBEAM" ? 4 : 30);
+
+            if (!Domain.lrebarReady && group.initData && group.rangeData) {
+                const d = group.initData;
+                const rng = group.rangeData;
+                const ux = group.ux, uy = group.uy;
+                const halfW = secType === "TBEAM" ? 20 : 150;
+                const nx = -uy, ny = ux;
+
+                UI.lrebarGroup.add(new Konva.Line({
+                    points: [
+                        d.x + ux*rng.min - nx*halfW, d.y + uy*rng.min - ny*halfW,
+                        d.x + ux*rng.max - nx*halfW, d.y + uy*rng.max - ny*halfW,
+                        d.x + ux*rng.max + nx*halfW, d.y + uy*rng.max + ny*halfW,
+                        d.x + ux*rng.min + nx*halfW, d.y + uy*rng.min + ny*halfW
+                    ],
+                    stroke: '#00FFFF', strokeWidth: 2, dash: [20, 12],
+                    closed: true, opacity: 0.5, strokeScaleEnabled: false
+                }));
+
+                UI.lrebarGroup.add(new Konva.Circle({
+                    x: d.x, y: d.y,
+                    radius: secType === "TBEAM" ? 6 : 40,
+                    fill: '#FF00FF', strokeScaleEnabled: false
+                }));
+
+                let arrowLen = secType === "TBEAM" ? 30 : 250;
+                let ptrSize = secType === "TBEAM" ? 8 : 50;
+                UI.lrebarGroup.add(new Konva.Arrow({
+                    points: [d.x, d.y, d.x + group.gravDir.x * arrowLen, d.y + group.gravDir.y * arrowLen],
+                    pointerLength: ptrSize, pointerWidth: ptrSize,
+                    fill: '#FF00FF', stroke: '#FF00FF', strokeWidth: 2, strokeScaleEnabled: false
+                }));
+
+                let fontSize = secType === "TBEAM" ? 12 : 50;
+                let gravLabel = d.grav === 1 ? '+1' : '-1';
+                UI.lrebarGroup.add(new Konva.Text({
+                    x: d.x + nx * halfW * 1.5, y: d.y + ny * halfW * 1.5,
+                    text: `${group.id}\n(${d.x}, ${d.y}) rot:${d.rot}°\ngrav:${gravLabel}`,
+                    fontSize: fontSize, fontFamily: 'Arial', fontStyle: 'bold',
+                    fill: '#00FFFF', scaleY: -1
+                }));
+            }
+
             group.particles.forEach(p => {
                 const color = p.state === "SETTLED" ? '#FFD700' : '#FF9800';
                 const stroke = p.state === "SETTLED" ? '#B8860B' : '#FF5722';
                 UI.lrebarGroup.add(new Konva.Circle({
-                    x: p.x, y: p.y,
-                    radius: r,
-                    fill: color,
-                    stroke: stroke,
+                    x: p.x, y: p.y, radius: r,
+                    fill: color, stroke: stroke,
                     strokeWidth: secType === "TBEAM" ? 1 : 4,
                     strokeScaleEnabled: false
                 }));
             });
         });
+
+        UI._updateLrebarButton();
+    },
+
+    _updateLrebarButton: () => {
+        let btn = document.getElementById("btnStartLrebar");
+        if (Domain.lrebarList.length === 0) { if (btn) btn.remove(); return; }
+        if (Domain.lrebarReady) {
+            if (btn) { btn.innerHTML = "Running..."; btn.disabled = true; btn.style.opacity = "0.5"; }
+            return;
+        }
+        if (!btn) {
+            btn = document.createElement("button");
+            btn.id = "btnStartLrebar";
+            btn.innerHTML = "▶ Start L-Rebar";
+            btn.onclick = () => Domain.startLrebar();
+            let panel = document.querySelector(".ctrl-panel");
+            if (panel) panel.appendChild(btn);
+        }
+        let transverseDone = Domain.rebarList.length === 0 || Domain.activeRebarIndex >= Domain.rebarList.length;
+        btn.disabled = !transverseDone;
+        btn.style.opacity = transverseDone ? "1" : "0.5";
     },
 
     drawDebugNodes: () => {
