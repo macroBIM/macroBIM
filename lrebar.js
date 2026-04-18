@@ -1,5 +1,5 @@
 // =========================================================================
-// 🟦 PART: LONGITUDINAL REBAR ENGINE (lrebar.js) - v000
+// 🟦 PART: LONGITUDINAL REBAR ENGINE (lrebar.js) - v001
 // =========================================================================
 
 const GRAVITY_K = 0.08;
@@ -28,30 +28,33 @@ class LRebarGroup {
         // 3. bar 파싱 (직경, 개수, 간격)
         const bar = data.bar || {};
         this.dia = bar.dia || 13;
-        let num = bar.num;
-        let ctc = bar.ctc;
 
-        // CTC 및 개수 자동 계산 로직
-        if (num === undefined && ctc !== undefined && ctc > 0) {
-            num = Math.floor(totalLen / ctc) + 1;
-        } else if (num !== undefined && num > 1) {
-            ctc = totalLen / (num - 1);
+        // ⚠️ [수정됨] 개수(num) 무조건 입력 강제
+        if (bar.num === undefined || bar.num < 1) {
+            console.error(`[LREBAR ERROR] ${this.id}: 철근 개수(num)가 입력되지 않았습니다. 배근 개수는 필수 입력입니다!`);
+            this.num = 0; 
         } else {
-            num = 1;
-            ctc = 0;
+            this.num = bar.num;
         }
 
-        // 안전망: 최소 간격(min) 검증
-        if (bar.min && ctc < bar.min) {
+        let num = this.num;
+        let ctc = 0;
+
+        // ⚠️ [수정됨] 입력된 num과 range를 바탕으로 실제 간격(ctc) 재계산
+        if (num > 1) {
+            ctc = totalLen / (num - 1);
+        }
+
+        // 안전망: 최소 간격(min) 검증 (max 삭제됨)
+        if (num > 1 && bar.min !== undefined && ctc < bar.min) {
             console.warn(`[LREBAR WARNING] ${this.id}: 계산된 철근 간격(${ctc.toFixed(1)}mm)이 허용 최소 간격(${bar.min}mm)보다 작습니다.`);
         }
 
         // 4. 벡터 계산 (직선 벡터 및 법선(중력) 벡터)
-        const ux = Math.cos(rotRad); // 선의 X 방향 벡터
-        const uy = Math.sin(rotRad); // 선의 Y 방향 벡터
+        const ux = Math.cos(rotRad); 
+        const uy = Math.sin(rotRad); 
 
-        // 법선 벡터 (Normal Vector): 선 벡터를 90도 회전 (-uy, ux)
-        // 여기에 gravSign(+1 또는 -1)을 곱해 최종 낙하 방향 결정
+        // 법선 벡터에 gravSign을 곱해 최종 낙하 방향 결정
         this.gravDir = {
             x: -uy * gravSign,
             y: ux * gravSign
@@ -60,8 +63,7 @@ class LRebarGroup {
         // 5. 입자(철근) 생성 및 초기 위치 세팅
         this.particles = [];
         for (let i = 0; i < num; i++) {
-            // 중심점(cx, cy)으로부터의 로컬 거리 계산 (min 위치에서 출발)
-            let localDist = num === 1 ? (rMin + rMax) / 2 : rMin + (i * ctc);
+            let localDist = (num === 1) ? (rMin + rMax) / 2 : rMin + (i * ctc);
 
             let px = cx + ux * localDist;
             let py = cy + uy * localDist;
@@ -83,7 +85,7 @@ const LRebarEngine = {
     },
 
     step: (group, coverWalls) => {
-        if (group.state === "SETTLED") return;
+        if (group.state === "SETTLED" || group.num === 0) return; // num이 없으면 연산 스킵
 
         let allSettled = true;
 
