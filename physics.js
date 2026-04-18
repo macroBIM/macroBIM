@@ -1,4 +1,7 @@
-// --- physics.js 물리 엔진 (동적 피복 + 코너 trim 보정) --- v000
+// =========================================================================
+// 🟦 PART: PHYSICS ENGINE (physic.js) - v001
+// =========================================================================
+
 const Physics = {
     _EPS: 1e-6,
 
@@ -13,8 +16,8 @@ const Physics = {
         return {
             id: wall.id,
             tag: wall.tag,
-            nx: wall.nx,
-            ny: wall.ny,
+            nx: wall.nx,  // ⭐ 원본 콘크리트 법선 강제 유지
+            ny: wall.ny,  // ⭐ 원본 콘크리트 법선 강제 유지
             origWall: wall,
             x1: wall.x1 + wall.nx * coverVal,
             y1: wall.y1 + wall.ny * coverVal,
@@ -67,17 +70,13 @@ const Physics = {
             let next = shifted[(i + 1) % n];
 
             let start = MathUtils.getLineIntersection(
-                { x: prev.x1, y: prev.y1 },
-                { x: prev.x2, y: prev.y2 },
-                { x: curr.x1, y: curr.y1 },
-                { x: curr.x2, y: curr.y2 }
+                { x: prev.x1, y: prev.y1 }, { x: prev.x2, y: prev.y2 },
+                { x: curr.x1, y: curr.y1 }, { x: curr.x2, y: curr.y2 }
             );
 
             let end = MathUtils.getLineIntersection(
-                { x: curr.x1, y: curr.y1 },
-                { x: curr.x2, y: curr.y2 },
-                { x: next.x1, y: next.y1 },
-                { x: next.x2, y: next.y2 }
+                { x: curr.x1, y: curr.y1 }, { x: curr.x2, y: curr.y2 },
+                { x: next.x1, y: next.y1 }, { x: next.x2, y: next.y2 }
             );
 
             let sx = start ? start.x : curr.x1;
@@ -87,17 +86,15 @@ const Physics = {
 
             let len = MathUtils.hypot(ex - sx, ey - sy);
             if (len < Physics._EPS) {
-                sx = curr.x1;
-                sy = curr.y1;
-                ex = curr.x2;
-                ey = curr.y2;
+                sx = curr.x1; sy = curr.y1;
+                ex = curr.x2; ey = curr.y2;
             }
 
             trimmed.push({
                 id: curr.id,
                 tag: curr.tag,
-                nx: curr.nx,
-                ny: curr.ny,
+                nx: curr.origWall.nx, // ⭐ 다듬어진 선분도 무조건 원본 콘크리트 법선 강제 유지!
+                ny: curr.origWall.ny, // ⭐ 다듬어진 선분도 무조건 원본 콘크리트 법선 강제 유지!
                 origWall: curr.origWall,
                 x1: sx,
                 y1: sy,
@@ -362,9 +359,7 @@ const Physics = {
 
             if (startRule.type === "FIT") {
                 let coverWall = getCoverWallForSeg(seg);
-                if (!coverWall) {
-                    console.error(`[FIT ERROR] ${rebar.id || "UNKNOWN"} start.fit 에 사용할 대표 cover wall이 없습니다.`);
-                } else {
+                if (coverWall) {
                     let projected = getFarthestWallPoint(seg, coverWall, seg.p2);
                     seg.p1 = {
                         x: projected.x + seg.uDir.x * startRule.val,
@@ -394,9 +389,7 @@ const Physics = {
 
             if (endRule.type === "FIT") {
                 let coverWall = getCoverWallForSeg(seg);
-                if (!coverWall) {
-                    console.error(`[FIT ERROR] ${rebar.id || "UNKNOWN"} end.fit 에 사용할 대표 cover wall이 없습니다.`);
-                } else {
+                if (coverWall) {
                     let projected = getFarthestWallPoint(seg, coverWall, seg.p1);
                     seg.p2 = {
                         x: projected.x + seg.uDir.x * endRule.val,
