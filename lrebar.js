@@ -1,5 +1,5 @@
 // =========================================================================
-// 🟦 PART: LONGITUDINAL REBAR ENGINE (lrebar.js) - v002
+// 🟦 PART: LONGITUDINAL REBAR ENGINE (lrebar.js) - v003
 // =========================================================================
 
 const GRAVITY_K = 0.08;
@@ -88,7 +88,7 @@ const LRebarEngine = {
     step: (group, coverWalls) => {
         if (group.state === "SETTLED" || group.num === 0) return;
 
-        // ⭐ 1단계: 생성 후 최초 1회만 타겟 탐색 (Pre-Targeting)
+        // ⭐ 1단계: 생성 후 최초 1회만 타겟 탐색 (Pre-Targeting & Backface Culling)
         if (!group.isTargeted) {
             group.particles.forEach(p => {
                 let minDist = Infinity;
@@ -96,17 +96,24 @@ const LRebarEngine = {
 
                 // 중력 방향(gravDir)으로 레이캐스트를 쏴서 목표 벽면 탐색
                 coverWalls.forEach(w => {
-                    const hit = MathUtils.rayLineIntersect(
-                        { x: p.x, y: p.y }, group.gravDir,
-                        { x: w.x1, y: w.y1 }, { x: w.x2, y: w.y2 }
-                    );
+                    // ⭐ [핵심 수정] 벽체의 법선(Normal)과 레이 방향(gravDir)의 내적(Dot Product) 계산
+                    // 두 벡터가 마주볼 때(서로 반대 방향을 향할 때) 내적 값은 음수(< 0)가 됩니다.
+                    const dotNormal = group.gravDir.x * w.nx + group.gravDir.y * w.ny;
 
-                    // 자기 자신과 바로 맞닿아 있는 경우를 피하기 위해 dist > 0.01 조건 적용
-                    if (hit && hit.dist > 0.01 && hit.dist < minDist) {
-                        const dotCheck = (hit.x - p.x) * group.gravDir.x + (hit.y - p.y) * group.gravDir.y;
-                        if (dotCheck > 0) { // 정확히 바라보는 방향에 있는 벽면인지 체크
-                            minDist = hit.dist;
-                            foundTarget = { x: hit.x, y: hit.y };
+                    // 벽면이 철근을 마주보고 있는 경우(음수)에만 자석처럼 충돌을 허용!
+                    // (평행하거나 같은 방향을 보는 벽의 뒷면은 깔끔하게 무시합니다)
+                    if (dotNormal < -0.01) {
+                        const hit = MathUtils.rayLineIntersect(
+                            { x: p.x, y: p.y }, group.gravDir,
+                            { x: w.x1, y: w.y1 }, { x: w.x2, y: w.y2 }
+                        );
+
+                        if (hit && hit.dist > 0.01 && hit.dist < minDist) {
+                            const dotCheck = (hit.x - p.x) * group.gravDir.x + (hit.y - p.y) * group.gravDir.y;
+                            if (dotCheck > 0) { // 진행 방향 앞쪽에 있는 교차점인지 체크
+                                minDist = hit.dist;
+                                foundTarget = { x: hit.x, y: hit.y };
+                            }
                         }
                     }
                 });
@@ -115,7 +122,7 @@ const LRebarEngine = {
                     p.target = foundTarget; // 목표 할당
                 } else {
                     // 목표를 찾지 못했다면 허공으로 날아가지 않도록 제자리에 고정
-                    console.warn(`[LREBAR] ${group.id}의 입자가 방향(${group.gravDir.x.toFixed(2)}, ${group.gravDir.y.toFixed(2)})에서 피복면을 찾지 못했습니다.`);
+                    console.warn(`[LREBAR] ${group.id} 입자가 마주보는 피복면을 찾지 못했습니다.`);
                     p.state = "SETTLED";
                 }
             });
