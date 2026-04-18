@@ -1,110 +1,118 @@
-// lrebar.js v001 - Longitudinal Rebar Engine
+// lrebar.js v002 - Physics-based Longitudinal Rebar Engine
+
+class LRebarGroup {
+    constructor(data) {
+        this.id = data.id || "LREBAR";
+        this.dia = Number(data.bar && data.bar.dia) || 16;
+        this.state = "FITTING";
+        this.particles = [];
+
+        const init = data.init || {};
+        const cx = Number(init.x) || 0;
+        const cy = Number(init.y) || 0;
+        const rotRad = (Number(init.rot) || 0) * Math.PI / 180;
+
+        const range = data.range || {};
+        const rb = Number(range.b) || 0;
+        const re = Number(range.e) || 0;
+        const totalLen = rb + re;
+
+        const bar = data.bar || {};
+        let num = bar.num ? Number(bar.num) : 0;
+        let ctc = bar.ctc ? Number(bar.ctc) : 0;
+
+        if (num >= 2) {
+            ctc = totalLen / (num - 1);
+        } else if (num === 1) {
+            ctc = 0;
+        } else if (ctc > 0) {
+            num = Math.round(totalLen / ctc) + 1;
+            ctc = num > 1 ? totalLen / (num - 1) : 0;
+        }
+
+        this.ctc = ctc;
+        if (bar.max && ctc > bar.max) console.warn(`[LREBAR] ${this.id}: CTC ${ctc.toFixed(0)} > max ${bar.max}`);
+        if (bar.min && ctc < bar.min) console.warn(`[LREBAR] ${this.id}: CTC ${ctc.toFixed(0)} < min ${bar.min}`);
+
+        const gravDeg = (data.grav !== undefined) ? Number(data.grav) : -90;
+        this.gravDir = {
+            x: Math.cos(gravDeg * Math.PI / 180),
+            y: Math.sin(gravDeg * Math.PI / 180)
+        };
+
+        const ux = Math.cos(rotRad);
+        const uy = Math.sin(rotRad);
+        const sx = cx - ux * rb;
+        const sy = cy - uy * rb;
+
+        for (let i = 0; i < num; i++) {
+            const t = num > 1 ? i * ctc : totalLen / 2;
+            this.particles.push({
+                x: sx + ux * t,
+                y: sy + uy * t,
+                vx: 0, vy: 0,
+                state: "FITTING"
+            });
+        }
+    }
+}
 
 const LRebarEngine = {
 
-    _dist: (a, b) => Math.hypot(b.x - a.x, b.y - a.y),
+    create: (data) => new LRebarGroup(data),
 
-    // set IDs 순서대로 cover wall 경로(polyline) 생성
-    buildPath: (setIds, walls) => {
-        if (!setIds || setIds.length === 0) return [];
+    step: (group, walls) => {
+        if (group.state === "SETTLED") return;
 
+        const { GRAVITY_K, DAMPING, CONVERGE } = CONFIG.PHYSICS;
         const coverWalls = Physics.buildCoverWalls(walls);
-        const cwMap = {};
-        coverWalls.forEach(cw => {
-            const key = cw.id || (cw.origWall && cw.origWall.id);
-            if (key) cwMap[key] = cw;
-        });
+        let allSettled = true;
 
-        const path = [];
-        setIds.forEach(id => {
-            const cw = cwMap[String(id).toUpperCase()];
-            if (!cw) { console.warn(`[LREBAR] wall "${id}" not found`); return; }
+        group.particles.forEach(p => {
+            if (p.state === "SETTLED") return;
+            allSettled = false;
 
-            if (path.length === 0) {
-                path.push({ x: cw.x1, y: cw.y1 }, { x: cw.x2, y: cw.y2 });
-            } else {
-                const last = path[path.length - 1];
-                const d1 = LRebarEngine._dist(last, { x: cw.x1, y: cw.y1 });
-                const d2 = LRebarEngine._dist(last, { x: cw.x2, y: cw.y2 });
-                // 이전 끝점과 더 가까운 쪽을 연결
-                if (d1 <= d2) {
-                    path.push({ x: cw.x2, y: cw.y2 });
-                } else {
-                    path.push({ x: cw.x1, y: cw.y1 });
+            let minDist = Infinity;
+            let target = null;
+
+            coverWalls.forEach(w => {
+                const hit = MathUtils.rayLineIntersect(
+                    { x: p.x, y: p.y },
+                    group.gravDir,
+                    { x: w.x1, y: w.y1 },
+                    { x: w.x2, y: w.y2 }
+                );
+                if (hit && hit.dist > 0.1 && hit.dist < minDist) {
+                    const dotCheck = (hit.x - p.x) * group.gravDir.x + (hit.y - p.y) * group.gravDir.y;
+                    if (dotCheck > 0) {
+                        minDist = hit.dist;
+                        target = { x: hit.x, y: hit.y };
+                    }
+                }
+            });
+
+            if (target) {
+                const dx = target.x - p.x;
+                const dy = target.y - p.y;
+                const err = Math.hypot(dx, dy);
+
+                p.vx += dx * GRAVITY_K;
+                p.vy += dy * GRAVITY_K;
+                p.vx *= DAMPING;
+                p.vy *= DAMPING;
+                p.x += p.vx;
+                p.y += p.vy;
+
+                if (Math.abs(p.vx) + Math.abs(p.vy) < CONVERGE && err < 1.0) {
+                    p.x = target.x;
+                    p.y = target.y;
+                    p.state = "SETTLED";
                 }
             }
         });
-        return path;
-    },
 
-    pathLength: (pts) => {
-        let len = 0;
-        for (let i = 0; i < pts.length - 1; i++) len += LRebarEngine._dist(pts[i], pts[i + 1]);
-        return len;
-    },
-
-    // 경로 위 거리 t인 점 반환
-    pointAtDist: (pts, t) => {
-        let rem = t;
-        for (let i = 0; i < pts.length - 1; i++) {
-            const segLen = LRebarEngine._dist(pts[i], pts[i + 1]);
-            if (rem <= segLen + 1e-6 || i === pts.length - 2) {
-                const ratio = segLen > 1e-9 ? Math.min(rem / segLen, 1.0) : 0;
-                return {
-                    x: pts[i].x + (pts[i + 1].x - pts[i].x) * ratio,
-                    y: pts[i].y + (pts[i + 1].y - pts[i].y) * ratio
-                };
-            }
-            rem -= segLen;
+        if (allSettled) {
+            group.state = "SETTLED";
         }
-        return { ...pts[pts.length - 1] };
-    },
-
-    // LREBAR 데이터 전체 계산 → 그룹별 위치 배열 반환
-    compute: (lrebarData, walls) => {
-        if (!lrebarData || !walls) return [];
-        const results = [];
-
-        lrebarData.forEach(data => {
-            const setIds = data.set   || [];
-            const range  = data.range || {};
-            const bar    = data.bar   || {};
-
-            const path = LRebarEngine.buildPath(setIds, walls);
-            if (path.length < 2) { console.warn(`[LREBAR] ${data.id}: 유효한 path 없음`); return; }
-
-            const totalLen = LRebarEngine.pathLength(path);
-            const startT   = Number(range.b) || 0;
-            const endT     = totalLen - (Number(range.e) || 0);
-            if (endT - startT < 1) { console.warn(`[LREBAR] ${data.id}: 유효 구간 없음`); return; }
-
-            const usable = endT - startT;
-            let num = bar.num ? Number(bar.num) : 0;
-            let ctc = bar.ctc ? Number(bar.ctc) : 0;
-
-            if (num >= 2) {
-                ctc = usable / (num - 1);
-            } else if (num === 1) {
-                ctc = 0;
-            } else if (ctc > 0) {
-                num = Math.round(usable / ctc) + 1;
-                ctc = num > 1 ? usable / (num - 1) : 0;
-            } else {
-                console.warn(`[LREBAR] ${data.id}: num 또는 ctc 필요`); return;
-            }
-
-            if (bar.max && ctc > bar.max) console.warn(`[LREBAR] ${data.id}: CTC ${ctc.toFixed(0)} > max ${bar.max}`);
-            if (bar.min && ctc < bar.min) console.warn(`[LREBAR] ${data.id}: CTC ${ctc.toFixed(0)} < min ${bar.min}`);
-
-            const positions = [];
-            for (let i = 0; i < num; i++) {
-                const t = num > 1 ? startT + i * ctc : startT + usable / 2;
-                positions.push(LRebarEngine.pointAtDist(path, t));
-            }
-
-            results.push({ id: data.id, dia: Number(bar.dia) || 16, ctc, positions });
-        });
-
-        return results;
     }
 };

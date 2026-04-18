@@ -76,7 +76,6 @@ const UI = {
 
         UI.drawGrid();
         UI.drawNormals();
-        UI.drawLrebar();
         UI.drawDebugNodes();
         UI.mainLayer.draw();
     },
@@ -131,6 +130,8 @@ const UI = {
                 }
             }
         });
+
+        UI.drawLrebar();
 
         const statGrid = document.getElementById('stat-grid');
         if (Domain.rebarList.length > 0) {
@@ -195,12 +196,14 @@ const UI = {
 
         Domain.lrebarList.forEach(group => {
             const r = Math.max(group.dia / 2, secType === "TBEAM" ? 4 : 30);
-            group.positions.forEach(pos => {
+            group.particles.forEach(p => {
+                const color = p.state === "SETTLED" ? '#FFD700' : '#FF9800';
+                const stroke = p.state === "SETTLED" ? '#B8860B' : '#FF5722';
                 UI.lrebarGroup.add(new Konva.Circle({
-                    x: pos.x, y: pos.y,
+                    x: p.x, y: p.y,
                     radius: r,
-                    fill: '#FFD700',
-                    stroke: '#B8860B',
+                    fill: color,
+                    stroke: stroke,
                     strokeWidth: secType === "TBEAM" ? 1 : 4,
                     strokeScaleEnabled: false
                 }));

@@ -254,9 +254,19 @@ const Domain = {
             });
         }
 
-        // LREBAR 계산 (정적 배치 - 물리 불필요)
+        // LREBAR 생성 (물리 기반 - stepPhysics에서 이동)
         if (typeof LRebarEngine !== 'undefined' && Domain.USER_LREBAR_DATA && Domain.currentSection) {
-            Domain.lrebarList = LRebarEngine.compute(Domain.USER_LREBAR_DATA, Domain.currentSection.walls);
+            Domain.USER_LREBAR_DATA.forEach(rawData => {
+                const data = { ...rawData };
+                if (data.init) {
+                    data.init = {
+                        x: EquationParser.eval(data.init.x, PARAMS) || 0,
+                        y: EquationParser.eval(data.init.y, PARAMS) || 0,
+                        rot: EquationParser.eval(data.init.rot, PARAMS) || 0
+                    };
+                }
+                Domain.lrebarList.push(LRebarEngine.create(data));
+            });
         }
     },
 
@@ -268,6 +278,10 @@ const Domain = {
             if (currentRebar.state === "FORMED") {
                 Domain.activeRebarIndex++;
             }
+        } else if (Domain.lrebarList.length > 0) {
+            Domain.lrebarList.forEach(group => {
+                LRebarEngine.step(group, Domain.currentSection.walls);
+            });
         }
     }
 };
