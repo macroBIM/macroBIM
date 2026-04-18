@@ -1,5 +1,5 @@
 // =========================================================================
-// 🟦 PART 1: DOMAIN LOGIC (domain.js)  v000
+// 🟦 PART 1: DOMAIN LOGIC (domain.js)  v002
 // =========================================================================
 
 const CONFIG = {
@@ -262,7 +262,8 @@ const Domain = {
                     data.init = {
                         x: EquationParser.eval(data.init.x, PARAMS) || 0,
                         y: EquationParser.eval(data.init.y, PARAMS) || 0,
-                        rot: EquationParser.eval(data.init.rot, PARAMS) || 0
+                        rot: EquationParser.eval(data.init.rot, PARAMS) || 0,
+                        grav: data.init.grav
                     };
                 }
                 Domain.lrebarList.push(LRebarEngine.create(data));
@@ -279,8 +280,9 @@ const Domain = {
                 Domain.activeRebarIndex++;
             }
         } else if (Domain.lrebarList.length > 0) {
+            const coverWalls = Physics.buildCoverWalls(Domain.currentSection.walls);
             Domain.lrebarList.forEach(group => {
-                LRebarEngine.step(group, Domain.currentSection.walls);
+                LRebarEngine.step(group, coverWalls);
             });
         }
     }
