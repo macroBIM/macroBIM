@@ -20,9 +20,11 @@ const Domain = {
     // 사용자가 외부에서 주입할 데이터 저장소
     USER_BOX_DATA: null,
     USER_REBAR_DATA: null,
+    USER_LREBAR_DATA: null,
 
     currentSection: null,
     rebarList: [],
+    lrebarList: [],
     activeRebarIndex: 0,
     isPaused: false,
 
@@ -35,6 +37,7 @@ const Domain = {
     buildModel: (secType) => {
         Domain.currentSection = null;
         Domain.rebarList = [];
+        Domain.lrebarList = [];
         Domain.activeRebarIndex = 0;
         Domain.isPaused = false;
 
@@ -246,9 +249,14 @@ const Domain = {
                         console.log(`[🎯 SET] ${rb.id} 철근의 '${anchorSegKey}' 구간이 ${targetWall.id} 벽체에 닻을 내렸습니다.`);
                     }                    
 
-                    Domain.rebarList.push(rb); 
+                    Domain.rebarList.push(rb);
                 }
             });
+        }
+
+        // LREBAR 계산 (정적 배치 - 물리 불필요)
+        if (typeof LRebarEngine !== 'undefined' && Domain.USER_LREBAR_DATA && Domain.currentSection) {
+            Domain.lrebarList = LRebarEngine.compute(Domain.USER_LREBAR_DATA, Domain.currentSection.walls);
         }
     },
 

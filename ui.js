@@ -7,7 +7,7 @@ const UI = {
     showNodes: false, 
     
     stage: null, mainLayer: null,
-    gridGroup: null, sectionGroup: null, normalGroup: null, rebarGroup: null, debugGroup: null,
+    gridGroup: null, sectionGroup: null, normalGroup: null, rebarGroup: null, debugGroup: null, lrebarGroup: null,
     anim: null,
 
     init: () => {
@@ -15,13 +15,14 @@ const UI = {
         UI.mainLayer = new Konva.Layer({ x: window.innerWidth / 2, y: window.innerHeight / 2, scaleY: -1 });
         UI.stage.add(UI.mainLayer);
 
-        UI.gridGroup = new Konva.Group(); 
+        UI.gridGroup = new Konva.Group();
         UI.sectionGroup = new Konva.Group();
-        UI.normalGroup = new Konva.Group(); 
+        UI.normalGroup = new Konva.Group();
+        UI.lrebarGroup = new Konva.Group();
         UI.rebarGroup = new Konva.Group();
-        UI.debugGroup = new Konva.Group(); 
-        
-        UI.mainLayer.add(UI.gridGroup, UI.sectionGroup, UI.normalGroup, UI.rebarGroup, UI.debugGroup);
+        UI.debugGroup = new Konva.Group();
+
+        UI.mainLayer.add(UI.gridGroup, UI.sectionGroup, UI.normalGroup, UI.lrebarGroup, UI.rebarGroup, UI.debugGroup);
 
         UI.stage.on('dragmove', UI.drawGrid);
         UI.stage.on('wheel', (e) => {
@@ -51,10 +52,11 @@ const UI = {
     },
 
     reset: () => {
-        UI.sectionGroup.destroyChildren(); 
-        UI.normalGroup.destroyChildren(); 
+        UI.sectionGroup.destroyChildren();
+        UI.normalGroup.destroyChildren();
+        UI.lrebarGroup.destroyChildren();
         UI.rebarGroup.destroyChildren();
-        UI.debugGroup.destroyChildren(); 
+        UI.debugGroup.destroyChildren();
 
         let secType = document.getElementById("sectionSelect").value;
         
@@ -72,9 +74,10 @@ const UI = {
             UI.sectionGroup.add(new Konva.Line({ points: flatPoints, stroke: '#ffffff', strokeWidth: 2, closed: true, lineJoin: 'round', strokeScaleEnabled: false }));
         });
 
-        UI.drawGrid(); 
-        UI.drawNormals(); 
-        UI.drawDebugNodes(); 
+        UI.drawGrid();
+        UI.drawNormals();
+        UI.drawLrebar();
+        UI.drawDebugNodes();
         UI.mainLayer.draw();
     },
 
@@ -183,6 +186,26 @@ const UI = {
         const btn = document.getElementById("btnToggleNodes");
         if(UI.showNodes) { btn.classList.add("active"); } else { btn.classList.remove("active"); }
         UI.drawDebugNodes();
+    },
+
+    drawLrebar: () => {
+        UI.lrebarGroup.destroyChildren();
+        if (!Domain.lrebarList || Domain.lrebarList.length === 0) return;
+        const secType = document.getElementById("sectionSelect").value;
+
+        Domain.lrebarList.forEach(group => {
+            const r = Math.max(group.dia / 2, secType === "TBEAM" ? 4 : 30);
+            group.positions.forEach(pos => {
+                UI.lrebarGroup.add(new Konva.Circle({
+                    x: pos.x, y: pos.y,
+                    radius: r,
+                    fill: '#FFD700',
+                    stroke: '#B8860B',
+                    strokeWidth: secType === "TBEAM" ? 1 : 4,
+                    strokeScaleEnabled: false
+                }));
+            });
+        });
     },
 
     drawDebugNodes: () => {
