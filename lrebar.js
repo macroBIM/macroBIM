@@ -1,5 +1,5 @@
 // =========================================================================
-// 🟦 PART: LONGITUDINAL REBAR ENGINE (lrebar.js) - v005
+// 🟦 PART: LONGITUDINAL REBAR ENGINE (lrebar.js) - v006
 // =========================================================================
 
 const GRAVITY_K = 0.08;
@@ -85,6 +85,7 @@ const LRebarEngine = {
         return new LRebarGroup(data);
     },
 
+    // 파라미터로 이미 피복(cover) 처리가 완료된 coverWalls가 넘어옴
     step: (group, coverWalls) => {
         if (group.state === "SETTLED" || group.num === 0) return;
 
@@ -112,7 +113,8 @@ const LRebarEngine = {
                                 minDist = hit.dist;
                                 
                                 // 4. 철근 반지름(dia/2) 보정 (궤적 역방향 오프셋)
-                                // 빗면(헌치)에서도 수직 궤적을 유지하기 위해 삼각비(cos)로 나눔
+                                // 피복은 이미 적용되어 있으므로 반지름만 처리. 
+                                // 빗면(헌치)에서도 수직 궤적을 유지하기 위해 삼각비(dotNormal) 적용
                                 let radiusOffset = group.dia / 2;
                                 let travelOffset = radiusOffset / Math.abs(dotNormal); 
                                 
