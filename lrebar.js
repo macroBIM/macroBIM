@@ -1,56 +1,76 @@
-// lrebar.js v002 - Physics-based Longitudinal Rebar Engine
+// =========================================================================
+// 🟦 PART: LONGITUDINAL REBAR ENGINE (lrebar.js) - v000
+// =========================================================================
+
+const GRAVITY_K = 0.08;
+const DAMPING = 0.80;
+const CONVERGE = 0.2;
 
 class LRebarGroup {
     constructor(data) {
-        this.id = data.id || "LREBAR";
-        this.dia = Number(data.bar && data.bar.dia) || 16;
+        this.id = data.id || "L_UNKNOWN";
         this.state = "FITTING";
-        this.particles = [];
 
+        // 1. init 파싱 (기준점, 기울기, 중력방향)
         const init = data.init || {};
-        const cx = Number(init.x) || 0;
-        const cy = Number(init.y) || 0;
-        const rotRad = (Number(init.rot) || 0) * Math.PI / 180;
+        const cx = init.x || 0;
+        const cy = init.y || 0;
+        const rotDeg = init.rot || 0;
+        const rotRad = rotDeg * Math.PI / 180;
+        const gravSign = init.grav === -1 ? -1 : 1; // 기본값은 1 (정방향)
 
-        const range = data.range || {};
-        const rb = Number(range.b) || 0;
-        const re = Number(range.e) || 0;
-        const totalLen = rb + re;
+        // 2. range 파싱 (배치 구간)
+        const range = data.range || { min: 0, max: 0 };
+        const rMin = range.min || 0;
+        const rMax = range.max || 0;
+        const totalLen = rMax - rMin;
 
+        // 3. bar 파싱 (직경, 개수, 간격)
         const bar = data.bar || {};
-        let num = bar.num ? Number(bar.num) : 0;
-        let ctc = bar.ctc ? Number(bar.ctc) : 0;
+        this.dia = bar.dia || 13;
+        let num = bar.num;
+        let ctc = bar.ctc;
 
-        if (num >= 2) {
+        // CTC 및 개수 자동 계산 로직
+        if (num === undefined && ctc !== undefined && ctc > 0) {
+            num = Math.floor(totalLen / ctc) + 1;
+        } else if (num !== undefined && num > 1) {
             ctc = totalLen / (num - 1);
-        } else if (num === 1) {
+        } else {
+            num = 1;
             ctc = 0;
-        } else if (ctc > 0) {
-            num = Math.round(totalLen / ctc) + 1;
-            ctc = num > 1 ? totalLen / (num - 1) : 0;
         }
 
-        this.ctc = ctc;
-        if (bar.max && ctc > bar.max) console.warn(`[LREBAR] ${this.id}: CTC ${ctc.toFixed(0)} > max ${bar.max}`);
-        if (bar.min && ctc < bar.min) console.warn(`[LREBAR] ${this.id}: CTC ${ctc.toFixed(0)} < min ${bar.min}`);
+        // 안전망: 최소 간격(min) 검증
+        if (bar.min && ctc < bar.min) {
+            console.warn(`[LREBAR WARNING] ${this.id}: 계산된 철근 간격(${ctc.toFixed(1)}mm)이 허용 최소 간격(${bar.min}mm)보다 작습니다.`);
+        }
 
-        const gravDeg = (data.grav !== undefined) ? Number(data.grav) : -90;
+        // 4. 벡터 계산 (직선 벡터 및 법선(중력) 벡터)
+        const ux = Math.cos(rotRad); // 선의 X 방향 벡터
+        const uy = Math.sin(rotRad); // 선의 Y 방향 벡터
+
+        // 법선 벡터 (Normal Vector): 선 벡터를 90도 회전 (-uy, ux)
+        // 여기에 gravSign(+1 또는 -1)을 곱해 최종 낙하 방향 결정
         this.gravDir = {
-            x: Math.cos(gravDeg * Math.PI / 180),
-            y: Math.sin(gravDeg * Math.PI / 180)
+            x: -uy * gravSign,
+            y: ux * gravSign
         };
 
-        const ux = Math.cos(rotRad);
-        const uy = Math.sin(rotRad);
-        const sx = cx - ux * rb;
-        const sy = cy - uy * rb;
-
+        // 5. 입자(철근) 생성 및 초기 위치 세팅
+        this.particles = [];
         for (let i = 0; i < num; i++) {
-            const t = num > 1 ? i * ctc : totalLen / 2;
+            // 중심점(cx, cy)으로부터의 로컬 거리 계산 (min 위치에서 출발)
+            let localDist = num === 1 ? (rMin + rMax) / 2 : rMin + (i * ctc);
+
+            let px = cx + ux * localDist;
+            let py = cy + uy * localDist;
+
             this.particles.push({
-                x: sx + ux * t,
-                y: sy + uy * t,
-                vx: 0, vy: 0,
+                x: px,
+                y: py,
+                vx: 0,
+                vy: 0,
                 state: "FITTING"
             });
         }
@@ -58,14 +78,13 @@ class LRebarGroup {
 }
 
 const LRebarEngine = {
+    create: (data) => {
+        return new LRebarGroup(data);
+    },
 
-    create: (data) => new LRebarGroup(data),
-
-    step: (group, walls) => {
+    step: (group, coverWalls) => {
         if (group.state === "SETTLED") return;
 
-        const { GRAVITY_K, DAMPING, CONVERGE } = CONFIG.PHYSICS;
-        const coverWalls = Physics.buildCoverWalls(walls);
         let allSettled = true;
 
         group.particles.forEach(p => {
@@ -75,13 +94,13 @@ const LRebarEngine = {
             let minDist = Infinity;
             let target = null;
 
+            // 중력 방향(gravDir)으로 레이캐스트 쏘기
             coverWalls.forEach(w => {
                 const hit = MathUtils.rayLineIntersect(
-                    { x: p.x, y: p.y },
-                    group.gravDir,
-                    { x: w.x1, y: w.y1 },
-                    { x: w.x2, y: w.y2 }
+                    { x: p.x, y: p.y }, group.gravDir,
+                    { x: w.x1, y: w.y1 }, { x: w.x2, y: w.y2 }
                 );
+
                 if (hit && hit.dist > 0.1 && hit.dist < minDist) {
                     const dotCheck = (hit.x - p.x) * group.gravDir.x + (hit.y - p.y) * group.gravDir.y;
                     if (dotCheck > 0) {
@@ -91,6 +110,7 @@ const LRebarEngine = {
                 }
             });
 
+            // 타겟(벽면)을 향해 동력학적으로 이동
             if (target) {
                 const dx = target.x - p.x;
                 const dy = target.y - p.y;
@@ -100,6 +120,7 @@ const LRebarEngine = {
                 p.vy += dy * GRAVITY_K;
                 p.vx *= DAMPING;
                 p.vy *= DAMPING;
+
                 p.x += p.vx;
                 p.y += p.vy;
 
