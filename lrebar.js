@@ -1,5 +1,5 @@
 // =========================================================================
-// 🟦 PART: LONGITUDINAL REBAR ENGINE (lrebar.js) - v008
+// 🟦 PART: LONGITUDINAL REBAR ENGINE (lrebar.js) - v009
 // =========================================================================
 
 const GRAVITY_K = 0.08;
@@ -73,7 +73,21 @@ class LRebarGroup {
 const LRebarEngine = {
     create: (data) => new LRebarGroup(data),
 
+    _isInsideConcrete: (px, py, coverWalls) => {
+        let crossings = 0;
+        coverWalls.forEach(w => {
+            const y1 = w.y1, y2 = w.y2;
+            if ((y1 > py) !== (y2 > py)) {
+                const t = (py - y1) / (y2 - y1);
+                const xHit = w.x1 + t * (w.x2 - w.x1);
+                if (xHit > px) crossings++;
+            }
+        });
+        return (crossings & 1) === 1;
+    },
+
     _findTarget: (px, py, gravDir, dia, coverWalls) => {
+        if (!LRebarEngine._isInsideConcrete(px, py, coverWalls)) return null;
         let minDist = Infinity;
         let foundTarget = null;
         coverWalls.forEach(w => {
@@ -100,6 +114,7 @@ const LRebarEngine = {
     },
 
     _hasValidTarget: (px, py, gravDir, coverWalls) => {
+        if (!LRebarEngine._isInsideConcrete(px, py, coverWalls)) return false;
         let found = false;
         coverWalls.forEach(w => {
             if (found) return;
