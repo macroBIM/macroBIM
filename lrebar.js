@@ -187,14 +187,14 @@ const LRebarEngine = {
         }
 
         if (minCtc > 0) {
-            for (let i = 1; i < n; i++) {
-                if (particles[i].t - particles[i - 1].t < minCtc - 0.1) {
-                    setParticleT(particles[i], particles[i - 1].t + minCtc);
-                }
-            }
             for (let i = n - 2; i >= 0; i--) {
                 if (particles[i + 1].t - particles[i].t < minCtc - 0.1) {
                     setParticleT(particles[i], particles[i + 1].t - minCtc);
+                }
+            }
+            for (let i = 1; i < n; i++) {
+                if (particles[i].t - particles[i - 1].t < minCtc - 0.1) {
+                    setParticleT(particles[i], particles[i - 1].t + minCtc);
                 }
             }
         }
