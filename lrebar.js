@@ -1,5 +1,5 @@
 // =========================================================================
-// 🟦 PART: LONGITUDINAL REBAR ENGINE (lrebar.js) - v009
+// 🟦 PART: LONGITUDINAL REBAR ENGINE (lrebar.js) - v010
 // =========================================================================
 
 const GRAVITY_K = 0.08;
