@@ -1,5 +1,5 @@
 // =========================================================================
-// 🟦 PART: LONGITUDINAL REBAR ENGINE (lrebar.js) - v011
+// 🟦 PART: LONGITUDINAL REBAR ENGINE (lrebar.js) - v012
 // =========================================================================
 
 const GRAVITY_K = 0.08;
@@ -32,6 +32,11 @@ class LRebarGroup {
             this.num = 0;
         } else {
             this.num = bar.num;
+        }
+
+        this.path = Array.isArray(data.path) ? data.path.slice() : [];
+        if (this.path.length === 0) {
+            console.warn(`[LREBAR WARNING] ${this.id}: path가 비어있습니다. 타겟 벽체를 지정해주세요.`);
         }
 
         let num = this.num;
@@ -73,34 +78,34 @@ class LRebarGroup {
 const LRebarEngine = {
     create: (data) => new LRebarGroup(data),
 
-    _isInsideLoop: (px, py, loopWalls) => {
-        let crossings = 0;
-        loopWalls.forEach(w => {
-            const y1 = w.y1, y2 = w.y2;
-            if ((y1 > py) !== (y2 > py)) {
-                const t = (py - y1) / (y2 - y1);
-                const xHit = w.x1 + t * (w.x2 - w.x1);
-                if (xHit > px) crossings++;
-            }
+    _filterPathCoverWalls: (group, coverWalls) => {
+        if (!group.path || group.path.length === 0) return [];
+        const pathSet = new Set(group.path);
+        return coverWalls.filter(w => {
+            const id = w.id || (w.origWall && w.origWall.id);
+            return id && pathSet.has(id);
         });
-        return (crossings & 1) === 1;
     },
 
-    _isInsideConcrete: (px, py, coverWalls) => {
-        const loops = Physics.splitWallLoops(coverWalls);
-        if (loops.length === 0) return false;
-        if (!LRebarEngine._isInsideLoop(px, py, loops[0])) return false;
-        for (let i = 1; i < loops.length; i++) {
-            if (LRebarEngine._isInsideLoop(px, py, loops[i])) return false;
-        }
-        return true;
+    _computePathTRange: (group, pathWalls) => {
+        const cx = group.initData.x, cy = group.initData.y;
+        const ux = group.ux, uy = group.uy;
+        let tMin = Infinity, tMax = -Infinity;
+        pathWalls.forEach(w => {
+            const t1 = (w.x1 - cx) * ux + (w.y1 - cy) * uy;
+            const t2 = (w.x2 - cx) * ux + (w.y2 - cy) * uy;
+            if (t1 < tMin) tMin = t1;
+            if (t1 > tMax) tMax = t1;
+            if (t2 < tMin) tMin = t2;
+            if (t2 > tMax) tMax = t2;
+        });
+        return { tMin, tMax };
     },
 
-    _findTarget: (px, py, gravDir, dia, coverWalls) => {
-        if (!LRebarEngine._isInsideConcrete(px, py, coverWalls)) return null;
+    _findTarget: (px, py, gravDir, dia, pathWalls) => {
         let minDist = Infinity;
         let foundTarget = null;
-        coverWalls.forEach(w => {
+        pathWalls.forEach(w => {
             const dotNormal = gravDir.x * w.nx + gravDir.y * w.ny;
             if (dotNormal < -0.01) {
                 const hit = MathUtils.rayLineIntersect(
@@ -123,80 +128,27 @@ const LRebarEngine = {
         return foundTarget;
     },
 
-    _hasValidTarget: (px, py, gravDir, coverWalls) => {
-        if (!LRebarEngine._isInsideConcrete(px, py, coverWalls)) return false;
-        let found = false;
-        coverWalls.forEach(w => {
-            if (found) return;
-            const dotNormal = gravDir.x * w.nx + gravDir.y * w.ny;
-            if (dotNormal < -0.01) {
-                const hit = MathUtils.rayLineIntersect(
-                    { x: px, y: py }, gravDir,
-                    { x: w.x1, y: w.y1 }, { x: w.x2, y: w.y2 }
-                );
-                if (hit && hit.dist > 0.01) {
-                    const dotCheck = (hit.x - px) * gravDir.x + (hit.y - py) * gravDir.y;
-                    if (dotCheck > 0) found = true;
-                }
-            }
-        });
-        return found;
-    },
-
-    _findBoundaryT: (group, tInvalid, tValid, coverWalls) => {
-        let lo = tInvalid, hi = tValid;
-        const cx = group.initData.x, cy = group.initData.y;
-        const ux = group.ux, uy = group.uy;
-
-        for (let i = 0; i < 15; i++) {
-            let mid = (lo + hi) / 2;
-            if (LRebarEngine._hasValidTarget(cx + ux * mid, cy + uy * mid, group.gravDir, coverWalls)) {
-                hi = mid;
-            } else {
-                lo = mid;
-            }
-        }
-        return hi;
-    },
-
-    _clampAndSpace: (group, coverWalls) => {
+    _clampToPathRange: (group, pathRange, pathWalls) => {
         const particles = group.particles;
         const n = particles.length;
-        if (n < 2) return;
+        if (n === 0) return;
 
         const cx = group.initData.x, cy = group.initData.y;
         const ux = group.ux, uy = group.uy;
         const minCtc = group.minCtc;
-
-        let firstValidIdx = -1;
-        for (let i = 0; i < n; i++) {
-            if (particles[i].target) { firstValidIdx = i; break; }
-        }
-        if (firstValidIdx === -1) return;
-
-        let lastValidIdx = -1;
-        for (let i = n - 1; i >= 0; i--) {
-            if (particles[i].target) { lastValidIdx = i; break; }
-        }
+        const { tMin, tMax } = pathRange;
 
         const setParticleT = (p, t) => {
             p.t = t;
             p.x = cx + ux * t;
             p.y = cy + uy * t;
-            p.target = LRebarEngine._findTarget(p.x, p.y, group.gravDir, group.dia, coverWalls);
+            p.target = LRebarEngine._findTarget(p.x, p.y, group.gravDir, group.dia, pathWalls);
         };
 
-        if (firstValidIdx > 0) {
-            let boundaryT = LRebarEngine._findBoundaryT(group, particles[0].t, particles[firstValidIdx].t, coverWalls);
-            for (let i = 0; i < firstValidIdx; i++) setParticleT(particles[i], boundaryT);
-        }
+        if (particles[0].t < tMin) setParticleT(particles[0], tMin);
+        if (particles[n - 1].t > tMax) setParticleT(particles[n - 1], tMax);
 
-        if (lastValidIdx < n - 1) {
-            let boundaryT = LRebarEngine._findBoundaryT(group, particles[n - 1].t, particles[lastValidIdx].t, coverWalls);
-            for (let i = n - 1; i > lastValidIdx; i--) setParticleT(particles[i], boundaryT);
-        }
-
-        if (minCtc > 0) {
+        if (minCtc > 0 && n >= 2) {
             for (let i = n - 2; i >= 0; i--) {
                 if (particles[i + 1].t - particles[i].t < minCtc - 0.1) {
                     setParticleT(particles[i], particles[i + 1].t - minCtc);
@@ -214,15 +166,24 @@ const LRebarEngine = {
         if (group.state === "SETTLED" || group.num === 0) return;
 
         if (!group.isTargeted) {
+            const pathWalls = LRebarEngine._filterPathCoverWalls(group, coverWalls);
+            if (pathWalls.length === 0) {
+                console.warn(`[LREBAR] ${group.id}: path 벽체를 coverWalls에서 찾을 수 없습니다. (path: ${JSON.stringify(group.path)})`);
+                group.state = "SETTLED";
+                return;
+            }
+
+            const pathRange = LRebarEngine._computePathTRange(group, pathWalls);
+
             group.particles.forEach(p => {
-                p.target = LRebarEngine._findTarget(p.x, p.y, group.gravDir, group.dia, coverWalls);
+                p.target = LRebarEngine._findTarget(p.x, p.y, group.gravDir, group.dia, pathWalls);
             });
 
-            LRebarEngine._clampAndSpace(group, coverWalls);
+            LRebarEngine._clampToPathRange(group, pathRange, pathWalls);
 
             group.particles.forEach(p => {
                 if (!p.target) {
-                    console.warn(`[LREBAR] ${group.id}: 파티클이 피복면을 찾지 못했습니다. (x:${p.x.toFixed(1)}, y:${p.y.toFixed(1)})`);
+                    console.warn(`[LREBAR] ${group.id}: 파티클이 path 타겟을 찾지 못했습니다. (x:${p.x.toFixed(1)}, y:${p.y.toFixed(1)})`);
                     p.state = "SETTLED";
                 }
             });
