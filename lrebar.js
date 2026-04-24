@@ -1,5 +1,5 @@
 // =========================================================================
-// 🟦 PART: LONGITUDINAL REBAR ENGINE (lrebar.js) - v012
+// 🟦 PART: LONGITUDINAL REBAR ENGINE (lrebar.js) - v013
 // =========================================================================
 
 const GRAVITY_K = 0.08;
@@ -92,14 +92,16 @@ const LRebarEngine = {
         const ux = group.ux, uy = group.uy;
         let tMin = Infinity, tMax = -Infinity;
         pathWalls.forEach(w => {
-            const t1 = (w.x1 - cx) * ux + (w.y1 - cy) * uy;
-            const t2 = (w.x2 - cx) * ux + (w.y2 - cy) * uy;
+            const ow = w.origWall || w;
+            const t1 = (ow.x1 - cx) * ux + (ow.y1 - cy) * uy;
+            const t2 = (ow.x2 - cx) * ux + (ow.y2 - cy) * uy;
             if (t1 < tMin) tMin = t1;
             if (t1 > tMax) tMax = t1;
             if (t2 < tMin) tMin = t2;
             if (t2 > tMax) tMax = t2;
         });
-        return { tMin, tMax };
+        const margin = 50;
+        return { tMin: tMin - margin, tMax: tMax + margin };
     },
 
     _findTarget: (px, py, gravDir, dia, pathWalls) => {
