@@ -1,5 +1,5 @@
 // =========================================================================
-// 🟦 PART: LONGITUDINAL REBAR ENGINE (lrebar.js) - v014
+// 🟦 PART: LONGITUDINAL REBAR ENGINE (lrebar.js) - v015
 // =========================================================================
 
 const GRAVITY_K = 0.08;
@@ -60,15 +60,15 @@ class LRebarGroup {
         this.minCtc = (bar.min !== undefined) ? bar.min : 0;
         this.ctc = ctc;
 
+        const tCenter = (rMin + rMax) / 2;
         this.particles = [];
         for (let i = 0; i < num; i++) {
-            let t = (num === 1) ? (rMin + rMax) / 2 : rMin + (i * ctc);
             this.particles.push({
-                x: cx + ux * t,
-                y: cy + uy * t,
+                x: cx + ux * tCenter,
+                y: cy + uy * tCenter,
                 vx: 0, vy: 0,
                 target: null,
-                t: t,
+                t: tCenter,
                 state: "FITTING"
             });
         }
@@ -133,13 +133,16 @@ const LRebarEngine = {
         return foundTarget;
     },
 
-    _clampToPathRange: (group, pathRange, pathWalls) => {
+    _distributeOnPath: (group, pathRange, pathWalls) => {
         const particles = group.particles;
         const n = particles.length;
         if (n === 0) return;
 
         const cx = group.initData.x, cy = group.initData.y;
         const ux = group.ux, uy = group.uy;
+        const rMin = group.rangeData.min;
+        const rMax = group.rangeData.max;
+        const ctc = group.ctc;
         const minCtc = group.minCtc;
         const { tMin, tMax } = pathRange;
 
@@ -149,6 +152,11 @@ const LRebarEngine = {
             p.y = cy + uy * t;
             p.target = LRebarEngine._findTarget(p.x, p.y, group.gravDir, group.dia, pathWalls);
         };
+
+        for (let i = 0; i < n; i++) {
+            let t = (n === 1) ? (rMin + rMax) / 2 : rMin + (i * ctc);
+            setParticleT(particles[i], t);
+        }
 
         if (particles[0].t < tMin) setParticleT(particles[0], tMin);
         if (particles[n - 1].t > tMax) setParticleT(particles[n - 1], tMax);
@@ -170,57 +178,96 @@ const LRebarEngine = {
     step: (group, coverWalls) => {
         if (group.state === "SETTLED" || group.num === 0) return;
 
-        if (!group.isTargeted) {
-            const pathWalls = LRebarEngine._filterPathCoverWalls(group, coverWalls);
-            if (pathWalls.length === 0) {
-                console.warn(`[LREBAR] ${group.id}: path 벽체를 coverWalls에서 찾을 수 없습니다. (path: ${JSON.stringify(group.path)})`);
-                group.state = "SETTLED";
-                return;
+        if (group.state === "FITTING") {
+            if (!group.isTargeted) {
+                const pathWalls = LRebarEngine._filterPathCoverWalls(group, coverWalls);
+                if (pathWalls.length === 0) {
+                    console.warn(`[LREBAR] ${group.id}: path 벽체를 coverWalls에서 찾을 수 없습니다. (path: ${JSON.stringify(group.path)})`);
+                    group.state = "SETTLED";
+                    return;
+                }
+                group._pathWalls = pathWalls;
+
+                group.particles.forEach(p => {
+                    p.target = LRebarEngine._findTarget(p.x, p.y, group.gravDir, group.dia, pathWalls);
+                });
+
+                group.particles.forEach(p => {
+                    if (!p.target) {
+                        console.warn(`[LREBAR] ${group.id}: 파티클이 path 타겟을 찾지 못했습니다. (x:${p.x.toFixed(1)}, y:${p.y.toFixed(1)})`);
+                        p.state = "SETTLED";
+                    }
+                });
+
+                group.isTargeted = true;
             }
 
-            const pathRange = LRebarEngine._computePathTRange(group, pathWalls);
-
+            let allSettled = true;
             group.particles.forEach(p => {
-                p.target = LRebarEngine._findTarget(p.x, p.y, group.gravDir, group.dia, pathWalls);
-            });
+                if (p.state === "SETTLED") return;
+                allSettled = false;
 
-            LRebarEngine._clampToPathRange(group, pathRange, pathWalls);
+                if (p.target) {
+                    const dx = p.target.x - p.x;
+                    const dy = p.target.y - p.y;
+                    const err = Math.hypot(dx, dy);
 
-            group.particles.forEach(p => {
-                if (!p.target) {
-                    console.warn(`[LREBAR] ${group.id}: 파티클이 path 타겟을 찾지 못했습니다. (x:${p.x.toFixed(1)}, y:${p.y.toFixed(1)})`);
-                    p.state = "SETTLED";
+                    p.vx += dx * GRAVITY_K;
+                    p.vy += dy * GRAVITY_K;
+                    p.vx *= DAMPING;
+                    p.vy *= DAMPING;
+                    p.x += p.vx;
+                    p.y += p.vy;
+
+                    if (Math.abs(p.vx) + Math.abs(p.vy) < CONVERGE && err < 1.0) {
+                        p.x = p.target.x;
+                        p.y = p.target.y;
+                        p.state = "SETTLED";
+                    }
                 }
             });
 
-            group.isTargeted = true;
+            if (allSettled) {
+                group.state = "DISTRIBUTING";
+                const pathRange = LRebarEngine._computePathTRange(group, group._pathWalls);
+                LRebarEngine._distributeOnPath(group, pathRange, group._pathWalls);
+
+                group.particles.forEach(p => {
+                    if (!p.target) {
+                        console.warn(`[LREBAR] ${group.id}: 분배 후 타겟 없음. (t:${p.t.toFixed(1)})`);
+                    }
+                    p.state = "FITTING";
+                    p.vx = 0;
+                    p.vy = 0;
+                });
+            }
+        } else if (group.state === "DISTRIBUTING") {
+            let allSettled = true;
+            group.particles.forEach(p => {
+                if (p.state === "SETTLED") return;
+                allSettled = false;
+
+                if (p.target) {
+                    const dx = p.target.x - p.x;
+                    const dy = p.target.y - p.y;
+                    const err = Math.hypot(dx, dy);
+
+                    p.vx += dx * GRAVITY_K;
+                    p.vy += dy * GRAVITY_K;
+                    p.vx *= DAMPING;
+                    p.vy *= DAMPING;
+                    p.x += p.vx;
+                    p.y += p.vy;
+
+                    if (Math.abs(p.vx) + Math.abs(p.vy) < CONVERGE && err < 1.0) {
+                        p.x = p.target.x;
+                        p.y = p.target.y;
+                        p.state = "SETTLED";
+                    }
+                }
+            });
+
+            if (allSettled) group.state = "SETTLED";
         }
-
-        let allSettled = true;
-        group.particles.forEach(p => {
-            if (p.state === "SETTLED") return;
-            allSettled = false;
-
-            if (p.target) {
-                const dx = p.target.x - p.x;
-                const dy = p.target.y - p.y;
-                const err = Math.hypot(dx, dy);
-
-                p.vx += dx * GRAVITY_K;
-                p.vy += dy * GRAVITY_K;
-                p.vx *= DAMPING;
-                p.vy *= DAMPING;
-                p.x += p.vx;
-                p.y += p.vy;
-
-                if (Math.abs(p.vx) + Math.abs(p.vy) < CONVERGE && err < 1.0) {
-                    p.x = p.target.x;
-                    p.y = p.target.y;
-                    p.state = "SETTLED";
-                }
-            }
-        });
-
-        if (allSettled) group.state = "SETTLED";
     }
 };
