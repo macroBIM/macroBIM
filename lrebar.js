@@ -1,5 +1,5 @@
 // =========================================================================
-// 🟦 PART: LONGITUDINAL REBAR ENGINE (lrebar.js) - v017
+// 🟦 PART: LONGITUDINAL REBAR ENGINE (lrebar.js) - v018
 // =========================================================================
 
 const GRAVITY_K = 0.08;
@@ -99,7 +99,8 @@ const LRebarEngine = {
             if (t2 < tMin) tMin = t2;
             if (t2 > tMax) tMax = t2;
         });
-        return { tMin, tMax };
+        const diaMargin = group.dia;
+        return { tMin: tMin + diaMargin, tMax: tMax - diaMargin };
     },
 
     _findTarget: (px, py, gravDir, dia, pathWalls) => {
