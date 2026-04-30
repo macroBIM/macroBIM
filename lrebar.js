@@ -1,5 +1,5 @@
 // =========================================================================
-// 🟦 PART: LONGITUDINAL REBAR ENGINE (lrebar.js) - v013
+// 🟦 PART: LONGITUDINAL REBAR ENGINE (lrebar.js) - v014
 // =========================================================================
 
 const GRAVITY_K = 0.08;
@@ -100,8 +100,7 @@ const LRebarEngine = {
             if (t2 < tMin) tMin = t2;
             if (t2 > tMax) tMax = t2;
         });
-        const margin = 50;
-        return { tMin: tMin - margin, tMax: tMax + margin };
+        return { tMin, tMax };
     },
 
     _findTarget: (px, py, gravDir, dia, pathWalls) => {
@@ -117,6 +116,10 @@ const LRebarEngine = {
                 if (hit && hit.dist > 0.01 && hit.dist < minDist) {
                     const dotCheck = (hit.x - px) * gravDir.x + (hit.y - py) * gravDir.y;
                     if (dotCheck > 0) {
+                        const wx = hit.x - w.x1, wy = hit.y - w.y1;
+                        const dx = w.x2 - w.x1, dy = w.y2 - w.y1;
+                        const gamma = (wx * dx + wy * dy) / (dx * dx + dy * dy);
+                        if (gamma < 0 || gamma > 1) return;
                         minDist = hit.dist;
                         let travelOffset = (dia / 2) / Math.abs(dotNormal);
                         foundTarget = {
