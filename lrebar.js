@@ -1,5 +1,5 @@
 // =========================================================================
-// 🟦 PART: LONGITUDINAL REBAR ENGINE (lrebar.js) - v015
+// 🟦 PART: LONGITUDINAL REBAR ENGINE (lrebar.js) - v016
 // =========================================================================
 
 const GRAVITY_K = 0.08;
@@ -145,33 +145,73 @@ const LRebarEngine = {
         const ctc = group.ctc;
         const minCtc = group.minCtc;
         const { tMin, tMax } = pathRange;
+        const gravDir = group.gravDir;
+        const dia = group.dia;
 
-        const setParticleT = (p, t) => {
-            p.t = t;
-            p.x = cx + ux * t;
-            p.y = cy + uy * t;
-            p.target = LRebarEngine._findTarget(p.x, p.y, group.gravDir, group.dia, pathWalls);
-        };
-
+        let tArr = [];
         for (let i = 0; i < n; i++) {
-            let t = (n === 1) ? (rMin + rMax) / 2 : rMin + (i * ctc);
-            setParticleT(particles[i], t);
+            tArr.push((n === 1) ? (rMin + rMax) / 2 : rMin + (i * ctc));
         }
 
-        if (particles[0].t < tMin) setParticleT(particles[0], tMin);
-        if (particles[n - 1].t > tMax) setParticleT(particles[n - 1], tMax);
+        if (tArr[0] < tMin) tArr[0] = tMin;
+        if (tArr[n - 1] > tMax) tArr[n - 1] = tMax;
 
         if (minCtc > 0 && n >= 2) {
             for (let i = n - 2; i >= 0; i--) {
-                if (particles[i + 1].t - particles[i].t < minCtc - 0.1) {
-                    setParticleT(particles[i], particles[i + 1].t - minCtc);
-                }
+                if (tArr[i + 1] - tArr[i] < minCtc - 0.1)
+                    tArr[i] = tArr[i + 1] - minCtc;
             }
             for (let i = 1; i < n; i++) {
-                if (particles[i].t - particles[i - 1].t < minCtc - 0.1) {
-                    setParticleT(particles[i], particles[i - 1].t + minCtc);
+                if (tArr[i] - tArr[i - 1] < minCtc - 0.1)
+                    tArr[i] = tArr[i - 1] + minCtc;
+            }
+        }
+
+        const segs = pathWalls.map(w => {
+            const t1 = (w.x1 - cx) * ux + (w.y1 - cy) * uy;
+            const t2 = (w.x2 - cx) * ux + (w.y2 - cy) * uy;
+            const dotN = gravDir.x * w.nx + gravDir.y * w.ny;
+            return { w, t1, t2, dotN };
+        });
+
+        const findOnWall = (t) => {
+            for (const seg of segs) {
+                const lo = Math.min(seg.t1, seg.t2);
+                const hi = Math.max(seg.t1, seg.t2);
+                if (t >= lo - 1 && t <= hi + 1) {
+                    const span = seg.t2 - seg.t1;
+                    let frac = (Math.abs(span) > 0.01) ? (t - seg.t1) / span : 0.5;
+                    frac = Math.max(0, Math.min(1, frac));
+                    const wallX = seg.w.x1 + frac * (seg.w.x2 - seg.w.x1);
+                    const wallY = seg.w.y1 + frac * (seg.w.y2 - seg.w.y1);
+                    if (Math.abs(seg.dotN) > 0.01) {
+                        const offset = (dia / 2) / Math.abs(seg.dotN);
+                        return { x: wallX - gravDir.x * offset, y: wallY - gravDir.y * offset };
+                    }
                 }
             }
+            let closestDist = Infinity, closestTarget = null;
+            for (const seg of segs) {
+                for (const endpoint of [0, 1]) {
+                    const et = endpoint === 0 ? seg.t1 : seg.t2;
+                    const d = Math.abs(t - et);
+                    if (d < closestDist) {
+                        closestDist = d;
+                        const wallX = endpoint === 0 ? seg.w.x1 : seg.w.x2;
+                        const wallY = endpoint === 0 ? seg.w.y1 : seg.w.y2;
+                        if (Math.abs(seg.dotN) > 0.01) {
+                            const offset = (dia / 2) / Math.abs(seg.dotN);
+                            closestTarget = { x: wallX - gravDir.x * offset, y: wallY - gravDir.y * offset };
+                        }
+                    }
+                }
+            }
+            return closestTarget;
+        };
+
+        for (let i = 0; i < n; i++) {
+            particles[i].t = tArr[i];
+            particles[i].target = findOnWall(tArr[i]);
         }
     },
 
@@ -235,10 +275,12 @@ const LRebarEngine = {
                 group.particles.forEach(p => {
                     if (!p.target) {
                         console.warn(`[LREBAR] ${group.id}: 분배 후 타겟 없음. (t:${p.t.toFixed(1)})`);
+                        p.state = "SETTLED";
+                    } else {
+                        p.state = "FITTING";
+                        p.vx = 0;
+                        p.vy = 0;
                     }
-                    p.state = "FITTING";
-                    p.vx = 0;
-                    p.vy = 0;
                 });
             }
         } else if (group.state === "DISTRIBUTING") {
