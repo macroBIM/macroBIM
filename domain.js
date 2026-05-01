@@ -180,8 +180,9 @@ const Domain = {
                     finalBarEnds  
                 );
                 
-                if (rb) { 
-                    rb.id = data.id; 
+                if (rb) {
+                    rb.id = data.id;
+                    rb.dia = data.dia || 13;
 
                     // 8. 공간 이동 마법 & 마스터 닻 잠금
                     if (targetWall) {
@@ -290,7 +291,7 @@ const Domain = {
         } else if (Domain.lrebarList.length > 0 && Domain.lrebarReady) {
             const coverWalls = Physics.buildCoverWalls(Domain.currentSection.walls);
             Domain.lrebarList.forEach(group => {
-                LRebarEngine.step(group, coverWalls);
+                LRebarEngine.step(group, coverWalls, Domain.rebarList);
             });
         }
     }
