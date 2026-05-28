@@ -1,5 +1,5 @@
 // =========================================================================
-// 🟦 PART 1: DOMAIN LOGIC (domain.js)  v004
+// 🟦 PART 1: DOMAIN LOGIC (domain.js)  v005
 // =========================================================================
 
 const CONFIG = {
@@ -20,14 +20,13 @@ const Domain = {
     // 사용자가 외부에서 주입할 데이터 저장소
     USER_BOX_DATA: null,
     USER_REBAR_DATA: null,
-    USER_LREBAR_DATA: null,
 
     currentSection: null,
     rebarList: [],
     lrebarList: [],
+    placementQueue: [],
     activeRebarIndex: 0,
     isPaused: false,
-    lrebarReady: false,
 
     togglePause: () => {
         Domain.isPaused = !Domain.isPaused;
@@ -35,19 +34,13 @@ const Domain = {
         if(btn) btn.innerHTML = Domain.isPaused ? "▶ Start" : "⏸ Pause";
     },
 
-    startLrebar: () => {
-        Domain.lrebarReady = true;
-        const btn = document.getElementById("btnStartLrebar");
-        if (btn) { btn.innerHTML = "Running..."; btn.disabled = true; btn.style.opacity = "0.5"; }
-    },
-
     buildModel: (secType) => {
         Domain.currentSection = null;
         Domain.rebarList = [];
         Domain.lrebarList = [];
+        Domain.placementQueue = [];
         Domain.activeRebarIndex = 0;
         Domain.isPaused = false;
-        Domain.lrebarReady = false;
 
         if (secType === "TBEAM") {
             Domain.currentSection = new TBeam(0, 0, CONFIG.TBEAM);
@@ -60,6 +53,12 @@ const Domain = {
 
         if (secType === "BOXGIRDER" && Domain.USER_REBAR_DATA) {
             Domain.USER_REBAR_DATA.forEach(rawData => {
+                const itemType = (rawData && rawData.type) ? String(rawData.type).toLowerCase() : "rebar";
+                if (itemType === "lrebar") {
+                    Domain._buildLRebarItem(rawData);
+                    return;
+                }
+
                 const data = {};
                 // 1. 최상위 키 소문자 변환
                 Object.keys(rawData).forEach(k => data[k.toLowerCase()] = rawData[k]);
@@ -183,6 +182,7 @@ const Domain = {
                 if (rb) {
                     rb.id = data.id;
                     rb.dia = data.dia || 13;
+                    rb.queueIndex = Domain.placementQueue.length;
 
                     // 8. 공간 이동 마법 & 마스터 닻 잠금
                     if (targetWall) {
@@ -259,40 +259,49 @@ const Domain = {
                     }                    
 
                     Domain.rebarList.push(rb);
+                    Domain.placementQueue.push({ kind: "rebar", obj: rb });
                 }
-            });
-        }
-
-        // LREBAR 생성 (물리 기반 - stepPhysics에서 이동)
-        if (typeof LRebarEngine !== 'undefined' && Domain.USER_LREBAR_DATA && Domain.currentSection) {
-            Domain.USER_LREBAR_DATA.forEach(rawData => {
-                const data = { ...rawData };
-                if (data.init) {
-                    data.init = {
-                        x: EquationParser.eval(data.init.x, PARAMS) || 0,
-                        y: EquationParser.eval(data.init.y, PARAMS) || 0,
-                        rot: EquationParser.eval(data.init.rot, PARAMS) || 0,
-                        grav: data.init.grav
-                    };
-                }
-                Domain.lrebarList.push(LRebarEngine.create(data));
             });
         }
     },
 
+    _buildLRebarItem: (rawData) => {
+        if (typeof LRebarEngine === 'undefined' || !Domain.currentSection) return;
+        const data = { ...rawData };
+        if (data.init) {
+            data.init = {
+                x: EquationParser.eval(data.init.x, PARAMS) || 0,
+                y: EquationParser.eval(data.init.y, PARAMS) || 0,
+                rot: EquationParser.eval(data.init.rot, PARAMS) || 0,
+                grav: data.init.grav
+            };
+        }
+        const group = LRebarEngine.create(data);
+        group.queueIndex = Domain.placementQueue.length;
+        Domain.lrebarList.push(group);
+        Domain.placementQueue.push({ kind: "lrebar", obj: group });
+    },
+
     stepPhysics: () => {
         if (Domain.isPaused) return;
-        if (Domain.activeRebarIndex < Domain.rebarList.length) {
-            let currentRebar = Domain.rebarList[Domain.activeRebarIndex];
-            Physics.updatePhysics(currentRebar, Domain.currentSection.walls);
-            if (currentRebar.state === "FORMED") {
+        if (!Domain.currentSection) return;
+        if (Domain.activeRebarIndex >= Domain.placementQueue.length) return;
+
+        const current = Domain.placementQueue[Domain.activeRebarIndex];
+        const placedSoFar = Domain.placementQueue.slice(0, Domain.activeRebarIndex);
+        const rebarWallMap = Physics.buildRebarWallMap(placedSoFar);
+
+        if (current.kind === "rebar") {
+            Physics.updatePhysics(current.obj, Domain.currentSection.walls, rebarWallMap);
+            if (current.obj.state === "FORMED") {
                 Domain.activeRebarIndex++;
             }
-        } else if (Domain.lrebarList.length > 0 && Domain.lrebarReady) {
+        } else if (current.kind === "lrebar") {
             const coverWalls = Physics.buildCoverWalls(Domain.currentSection.walls);
-            Domain.lrebarList.forEach(group => {
-                LRebarEngine.step(group, coverWalls, Domain.rebarList);
-            });
+            LRebarEngine.step(current.obj, coverWalls, rebarWallMap);
+            if (current.obj.state === "SETTLED") {
+                Domain.activeRebarIndex++;
+            }
         }
     }
 };

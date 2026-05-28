@@ -1,5 +1,5 @@
 // =========================================================================
-// 🟦 PART: LONGITUDINAL REBAR ENGINE (lrebar.js) - v019
+// 🟦 PART: LONGITUDINAL REBAR ENGINE (lrebar.js) - v020
 // =========================================================================
 
 const GRAVITY_K = 0.08;
@@ -103,23 +103,6 @@ const LRebarEngine = {
         return { tMin: tMin + diaMargin, tMax: tMax - diaMargin };
     },
 
-    _buildRebarWallMap: (formedRebars) => {
-        const map = new Map();
-        if (!formedRebars) return map;
-        formedRebars.forEach(rb => {
-            if (rb.state !== "FORMED") return;
-            const dia = rb.dia || 13;
-            rb.segments.forEach(seg => {
-                const wall = seg.fitWall || seg.contactWall;
-                if (!wall) return;
-                const wallId = wall.id || `${wall.x1},${wall.y1},${wall.x2},${wall.y2}`;
-                const existing = map.get(wallId) || 0;
-                if (dia > existing) map.set(wallId, dia);
-            });
-        });
-        return map;
-    },
-
     _findTarget: (px, py, gravDir, dia, pathWalls, rebarWallMap) => {
         let minDist = Infinity;
         let foundTarget = null;
@@ -138,12 +121,15 @@ const LRebarEngine = {
                         const gamma = (wx * dx + wy * dy) / (dx * dx + dy * dy);
                         if (gamma < 0 || gamma > 1) return;
                         minDist = hit.dist;
-                        let transDia = 0;
-                        if (rebarWallMap) {
-                            const wallId = w.id || (w.origWall && w.origWall.id);
-                            transDia = rebarWallMap.get(wallId) || 0;
-                        }
-                        let travelOffset = (transDia + dia / 2) / Math.abs(dotNormal);
+
+                        const wallId = w.id || (w.origWall && w.origWall.id);
+                        const wLen = MathUtils.hypot(dx, dy);
+                        const ux = wLen > 1e-6 ? dx / wLen : 1;
+                        const uy = wLen > 1e-6 ? dy / wLen : 0;
+                        const t = (hit.x - w.x1) * ux + (hit.y - w.y1) * uy;
+                        const stackOffset = Physics.computeStackOffset(rebarWallMap, wallId, t, dia, "lrebar");
+                        const travelOffset = stackOffset / Math.abs(dotNormal);
+
                         foundTarget = {
                             x: hit.x - gravDir.x * travelOffset,
                             y: hit.y - gravDir.y * travelOffset
@@ -194,9 +180,21 @@ const LRebarEngine = {
             const t2 = (w.x2 - cx) * ux + (w.y2 - cy) * uy;
             const dotN = gravDir.x * w.nx + gravDir.y * w.ny;
             const wallId = w.id || (w.origWall && w.origWall.id);
-            const transDia = (rebarWallMap && wallId) ? (rebarWallMap.get(wallId) || 0) : 0;
-            return { w, t1, t2, dotN, transDia };
+            const wDx = w.x2 - w.x1;
+            const wDy = w.y2 - w.y1;
+            const wLen = MathUtils.hypot(wDx, wDy);
+            const wux = wLen > 1e-6 ? wDx / wLen : 1;
+            const wuy = wLen > 1e-6 ? wDy / wLen : 0;
+            return { w, t1, t2, dotN, wallId, wux, wuy };
         });
+
+        const offsetTargetForWall = (seg, wallX, wallY) => {
+            if (Math.abs(seg.dotN) < 0.01) return null;
+            const wallT = (wallX - seg.w.x1) * seg.wux + (wallY - seg.w.y1) * seg.wuy;
+            const stackOffset = Physics.computeStackOffset(rebarWallMap, seg.wallId, wallT, dia, "lrebar");
+            const offset = stackOffset / Math.abs(seg.dotN);
+            return { x: wallX - gravDir.x * offset, y: wallY - gravDir.y * offset };
+        };
 
         const findOnWall = (t) => {
             for (const seg of segs) {
@@ -208,10 +206,8 @@ const LRebarEngine = {
                     frac = Math.max(0, Math.min(1, frac));
                     const wallX = seg.w.x1 + frac * (seg.w.x2 - seg.w.x1);
                     const wallY = seg.w.y1 + frac * (seg.w.y2 - seg.w.y1);
-                    if (Math.abs(seg.dotN) > 0.01) {
-                        const offset = (seg.transDia + dia / 2) / Math.abs(seg.dotN);
-                        return { x: wallX - gravDir.x * offset, y: wallY - gravDir.y * offset };
-                    }
+                    const tgt = offsetTargetForWall(seg, wallX, wallY);
+                    if (tgt) return tgt;
                 }
             }
             let closestDist = Infinity, closestTarget = null;
@@ -223,10 +219,8 @@ const LRebarEngine = {
                         closestDist = d;
                         const wallX = endpoint === 0 ? seg.w.x1 : seg.w.x2;
                         const wallY = endpoint === 0 ? seg.w.y1 : seg.w.y2;
-                        if (Math.abs(seg.dotN) > 0.01) {
-                            const offset = (seg.transDia + dia / 2) / Math.abs(seg.dotN);
-                            closestTarget = { x: wallX - gravDir.x * offset, y: wallY - gravDir.y * offset };
-                        }
+                        const tgt = offsetTargetForWall(seg, wallX, wallY);
+                        if (tgt) closestTarget = tgt;
                     }
                 }
             }
@@ -239,10 +233,8 @@ const LRebarEngine = {
         }
     },
 
-    step: (group, coverWalls, formedRebars) => {
+    step: (group, coverWalls, rebarWallMap = null) => {
         if (group.state === "SETTLED" || group.num === 0) return;
-
-        const rebarWallMap = LRebarEngine._buildRebarWallMap(formedRebars);
 
         if (group.state === "FITTING") {
             if (!group.isTargeted) {
