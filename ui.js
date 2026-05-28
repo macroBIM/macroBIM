@@ -57,8 +57,6 @@ const UI = {
         UI.lrebarGroup.destroyChildren();
         UI.rebarGroup.destroyChildren();
         UI.debugGroup.destroyChildren();
-        let lrebarBtn = document.getElementById("btnStartLrebar");
-        if (lrebarBtn) lrebarBtn.remove();
 
         let secType = document.getElementById("sectionSelect").value;
 
@@ -87,9 +85,10 @@ const UI = {
         let secType = document.getElementById("sectionSelect").value;
         let nodeR = secType === "TBEAM" ? 6 : 50;
 
-        Domain.rebarList.forEach((rebar, index) => {
+        Domain.rebarList.forEach((rebar) => {
+            const qIdx = rebar.queueIndex !== undefined ? rebar.queueIndex : 0;
             rebar.segments.forEach(seg => {
-                let isWaitingQueue = index > Domain.activeRebarIndex;
+                let isWaitingQueue = qIdx > Domain.activeRebarIndex;
                 let color = (rebar.state === "FORMED") ? '#8A2BE2' : (isWaitingQueue ? '#555555' : (seg.state === "SETTLED" ? '#00FF00' : '#FF9800'));
                 
                 let pts = [];
@@ -136,11 +135,13 @@ const UI = {
         UI.drawLrebar();
 
         const statGrid = document.getElementById('stat-grid');
-        if (Domain.rebarList.length > 0) {
-            let currentNum = Math.min(Domain.activeRebarIndex + 1, Domain.rebarList.length);
+        const total = Domain.placementQueue.length;
+        if (total > 0) {
+            const currentNum = Math.min(Domain.activeRebarIndex + 1, total);
+            const done = Domain.activeRebarIndex >= total;
             statGrid.innerHTML = `
-                <div class="stat-row">Total Rebars: <span class="val">${Domain.rebarList.length} EA</span></div>
-                <div class="stat-row">Processing: <span class="val" style="color:orange;">#${currentNum}</span> / ${Domain.rebarList.length}</div>
+                <div class="stat-row">Total Items: <span class="val">${total} EA</span></div>
+                <div class="stat-row">Processing: <span class="val" style="color:orange;">#${done ? total : currentNum}</span> / ${total}</div>
             `;
         }
     },
@@ -198,8 +199,10 @@ const UI = {
 
         Domain.lrebarList.forEach(group => {
             const r = Math.max(group.dia / 2, secType === "TBEAM" ? 4 : 30);
+            const qIdx = group.queueIndex !== undefined ? group.queueIndex : 0;
+            const isPending = qIdx > Domain.activeRebarIndex;
 
-            if (!Domain.lrebarReady && group.initData && group.rangeData) {
+            if (isPending && group.initData && group.rangeData) {
                 const d = group.initData;
                 const rng = group.rangeData;
                 const ux = group.ux, uy = group.uy;
@@ -241,6 +244,8 @@ const UI = {
                 }));
             }
 
+            if (isPending) return;
+
             group.particles.forEach(p => {
                 const color = p.state === "SETTLED" ? '#FFD700' : '#FF9800';
                 const stroke = p.state === "SETTLED" ? '#B8860B' : '#FF5722';
@@ -252,28 +257,6 @@ const UI = {
                 }));
             });
         });
-
-        UI._updateLrebarButton();
-    },
-
-    _updateLrebarButton: () => {
-        let btn = document.getElementById("btnStartLrebar");
-        if (Domain.lrebarList.length === 0) { if (btn) btn.remove(); return; }
-        if (Domain.lrebarReady) {
-            if (btn) { btn.innerHTML = "Running..."; btn.disabled = true; btn.style.opacity = "0.5"; }
-            return;
-        }
-        if (!btn) {
-            btn = document.createElement("button");
-            btn.id = "btnStartLrebar";
-            btn.innerHTML = "▶ Start L-Rebar";
-            btn.onclick = () => Domain.startLrebar();
-            let panel = document.querySelector(".ctrl-panel");
-            if (panel) panel.appendChild(btn);
-        }
-        let transverseDone = Domain.rebarList.length === 0 || Domain.activeRebarIndex >= Domain.rebarList.length;
-        btn.disabled = !transverseDone;
-        btn.style.opacity = transverseDone ? "1" : "0.5";
     },
 
     drawDebugNodes: () => {

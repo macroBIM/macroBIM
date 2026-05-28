@@ -133,7 +133,7 @@ const Physics = {
         return map.get(key) || null;
     },
 
-    getGravityTarget: (px, py, segNormal, walls) => {
+    getGravityTarget: (px, py, segNormal, walls, rebarWallMap = null, ownDia = 0, ownType = "rebar") => {
         let minDist = Infinity;
         let target = null;
         const OPPOSITE_THRESHOLD = -0.6;
@@ -171,13 +171,31 @@ const Physics = {
             }
         });
 
+        if (target && rebarWallMap) {
+            const stackOffset = Physics._stackOffsetForHit(target, rebarWallMap, ownDia, ownType);
+            if (stackOffset > 0.001) {
+                const dotN = segNormal.x * target.wall.nx + segNormal.y * target.wall.ny;
+                const absDotN = Math.abs(dotN);
+                if (absDotN > 0.01) {
+                    const travelOffset = stackOffset / absDotN;
+                    target = {
+                        x: target.x - segNormal.x * travelOffset,
+                        y: target.y - segNormal.y * travelOffset,
+                        wall: target.wall,
+                        coverWall: target.coverWall
+                    };
+                }
+            }
+        }
+
         return target;
     },
 
-    updatePhysics: (rebar, walls) => {
+    updatePhysics: (rebar, walls, rebarWallMap = null) => {
         if (rebar.state === "FORMED") return;
 
         const { GRAVITY_K, DAMPING, CONVERGE } = CONFIG.PHYSICS;
+        const ownDia = rebar.dia || 13;
         rebar.debugPoints = [];
         let allSegmentsSettled = true;
 
@@ -196,7 +214,7 @@ const Physics = {
                 let hitInfos = [];
 
                 seg.nodes.forEach(node => {
-                    let target = Physics.getGravityTarget(node.x, node.y, seg.normal, walls);
+                    let target = Physics.getGravityTarget(node.x, node.y, seg.normal, walls, rebarWallMap, ownDia, "rebar");
 
                     if (target) {
                         let dx = target.x - node.x;
@@ -412,6 +430,142 @@ const Physics = {
                 }
             }
         }
+    },
+
+    buildRebarWallMap: (placedItems) => {
+        const map = new Map();
+        if (!placedItems) return map;
+        placedItems.forEach(item => {
+            if (!item || !item.obj) return;
+            if (item.kind === "rebar" && item.obj.state === "FORMED") {
+                Physics._registerRebarSegments(map, item.obj);
+            } else if (item.kind === "lrebar" && item.obj.state === "SETTLED") {
+                Physics._registerLRebarParticles(map, item.obj);
+            }
+        });
+        return map;
+    },
+
+    _pushMapEntry: (map, wallId, entry) => {
+        if (!map.has(wallId)) map.set(wallId, []);
+        map.get(wallId).push(entry);
+    },
+
+    _registerRebarSegments: (map, rebar) => {
+        const dia = rebar.dia || 13;
+        rebar.segments.forEach(seg => {
+            const wall = seg.fitWall || seg.contactWall;
+            if (!wall) return;
+            const wallId = wall.id || `${wall.x1},${wall.y1},${wall.x2},${wall.y2}`;
+
+            const wDx = wall.x2 - wall.x1;
+            const wDy = wall.y2 - wall.y1;
+            const wLen = MathUtils.hypot(wDx, wDy);
+            if (wLen < 1e-6) return;
+            const ux = wDx / wLen;
+            const uy = wDy / wLen;
+
+            const t1 = (seg.p1.x - wall.x1) * ux + (seg.p1.y - wall.y1) * uy;
+            const t2 = (seg.p2.x - wall.x1) * ux + (seg.p2.y - wall.y1) * uy;
+            const tMin = Math.min(t1, t2);
+            const tMax = Math.max(t1, t2);
+
+            const mx = (seg.p1.x + seg.p2.x) / 2;
+            const my = (seg.p1.y + seg.p2.y) / 2;
+            const concPerpDist = (mx - wall.x1) * wall.nx + (my - wall.y1) * wall.ny;
+            const coverVal = Physics.getWallCoverValue(wall);
+            const centerOffset = concPerpDist - coverVal;
+
+            Physics._pushMapEntry(map, wallId, { tMin, tMax, dia, centerOffset });
+        });
+    },
+
+    _registerLRebarParticles: (map, group) => {
+        const dia = group.dia || 13;
+        const halfDia = dia / 2;
+        const pathWalls = group._pathWalls || [];
+        if (pathWalls.length === 0) return;
+
+        group.particles.forEach(p => {
+            if (p.state !== "SETTLED") return;
+
+            let bestWall = null;
+            let bestPerp = Infinity;
+            for (const w of pathWalls) {
+                const wDx = w.x2 - w.x1;
+                const wDy = w.y2 - w.y1;
+                const wLen = MathUtils.hypot(wDx, wDy);
+                if (wLen < 1e-6) continue;
+                const ux = wDx / wLen;
+                const uy = wDy / wLen;
+                const dx = p.x - w.x1;
+                const dy = p.y - w.y1;
+                const along = dx * ux + dy * uy;
+                const perp = Math.abs(dx * (-uy) + dy * ux);
+                if (along < -5 || along > wLen + 5) continue;
+                if (perp < bestPerp) {
+                    bestPerp = perp;
+                    bestWall = w;
+                }
+            }
+            if (!bestWall) return;
+            if (bestPerp > 500) return;
+
+            const origWall = bestWall.origWall || bestWall;
+            const wallId = bestWall.id || origWall.id;
+            if (!wallId) return;
+
+            const owDx = origWall.x2 - origWall.x1;
+            const owDy = origWall.y2 - origWall.y1;
+            const owLen = MathUtils.hypot(owDx, owDy);
+            if (owLen < 1e-6) return;
+            const oux = owDx / owLen;
+            const ouy = owDy / owLen;
+            const tCenter = (p.x - origWall.x1) * oux + (p.y - origWall.y1) * ouy;
+
+            const coverVal = Physics.getWallCoverValue(origWall);
+            const concPerpDist = (p.x - origWall.x1) * origWall.nx + (p.y - origWall.y1) * origWall.ny;
+            const centerOffset = concPerpDist - coverVal;
+
+            Physics._pushMapEntry(map, wallId, {
+                tMin: tCenter - halfDia,
+                tMax: tCenter + halfDia,
+                dia,
+                centerOffset
+            });
+        });
+    },
+
+    computeStackOffset: (rebarWallMap, wallId, t, ownDia, ownType = "rebar") => {
+        const baseForFirst = (ownType === "lrebar") ? ownDia / 2 : 0;
+        if (!rebarWallMap) return baseForFirst;
+        const entries = rebarWallMap.get(wallId);
+        if (!entries || entries.length === 0) return baseForFirst;
+
+        let topOfStack = -Infinity;
+        let hasOverlap = false;
+        for (const e of entries) {
+            if (t >= e.tMin - 0.1 && t <= e.tMax + 0.1) {
+                hasOverlap = true;
+                const top = e.centerOffset + e.dia / 2;
+                if (top > topOfStack) topOfStack = top;
+            }
+        }
+        if (!hasOverlap) return baseForFirst;
+        return topOfStack + ownDia / 2;
+    },
+
+    _stackOffsetForHit: (target, rebarWallMap, ownDia, ownType) => {
+        const wall = target.wall;
+        if (!wall || !wall.id) return 0;
+        const wDx = wall.x2 - wall.x1;
+        const wDy = wall.y2 - wall.y1;
+        const wLen = MathUtils.hypot(wDx, wDy);
+        if (wLen < 1e-6) return 0;
+        const ux = wDx / wLen;
+        const uy = wDy / wLen;
+        const t = (target.x - wall.x1) * ux + (target.y - wall.y1) * uy;
+        return Physics.computeStackOffset(rebarWallMap, wall.id, t, ownDia, ownType);
     },
 
     rayCastGlobal: (origin, dir, walls) => {
