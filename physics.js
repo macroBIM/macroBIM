@@ -174,17 +174,17 @@ const Physics = {
         return target;
     },
 
-    updatePhysics: (trebar, walls) => {
-        if (trebar.state === "FORMED") return;
+    updatePhysics: (rebar, walls) => {
+        if (rebar.state === "FORMED") return;
 
         const { GRAVITY_K, DAMPING, CONVERGE } = CONFIG.PHYSICS;
-        trebar.debugPoints = [];
+        rebar.debugPoints = [];
         let allSegmentsSettled = true;
 
-        trebar.segments.forEach((seg, idx) => {
+        rebar.segments.forEach((seg, idx) => {
             if (seg.state === "WAITING") {
                 allSegmentsSettled = false;
-                if (idx === 0 || trebar.segments[idx - 1].state === "SETTLED") seg.state = "FITTING";
+                if (idx === 0 || rebar.segments[idx - 1].state === "SETTLED") seg.state = "FITTING";
             }
 
             if (seg.state === "FITTING") {
@@ -204,7 +204,7 @@ const Physics = {
                         let err = MathUtils.hypot(dx, dy);
 
                         validTargets++;
-                        trebar.debugPoints.push(target);
+                        rebar.debugPoints.push(target);
 
                         seg.contactWall = target.wall;
                         hitInfos.push({ wall: target.wall, dist: err });
@@ -231,10 +231,10 @@ const Physics = {
             }
         });
 
-        if (allSegmentsSettled && trebar.state !== "FORMED") {
-            if (trebar.finalize) trebar.finalize();
-            Physics.applyTrebarEnds(trebar, walls);
-            trebar.state = "FORMED";
+        if (allSegmentsSettled && rebar.state !== "FORMED") {
+            if (rebar.finalize) rebar.finalize();
+            Physics.applyRebarEnds(rebar, walls);
+            rebar.state = "FORMED";
         }
     },
 
@@ -312,9 +312,9 @@ const Physics = {
         };
     },
 
-    applyTrebarEnds: (trebar, walls) => {
-        const barEnds = trebar.barEnds || trebar.ends;
-        if (!barEnds || !trebar.segments || trebar.segments.length === 0) return;
+    applyRebarEnds: (rebar, walls) => {
+        const barEnds = rebar.barEnds || rebar.ends;
+        if (!barEnds || !rebar.segments || rebar.segments.length === 0) return;
 
         const coverWallMap = Physics.getCoverWallMap(walls);
 
@@ -355,7 +355,7 @@ const Physics = {
         const endRule = parseEndRule(barEnds.end || barEnds.E);
 
         if (startRule) {
-            let seg = trebar.segments[0];
+            let seg = rebar.segments[0];
 
             if (startRule.type === "FIT") {
                 let coverWall = getCoverWallForSeg(seg);
@@ -385,7 +385,7 @@ const Physics = {
         }
 
         if (endRule) {
-            let seg = trebar.segments[trebar.segments.length - 1];
+            let seg = rebar.segments[rebar.segments.length - 1];
 
             if (endRule.type === "FIT") {
                 let coverWall = getCoverWallForSeg(seg);

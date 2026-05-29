@@ -1,6 +1,6 @@
-// trebar.js v000 (transverse rebar)
+// rebar.js v000
 
-class TrebarBase {
+class RebarBase {
     constructor(center, dims, rotation = 0, angs = null, nors = null, barEnds = null) {
         this.center = center;
         this.dims = dims || {};
@@ -9,7 +9,7 @@ class TrebarBase {
         this.nors = nors || null;
         this.barEnds = barEnds || null;
 
-        // 하위 호환: 기존 코드가 trebar.ends 를 참조해도 동작하도록 유지
+        // 하위 호환: 기존 코드가 rebar.ends 를 참조해도 동작하도록 유지
         this.ends = this.barEnds;
 
         this.segments = [];
@@ -167,7 +167,7 @@ class TrebarBase {
 }
 
 // --- Shape 클래스들 ---
-class Shape01 extends TrebarBase {
+class Shape01 extends RebarBase {
     generate() {
         let A = this.dims.A || 1000;
         return this.buildSequential(
@@ -180,7 +180,7 @@ class Shape01 extends TrebarBase {
     }
 }
 
-class Shape11 extends TrebarBase {
+class Shape11 extends RebarBase {
     generate() {
         let A = this.dims.A || 400;
         let B = this.dims.B || 400;
@@ -188,7 +188,7 @@ class Shape11 extends TrebarBase {
     }
 }
 
-class Shape21 extends TrebarBase {
+class Shape21 extends RebarBase {
     generate() {
         let A = this.dims.A || 400;
         let B = this.dims.B || 400;
@@ -204,7 +204,7 @@ class Shape21 extends TrebarBase {
     }
 }
 
-class Shape41 extends TrebarBase {
+class Shape41 extends RebarBase {
     generate() {
         let A = this.dims.A || 300;
         let B = this.dims.B || 1000;
@@ -222,8 +222,8 @@ class Shape41 extends TrebarBase {
     }
 }
 
-// --- TrebarFactory ---
-class TrebarFactory {
+// --- RebarFactory ---
+class RebarFactory {
     static normalizeParams(data) {
         const normalized = {};
         Object.keys(data || {}).forEach(key => {
