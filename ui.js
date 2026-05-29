@@ -7,7 +7,7 @@ const UI = {
     showNodes: false, 
     
     stage: null, mainLayer: null,
-    gridGroup: null, sectionGroup: null, normalGroup: null, rebarGroup: null, debugGroup: null, lrebarGroup: null,
+    gridGroup: null, sectionGroup: null, normalGroup: null, trebarGroup: null, debugGroup: null, lrebarGroup: null,
     anim: null,
 
     init: () => {
@@ -19,10 +19,10 @@ const UI = {
         UI.sectionGroup = new Konva.Group();
         UI.normalGroup = new Konva.Group();
         UI.lrebarGroup = new Konva.Group();
-        UI.rebarGroup = new Konva.Group();
+        UI.trebarGroup = new Konva.Group();
         UI.debugGroup = new Konva.Group();
 
-        UI.mainLayer.add(UI.gridGroup, UI.sectionGroup, UI.normalGroup, UI.lrebarGroup, UI.rebarGroup, UI.debugGroup);
+        UI.mainLayer.add(UI.gridGroup, UI.sectionGroup, UI.normalGroup, UI.lrebarGroup, UI.trebarGroup, UI.debugGroup);
 
         UI.stage.on('dragmove', UI.drawGrid);
         UI.stage.on('wheel', (e) => {
@@ -55,7 +55,7 @@ const UI = {
         UI.sectionGroup.destroyChildren();
         UI.normalGroup.destroyChildren();
         UI.lrebarGroup.destroyChildren();
-        UI.rebarGroup.destroyChildren();
+        UI.trebarGroup.destroyChildren();
         UI.debugGroup.destroyChildren();
         let lrebarBtn = document.getElementById("btnStartLrebar");
         if (lrebarBtn) lrebarBtn.remove();
@@ -83,24 +83,24 @@ const UI = {
     },
 
     updateVisuals: () => {
-        UI.rebarGroup.destroyChildren();
+        UI.trebarGroup.destroyChildren();
         let secType = document.getElementById("sectionSelect").value;
         let nodeR = secType === "TBEAM" ? 6 : 50;
 
-        Domain.rebarList.forEach((rebar, index) => {
-            rebar.segments.forEach(seg => {
-                let isWaitingQueue = index > Domain.activeRebarIndex;
-                let color = (rebar.state === "FORMED") ? '#8A2BE2' : (isWaitingQueue ? '#555555' : (seg.state === "SETTLED" ? '#00FF00' : '#FF9800'));
+        Domain.trebarList.forEach((trebar, index) => {
+            trebar.segments.forEach(seg => {
+                let isWaitingQueue = index > Domain.activeTrebarIndex;
+                let color = (trebar.state === "FORMED") ? '#8A2BE2' : (isWaitingQueue ? '#555555' : (seg.state === "SETTLED" ? '#00FF00' : '#FF9800'));
                 
                 let pts = [];
                 if (seg.state === "FITTING" || isWaitingQueue || seg.state === "WAITING") {
                     if (!isWaitingQueue && seg.state === "FITTING") {
-                        seg.nodes.forEach(node => { UI.rebarGroup.add(new Konva.Circle({ x: node.x, y: node.y, radius: nodeR, fill: '#FF5722' })); });
+                        seg.nodes.forEach(node => { UI.trebarGroup.add(new Konva.Circle({ x: node.x, y: node.y, radius: nodeR, fill: '#FF5722' })); });
                     }
                     pts = [seg.nodes[0].x, seg.nodes[0].y, seg.nodes[1].x, seg.nodes[1].y];
                 } else { pts = [seg.p1.x, seg.p1.y, seg.p2.x, seg.p2.y]; }
               
-                UI.rebarGroup.add(new Konva.Line({ points: pts, stroke: color, strokeWidth: (rebar.state==="FORMED"? 5 : 2), lineCap: 'round', strokeScaleEnabled: false }));
+                UI.trebarGroup.add(new Konva.Line({ points: pts, stroke: color, strokeWidth: (trebar.state==="FORMED"? 5 : 2), lineCap: 'round', strokeScaleEnabled: false }));
 
                 if (seg.label) {
                     let midX = (seg.p1.x + seg.p2.x) / 2;
@@ -110,7 +110,7 @@ const UI = {
                     let textX = midX + seg.normal.x * offsetDist;
                     let textY = midY + seg.normal.y * offsetDist;
 
-                    UI.rebarGroup.add(new Konva.Text({
+                    UI.trebarGroup.add(new Konva.Text({
                         x: textX,
                         y: textY,
                         text: seg.label,
@@ -125,10 +125,10 @@ const UI = {
                 }
             });
             
-            if (rebar.state === "FORMED") {
-                for (let i = 0; i < rebar.segments.length - 1; i++) {
-                    let corner = rebar.segments[i].p2;
-                    UI.rebarGroup.add(new Konva.Circle({ x: corner.x, y: corner.y, radius: nodeR, fill: '#00FFFF' }));
+            if (trebar.state === "FORMED") {
+                for (let i = 0; i < trebar.segments.length - 1; i++) {
+                    let corner = trebar.segments[i].p2;
+                    UI.trebarGroup.add(new Konva.Circle({ x: corner.x, y: corner.y, radius: nodeR, fill: '#00FFFF' }));
                 }
             }
         });
@@ -136,11 +136,11 @@ const UI = {
         UI.drawLrebar();
 
         const statGrid = document.getElementById('stat-grid');
-        if (Domain.rebarList.length > 0) {
-            let currentNum = Math.min(Domain.activeRebarIndex + 1, Domain.rebarList.length);
+        if (Domain.trebarList.length > 0) {
+            let currentNum = Math.min(Domain.activeTrebarIndex + 1, Domain.trebarList.length);
             statGrid.innerHTML = `
-                <div class="stat-row">Total Rebars: <span class="val">${Domain.rebarList.length} EA</span></div>
-                <div class="stat-row">Processing: <span class="val" style="color:orange;">#${currentNum}</span> / ${Domain.rebarList.length}</div>
+                <div class="stat-row">Total Rebars: <span class="val">${Domain.trebarList.length} EA</span></div>
+                <div class="stat-row">Processing: <span class="val" style="color:orange;">#${currentNum}</span> / ${Domain.trebarList.length}</div>
             `;
         }
     },
@@ -271,7 +271,7 @@ const UI = {
             let panel = document.querySelector(".ctrl-panel");
             if (panel) panel.appendChild(btn);
         }
-        let transverseDone = Domain.rebarList.length === 0 || Domain.activeRebarIndex >= Domain.rebarList.length;
+        let transverseDone = Domain.trebarList.length === 0 || Domain.activeTrebarIndex >= Domain.trebarList.length;
         btn.disabled = !transverseDone;
         btn.style.opacity = transverseDone ? "1" : "0.5";
     },

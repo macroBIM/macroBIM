@@ -19,13 +19,13 @@ const PARAMS = {
 const Domain = {
     // 사용자가 외부에서 주입할 데이터 저장소
     USER_BOX_DATA: null,
-    USER_REBAR_DATA: null,
+    USER_TREBAR_DATA: null,
     USER_LREBAR_DATA: null,
 
     currentSection: null,
-    rebarList: [],
+    trebarList: [],
     lrebarList: [],
-    activeRebarIndex: 0,
+    activeTrebarIndex: 0,
     isPaused: false,
     lrebarReady: false,
 
@@ -43,9 +43,9 @@ const Domain = {
 
     buildModel: (secType) => {
         Domain.currentSection = null;
-        Domain.rebarList = [];
+        Domain.trebarList = [];
         Domain.lrebarList = [];
-        Domain.activeRebarIndex = 0;
+        Domain.activeTrebarIndex = 0;
         Domain.isPaused = false;
         Domain.lrebarReady = false;
 
@@ -58,8 +58,8 @@ const Domain = {
             Domain.currentSection.generate(Domain.USER_BOX_DATA);
         }
 
-        if (secType === "BOXGIRDER" && Domain.USER_REBAR_DATA) {
-            Domain.USER_REBAR_DATA.forEach(rawData => {
+        if (secType === "BOXGIRDER" && Domain.USER_TREBAR_DATA) {
+            Domain.USER_TREBAR_DATA.forEach(rawData => {
                 const data = {};
                 // 1. 최상위 키 소문자 변환
                 Object.keys(rawData).forEach(k => data[k.toLowerCase()] = rawData[k]);
@@ -170,7 +170,7 @@ const Domain = {
                 }
 
                 // 7. 철근 생성
-                let rb = RebarFactory.create(
+                let rb = TrebarFactory.create(
                     data.code,
                     { x: startX, y: startY },
                     actualDims || {},
@@ -258,12 +258,12 @@ const Domain = {
                         console.log(`[🎯 SET] ${rb.id} 철근의 '${anchorSegKey}' 구간이 ${targetWall.id} 벽체에 닻을 내렸습니다.`);
                     }                    
 
-                    Domain.rebarList.push(rb);
+                    Domain.trebarList.push(rb);
                 }
             });
         }
 
-        // LREBAR 생성 (물리 기반 - stepPhysics에서 이동)
+        // LREBAR(종방향) 생성 (물리 기반 - stepPhysics에서 이동)
         if (typeof LRebarEngine !== 'undefined' && Domain.USER_LREBAR_DATA && Domain.currentSection) {
             Domain.USER_LREBAR_DATA.forEach(rawData => {
                 const data = { ...rawData };
@@ -282,16 +282,16 @@ const Domain = {
 
     stepPhysics: () => {
         if (Domain.isPaused) return;
-        if (Domain.activeRebarIndex < Domain.rebarList.length) {
-            let currentRebar = Domain.rebarList[Domain.activeRebarIndex];
-            Physics.updatePhysics(currentRebar, Domain.currentSection.walls);
-            if (currentRebar.state === "FORMED") {
-                Domain.activeRebarIndex++;
+        if (Domain.activeTrebarIndex < Domain.trebarList.length) {
+            let currentTrebar = Domain.trebarList[Domain.activeTrebarIndex];
+            Physics.updatePhysics(currentTrebar, Domain.currentSection.walls);
+            if (currentTrebar.state === "FORMED") {
+                Domain.activeTrebarIndex++;
             }
         } else if (Domain.lrebarList.length > 0 && Domain.lrebarReady) {
             const coverWalls = Physics.buildCoverWalls(Domain.currentSection.walls);
             Domain.lrebarList.forEach(group => {
-                LRebarEngine.step(group, coverWalls, Domain.rebarList);
+                LRebarEngine.step(group, coverWalls, Domain.trebarList);
             });
         }
     }
