@@ -11,18 +11,19 @@ const Physics = {
         return covers[cType] || 50;
     },
 
-    buildShiftedWall: (wall) => {
+    buildShiftedWall: (wall, extraOffset = 0) => {
         let coverVal = Physics.getWallCoverValue(wall);
+        let total = coverVal + extraOffset;
         return {
             id: wall.id,
             tag: wall.tag,
             nx: wall.nx,  // ⭐ 원본 콘크리트 법선 강제 유지
             ny: wall.ny,  // ⭐ 원본 콘크리트 법선 강제 유지
             origWall: wall,
-            x1: wall.x1 + wall.nx * coverVal,
-            y1: wall.y1 + wall.ny * coverVal,
-            x2: wall.x2 + wall.nx * coverVal,
-            y2: wall.y2 + wall.ny * coverVal
+            x1: wall.x1 + wall.nx * total,
+            y1: wall.y1 + wall.ny * total,
+            x2: wall.x2 + wall.nx * total,
+            y2: wall.y2 + wall.ny * total
         };
     },
 
@@ -56,8 +57,11 @@ const Physics = {
         return loops;
     },
 
-    trimShiftedLoop: (loopWalls) => {
-        let shifted = loopWalls.map(w => Physics.buildShiftedWall(w));
+    trimShiftedLoop: (loopWalls, wallStack = {}, currentDia = 0) => {
+        let shifted = loopWalls.map(w => {
+            let extra = (wallStack[w.id] || 0) + currentDia / 2;
+            return Physics.buildShiftedWall(w, extra);
+        });
         let n = shifted.length;
         if (n === 0) return [];
         if (n === 1) return shifted;
@@ -106,19 +110,19 @@ const Physics = {
         return trimmed;
     },
 
-    buildCoverWalls: (walls) => {
+    buildCoverWalls: (walls, wallStack = {}, currentDia = 0) => {
         let loops = Physics.splitWallLoops(walls || []);
         let coverWalls = [];
         loops.forEach(loop => {
-            let trimmedLoop = Physics.trimShiftedLoop(loop);
+            let trimmedLoop = Physics.trimShiftedLoop(loop, wallStack, currentDia);
             trimmedLoop.forEach(w => coverWalls.push(w));
         });
         return coverWalls;
     },
 
-    getCoverWallMap: (walls) => {
+    getCoverWallMap: (walls, wallStack = {}, currentDia = 0) => {
         let map = new Map();
-        let coverWalls = Physics.buildCoverWalls(walls);
+        let coverWalls = Physics.buildCoverWalls(walls, wallStack, currentDia);
         coverWalls.forEach(cw => {
             let key = cw.id || (cw.origWall ? cw.origWall.id : null) || `${cw.origWall.x1},${cw.origWall.y1},${cw.origWall.x2},${cw.origWall.y2}`;
             map.set(key, cw);
@@ -133,11 +137,11 @@ const Physics = {
         return map.get(key) || null;
     },
 
-    getGravityTarget: (px, py, segNormal, walls) => {
+    getGravityTarget: (px, py, segNormal, walls, wallStack = {}, currentDia = 0) => {
         let minDist = Infinity;
         let target = null;
         const OPPOSITE_THRESHOLD = -0.6;
-        let coverWalls = Physics.buildCoverWalls(walls);
+        let coverWalls = Physics.buildCoverWalls(walls, wallStack, currentDia);
 
         coverWalls.forEach(w => {
             let dot = w.nx * segNormal.x + w.ny * segNormal.y;
@@ -174,10 +178,11 @@ const Physics = {
         return target;
     },
 
-    updatePhysics: (trebar, walls) => {
+    updatePhysics: (trebar, walls, wallStack = {}) => {
         if (trebar.state === "FORMED") return;
 
         const { GRAVITY_K, DAMPING, CONVERGE } = CONFIG.PHYSICS;
+        const dia = trebar.dia || 0;
         trebar.debugPoints = [];
         let allSegmentsSettled = true;
 
@@ -196,7 +201,7 @@ const Physics = {
                 let hitInfos = [];
 
                 seg.nodes.forEach(node => {
-                    let target = Physics.getGravityTarget(node.x, node.y, seg.normal, walls);
+                    let target = Physics.getGravityTarget(node.x, node.y, seg.normal, walls, wallStack, dia);
 
                     if (target) {
                         let dx = target.x - node.x;
@@ -233,7 +238,7 @@ const Physics = {
 
         if (allSegmentsSettled && trebar.state !== "FORMED") {
             if (trebar.finalize) trebar.finalize();
-            Physics.applyTrebarEnds(trebar, walls);
+            Physics.applyTrebarEnds(trebar, walls, wallStack);
             trebar.state = "FORMED";
         }
     },
@@ -312,11 +317,12 @@ const Physics = {
         };
     },
 
-    applyTrebarEnds: (trebar, walls) => {
+    applyTrebarEnds: (trebar, walls, wallStack = {}) => {
         const barEnds = trebar.barEnds || trebar.ends;
         if (!barEnds || !trebar.segments || trebar.segments.length === 0) return;
 
-        const coverWallMap = Physics.getCoverWallMap(walls);
+        const dia = trebar.dia || 0;
+        const coverWallMap = Physics.getCoverWallMap(walls, wallStack, dia);
 
         const parseEndRule = (ruleObj) => {
             if (!ruleObj) return null;
@@ -373,7 +379,7 @@ const Physics = {
                     x: seg.p1.x + rayDir.x * 10,
                     y: seg.p1.y + rayDir.y * 10
                 };
-                let hit = Physics.rayCastGlobal(rayOrigin, rayDir, walls);
+                let hit = Physics.rayCastGlobal(rayOrigin, rayDir, walls, wallStack, dia);
                 if (hit) {
                     seg.p1 = {
                         x: hit.x - seg.uDir.x * startRule.val,
@@ -402,7 +408,7 @@ const Physics = {
                     x: seg.p2.x + seg.uDir.x * 10,
                     y: seg.p2.y + seg.uDir.y * 10
                 };
-                let hit = Physics.rayCastGlobal(rayOrigin, seg.uDir, walls);
+                let hit = Physics.rayCastGlobal(rayOrigin, seg.uDir, walls, wallStack, dia);
                 if (hit) {
                     seg.p2 = {
                         x: hit.x + seg.uDir.x * endRule.val,
@@ -414,10 +420,10 @@ const Physics = {
         }
     },
 
-    rayCastGlobal: (origin, dir, walls) => {
+    rayCastGlobal: (origin, dir, walls, wallStack = {}, currentDia = 0) => {
         let bestHit = null;
         let minDist = Infinity;
-        let coverWalls = Physics.buildCoverWalls(walls);
+        let coverWalls = Physics.buildCoverWalls(walls, wallStack, currentDia);
 
         coverWalls.forEach(w => {
             let hit = MathUtils.rayLineIntersect(origin, dir, { x: w.x1, y: w.y1 }, { x: w.x2, y: w.y2 });

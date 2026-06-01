@@ -28,6 +28,8 @@ const Domain = {
     activeTrebarIndex: 0,
     isPaused: false,
     lrebarReady: false,
+    wallStack: {},   // ⭐ 벽 id별 누적 적층 두께 (mm)
+    STACK_SPACING: 20,   // ⭐ 적층 간 최소 순간격 (mm)
 
     togglePause: () => {
         Domain.isPaused = !Domain.isPaused;
@@ -48,6 +50,7 @@ const Domain = {
         Domain.activeTrebarIndex = 0;
         Domain.isPaused = false;
         Domain.lrebarReady = false;
+        Domain.wallStack = {};
 
         if (secType === "TBEAM") {
             Domain.currentSection = new TBeam(0, 0, CONFIG.TBEAM);
@@ -284,8 +287,20 @@ const Domain = {
         if (Domain.isPaused) return;
         if (Domain.activeTrebarIndex < Domain.trebarList.length) {
             let currentTrebar = Domain.trebarList[Domain.activeTrebarIndex];
-            Physics.updatePhysics(currentTrebar, Domain.currentSection.walls);
+            Physics.updatePhysics(currentTrebar, Domain.currentSection.walls, Domain.wallStack);
             if (currentTrebar.state === "FORMED") {
+                // ⭐ 안착된 segment의 fitWall에 (dia + spacing) 누적 → 다음 trebar가 그 위에 적층
+                const dia = currentTrebar.dia || 0;
+                const inc = dia + Domain.STACK_SPACING;
+                const visited = new Set();
+                currentTrebar.segments.forEach(seg => {
+                    let w = seg.fitWall || seg.anchorWall || seg.contactWall;
+                    let wid = w && w.id;
+                    if (wid && !visited.has(wid)) {
+                        visited.add(wid);
+                        Domain.wallStack[wid] = (Domain.wallStack[wid] || 0) + inc;
+                    }
+                });
                 Domain.activeTrebarIndex++;
             }
         } else if (Domain.lrebarList.length > 0 && Domain.lrebarReady) {
