@@ -29,7 +29,6 @@ const Domain = {
     isPaused: false,
     lrebarReady: false,
     wallStack: {},   // ⭐ 벽 id별 누적 적층 두께 (mm)
-    STACK_SPACING: 20,   // ⭐ 적층 간 최소 순간격 (mm)
 
     togglePause: () => {
         Domain.isPaused = !Domain.isPaused;
@@ -289,9 +288,8 @@ const Domain = {
             let currentTrebar = Domain.trebarList[Domain.activeTrebarIndex];
             Physics.updatePhysics(currentTrebar, Domain.currentSection.walls, Domain.wallStack);
             if (currentTrebar.state === "FORMED") {
-                // ⭐ 안착된 segment의 fitWall에 (dia + spacing) 누적 → 다음 trebar가 그 위에 적층
-                const dia = currentTrebar.dia || 0;
-                const inc = dia + Domain.STACK_SPACING;
+                // ⭐ 안착된 segment의 fitWall에 dia 누적 → 다음 trebar가 그 위에 접하여 적층
+                const inc = currentTrebar.dia || 0;
                 const visited = new Set();
                 currentTrebar.segments.forEach(seg => {
                     let w = seg.fitWall || seg.anchorWall || seg.contactWall;
