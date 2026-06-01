@@ -100,7 +100,8 @@ const UI = {
                     pts = [seg.nodes[0].x, seg.nodes[0].y, seg.nodes[1].x, seg.nodes[1].y];
                 } else { pts = [seg.p1.x, seg.p1.y, seg.p2.x, seg.p2.y]; }
               
-                UI.trebarGroup.add(new Konva.Line({ points: pts, stroke: color, strokeWidth: (trebar.state==="FORMED"? 5 : 2), lineCap: 'round', strokeScaleEnabled: false }));
+                let formedW = (trebar.dia && trebar.dia > 0) ? trebar.dia : 5;
+                UI.trebarGroup.add(new Konva.Line({ points: pts, stroke: color, strokeWidth: (trebar.state==="FORMED"? formedW : 2), lineCap: 'round', strokeScaleEnabled: (trebar.state==="FORMED") }));
 
                 if (seg.label) {
                     let midX = (seg.p1.x + seg.p2.x) / 2;
