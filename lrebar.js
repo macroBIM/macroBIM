@@ -87,6 +87,12 @@ const LRebarEngine = {
         });
     },
 
+    _getWallStackVal: (wallStack, w) => {
+        if (!wallStack) return 0;
+        const wid = w.id || (w.origWall && w.origWall.id);
+        return (wid && wallStack[wid]) ? wallStack[wid] : 0;
+    },
+
     _computePathTRange: (group, pathWalls) => {
         const cx = group.initData.x, cy = group.initData.y;
         const ux = group.ux, uy = group.uy;
@@ -103,24 +109,7 @@ const LRebarEngine = {
         return { tMin: tMin + diaMargin, tMax: tMax - diaMargin };
     },
 
-    _buildRebarWallMap: (formedRebars) => {
-        const map = new Map();
-        if (!formedRebars) return map;
-        formedRebars.forEach(rb => {
-            if (rb.state !== "FORMED") return;
-            const dia = rb.dia || 13;
-            rb.segments.forEach(seg => {
-                const wall = seg.fitWall || seg.contactWall;
-                if (!wall) return;
-                const wallId = wall.id || `${wall.x1},${wall.y1},${wall.x2},${wall.y2}`;
-                const existing = map.get(wallId) || 0;
-                if (dia > existing) map.set(wallId, dia);
-            });
-        });
-        return map;
-    },
-
-    _findTarget: (px, py, gravDir, dia, pathWalls, rebarWallMap) => {
+    _findTarget: (px, py, gravDir, dia, pathWalls, wallStack) => {
         let minDist = Infinity;
         let foundTarget = null;
         pathWalls.forEach(w => {
@@ -138,12 +127,8 @@ const LRebarEngine = {
                         const gamma = (wx * dx + wy * dy) / (dx * dx + dy * dy);
                         if (gamma < 0 || gamma > 1) return;
                         minDist = hit.dist;
-                        let transDia = 0;
-                        if (rebarWallMap) {
-                            const wallId = w.id || (w.origWall && w.origWall.id);
-                            transDia = rebarWallMap.get(wallId) || 0;
-                        }
-                        let travelOffset = (transDia + dia / 2) / Math.abs(dotNormal);
+                        const priorStack = LRebarEngine._getWallStackVal(wallStack, w);
+                        let travelOffset = (priorStack + dia / 2) / Math.abs(dotNormal);
                         foundTarget = {
                             x: hit.x - gravDir.x * travelOffset,
                             y: hit.y - gravDir.y * travelOffset
@@ -155,7 +140,7 @@ const LRebarEngine = {
         return foundTarget;
     },
 
-    _distributeOnPath: (group, pathRange, pathWalls, rebarWallMap) => {
+    _distributeOnPath: (group, pathRange, pathWalls, wallStack) => {
         const particles = group.particles;
         const n = particles.length;
         if (n === 0) return;
@@ -193,9 +178,8 @@ const LRebarEngine = {
             const t1 = (w.x1 - cx) * ux + (w.y1 - cy) * uy;
             const t2 = (w.x2 - cx) * ux + (w.y2 - cy) * uy;
             const dotN = gravDir.x * w.nx + gravDir.y * w.ny;
-            const wallId = w.id || (w.origWall && w.origWall.id);
-            const transDia = (rebarWallMap && wallId) ? (rebarWallMap.get(wallId) || 0) : 0;
-            return { w, t1, t2, dotN, transDia };
+            const priorStack = LRebarEngine._getWallStackVal(wallStack, w);
+            return { w, t1, t2, dotN, priorStack };
         });
 
         const findOnWall = (t) => {
@@ -209,7 +193,7 @@ const LRebarEngine = {
                     const wallX = seg.w.x1 + frac * (seg.w.x2 - seg.w.x1);
                     const wallY = seg.w.y1 + frac * (seg.w.y2 - seg.w.y1);
                     if (Math.abs(seg.dotN) > 0.01) {
-                        const offset = (seg.transDia + dia / 2) / Math.abs(seg.dotN);
+                        const offset = (seg.priorStack + dia / 2) / Math.abs(seg.dotN);
                         return { x: wallX - gravDir.x * offset, y: wallY - gravDir.y * offset };
                     }
                 }
@@ -224,7 +208,7 @@ const LRebarEngine = {
                         const wallX = endpoint === 0 ? seg.w.x1 : seg.w.x2;
                         const wallY = endpoint === 0 ? seg.w.y1 : seg.w.y2;
                         if (Math.abs(seg.dotN) > 0.01) {
-                            const offset = (seg.transDia + dia / 2) / Math.abs(seg.dotN);
+                            const offset = (seg.priorStack + dia / 2) / Math.abs(seg.dotN);
                             closestTarget = { x: wallX - gravDir.x * offset, y: wallY - gravDir.y * offset };
                         }
                     }
@@ -239,10 +223,8 @@ const LRebarEngine = {
         }
     },
 
-    step: (group, coverWalls, formedRebars) => {
+    step: (group, coverWalls, wallStack) => {
         if (group.state === "SETTLED" || group.num === 0) return;
-
-        const rebarWallMap = LRebarEngine._buildRebarWallMap(formedRebars);
 
         if (group.state === "FITTING") {
             if (!group.isTargeted) {
@@ -255,7 +237,7 @@ const LRebarEngine = {
                 group._pathWalls = pathWalls;
 
                 group.particles.forEach(p => {
-                    p.target = LRebarEngine._findTarget(p.x, p.y, group.gravDir, group.dia, pathWalls, rebarWallMap);
+                    p.target = LRebarEngine._findTarget(p.x, p.y, group.gravDir, group.dia, pathWalls, wallStack);
                 });
 
                 group.particles.forEach(p => {
@@ -296,7 +278,7 @@ const LRebarEngine = {
             if (allSettled) {
                 group.state = "DISTRIBUTING";
                 const pathRange = LRebarEngine._computePathTRange(group, group._pathWalls);
-                LRebarEngine._distributeOnPath(group, pathRange, group._pathWalls, rebarWallMap);
+                LRebarEngine._distributeOnPath(group, pathRange, group._pathWalls, wallStack);
 
                 group.particles.forEach(p => {
                     if (!p.target) {

@@ -19,16 +19,17 @@ const PARAMS = {
 const Domain = {
     // 사용자가 외부에서 주입할 데이터 저장소
     USER_BOX_DATA: null,
-    USER_TREBAR_DATA: null,
-    USER_LREBAR_DATA: null,
+    USER_REBAR_DATA: null,   // ⭐ 통합 입력 (type: "trebar"|"lrebar")
+    USER_TREBAR_DATA: null,  // (레거시) 횡방향 전용 배열
+    USER_LREBAR_DATA: null,  // (레거시) 종방향 전용 배열
 
     currentSection: null,
     trebarList: [],
     lrebarList: [],
-    activeTrebarIndex: 0,
+    queue: [],               // ⭐ 통합 처리 큐: [{kind:"trebar"|"lrebar", obj}, ...]
+    activeQueueIndex: 0,
     isPaused: false,
-    lrebarReady: false,
-    wallStack: {},   // ⭐ 벽 id별 누적 적층 두께 (mm)
+    wallStack: {},           // ⭐ 벽 id별 누적 적층 두께 (mm)
 
     togglePause: () => {
         Domain.isPaused = !Domain.isPaused;
@@ -36,19 +37,198 @@ const Domain = {
         if(btn) btn.innerHTML = Domain.isPaused ? "▶ Start" : "⏸ Pause";
     },
 
-    startLrebar: () => {
-        Domain.lrebarReady = true;
-        const btn = document.getElementById("btnStartLrebar");
-        if (btn) { btn.innerHTML = "Running..."; btn.disabled = true; btn.style.opacity = "0.5"; }
+    // ─────────────────────────────────────────────────────────
+    // 입력 데이터 → trebar 객체 변환
+    // ─────────────────────────────────────────────────────────
+    _createTrebarFromData: (rawData) => {
+        const data = {};
+        Object.keys(rawData).forEach(k => data[k.toLowerCase()] = rawData[k]);
+
+        ['angs', 'nors'].forEach(prop => {
+            if (data[prop]) {
+                const upperObj = {};
+                Object.keys(data[prop]).forEach(innerKey => upperObj[innerKey.toUpperCase()] = data[prop][innerKey]);
+                data[prop] = upperObj;
+            }
+        });
+
+        let safeDims = {};
+        let anchorSegKey = 'A';
+        let targetSetId = null;
+        let ignoredSetKeys = [];
+
+        if (data.segs) {
+            Object.keys(data.segs).forEach(k => {
+                let segKey = k.toUpperCase();
+                let segProps = data.segs[k];
+                if (!segProps || typeof segProps !== 'object') return;
+                if (segProps.len !== undefined) safeDims[segKey] = segProps.len;
+                if (segProps.set) {
+                    if (!targetSetId) { anchorSegKey = segKey; targetSetId = segProps.set; }
+                    else { ignoredSetKeys.push(segKey); }
+                }
+            });
+            if (ignoredSetKeys.length > 0) {
+                console.warn(`[SET IGNORE] ${data.id || 'UNKNOWN'} 에서 set이 여러 개 입력. 첫 번째('${anchorSegKey}')만 사용, [${ignoredSetKeys.join(', ')}] 무시.`);
+            }
+        } else if (data.dims) {
+            safeDims = data.dims;
+        }
+
+        let finalBarEnds = null;
+        let rawBarEnds = data.barends || data.ends;
+        if (rawBarEnds) {
+            finalBarEnds = {};
+            Object.keys(rawBarEnds).forEach(k => {
+                let key = k.toLowerCase();
+                let rule = rawBarEnds[k];
+                if (!rule) return;
+                let mode = Object.keys(rule)[0];
+                if (!mode) return;
+                if (key === 'start' || key === 'b') {
+                    finalBarEnds.start = { type: mode.toUpperCase(), val: Number(rule[mode]) };
+                } else if (key === 'end' || key === 'e') {
+                    finalBarEnds.end = { type: mode.toUpperCase(), val: Number(rule[mode]) };
+                }
+            });
+            if (Object.keys(finalBarEnds).length === 0) finalBarEnds = null;
+        }
+
+        let actualDims = EquationParser.evalDims(safeDims, PARAMS);
+        let initData = data.init || {};
+        let rawX = initData.x !== undefined ? initData.x : data.x;
+        let rawY = initData.y !== undefined ? initData.y : data.y;
+        let rawRot = initData.rot !== undefined ? initData.rot : data.rot;
+
+        let startX = 0, startY = 0, rot = 0;
+        let targetWall = null;
+
+        if (targetSetId) {
+            targetWall = Domain.currentSection.walls.find(w => w.id === targetSetId.toUpperCase());
+            if (!targetWall) {
+                startX = EquationParser.eval(rawX, PARAMS) || 0;
+                startY = EquationParser.eval(rawY, PARAMS) || 0;
+                rot = EquationParser.eval(rawRot, PARAMS) || 0;
+            }
+        } else {
+            startX = EquationParser.eval(rawX, PARAMS) || 0;
+            startY = EquationParser.eval(rawY, PARAMS) || 0;
+            rot = EquationParser.eval(rawRot, PARAMS) || 0;
+        }
+
+        let rb = TrebarFactory.create(data.code, { x: startX, y: startY }, actualDims || {}, rot, data.angs, data.nors, finalBarEnds);
+        if (!rb) return null;
+
+        rb.id = data.id;
+        rb.dia = data.dia || 13;
+
+        if (targetWall) {
+            let segIndex = anchorSegKey.charCodeAt(0) - 65;
+            if (segIndex < 0 || segIndex >= rb.segments.length) segIndex = 0;
+            let tSeg = rb.segments[segIndex];
+
+            let wx = targetWall.x2 - targetWall.x1;
+            let wy = targetWall.y2 - targetWall.y1;
+            let wallAng = Math.atan2(wy, wx);
+            let sx = tSeg.p2.x - tSeg.p1.x;
+            let sy = tSeg.p2.y - tSeg.p1.y;
+            let segAng = Math.atan2(sy, sx);
+
+            let extraRot = Number(rawRot) || 0;
+            let deltaAng = wallAng - segAng + (extraRot * Math.PI / 180);
+            let cosA = Math.cos(deltaAng);
+            let sinA = Math.sin(deltaAng);
+
+            const rotatePt = (p) => {
+                let nx = p.x * cosA - p.y * sinA;
+                let ny = p.x * sinA + p.y * cosA;
+                p.x = nx; p.y = ny;
+            };
+            const rotateVec = (v) => {
+                let nx = v.x * cosA - v.y * sinA;
+                let ny = v.x * sinA + v.y * cosA;
+                v.x = nx; v.y = ny;
+            };
+
+            rb.segments.forEach(s => {
+                rotatePt(s.p1); rotatePt(s.p2);
+                s.nodes.forEach(n => rotatePt(n));
+                rotateVec(s.normal); rotateVec(s.uDir);
+            });
+
+            let cx = (tSeg.p1.x + tSeg.p2.x) / 2;
+            let cy = (tSeg.p1.y + tSeg.p2.y) / 2;
+            let cType = targetWall.tag ? targetWall.tag.toLowerCase() : 'outer';
+            let coverVal = Domain.currentSection.covers[cType] || 50;
+            // ⭐ set anchor도 wallStack 반영 (이전 적층 위로 spawn)
+            let stackOffset = Domain.wallStack[targetWall.id] || 0;
+            let spawnDist = coverVal + stackOffset + (rb.dia || 0) / 2;
+
+            let tcx = ((targetWall.x1 + targetWall.x2) / 2) + (targetWall.nx * spawnDist);
+            let tcy = ((targetWall.y1 + targetWall.y2) / 2) + (targetWall.ny * spawnDist);
+            let tx = tcx - cx;
+            let ty = tcy - cy;
+
+            rb.segments.forEach(s => {
+                s.p1.x += tx; s.p1.y += ty;
+                s.p2.x += tx; s.p2.y += ty;
+                s.nodes.forEach(n => { n.x += tx; n.y += ty; });
+            });
+
+            tSeg.anchorWall = targetWall;
+            tSeg.fitWall = targetWall;
+            tSeg.contactWall = targetWall;
+
+            rb.segments.forEach((s, index) => {
+                s.state = (index === segIndex) ? "SETTLED" : "WAITING";
+            });
+
+            console.log(`[🎯 SET] ${rb.id} 횡방향 철근의 '${anchorSegKey}' 구간이 ${targetWall.id} 벽체에 닻을 내렸습니다.`);
+        }
+
+        return rb;
+    },
+
+    // ─────────────────────────────────────────────────────────
+    // 입력 데이터 → lrebar group 변환
+    // ─────────────────────────────────────────────────────────
+    _createLrebarFromData: (rawData) => {
+        const data = { ...rawData };
+        if (data.init) {
+            data.init = {
+                x: EquationParser.eval(data.init.x, PARAMS) || 0,
+                y: EquationParser.eval(data.init.y, PARAMS) || 0,
+                rot: EquationParser.eval(data.init.rot, PARAMS) || 0,
+                grav: data.init.grav
+            };
+        }
+        return LRebarEngine.create(data);
+    },
+
+    // ─────────────────────────────────────────────────────────
+    // 입력 배열 정규화 — 통합 USER_REBAR_DATA 우선, 없으면 레거시
+    // ─────────────────────────────────────────────────────────
+    _resolveInputList: () => {
+        if (Array.isArray(Domain.USER_REBAR_DATA) && Domain.USER_REBAR_DATA.length > 0) {
+            return Domain.USER_REBAR_DATA;
+        }
+        const list = [];
+        if (Array.isArray(Domain.USER_TREBAR_DATA)) {
+            Domain.USER_TREBAR_DATA.forEach(d => list.push({ ...d, type: "trebar" }));
+        }
+        if (Array.isArray(Domain.USER_LREBAR_DATA)) {
+            Domain.USER_LREBAR_DATA.forEach(d => list.push({ ...d, type: "lrebar" }));
+        }
+        return list;
     },
 
     buildModel: (secType) => {
         Domain.currentSection = null;
         Domain.trebarList = [];
         Domain.lrebarList = [];
-        Domain.activeTrebarIndex = 0;
+        Domain.queue = [];
+        Domain.activeQueueIndex = 0;
         Domain.isPaused = false;
-        Domain.lrebarReady = false;
         Domain.wallStack = {};
 
         if (secType === "TBEAM") {
@@ -56,256 +236,80 @@ const Domain = {
             Domain.currentSection.generate();
         } else {
             Domain.currentSection = new BoxGirder(0, 0, null);
-            // 주입받은 박스 데이터 사용
             Domain.currentSection.generate(Domain.USER_BOX_DATA);
         }
 
-        if (secType === "BOXGIRDER" && Domain.USER_TREBAR_DATA) {
-            Domain.USER_TREBAR_DATA.forEach(rawData => {
-                const data = {};
-                // 1. 최상위 키 소문자 변환
-                Object.keys(rawData).forEach(k => data[k.toLowerCase()] = rawData[k]);
+        if (secType !== "BOXGIRDER") return;
 
-                // 2. 하위 키(angs, nors 등) 대문자 변환
-                ['angs', 'nors'].forEach(prop => {
-                    if (data[prop]) {
-                        const upperObj = {};
-                        Object.keys(data[prop]).forEach(innerKey => upperObj[innerKey.toUpperCase()] = data[prop][innerKey]);
-                        data[prop] = upperObj;
-                    }
-                });
-
-                // 3. segs 파싱 및 dims 자동 추출 로직
-                let safeDims = {};
-                let anchorSegKey = 'A';    // set이 없을 때 기본값
-                let targetSetId = null;
-                let ignoredSetKeys = [];
-
-                if (data.segs) {
-                    Object.keys(data.segs).forEach(k => {
-                        let segKey = k.toUpperCase();
-                        let segProps = data.segs[k];
-
-                        if (!segProps || typeof segProps !== 'object') return;
-
-                        if (segProps.len !== undefined) {
-                            safeDims[segKey] = segProps.len;
-                        }
-
-                        if (segProps.set) {
-                            if (!targetSetId) {
-                                anchorSegKey = segKey;
-                                targetSetId = segProps.set;
-                            } else {
-                                ignoredSetKeys.push(segKey);
-                            }
-                        }
-                    });
-
-                    if (ignoredSetKeys.length > 0) {
-                        console.warn(
-                            `[SET IGNORE] ${data.id || 'UNKNOWN'} 에서 set이 여러 개 입력되었습니다. ` +
-                            `첫 번째 set('${anchorSegKey}')만 사용하고, 나머지 [${ignoredSetKeys.join(', ')}] 는 무시합니다.`
-                        );
-                    }
-                } else if (data.dims) {
-                    safeDims = data.dims;
-                }
-
-                // 4. barEnds 파싱
-                let finalBarEnds = null;
-                let rawBarEnds = data.barends || data.ends; 
-
-                if (rawBarEnds) {
-                    finalBarEnds = {};
-
-                    Object.keys(rawBarEnds).forEach(k => {
-                        let key = k.toLowerCase();
-                        let rule = rawBarEnds[k];
-                        if (!rule) return;
-
-                        let mode = Object.keys(rule)[0];
-                        if (!mode) return;
-
-                        if (key === 'start' || key === 'b') {
-                            finalBarEnds.start = {
-                                type: mode.toUpperCase(),
-                                val: Number(rule[mode])
-                            };
-                        } else if (key === 'end' || key === 'e') {
-                            finalBarEnds.end = {
-                                type: mode.toUpperCase(),
-                                val: Number(rule[mode])
-                            };
-                        }
-                    });
-
-                    if (Object.keys(finalBarEnds).length === 0) {
-                        finalBarEnds = null;
-                    }
-                }
-
-                // 5. 초기화 설정 파싱 (init)
-                let actualDims = EquationParser.evalDims(safeDims, PARAMS); 
-                let initData = data.init || {};
-                let rawX = initData.x !== undefined ? initData.x : data.x;
-                let rawY = initData.y !== undefined ? initData.y : data.y;
-                let rawRot = initData.rot !== undefined ? initData.rot : data.rot;
-
-                let startX = 0, startY = 0, rot = 0;
-                let targetWall = null;
-
-                // 6. 시작 좌표 결정
-                if (targetSetId) {
-                    targetWall = Domain.currentSection.walls.find(w => w.id === targetSetId.toUpperCase());
-                    if (targetWall) {
-                        startX = 0; startY = 0; rot = 0; 
-                    } else {
-                        startX = EquationParser.eval(rawX, PARAMS) || 0;
-                        startY = EquationParser.eval(rawY, PARAMS) || 0;
-                        rot = EquationParser.eval(rawRot, PARAMS) || 0;
-                    }
-                } else {
-                    startX = EquationParser.eval(rawX, PARAMS) || 0;
-                    startY = EquationParser.eval(rawY, PARAMS) || 0;
-                    rot = EquationParser.eval(rawRot, PARAMS) || 0;
-                }
-
-                // 7. 철근 생성
-                let rb = TrebarFactory.create(
-                    data.code,
-                    { x: startX, y: startY },
-                    actualDims || {},
-                    rot,
-                    data.angs,
-                    data.nors,
-                    finalBarEnds  
-                );
-                
+        const inputList = Domain._resolveInputList();
+        inputList.forEach(rawData => {
+            const type = String(rawData.type || "trebar").toLowerCase();
+            if (type === "trebar") {
+                const rb = Domain._createTrebarFromData(rawData);
                 if (rb) {
-                    rb.id = data.id;
-                    rb.dia = data.dia || 13;
-
-                    // 8. 공간 이동 마법 & 마스터 닻 잠금
-                    if (targetWall) {
-                        let segIndex = anchorSegKey.charCodeAt(0) - 65;
-                        if (segIndex < 0 || segIndex >= rb.segments.length) segIndex = 0;
-
-                        let tSeg = rb.segments[segIndex];
-
-                        // 각도 맞추기
-                        let wx = targetWall.x2 - targetWall.x1;
-                        let wy = targetWall.y2 - targetWall.y1;
-                        let wallAng = Math.atan2(wy, wx);
-
-                        let sx = tSeg.p2.x - tSeg.p1.x;
-                        let sy = tSeg.p2.y - tSeg.p1.y;
-                        let segAng = Math.atan2(sy, sx);
-
-                        let extraRot = Number(rawRot) || 0;
-                        let deltaAng = wallAng - segAng + (extraRot * Math.PI / 180);
-
-                        let cosA = Math.cos(deltaAng);
-                        let sinA = Math.sin(deltaAng);
-
-                        const rotatePt = (p) => {
-                            let nx = p.x * cosA - p.y * sinA;
-                            let ny = p.x * sinA + p.y * cosA;
-                            p.x = nx; p.y = ny;
-                        };
-
-                        const rotateVec = (v) => {
-                            let nx = v.x * cosA - v.y * sinA;
-                            let ny = v.x * sinA + v.y * cosA;
-                            v.x = nx; v.y = ny;
-                        };
-
-                        rb.segments.forEach(s => {
-                            rotatePt(s.p1); rotatePt(s.p2);
-                            s.nodes.forEach(n => rotatePt(n));
-                            rotateVec(s.normal); rotateVec(s.uDir);
-                        });
-
-                        // 위치 맞추기
-                        let cx = (tSeg.p1.x + tSeg.p2.x) / 2;
-                        let cy = (tSeg.p1.y + tSeg.p2.y) / 2;
-                        let cType = targetWall.tag ? targetWall.tag.toLowerCase() : 'outer';
-                        let coverVal = Domain.currentSection.covers[cType] || 50;
-                        let spawnDist = coverVal;
-
-                        let tcx = ((targetWall.x1 + targetWall.x2) / 2) + (targetWall.nx * spawnDist);
-                        let tcy = ((targetWall.y1 + targetWall.y2) / 2) + (targetWall.ny * spawnDist);
-
-                        let tx = tcx - cx;
-                        let ty = tcy - cy;
-
-                        rb.segments.forEach(s => {
-                            s.p1.x += tx; s.p1.y += ty;
-                            s.p2.x += tx; s.p2.y += ty;
-                            s.nodes.forEach(n => { n.x += tx; n.y += ty; });
-                        });
-
-                        tSeg.anchorWall = targetWall;
-                        tSeg.fitWall = targetWall;
-                        tSeg.contactWall = targetWall;
-
-                        rb.segments.forEach((s, index) => {
-                            if (index === segIndex) {
-                                s.state = "SETTLED";
-                            } else {
-                                s.state = "WAITING";
-                            }
-                        });
-
-                        console.log(`[🎯 SET] ${rb.id} 철근의 '${anchorSegKey}' 구간이 ${targetWall.id} 벽체에 닻을 내렸습니다.`);
-                    }                    
-
                     Domain.trebarList.push(rb);
+                    Domain.queue.push({ kind: "trebar", obj: rb });
                 }
-            });
-        }
+            } else if (type === "lrebar") {
+                if (typeof LRebarEngine === 'undefined') return;
+                const group = Domain._createLrebarFromData(rawData);
+                Domain.lrebarList.push(group);
+                Domain.queue.push({ kind: "lrebar", obj: group });
+            }
+        });
+    },
 
-        // LREBAR 생성 (물리 기반 - stepPhysics에서 이동)
-        if (typeof LRebarEngine !== 'undefined' && Domain.USER_LREBAR_DATA && Domain.currentSection) {
-            Domain.USER_LREBAR_DATA.forEach(rawData => {
-                const data = { ...rawData };
-                if (data.init) {
-                    data.init = {
-                        x: EquationParser.eval(data.init.x, PARAMS) || 0,
-                        y: EquationParser.eval(data.init.y, PARAMS) || 0,
-                        rot: EquationParser.eval(data.init.rot, PARAMS) || 0,
-                        grav: data.init.grav
-                    };
-                }
-                Domain.lrebarList.push(LRebarEngine.create(data));
-            });
+    // ─────────────────────────────────────────────────────────
+    // 통합 큐 순차 처리
+    // ─────────────────────────────────────────────────────────
+    stepPhysics: () => {
+        if (Domain.isPaused) return;
+        if (Domain.activeQueueIndex >= Domain.queue.length) return;
+
+        const item = Domain.queue[Domain.activeQueueIndex];
+
+        if (item.kind === "trebar") {
+            const trebar = item.obj;
+            Physics.updatePhysics(trebar, Domain.currentSection.walls, Domain.wallStack);
+            if (trebar.state === "FORMED") {
+                Domain._accumulateStack(trebar.dia || 0, Domain._collectTrebarWalls(trebar));
+                Domain.activeQueueIndex++;
+            }
+        } else if (item.kind === "lrebar") {
+            const group = item.obj;
+            const coverWalls = Physics.buildCoverWalls(Domain.currentSection.walls);
+            LRebarEngine.step(group, coverWalls, Domain.wallStack);
+            if (group.state === "SETTLED") {
+                Domain._accumulateStack(group.dia || 0, Domain._collectLrebarWalls(group));
+                Domain.activeQueueIndex++;
+            }
         }
     },
 
-    stepPhysics: () => {
-        if (Domain.isPaused) return;
-        if (Domain.activeTrebarIndex < Domain.trebarList.length) {
-            let currentTrebar = Domain.trebarList[Domain.activeTrebarIndex];
-            Physics.updatePhysics(currentTrebar, Domain.currentSection.walls, Domain.wallStack);
-            if (currentTrebar.state === "FORMED") {
-                // ⭐ 안착된 segment의 fitWall에 dia 누적 → 다음 trebar가 그 위에 접하여 적층
-                const inc = currentTrebar.dia || 0;
-                const visited = new Set();
-                currentTrebar.segments.forEach(seg => {
-                    let w = seg.fitWall || seg.anchorWall || seg.contactWall;
-                    let wid = w && w.id;
-                    if (wid && !visited.has(wid)) {
-                        visited.add(wid);
-                        Domain.wallStack[wid] = (Domain.wallStack[wid] || 0) + inc;
-                    }
-                });
-                Domain.activeTrebarIndex++;
-            }
-        } else if (Domain.lrebarList.length > 0 && Domain.lrebarReady) {
-            const coverWalls = Physics.buildCoverWalls(Domain.currentSection.walls);
-            Domain.lrebarList.forEach(group => {
-                LRebarEngine.step(group, coverWalls, Domain.trebarList);
-            });
-        }
+    _collectTrebarWalls: (trebar) => {
+        const ids = new Set();
+        trebar.segments.forEach(seg => {
+            const w = seg.fitWall || seg.anchorWall || seg.contactWall;
+            const wid = w && w.id;
+            if (wid) ids.add(wid);
+        });
+        return ids;
+    },
+
+    _collectLrebarWalls: (group) => {
+        const ids = new Set();
+        const pathWalls = group._pathWalls || [];
+        pathWalls.forEach(w => {
+            const wid = w.id || (w.origWall && w.origWall.id);
+            if (wid) ids.add(wid);
+        });
+        return ids;
+    },
+
+    _accumulateStack: (inc, wallIds) => {
+        if (!inc || !wallIds || wallIds.size === 0) return;
+        wallIds.forEach(wid => {
+            Domain.wallStack[wid] = (Domain.wallStack[wid] || 0) + inc;
+        });
     }
 };

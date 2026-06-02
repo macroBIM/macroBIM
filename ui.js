@@ -87,9 +87,13 @@ const UI = {
         let secType = document.getElementById("sectionSelect").value;
         let nodeR = secType === "TBEAM" ? 6 : 50;
 
+        const activeItem = Domain.queue[Domain.activeQueueIndex];
+        const activeObj = activeItem ? activeItem.obj : null;
+
         Domain.trebarList.forEach((trebar, index) => {
             trebar.segments.forEach(seg => {
-                let isWaitingQueue = index > Domain.activeTrebarIndex;
+                let isActive = (trebar === activeObj);
+                let isWaitingQueue = (trebar.state !== "FORMED") && !isActive;
                 let color = (trebar.state === "FORMED") ? '#8A2BE2' : (isWaitingQueue ? '#555555' : (seg.state === "SETTLED" ? '#00FF00' : '#FF9800'));
                 
                 let pts = [];
@@ -137,11 +141,18 @@ const UI = {
         UI.drawLrebar();
 
         const statGrid = document.getElementById('stat-grid');
-        if (Domain.trebarList.length > 0) {
-            let currentNum = Math.min(Domain.activeTrebarIndex + 1, Domain.trebarList.length);
+        if (Domain.queue.length > 0) {
+            const total = Domain.queue.length;
+            const currentNum = Math.min(Domain.activeQueueIndex + 1, total);
+            const activeItem2 = Domain.queue[Domain.activeQueueIndex];
+            const activeKind = activeItem2 ? (activeItem2.kind === "lrebar" ? "L" : "T") : "—";
+            const activeId = activeItem2 && activeItem2.obj && activeItem2.obj.id ? activeItem2.obj.id : "—";
+            const tCount = Domain.trebarList.length;
+            const lCount = Domain.lrebarList.length;
             statGrid.innerHTML = `
-                <div class="stat-row">Total Rebars: <span class="val">${Domain.trebarList.length} EA</span></div>
-                <div class="stat-row">Processing: <span class="val" style="color:orange;">#${currentNum}</span> / ${Domain.trebarList.length}</div>
+                <div class="stat-row">Queue Total: <span class="val">${total}</span> (T:${tCount} / L:${lCount})</div>
+                <div class="stat-row">Processing: <span class="val" style="color:orange;">[${activeKind}] #${currentNum}</span> / ${total}</div>
+                <div class="stat-row">Active ID: <span class="val">${activeId}</span></div>
             `;
         }
     },
@@ -200,7 +211,8 @@ const UI = {
         Domain.lrebarList.forEach(group => {
             const r = Math.max(group.dia / 2, secType === "TBEAM" ? 4 : 30);
 
-            if (!Domain.lrebarReady && group.initData && group.rangeData) {
+            // 안착 전(FITTING/DISTRIBUTING) 일 때만 초기화 가이드(점선 박스+화살표) 표시
+            if (group.state !== "SETTLED" && group.initData && group.rangeData) {
                 const d = group.initData;
                 const rng = group.rangeData;
                 const ux = group.ux, uy = group.uy;
@@ -258,23 +270,9 @@ const UI = {
     },
 
     _updateLrebarButton: () => {
-        let btn = document.getElementById("btnStartLrebar");
-        if (Domain.lrebarList.length === 0) { if (btn) btn.remove(); return; }
-        if (Domain.lrebarReady) {
-            if (btn) { btn.innerHTML = "Running..."; btn.disabled = true; btn.style.opacity = "0.5"; }
-            return;
-        }
-        if (!btn) {
-            btn = document.createElement("button");
-            btn.id = "btnStartLrebar";
-            btn.innerHTML = "▶ Start L-Rebar";
-            btn.onclick = () => Domain.startLrebar();
-            let panel = document.querySelector(".ctrl-panel");
-            if (panel) panel.appendChild(btn);
-        }
-        let transverseDone = Domain.trebarList.length === 0 || Domain.activeTrebarIndex >= Domain.trebarList.length;
-        btn.disabled = !transverseDone;
-        btn.style.opacity = transverseDone ? "1" : "0.5";
+        // 통합 큐 도입으로 별도 시작 버튼은 더 이상 필요 없음 — 잔존 버튼 제거
+        const btn = document.getElementById("btnStartLrebar");
+        if (btn) btn.remove();
     },
 
     drawDebugNodes: () => {
