@@ -333,7 +333,7 @@ function fdraw_box1cell(){
 		PLOTLY CANVAS : activate & draw
 	*/		
 
-	var ocvs	= PlotlyViewer(scvs_box1cell, true, "black");
+	var ocvs	= new KonvaViewer(scvs_box1cell);
 
 	// 레이어
 	var alayer = ['box1cell_solid', 'box1cell_hidden', 'box1cell_center'];
