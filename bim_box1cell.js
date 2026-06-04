@@ -333,7 +333,17 @@ function fdraw_box1cell(){
 		PLOTLY CANVAS : activate & draw
 	*/		
 
-	var ocvs	= new KonvaViewer(scvs_box1cell);
+	var ocvs	= new KonvaViewer(scvs_box1cell, {
+		gridCols: 6,
+		square: true,
+		layout: [
+			{ views: ['front', 'back'], span: 3 },
+			{ views: ['left', 'center', 'right'], span: 2 },
+			{ views: ['top', 'bottom'], span: 3 }
+		],
+		syncX: [['front', 'back', 'top', 'bottom'], ['left', 'center', 'right']],
+		syncY: [['front', 'back', 'left', 'center', 'right'], ['top', 'bottom']]
+	});
 
 	// 레이어
 	var alayer = ['box1cell_solid', 'box1cell_hidden', 'box1cell_center'];
@@ -386,32 +396,34 @@ function fdraw_box1cell(){
 
 
 	/*
-		정면도
+		정면도 (시작단면 → front view)
 	*/
-	let sview = 'front';
+	let sview;
+	let dOx_dxf;
 
-	// 시작단면
-	dOx = Math.max( aparam_b.dbt, aparam_e.dbt ) * -1.0;
-	
+	dOx_dxf = Math.max( aparam_b.dbt, aparam_e.dbt ) * -1.0;
+
 	obox1cell_b.lines.forEach( (line) => {
-	  ocvs.addLine(sview, line.x1 + dOx, line.y1, line.x2 + dOx, line.y2, alayer[0] );
-	  odxf_box1cell.line( line.x1 + dOx, line.y1, line.x2 + dOx, line.y2, alayer[0] );
+	  ocvs.addLine('front', line.x1, line.y1, line.x2, line.y2, alayer[0] );
+	  odxf_box1cell.line( line.x1 + dOx_dxf, line.y1, line.x2 + dOx_dxf, line.y2, alayer[0] );
 	});
 	obox1cell_b.arcs.forEach( (arc) => {
-	  ocvs.addArc(sview, arc.x + dOx, arc.y, arc.r, arc.angb, arc.ange, alayer[0] );
-	  odxf_box1cell.arc( arc.x + dOx, arc.y, arc.r, arc.angb, arc.ange, alayer[0] );
+	  ocvs.addArc('front', arc.x, arc.y, arc.r, arc.angb, arc.ange, alayer[0] );
+	  odxf_box1cell.arc( arc.x + dOx_dxf, arc.y, arc.r, arc.angb, arc.ange, alayer[0] );
 	});
 
-	// 끝단면
-	dOx = Math.max( aparam_b.dbt, aparam_e.dbt ) * 1.0;
-	
+	/*
+		배면도 (끝단면 → back view)
+	*/
+	dOx_dxf = Math.max( aparam_b.dbt, aparam_e.dbt ) * 1.0;
+
 	obox1cell_e.lines.forEach( (line) => {
-	  ocvs.addLine(sview, line.x1 + dOx, line.y1, line.x2+ dOx, line.y2, alayer[0] );
-	  odxf_box1cell.line( line.x1 + dOx, line.y1, line.x2 + dOx, line.y2, alayer[0] );
+	  ocvs.addLine('back', line.x1, line.y1, line.x2, line.y2, alayer[0] );
+	  odxf_box1cell.line( line.x1 + dOx_dxf, line.y1, line.x2 + dOx_dxf, line.y2, alayer[0] );
 	});
 	obox1cell_e.arcs.forEach( (arc) => {
-	  ocvs.addArc(sview, arc.x+ dOx, arc.y, arc.r, arc.angb, arc.ange, alayer[0] );
-	  odxf_box1cell.arc( arc.x + dOx, arc.y, arc.r, arc.angb, arc.ange, alayer[0] );
+	  ocvs.addArc('back', arc.x, arc.y, arc.r, arc.angb, arc.ange, alayer[0] );
+	  odxf_box1cell.arc( arc.x + dOx_dxf, arc.y, arc.r, arc.angb, arc.ange, alayer[0] );
 	});
 
 
@@ -583,13 +595,13 @@ function fdraw_box1cell(){
 		odxf_box1cell.line( p1.x + dOx_bot, p1.y + dOy_bot, p2.x + dOx_bot, p2.y + dOy_bot, alayer[1] );
 		
 	/*
-			측면도
+			측면도 (center view)
 	*/
-		
+
 		dOx_side	= Math.max( aparam_b.dbt, aparam_e.dbt, dseg_leng ) * 4.0;
 		dOy_side	= 0.0;
-		
-        sview = 'side';
+
+        sview = 'center';
 		
         //  중앙
         p1 = getPointByName(obox1cell_b.points, "ptc");      
@@ -636,19 +648,20 @@ function fdraw_box1cell(){
 
         // 좌측 left view
         dOx = dseg_leng * -1.5;
-		
-        p1 = getPointByName(obox1cell_b.points, "ptc");      
+		sview = 'left';
+
+        p1 = getPointByName(obox1cell_b.points, "ptc");
         p1.x = dOx + dseg_leng / 2 * -1;
-        p2 = getPointByName(obox1cell_e.points, "ptc");        
+        p2 = getPointByName(obox1cell_e.points, "ptc");
         p2.x = dOx + dseg_leng / 2 * 1;
-        ocvs.addLine(sview, p1.x, p1.y, p2.x, p2.y, alayer[0] );  
+        ocvs.addLine(sview, p1.x - dOx, p1.y, p2.x - dOx, p2.y, alayer[0] );
 		odxf_box1cell.line( p1.x + dOx_side + dOx, p1.y + dOy_side, p2.x + dOx_side + dOx, p2.y + dOy_side, alayer[0] );
 
-        p1 = getPointByName(obox1cell_b.points, "pbc");      
+        p1 = getPointByName(obox1cell_b.points, "pbc");
         p1.x = dOx + dseg_leng / 2 * -1;
-        p2 = getPointByName(obox1cell_e.points, "pbc");        
+        p2 = getPointByName(obox1cell_e.points, "pbc");
         p2.x = dOx + dseg_leng / 2 * 1;
-        ocvs.addLine(sview, p1.x, p1.y, p2.x, p2.y, alayer[0] );  
+        ocvs.addLine(sview, p1.x - dOx, p1.y, p2.x - dOx, p2.y, alayer[0] );
 		odxf_box1cell.line( p1.x + dOx_side + dOx, p1.y + dOy_side, p2.x + dOx_side + dOx, p2.y + dOy_side, alayer[0] );
         
         if( aparam_b.dsltl >= 0 ){
@@ -664,212 +677,214 @@ function fdraw_box1cell(){
         }
 		p1.x = dOx + dseg_leng / 2 * -1;
 		p2.x = dOx + dseg_leng / 2 * -1;
-		ocvs.addLine(sview, p1.x, p1.y, p2.x, p2.y, alayer[0] );   
+		ocvs.addLine(sview, p1.x - dOx, p1.y, p2.x - dOx, p2.y, alayer[0] );
 		odxf_box1cell.line( p1.x + dOx_side + dOx, p1.y + dOy_side, p2.x + dOx_side + dOx, p2.y + dOy_side, alayer[0] );
-        
+
         if( aparam_e.dsltl * 1 >= 0 ){
-          p1 = getPointByName(obox1cell_e.points, "ptc");      
+          p1 = getPointByName(obox1cell_e.points, "ptc");
         } else {
           p1 = getPointByName(obox1cell_e.points, "ptl");
         }
-        
-        if( aparam_e.dslb * 1 >= 0 ){          
-          p2 = getPointByName(obox1cell_e.points, "pbl");        
+
+        if( aparam_e.dslb * 1 >= 0 ){
+          p2 = getPointByName(obox1cell_e.points, "pbl");
         } else {
           p2 = getPointByName(obox1cell_e.points, "pbc");
         }
         p1.x = dOx + dseg_leng / 2 * 1;
         p2.x = dOx + dseg_leng / 2 * 1;
-        ocvs.addLine(sview, p1.x, p1.y, p2.x, p2.y, alayer[0] );     
-		odxf_box1cell.line( p1.x + dOx_side + dOx, p1.y + dOy_side, p2.x + dOx_side + dOx, p2.y + dOy_side, alayer[0] );
-        
-        p1 = getPointByName(obox1cell_b.points, "ptl");      
-        p1.x = dOx + dseg_leng / 2 * -1;
-        p2 = getPointByName(obox1cell_e.points, "ptl");        
-        p2.x = dOx + dseg_leng / 2 * 1;
-        ocvs.addLine(sview, p1.x, p1.y, p2.x, p2.y, alayer[0] );  
+        ocvs.addLine(sview, p1.x - dOx, p1.y, p2.x - dOx, p2.y, alayer[0] );
 		odxf_box1cell.line( p1.x + dOx_side + dOx, p1.y + dOy_side, p2.x + dOx_side + dOx, p2.y + dOy_side, alayer[0] );
 
-        p1 = getPointByName(obox1cell_b.points, "pcl");      
+        p1 = getPointByName(obox1cell_b.points, "ptl");
         p1.x = dOx + dseg_leng / 2 * -1;
-        p2 = getPointByName(obox1cell_e.points, "pcl");        
+        p2 = getPointByName(obox1cell_e.points, "ptl");
         p2.x = dOx + dseg_leng / 2 * 1;
-        ocvs.addLine(sview, p1.x, p1.y, p2.x, p2.y, alayer[0] );  
+        ocvs.addLine(sview, p1.x - dOx, p1.y, p2.x - dOx, p2.y, alayer[0] );
 		odxf_box1cell.line( p1.x + dOx_side + dOx, p1.y + dOy_side, p2.x + dOx_side + dOx, p2.y + dOy_side, alayer[0] );
 
-        p1 = getPointByName(obox1cell_b.points, "pcml");      
+        p1 = getPointByName(obox1cell_b.points, "pcl");
         p1.x = dOx + dseg_leng / 2 * -1;
-        p2 = getPointByName(obox1cell_e.points, "pcml");        
+        p2 = getPointByName(obox1cell_e.points, "pcl");
         p2.x = dOx + dseg_leng / 2 * 1;
-        ocvs.addLine(sview, p1.x, p1.y, p2.x, p2.y, alayer[0] );  
+        ocvs.addLine(sview, p1.x - dOx, p1.y, p2.x - dOx, p2.y, alayer[0] );
 		odxf_box1cell.line( p1.x + dOx_side + dOx, p1.y + dOy_side, p2.x + dOx_side + dOx, p2.y + dOy_side, alayer[0] );
 
-        p1 = getPointByName(obox1cell_b.points, "pwtl");      
+        p1 = getPointByName(obox1cell_b.points, "pcml");
         p1.x = dOx + dseg_leng / 2 * -1;
-        p2 = getPointByName(obox1cell_e.points, "pwtl");        
+        p2 = getPointByName(obox1cell_e.points, "pcml");
         p2.x = dOx + dseg_leng / 2 * 1;
-        ocvs.addLine(sview, p1.x, p1.y, p2.x, p2.y, alayer[0] );  
+        ocvs.addLine(sview, p1.x - dOx, p1.y, p2.x - dOx, p2.y, alayer[0] );
 		odxf_box1cell.line( p1.x + dOx_side + dOx, p1.y + dOy_side, p2.x + dOx_side + dOx, p2.y + dOy_side, alayer[0] );
 
-        p1 = getPointByName(obox1cell_b.points, "pbl");      
+        p1 = getPointByName(obox1cell_b.points, "pwtl");
         p1.x = dOx + dseg_leng / 2 * -1;
-        p2 = getPointByName(obox1cell_e.points, "pbl");        
+        p2 = getPointByName(obox1cell_e.points, "pwtl");
         p2.x = dOx + dseg_leng / 2 * 1;
-        ocvs.addLine(sview, p1.x, p1.y, p2.x, p2.y, alayer[0] );  
+        ocvs.addLine(sview, p1.x - dOx, p1.y, p2.x - dOx, p2.y, alayer[0] );
 		odxf_box1cell.line( p1.x + dOx_side + dOx, p1.y + dOy_side, p2.x + dOx_side + dOx, p2.y + dOy_side, alayer[0] );
 
-        p1 = getPointByName(obox1cell_b.points, "ptsl");      
+        p1 = getPointByName(obox1cell_b.points, "pbl");
         p1.x = dOx + dseg_leng / 2 * -1;
-        p2 = getPointByName(obox1cell_e.points, "ptsl");        
+        p2 = getPointByName(obox1cell_e.points, "pbl");
         p2.x = dOx + dseg_leng / 2 * 1;
-        ocvs.addLine(sview, p1.x, p1.y, p2.x, p2.y, alayer[1] );     
+        ocvs.addLine(sview, p1.x - dOx, p1.y, p2.x - dOx, p2.y, alayer[0] );
+		odxf_box1cell.line( p1.x + dOx_side + dOx, p1.y + dOy_side, p2.x + dOx_side + dOx, p2.y + dOy_side, alayer[0] );
+
+        p1 = getPointByName(obox1cell_b.points, "ptsl");
+        p1.x = dOx + dseg_leng / 2 * -1;
+        p2 = getPointByName(obox1cell_e.points, "ptsl");
+        p2.x = dOx + dseg_leng / 2 * 1;
+        ocvs.addLine(sview, p1.x - dOx, p1.y, p2.x - dOx, p2.y, alayer[1] );
+		odxf_box1cell.line( p1.x + dOx_side + dOx, p1.y + dOy_side, p2.x + dOx_side + dOx, p2.y + dOy_side, alayer[1] );
+
+        p1 = getPointByName(obox1cell_b.points, "pwtlin");
+        p1.x = dOx + dseg_leng / 2 * -1;
+        p2 = getPointByName(obox1cell_e.points, "pwtlin");
+        p2.x = dOx + dseg_leng / 2 * 1;
+        ocvs.addLine(sview, p1.x - dOx, p1.y, p2.x - dOx, p2.y, alayer[1] );
+		odxf_box1cell.line( p1.x + dOx_side + dOx, p1.y + dOy_side, p2.x + dOx_side + dOx, p2.y + dOy_side, alayer[1] );
+
+        p1 = getPointByName(obox1cell_b.points, "pwblin");
+        p1.x = dOx + dseg_leng / 2 * -1;
+        p2 = getPointByName(obox1cell_e.points, "pwblin");
+        p2.x = dOx + dseg_leng / 2 * 1;
+        ocvs.addLine(sview, p1.x - dOx, p1.y, p2.x - dOx, p2.y, alayer[1] );
+		odxf_box1cell.line( p1.x + dOx_side + dOx, p1.y + dOy_side, p2.x + dOx_side + dOx, p2.y + dOy_side, alayer[1] );
+
+        p1 = getPointByName(obox1cell_b.points, "pbhl");
+        p1.x = dOx + dseg_leng / 2 * -1;
+        p2 = getPointByName(obox1cell_e.points, "pbhl");
+        p2.x = dOx + dseg_leng / 2 * 1;
+        ocvs.addLine(sview, p1.x - dOx, p1.y, p2.x - dOx, p2.y, alayer[1] );
+		odxf_box1cell.line( p1.x + dOx_side + dOx, p1.y + dOy_side, p2.x + dOx_side + dOx, p2.y + dOy_side, alayer[1] );
+
+        p1 = getPointByName(obox1cell_b.points, "pbsl");
+        p1.x = dOx + dseg_leng / 2 * -1;
+        p2 = getPointByName(obox1cell_e.points, "pbsl");
+        p2.x = dOx + dseg_leng / 2 * 1;
+        ocvs.addLine(sview, p1.x - dOx, p1.y, p2.x - dOx, p2.y, alayer[1] );
 		odxf_box1cell.line( p1.x + dOx_side + dOx, p1.y + dOy_side, p2.x + dOx_side + dOx, p2.y + dOy_side, alayer[1] );
         
-        p1 = getPointByName(obox1cell_b.points, "pwtlin");      
-        p1.x = dOx + dseg_leng / 2 * -1;
-        p2 = getPointByName(obox1cell_e.points, "pwtlin");        
-        p2.x = dOx + dseg_leng / 2 * 1;
-        ocvs.addLine(sview, p1.x, p1.y, p2.x, p2.y, alayer[1] );     
-		odxf_box1cell.line( p1.x + dOx_side + dOx, p1.y + dOy_side, p2.x + dOx_side + dOx, p2.y + dOy_side, alayer[1] );
 
-        p1 = getPointByName(obox1cell_b.points, "pwblin");      
-        p1.x = dOx + dseg_leng / 2 * -1;
-        p2 = getPointByName(obox1cell_e.points, "pwblin");        
-        p2.x = dOx + dseg_leng / 2 * 1;
-        ocvs.addLine(sview, p1.x, p1.y, p2.x, p2.y, alayer[1] );     
-		odxf_box1cell.line( p1.x + dOx_side + dOx, p1.y + dOy_side, p2.x + dOx_side + dOx, p2.y + dOy_side, alayer[1] );
-
-        p1 = getPointByName(obox1cell_b.points, "pbhl");      
-        p1.x = dOx + dseg_leng / 2 * -1;
-        p2 = getPointByName(obox1cell_e.points, "pbhl");        
-        p2.x = dOx + dseg_leng / 2 * 1;
-        ocvs.addLine(sview, p1.x, p1.y, p2.x, p2.y, alayer[1] );     
-		odxf_box1cell.line( p1.x + dOx_side + dOx, p1.y + dOy_side, p2.x + dOx_side + dOx, p2.y + dOy_side, alayer[1] );
-
-        p1 = getPointByName(obox1cell_b.points, "pbsl");      
-        p1.x = dOx + dseg_leng / 2 * -1;
-        p2 = getPointByName(obox1cell_e.points, "pbsl");        
-        p2.x = dOx + dseg_leng / 2 * 1;
-        ocvs.addLine(sview, p1.x, p1.y, p2.x, p2.y, alayer[1] );     
-		odxf_box1cell.line( p1.x + dOx_side + dOx, p1.y + dOy_side, p2.x + dOx_side + dOx, p2.y + dOy_side, alayer[1] );
-        
-
-        // 우측
+        // 우측 right view
         dOx = dseg_leng * 1.5;
-        p1 = getPointByName(obox1cell_b.points, "ptc");      
+		sview = 'right';
+
+        p1 = getPointByName(obox1cell_b.points, "ptc");
         p1.x = dOx + dseg_leng / 2 * -1;
-        p2 = getPointByName(obox1cell_e.points, "ptc");        
+        p2 = getPointByName(obox1cell_e.points, "ptc");
         p2.x = dOx + dseg_leng / 2 * 1;
-        ocvs.addLine(sview, p1.x, p1.y, p2.x, p2.y, alayer[0] );  
+        ocvs.addLine(sview, p1.x - dOx, p1.y, p2.x - dOx, p2.y, alayer[0] );
 		odxf_box1cell.line( p1.x + dOx_side + dOx, p1.y + dOy_side, p2.x + dOx_side + dOx, p2.y + dOy_side, alayer[0] );
 
-        p1 = getPointByName(obox1cell_b.points, "pbc");      
+        p1 = getPointByName(obox1cell_b.points, "pbc");
         p1.x = dOx + dseg_leng / 2 * -1;
-        p2 = getPointByName(obox1cell_e.points, "pbc");        
+        p2 = getPointByName(obox1cell_e.points, "pbc");
         p2.x = dOx + dseg_leng / 2 * 1;
-        ocvs.addLine(sview, p1.x, p1.y, p2.x, p2.y, alayer[0] );  
+        ocvs.addLine(sview, p1.x - dOx, p1.y, p2.x - dOx, p2.y, alayer[0] );
 		odxf_box1cell.line( p1.x + dOx_side + dOx, p1.y + dOy_side, p2.x + dOx_side + dOx, p2.y + dOy_side, alayer[0] );
-        
+
         if( aparam_b.dsltr >= 0 ){
-          p1 = getPointByName(obox1cell_b.points, "ptr");      
+          p1 = getPointByName(obox1cell_b.points, "ptr");
         } else {
           p1 = getPointByName(obox1cell_b.points, "ptc");
         }
-        
-        if( aparam_b.dslb * 1 >= 0 ){      
-          p2 = getPointByName(obox1cell_b.points, "pbc");        
+
+        if( aparam_b.dslb * 1 >= 0 ){
+          p2 = getPointByName(obox1cell_b.points, "pbc");
         } else {
           p2 = getPointByName(obox1cell_b.points, "pbr");
         }
           p1.x = dOx + dseg_leng / 2 * -1;
           p2.x = dOx + dseg_leng / 2 * -1;
-          ocvs.addLine(sview, p1.x, p1.y, p2.x, p2.y, alayer[0] );   
+          ocvs.addLine(sview, p1.x - dOx, p1.y, p2.x - dOx, p2.y, alayer[0] );
 		odxf_box1cell.line( p1.x + dOx_side + dOx, p1.y + dOy_side, p2.x + dOx_side + dOx, p2.y + dOy_side, alayer[0] );
-        
+
         if( aparam_e.dsltr * 1 >= 0 ){
-          p1 = getPointByName(obox1cell_e.points, "ptr");      
+          p1 = getPointByName(obox1cell_e.points, "ptr");
         } else {
           p1 = getPointByName(obox1cell_e.points, "ptc");
         }
-        
-        if( aparam_e.dslb * 1 >= 0 ){          
-          p2 = getPointByName(obox1cell_e.points, "pbc");        
+
+        if( aparam_e.dslb * 1 >= 0 ){
+          p2 = getPointByName(obox1cell_e.points, "pbc");
         } else {
           p2 = getPointByName(obox1cell_e.points, "pbr");
         }
         p1.x = dOx + dseg_leng / 2 * 1;
         p2.x = dOx + dseg_leng / 2 * 1;
-        ocvs.addLine(sview, p1.x, p1.y, p2.x, p2.y, alayer[0] );     
-		odxf_box1cell.line( p1.x + dOx_side + dOx, p1.y + dOy_side, p2.x + dOx_side + dOx, p2.y + dOy_side, alayer[0] );        
-        
-        p1 = getPointByName(obox1cell_b.points, "ptr");      
-        p1.x = dOx + dseg_leng / 2 * -1;
-        p2 = getPointByName(obox1cell_e.points, "ptr");        
-        p2.x = dOx + dseg_leng / 2 * 1;
-        ocvs.addLine(sview, p1.x, p1.y, p2.x, p2.y, alayer[0] );  
+        ocvs.addLine(sview, p1.x - dOx, p1.y, p2.x - dOx, p2.y, alayer[0] );
 		odxf_box1cell.line( p1.x + dOx_side + dOx, p1.y + dOy_side, p2.x + dOx_side + dOx, p2.y + dOy_side, alayer[0] );
 
-        p1 = getPointByName(obox1cell_b.points, "pcr");      
+        p1 = getPointByName(obox1cell_b.points, "ptr");
         p1.x = dOx + dseg_leng / 2 * -1;
-        p2 = getPointByName(obox1cell_e.points, "pcr");        
+        p2 = getPointByName(obox1cell_e.points, "ptr");
         p2.x = dOx + dseg_leng / 2 * 1;
-        ocvs.addLine(sview, p1.x, p1.y, p2.x, p2.y, alayer[0] );  
+        ocvs.addLine(sview, p1.x - dOx, p1.y, p2.x - dOx, p2.y, alayer[0] );
 		odxf_box1cell.line( p1.x + dOx_side + dOx, p1.y + dOy_side, p2.x + dOx_side + dOx, p2.y + dOy_side, alayer[0] );
 
-        p1 = getPointByName(obox1cell_b.points, "pcmr");      
+        p1 = getPointByName(obox1cell_b.points, "pcr");
         p1.x = dOx + dseg_leng / 2 * -1;
-        p2 = getPointByName(obox1cell_e.points, "pcmr");        
+        p2 = getPointByName(obox1cell_e.points, "pcr");
         p2.x = dOx + dseg_leng / 2 * 1;
-        ocvs.addLine(sview, p1.x, p1.y, p2.x, p2.y, alayer[0] );  
+        ocvs.addLine(sview, p1.x - dOx, p1.y, p2.x - dOx, p2.y, alayer[0] );
 		odxf_box1cell.line( p1.x + dOx_side + dOx, p1.y + dOy_side, p2.x + dOx_side + dOx, p2.y + dOy_side, alayer[0] );
 
-        p1 = getPointByName(obox1cell_b.points, "pwtr");      
+        p1 = getPointByName(obox1cell_b.points, "pcmr");
         p1.x = dOx + dseg_leng / 2 * -1;
-        p2 = getPointByName(obox1cell_e.points, "pwtr");        
+        p2 = getPointByName(obox1cell_e.points, "pcmr");
         p2.x = dOx + dseg_leng / 2 * 1;
-        ocvs.addLine(sview, p1.x, p1.y, p2.x, p2.y, alayer[0] );  
+        ocvs.addLine(sview, p1.x - dOx, p1.y, p2.x - dOx, p2.y, alayer[0] );
 		odxf_box1cell.line( p1.x + dOx_side + dOx, p1.y + dOy_side, p2.x + dOx_side + dOx, p2.y + dOy_side, alayer[0] );
 
-        p1 = getPointByName(obox1cell_b.points, "pbr");      
+        p1 = getPointByName(obox1cell_b.points, "pwtr");
         p1.x = dOx + dseg_leng / 2 * -1;
-        p2 = getPointByName(obox1cell_e.points, "pbr");        
+        p2 = getPointByName(obox1cell_e.points, "pwtr");
         p2.x = dOx + dseg_leng / 2 * 1;
-        ocvs.addLine(sview, p1.x, p1.y, p2.x, p2.y, alayer[0] );  
+        ocvs.addLine(sview, p1.x - dOx, p1.y, p2.x - dOx, p2.y, alayer[0] );
 		odxf_box1cell.line( p1.x + dOx_side + dOx, p1.y + dOy_side, p2.x + dOx_side + dOx, p2.y + dOy_side, alayer[0] );
 
-        p1 = getPointByName(obox1cell_b.points, "ptsr");      
+        p1 = getPointByName(obox1cell_b.points, "pbr");
         p1.x = dOx + dseg_leng / 2 * -1;
-        p2 = getPointByName(obox1cell_e.points, "ptsr");        
+        p2 = getPointByName(obox1cell_e.points, "pbr");
         p2.x = dOx + dseg_leng / 2 * 1;
-        ocvs.addLine(sview, p1.x, p1.y, p2.x, p2.y, alayer[1] );     
-		odxf_box1cell.line( p1.x + dOx_side + dOx, p1.y + dOy_side, p2.x + dOx_side + dOx, p2.y + dOy_side, alayer[1] );
-        
-        p1 = getPointByName(obox1cell_b.points, "pwtrin");      
+        ocvs.addLine(sview, p1.x - dOx, p1.y, p2.x - dOx, p2.y, alayer[0] );
+		odxf_box1cell.line( p1.x + dOx_side + dOx, p1.y + dOy_side, p2.x + dOx_side + dOx, p2.y + dOy_side, alayer[0] );
+
+        p1 = getPointByName(obox1cell_b.points, "ptsr");
         p1.x = dOx + dseg_leng / 2 * -1;
-        p2 = getPointByName(obox1cell_e.points, "pwtrin");        
+        p2 = getPointByName(obox1cell_e.points, "ptsr");
         p2.x = dOx + dseg_leng / 2 * 1;
-        ocvs.addLine(sview, p1.x, p1.y, p2.x, p2.y, alayer[1] );     
+        ocvs.addLine(sview, p1.x - dOx, p1.y, p2.x - dOx, p2.y, alayer[1] );
 		odxf_box1cell.line( p1.x + dOx_side + dOx, p1.y + dOy_side, p2.x + dOx_side + dOx, p2.y + dOy_side, alayer[1] );
 
-        p1 = getPointByName(obox1cell_b.points, "pwbrin");      
+        p1 = getPointByName(obox1cell_b.points, "pwtrin");
         p1.x = dOx + dseg_leng / 2 * -1;
-        p2 = getPointByName(obox1cell_e.points, "pwbrin");        
+        p2 = getPointByName(obox1cell_e.points, "pwtrin");
         p2.x = dOx + dseg_leng / 2 * 1;
-        ocvs.addLine(sview, p1.x, p1.y, p2.x, p2.y, alayer[1] );     
+        ocvs.addLine(sview, p1.x - dOx, p1.y, p2.x - dOx, p2.y, alayer[1] );
 		odxf_box1cell.line( p1.x + dOx_side + dOx, p1.y + dOy_side, p2.x + dOx_side + dOx, p2.y + dOy_side, alayer[1] );
 
-        p1 = getPointByName(obox1cell_b.points, "pbhr");      
+        p1 = getPointByName(obox1cell_b.points, "pwbrin");
         p1.x = dOx + dseg_leng / 2 * -1;
-        p2 = getPointByName(obox1cell_e.points, "pbhr");        
+        p2 = getPointByName(obox1cell_e.points, "pwbrin");
         p2.x = dOx + dseg_leng / 2 * 1;
-        ocvs.addLine(sview, p1.x, p1.y, p2.x, p2.y, alayer[1] );     
+        ocvs.addLine(sview, p1.x - dOx, p1.y, p2.x - dOx, p2.y, alayer[1] );
 		odxf_box1cell.line( p1.x + dOx_side + dOx, p1.y + dOy_side, p2.x + dOx_side + dOx, p2.y + dOy_side, alayer[1] );
 
-        p1 = getPointByName(obox1cell_b.points, "pbsr");      
+        p1 = getPointByName(obox1cell_b.points, "pbhr");
         p1.x = dOx + dseg_leng / 2 * -1;
-        p2 = getPointByName(obox1cell_e.points, "pbsr");        
+        p2 = getPointByName(obox1cell_e.points, "pbhr");
         p2.x = dOx + dseg_leng / 2 * 1;
-        ocvs.addLine(sview, p1.x, p1.y, p2.x, p2.y, alayer[1] );       
+        ocvs.addLine(sview, p1.x - dOx, p1.y, p2.x - dOx, p2.y, alayer[1] );
+		odxf_box1cell.line( p1.x + dOx_side + dOx, p1.y + dOy_side, p2.x + dOx_side + dOx, p2.y + dOy_side, alayer[1] );
+
+        p1 = getPointByName(obox1cell_b.points, "pbsr");
+        p1.x = dOx + dseg_leng / 2 * -1;
+        p2 = getPointByName(obox1cell_e.points, "pbsr");
+        p2.x = dOx + dseg_leng / 2 * 1;
+        ocvs.addLine(sview, p1.x - dOx, p1.y, p2.x - dOx, p2.y, alayer[1] );
 		odxf_box1cell.line( p1.x + dOx_side + dOx, p1.y + dOy_side, p2.x + dOx_side + dOx, p2.y + dOy_side, alayer[1] );
 
 
