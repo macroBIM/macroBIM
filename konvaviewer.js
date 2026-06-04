@@ -67,57 +67,53 @@ class KonvaViewer {
             });
         };
 
+        this._prevScales = {};
         const syncStages = (sourceView) => {
             const src = this.stages[sourceView];
             const srcPos = src.position();
             const srcScale = src.scaleX();
-            const srcScaleGroup = syncScaleGroups.find(g => g.includes(sourceView));
+            const prevSrcScale = this._prevScales[sourceView] || srcScale;
+            const ratio = prevSrcScale > 0 ? srcScale / prevSrcScale : 1;
 
             views.forEach(view => {
                 if (view === sourceView) return;
 
                 const target = this.stages[view];
                 const oldScale = target.scaleX();
+                let newScale = oldScale * ratio;
                 let targetX = target.x();
                 let targetY = target.y();
 
                 let syncX = syncXGroups.some(g => g.includes(sourceView) && g.includes(view));
                 let syncY = syncYGroups.some(g => g.includes(sourceView) && g.includes(view));
-                let sameScale = srcScaleGroup && srcScaleGroup.includes(view);
-                let newScale = sameScale ? srcScale : oldScale;
+
+                let cx = target.width() / 2;
+                let cy = target.height() / 2;
+                let logicalX = (cx - targetX) / oldScale;
+                let logicalY = (cy - targetY) / oldScale;
 
                 if (syncX) {
-                    if (sameScale) {
-                        targetX = srcPos.x;
-                    } else {
-                        let srcLogX = (src.width() / 2 - srcPos.x) / srcScale;
-                        targetX = target.width() / 2 - srcLogX * newScale;
-                    }
+                    let srcLogX = (src.width() / 2 - srcPos.x) / srcScale;
+                    targetX = cx - srcLogX * newScale;
                 } else {
-                    let cw = target.width() / 2;
-                    let logicalX = (cw - targetX) / oldScale;
-                    targetX = cw - logicalX * newScale;
+                    targetX = cx - logicalX * newScale;
                 }
 
                 if (syncY) {
-                    if (sameScale) {
-                        targetY = srcPos.y;
-                    } else {
-                        let srcLogY = (src.height() / 2 - srcPos.y) / srcScale;
-                        targetY = target.height() / 2 - srcLogY * newScale;
-                    }
+                    let srcLogY = (src.height() / 2 - srcPos.y) / srcScale;
+                    targetY = cy - srcLogY * newScale;
                 } else {
-                    let ch = target.height() / 2;
-                    let logicalY = (ch - targetY) / oldScale;
-                    targetY = ch - logicalY * newScale;
+                    targetY = cy - logicalY * newScale;
                 }
 
                 target.scale({ x: newScale, y: newScale });
                 target.position({ x: targetX, y: targetY });
 
                 this.updateScaleUI(this.layers[view], newScale);
+                this._prevScales[view] = newScale;
                 target.batchDraw();
             });
+            this._prevScales[sourceView] = srcScale;
         };
 
         layoutRows.forEach(row => {
@@ -415,7 +411,9 @@ class KonvaViewer {
             });
 
             views.forEach(view => {
-                this.updateScaleUI(this.layers[view], scales[view] || 1);
+                let s = scales[view] || 1;
+                this._prevScales[view] = s;
+                this.updateScaleUI(this.layers[view], s);
                 this.stages[view].batchDraw();
             });
         }, 50);
