@@ -130,7 +130,9 @@ class KonvaViewer {
                 if (row.span) {
                     wrapper.style.gridColumn = `span ${row.span}`;
                 }
-                if (config && config.square) {
+                if (config && config.aspectRatio) {
+                    wrapper.style.aspectRatio = config.aspectRatio;
+                } else if (config && config.square) {
                     wrapper.style.aspectRatio = '1';
                 } else {
                     wrapper.style.height = '100%';

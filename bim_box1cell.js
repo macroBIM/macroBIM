@@ -335,7 +335,7 @@ function fdraw_box1cell(){
 
 	var ocvs	= new KonvaViewer(scvs_box1cell, {
 		gridCols: 6,
-		square: true,
+		aspectRatio: '16/9',
 		layout: [
 			{ views: ['front', 'back'], span: 3 },
 			{ views: ['left', 'center', 'right'], span: 2 },
