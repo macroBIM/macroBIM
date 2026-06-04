@@ -388,15 +388,15 @@ class KonvaViewer {
                 });
             });
 
+            const sameScaleGroup = (a, b) =>
+                this.syncScaleGroups.some(g => g.includes(a) && g.includes(b));
+
             this.syncXGroups.forEach(group => {
                 let ref = group.find(v => this.stages[v]);
                 if (ref) {
-                    let refScale = scales[ref] || 1;
-                    let refLogX = (this.stages[ref].width() / 2 - this.stages[ref].x()) / refScale;
                     group.forEach(v => {
-                        if (v !== ref && this.stages[v]) {
-                            let vScale = scales[v] || 1;
-                            this.stages[v].x(this.stages[v].width() / 2 - refLogX * vScale);
+                        if (v !== ref && this.stages[v] && sameScaleGroup(ref, v)) {
+                            this.stages[v].x(this.stages[ref].x());
                         }
                     });
                 }
@@ -404,12 +404,9 @@ class KonvaViewer {
             this.syncYGroups.forEach(group => {
                 let ref = group.find(v => this.stages[v]);
                 if (ref) {
-                    let refScale = scales[ref] || 1;
-                    let refLogY = (this.stages[ref].height() / 2 - this.stages[ref].y()) / refScale;
                     group.forEach(v => {
-                        if (v !== ref && this.stages[v]) {
-                            let vScale = scales[v] || 1;
-                            this.stages[v].y(this.stages[v].height() / 2 - refLogY * vScale);
+                        if (v !== ref && this.stages[v] && sameScaleGroup(ref, v)) {
+                            this.stages[v].y(this.stages[ref].y());
                         }
                     });
                 }
