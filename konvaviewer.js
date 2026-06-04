@@ -18,7 +18,7 @@ class KonvaViewer {
         this.layers = {};
         this.styles = {};
 
-        let views, layoutRows, syncXGroups, syncYGroups;
+        let views, layoutRows, syncXGroups, syncYGroups, syncScaleGroups;
 
         if (config && config.layout) {
             let gridCols = config.gridCols || 6;
@@ -28,6 +28,7 @@ class KonvaViewer {
             layoutRows.forEach(r => r.views.forEach(v => views.push(v)));
             syncXGroups = config.syncX || [];
             syncYGroups = config.syncY || [];
+            syncScaleGroups = config.syncScale || [views];
         } else {
             container.style.gridTemplateColumns = '1fr 1fr';
             container.style.gridTemplateRows = '1fr 1fr';
@@ -38,10 +39,12 @@ class KonvaViewer {
             ];
             syncXGroups = [['front', 'top', 'bottom']];
             syncYGroups = [['front', 'side'], ['top', 'bottom']];
+            syncScaleGroups = [views];
         }
 
         this.syncXGroups = syncXGroups;
         this.syncYGroups = syncYGroups;
+        this.syncScaleGroups = syncScaleGroups;
 
         this.updateScaleUI = (layer, newScale) => {
             layer.find('.dimarrow').forEach(arrow => {
@@ -68,6 +71,7 @@ class KonvaViewer {
             const src = this.stages[sourceView];
             const srcPos = src.position();
             const srcScale = src.scaleX();
+            const srcScaleGroup = syncScaleGroups.find(g => g.includes(sourceView));
 
             views.forEach(view => {
                 if (view === sourceView) return;
@@ -79,25 +83,39 @@ class KonvaViewer {
 
                 let syncX = syncXGroups.some(g => g.includes(sourceView) && g.includes(view));
                 let syncY = syncYGroups.some(g => g.includes(sourceView) && g.includes(view));
+                let sameScale = srcScaleGroup && srcScaleGroup.includes(view);
+                let newScale = sameScale ? srcScale : oldScale;
 
-                if (syncX) targetX = srcPos.x;
-                else {
+                if (syncX) {
+                    if (sameScale) {
+                        targetX = srcPos.x;
+                    } else {
+                        let srcLogX = (src.width() / 2 - srcPos.x) / srcScale;
+                        targetX = target.width() / 2 - srcLogX * newScale;
+                    }
+                } else {
                     let cw = target.width() / 2;
                     let logicalX = (cw - targetX) / oldScale;
-                    targetX = cw - logicalX * srcScale;
+                    targetX = cw - logicalX * newScale;
                 }
 
-                if (syncY) targetY = srcPos.y;
-                else {
+                if (syncY) {
+                    if (sameScale) {
+                        targetY = srcPos.y;
+                    } else {
+                        let srcLogY = (src.height() / 2 - srcPos.y) / srcScale;
+                        targetY = target.height() / 2 - srcLogY * newScale;
+                    }
+                } else {
                     let ch = target.height() / 2;
                     let logicalY = (ch - targetY) / oldScale;
-                    targetY = ch - logicalY * srcScale;
+                    targetY = ch - logicalY * newScale;
                 }
 
-                target.scale({ x: srcScale, y: srcScale });
+                target.scale({ x: newScale, y: newScale });
                 target.position({ x: targetX, y: targetY });
 
-                this.updateScaleUI(this.layers[view], srcScale);
+                this.updateScaleUI(this.layers[view], newScale);
                 target.batchDraw();
             });
         };
@@ -329,8 +347,8 @@ class KonvaViewer {
 
     render() {
         setTimeout(() => {
-            let minScale = Infinity;
             let boxes = {};
+            let scales = {};
             const views = Object.keys(this.stages);
 
             views.forEach(view => {
@@ -341,46 +359,64 @@ class KonvaViewer {
                 }
                 let box = this.layers[view].getClientRect({ skipTransform: true });
                 boxes[view] = box;
-                if (box.width > 0 && box.height > 0) {
-                    let padding = 40;
-                    let scaleX = this.stages[view].width() / (box.width + padding * 2);
-                    let scaleY = this.stages[view].height() / (box.height + padding * 2);
-                    minScale = Math.min(minScale, scaleX, scaleY);
-                }
             });
-            if (minScale === Infinity) minScale = 1;
+
+            this.syncScaleGroups.forEach(group => {
+                let groupMinScale = Infinity;
+                group.forEach(view => {
+                    if (!this.stages[view]) return;
+                    let box = boxes[view];
+                    if (box.width > 0 && box.height > 0) {
+                        let padding = 40;
+                        let scaleX = this.stages[view].width() / (box.width + padding * 2);
+                        let scaleY = this.stages[view].height() / (box.height + padding * 2);
+                        groupMinScale = Math.min(groupMinScale, scaleX, scaleY);
+                    }
+                });
+                if (groupMinScale === Infinity) groupMinScale = 1;
+                group.forEach(view => { scales[view] = groupMinScale; });
+            });
 
             views.forEach(view => {
                 let stage = this.stages[view];
                 let box = boxes[view];
-                stage.scale({x: minScale, y: minScale});
+                let s = scales[view] || 1;
+                stage.scale({ x: s, y: s });
                 stage.position({
-                    x: stage.width() / 2 - (box.x + box.width / 2) * minScale,
-                    y: stage.height() / 2 - (box.y + box.height / 2) * minScale
+                    x: stage.width() / 2 - (box.x + box.width / 2) * s,
+                    y: stage.height() / 2 - (box.y + box.height / 2) * s
                 });
             });
 
             this.syncXGroups.forEach(group => {
                 let ref = group.find(v => this.stages[v]);
                 if (ref) {
-                    let refX = this.stages[ref].x();
+                    let refScale = scales[ref] || 1;
+                    let refLogX = (this.stages[ref].width() / 2 - this.stages[ref].x()) / refScale;
                     group.forEach(v => {
-                        if (v !== ref && this.stages[v]) this.stages[v].x(refX);
+                        if (v !== ref && this.stages[v]) {
+                            let vScale = scales[v] || 1;
+                            this.stages[v].x(this.stages[v].width() / 2 - refLogX * vScale);
+                        }
                     });
                 }
             });
             this.syncYGroups.forEach(group => {
                 let ref = group.find(v => this.stages[v]);
                 if (ref) {
-                    let refY = this.stages[ref].y();
+                    let refScale = scales[ref] || 1;
+                    let refLogY = (this.stages[ref].height() / 2 - this.stages[ref].y()) / refScale;
                     group.forEach(v => {
-                        if (v !== ref && this.stages[v]) this.stages[v].y(refY);
+                        if (v !== ref && this.stages[v]) {
+                            let vScale = scales[v] || 1;
+                            this.stages[v].y(this.stages[v].height() / 2 - refLogY * vScale);
+                        }
                     });
                 }
             });
 
             views.forEach(view => {
-                this.updateScaleUI(this.layers[view], minScale);
+                this.updateScaleUI(this.layers[view], scales[view] || 1);
                 this.stages[view].batchDraw();
             });
         }, 50);

@@ -342,7 +342,8 @@ function fdraw_box1cell(){
 			{ views: ['top', 'bottom'], span: 3 }
 		],
 		syncX: [['front', 'back', 'top', 'bottom'], ['left', 'center', 'right']],
-		syncY: [['front', 'back', 'left', 'center', 'right'], ['top', 'bottom']]
+		syncY: [['front', 'back', 'left', 'center', 'right'], ['top', 'bottom']],
+		syncScale: [['front', 'back'], ['left', 'center', 'right'], ['top', 'bottom']]
 	});
 
 	// 레이어
