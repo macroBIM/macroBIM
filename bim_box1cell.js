@@ -921,15 +921,41 @@ function fdraw_box1cell(){
 		alayer: alayer
 	};
 
-	// Render 3D view
-	if (typeof render_box1cell_3d === 'function' && typeof THREE !== 'undefined') {
-		render_box1cell_3d('box1cell3d', obox1cell_b, obox1cell_e, dseg_leng);
-	} else {
+	// Render 3D view (dynamically load Three.js if not available)
+	function _render3d() {
+		if (typeof render_box1cell_3d === 'function' && typeof THREE !== 'undefined') {
+			var d = _box1cell_drawData;
+			render_box1cell_3d('box1cell3d', d.obox1cell_b, d.obox1cell_e, d.dseg_leng);
+			return;
+		}
 		var msg3d = document.getElementById('box1cell3d');
 		if (msg3d) {
-			msg3d.innerHTML = '<div style="display:flex;align-items:center;justify-content:center;height:100%;color:#666;font-size:14px;">3D View (Three.js loading...)</div>';
+			msg3d.innerHTML = '<div style="display:flex;align-items:center;justify-content:center;height:100%;color:#666;font-size:14px;">3D Loading...</div>';
 		}
+		var urls = [];
+		if (typeof THREE === 'undefined') {
+			urls.push('https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js');
+			urls.push('https://unpkg.com/three@0.128.0/examples/js/controls/OrbitControls.js');
+		}
+		if (typeof render_box1cell_3d !== 'function') {
+			urls.push('https://macrobim.github.io/macroBIM/bim_box1cell_3d.js');
+		}
+		(function loadNext(i) {
+			if (i >= urls.length) {
+				if (typeof render_box1cell_3d === 'function') {
+					var d = _box1cell_drawData;
+					render_box1cell_3d('box1cell3d', d.obox1cell_b, d.obox1cell_e, d.dseg_leng);
+				}
+				return;
+			}
+			var s = document.createElement('script');
+			s.src = urls[i];
+			s.onload = function() { loadNext(i + 1); };
+			s.onerror = function() { loadNext(i + 1); };
+			document.head.appendChild(s);
+		})(0);
 	}
+	_render3d();
 
 	// Draw default 2D view (front)
 	fdraw_box1cell_2d('front');
