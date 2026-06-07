@@ -317,6 +317,8 @@ function box1cell_click() {
 		}
 	}
 
+var _box1cell_drawData = null;
+
 function fdraw_box1cell(){
 
 	var dOx, dOx_side, dOx_top, dOx_bot;
@@ -333,25 +335,45 @@ function fdraw_box1cell(){
 		PLOTLY CANVAS : activate & draw
 	*/		
 
-	var ocvs	= new KonvaViewer(scvs_box1cell, {
-		gridCols: 6,
-		aspectRatio: '16/9',
-		layout: [
-			{ views: ['front', 'back'], span: 3 },
-			{ views: ['left', 'center', 'right'], span: 2 },
-			{ views: ['top', 'bottom'], span: 3 }
-		],
-		syncX: [['front', 'back', 'top', 'bottom'], ['left', 'center', 'right']],
-		syncY: [['front', 'back', 'left', 'center', 'right'], ['top', 'bottom']],
-		syncScale: [['front', 'back'], ['left', 'center', 'right'], ['top', 'bottom']]
-	});
-
-	// 레이어
 	var alayer = ['box1cell_solid', 'box1cell_hidden', 'box1cell_center'];
-	
-	ocvs.addLayer( alayer[0], 'cyan', 'solid', 1.5);
-	ocvs.addLayer( alayer[1], 'cyan', 'hidden', 1.5);
-	ocvs.addLayer( alayer[2], 'red',  'solid', 1.5);
+
+	// Split layout: 3D (left) + Tabbed 2D (right)
+	var _container = document.getElementById(scvs_box1cell);
+	_container.innerHTML = '';
+	_container.style.display = 'flex';
+	_container.style.gap = '2px';
+	_container.style.backgroundColor = '#000';
+	_container.style.height = '560px';
+
+	var div3d = document.createElement('div');
+	div3d.id = 'box1cell3d';
+	div3d.style.cssText = 'width:50%;height:100%;';
+	_container.appendChild(div3d);
+
+	var divRight = document.createElement('div');
+	divRight.style.cssText = 'width:50%;height:100%;display:flex;flex-direction:column;';
+
+	var tabBar = document.createElement('div');
+	tabBar.style.cssText = 'display:flex;gap:2px;padding:4px;background:#1e293b;flex-shrink:0;flex-wrap:wrap;';
+	var tabNames = ['Front','Back','Left','Center','Right','Top','Bottom'];
+	tabNames.forEach(function(name, i) {
+		var btn = document.createElement('button');
+		btn.textContent = name;
+		btn.id = 'box1cell_tab_' + name.toLowerCase();
+		btn.style.cssText = 'padding:5px 12px;border:1px solid #475569;background:' + (i === 0 ? '#2563eb' : '#334155') + ';color:' + (i === 0 ? '#fff' : '#94a3b8') + ';cursor:pointer;border-radius:4px;font-size:11px;font-weight:600;';
+		btn.onclick = function() { fdraw_box1cell_2d(name.toLowerCase()); };
+		tabBar.appendChild(btn);
+	});
+	divRight.appendChild(tabBar);
+
+	var viewport2d = document.createElement('div');
+	viewport2d.id = 'box1cell_2dview';
+	viewport2d.style.cssText = 'flex:1;background:#000;min-height:0;';
+	divRight.appendChild(viewport2d);
+	_container.appendChild(divRight);
+
+	// Dummy viewer (DXF-only pass, viewer calls become no-ops)
+	var ocvs = { addLine: function(){}, addArc: function(){}, addLayer: function(){}, render: function(){} };
 
 	/*		
 		DXF Preparation
@@ -889,8 +911,285 @@ function fdraw_box1cell(){
 		odxf_box1cell.line( p1.x + dOx_side + dOx, p1.y + dOy_side, p2.x + dOx_side + dOx, p2.y + dOy_side, alayer[1] );
 
 
-	// Rendering
-	ocvs.render();		
+	// Store data for tab switching
+	_box1cell_drawData = {
+		obox1cell_b: obox1cell_b,
+		obox1cell_e: obox1cell_e,
+		aparam_b: aparam_b,
+		aparam_e: aparam_e,
+		dseg_leng: dseg_leng,
+		alayer: alayer
+	};
+
+	// Render 3D view
+	if (typeof render_box1cell_3d === 'function') {
+		render_box1cell_3d('box1cell3d', obox1cell_b, obox1cell_e, dseg_leng);
+	}
+
+	// Draw default 2D view (front)
+	fdraw_box1cell_2d('front');
+}
+
+function fdraw_box1cell_2d(viewName) {
+	if (!_box1cell_drawData) return;
+
+	var data = _box1cell_drawData;
+	var obox1cell_b = data.obox1cell_b;
+	var obox1cell_e = data.obox1cell_e;
+	var aparam_b = data.aparam_b;
+	var aparam_e = data.aparam_e;
+	var dseg_leng = data.dseg_leng;
+	var alayer = data.alayer;
+
+	// Update tab button styles
+	['front','back','left','center','right','top','bottom'].forEach(function(name) {
+		var btn = document.getElementById('box1cell_tab_' + name);
+		if (!btn) return;
+		if (name === viewName) {
+			btn.style.background = '#2563eb';
+			btn.style.color = '#fff';
+			btn.style.borderColor = '#2563eb';
+		} else {
+			btn.style.background = '#334155';
+			btn.style.color = '#94a3b8';
+			btn.style.borderColor = '#475569';
+		}
+	});
+
+	// Create single-view KonvaViewer
+	var ocvs = new KonvaViewer('box1cell_2dview', {
+		gridCols: 1,
+		layout: [{ views: [viewName], span: 1 }]
+	});
+
+	ocvs.addLayer(alayer[0], 'cyan', 'solid', 1.5);
+	ocvs.addLayer(alayer[1], 'cyan', 'hidden', 1.5);
+	ocvs.addLayer(alayer[2], 'red', 'solid', 1.5);
+
+	function gp(points, name) {
+		var found = points.find(function(p) { return p.name === name; });
+		if (found) return { ...found[name] };
+		return { x: 0, y: 0 };
+	}
+
+	var p1, p2;
+	var half = dseg_leng / 2;
+
+	if (viewName === 'front') {
+		obox1cell_b.lines.forEach(function(line) {
+			ocvs.addLine(viewName, line.x1, line.y1, line.x2, line.y2, alayer[0]);
+		});
+		obox1cell_b.arcs.forEach(function(arc) {
+			ocvs.addArc(viewName, arc.x, arc.y, arc.r, arc.angb, arc.ange, alayer[0]);
+		});
+
+	} else if (viewName === 'back') {
+		obox1cell_e.lines.forEach(function(line) {
+			ocvs.addLine(viewName, line.x1, line.y1, line.x2, line.y2, alayer[0]);
+		});
+		obox1cell_e.arcs.forEach(function(arc) {
+			ocvs.addArc(viewName, arc.x, arc.y, arc.r, arc.angb, arc.ange, alayer[0]);
+		});
+
+	} else if (viewName === 'top') {
+		var pts_b = obox1cell_b.points;
+		var pts_e = obox1cell_e.points;
+
+		p1 = gp(pts_b, "ptc"); p1.y = -half;
+		p2 = gp(pts_e, "ptc"); p2.y = half;
+		ocvs.addLine(viewName, p1.x, p1.y, p2.x, p2.y, alayer[0]);
+
+		p1 = gp(pts_b, "ptl"); p1.y = -half;
+		p2 = gp(pts_e, "ptl"); p2.y = half;
+		ocvs.addLine(viewName, p1.x, p1.y, p2.x, p2.y, alayer[0]);
+
+		p1 = gp(pts_b, "ptr"); p1.y = -half;
+		p2 = gp(pts_e, "ptr"); p2.y = half;
+		ocvs.addLine(viewName, p1.x, p1.y, p2.x, p2.y, alayer[0]);
+
+		p1 = gp(pts_b, "ptl"); p1.y = -half;
+		p2 = gp(pts_b, "ptr"); p2.y = -half;
+		ocvs.addLine(viewName, p1.x, p1.y, p2.x, p2.y, alayer[0]);
+
+		p1 = gp(pts_e, "ptl"); p1.y = half;
+		p2 = gp(pts_e, "ptr"); p2.y = half;
+		ocvs.addLine(viewName, p1.x, p1.y, p2.x, p2.y, alayer[0]);
+
+		// hidden lines
+		var hiddenNames = ["pwtl","pwtr","pwtlin","pwtrin","ptsl","ptsr","pcml","pcmr"];
+		hiddenNames.forEach(function(n) {
+			p1 = gp(pts_b, n); p1.y = -half;
+			p2 = gp(pts_e, n); p2.y = half;
+			ocvs.addLine(viewName, p1.x, p1.y, p2.x, p2.y, alayer[1]);
+		});
+
+	} else if (viewName === 'bottom') {
+		var pts_b = obox1cell_b.points;
+		var pts_e = obox1cell_e.points;
+
+		p1 = gp(pts_b, "pbl"); p1.y = -half;
+		p2 = gp(pts_e, "pbl"); p2.y = half;
+		ocvs.addLine(viewName, p1.x, p1.y, p2.x, p2.y, alayer[0]);
+
+		p1 = gp(pts_b, "pbr"); p1.y = -half;
+		p2 = gp(pts_e, "pbr"); p2.y = half;
+		ocvs.addLine(viewName, p1.x, p1.y, p2.x, p2.y, alayer[0]);
+
+		p1 = gp(pts_b, "pbl"); p1.y = -half;
+		p2 = gp(pts_b, "pbr"); p2.y = -half;
+		ocvs.addLine(viewName, p1.x, p1.y, p2.x, p2.y, alayer[0]);
+
+		p1 = gp(pts_e, "pbl"); p1.y = half;
+		p2 = gp(pts_e, "pbr"); p2.y = half;
+		ocvs.addLine(viewName, p1.x, p1.y, p2.x, p2.y, alayer[0]);
+
+		var hiddenNames = ["pwblin","pwbrin","pbsl","pbsr"];
+		hiddenNames.forEach(function(n) {
+			p1 = gp(pts_b, n); p1.y = -half;
+			p2 = gp(pts_e, n); p2.y = half;
+			ocvs.addLine(viewName, p1.x, p1.y, p2.x, p2.y, alayer[1]);
+		});
+
+	} else if (viewName === 'center') {
+		var pts_b = obox1cell_b.points;
+		var pts_e = obox1cell_e.points;
+
+		// solid outlines
+		p1 = gp(pts_b, "ptc"); p1.x = -half;
+		p2 = gp(pts_e, "ptc"); p2.x = half;
+		ocvs.addLine(viewName, p1.x, p1.y, p2.x, p2.y, alayer[0]);
+
+		p1 = gp(pts_b, "pbc"); p1.x = -half;
+		p2 = gp(pts_e, "pbc"); p2.x = half;
+		ocvs.addLine(viewName, p1.x, p1.y, p2.x, p2.y, alayer[0]);
+
+		p1 = gp(pts_b, "ptc"); p1.x = -half;
+		p2 = gp(pts_b, "pbc"); p2.x = -half;
+		ocvs.addLine(viewName, p1.x, p1.y, p2.x, p2.y, alayer[0]);
+
+		p1 = gp(pts_e, "ptc"); p1.x = half;
+		p2 = gp(pts_e, "pbc"); p2.x = half;
+		ocvs.addLine(viewName, p1.x, p1.y, p2.x, p2.y, alayer[0]);
+
+		p1 = gp(pts_b, "ptsc"); p1.x = -half;
+		p2 = gp(pts_e, "ptsc"); p2.x = half;
+		ocvs.addLine(viewName, p1.x, p1.y, p2.x, p2.y, alayer[0]);
+
+		p1 = gp(pts_b, "pbsc"); p1.x = -half;
+		p2 = gp(pts_e, "pbsc"); p2.x = half;
+		ocvs.addLine(viewName, p1.x, p1.y, p2.x, p2.y, alayer[0]);
+
+	} else if (viewName === 'left') {
+		var pts_b = obox1cell_b.points;
+		var pts_e = obox1cell_e.points;
+
+		// solid lines
+		p1 = gp(pts_b, "ptc"); p1.x = -half;
+		p2 = gp(pts_e, "ptc"); p2.x = half;
+		ocvs.addLine(viewName, p1.x, p1.y, p2.x, p2.y, alayer[0]);
+
+		p1 = gp(pts_b, "pbc"); p1.x = -half;
+		p2 = gp(pts_e, "pbc"); p2.x = half;
+		ocvs.addLine(viewName, p1.x, p1.y, p2.x, p2.y, alayer[0]);
+
+		// begin edge
+		if (aparam_b.dsltl >= 0) {
+			p1 = gp(pts_b, "ptc");
+		} else {
+			p1 = gp(pts_b, "ptl");
+		}
+		if (aparam_b.dslb * 1 >= 0) {
+			p2 = gp(pts_b, "pbl");
+		} else {
+			p2 = gp(pts_b, "pbc");
+		}
+		p1.x = -half; p2.x = -half;
+		ocvs.addLine(viewName, p1.x, p1.y, p2.x, p2.y, alayer[0]);
+
+		// end edge
+		if (aparam_e.dsltl * 1 >= 0) {
+			p1 = gp(pts_e, "ptc");
+		} else {
+			p1 = gp(pts_e, "ptl");
+		}
+		if (aparam_e.dslb * 1 >= 0) {
+			p2 = gp(pts_e, "pbl");
+		} else {
+			p2 = gp(pts_e, "pbc");
+		}
+		p1.x = half; p2.x = half;
+		ocvs.addLine(viewName, p1.x, p1.y, p2.x, p2.y, alayer[0]);
+
+		var solidNames = ["ptl","pcl","pcml","pwtl","pbl"];
+		solidNames.forEach(function(n) {
+			p1 = gp(pts_b, n); p1.x = -half;
+			p2 = gp(pts_e, n); p2.x = half;
+			ocvs.addLine(viewName, p1.x, p1.y, p2.x, p2.y, alayer[0]);
+		});
+
+		var hiddenNames = ["ptsl","pwtlin","pwblin","pbhl","pbsl"];
+		hiddenNames.forEach(function(n) {
+			p1 = gp(pts_b, n); p1.x = -half;
+			p2 = gp(pts_e, n); p2.x = half;
+			ocvs.addLine(viewName, p1.x, p1.y, p2.x, p2.y, alayer[1]);
+		});
+
+	} else if (viewName === 'right') {
+		var pts_b = obox1cell_b.points;
+		var pts_e = obox1cell_e.points;
+
+		p1 = gp(pts_b, "ptc"); p1.x = -half;
+		p2 = gp(pts_e, "ptc"); p2.x = half;
+		ocvs.addLine(viewName, p1.x, p1.y, p2.x, p2.y, alayer[0]);
+
+		p1 = gp(pts_b, "pbc"); p1.x = -half;
+		p2 = gp(pts_e, "pbc"); p2.x = half;
+		ocvs.addLine(viewName, p1.x, p1.y, p2.x, p2.y, alayer[0]);
+
+		// begin edge
+		if (aparam_b.dsltr >= 0) {
+			p1 = gp(pts_b, "ptr");
+		} else {
+			p1 = gp(pts_b, "ptc");
+		}
+		if (aparam_b.dslb * 1 >= 0) {
+			p2 = gp(pts_b, "pbc");
+		} else {
+			p2 = gp(pts_b, "pbr");
+		}
+		p1.x = -half; p2.x = -half;
+		ocvs.addLine(viewName, p1.x, p1.y, p2.x, p2.y, alayer[0]);
+
+		// end edge
+		if (aparam_e.dsltr * 1 >= 0) {
+			p1 = gp(pts_e, "ptr");
+		} else {
+			p1 = gp(pts_e, "ptc");
+		}
+		if (aparam_e.dslb * 1 >= 0) {
+			p2 = gp(pts_e, "pbc");
+		} else {
+			p2 = gp(pts_e, "pbr");
+		}
+		p1.x = half; p2.x = half;
+		ocvs.addLine(viewName, p1.x, p1.y, p2.x, p2.y, alayer[0]);
+
+		var solidNames = ["ptr","pcr","pcmr","pwtr","pbr"];
+		solidNames.forEach(function(n) {
+			p1 = gp(pts_b, n); p1.x = -half;
+			p2 = gp(pts_e, n); p2.x = half;
+			ocvs.addLine(viewName, p1.x, p1.y, p2.x, p2.y, alayer[0]);
+		});
+
+		var hiddenNames = ["ptsr","pwtrin","pwbrin","pbhr","pbsr"];
+		hiddenNames.forEach(function(n) {
+			p1 = gp(pts_b, n); p1.x = -half;
+			p2 = gp(pts_e, n); p2.x = half;
+			ocvs.addLine(viewName, p1.x, p1.y, p2.x, p2.y, alayer[1]);
+		});
+	}
+
+	ocvs.render();
 }
 
 
