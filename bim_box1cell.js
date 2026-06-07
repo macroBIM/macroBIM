@@ -347,20 +347,20 @@ function fdraw_box1cell(){
 
 	var div3d = document.createElement('div');
 	div3d.id = 'box1cell3d';
-	div3d.style.cssText = 'width:50%;height:100%;';
+	div3d.style.cssText = 'width:50%;height:560px;background:#1a1a2e;';
 	_container.appendChild(div3d);
 
 	var divRight = document.createElement('div');
-	divRight.style.cssText = 'width:50%;height:100%;display:flex;flex-direction:column;';
+	divRight.style.cssText = 'width:50%;height:560px;';
 
 	var tabBar = document.createElement('div');
-	tabBar.style.cssText = 'display:flex;gap:2px;padding:4px;background:#1e293b;flex-shrink:0;flex-wrap:wrap;';
+	tabBar.style.cssText = 'display:flex;gap:2px;padding:4px;background:#1e293b;flex-wrap:wrap;height:34px;box-sizing:border-box;';
 	var tabNames = ['Front','Back','Left','Center','Right','Top','Bottom'];
 	tabNames.forEach(function(name, i) {
 		var btn = document.createElement('button');
 		btn.textContent = name;
 		btn.id = 'box1cell_tab_' + name.toLowerCase();
-		btn.style.cssText = 'padding:5px 12px;border:1px solid #475569;background:' + (i === 0 ? '#2563eb' : '#334155') + ';color:' + (i === 0 ? '#fff' : '#94a3b8') + ';cursor:pointer;border-radius:4px;font-size:11px;font-weight:600;';
+		btn.style.cssText = 'padding:4px 10px;border:1px solid #475569;background:' + (i === 0 ? '#2563eb' : '#334155') + ';color:' + (i === 0 ? '#fff' : '#94a3b8') + ';cursor:pointer;border-radius:4px;font-size:11px;font-weight:600;';
 		btn.onclick = function() { fdraw_box1cell_2d(name.toLowerCase()); };
 		tabBar.appendChild(btn);
 	});
@@ -368,7 +368,7 @@ function fdraw_box1cell(){
 
 	var viewport2d = document.createElement('div');
 	viewport2d.id = 'box1cell_2dview';
-	viewport2d.style.cssText = 'flex:1;background:#000;min-height:0;';
+	viewport2d.style.cssText = 'width:100%;height:526px;background:#000;';
 	divRight.appendChild(viewport2d);
 	_container.appendChild(divRight);
 
@@ -922,8 +922,13 @@ function fdraw_box1cell(){
 	};
 
 	// Render 3D view
-	if (typeof render_box1cell_3d === 'function') {
+	if (typeof render_box1cell_3d === 'function' && typeof THREE !== 'undefined') {
 		render_box1cell_3d('box1cell3d', obox1cell_b, obox1cell_e, dseg_leng);
+	} else {
+		var msg3d = document.getElementById('box1cell3d');
+		if (msg3d) {
+			msg3d.innerHTML = '<div style="display:flex;align-items:center;justify-content:center;height:100%;color:#666;font-size:14px;">3D View (Three.js loading...)</div>';
+		}
 	}
 
 	// Draw default 2D view (front)
