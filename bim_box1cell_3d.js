@@ -50,16 +50,16 @@ function render_box1cell_3d(containerId, geoBegin, geoEnd, segLength) {
     var innerEndIdx = [];
 
     for (var i = 0; i < outerCountVal; i++) {
-        outerBeginIdx.push(pushVertex(outerBegin[i].x, outerBegin[i].y, -halfLen));
+        outerBeginIdx.push(pushVertex(outerBegin[i].x, outerBegin[i].y, halfLen));
     }
     for (var i = 0; i < outerCountVal; i++) {
-        outerEndIdx.push(pushVertex(outerEnd[i].x, outerEnd[i].y, halfLen));
+        outerEndIdx.push(pushVertex(outerEnd[i].x, outerEnd[i].y, -halfLen));
     }
     for (var i = 0; i < innerCountVal; i++) {
-        innerBeginIdx.push(pushVertex(innerBegin[i].x, innerBegin[i].y, -halfLen));
+        innerBeginIdx.push(pushVertex(innerBegin[i].x, innerBegin[i].y, halfLen));
     }
     for (var i = 0; i < innerCountVal; i++) {
-        innerEndIdx.push(pushVertex(innerEnd[i].x, innerEnd[i].y, halfLen));
+        innerEndIdx.push(pushVertex(innerEnd[i].x, innerEnd[i].y, -halfLen));
     }
 
     for (var i = 0; i < outerCountVal; i++) {
@@ -86,8 +86,8 @@ function render_box1cell_3d(containerId, geoBegin, geoEnd, segLength) {
     geometry.setIndex(indices);
     geometry.computeVertexNormals();
 
-    var capBeginGeo = buildCapGeometry(outerBegin, innerBegin, -halfLen);
-    var capEndGeo = buildCapGeometry(outerEnd, innerEnd, halfLen);
+    var capBeginGeo = buildCapGeometry(outerBegin, innerBegin, halfLen);
+    var capEndGeo = buildCapGeometry(outerEnd, innerEnd, -halfLen);
 
     var material = new THREE.MeshPhongMaterial({
         color: 0x4488aa,
@@ -106,7 +106,7 @@ function render_box1cell_3d(containerId, geoBegin, geoEnd, segLength) {
 
     var outerBeginLineVerts = [];
     for (var i = 0; i < outerCountVal; i++) {
-        outerBeginLineVerts.push(new THREE.Vector3(outerBegin[i].x, outerBegin[i].y, -halfLen));
+        outerBeginLineVerts.push(new THREE.Vector3(outerBegin[i].x, outerBegin[i].y, halfLen));
     }
     outerBeginLineVerts.push(outerBeginLineVerts[0].clone());
     var obLineGeo = new THREE.BufferGeometry().setFromPoints(outerBeginLineVerts);
@@ -114,7 +114,7 @@ function render_box1cell_3d(containerId, geoBegin, geoEnd, segLength) {
 
     var outerEndLineVerts = [];
     for (var i = 0; i < outerCountVal; i++) {
-        outerEndLineVerts.push(new THREE.Vector3(outerEnd[i].x, outerEnd[i].y, halfLen));
+        outerEndLineVerts.push(new THREE.Vector3(outerEnd[i].x, outerEnd[i].y, -halfLen));
     }
     outerEndLineVerts.push(outerEndLineVerts[0].clone());
     var oeLineGeo = new THREE.BufferGeometry().setFromPoints(outerEndLineVerts);
@@ -122,7 +122,7 @@ function render_box1cell_3d(containerId, geoBegin, geoEnd, segLength) {
 
     var innerBeginLineVerts = [];
     for (var i = 0; i < innerCountVal; i++) {
-        innerBeginLineVerts.push(new THREE.Vector3(innerBegin[i].x, innerBegin[i].y, -halfLen));
+        innerBeginLineVerts.push(new THREE.Vector3(innerBegin[i].x, innerBegin[i].y, halfLen));
     }
     innerBeginLineVerts.push(innerBeginLineVerts[0].clone());
     var ibLineGeo = new THREE.BufferGeometry().setFromPoints(innerBeginLineVerts);
@@ -130,7 +130,7 @@ function render_box1cell_3d(containerId, geoBegin, geoEnd, segLength) {
 
     var innerEndLineVerts = [];
     for (var i = 0; i < innerCountVal; i++) {
-        innerEndLineVerts.push(new THREE.Vector3(innerEnd[i].x, innerEnd[i].y, halfLen));
+        innerEndLineVerts.push(new THREE.Vector3(innerEnd[i].x, innerEnd[i].y, -halfLen));
     }
     innerEndLineVerts.push(innerEndLineVerts[0].clone());
     var ieLineGeo = new THREE.BufferGeometry().setFromPoints(innerEndLineVerts);
@@ -138,15 +138,15 @@ function render_box1cell_3d(containerId, geoBegin, geoEnd, segLength) {
 
     for (var i = 0; i < outerCountVal; i++) {
         var longGeo = new THREE.BufferGeometry().setFromPoints([
-            new THREE.Vector3(outerBegin[i].x, outerBegin[i].y, -halfLen),
-            new THREE.Vector3(outerEnd[i].x, outerEnd[i].y, halfLen)
+            new THREE.Vector3(outerBegin[i].x, outerBegin[i].y, halfLen),
+            new THREE.Vector3(outerEnd[i].x, outerEnd[i].y, -halfLen)
         ]);
         edgeGroup.add(new THREE.Line(longGeo, edgeMaterial));
     }
     for (var i = 0; i < innerCountVal; i++) {
         var longGeo = new THREE.BufferGeometry().setFromPoints([
-            new THREE.Vector3(innerBegin[i].x, innerBegin[i].y, -halfLen),
-            new THREE.Vector3(innerEnd[i].x, innerEnd[i].y, halfLen)
+            new THREE.Vector3(innerBegin[i].x, innerBegin[i].y, halfLen),
+            new THREE.Vector3(innerEnd[i].x, innerEnd[i].y, -halfLen)
         ]);
         edgeGroup.add(new THREE.Line(longGeo, edgeMaterial));
     }
