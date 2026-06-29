@@ -314,6 +314,8 @@ function fdraw_ibeam_2d(viewName) {
     var data = _ibeam_drawData;
     var oibeam_b = data.oibeam_b;
     var oibeam_e = data.oibeam_e;
+    var aparam_b = data.aparam_b;
+    var aparam_e = data.aparam_e;
     var dseg_leng = data.dseg_leng;
     var alayer = data.alayer;
 
@@ -350,40 +352,117 @@ function fdraw_ibeam_2d(viewName) {
 
     var p1, p2;
     var half = dseg_leng / 2;
+    var ddim_ext = 20;   // dimension extension length
+    var ddim_off = 20;   // offset from geometry
+
+    // Helper: cross-section dimensions on a single section (Begin or End)
+    function _xsec_dims(geo, ap) {
+        var ptl  = gp(geo.points, 'ptl');
+        var ptfl = gp(geo.points, 'ptfl');
+        var pwtl = gp(geo.points, 'pwtl');
+        var pwbl = gp(geo.points, 'pwbl');
+        var pbfl = gp(geo.points, 'pbfl');
+        var pbl  = gp(geo.points, 'pbl');
+        var ptr  = gp(geo.points, 'ptr');
+        var pwtr = gp(geo.points, 'pwtr');
+        var pwbr = gp(geo.points, 'pwbr');
+        var pbr  = gp(geo.points, 'pbr');
+
+        var xleft = Math.min(pbl.x, ptl.x);
+
+        // Vertical chain (left side)
+        ocvs.addDimLinear(viewName, xleft - ddim_off, pbl.y,  xleft - ddim_off, ptl.y,  ddim_ext * 6);
+        ocvs.addDimLinear(viewName, xleft - ddim_off, pbl.y,  xleft - ddim_off, pbfl.y, ddim_ext * 3);
+        ocvs.addDimLinear(viewName, xleft - ddim_off, pbfl.y, xleft - ddim_off, pwbl.y, ddim_ext * 3);
+        ocvs.addDimLinear(viewName, xleft - ddim_off, pwbl.y, xleft - ddim_off, pwtl.y, ddim_ext * 3);
+        ocvs.addDimLinear(viewName, xleft - ddim_off, pwtl.y, xleft - ddim_off, ptfl.y, ddim_ext * 3);
+        ocvs.addDimLinear(viewName, xleft - ddim_off, ptfl.y, xleft - ddim_off, ptl.y,  ddim_ext * 3);
+
+        // Horizontal chain (top)
+        ocvs.addDimLinear(viewName, ptl.x,  ptl.y + ddim_off, ptr.x,  ptr.y + ddim_off, ddim_ext * 6);
+        ocvs.addDimLinear(viewName, ptl.x,  ptl.y + ddim_off, pwtl.x, ptl.y + ddim_off, ddim_ext * 3);
+        ocvs.addDimLinear(viewName, pwtl.x, ptl.y + ddim_off, pwtr.x, ptr.y + ddim_off, ddim_ext * 3);
+        ocvs.addDimLinear(viewName, pwtr.x, ptl.y + ddim_off, ptr.x,  ptr.y + ddim_off, ddim_ext * 3);
+
+        // Horizontal chain (bottom)
+        ocvs.addDimLinear(viewName, pbl.x,  pbl.y - ddim_off, pbr.x,  pbr.y - ddim_off, ddim_ext * -6);
+        ocvs.addDimLinear(viewName, pbl.x,  pbl.y - ddim_off, pwbl.x, pbl.y - ddim_off, ddim_ext * -3);
+        ocvs.addDimLinear(viewName, pwbl.x, pbl.y - ddim_off, pwbr.x, pbr.y - ddim_off, ddim_ext * -3);
+        ocvs.addDimLinear(viewName, pwbr.x, pbl.y - ddim_off, pbr.x,  pbr.y - ddim_off, ddim_ext * -3);
+
+        // Fillet radii (right side) — only when radius > 0 and arc exists
+        var arcsByPos = {};
+        geo.arcs.forEach(function(a) {
+            // map by approximate position to identify which fillet
+            if (a.ox > 0 && a.oy > (ap.dh / 2)) arcsByPos.tr = a;
+            else if (a.ox > 0 && a.oy > 0 && a.oy < (ap.dh / 2)) arcsByPos.wbr = a;
+            else if (a.ox > 0 && a.oy < (ap.dh / 2) && a.oy > 0) arcsByPos.br = a;
+        });
+        geo.arcs.forEach(function(a) {
+            if (a.ox > 0) {
+                var angle = a.oy > (ap.dh * 0.7) ? -45
+                          : a.oy > (ap.dh * 0.45) ? 135
+                          : a.oy > (ap.dh * 0.15) ? 225
+                          : 45;
+                ocvs.addDimRadius(viewName, a.ox, a.oy, a.r, angle);
+            }
+        });
+
+        // Chamfer length
+        if (ap.dchb > 0) {
+            // place dim near right chamfer
+            var chf_xb = pbr.x;
+            var chf_yb = pbfl.y; // approx
+            ocvs.addDimLinear(viewName, pbr.x + ddim_off, pbr.y + ap.dchb, pbr.x + ddim_off, pbr.y, ddim_ext * -3);
+        }
+    }
 
     if (viewName === 'front') {
         oibeam_b.lines.forEach(line =>
             ocvs.addLine(viewName, line.x1, line.y1, line.x2, line.y2, alayer[0]));
         oibeam_b.arcs.forEach(arc =>
             ocvs.addArc(viewName, arc.x, arc.y, arc.r, arc.angb, arc.ange, alayer[0]));
+        _xsec_dims(oibeam_b, aparam_b);
 
     } else if (viewName === 'back') {
         oibeam_e.lines.forEach(line =>
             ocvs.addLine(viewName, line.x1, line.y1, line.x2, line.y2, alayer[0]));
         oibeam_e.arcs.forEach(arc =>
             ocvs.addArc(viewName, arc.x, arc.y, arc.r, arc.angb, arc.ange, alayer[0]));
+        _xsec_dims(oibeam_e, aparam_e);
 
     } else if (viewName === 'top') {
         // Plan view at top flange: x = section x, y = length axis (-half → +half)
         var pts_b = oibeam_b.points;
         var pts_e = oibeam_e.points;
 
-        // outer outline lines (begin→end edges along length)
         ['ptl', 'ptr'].forEach(n => {
             p1 = gp(pts_b, n); p2 = gp(pts_e, n);
             ocvs.addLine(viewName, p1.x, -half, p2.x, half, alayer[0]);
         });
-        // begin/end transverse lines
         p1 = gp(pts_b, "ptl"); p2 = gp(pts_b, "ptr");
         ocvs.addLine(viewName, p1.x, -half, p2.x, -half, alayer[0]);
         p1 = gp(pts_e, "ptl"); p2 = gp(pts_e, "ptr");
         ocvs.addLine(viewName, p1.x, half, p2.x, half, alayer[0]);
 
-        // Hidden: web edges visible from top through flange
         ['pwtl', 'pwtr'].forEach(n => {
             p1 = gp(pts_b, n); p2 = gp(pts_e, n);
             ocvs.addLine(viewName, p1.x, -half, p2.x, half, alayer[1]);
         });
+
+        // Dimensions
+        var ptl_b = gp(pts_b, "ptl"), ptr_b = gp(pts_b, "ptr");
+        var pwtl_b = gp(pts_b, "pwtl"), pwtr_b = gp(pts_b, "pwtr");
+        var ptl_e = gp(pts_e, "ptl"), ptr_e = gp(pts_e, "ptr");
+        // length
+        ocvs.addDimLinear(viewName, ptl_b.x - ddim_off, -half, ptl_b.x - ddim_off, half, ddim_ext * 6);
+        // Begin width chain
+        ocvs.addDimLinear(viewName, ptl_b.x, -half - ddim_off, ptr_b.x, -half - ddim_off, ddim_ext * -6);
+        ocvs.addDimLinear(viewName, ptl_b.x, -half - ddim_off, pwtl_b.x, -half - ddim_off, ddim_ext * -3);
+        ocvs.addDimLinear(viewName, pwtl_b.x, -half - ddim_off, pwtr_b.x, -half - ddim_off, ddim_ext * -3);
+        ocvs.addDimLinear(viewName, pwtr_b.x, -half - ddim_off, ptr_b.x, -half - ddim_off, ddim_ext * -3);
+        // End width
+        ocvs.addDimLinear(viewName, ptl_e.x, half + ddim_off, ptr_e.x, half + ddim_off, ddim_ext * 6);
 
     } else if (viewName === 'bottom') {
         var pts_b = oibeam_b.points;
@@ -403,6 +482,16 @@ function fdraw_ibeam_2d(viewName) {
             ocvs.addLine(viewName, p1.x, -half, p2.x, half, alayer[1]);
         });
 
+        var pbl_b = gp(pts_b, "pbl"), pbr_b = gp(pts_b, "pbr");
+        var pwbl_b = gp(pts_b, "pwbl"), pwbr_b = gp(pts_b, "pwbr");
+        var pbl_e = gp(pts_e, "pbl"), pbr_e = gp(pts_e, "pbr");
+        ocvs.addDimLinear(viewName, pbl_b.x - ddim_off, -half, pbl_b.x - ddim_off, half, ddim_ext * 6);
+        ocvs.addDimLinear(viewName, pbl_b.x, -half - ddim_off, pbr_b.x, -half - ddim_off, ddim_ext * -6);
+        ocvs.addDimLinear(viewName, pbl_b.x, -half - ddim_off, pwbl_b.x, -half - ddim_off, ddim_ext * -3);
+        ocvs.addDimLinear(viewName, pwbl_b.x, -half - ddim_off, pwbr_b.x, -half - ddim_off, ddim_ext * -3);
+        ocvs.addDimLinear(viewName, pwbr_b.x, -half - ddim_off, pbr_b.x, -half - ddim_off, ddim_ext * -3);
+        ocvs.addDimLinear(viewName, pbl_e.x, half + ddim_off, pbr_e.x, half + ddim_off, ddim_ext * 6);
+
     } else if (viewName === 'left' || viewName === 'right' || viewName === 'center') {
         // Side view: x = length axis (-half → +half), y = section height
         var pts_b = oibeam_b.points;
@@ -419,6 +508,22 @@ function fdraw_ibeam_2d(viewName) {
         let pbt_e = gp(pts_e, "ptl"), pbb_e = gp(pts_e, "pbl");
         ocvs.addLine(viewName, -half, pbb_b.y, -half, pbt_b.y, alayer[0]);
         ocvs.addLine(viewName,  half, pbb_e.y,  half, pbt_e.y, alayer[0]);
+
+        // Dimensions on Begin side (left cap)
+        var ptfl_b = gp(pts_b, "ptfl"), pwtl_b = gp(pts_b, "pwtl");
+        var pwbl_b = gp(pts_b, "pwbl"), pbfl_b = gp(pts_b, "pbfl");
+        ocvs.addDimLinear(viewName, -half - ddim_off, pbb_b.y, -half - ddim_off, pbt_b.y,  ddim_ext * 6);
+        ocvs.addDimLinear(viewName, -half - ddim_off, pbb_b.y, -half - ddim_off, pbfl_b.y, ddim_ext * 3);
+        ocvs.addDimLinear(viewName, -half - ddim_off, pbfl_b.y, -half - ddim_off, pwbl_b.y, ddim_ext * 3);
+        ocvs.addDimLinear(viewName, -half - ddim_off, pwbl_b.y, -half - ddim_off, pwtl_b.y, ddim_ext * 3);
+        ocvs.addDimLinear(viewName, -half - ddim_off, pwtl_b.y, -half - ddim_off, ptfl_b.y, ddim_ext * 3);
+        ocvs.addDimLinear(viewName, -half - ddim_off, ptfl_b.y, -half - ddim_off, pbt_b.y,  ddim_ext * 3);
+
+        // Length dim on top
+        ocvs.addDimLinear(viewName, -half, pbt_b.y + ddim_off, half, pbt_e.y + ddim_off, ddim_ext * 6);
+
+        // End cap height dim
+        ocvs.addDimLinear(viewName, half + ddim_off, pbb_e.y, half + ddim_off, pbt_e.y, ddim_ext * 6);
     }
 
     ocvs.render();
