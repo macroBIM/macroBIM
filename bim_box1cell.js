@@ -1006,6 +1006,61 @@ function fdraw_box1cell_2d(viewName) {
 	var p1, p2;
 	var half = dseg_leng / 2;
 
+	// ── dimension setup (uniform across views) ──
+	var ddim_off = Math.max(aparam_b.dh, aparam_e.dh, aparam_b.dbt, aparam_e.dbt) * 0.04;
+	var ddim_ext = ddim_off;
+
+	function _xsec_dims_b1c(geo, ap) {
+		// Pull all named points (some may be missing depending on geometry)
+		var ptl  = gp(geo.points, 'ptl');
+		var ptr  = gp(geo.points, 'ptr');
+		var ptc  = gp(geo.points, 'ptc');
+		var pcl  = gp(geo.points, 'pcl');
+		var pcr  = gp(geo.points, 'pcr');
+		var pcml = gp(geo.points, 'pcml');
+		var pcmr = gp(geo.points, 'pcmr');
+		var pwtl = gp(geo.points, 'pwtl');
+		var pwtr = gp(geo.points, 'pwtr');
+		var pbl  = gp(geo.points, 'pbl');
+		var pbr  = gp(geo.points, 'pbr');
+		var pbc  = gp(geo.points, 'pbc');
+		var ptsl = gp(geo.points, 'ptsl');
+		var ptsr = gp(geo.points, 'ptsr');
+		var pbsl = gp(geo.points, 'pbsl');
+		var pbsr = gp(geo.points, 'pbsr');
+		var pbhl = gp(geo.points, 'pbhl');
+		var pbhr = gp(geo.points, 'pbhr');
+
+		var ymax = Math.max(ptl.y, ptr.y, ptc.y);
+		var ymin = Math.min(pbl.y, pbr.y, pbc.y);
+		var xleft = Math.min(ptl.x, pbl.x);
+		var xright = Math.max(ptr.x, pbr.x);
+
+		// Total height (left side)
+		ocvs.addDimLinear(viewName, xleft - ddim_off, ymin, xleft - ddim_off, ymax, ddim_ext * 6);
+		// t1 (top slab thickness) — from ptsl up to top
+		if (ptsl.x !== 0 || ptsl.y !== 0) {
+			ocvs.addDimLinear(viewName, xleft - ddim_off, ptsl.y, xleft - ddim_off, ymax, ddim_ext * 3);
+		}
+		// tb (bottom slab thickness) — from pbsl down to bottom
+		if (pbsl.x !== 0 || pbsl.y !== 0) {
+			ocvs.addDimLinear(viewName, xleft - ddim_off, ymin, xleft - ddim_off, pbsl.y, ddim_ext * 3);
+		}
+
+		// Top-edge width chain: bcan / bcanh / mid / bcanh / bcan
+		ocvs.addDimLinear(viewName, ptl.x, ymax + ddim_off, ptr.x, ymax + ddim_off, ddim_ext * 6);
+		ocvs.addDimLinear(viewName, ptl.x,  ymax + ddim_off, pcml.x, ymax + ddim_off, ddim_ext * 3);
+		ocvs.addDimLinear(viewName, pcml.x, ymax + ddim_off, pwtl.x, ymax + ddim_off, ddim_ext * 3);
+		ocvs.addDimLinear(viewName, pwtl.x, ymax + ddim_off, pwtr.x, ymax + ddim_off, ddim_ext * 3);
+		ocvs.addDimLinear(viewName, pwtr.x, ymax + ddim_off, pcmr.x, ymax + ddim_off, ddim_ext * 3);
+		ocvs.addDimLinear(viewName, pcmr.x, ymax + ddim_off, ptr.x,  ymax + ddim_off, ddim_ext * 3);
+
+		// Bottom-edge width (bb)
+		ocvs.addDimLinear(viewName, pbl.x, ymin - ddim_off, pbr.x, ymin - ddim_off, ddim_ext * -6);
+
+		// Right side: total height again (mirror for symmetry) — skip to keep clean
+	}
+
 	if (viewName === 'front') {
 		obox1cell_b.lines.forEach(function(line) {
 			ocvs.addLine(viewName, line.x1, line.y1, line.x2, line.y2, alayer[0]);
@@ -1013,6 +1068,7 @@ function fdraw_box1cell_2d(viewName) {
 		obox1cell_b.arcs.forEach(function(arc) {
 			ocvs.addArc(viewName, arc.x, arc.y, arc.r, arc.angb, arc.ange, alayer[0]);
 		});
+		_xsec_dims_b1c(obox1cell_b, aparam_b);
 
 	} else if (viewName === 'back') {
 		obox1cell_e.lines.forEach(function(line) {
@@ -1021,6 +1077,7 @@ function fdraw_box1cell_2d(viewName) {
 		obox1cell_e.arcs.forEach(function(arc) {
 			ocvs.addArc(viewName, arc.x, arc.y, arc.r, arc.angb, arc.ange, alayer[0]);
 		});
+		_xsec_dims_b1c(obox1cell_e, aparam_e);
 
 	} else if (viewName === 'top') {
 		var pts_b = obox1cell_b.points;
@@ -1054,6 +1111,17 @@ function fdraw_box1cell_2d(viewName) {
 			ocvs.addLine(viewName, p1.x, p1.y, p2.x, p2.y, alayer[1]);
 		});
 
+		// === Top view dimensions ===
+		var ptl_b = gp(pts_b, "ptl"), ptr_b = gp(pts_b, "ptr");
+		var ptl_e = gp(pts_e, "ptl"), ptr_e = gp(pts_e, "ptr");
+		// length on the left
+		ocvs.addDimLinear(viewName, Math.min(ptl_b.x, ptl_e.x) - ddim_off, -half,
+		                            Math.min(ptl_b.x, ptl_e.x) - ddim_off,  half, ddim_ext * 6);
+		// Begin width on bottom
+		ocvs.addDimLinear(viewName, ptl_b.x, -half - ddim_off, ptr_b.x, -half - ddim_off, ddim_ext * -6);
+		// End width on top
+		ocvs.addDimLinear(viewName, ptl_e.x,  half + ddim_off, ptr_e.x,  half + ddim_off, ddim_ext * 6);
+
 	} else if (viewName === 'bottom') {
 		var pts_b = obox1cell_b.points;
 		var pts_e = obox1cell_e.points;
@@ -1080,6 +1148,14 @@ function fdraw_box1cell_2d(viewName) {
 			p2 = gp(pts_e, n); p2.y = half;
 			ocvs.addLine(viewName, p1.x, p1.y, p2.x, p2.y, alayer[1]);
 		});
+
+		// === Bottom view dimensions ===
+		var pbl_b = gp(pts_b, "pbl"), pbr_b = gp(pts_b, "pbr");
+		var pbl_e = gp(pts_e, "pbl"), pbr_e = gp(pts_e, "pbr");
+		ocvs.addDimLinear(viewName, Math.min(pbl_b.x, pbl_e.x) - ddim_off, -half,
+		                            Math.min(pbl_b.x, pbl_e.x) - ddim_off,  half, ddim_ext * 6);
+		ocvs.addDimLinear(viewName, pbl_b.x, -half - ddim_off, pbr_b.x, -half - ddim_off, ddim_ext * -6);
+		ocvs.addDimLinear(viewName, pbl_e.x,  half + ddim_off, pbr_e.x,  half + ddim_off, ddim_ext * 6);
 
 	} else if (viewName === 'center') {
 		var pts_b = obox1cell_b.points;
@@ -1109,6 +1185,17 @@ function fdraw_box1cell_2d(viewName) {
 		p1 = gp(pts_b, "pbsc"); p1.x = -half;
 		p2 = gp(pts_e, "pbsc"); p2.x = half;
 		ocvs.addLine(viewName, p1.x, p1.y, p2.x, p2.y, alayer[0]);
+
+		// === Center view dimensions ===
+		var ptc_b = gp(pts_b, "ptc"), pbc_b = gp(pts_b, "pbc");
+		var ptc_e = gp(pts_e, "ptc"), pbc_e = gp(pts_e, "pbc");
+		// length along top
+		ocvs.addDimLinear(viewName, -half, Math.max(ptc_b.y, ptc_e.y) + ddim_off,
+		                             half, Math.max(ptc_b.y, ptc_e.y) + ddim_off, ddim_ext * 6);
+		// Begin height (left cap)
+		ocvs.addDimLinear(viewName, -half - ddim_off, pbc_b.y, -half - ddim_off, ptc_b.y, ddim_ext * 6);
+		// End height (right cap)
+		ocvs.addDimLinear(viewName,  half + ddim_off, pbc_e.y,  half + ddim_off, ptc_e.y, ddim_ext * 6);
 
 	} else if (viewName === 'left') {
 		var pts_b = obox1cell_b.points;
@@ -1165,6 +1252,14 @@ function fdraw_box1cell_2d(viewName) {
 			ocvs.addLine(viewName, p1.x, p1.y, p2.x, p2.y, alayer[1]);
 		});
 
+		// === Left view dimensions ===
+		var ptl_b = gp(pts_b, "ptl"), pbl_b = gp(pts_b, "pbl");
+		var ptl_e = gp(pts_e, "ptl"), pbl_e = gp(pts_e, "pbl");
+		ocvs.addDimLinear(viewName, -half, Math.max(ptl_b.y, ptl_e.y) + ddim_off,
+		                             half, Math.max(ptl_b.y, ptl_e.y) + ddim_off, ddim_ext * 6);
+		ocvs.addDimLinear(viewName, -half - ddim_off, pbl_b.y, -half - ddim_off, ptl_b.y, ddim_ext * 6);
+		ocvs.addDimLinear(viewName,  half + ddim_off, pbl_e.y,  half + ddim_off, ptl_e.y, ddim_ext * 6);
+
 	} else if (viewName === 'right') {
 		var pts_b = obox1cell_b.points;
 		var pts_e = obox1cell_e.points;
@@ -1218,6 +1313,14 @@ function fdraw_box1cell_2d(viewName) {
 			p2 = gp(pts_e, n); p2.x = half;
 			ocvs.addLine(viewName, p1.x, p1.y, p2.x, p2.y, alayer[1]);
 		});
+
+		// === Right view dimensions ===
+		var ptr_b = gp(pts_b, "ptr"), pbr_b = gp(pts_b, "pbr");
+		var ptr_e = gp(pts_e, "ptr"), pbr_e = gp(pts_e, "pbr");
+		ocvs.addDimLinear(viewName, -half, Math.max(ptr_b.y, ptr_e.y) + ddim_off,
+		                             half, Math.max(ptr_b.y, ptr_e.y) + ddim_off, ddim_ext * 6);
+		ocvs.addDimLinear(viewName, -half - ddim_off, pbr_b.y, -half - ddim_off, ptr_b.y, ddim_ext * 6);
+		ocvs.addDimLinear(viewName,  half + ddim_off, pbr_e.y,  half + ddim_off, ptr_e.y, ddim_ext * 6);
 	}
 
 	ocvs.render();
