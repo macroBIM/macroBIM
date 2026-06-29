@@ -247,18 +247,85 @@ function fdraw_ibeam() {
     let oibeam_b = geo_ibeam(aparam_b);
     let oibeam_e = geo_ibeam(aparam_e);
 
-    // DXF: Begin front + End back, side-by-side
-    let dOx_dxf = Math.max(aparam_b.dbt, aparam_e.dbt) * -1.0;
-    oibeam_b.lines.forEach(line => odxf_ibeam.line(
-        line.x1 + dOx_dxf, line.y1, line.x2 + dOx_dxf, line.y2, alayer[0]));
-    oibeam_b.arcs.forEach(arc => odxf_ibeam.arc(
-        arc.x + dOx_dxf, arc.y, arc.r, arc.angb, arc.ange, alayer[0]));
+    // === DXF layout ===
+    //   Row 1 (cross sections): [Front (Begin)]  [Back (End)]
+    //   Row 2 (long views):     [Top]            [Bottom]
+    //   Row 3 (side view):      [Side]
+    let _max_bt   = Math.max(aparam_b.dbt, aparam_e.dbt);
+    let _max_bb   = Math.max(aparam_b.dbb, aparam_e.dbb);
+    let _max_h    = Math.max(aparam_b.dh,  aparam_e.dh);
+    let _max_w    = Math.max(_max_bt, _max_bb);
+    let _row_pitch = _max_h * 2.0;                          // vertical pitch between rows
+    let _col_pitch = Math.max(_max_w, dseg_leng) * 1.5;     // horizontal pitch between columns
 
-    dOx_dxf = Math.max(aparam_b.dbt, aparam_e.dbt) * 1.0;
+    function _gpx(geo, n) {
+        var found = geo.points.find(p => p.name === n);
+        return found ? { x: found[n].x, y: found[n].y } : { x: 0, y: 0 };
+    }
+
+    // Row 1 — Front (Begin) at column 0
+    let dOx_dxf = 0, dOy_dxf = 0;
+    oibeam_b.lines.forEach(line => odxf_ibeam.line(
+        line.x1 + dOx_dxf, line.y1 + dOy_dxf, line.x2 + dOx_dxf, line.y2 + dOy_dxf, alayer[0]));
+    oibeam_b.arcs.forEach(arc => odxf_ibeam.arc(
+        arc.x + dOx_dxf, arc.y + dOy_dxf, arc.r, arc.angb, arc.ange, alayer[0]));
+
+    // Row 1 — Back (End) at column 1
+    dOx_dxf = _col_pitch; dOy_dxf = 0;
     oibeam_e.lines.forEach(line => odxf_ibeam.line(
-        line.x1 + dOx_dxf, line.y1, line.x2 + dOx_dxf, line.y2, alayer[0]));
+        line.x1 + dOx_dxf, line.y1 + dOy_dxf, line.x2 + dOx_dxf, line.y2 + dOy_dxf, alayer[0]));
     oibeam_e.arcs.forEach(arc => odxf_ibeam.arc(
-        arc.x + dOx_dxf, arc.y, arc.r, arc.angb, arc.ange, alayer[0]));
+        arc.x + dOx_dxf, arc.y + dOy_dxf, arc.r, arc.angb, arc.ange, alayer[0]));
+
+    // Helper: draw a plan/side view between Begin and End onto DXF at given offset
+    function _dxf_long_view(off_x, off_y, pointNames, hiddenNames, axis) {
+        // axis = 'top' (plan, x = section_x, y = length): use section x as DXF x
+        // axis = 'side' (elevation, x = length, y = section_y)
+        let half = dseg_leng / 2;
+        pointNames.forEach(function(n) {
+            let pb = _gpx(oibeam_b, n);
+            let pe = _gpx(oibeam_e, n);
+            if (axis === 'top') {
+                // begin at y=-half, end at y=+half
+                odxf_ibeam.line(off_x + pb.x, off_y - half, off_x + pe.x, off_y + half, alayer[0]);
+            } else {
+                // axis 'side': begin at x=-half, end at x=+half, section y
+                odxf_ibeam.line(off_x - half, off_y + pb.y, off_x + half, off_y + pe.y, alayer[0]);
+            }
+        });
+        // transverse caps (Begin & End edges of the view)
+        if (pointNames.length >= 2) {
+            let n1 = pointNames[0], n2 = pointNames[pointNames.length - 1];
+            let pb1 = _gpx(oibeam_b, n1), pb2 = _gpx(oibeam_b, n2);
+            let pe1 = _gpx(oibeam_e, n1), pe2 = _gpx(oibeam_e, n2);
+            if (axis === 'top') {
+                odxf_ibeam.line(off_x + pb1.x, off_y - half, off_x + pb2.x, off_y - half, alayer[0]);
+                odxf_ibeam.line(off_x + pe1.x, off_y + half, off_x + pe2.x, off_y + half, alayer[0]);
+            } else {
+                odxf_ibeam.line(off_x - half, off_y + pb1.y, off_x - half, off_y + pb2.y, alayer[0]);
+                odxf_ibeam.line(off_x + half, off_y + pe1.y, off_x + half, off_y + pe2.y, alayer[0]);
+            }
+        }
+        // hidden lines (web edges through flange)
+        hiddenNames.forEach(function(n) {
+            let pb = _gpx(oibeam_b, n);
+            let pe = _gpx(oibeam_e, n);
+            if (axis === 'top') {
+                odxf_ibeam.line(off_x + pb.x, off_y - half, off_x + pe.x, off_y + half, alayer[1]);
+            } else {
+                odxf_ibeam.line(off_x - half, off_y + pb.y, off_x + half, off_y + pe.y, alayer[1]);
+            }
+        });
+    }
+
+    // Row 2 — Top view at column 0
+    _dxf_long_view(0, _row_pitch, ['ptl', 'ptr'], ['pwtl', 'pwtr'], 'top');
+
+    // Row 2 — Bottom view at column 1
+    _dxf_long_view(_col_pitch, _row_pitch, ['pbl', 'pbr'], ['pwbl', 'pwbr'], 'top');
+
+    // Row 3 — Side (elevation) view at column 0
+    _dxf_long_view(0, _row_pitch * 2, ['ptl', 'ptfl', 'pwtl', 'pwbl', 'pbfl', 'pbl'], [], 'side');
 
     // Store for tab switching
     _ibeam_drawData = {
