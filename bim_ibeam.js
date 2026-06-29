@@ -1,129 +1,32 @@
 /*
-		i Beam 작도를 위한 JS  v000 (KonvaViewer 적용)
+    i Beam 작도를 위한 JS  v002
+    - Tapered Begin/End cross-section support (_s / _e IDs)
+    - box1cell-style split layout: 3D (left) + tabbed 2D viewport (right)
 */
-const odxf_ibeam 	= dxf_generator();
-const scvs_ibeam  = "ibeamplot";		// canvas name
+const odxf_ibeam = dxf_generator();
+const scvs_ibeam = "ibeamplot";
 
-function ibeam_click() {
- 
-    // 1. 사이드바(nav) 및 메인 콘텐츠(main) 레이아웃 조정
-    const mainContent = document.getElementById('wrap_main');
+const _IBEAM_KEYS = ['dh', 'dbt', 'dbb', 'dttf', 'dttf1', 'dtbf', 'dtbf1',
+                     'dtw', 'drtf', 'drwt', 'drwb', 'drbf', 'dchb'];
 
-    if (mainContent) {
-        mainContent.classList.remove('col-md-9', 'col-lg-10');
-        mainContent.classList.add('col-md-12', 'col-lg-12');
-    }
-    
-    var omain = document.getElementById("wrap_main");	
-    
-    // HTML 생성
-    var shtml = "";
-	
-	// 뷰포트 높이 계산 변경 (더 넉넉한 하단 여백 확보)
-    let dynamicHeight = "calc(100vh - 100px)"; 
-
-	shtml += "<div class='container-fluid px-4' style='height: " + dynamicHeight + "; margin-top: 10px; margin-bottom: 20px;'>";
-    shtml += "  <div class='row g-3 h-100'>"; 
-            
-    // --- 왼쪽: 입력 폼 영역 ---
-    shtml += "      <div class='col-lg-4 h-100'>"; 
-	
-	// 카드를 d-flex flex-column으로 설정하여 헤더-바디-푸터를 수직으로 정렬합니다.
-	shtml += "          <div class='card shadow-sm h-100 d-flex flex-column' style='overflow: hidden;'>"; 
-
-	// 1. 헤더에 버튼 추가
-	shtml += "              <div class='card-header bg-secondary text-white flex-shrink-0 d-flex justify-content-between align-items-center'>";
-	shtml += "                  <h6 class='mb-0'>DIMENSION (mm)</h6>"; 
-	shtml += "              </div>";	
-
-	// flex-grow-1을 주어 남은 공간을 다 차지하게 하고, 이 영역에만 스크롤을 발생시킵니다.
-	shtml += "              <div class='card-body overflow-auto flex-grow-1' style='min-height: 0; padding-bottom: 0;'>"; 
-	shtml += "                  <div class='pe-1'>";
-	
-	shtml += createTextInput('sUserText', 'BATCH INPUT (CSV)','', 'putParams_ibeam(\"sUserText\"); fdraw_ibeam();') 	;
-	
-	shtml += createLabel('INPUT One by One') 	
-	
-    shtml += createRowInput('I beam Height', 'dh',  1500, 'fdraw_ibeam()');
-    shtml += createRowInput('I beam Top Width','dbt', 1235, 'fdraw_ibeam()');
-    shtml += createRowInput('I beam Bottom Width','dbb', 985, 'fdraw_ibeam()');
-    shtml += createRowInput('Top Flange Thickness','dttf', 85, 'fdraw_ibeam()');
-    shtml += createRowInput('Top Hunch Thickness','dttf1', 45, 'fdraw_ibeam()');
-    shtml += createRowInput('Bottom Flange Thickness','dtbf', 135, 'fdraw_ibeam()');
-    shtml += createRowInput('Bottom Hunch Thickness','dtbf1', 140, 'fdraw_ibeam()');
-    shtml += createRowInput('Web Thickness','dtw', 160, 'fdraw_ibeam()');
-	
-    shtml += createRowInput('Radius on Top Flange <br> (R = 0 if not necessary)','drtf', 50, 'fdraw_ibeam()');
-    shtml += createRowInput('Radius on Web Top <br> (R = 0 if not necessary)','drwt',  200, 'fdraw_ibeam()');
-    shtml += createRowInput('Radius on Web bottom <br> (R = 0 if not necessary)','drwb', 100, 'fdraw_ibeam()');
-    shtml += createRowInput('Radius on Bottom Flange <br> (R = 0 if not necessary)','drbf',  50, 'fdraw_ibeam()');
-    shtml += createRowInput('Chamfer on Bottom Flange <br> (C = 0 if not necessary)','dchb',  20, 'fdraw_ibeam()');
-	
-    shtml += createRowInput('I Beam Length','dseg_leng', 500, 'fdraw_ibeam()');
-	
-    shtml += "                  </div>";
-    shtml += "              </div>";
-
-	// card-footer (DXF 다운로드 버튼)
-	shtml += "              <div class='card-footer bg-white border-top flex-shrink-0 p-2 align-items-center justify-content-center text-center'>";
-	shtml += "                  <button class='btn btn-dark w-75 py-2 mb-0 shadow-sm' onclick='odxf_ibeam.download(\"IBeam.dxf\")'>";
-	shtml += "                      DXF DOWNLOAD";
-	shtml += "                  </button>";
-	shtml += "              </div>"; 
-	shtml += "          </div>";
-	
-	shtml += "      </div>";
-				
-    // --- 오른쪽: 도면 뷰어 영역 ---
-    shtml += "      <div class='col-lg-8 h-100'>";
-    shtml += "          <div class='card shadow-sm h-100 d-flex flex-column' style='overflow: hidden;'>";
-	// 헤더 정렬 유지
-    shtml += "              <div class='card-header bg-secondary flex-shrink-0 d-flex justify-content-between align-items-center'>";
-    shtml += "                  <h6 class='mb-0 text-white'>DRAWING VIEW (Synchronized Zoom/Pan)</h6>";
-    
-    // ⭐ 폰트 굵기(bold) 제거 및 패딩/글자 크기를 줄여서 헤더 높이 유지
-    shtml += "                  <button class='btn btn-light' style='padding: 2px 8px; font-size: 12px; line-height: 1.5;' onclick='fdraw_ibeam()'>";
-    shtml += "                      <i class='fa fa-refresh'></i> REGEN";
-    shtml += "                  </button>";
-    shtml += "              </div>";
-	
-    // ★ 마우스 커서 속성(cursor: grab) 추가
-    shtml += "              <div class='card-body p-0 flex-grow-1' style='min-height: 0; position: relative;'>";
-    shtml += "                  <div id='" + scvs_ibeam + "' style='position: absolute; top:0; left:0; width:100%; height:100%; background-color:#000; cursor: grab;'></div>";
-    shtml += "              </div>";
-    
-    shtml += "          </div>";
-    shtml += "      </div>";
-            
-    shtml += "  </div>"; 
-    shtml += "</div>";
- 
-    omain.innerHTML = shtml;
-
-    // 초기 드로잉 실행
-    fdraw_ibeam();
-}
-
-// 입력 필드에서 값을 읽어옵니다.
 function getParams_ibeam() {
     const getValue = (id) => {
         const el = document.getElementById(id);
         return el ? Number(el.value) : 0;
     };
 
-    let aparam = {
-        dh: getValue('dh'), dbt: getValue('dbt'), dbb: getValue('dbb'),
-        dttf: getValue('dttf'), dttf1: getValue('dttf1'), 
-        dtbf: getValue('dtbf'), dtbf1: getValue('dtbf1'), 
-        dtw: getValue('dtw'),
-        drtf: getValue('drtf'), drwt: getValue('drwt'), drwb: getValue('drwb'), drbf: getValue('drbf'),
-        dchb: getValue('dchb')
-    };
-    
-    let dseg_leng = getValue('dseg_leng');
-    let combText = [ ...Object.values(aparam) ].join(',');
+    let aparam_b = {};
+    let aparam_e = {};
+    _IBEAM_KEYS.forEach(k => {
+        aparam_b[k] = getValue(k + '_s');
+        aparam_e[k] = getValue(k + '_e');
+    });
 
-    return { aparam, dseg_leng, combText };
+    let dseg_leng = getValue('dseg_leng');
+    let combText_b = _IBEAM_KEYS.map(k => aparam_b[k]).join(',');
+    let combText_e = _IBEAM_KEYS.map(k => aparam_e[k]).join(',');
+
+    return { aparam_b, aparam_e, dseg_leng, combText_b, combText_e };
 }
 
 function putParams_ibeam(textareaId) {
@@ -131,460 +34,392 @@ function putParams_ibeam(textareaId) {
     if (!textarea) return;
 
     const lines = textarea.value.split('\n');
-    if (lines.length < 2) return; 
+    if (lines.length < 1) return;
 
-    const values = lines[0].split(',');
-    const dseg_leng = lines[1];
+    const values_b = (lines[0] || '').split(',');
+    const values_e = (lines.length >= 3 ? lines[1] : lines[0] || '').split(',');
+    const dseg_leng = lines.length >= 3 ? lines[2] : (lines[1] || '');
 
-    const keys = [
-        'dh', 'dbt', 'dbb', 'dttf', 'dttf1', 'dtbf', 'dtbf1',
-        'dtw', 'drtf', 'drwt', 'drwb', 'drbf', 'dchb'
-    ];
-
-    keys.forEach((key, index) => {
-        if (values[index] !== undefined) {
-            const elS = document.getElementById( key );
-            if (elS) elS.value = values[index].trim();
-        }			
+    _IBEAM_KEYS.forEach((key, index) => {
+        if (values_b[index] !== undefined) {
+            const elS = document.getElementById(key + '_s');
+            if (elS) elS.value = values_b[index].trim();
+        }
+        if (values_e[index] !== undefined) {
+            const elE = document.getElementById(key + '_e');
+            if (elE) elE.value = values_e[index].trim();
+        }
     });
 
-    if ( dseg_leng !== undefined) {
-        const elE = document.getElementById( "dseg_leng" );
-        if (elE) elE.value = dseg_leng;
+    if (dseg_leng !== undefined && dseg_leng !== '') {
+        const el = document.getElementById('dseg_leng');
+        if (el) el.value = String(dseg_leng).trim();
     }
 
-    // ★ 오타 수정: fdraw_box1cell -> fdraw_ibeam
-    if (typeof fdraw_ibeam === 'function') {
-        fdraw_ibeam();
-    }
+    if (typeof fdraw_ibeam === 'function') fdraw_ibeam();
 }
 
-function fdraw_ibeam(){
+/*
+    geo_ibeam: compute cross-section geometry for one I-beam section
+    Returns { points, lines, arcs, outline }
+      points  : named points (ptl, ptfl, pwtl, pwbl, pbfl, pbl, ...) for view computations
+      lines   : array of {x1,y1,x2,y2} for 2D drawing of the cross-section
+      arcs    : array of {x,y,r,angb,ange} for 2D drawing
+      outline : ordered closed polygon (clockwise) — used for 3D loft and shape capping
+*/
+function geo_ibeam({ dh, dbt, dbb, dttf, dttf1, dtbf, dtbf1, dtw,
+                     drtf, drwt, drwb, drbf, dchb }) {
+    let opts = [];
+    let olines = [];
+    let oarcs = [];
 
-	/* Load data */		
-	let auserdata = getParams_ibeam();
-	let aparam = auserdata.aparam;
-	let dleng = auserdata.dseg_leng;  
-	
-	let ouserTextArea = document.getElementById('sUserText');
+    // Corner points (origin: bottom-center, y up)
+    let ptl  = { x: -dbt / 2,  y: dh };
+    let ptfl = { x: -dbt / 2,  y: dh - dttf };
+    let pwtl = { x: -dtw / 2,  y: dh - dttf - dttf1 };
+    let pwbl = { x: -dtw / 2,  y: dtbf + dtbf1 };
+    let pbfl = { x: -dbb / 2,  y: dtbf };
+    let pbl  = { x: -dbb / 2,  y: 0 };
 
+    let ptr  = { x:  dbt / 2,  y: dh };
+    let ptfr = { x:  dbt / 2,  y: dh - dttf };
+    let pwtr = { x:  dtw / 2,  y: dh - dttf - dttf1 };
+    let pwbr = { x:  dtw / 2,  y: dtbf + dtbf1 };
+    let pbfr = { x:  dbb / 2,  y: dtbf };
+    let pbr  = { x:  dbb / 2,  y: 0 };
+
+    let pbc  = { x: 0, y: 0 };
+
+    [['ptl',ptl],['ptfl',ptfl],['pwtl',pwtl],['pwbl',pwbl],['pbfl',pbfl],['pbl',pbl],
+     ['ptr',ptr],['ptfr',ptfr],['pwtr',pwtr],['pwbr',pwbr],['pbfr',pbfr],['pbr',pbr]
+    ].forEach(([n, p]) => opts.push({[n]: p, name: n}));
+
+    // Fillets / chamfers (left)
+    let fil_tl  = geo_fillet(ptl,  ptfl, pwtl, drtf);
+    let fil_wtl = geo_fillet(ptfl, pwtl, pwbl, drwt);
+    let fil_wbl = geo_fillet(pwtl, pwbl, pbfl, drwb);
+    let fil_bl  = geo_fillet(pwbl, pbfl, pbl,  drbf);
+    let chf_bl  = geo_chamfer(pbfl, pbl, pbc,  dchb);
+
+    // Fillets / chamfers (right)
+    let fil_tr  = geo_fillet(ptr,  ptfr, pwtr, drtf);
+    let fil_wtr = geo_fillet(ptfr, pwtr, pwbr, drwt);
+    let fil_wbr = geo_fillet(pwtr, pwbr, pbfr, drwb);
+    let fil_br  = geo_fillet(pwbr, pbfr, pbr,  drbf);
+    let chf_br  = geo_chamfer(pbfr, pbr, pbc,  dchb);
+
+    // === Helper: emit line+optional fillet arc for a corner ===
+    function emitEdge(startPt, endPt, fillet, hasFillet) {
+        // emits line from startPt to (fillet.xb,yb) and arc; returns next start
+        if (!hasFillet) {
+            olines.push({ x1: startPt.x, y1: startPt.y, x2: endPt.x, y2: endPt.y });
+            return endPt;
+        }
+        olines.push({ x1: startPt.x, y1: startPt.y, x2: fillet.xb, y2: fillet.yb });
+        oarcs.push({ x: fillet.ox, y: fillet.oy, r: fillet.r,
+                     angb: fillet.angb, ange: fillet.ange });
+        return { x: fillet.xe, y: fillet.ye };
+    }
+
+    // === LEFT side outline (top → bottom) ===
+    let cur = ptl;
+    cur = emitEdge(cur, ptfl, fil_tl,  drtf > 0);
+    cur = emitEdge(cur, pwtl, fil_wtl, drwt > 0);
+    cur = emitEdge(cur, pwbl, fil_wbl, drwb > 0);
+    cur = emitEdge(cur, pbfl, fil_bl,  drbf > 0);
+    // Chamfer / direct to pbl
+    if (dchb > 0) {
+        olines.push({ x1: cur.x, y1: cur.y, x2: chf_bl.xb, y2: chf_bl.yb });
+        olines.push({ x1: chf_bl.xb, y1: chf_bl.yb, x2: chf_bl.xe, y2: chf_bl.ye });
+    } else {
+        olines.push({ x1: cur.x, y1: cur.y, x2: pbl.x, y2: pbl.y });
+    }
+
+    // === RIGHT side outline (top → bottom) ===
+    cur = ptr;
+    cur = emitEdge(cur, ptfr, fil_tr,  drtf > 0);
+    cur = emitEdge(cur, pwtr, fil_wtr, drwt > 0);
+    cur = emitEdge(cur, pwbr, fil_wbr, drwb > 0);
+    cur = emitEdge(cur, pbfr, fil_br,  drbf > 0);
+    if (dchb > 0) {
+        olines.push({ x1: cur.x, y1: cur.y, x2: chf_br.xb, y2: chf_br.yb });
+        olines.push({ x1: chf_br.xb, y1: chf_br.yb, x2: chf_br.xe, y2: chf_br.ye });
+    } else {
+        olines.push({ x1: cur.x, y1: cur.y, x2: pbr.x, y2: pbr.y });
+    }
+
+    // === Top edge & bottom edge (close the outline) ===
+    olines.push({ x1: ptl.x, y1: ptl.y, x2: ptr.x, y2: ptr.y });
+    if (dchb > 0) {
+        olines.push({ x1: chf_bl.xe, y1: chf_bl.ye, x2: chf_br.xe, y2: chf_br.ye });
+    } else {
+        olines.push({ x1: pbl.x, y1: pbl.y, x2: pbr.x, y2: pbr.y });
+    }
+
+    // === Outline polygon for 3D loft (clockwise, no fillets — sharp corners) ===
+    let outline = [];
+    outline.push({ x: ptl.x,  y: ptl.y  });
+    outline.push({ x: ptr.x,  y: ptr.y  });
+    outline.push({ x: ptfr.x, y: ptfr.y });
+    outline.push({ x: pwtr.x, y: pwtr.y });
+    outline.push({ x: pwbr.x, y: pwbr.y });
+    outline.push({ x: pbfr.x, y: pbfr.y });
+    if (dchb > 0) {
+        outline.push({ x: chf_br.xb, y: chf_br.yb });
+        outline.push({ x: chf_br.xe, y: chf_br.ye });
+        outline.push({ x: chf_bl.xe, y: chf_bl.ye });
+        outline.push({ x: chf_bl.xb, y: chf_bl.yb });
+    } else {
+        outline.push({ x: pbr.x, y: pbr.y });
+        outline.push({ x: pbl.x, y: pbl.y });
+    }
+    outline.push({ x: pbfl.x, y: pbfl.y });
+    outline.push({ x: pwbl.x, y: pwbl.y });
+    outline.push({ x: pwtl.x, y: pwtl.y });
+    outline.push({ x: ptfl.x, y: ptfl.y });
+
+    return { points: opts, lines: olines, arcs: oarcs, outline: outline };
+}
+
+var _ibeam_drawData = null;
+
+function fdraw_ibeam() {
+    var alayer = ['ibeam_solid', 'ibeam_hidden', 'ibeam_center'];
+
+    // Split layout: 3D (left) + Tabbed 2D (right)
+    var _container = document.getElementById(scvs_ibeam);
+    if (!_container) return;
+    _container.innerHTML = '';
+    _container.style.display = 'flex';
+    _container.style.gap = '2px';
+    _container.style.backgroundColor = '#000';
+    _container.style.height = '560px';
+
+    var div3d = document.createElement('div');
+    div3d.id = 'ibeam3d';
+    div3d.style.cssText = 'width:50%;height:560px;background:#1a1a2e;';
+    _container.appendChild(div3d);
+
+    var divRight = document.createElement('div');
+    divRight.style.cssText = 'width:50%;height:560px;display:flex;flex-direction:column;';
+
+    var tabBar = document.createElement('div');
+    tabBar.style.cssText = 'display:flex;gap:2px;padding:4px;background:#1e293b;flex-wrap:wrap;flex-shrink:0;';
+    var tabNames = ['Front', 'Back', 'Left', 'Center', 'Right', 'Top', 'Bottom'];
+    tabNames.forEach(function(name, i) {
+        var btn = document.createElement('button');
+        btn.textContent = name;
+        btn.id = 'ibeam_tab_' + name.toLowerCase();
+        btn.style.cssText = 'padding:4px 10px;border:1px solid #475569;background:' +
+            (i === 0 ? '#2563eb' : '#334155') + ';color:' +
+            (i === 0 ? '#fff' : '#94a3b8') +
+            ';cursor:pointer;border-radius:4px;font-size:11px;font-weight:600;';
+        btn.onclick = function() { fdraw_ibeam_2d(name.toLowerCase()); };
+        tabBar.appendChild(btn);
+    });
+    divRight.appendChild(tabBar);
+
+    var viewport2d = document.createElement('div');
+    viewport2d.id = 'ibeam_2dview';
+    viewport2d.style.cssText = 'width:100%;flex:1;background:#000;';
+    divRight.appendChild(viewport2d);
+    _container.appendChild(divRight);
+
+    // DXF preparation
+    odxf_ibeam.init();
+    odxf_ibeam.layer(alayer[0], 4, "CONTINUOUS");
+    odxf_ibeam.layer(alayer[1], 4, "HIDDEN");
+    odxf_ibeam.layer(alayer[2], 1, "CENTER");
+
+    // Load data
+    let auserdata = getParams_ibeam();
+    let aparam_b = auserdata.aparam_b;
+    let aparam_e = auserdata.aparam_e;
+    let dseg_leng = auserdata.dseg_leng;
+
+    // Reflect into CSV textarea
+    let ouserTextArea = document.getElementById('sUserText');
     if (ouserTextArea) {
-        ouserTextArea.value = auserdata.combText + "\n" + dleng;
-    }	
-
-	// data loading
-	let { dh, dbt, dbb, dttf, dttf1, dtbf, dtbf1, dtw, drtf, drwt, drwb, drbf, dchb } = aparam;
-
-	var dOx, dOx_side, dOx_top, dOx_bot;
-	var dOy, dOy_side, dOy_top, dOy_bot;
-	
-	/* KONVA CANVAS : activate & draw */		
-    // ★ PlotlyViewer 대신 KonvaViewer 호출!
-	var ocvs = new KonvaViewer(scvs_ibeam);
-
-	// 레이어
-	var alayer = ['ibeam_solid', 'ibeam_hidden', 'ibeam_center'];
-	
-	ocvs.addLayer( alayer[0], 'cyan', 'solid', 1.5);
-	ocvs.addLayer( alayer[1], 'cyan', 'hidden', 1.5);
-	ocvs.addLayer( alayer[2], 'red',  'solid', 1.5);
-
-	/* DXF Preparation */		
-	odxf_ibeam.init();
-	odxf_ibeam.layer( alayer[0], 4, "CONTINUOUS");
-	odxf_ibeam.layer( alayer[1], 4, "HIDDEN");
-	odxf_ibeam.layer( alayer[2], 1, "CENTER");
-
-	let ptc     = {x:0, y:dh};  // 상부 끝단 좌측
-	let ptl     = {x:0, y:0};  // 상부 끝단 좌측
-	let ptfl    = {x:0, y:0};  // 상부 끝단 플랜지 좌측
-	let pwtl    = {x:0, y:0};  // 상부 복부 좌측
-	let pwbl    = {x:0, y:0};  // 상부 복부 좌측
-	let pbfl    = {x:0, y:0};  // 상부 끝단 플랜지 좌측
-	let pbl     = {x:0, y:0};  // 상부 끝단 좌측
-	let pbc     = {x:0, y:0};  // 상부 끝단 좌측
-
-	let ptr     = {x:0, y:0};  
-	let ptfr    = {x:0, y:0};  
-	let pwtr    = {x:0, y:0};  
-	let pwbr    = {x:0, y:0};  
-	let pbfr    = {x:0, y:0};  
-	let pbr     = {x:0, y:0};  
-					
-	ptl.x = dbt / 2 * -1;
-	ptl.y = dh;
-
-	ptfl.x = ptl.x;
-	ptfl.y = ptl.y - dttf;
-
-	pwtl.x = dtw / 2 * -1;
-	pwtl.y = ptfl.y - dttf1;
-	
-	pbl.x = dbb / 2 * -1;
-	pbl.y = 0;
-	
-	pbfl.x = pbl.x;
-	pbfl.y = pbl.y + dtbf;
-
-	pwbl.x = dtw / 2 * -1 ;
-	pwbl.y = pbfl.y + dtbf1;
-
-	ptr.x = ptl.x * -1;
-	ptr.y = ptl.y;
-
-	ptfr.x = ptfl.x * -1;
-	ptfr.y = ptfl.y;
-
-	pwtr.x = pwtl.x * -1;
-	pwtr.y = pwtl.y;
-	
-	pbr.x = pbl.x * -1;
-	pbr.y = pbl.y;
-	
-	pbfr.x = pbfl.x * -1;
-	pbfr.y = pbfl.y;
-
-	pwbr.x = pwbl.x * -1 ;
-	pwbr.y = pwbl.y;
-	
-	// fillet / chamfer
-	let fil_tl 	= geo_fillet( ptl, ptfl, pwtl, drtf);
-	let fil_wtl = geo_fillet( ptfl, pwtl, pwbl, drwt);
-	let fil_wbl = geo_fillet( pwtl, pwbl, pbfl, drwb);
-	let fil_bl 	= geo_fillet( pwbl, pbfl, pbl, drbf);
-	
-	let chf_bl = geo_chamfer( pbfl, pbl, pbc, dchb);
-
-	let fil_tr 	= geo_fillet( ptr, ptfr, pwtr, drtf);
-	let fil_wtr = geo_fillet( ptfr, pwtr, pwbr, drwt);
-	let fil_wbr = geo_fillet( pwtr, pwbr, pbfr, drwb);
-	let fil_br	= geo_fillet( pwbr, pbfr, pbr, drbf);
-	
-	let chf_br = geo_chamfer( pbfr, pbr, pbc, dchb);
-
-
-	/* draw canvas : front */
-	let ddim_ext = 20;	// 디멘젼 길이
-	let ddim_off = 20;	// 구조물에서 이격
-	
-	let sview ='front';
-
-	dOx = 0	, dOy = 0;
-	
-	if( drtf == 0){
-	  ocvs.addLine(sview, ptl.x, ptl.y, ptfl.x, ptfl.y, alayer[0] );  
-		odxf_ibeam.line( dOx + ptl.x, dOy + ptl.y, dOx + ptfl.x, dOy + ptfl.y, alayer[0] );
-
-	  ocvs.addLine(sview, ptr.x, ptr.y, ptfr.x, ptfr.y, alayer[0] );  
-		odxf_ibeam.line( dOx + ptr.x, dOy + ptr.y, dOx + ptfr.x, dOy + ptfr.y, alayer[0] );
-	} else {
-	  ocvs.addLine(sview, ptl.x, ptl.y, fil_tl.xb, fil_tl.yb, alayer[0] ); 
-	  ocvs.addArc(sview, fil_tl.ox, fil_tl.oy, fil_tl.r, fil_tl.angb, fil_tl.ange, alayer[0]);
-		odxf_ibeam.line( dOx + ptl.x, dOy + ptl.y, dOx + fil_tl.xb, dOy + fil_tl.yb, alayer[0] );
-		odxf_ibeam.arc( dOx + fil_tl.ox, dOy + fil_tl.oy, fil_tl.r, fil_tl.angb, fil_tl.ange, alayer[0] );
-	  
-	  ocvs.addLine(sview, ptr.x, ptr.y, fil_tr.xb, fil_tr.yb, alayer[0] ); 
-	  ocvs.addArc(sview, fil_tr.ox, fil_tr.oy, fil_tr.r, fil_tr.angb, fil_tr.ange, alayer[0]);
-		odxf_ibeam.line( dOx + ptr.x, dOy + ptr.y, dOx + fil_tr.xb, dOy + fil_tr.yb, alayer[0] );
-		odxf_ibeam.arc( dOx + fil_tr.ox, dOy + fil_tr.oy, fil_tr.r, fil_tr.angb, fil_tr.ange, alayer[0] );
-	}
-	
-	if( drwt == 0){
-	  if( drtf == 0){
-		ocvs.addLine(sview, ptfl.x, ptfl.y, pwtl.x, pwtl.y, alayer[0] );    
-			odxf_ibeam.line( dOx + ptfl.x, dOy + ptfl.y, dOx + pwtl.x, dOy + pwtl.y, alayer[0] );
-		
-		ocvs.addLine(sview, ptfr.x, ptfr.y, pwtr.x, pwtr.y, alayer[0] );            
-			odxf_ibeam.line( dOx + ptfr.x, dOy + ptfr.y, dOx + pwtr.x, dOy + pwtr.y, alayer[0] );
-	  }else{
-		ocvs.addLine(sview, fil_tl.xe, fil_tl.ye, pwtl.x, pwtl.y, alayer[0] );            
-			odxf_ibeam.line( dOx + fil_tl.xe, dOy + fil_tl.ye, dOx + pwtl.x, dOy + pwtl.y, alayer[0] );
-		
-		ocvs.addLine(sview, fil_tr.xe, fil_tr.ye, pwtr.x, pwtr.y, alayer[0] );            
-			odxf_ibeam.line( dOx + fil_tr.xe, dOy + fil_tr.ye, dOx + pwtr.x, dOy + pwtr.y, alayer[0] );
-	  }
-	} else {
-	  if( drtf == 0){
-		ocvs.addLine(sview, ptfl.x, ptfl.y, fil_wtl.xb, fil_wtl.yb, alayer[0] );            
-			odxf_ibeam.line( dOx + ptfl.x, dOy + ptfl.y, dOx + fil_wtl.xb, dOy + fil_wtl.yb, alayer[0] );
-		
-		ocvs.addLine(sview, ptfr.x, ptfr.y, fil_wtr.xb, fil_wtr.yb, alayer[0] );            
-			odxf_ibeam.line( dOx + ptfr.x, dOy + ptfr.y, dOx + fil_wtr.xb, dOy + fil_wtr.yb, alayer[0] );
-	  }else{
-		ocvs.addLine(sview, fil_tl.xe, fil_tl.ye, fil_wtl.xb, fil_wtl.yb, alayer[0] );            
-			odxf_ibeam.line( dOx + fil_tl.xe, dOy + fil_tl.ye, dOx + fil_wtl.xb, dOy + fil_wtl.yb, alayer[0] );
-		
-		ocvs.addLine(sview, fil_tr.xe, fil_tr.ye, fil_wtr.xb, fil_wtr.yb, alayer[0] );            
-			odxf_ibeam.line( dOx + fil_tr.xe, dOy + fil_tr.ye, dOx + fil_wtr.xb, dOy + fil_wtr.yb, alayer[0] );
-	  }
-	  ocvs.addArc(sview, fil_wtl.ox, fil_wtl.oy, fil_wtl.r, fil_wtl.angb, fil_wtl.ange, alayer[0]);        
-		odxf_ibeam.arc( dOx + fil_wtl.ox, dOy + fil_wtl.oy, fil_wtl.r, fil_wtl.angb, fil_wtl.ange, alayer[0] );
-	  ocvs.addArc(sview, fil_wtr.ox, fil_wtr.oy, fil_wtr.r, fil_wtr.angb, fil_wtr.ange, alayer[0]);        
-		odxf_ibeam.arc( dOx + fil_wtr.ox, dOy + fil_wtr.oy, fil_wtr.r, fil_wtr.angb, fil_wtr.ange, alayer[0] );
-	}
-	
-	if( drwb == 0){
-	  if( drwt == 0){
-		ocvs.addLine(sview, pwtl.x, pwtl.y, pwbl.x, pwbl.y, alayer[0] );  
-			odxf_ibeam.line( dOx + pwtl.x, dOy + pwtl.y, dOx + pwbl.x, dOy + pwbl.y, alayer[0] );
-		
-		ocvs.addLine(sview, pwtr.x, pwtr.y, pwbr.x, pwbr.y, alayer[0] );  
-			odxf_ibeam.line( dOx + pwtr.x, dOy + pwtr.y, dOx + pwbr.x, dOy + pwbr.y, alayer[0] );
-	  }else{
-		ocvs.addLine(sview, fil_wtl.xe, fil_wtl.ye, pwbl.x, pwbl.y, alayer[0] );            
-			odxf_ibeam.line( dOx + fil_wtl.xe, dOy + fil_wtl.ye, dOx + pwbl.x, dOy + pwbl.y, alayer[0] );
-		
-		ocvs.addLine(sview, fil_wtr.xe, fil_wtr.ye, pwbr.x, pwbr.y, alayer[0] );            
-			odxf_ibeam.line( dOx + fil_wtr.xe, dOy + fil_wtr.ye, dOx + pwbr.x, dOy + pwbr.y, alayer[0] );
-	  }
-	} else {
-	  if( drwt == 0){
-		ocvs.addLine(sview, pwtl.x, pwtl.y, fil_wbl.xb, fil_wbl.yb, alayer[0] );    
-			odxf_ibeam.line( dOx + pwtl.x, dOy + pwtl.y, dOx + fil_wbl.xb, dOy + fil_wbl.yb, alayer[0] );
-		
-		ocvs.addLine(sview, pwtr.x, pwtr.y, fil_wbr.xb, fil_wbr.yb, alayer[0] );            
-			odxf_ibeam.line( dOx + pwtr.x, dOy + pwtr.y, dOx + fil_wbr.xb, dOy + fil_wbr.yb, alayer[0] );
-	  }else{
-		ocvs.addLine(sview, fil_wtl.xe, fil_wtl.ye, fil_wbl.xb, fil_wbl.yb, alayer[0] );            
-			odxf_ibeam.line( dOx + fil_wtl.xe, dOy + fil_wtl.ye, dOx + fil_wbl.xb, dOy + fil_wbl.yb, alayer[0] );
-		
-		ocvs.addLine(sview, fil_wtr.xe, fil_wtr.ye, fil_wbr.xb, fil_wbr.yb, alayer[0] );            
-			odxf_ibeam.line( dOx + fil_wtr.xe, dOy + fil_wtr.ye, dOx + fil_wbr.xb, dOy + fil_wbr.yb, alayer[0] );
-	  }
-	  ocvs.addArc(sview, fil_wbl.ox, fil_wbl.oy, fil_wbl.r, fil_wbl.angb, fil_wbl.ange, alayer[0]);
-		odxf_ibeam.arc( dOx + fil_wbl.ox, dOy + fil_wbl.oy, fil_wbl.r, fil_wbl.angb, fil_wbl.ange, alayer[0] );
-	  ocvs.addArc(sview, fil_wbr.ox, fil_wbr.oy, fil_wbr.r, fil_wbr.angb, fil_wbr.ange, alayer[0]);
-		odxf_ibeam.arc( dOx + fil_wbr.ox, dOy + fil_wbr.oy, fil_wbr.r, fil_wbr.angb, fil_wbr.ange, alayer[0] );
-	}
-	
-	if( drbf == 0){
-	  if( drwb == 0){
-		ocvs.addLine(sview, pwbl.x, pwbl.y, pbfl.x, pbfl.y, alayer[0] );  
-			odxf_ibeam.line( dOx + pwbl.x, dOy + pwbl.y, dOx + pbfl.x, dOy + pbfl.y, alayer[0] );
-		
-		ocvs.addLine(sview, pwbr.x, pwbr.y, pbfr.x, pbfr.y, alayer[0] );  
-			odxf_ibeam.line( dOx + pwbr.x, dOy + pwbr.y, dOx + pbfr.x, dOy + pbfr.y, alayer[0] );
-	  }else{
-		ocvs.addLine(sview, fil_wbl.xe, fil_wbl.ye, pbfl.x, pbfl.y, alayer[0] );            
-			odxf_ibeam.line( dOx + fil_wbl.xe, dOy + fil_wbl.ye, dOx + pbfl.x, dOy + pbfl.y, alayer[0] );
-		
-		ocvs.addLine(sview, fil_wbr.xe, fil_wbr.ye, pbfr.x, pbfr.y, alayer[0] );            
-			odxf_ibeam.line( dOx + fil_wbr.xe, dOy + fil_wbr.ye, dOx + pbfr.x, dOy + pbfr.y, alayer[0] );
-	  }
-	} else {
-	  if( drwb == 0){
-		ocvs.addLine(sview, pwbl.x, pwbl.y, fil_bl.xb, fil_bl.yb, alayer[0] );  
-			odxf_ibeam.line( dOx + pwbl.x, dOy + pwbl.y, dOx + fil_bl.xb, dOy + fil_bl.yb, alayer[0] );
-		
-		ocvs.addLine(sview, pwbr.x, pwbr.y, fil_br.xb, fil_br.yb, alayer[0] );  
-			odxf_ibeam.line( dOx + pwbr.x, dOy + pwbr.y, dOx + fil_br.xb, dOy + fil_br.yb, alayer[0] );
-	  }else{
-		ocvs.addLine(sview, fil_wbl.xe, fil_wbl.ye, fil_bl.xb, fil_bl.yb, alayer[0] );            
-			odxf_ibeam.line( dOx + fil_wbl.xe, dOy + fil_wbl.ye, dOx + fil_bl.xb, dOy + fil_bl.yb, alayer[0] );
-		
-		ocvs.addLine(sview, fil_wbr.xe, fil_wbr.ye, fil_br.xb, fil_br.yb, alayer[0] );            
-			odxf_ibeam.line( dOx + fil_wbr.xe, dOy + fil_wbr.ye, dOx + fil_br.xb, dOy + fil_br.yb, alayer[0] );
-	  }
-	  ocvs.addArc(sview, fil_bl.ox, fil_bl.oy, fil_bl.r, fil_bl.angb, fil_bl.ange, alayer[0]);
-		odxf_ibeam.arc( dOx + fil_bl.ox, dOy + fil_bl.oy, fil_bl.r, fil_bl.angb, fil_bl.ange, alayer[0] );
-	  ocvs.addArc(sview, fil_br.ox, fil_br.oy, fil_br.r, fil_br.angb, fil_br.ange, alayer[0]);
-		odxf_ibeam.arc( dOx + fil_br.ox, dOy + fil_br.oy, fil_br.r, fil_br.angb, fil_br.ange, alayer[0] );
-	}
-	
-	if( dchb == 0){
-	  if( drbf == 0){
-		ocvs.addLine(sview, pbfl.x, pbfl.y, pbl.x, pbl.y, alayer[0] ); 
-			odxf_ibeam.line( dOx + pbfl.x, dOy + pbfl.y, dOx + pbl.x, dOy + pbl.y, alayer[0] );
-		
-		ocvs.addLine(sview, pbfr.x, pbfr.y, pbr.x, pbr.y, alayer[0] ); 
-			odxf_ibeam.line( dOx + pbfr.x, dOy + pbfr.y, dOx + pbr.x, dOy + pbr.y, alayer[0] );
-	  }else{
-		ocvs.addLine(sview, fil_bl.xe, fil_bl.ye, pbl.x, pbl.y, alayer[0] );            
-			odxf_ibeam.line( dOx + fil_bl.xe, dOy + fil_bl.ye, dOx + pbl.x, dOy + pbl.y, alayer[0] );
-		
-		ocvs.addLine(sview, fil_br.xe, fil_br.ye, pbr.x, pbr.y, alayer[0] );            
-			odxf_ibeam.line( dOx + fil_br.xe, dOy + fil_br.ye, dOx + pbr.x, dOy + pbr.y, alayer[0] );
-	  }
-	} else {
-	  if( drbf == 0){
-		ocvs.addLine(sview, pbfl.x, pbfl.y, chf_bl.xb, chf_bl.yb, alayer[0] ); 
-			odxf_ibeam.line( dOx + pbfl.x, dOy + pbfl.y, dOx + chf_bl.xb, dOy + chf_bl.yb, alayer[0] );
-		
-		ocvs.addLine(sview, pbfr.x, pbfr.y, chf_br.xb, chf_br.yb, alayer[0] ); 
-			odxf_ibeam.line( dOx + pbfr.x, dOy + pbfr.y, dOx + chf_br.xb, dOy + chf_br.yb, alayer[0] );
-	  }else{
-		ocvs.addLine(sview, fil_bl.xe, fil_bl.ye, chf_bl.xb, chf_bl.yb, alayer[0] );            
-			odxf_ibeam.line( dOx + fil_bl.xe, dOy + fil_bl.ye, dOx + chf_bl.xb, dOy + chf_bl.yb, alayer[0] );
-		
-		ocvs.addLine(sview, fil_br.xe, fil_br.ye, chf_br.xb, chf_br.yb, alayer[0] );            
-			odxf_ibeam.line( dOx + fil_br.xe, dOy + fil_br.ye, dOx + chf_br.xb, dOy + chf_br.yb, alayer[0] );
-	  }
-	  ocvs.addLine(sview, chf_bl.xb, chf_bl.yb, chf_bl.xe, chf_bl.ye, alayer[0] );  
-			odxf_ibeam.line( dOx + chf_bl.xb, dOy + chf_bl.yb, dOx + chf_bl.xe, dOy + chf_bl.ye, alayer[0] );
-	  ocvs.addLine(sview, chf_br.xb, chf_br.yb, chf_br.xe, chf_br.ye, alayer[0] );  
-			odxf_ibeam.line( dOx + chf_br.xb, dOy + chf_br.yb, dOx + chf_br.xe, dOy + chf_br.ye, alayer[0] );
-	}
-	
-	ocvs.addLine(sview, ptl.x, ptl.y, ptr.x, ptr.y, alayer[0] );  
-		odxf_ibeam.line( dOx + ptl.x, dOy + ptl.y, dOx + ptr.x, dOy + ptr.y, alayer[0] );
-	
-	if( dchb == 0 ){
-		ocvs.addLine(sview, pbl.x, pbl.y, pbr.x, pbr.y, alayer[0] );  
-			odxf_ibeam.line( dOx + pbl.x, dOy + pbl.y, dOx + pbr.x, dOy + pbr.y, alayer[0] );
-	} else {
-		ocvs.addLine(sview, chf_bl.xe, chf_bl.ye, chf_br.xe, chf_br.ye, alayer[0] );  
-			odxf_ibeam.line( dOx + chf_bl.xe, dOy + chf_bl.ye, dOx + chf_br.xe, dOy + chf_br.ye, alayer[0] );
-	}
-
-    // dim line	
-    ocvs.addDimLinear(sview, Math.min(pbl.x, ptl.x) - ddim_off , pbl.y, Math.min(pbl.x, ptl.x)- ddim_off, ptl.y, ddim_ext * 6);
-    ocvs.addDimLinear(sview, Math.min(pbl.x, ptl.x) - ddim_off , pbl.y, Math.min(pbl.x, ptl.x)- ddim_off, pbfl.y, ddim_ext * 3);
-    ocvs.addDimLinear(sview, Math.min(pbl.x, ptl.x) - ddim_off , pbfl.y, Math.min(pbl.x, ptl.x)- ddim_off, pwbl.y, ddim_ext * 3);
-    ocvs.addDimLinear(sview, Math.min(pbl.x, ptl.x) - ddim_off , pwbl.y, Math.min(pbl.x, ptl.x)- ddim_off, pwtl.y, ddim_ext * 3);
-    ocvs.addDimLinear(sview, Math.min(pbl.x, ptl.x) - ddim_off , pwtl.y, Math.min(pbl.x, ptl.x)- ddim_off, ptfl.y, ddim_ext * 3);
-    ocvs.addDimLinear(sview, Math.min(pbl.x, ptl.x) - ddim_off , ptfl.y, Math.min(pbl.x, ptl.x)- ddim_off, ptl.y, ddim_ext * 3);
-
-    ocvs.addDimLinear(sview, ptl.x , ptl.y + ddim_off, ptr.x, ptr.y + ddim_off, ddim_ext * 6);
-    ocvs.addDimLinear(sview, ptl.x , ptl.y + ddim_off, pwtl.x, ptl.y + ddim_off, ddim_ext * 3);
-    ocvs.addDimLinear(sview, pwtl.x , ptl.y + ddim_off, pwtr.x, ptr.y + ddim_off, ddim_ext * 3);
-    ocvs.addDimLinear(sview, pwtr.x , ptl.y + ddim_off, ptr.x, ptr.y + ddim_off, ddim_ext * 3);
-
-    ocvs.addDimLinear(sview, pbl.x , pbl.y - ddim_off, pbr.x, pbr.y - ddim_off, ddim_ext * -6);
-    ocvs.addDimLinear(sview, pbl.x , pbl.y - ddim_off, pwbl.x, pbl.y - ddim_off, ddim_ext * -3);
-    ocvs.addDimLinear(sview, pwbl.x , pbl.y - ddim_off, pwbr.x, pbr.y - ddim_off, ddim_ext * -3);
-    ocvs.addDimLinear(sview, pwbr.x , pbl.y - ddim_off, pbr.x, pbr.y - ddim_off, ddim_ext * -3);
-    
-    ocvs.addDimRadius(sview, fil_tr.ox, fil_tr.oy, fil_tr.r, -45);		
-    ocvs.addDimRadius(sview, fil_wtr.ox, fil_wtr.oy, fil_wtr.r, 135);		
-    ocvs.addDimRadius(sview, fil_wbr.ox, fil_wbr.oy, fil_wbr.r, 225);		
-    ocvs.addDimRadius(sview, fil_br.ox, fil_br.oy, fil_br.r, 45);		
-
-    if( ! dchb == 0 ){
-        ocvs.addDimLinear(sview, chf_br.xb + ddim_off, chf_br.ye , chf_br.xb + ddim_off, chf_br.yb, ddim_ext * -6);
+        ouserTextArea.value = auserdata.combText_b + "\n" + auserdata.combText_e + "\n" + dseg_leng;
     }
-	
 
-	/* draw canvas : Top */
-	dOx_top = 0									, dOy_top = dh * 3.0;
+    // Compute begin/end cross-section geometries
+    let oibeam_b = geo_ibeam(aparam_b);
+    let oibeam_e = geo_ibeam(aparam_e);
 
-	sview ='top';		
-	
-	ocvs.addLine(sview, ptl.x, - dleng / 2, ptfl.x, + dleng / 2, alayer[0] );  
-		odxf_ibeam.line( dOx_top + ptl.x, dOy_top - dleng / 2, dOx_top + ptfl.x, dOy_top + dleng / 2, alayer[0] );
-	
-	ocvs.addLine(sview, ptr.x, - dleng / 2, ptfr.x, + dleng / 2, alayer[0] );  
-		odxf_ibeam.line( dOx_top + ptr.x, dOy_top - dleng / 2, dOx_top + ptfr.x, dOy_top + dleng / 2, alayer[0] );
+    // DXF: Begin front + End back, side-by-side
+    let dOx_dxf = Math.max(aparam_b.dbt, aparam_e.dbt) * -1.0;
+    oibeam_b.lines.forEach(line => odxf_ibeam.line(
+        line.x1 + dOx_dxf, line.y1, line.x2 + dOx_dxf, line.y2, alayer[0]));
+    oibeam_b.arcs.forEach(arc => odxf_ibeam.arc(
+        arc.x + dOx_dxf, arc.y, arc.r, arc.angb, arc.ange, alayer[0]));
 
-	ocvs.addLine(sview, ptl.x, - dleng / 2, ptr.x,  - dleng / 2, alayer[0] );  
-		odxf_ibeam.line( dOx_top + ptl.x, dOy_top - dleng / 2, dOx_top + ptr.x, dOy_top - dleng / 2, alayer[0] );
-	
-	ocvs.addLine(sview, ptl.x, + dleng / 2, ptr.x,  + dleng / 2, alayer[0] );  
-		odxf_ibeam.line( dOx_top + ptl.x, dOy_top + dleng / 2, dOx_top + ptr.x, dOy_top + dleng / 2, alayer[0] );
+    dOx_dxf = Math.max(aparam_b.dbt, aparam_e.dbt) * 1.0;
+    oibeam_e.lines.forEach(line => odxf_ibeam.line(
+        line.x1 + dOx_dxf, line.y1, line.x2 + dOx_dxf, line.y2, alayer[0]));
+    oibeam_e.arcs.forEach(arc => odxf_ibeam.arc(
+        arc.x + dOx_dxf, arc.y, arc.r, arc.angb, arc.ange, alayer[0]));
 
-	ocvs.addLine(sview, pwtl.x, - dleng / 2, pwtl.x, + dleng / 2, alayer[1] );  
-	ocvs.addLine(sview, pwtr.x, - dleng / 2, pwtr.x, + dleng / 2, alayer[1] );  
-		odxf_ibeam.line( dOx_top + pwtl.x, dOy_top - dleng / 2, dOx_top + pwtl.x, dOy_top + dleng / 2, alayer[0] );
-		odxf_ibeam.line( dOx_top + pwtr.x, dOy_top - dleng / 2, dOx_top + pwtr.x, dOy_top + dleng / 2, alayer[0] );
+    // Store for tab switching
+    _ibeam_drawData = {
+        oibeam_b: oibeam_b,
+        oibeam_e: oibeam_e,
+        aparam_b: aparam_b,
+        aparam_e: aparam_e,
+        dseg_leng: dseg_leng,
+        alayer: alayer
+    };
 
-
-    // dim line	
-    ocvs.addDimLinear(sview, ptl.x - ddim_off, - dleng / 2, ptl.x - ddim_off, dleng / 2, ddim_ext * 6);
-    
-    ocvs.addDimLinear(sview, ptl.x  , dleng / 2,  ptr.x, dleng / 2, ddim_ext * 6);
-    ocvs.addDimLinear(sview, ptl.x  , dleng / 2, pwtl.x, dleng / 2, ddim_ext * 3);
-    ocvs.addDimLinear(sview, pwtl.x , dleng / 2, pwtr.x, dleng / 2, ddim_ext * 3);
-    ocvs.addDimLinear(sview, pwtr.x , dleng / 2,  ptr.x, dleng / 2, ddim_ext * 3);
-
-
-	/* draw canvas : Bottom */
-	dOx_bot = Math.max(dbt, dbb, dleng) * 3		, dOy_bot = dh * 3.0;
-
-	sview ='bottom';		
-	
-	ocvs.addLine(sview, pbl.x, - dleng / 2, pbfl.x, + dleng / 2, alayer[0] );  
-		odxf_ibeam.line( dOx_bot + pbl.x, dOy_bot - dleng / 2, dOx_bot + pbfl.x, dOy_bot + dleng / 2, alayer[0] );
-	
-	ocvs.addLine(sview, pbr.x, - dleng / 2, pbfr.x, + dleng / 2, alayer[0] );  
-		odxf_ibeam.line( dOx_bot + pbr.x, dOy_bot - dleng / 2, dOx_bot + pbfr.x, dOy_bot + dleng / 2, alayer[0] );
-
-	ocvs.addLine(sview, pbl.x, - dleng / 2, pbr.x,  - dleng / 2, alayer[0] );  
-		odxf_ibeam.line( dOx_bot + pbl.x, dOy_bot - dleng / 2, dOx_bot + pbr.x, dOy_bot - dleng / 2, alayer[0] );
-	
-	ocvs.addLine(sview, pbl.x, + dleng / 2, pbr.x,  + dleng / 2, alayer[0] );  
-		odxf_ibeam.line( dOx_bot + pbl.x, dOy_bot + dleng / 2, dOx_bot + pbr.x, dOy_bot + dleng / 2, alayer[0] );
-	
-	// chamfer line
-	if( ! dchb == 0 ){
-		ocvs.addLine(sview, chf_bl.xe, - dleng / 2, chf_bl.xe, + dleng / 2, alayer[0] );  
-		ocvs.addLine(sview, chf_br.xe, - dleng / 2, chf_br.xe, + dleng / 2, alayer[0] );   		
-			odxf_ibeam.line( dOx_bot + chf_bl.xe, dOy_bot - dleng / 2, dOx_bot + chf_bl.xe, dOy_bot + dleng / 2, alayer[0] );
-			odxf_ibeam.line( dOx_bot + chf_br.xe, dOy_bot - dleng / 2, dOx_bot + chf_br.xe, dOy_bot + dleng / 2, alayer[0] );
-	}
-	
-	ocvs.addLine(sview, pwbl.x, - dleng / 2, pwbl.x, + dleng / 2, alayer[1] );  
-	ocvs.addLine(sview, pwbr.x, - dleng / 2, pwbr.x, + dleng / 2, alayer[1] );  
-		odxf_ibeam.line( dOx_bot + pwbl.x, dOy_bot - dleng / 2, dOx_bot + pwbl.x, dOy_bot + dleng / 2, alayer[0] );
-		odxf_ibeam.line( dOx_bot + pwbr.x, dOy_bot - dleng / 2, dOx_bot + pwbr.x, dOy_bot + dleng / 2, alayer[0] );
-
-    // dim line	
-    ocvs.addDimLinear(sview, pbl.x - ddim_off, - dleng / 2, pbl.x - ddim_off, dleng / 2, ddim_ext * 6);
-
-    ocvs.addDimLinear(sview,  pbl.x , dleng / 2,  pbr.x, dleng / 2, ddim_ext * 6);
-    ocvs.addDimLinear(sview,  pbl.x , dleng / 2, pwbl.x, dleng / 2, ddim_ext * 3);
-    ocvs.addDimLinear(sview, pwbl.x , dleng / 2, pwbr.x, dleng / 2, ddim_ext * 3);
-    ocvs.addDimLinear(sview, pwbr.x , dleng / 2,  pbr.x, dleng / 2, ddim_ext * 3);
-    
-	if( ! dchb == 0 ){
-		ocvs.addDimLinear(sview, chf_br.xe , -dleng / 2, chf_br.xb, -dleng / 2, ddim_ext * -3);
-	}
-
-
-	/* draw canvas : Side */
-	dOx_side = Math.max(dbt, dbb, dleng) * 3	, dOy_side = 0;
-
-	sview ='side';		
-	
-	ocvs.addLine(sview, - dleng / 2, ptl.y, dleng / 2, ptr.y, alayer[0] );  
-		odxf_ibeam.line( dOx_side - dleng / 2, dOy_side + ptl.y, dOx_side + dleng / 2, dOy_side + ptr.y, alayer[0] );
-	
-	ocvs.addLine(sview, - dleng / 2, ptfl.y, dleng / 2, ptfr.y, alayer[0] );  
-		odxf_ibeam.line( dOx_side - dleng / 2, dOy_side + ptfl.y, dOx_side + dleng / 2, dOy_side + ptfr.y, alayer[0] );
-	
-	ocvs.addLine(sview, - dleng / 2, pwtl.y, dleng / 2, pwtr.y, alayer[0] );  
-	ocvs.addLine(sview, - dleng / 2, pwbl.y, dleng / 2, pwbr.y, alayer[0] );  
-		odxf_ibeam.line( dOx_side - dleng / 2, dOy_side + pwtl.y, dOx_side + dleng / 2, dOy_side + pwtr.y, alayer[0] );
-		odxf_ibeam.line( dOx_side - dleng / 2, dOy_side + pwbl.y, dOx_side + dleng / 2, dOy_side + pwbr.y, alayer[0] );
-	
-	ocvs.addLine(sview, - dleng / 2, pbfl.y, dleng / 2, pbfr.y, alayer[0] );  
-	ocvs.addLine(sview, - dleng / 2, pbl.y, dleng / 2, pbr.y, alayer[0] );  
-		odxf_ibeam.line( dOx_side - dleng / 2, dOy_side + pbfl.y, dOx_side + dleng / 2, dOy_side + pbfr.y, alayer[0] );
-		odxf_ibeam.line( dOx_side - dleng / 2, dOy_side + pbl.y, dOx_side + dleng / 2, dOy_side + pbr.y, alayer[0] );
-	
-	// chamfer line
-	if( ! dchb == 0 ){
-		ocvs.addLine(sview, - dleng / 2, chf_bl.yb, dleng / 2, chf_br.yb, alayer[0] );  
-			odxf_ibeam.line( dOx_side - dleng / 2, dOy_side + chf_bl.yb, dOx_side + dleng / 2, dOy_side + chf_br.yb, alayer[0] );
-	}
-
-	ocvs.addLine(sview, - dleng / 2, pbl.y, - dleng / 2, ptl.y, alayer[0] );  
-	ocvs.addLine(sview,   dleng / 2, pbl.y,   dleng / 2, ptl.y, alayer[0] );  
-		odxf_ibeam.line( dOx_side - dleng / 2, dOy_side + pbl.y, dOx_side - dleng / 2, dOy_side + ptl.y, alayer[0] );
-		odxf_ibeam.line( dOx_side + dleng / 2, dOy_side + pbl.y, dOx_side + dleng / 2, dOy_side + ptl.y, alayer[0] );
-	
-    // dim line	
-    ocvs.addDimLinear(sview, -dleng / 2 - ddim_off ,  pbl.y, -dleng / 2- ddim_off,  ptl.y, ddim_ext * 6);
-    ocvs.addDimLinear(sview, -dleng / 2 - ddim_off ,  pbl.y, -dleng / 2- ddim_off, pbfl.y, ddim_ext * 3);
-    ocvs.addDimLinear(sview, -dleng / 2 - ddim_off , pbfl.y, -dleng / 2- ddim_off, pwbl.y, ddim_ext * 3);
-    ocvs.addDimLinear(sview, -dleng / 2 - ddim_off , pwbl.y, -dleng / 2- ddim_off, pwtl.y, ddim_ext * 3);
-    ocvs.addDimLinear(sview, -dleng / 2 - ddim_off , pwtl.y, -dleng / 2- ddim_off, ptfl.y, ddim_ext * 3);
-    ocvs.addDimLinear(sview, -dleng / 2 - ddim_off , ptfl.y, -dleng / 2- ddim_off,  ptl.y, ddim_ext * 3);
-
-    if( ! dchb == 0 ){
-        ocvs.addDimLinear(sview, dleng / 2 + ddim_off, chf_br.ye , dleng / 2 + ddim_off, chf_br.yb, ddim_ext * -6);
+    // Render 3D view (dynamically load Three.js if missing)
+    function _render3d() {
+        if (typeof render_ibeam_3d === 'function' && typeof THREE !== 'undefined') {
+            render_ibeam_3d('ibeam3d', oibeam_b, oibeam_e, dseg_leng);
+            return;
+        }
+        var msg3d = document.getElementById('ibeam3d');
+        if (msg3d) {
+            msg3d.innerHTML = '<div style="display:flex;align-items:center;justify-content:center;height:100%;color:#666;font-size:14px;">3D Loading...</div>';
+        }
+        var urls = [];
+        if (typeof THREE === 'undefined') {
+            urls.push('https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js');
+            urls.push('https://unpkg.com/three@0.128.0/examples/js/controls/OrbitControls.js');
+        }
+        if (typeof render_ibeam_3d !== 'function') {
+            urls.push('https://macrobim.github.io/macroBIM/bim_ibeam_3d.js');
+        }
+        (function loadNext(i) {
+            if (i >= urls.length) {
+                if (typeof render_ibeam_3d === 'function') {
+                    render_ibeam_3d('ibeam3d', oibeam_b, oibeam_e, dseg_leng);
+                }
+                return;
+            }
+            var s = document.createElement('script');
+            s.src = urls[i];
+            s.onload = function() { loadNext(i + 1); };
+            s.onerror = function() { loadNext(i + 1); };
+            document.head.appendChild(s);
+        })(0);
     }
-    
-    ocvs.addDimLinear(sview, -dleng / 2, ptl.y, dleng / 2, ptl.y, ddim_ext * 6);
+    _render3d();
 
-	// 렌더링
-	ocvs.render();
+    // Initial 2D view
+    fdraw_ibeam_2d('front');
+}
+
+function fdraw_ibeam_2d(viewName) {
+    if (!_ibeam_drawData) return;
+
+    var data = _ibeam_drawData;
+    var oibeam_b = data.oibeam_b;
+    var oibeam_e = data.oibeam_e;
+    var dseg_leng = data.dseg_leng;
+    var alayer = data.alayer;
+
+    // Update tab styles
+    ['front', 'back', 'left', 'center', 'right', 'top', 'bottom'].forEach(function(name) {
+        var btn = document.getElementById('ibeam_tab_' + name);
+        if (!btn) return;
+        if (name === viewName) {
+            btn.style.background = '#2563eb';
+            btn.style.color = '#fff';
+            btn.style.borderColor = '#2563eb';
+        } else {
+            btn.style.background = '#334155';
+            btn.style.color = '#94a3b8';
+            btn.style.borderColor = '#475569';
+        }
+    });
+
+    // Single-view KonvaViewer
+    var ocvs = new KonvaViewer('ibeam_2dview', {
+        gridCols: 1,
+        layout: [{ views: [viewName], span: 1 }]
+    });
+
+    ocvs.addLayer(alayer[0], 'cyan', 'solid', 1.5);
+    ocvs.addLayer(alayer[1], 'cyan', 'hidden', 1.5);
+    ocvs.addLayer(alayer[2], 'red', 'solid', 1.5);
+
+    function gp(points, name) {
+        var found = points.find(function(p) { return p.name === name; });
+        if (found) return { ...found[name] };
+        return { x: 0, y: 0 };
+    }
+
+    var p1, p2;
+    var half = dseg_leng / 2;
+
+    if (viewName === 'front') {
+        oibeam_b.lines.forEach(line =>
+            ocvs.addLine(viewName, line.x1, line.y1, line.x2, line.y2, alayer[0]));
+        oibeam_b.arcs.forEach(arc =>
+            ocvs.addArc(viewName, arc.x, arc.y, arc.r, arc.angb, arc.ange, alayer[0]));
+
+    } else if (viewName === 'back') {
+        oibeam_e.lines.forEach(line =>
+            ocvs.addLine(viewName, line.x1, line.y1, line.x2, line.y2, alayer[0]));
+        oibeam_e.arcs.forEach(arc =>
+            ocvs.addArc(viewName, arc.x, arc.y, arc.r, arc.angb, arc.ange, alayer[0]));
+
+    } else if (viewName === 'top') {
+        // Plan view at top flange: x = section x, y = length axis (-half → +half)
+        var pts_b = oibeam_b.points;
+        var pts_e = oibeam_e.points;
+
+        // outer outline lines (begin→end edges along length)
+        ['ptl', 'ptr'].forEach(n => {
+            p1 = gp(pts_b, n); p2 = gp(pts_e, n);
+            ocvs.addLine(viewName, p1.x, -half, p2.x, half, alayer[0]);
+        });
+        // begin/end transverse lines
+        p1 = gp(pts_b, "ptl"); p2 = gp(pts_b, "ptr");
+        ocvs.addLine(viewName, p1.x, -half, p2.x, -half, alayer[0]);
+        p1 = gp(pts_e, "ptl"); p2 = gp(pts_e, "ptr");
+        ocvs.addLine(viewName, p1.x, half, p2.x, half, alayer[0]);
+
+        // Hidden: web edges visible from top through flange
+        ['pwtl', 'pwtr'].forEach(n => {
+            p1 = gp(pts_b, n); p2 = gp(pts_e, n);
+            ocvs.addLine(viewName, p1.x, -half, p2.x, half, alayer[1]);
+        });
+
+    } else if (viewName === 'bottom') {
+        var pts_b = oibeam_b.points;
+        var pts_e = oibeam_e.points;
+
+        ['pbl', 'pbr'].forEach(n => {
+            p1 = gp(pts_b, n); p2 = gp(pts_e, n);
+            ocvs.addLine(viewName, p1.x, -half, p2.x, half, alayer[0]);
+        });
+        p1 = gp(pts_b, "pbl"); p2 = gp(pts_b, "pbr");
+        ocvs.addLine(viewName, p1.x, -half, p2.x, -half, alayer[0]);
+        p1 = gp(pts_e, "pbl"); p2 = gp(pts_e, "pbr");
+        ocvs.addLine(viewName, p1.x, half, p2.x, half, alayer[0]);
+
+        ['pwbl', 'pwbr'].forEach(n => {
+            p1 = gp(pts_b, n); p2 = gp(pts_e, n);
+            ocvs.addLine(viewName, p1.x, -half, p2.x, half, alayer[1]);
+        });
+
+    } else if (viewName === 'left' || viewName === 'right' || viewName === 'center') {
+        // Side view: x = length axis (-half → +half), y = section height
+        var pts_b = oibeam_b.points;
+        var pts_e = oibeam_e.points;
+
+        ['ptl', 'ptfl', 'pwtl', 'pwbl', 'pbfl', 'pbl'].forEach(n => {
+            p1 = gp(pts_b, n);
+            p2 = gp(pts_e, n);
+            ocvs.addLine(viewName, -half, p1.y, half, p2.y, alayer[0]);
+        });
+
+        // End caps
+        let pbt_b = gp(pts_b, "ptl"), pbb_b = gp(pts_b, "pbl");
+        let pbt_e = gp(pts_e, "ptl"), pbb_e = gp(pts_e, "pbl");
+        ocvs.addLine(viewName, -half, pbb_b.y, -half, pbt_b.y, alayer[0]);
+        ocvs.addLine(viewName,  half, pbb_e.y,  half, pbt_e.y, alayer[0]);
+    }
+
+    ocvs.render();
 }
