@@ -1007,7 +1007,10 @@ function fdraw_box1cell_2d(viewName) {
 	var half = dseg_leng / 2;
 
 	// ── dimension setup (uniform across views) ──
-	var ddim_off = Math.max(aparam_b.dh, aparam_e.dh, aparam_b.dbt, aparam_e.dbt) * 0.04;
+	// Auto-scale offset based on the larger of section dims so dims sit
+	// reasonably close to geometry for small AND large box girders.
+	var _ref = Math.max(aparam_b.dh, aparam_e.dh, aparam_b.dbt, aparam_e.dbt, 100);
+	var ddim_off = Math.max(50, _ref * 0.015);
 	var ddim_ext = ddim_off;
 
 	function _xsec_dims_b1c(geo, ap) {
