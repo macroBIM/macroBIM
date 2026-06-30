@@ -295,10 +295,11 @@ function fdraw_hsection_2d(viewName) {
         ocvs.addDimLinear(viewName, pbl.x, pbl.y - ddim_off, pbr.x, pbr.y - ddim_off, ddim_ext * -6);
         // Web thickness (centered)
         ocvs.addDimLinear(viewName, pwtl.x, (pwtl.y + pwbl.y)/2, gp('pwtr').x, (pwtl.y + pwbl.y)/2, ddim_ext * 1);
-        // Radii
+        // Radii (use a.x/a.y — arc data uses those keys, not ox/oy)
         geo.arcs.forEach(a => {
-            var ang = a.ox > 0 ? (a.oy > aparam.dsech / 2 ? -45 : 45) : (a.oy > aparam.dsech / 2 ? 135 : 225);
-            ocvs.addDimRadius(viewName, a.ox, a.oy, a.r, ang);
+            var ang = a.x > 0 ? (a.y > aparam.dsech / 2 ? -45 : 45)
+                              : (a.y > aparam.dsech / 2 ? 135 : 225);
+            ocvs.addDimRadius(viewName, a.x, a.y, a.r, ang);
         });
 
     } else if (viewName === 'top') {
