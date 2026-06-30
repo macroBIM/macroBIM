@@ -112,10 +112,10 @@ function fdraw_channel() {
     _container.appendChild(div3d);
 
     var divRight = document.createElement('div');
-    divRight.style.cssText = 'width:50%;height:560px;display:flex;flex-direction:column;';
+    divRight.style.cssText = 'width:50%;height:560px;';
 
     var tabBar = document.createElement('div');
-    tabBar.style.cssText = 'display:flex;gap:2px;padding:4px;background:#1e293b;flex-wrap:wrap;flex-shrink:0;';
+    tabBar.style.cssText = 'display:flex;gap:2px;padding:4px;background:#1e293b;flex-wrap:wrap;height:34px;box-sizing:border-box;';
     ['Front','Back','Left','Center','Right','Top','Bottom'].forEach(function(name, i) {
         var btn = document.createElement('button');
         btn.textContent = name;
@@ -131,7 +131,7 @@ function fdraw_channel() {
 
     var viewport2d = document.createElement('div');
     viewport2d.id = 'channel_2dview';
-    viewport2d.style.cssText = 'width:100%;flex:1;background:#000;';
+    viewport2d.style.cssText = 'width:100%;height:526px;background:#000;';
     divRight.appendChild(viewport2d);
     _container.appendChild(divRight);
 

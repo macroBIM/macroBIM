@@ -135,10 +135,10 @@ function fdraw_hsection() {
     _container.appendChild(div3d);
 
     var divRight = document.createElement('div');
-    divRight.style.cssText = 'width:50%;height:560px;display:flex;flex-direction:column;';
+    divRight.style.cssText = 'width:50%;height:560px;';
 
     var tabBar = document.createElement('div');
-    tabBar.style.cssText = 'display:flex;gap:2px;padding:4px;background:#1e293b;flex-wrap:wrap;flex-shrink:0;';
+    tabBar.style.cssText = 'display:flex;gap:2px;padding:4px;background:#1e293b;flex-wrap:wrap;height:34px;box-sizing:border-box;';
     ['Front', 'Back', 'Left', 'Center', 'Right', 'Top', 'Bottom'].forEach(function(name, i) {
         var btn = document.createElement('button');
         btn.textContent = name;
@@ -154,7 +154,7 @@ function fdraw_hsection() {
 
     var viewport2d = document.createElement('div');
     viewport2d.id = 'hsec_2dview';
-    viewport2d.style.cssText = 'width:100%;flex:1;background:#000;';
+    viewport2d.style.cssText = 'width:100%;height:526px;background:#000;';
     divRight.appendChild(viewport2d);
     _container.appendChild(divRight);
 
@@ -284,11 +284,10 @@ function fdraw_hsection_2d(viewName) {
         var ptfl = gp('ptfl'), pwtl = gp('pwtl'), pwbl = gp('pwbl'), pbfl = gp('pbfl');
         var xleft = Math.min(pbl.x, ptl.x);
 
-        // Vertical chain on left
+        // Vertical chain on left: total / tbf / web / ttf
         ocvs.addDimLinear(viewName, xleft - ddim_off, pbl.y,  xleft - ddim_off, ptl.y,  ddim_ext * 6);
         ocvs.addDimLinear(viewName, xleft - ddim_off, pbl.y,  xleft - ddim_off, pbfl.y, ddim_ext * 3);
-        ocvs.addDimLinear(viewName, xleft - ddim_off, pbfl.y, xleft - ddim_off, pwbl.y, ddim_ext * 3);
-        ocvs.addDimLinear(viewName, xleft - ddim_off, pwtl.y, xleft - ddim_off, ptfl.y, ddim_ext * 3);
+        ocvs.addDimLinear(viewName, xleft - ddim_off, pwbl.y, xleft - ddim_off, pwtl.y, ddim_ext * 3);
         ocvs.addDimLinear(viewName, xleft - ddim_off, ptfl.y, xleft - ddim_off, ptl.y,  ddim_ext * 3);
         // Top width
         ocvs.addDimLinear(viewName, ptl.x, ptl.y + ddim_off, ptr.x, ptr.y + ddim_off, ddim_ext * 6);
