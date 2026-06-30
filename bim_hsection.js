@@ -1,293 +1,355 @@
 /*
-		H 형강 작도를 위한 JS v000 (KonvaViewer 적용)
+    H 형강 작도를 위한 JS v002
+    - box1cell/ibeam 패턴: 3D (left) + tabbed 2D (right)
+    - Uniform single cross-section (no Begin/End taper) — 3D loft uses
+      geo_begin == geo_end so the renderer can stay the same.
 */
-const odxf_hsec 	= dxf_generator();
-const scvs_hsec  = "hsecplot";		// canvas name
+const odxf_hsec = dxf_generator();
+const scvs_hsec = "hsecplot";
 
-function hsection_click() {
-	
-    // 1. 사이드바(nav) 및 메인 콘텐츠(main) 레이아웃 조정
-    const mainContent = document.getElementById('wrap_main');
-
-    if (mainContent) {
-        mainContent.classList.remove('col-md-9', 'col-lg-10');
-        mainContent.classList.add('col-md-12', 'col-lg-12');
-    }
-    
-    var omain = document.getElementById("wrap_main");	
-    
-    // HTML 생성
-    var shtml = "";
-	
-	// 뷰포트 높이 계산 (하단 여백 확보)
-    let dynamicHeight = "calc(100vh - 100px)"; 
-
-	shtml += "<div class='container-fluid px-4' style='height: " + dynamicHeight + "; margin-top: 10px; margin-bottom: 20px;'>";
-    shtml += "  <div class='row g-3 h-100'>"; 
-            
-    // --- 왼쪽: 입력 폼 영역 ---
-    shtml += "      <div class='col-lg-4 h-100'>"; 
-	shtml += "          <div class='card shadow-sm h-100 d-flex flex-column' style='overflow: hidden;'>"; 
-	shtml += "              <div class='card-header bg-secondary text-white flex-shrink-0 d-flex justify-content-between align-items-center'>";
-	shtml += "                  <h6 class='mb-0'>DIMENSION (mm)</h6>"; 
-	shtml += "              </div>";	
-	shtml += "              <div class='card-body overflow-auto flex-grow-1' style='min-height: 0; padding-bottom: 0;'>"; 
-	shtml += "                  <div class='pe-1'>";
-	
-	shtml += createTextInput('sUserText', 'BATCH INPUT (CSV)','', 'putParams_hsection(\"sUserText\"); fdraw_hsection();');
-	shtml += createLabel('INPUT One by One');
-	
-    shtml += createRowInput('H Beam Height', 'dsech',  300, 'fdraw_hsection()');
-    shtml += createRowInput('Top Flange Width','dbt', 300, 'fdraw_hsection()');
-    shtml += createRowInput('Bottom Flange Width','dbb', 300, 'fdraw_hsection()');
-    shtml += createRowInput('Web Thickness','dtw', 10, 'fdraw_hsection()');
-    shtml += createRowInput('Top Flange Thickness','dttf', 15, 'fdraw_hsection()');
-    shtml += createRowInput('Bottom Flange Thickness','dtbf', 15, 'fdraw_hsection()');
-    shtml += createRowInput('Radius on Web<br> (R = 0 if not necessary)','dradius',  19, 'fdraw_hsection()');
-    shtml += createRowInput('Beam Length','dseg_leng', 500, 'fdraw_hsection()');
-	
-    shtml += "                  </div>";
-    shtml += "              </div>";
-
-	// card-footer (DXF 다운로드 버튼)
-	shtml += "              <div class='card-footer bg-white border-top flex-shrink-0 p-2 align-items-center justify-content-center text-center'>";
-	shtml += "                  <button class='btn btn-dark w-75 py-2 mb-0 shadow-sm' onclick='odxf_hsec.download(\"Hsection.dxf\")'>";
-	shtml += "                      DXF DOWNLOAD";
-	shtml += "                  </button>";
-	shtml += "              </div>"; 
-	shtml += "          </div>";
-	shtml += "      </div>";
-				
-    // --- 오른쪽: 도면 뷰어 영역 ---
-    shtml += "      <div class='col-lg-8 h-100'>";
-    shtml += "          <div class='card shadow-sm h-100 d-flex flex-column' style='overflow: hidden;'>"; 
-	// 헤더 정렬 유지
-    shtml += "              <div class='card-header bg-secondary flex-shrink-0 d-flex justify-content-between align-items-center'>";
-    shtml += "                  <h6 class='mb-0 text-white'>DRAWING VIEW (Synchronized Zoom/Pan)</h6>";
-    
-    // ⭐ 폰트 굵기(bold) 제거 및 패딩/글자 크기를 줄여서 헤더 높이 유지
-    shtml += "                  <button class='btn btn-light' style='padding: 2px 8px; font-size: 12px; line-height: 1.5;' onclick='fdraw_hsection()'>";
-    shtml += "                      <i class='fa fa-refresh'></i> REGEN";
-    shtml += "                  </button>";
-    shtml += "              </div>";
-	
-    // ★ 마우스 커서 속성(cursor: grab) 추가
-    shtml += "              <div class='card-body p-0 flex-grow-1' style='min-height: 0; position: relative;'>";
-    shtml += "                  <div id='" + scvs_hsec + "' style='position: absolute; top:0; left:0; width:100%; height:100%; background-color:#000; cursor: grab;'></div>";
-    shtml += "              </div>";
-    
-    shtml += "          </div>";
-    shtml += "      </div>";
-            
-    shtml += "  </div>"; 
-    shtml += "</div>";
- 
-    omain.innerHTML = shtml;
-
-    // 초기 드로잉 실행
-    fdraw_hsection();
-}
+const _HSEC_KEYS = ['dsech', 'dbt', 'dbb', 'dtw', 'dttf', 'dtbf', 'dradius'];
 
 function getParams_hsection() {
     const getValue = (id) => {
         const el = document.getElementById(id);
         return el ? Number(el.value) : 0;
     };
-
-    let aparam = {
-        dsech: getValue('dsech'), 
-        dbt: getValue('dbt'), 
-        dbb: getValue('dbb'), 
-        dtw: getValue('dtw'),
-        dttf: getValue('dttf'),
-        dtbf: getValue('dtbf'),
-        dradius: getValue('dradius')
-    };
-    
+    let aparam = {};
+    _HSEC_KEYS.forEach(k => { aparam[k] = getValue(k); });
     let dseg_leng = getValue('dseg_leng');
-    let combText = [ ...Object.values(aparam) ].join(',');
-
+    let combText = _HSEC_KEYS.map(k => aparam[k]).join(',');
     return { aparam, dseg_leng, combText };
 }
 
 function putParams_hsection(textareaId) {
     const textarea = document.getElementById(textareaId);
     if (!textarea) return;
-
     const lines = textarea.value.split('\n');
-    if (lines.length < 2) return; 
+    if (lines.length < 1) return;
+    const values = (lines[0] || '').split(',');
+    const dseg_leng = lines.length >= 2 ? lines[1] : '';
 
-    const values = lines[0].split(',');
-    const dseg_leng = lines[1];
-
-    const keys = [ 'dsech', 'dbt', 'dbb', 'dtw', 'dttf', 'dtbf', 'dradius' ];
-
-    keys.forEach((key, index) => {
+    _HSEC_KEYS.forEach((key, index) => {
         if (values[index] !== undefined) {
-            const elS = document.getElementById( key );
-            if (elS) elS.value = values[index].trim();
-        }			
+            const el = document.getElementById(key);
+            if (el) el.value = values[index].trim();
+        }
     });
-
-    if ( dseg_leng !== undefined) {
-        const elE = document.getElementById( "dseg_leng" );
-        if (elE) elE.value = dseg_leng;
+    if (dseg_leng !== undefined && dseg_leng !== '') {
+        const el = document.getElementById('dseg_leng');
+        if (el) el.value = String(dseg_leng).trim();
     }
-
     if (typeof fdraw_hsection === 'function') fdraw_hsection();
 }
 
-// Canvas에 도면을 그립니다.
+/*
+    geo_hsection: cross-section of H beam (origin = bottom-center, y up)
+    Returns { points, lines, arcs, outline }
+*/
+function geo_hsection({ dsech, dbt, dbb, dtw, dttf, dtbf, dradius }) {
+    let opts = [], olines = [], oarcs = [];
+    let dh = dsech;
+
+    // Outer corner points
+    let ptl  = { x: -dbt / 2, y: dh };
+    let ptr  = { x:  dbt / 2, y: dh };
+    let ptfl = { x: -dbt / 2, y: dh - dttf };
+    let ptfr = { x:  dbt / 2, y: dh - dttf };
+    let pwtl = { x: -dtw / 2, y: dh - dttf };
+    let pwtr = { x:  dtw / 2, y: dh - dttf };
+    let pwbl = { x: -dtw / 2, y: dtbf };
+    let pwbr = { x:  dtw / 2, y: dtbf };
+    let pbfl = { x: -dbb / 2, y: dtbf };
+    let pbfr = { x:  dbb / 2, y: dtbf };
+    let pbl  = { x: -dbb / 2, y: 0 };
+    let pbr  = { x:  dbb / 2, y: 0 };
+
+    [['ptl',ptl],['ptr',ptr],['ptfl',ptfl],['ptfr',ptfr],
+     ['pwtl',pwtl],['pwtr',pwtr],['pwbl',pwbl],['pwbr',pwbr],
+     ['pbfl',pbfl],['pbfr',pbfr],['pbl',pbl],['pbr',pbr]
+    ].forEach(([n,p]) => opts.push({[n]: p, name: n}));
+
+    // === Lines (cross-section outline) ===
+    // Top flange (rectangle): ptl→ptr→ptfr (right side)→inside web→ptfl (left side)
+    olines.push({ x1: ptl.x, y1: ptl.y, x2: ptr.x, y2: ptr.y });        // top edge
+    olines.push({ x1: ptr.x, y1: ptr.y, x2: ptfr.x, y2: ptfr.y });      // right side of top flange
+    olines.push({ x1: ptfl.x, y1: ptfl.y, x2: ptl.x, y2: ptl.y });      // left side of top flange
+
+    // From top flange inner to web (right side)
+    if (dradius > 0) {
+        // fillet between (ptfr) → top flange bottom going left → fillet → web going down
+        let fil_tr = { ox: dtw/2 + dradius, oy: dh - dttf - dradius, r: dradius };
+        olines.push({ x1: ptfr.x, y1: ptfr.y, x2: dtw/2 + dradius, y2: dh - dttf });
+        oarcs.push({ x: fil_tr.ox, y: fil_tr.oy, r: dradius, angb: 90, ange: 180 });
+        olines.push({ x1: dtw/2, y1: dh - dttf - dradius, x2: dtw/2, y2: dtbf + dradius });
+        let fil_br = { ox: dtw/2 + dradius, oy: dtbf + dradius, r: dradius };
+        oarcs.push({ x: fil_br.ox, y: fil_br.oy, r: dradius, angb: 180, ange: 270 });
+        olines.push({ x1: dtw/2 + dradius, y1: dtbf, x2: pbfr.x, y2: pbfr.y });
+        // left mirror
+        olines.push({ x1: ptfl.x, y1: ptfl.y, x2: -dtw/2 - dradius, y2: dh - dttf });
+        let fil_tl = { ox: -dtw/2 - dradius, oy: dh - dttf - dradius, r: dradius };
+        oarcs.push({ x: fil_tl.ox, y: fil_tl.oy, r: dradius, angb: 0, ange: 90 });
+        olines.push({ x1: -dtw/2, y1: dh - dttf - dradius, x2: -dtw/2, y2: dtbf + dradius });
+        let fil_bl = { ox: -dtw/2 - dradius, oy: dtbf + dradius, r: dradius };
+        oarcs.push({ x: fil_bl.ox, y: fil_bl.oy, r: dradius, angb: 270, ange: 360 });
+        olines.push({ x1: -dtw/2 - dradius, y1: dtbf, x2: pbfl.x, y2: pbfl.y });
+    } else {
+        // Sharp corners
+        olines.push({ x1: ptfr.x, y1: ptfr.y, x2: pwtr.x, y2: pwtr.y });
+        olines.push({ x1: pwtr.x, y1: pwtr.y, x2: pwbr.x, y2: pwbr.y });
+        olines.push({ x1: pwbr.x, y1: pwbr.y, x2: pbfr.x, y2: pbfr.y });
+        olines.push({ x1: ptfl.x, y1: ptfl.y, x2: pwtl.x, y2: pwtl.y });
+        olines.push({ x1: pwtl.x, y1: pwtl.y, x2: pwbl.x, y2: pwbl.y });
+        olines.push({ x1: pwbl.x, y1: pwbl.y, x2: pbfl.x, y2: pbfl.y });
+    }
+
+    // Bottom flange
+    olines.push({ x1: pbfr.x, y1: pbfr.y, x2: pbr.x, y2: pbr.y });
+    olines.push({ x1: pbr.x,  y1: pbr.y,  x2: pbl.x, y2: pbl.y });
+    olines.push({ x1: pbl.x,  y1: pbl.y,  x2: pbfl.x, y2: pbfl.y });
+
+    // === Outline (clockwise, sharp corners) for 3D loft ===
+    let outline = [
+        ptl, ptr, ptfr, pwtr, pwbr, pbfr, pbr, pbl, pbfl, pwbl, pwtl, ptfl
+    ];
+
+    return { points: opts, lines: olines, arcs: oarcs, outline: outline };
+}
+
+var _hsec_drawData = null;
+
 function fdraw_hsection() {
+    var alayer = ['hsec_solid', 'hsec_hidden', 'hsec_center'];
 
-	/* Load data */		
-	let auserdata = getParams_hsection();
-	let aparam = auserdata.aparam;
-	let dleng = auserdata.dseg_leng;  
-	
-	let ouserTextArea = document.getElementById('sUserText');
-    if (ouserTextArea) {
-        ouserTextArea.value = auserdata.combText + "\n" + dleng;
-    }	
+    var _container = document.getElementById(scvs_hsec);
+    if (!_container) return;
+    _container.innerHTML = '';
+    _container.style.display = 'flex';
+    _container.style.gap = '2px';
+    _container.style.backgroundColor = '#000';
+    _container.style.height = '560px';
 
-	// data loading
-	let { dsech, dbt, dbb, dtw, dttf, dtbf, dradius } = aparam;
+    var div3d = document.createElement('div');
+    div3d.id = 'hsec3d';
+    div3d.style.cssText = 'width:50%;height:560px;background:#1a1a2e;';
+    _container.appendChild(div3d);
 
-	/* KONVA CANVAS : activate & draw */		
-	var dOx, dOx_side, dOx_top, dOx_bot;
-	var dOy, dOy_side, dOy_top, dOy_bot;
-	var dp1x, dp1y, dp2x, dp2y;
+    var divRight = document.createElement('div');
+    divRight.style.cssText = 'width:50%;height:560px;display:flex;flex-direction:column;';
 
-    // ★ PlotlyViewer를 KonvaViewer로 변경!
-	var ocvs = new KonvaViewer(scvs_hsec);
+    var tabBar = document.createElement('div');
+    tabBar.style.cssText = 'display:flex;gap:2px;padding:4px;background:#1e293b;flex-wrap:wrap;flex-shrink:0;';
+    ['Front', 'Back', 'Left', 'Center', 'Right', 'Top', 'Bottom'].forEach(function(name, i) {
+        var btn = document.createElement('button');
+        btn.textContent = name;
+        btn.id = 'hsec_tab_' + name.toLowerCase();
+        btn.style.cssText = 'padding:4px 10px;border:1px solid #475569;background:' +
+            (i === 0 ? '#2563eb' : '#334155') + ';color:' +
+            (i === 0 ? '#fff' : '#94a3b8') +
+            ';cursor:pointer;border-radius:4px;font-size:11px;font-weight:600;';
+        btn.onclick = function() { fdraw_hsection_2d(name.toLowerCase()); };
+        tabBar.appendChild(btn);
+    });
+    divRight.appendChild(tabBar);
 
-	// 레이어
-	ocvs.addLayer('hsec_solid',  'cyan', 'solid', 2);
-	ocvs.addLayer('hsec_hidden', 'cyan', 'hidden', 1.5);
-	ocvs.addLayer('hsec_center', 'red', 'solid', 2);
+    var viewport2d = document.createElement('div');
+    viewport2d.id = 'hsec_2dview';
+    viewport2d.style.cssText = 'width:100%;flex:1;background:#000;';
+    divRight.appendChild(viewport2d);
+    _container.appendChild(divRight);
 
-	var alayer = ['hsec_solid', 'hsec_hidden', 'hsec_center'];
+    odxf_hsec.init();
+    odxf_hsec.layer(alayer[0], 4, "CONTINUOUS");
+    odxf_hsec.layer(alayer[1], 4, "HIDDEN");
+    odxf_hsec.layer(alayer[2], 1, "CENTER");
 
-	/* DXF Preparation */		
-	var ddim_ext = 20;
-	var ddim_off = 20;
-	
-	odxf_hsec.init();
-	odxf_hsec.layer("hsec_cent", 1, "CENTER");
-	odxf_hsec.layer("hsec_hidden", 4, "HIDDEN");
-	odxf_hsec.layer("hsec_solid", 4, "CONTINUOUS");
-	odxf_hsec.layer("hsec_dim", 1, "CONTINUOUS");
+    let auserdata = getParams_hsection();
+    let aparam = auserdata.aparam;
+    let dseg_leng = auserdata.dseg_leng;
 
-	// set origin of each view
-	dOx = 0, dOy = 0;
-	dOx_side = dleng * 2, dOy_side = 0;
-	dOx_top = 0, dOy_top = dleng * 3.0;
-	dOx_bot = dleng * 2, dOy_bot = dleng * 3.0;
+    let ouserTextArea = document.getElementById('sUserText');
+    if (ouserTextArea) ouserTextArea.value = auserdata.combText + "\n" + dseg_leng;
 
-	/** front view **/
-	plotly_hbeam(ocvs, 0, alayer, dOx, dOy, dsech, dbt, dbb, dttf, dtbf, dtw, dradius, dleng );
+    let geo = geo_hsection(aparam);
 
-    // dxf
-    odxf_hsec.hbeam(dOx, dOy + dsech / 2, dsech, dbt, dbb, dttf, dtbf, dtw, dradius, "hsec_solid");
+    // DXF: front + top + bottom + side layout
+    let _w = Math.max(aparam.dbt, aparam.dbb);
+    let _col = Math.max(_w, dseg_leng) * 1.5;
+    let _row = aparam.dsech * 2.0;
 
-    // 상부
-    dp1x = dOx - dbt / 2, dp1y = dOy + dsech + ddim_off;
-    dp2x = dOx + dbt / 2, dp2y = dOy + dsech + ddim_off;
-    ocvs.addDimLinear('front',  dp1x,  dp1y, dp2x, dp2y, ddim_ext * 6);
+    // Row1 Front at (0,0)
+    geo.lines.forEach(l => odxf_hsec.line(l.x1, l.y1, l.x2, l.y2, alayer[0]));
+    geo.arcs.forEach(a => odxf_hsec.arc(a.x, a.y, a.r, a.angb, a.ange, alayer[0]));
 
-    // web 복부
-    dp1x = dOx - dtw / 2, dp1y = dOy + dsech / 2;
-    dp2x = dOx + dtw / 2, dp2y = dOy + dsech / 2;
-    ocvs.addDimLinear('front',  dp1x,  dp1y, dp2x, dp2y, ddim_ext * 1);
-    
-    // vertical
-    dp1x = dOx - dbt / 2 - ddim_off, dp1y = dOy ;
-    dp2x = dOx - dbt / 2 - ddim_off, dp2y = dOy + dsech;
-    ocvs.addDimLinear('front',  dp1x,  dp1y, dp2x, dp2y, ddim_ext * 6);
+    // Helper for long views in DXF
+    function _dxf_long(off_x, off_y, names, hidden, axis) {
+        let half = dseg_leng / 2;
+        function _gp(n) { var f = geo.points.find(p => p.name === n); return f ? f[n] : {x:0,y:0}; }
+        names.forEach(n => {
+            let p = _gp(n);
+            if (axis === 'top') odxf_hsec.line(off_x + p.x, off_y - half, off_x + p.x, off_y + half, alayer[0]);
+            else odxf_hsec.line(off_x - half, off_y + p.y, off_x + half, off_y + p.y, alayer[0]);
+        });
+        // transverse caps
+        if (names.length >= 2) {
+            let n1 = _gp(names[0]), n2 = _gp(names[names.length-1]);
+            if (axis === 'top') {
+                odxf_hsec.line(off_x + n1.x, off_y - half, off_x + n2.x, off_y - half, alayer[0]);
+                odxf_hsec.line(off_x + n1.x, off_y + half, off_x + n2.x, off_y + half, alayer[0]);
+            } else {
+                odxf_hsec.line(off_x - half, off_y + n1.y, off_x - half, off_y + n2.y, alayer[0]);
+                odxf_hsec.line(off_x + half, off_y + n1.y, off_x + half, off_y + n2.y, alayer[0]);
+            }
+        }
+        hidden.forEach(n => {
+            let p = _gp(n);
+            if (axis === 'top') odxf_hsec.line(off_x + p.x, off_y - half, off_x + p.x, off_y + half, alayer[1]);
+            else odxf_hsec.line(off_x - half, off_y + p.y, off_x + half, off_y + p.y, alayer[1]);
+        });
+    }
+    _dxf_long(0,      _row,     ['ptl','ptr'], ['pwtl','pwtr'], 'top');
+    _dxf_long(_col,   _row,     ['pbl','pbr'], ['pwbl','pwbr'], 'top');
+    _dxf_long(0,      _row * 2, ['ptl','ptfl','pwtl','pwbl','pbfl','pbl'], [], 'side');
 
-    dp1x = dOx - dbt / 2 - ddim_off, dp1y = dOy ;
-    dp2x = dOx - dbt / 2 - ddim_off, dp2y = dOy + dtbf;
-    ocvs.addDimLinear('front',  dp1x,  dp1y, dp2x, dp2y, ddim_ext * 3);
+    _hsec_drawData = { geo, aparam, dseg_leng, alayer };
 
-    dp1x = dp2x, dp1y = dp2y;
-    dp2x = dp1x, dp2y = dOy + dsech - dttf;
-    ocvs.addDimLinear('front',  dp1x,  dp1y, dp2x, dp2y, ddim_ext * 3);
+    // 3D
+    function _render3d() {
+        if (typeof render_hsection_3d === 'function' && typeof THREE !== 'undefined') {
+            render_hsection_3d('hsec3d', geo, geo, dseg_leng);
+            return;
+        }
+        var msg = document.getElementById('hsec3d');
+        if (msg) msg.innerHTML = '<div style="display:flex;align-items:center;justify-content:center;height:100%;color:#666;font-size:14px;">3D Loading...</div>';
+        var urls = [];
+        if (typeof THREE === 'undefined') {
+            urls.push('https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js');
+            urls.push('https://unpkg.com/three@0.128.0/examples/js/controls/OrbitControls.js');
+        }
+        if (typeof render_hsection_3d !== 'function') {
+            urls.push('https://macrobim.github.io/macroBIM/bim_hsection_3d.js');
+        }
+        (function loadNext(i) {
+            if (i >= urls.length) {
+                if (typeof render_hsection_3d === 'function') render_hsection_3d('hsec3d', geo, geo, dseg_leng);
+                return;
+            }
+            var s = document.createElement('script');
+            s.src = urls[i];
+            s.onload = function() { loadNext(i+1); };
+            s.onerror = function() { loadNext(i+1); };
+            document.head.appendChild(s);
+        })(0);
+    }
+    _render3d();
 
-    dp1x = dp2x, dp1y = dp2y;
-    dp2x = dp1x, dp2y = dOy + dsech;
-    ocvs.addDimLinear('front',  dp1x,  dp1y, dp2x, dp2y, ddim_ext * 3);
-            
-    dp1x = dOx - dtw / 2 - dradius, dp1y = dOy + dsech - dttf - dradius;		
-    ocvs.addDimRadius('front', dp1x, dp1y, dradius, 45);		
+    fdraw_hsection_2d('front');
+}
 
-    dp1x = dOx - dtw / 2 - dradius, dp1y = dOy + dtbf + dradius;		
-    ocvs.addDimRadius('front', dp1x, dp1y, dradius, -45);		
-		
-		
-	/** top view **/
-	plotly_hbeam(ocvs, 1, alayer, dOx, dOy, dsech, dbt, dbb, dttf, dtbf, dtw, dradius, dleng );
+function fdraw_hsection_2d(viewName) {
+    if (!_hsec_drawData) return;
+    var data = _hsec_drawData;
+    var geo = data.geo;
+    var aparam = data.aparam;
+    var dseg_leng = data.dseg_leng;
+    var alayer = data.alayer;
 
-    // dxf
-    odxf_hsec.hbeam_top(dOx_top, dOy_top - dleng / 2, dsech, dbt, dbb, dttf, dtbf, dtw, dleng, "hsec_solid", "hsec_hidden");
+    ['front','back','left','center','right','top','bottom'].forEach(function(name) {
+        var btn = document.getElementById('hsec_tab_' + name);
+        if (!btn) return;
+        if (name === viewName) {
+            btn.style.background = '#2563eb'; btn.style.color = '#fff'; btn.style.borderColor = '#2563eb';
+        } else {
+            btn.style.background = '#334155'; btn.style.color = '#94a3b8'; btn.style.borderColor = '#475569';
+        }
+    });
 
-    // vertical
-    dp1x = dOx - dbt / 2 - ddim_off, dp1y = dOy - dleng / 2;
-    dp2x = dOx - dbt / 2 - ddim_off, dp2y = dOy + dleng / 2;
-    ocvs.addDimLinear('top',  dp1x,  dp1y, dp2x, dp2y, ddim_ext * 6);
+    var ocvs = new KonvaViewer('hsec_2dview', {
+        gridCols: 1, layout: [{ views: [viewName], span: 1 }]
+    });
+    ocvs.addLayer(alayer[0], 'cyan', 'solid', 1.5);
+    ocvs.addLayer(alayer[1], 'cyan', 'hidden', 1.5);
+    ocvs.addLayer(alayer[2], 'red', 'solid', 1.5);
 
-    // horizontal
-    dp1x = dOx - dbt / 2, dp1y = dOy + dleng / 2 + ddim_off;
-    dp2x = dOx + dbt / 2, dp2y = dOy + dleng / 2 + ddim_off;
-    ocvs.addDimLinear('top',  dp1x,  dp1y, dp2x, dp2y, ddim_ext * 6);
+    function gp(name) { var f = geo.points.find(p => p.name === name); return f ? Object.assign({}, f[name]) : {x:0,y:0}; }
+    var half = dseg_leng / 2;
+    var ddim_off = 20, ddim_ext = 20;
 
-    dp1x = dOx - dtw / 2, dp1y = dOy + dleng / 2 + ddim_off;
-    dp2x = dOx + dtw / 2, dp2y = dOy + dleng / 2 + ddim_off;
-    ocvs.addDimLinear('top',  dp1x,  dp1y, dp2x, dp2y, ddim_ext * 3);
+    if (viewName === 'front' || viewName === 'back') {
+        // Same cross-section either way (uniform)
+        geo.lines.forEach(l => ocvs.addLine(viewName, l.x1, l.y1, l.x2, l.y2, alayer[0]));
+        geo.arcs.forEach(a => ocvs.addArc(viewName, a.x, a.y, a.r, a.angb, a.ange, alayer[0]));
 
-	/** bottom view **/
-	plotly_hbeam(ocvs, 2, alayer, dOx, dOy, dsech, dbt, dbb, dttf, dtbf, dtw, dradius, dleng );
+        var ptl = gp('ptl'), ptr = gp('ptr'), pbl = gp('pbl'), pbr = gp('pbr');
+        var ptfl = gp('ptfl'), pwtl = gp('pwtl'), pwbl = gp('pwbl'), pbfl = gp('pbfl');
+        var xleft = Math.min(pbl.x, ptl.x);
 
-    // dxf
-    odxf_hsec.hbeam_bot(dOx_bot, dOy_bot - dleng / 2, dsech, dbt, dbb, dttf, dtbf, dtw, dleng, "hsec_solid", "hsec_hidden");
+        // Vertical chain on left
+        ocvs.addDimLinear(viewName, xleft - ddim_off, pbl.y,  xleft - ddim_off, ptl.y,  ddim_ext * 6);
+        ocvs.addDimLinear(viewName, xleft - ddim_off, pbl.y,  xleft - ddim_off, pbfl.y, ddim_ext * 3);
+        ocvs.addDimLinear(viewName, xleft - ddim_off, pbfl.y, xleft - ddim_off, pwbl.y, ddim_ext * 3);
+        ocvs.addDimLinear(viewName, xleft - ddim_off, pwtl.y, xleft - ddim_off, ptfl.y, ddim_ext * 3);
+        ocvs.addDimLinear(viewName, xleft - ddim_off, ptfl.y, xleft - ddim_off, ptl.y,  ddim_ext * 3);
+        // Top width
+        ocvs.addDimLinear(viewName, ptl.x, ptl.y + ddim_off, ptr.x, ptr.y + ddim_off, ddim_ext * 6);
+        // Bottom width
+        ocvs.addDimLinear(viewName, pbl.x, pbl.y - ddim_off, pbr.x, pbr.y - ddim_off, ddim_ext * -6);
+        // Web thickness (centered)
+        ocvs.addDimLinear(viewName, pwtl.x, (pwtl.y + pwbl.y)/2, gp('pwtr').x, (pwtl.y + pwbl.y)/2, ddim_ext * 1);
+        // Radii
+        geo.arcs.forEach(a => {
+            var ang = a.ox > 0 ? (a.oy > aparam.dsech / 2 ? -45 : 45) : (a.oy > aparam.dsech / 2 ? 135 : 225);
+            ocvs.addDimRadius(viewName, a.ox, a.oy, a.r, ang);
+        });
 
-    // vertical
-    dp1x = dOx - dbb / 2 - ddim_off, dp1y = dOy - dleng / 2;
-    dp2x = dOx - dbb / 2 - ddim_off, dp2y = dOy + dleng / 2;
-    ocvs.addDimLinear('bottom',  dp1x,  dp1y, dp2x, dp2y, ddim_ext * 6);
+    } else if (viewName === 'top') {
+        var ptl = gp('ptl'), ptr = gp('ptr'), pwtl = gp('pwtl'), pwtr = gp('pwtr');
+        ['ptl','ptr'].forEach(n => {
+            var p = gp(n);
+            ocvs.addLine(viewName, p.x, -half, p.x, half, alayer[0]);
+        });
+        ocvs.addLine(viewName, ptl.x, -half, ptr.x, -half, alayer[0]);
+        ocvs.addLine(viewName, ptl.x,  half, ptr.x,  half, alayer[0]);
+        ['pwtl','pwtr'].forEach(n => {
+            var p = gp(n);
+            ocvs.addLine(viewName, p.x, -half, p.x, half, alayer[1]);
+        });
+        // dims
+        ocvs.addDimLinear(viewName, ptl.x - ddim_off, -half, ptl.x - ddim_off, half, ddim_ext * 6);
+        ocvs.addDimLinear(viewName, ptl.x, half + ddim_off, ptr.x, half + ddim_off, ddim_ext * 6);
+        ocvs.addDimLinear(viewName, pwtl.x, half + ddim_off, pwtr.x, half + ddim_off, ddim_ext * 3);
 
-    // horizontal
-    dp1x = dOx - dbb / 2, dp1y = dOy + dleng / 2 + ddim_off;
-    dp2x = dOx + dbb / 2, dp2y = dOy + dleng / 2 + ddim_off;
-    ocvs.addDimLinear('bottom',  dp1x,  dp1y, dp2x, dp2y, ddim_ext * 6);
+    } else if (viewName === 'bottom') {
+        var pbl = gp('pbl'), pbr = gp('pbr'), pwbl = gp('pwbl'), pwbr = gp('pwbr');
+        ['pbl','pbr'].forEach(n => {
+            var p = gp(n);
+            ocvs.addLine(viewName, p.x, -half, p.x, half, alayer[0]);
+        });
+        ocvs.addLine(viewName, pbl.x, -half, pbr.x, -half, alayer[0]);
+        ocvs.addLine(viewName, pbl.x,  half, pbr.x,  half, alayer[0]);
+        ['pwbl','pwbr'].forEach(n => {
+            var p = gp(n);
+            ocvs.addLine(viewName, p.x, -half, p.x, half, alayer[1]);
+        });
+        ocvs.addDimLinear(viewName, pbl.x - ddim_off, -half, pbl.x - ddim_off, half, ddim_ext * 6);
+        ocvs.addDimLinear(viewName, pbl.x, half + ddim_off, pbr.x, half + ddim_off, ddim_ext * 6);
+        ocvs.addDimLinear(viewName, pwbl.x, half + ddim_off, pwbr.x, half + ddim_off, ddim_ext * 3);
 
-    dp1x = dOx - dtw / 2, dp1y = dOy + dleng / 2 + ddim_off;
-    dp2x = dOx + dtw / 2, dp2y = dOy + dleng / 2 + ddim_off;
-    ocvs.addDimLinear('bottom',  dp1x,  dp1y, dp2x, dp2y, ddim_ext * 3);
+    } else if (viewName === 'left' || viewName === 'right' || viewName === 'center') {
+        var ptl = gp('ptl'), pbl = gp('pbl'), ptfl = gp('ptfl'), pwtl = gp('pwtl');
+        var pwbl = gp('pwbl'), pbfl = gp('pbfl');
+        ['ptl','ptfl','pwtl','pwbl','pbfl','pbl'].forEach(n => {
+            var p = gp(n);
+            ocvs.addLine(viewName, -half, p.y, half, p.y, alayer[0]);
+        });
+        ocvs.addLine(viewName, -half, pbl.y, -half, ptl.y, alayer[0]);
+        ocvs.addLine(viewName,  half, pbl.y,  half, ptl.y, alayer[0]);
+        // dims
+        ocvs.addDimLinear(viewName, -half - ddim_off, pbl.y, -half - ddim_off, ptl.y, ddim_ext * 6);
+        ocvs.addDimLinear(viewName, -half - ddim_off, pbl.y, -half - ddim_off, pbfl.y, ddim_ext * 3);
+        ocvs.addDimLinear(viewName, -half - ddim_off, pwtl.y, -half - ddim_off, ptfl.y, ddim_ext * 3);
+        ocvs.addDimLinear(viewName, -half, ptl.y + ddim_off, half, ptl.y + ddim_off, ddim_ext * 6);
+    }
 
-	/** side view **/
-	plotly_hbeam(ocvs, 3, alayer, dOx, dOy, dsech, dbt, dbb, dttf, dtbf, dtw, dradius, dleng );
-
-    // dxf
-    odxf_hsec.hbeam_side(dOx_side, dOy_side + dsech / 2, dsech, dbt, dbb, dttf, dtbf, dtw, dleng, "hsec_solid", "hsec_hidden");
-
-    // vertical
-    dp1x = dOx - dleng / 2 - ddim_off, dp1y = dOy ;
-    dp2x = dOx - dleng / 2 - ddim_off, dp2y = dOy + dsech;
-    ocvs.addDimLinear('side',  dp1x,  dp1y, dp2x, dp2y, ddim_ext * 6);
-
-    dp1x = dOx - dleng / 2 - ddim_off, dp1y = dOy ;
-    dp2x = dOx - dleng / 2 - ddim_off, dp2y = dOy + dtbf;
-    ocvs.addDimLinear('side',  dp1x,  dp1y, dp2x, dp2y, ddim_ext * 3);
-
-    dp1x = dOx - dleng / 2 - ddim_off, dp1y = dOy + dsech - dttf;
-    dp2x = dOx - dleng / 2 - ddim_off, dp2y = dOy + dsech;
-    ocvs.addDimLinear('side',  dp1x,  dp1y, dp2x, dp2y, ddim_ext * 3);
-
-    // horizontal
-    dp1x = dOx - dleng / 2, dp1y = dOy + dsech + ddim_off;
-    dp2x = dOx + dleng / 2, dp2y = dOy + dsech + ddim_off;
-    ocvs.addDimLinear('side',  dp1x,  dp1y, dp2x, dp2y, ddim_ext * 6);
-
-	// draw
-	ocvs.render();
+    ocvs.render();
 }

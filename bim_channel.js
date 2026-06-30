@@ -1,479 +1,303 @@
 /*
-	Channel 형강 작도를 위한 JS  v000 (KonvaViewer 적용)
+    Channel 작도를 위한 JS v002
+    - box1cell/ibeam 패턴: 3D (left) + tabbed 2D (right)
+    - Uniform single cross-section. Simplified outline (sharp corners).
 */
-const odxf_channel 	= dxf_generator();
-const scvs_channel  = "channelplot";		// canvas name
+const odxf_channel = dxf_generator();
+const scvs_channel = "channelplot";
 
-function channel_click() {
+const _CHAN_KEYS = ['dsech', 'db', 'dtw', 'dtf', 'drw', 'drf'];
 
-    // 1. 사이드바(nav) 및 메인 콘텐츠(main) 레이아웃 조정
-    const mainContent = document.getElementById('wrap_main');
-
-    if (mainContent) {
-        mainContent.classList.remove('col-md-9', 'col-lg-10');
-        mainContent.classList.add('col-md-12', 'col-lg-12');
-    }
-    
-    var omain = document.getElementById("wrap_main");	
-    
-    // HTML 생성
-    var shtml = "";
-	
-	// 뷰포트 높이 계산 변경 (더 넉넉한 하단 여백 확보)
-    let dynamicHeight = "calc(100vh - 100px)"; 
-
-	shtml += "<div class='container-fluid px-4' style='height: " + dynamicHeight + "; margin-top: 10px; margin-bottom: 20px;'>";
-    shtml += "  <div class='row g-3 h-100'>"; 
-            
-    // --- 왼쪽: 입력 폼 영역 ---
-    shtml += "      <div class='col-lg-4 h-100'>"; 
-	
-	// 카드를 d-flex flex-column으로 설정하여 헤더-바디-푸터를 수직으로 정렬합니다.
-	shtml += "          <div class='card shadow-sm h-100 d-flex flex-column' style='overflow: hidden;'>"; 
-
-	// 1. 헤더에 버튼 추가
-	shtml += "              <div class='card-header bg-secondary text-white flex-shrink-0 d-flex justify-content-between align-items-center'>";
-	shtml += "                  <h6 class='mb-0'>DIMENSION (mm)</h6>"; 
-	shtml += "              </div>";	
-
-	// flex-grow-1을 주어 남은 공간을 다 차지하게 하고, 이 영역에만 스크롤을 발생시킵니다.
-	shtml += "              <div class='card-body overflow-auto flex-grow-1' style='min-height: 0; padding-bottom: 0;'>"; 
-	shtml += "                  <div class='pe-1'>";
-	
-	shtml += createTextInput('sUserText', 'BATCH INPUT (CSV)','', 'putParams_channel(\"sUserText\"); fdraw_channel();') 	;
-	
-	shtml += createLabel('INPUT One by One') 	
-	
-    shtml += createRowInput('Channel Height', 'dsech',  300, 'fdraw_channel()');
-    shtml += createRowInput('Channel Width','db', 90, 'fdraw_channel()');
-    shtml += createRowInput('Web Thickness','dtw', 12, 'fdraw_channel()');
-    shtml += createRowInput('Flange Thickness','dtf', 16, 'fdraw_channel()');
-    shtml += createRowInput('Radius on Web<br> (R = 0 if not necessary)','drw',  19, 'fdraw_channel()');
-    shtml += createRowInput('Radius on Flange <br> (R = 0 if not necessary)','drf', 9.5, 'fdraw_channel()');
-    shtml += createRowInput('Channel Length','dseg_leng', 500, 'fdraw_channel()');
-	
-    shtml += "                  </div>";
-    shtml += "              </div>";
-
-	// card-footer (DXF 다운로드)
-	shtml += "              <div class='card-footer bg-white border-top flex-shrink-0 p-2 align-items-center justify-content-center text-center'>";
-	shtml += "                  <button class='btn btn-dark w-75 py-2 mb-0 shadow-sm' onclick='odxf_channel.download(\"Channel.dxf\")'>";
-	shtml += "                      DXF DOWNLOAD";
-	shtml += "                  </button>";
-	shtml += "              </div>"; 
-	shtml += "          </div>";
-	
-	shtml += "      </div>";
-				
-    // --- 오른쪽: 도면 뷰어 영역 ---
-    shtml += "      <div class='col-lg-8 h-100'>";
-    shtml += "          <div class='card shadow-sm h-100 d-flex flex-column' style='overflow: hidden;'>"; 
-	// 헤더 정렬 유지
-    shtml += "              <div class='card-header bg-secondary flex-shrink-0 d-flex justify-content-between align-items-center'>";
-    shtml += "                  <h6 class='mb-0 text-white'>DRAWING VIEW (Synchronized Zoom/Pan)</h6>";
-    
-    // ⭐ 폰트 굵기(bold) 제거 및 패딩/글자 크기를 줄여서 헤더 높이 유지
-    shtml += "                  <button class='btn btn-light' style='padding: 2px 8px; font-size: 12px; line-height: 1.5;' onclick='fdraw_channel()'>";
-    shtml += "                      <i class='fa fa-refresh'></i> REGEN";
-    shtml += "                  </button>";
-    shtml += "              </div>";
-	
-    // ★ 마우스 커서 속성(cursor: grab) 추가
-    shtml += "              <div class='card-body p-0 flex-grow-1' style='min-height: 0; position: relative;'>";
-    shtml += "                  <div id='" + scvs_channel + "' style='position: absolute; top:0; left:0; width:100%; height:100%; background-color:#000; cursor: grab;'></div>";
-    shtml += "              </div>";
-    
-    shtml += "          </div>";
-    shtml += "      </div>";
-            
-    shtml += "  </div>"; 
-    shtml += "</div>";
-
-    omain.innerHTML = shtml;
-
-    // 초기 드로잉 실행
-    fdraw_channel();
-}
-
-// 입력 필드에서 값을 읽어옵니다.
 function getParams_channel() {
     const getValue = (id) => {
         const el = document.getElementById(id);
         return el ? Number(el.value) : 0;
     };
-
     let aparam = {
-        dh: getValue('dsech'), 
-        db: getValue('db'), 
+        dh:  getValue('dsech'),
+        db:  getValue('db'),
         dtw: getValue('dtw'),
         dtf: getValue('dtf'),
-        drw: getValue('drw'), drf: getValue('drf')
+        drw: getValue('drw'),
+        drf: getValue('drf'),
     };
-    
     let dseg_leng = getValue('dseg_leng');
-    let combText = [ ...Object.values(aparam) ].join(',');
-
+    let combText = [aparam.dh, aparam.db, aparam.dtw, aparam.dtf, aparam.drw, aparam.drf].join(',');
     return { aparam, dseg_leng, combText };
 }
 
 function putParams_channel(textareaId) {
     const textarea = document.getElementById(textareaId);
     if (!textarea) return;
-
     const lines = textarea.value.split('\n');
-    if (lines.length < 2) return; 
+    if (lines.length < 1) return;
+    const values = (lines[0] || '').split(',');
+    const dseg_leng = lines.length >= 2 ? lines[1] : '';
 
-    const values = lines[0].split(',');
-    const dseg_leng = lines[1];
-
-    const keys = [ 'dsech', 'db', 'dtw', 'dtf', 'drw', 'drf' ];
-
-    keys.forEach((key, index) => {
+    ['dsech', 'db', 'dtw', 'dtf', 'drw', 'drf'].forEach((key, index) => {
         if (values[index] !== undefined) {
-            const elS = document.getElementById( key );
-            if (elS) elS.value = values[index].trim();
-        }			
+            const el = document.getElementById(key);
+            if (el) el.value = values[index].trim();
+        }
     });
-
-    if ( dseg_leng !== undefined) {
-        const elE = document.getElementById( "dseg_leng" );
-        if (elE) elE.value = dseg_leng;
+    if (dseg_leng !== undefined && dseg_leng !== '') {
+        const el = document.getElementById('dseg_leng');
+        if (el) el.value = String(dseg_leng).trim();
     }
-
-    if (typeof fdraw_channel === 'function') {
-        fdraw_channel();
-    }
+    if (typeof fdraw_channel === 'function') fdraw_channel();
 }
 
+/*
+    geo_channel: Channel cross-section (origin = bottom-left of web outside)
+    Returns { points, lines, arcs, outline }
+*/
+function geo_channel({ dh, db, dtw, dtf, drw, drf }) {
+    let opts = [], olines = [], oarcs = [];
 
-// Canvas에 도면을 그립니다.
+    // Outer corner points (origin: bottom-left outside web, y up, web to the left)
+    let pbw  = { x: 0,   y: 0 };          // bottom-left web (outside)
+    let pbf  = { x: db,  y: 0 };          // bottom-right of bottom flange (tip)
+    let pbft = { x: db,  y: dtf };        // top of bottom flange outer
+    let pbti = { x: dtw, y: dtf };        // inner corner bottom flange / web
+    let ptti = { x: dtw, y: dh - dtf };   // inner corner top flange / web
+    let ptft = { x: db,  y: dh - dtf };   // bottom of top flange outer
+    let ptf  = { x: db,  y: dh };         // top-right of top flange (tip)
+    let ptw  = { x: 0,   y: dh };         // top-left web (outside)
+
+    [['pbw',pbw],['pbf',pbf],['pbft',pbft],['pbti',pbti],
+     ['ptti',ptti],['ptft',ptft],['ptf',ptf],['ptw',ptw]
+    ].forEach(([n,p]) => opts.push({[n]: p, name: n}));
+
+    // === Outline lines (sharp corners) ===
+    olines.push({ x1: ptw.x,  y1: ptw.y,  x2: ptf.x,  y2: ptf.y  });   // top edge
+    olines.push({ x1: ptf.x,  y1: ptf.y,  x2: ptft.x, y2: ptft.y });   // top flange right edge
+    olines.push({ x1: ptft.x, y1: ptft.y, x2: ptti.x, y2: ptti.y });   // top flange bottom (going inward)
+    olines.push({ x1: ptti.x, y1: ptti.y, x2: pbti.x, y2: pbti.y });   // web inner (vertical)
+    olines.push({ x1: pbti.x, y1: pbti.y, x2: pbft.x, y2: pbft.y });   // bottom flange top (going outward)
+    olines.push({ x1: pbft.x, y1: pbft.y, x2: pbf.x,  y2: pbf.y  });   // bottom flange right edge
+    olines.push({ x1: pbf.x,  y1: pbf.y,  x2: pbw.x,  y2: pbw.y  });   // bottom edge
+    olines.push({ x1: pbw.x,  y1: pbw.y,  x2: ptw.x,  y2: ptw.y  });   // web outer (vertical)
+
+    // === Fillet arcs (visual only, simplified — only when both radii equal) ===
+    let useFillet = (drw > 0 && drf > 0 && Math.abs(drw - drf) < 1e-6);
+    if (useFillet) {
+        let r = drw;
+        // Bottom inner fillet at (dtw + r, dtf + r) — concave fillet between flange top and web inner
+        oarcs.push({ x: dtw + r, y: dtf + r, r: r, angb: 180, ange: 270 });
+        oarcs.push({ x: dtw + r, y: dh - dtf - r, r: r, angb: 90, ange: 180 });
+    }
+
+    // === Outline polygon for 3D loft ===
+    let outline = [ptw, ptf, ptft, ptti, pbti, pbft, pbf, pbw];
+
+    return { points: opts, lines: olines, arcs: oarcs, outline: outline };
+}
+
+var _channel_drawData = null;
+
 function fdraw_channel() {
+    var alayer = ['channel_solid', 'channel_hidden', 'channel_center'];
 
-	/* Load data */		
-	let auserdata = getParams_channel();
-	let aparam = auserdata.aparam;
-	let dleng = auserdata.dseg_leng;  
-	
-	let ouserTextArea = document.getElementById('sUserText');
-    if (ouserTextArea) {
-        ouserTextArea.value = auserdata.combText + "\n" + dleng;
-    }	
+    var _container = document.getElementById(scvs_channel);
+    if (!_container) return;
+    _container.innerHTML = '';
+    _container.style.display = 'flex';
+    _container.style.gap = '2px';
+    _container.style.backgroundColor = '#000';
+    _container.style.height = '560px';
 
-	// data loading
-	let { dh, db, dtw, dtf, drw, drf } = aparam;
+    var div3d = document.createElement('div');
+    div3d.id = 'channel3d';
+    div3d.style.cssText = 'width:50%;height:560px;background:#1a1a2e;';
+    _container.appendChild(div3d);
 
-	var dOx, dOx_side, dOx_top, dOx_bot;
-	var dOy, dOy_side, dOy_top, dOy_bot;
+    var divRight = document.createElement('div');
+    divRight.style.cssText = 'width:50%;height:560px;display:flex;flex-direction:column;';
 
-	/* KONVA CANVAS : activate & draw */		
-    // ★ PlotlyViewer 대신 KonvaViewer를 호출합니다!
-	var ocvs = new KonvaViewer(scvs_channel);
+    var tabBar = document.createElement('div');
+    tabBar.style.cssText = 'display:flex;gap:2px;padding:4px;background:#1e293b;flex-wrap:wrap;flex-shrink:0;';
+    ['Front','Back','Left','Center','Right','Top','Bottom'].forEach(function(name, i) {
+        var btn = document.createElement('button');
+        btn.textContent = name;
+        btn.id = 'channel_tab_' + name.toLowerCase();
+        btn.style.cssText = 'padding:4px 10px;border:1px solid #475569;background:' +
+            (i === 0 ? '#2563eb' : '#334155') + ';color:' +
+            (i === 0 ? '#fff' : '#94a3b8') +
+            ';cursor:pointer;border-radius:4px;font-size:11px;font-weight:600;';
+        btn.onclick = function() { fdraw_channel_2d(name.toLowerCase()); };
+        tabBar.appendChild(btn);
+    });
+    divRight.appendChild(tabBar);
 
-	// 레이어
-	var alayer = ['channel_solid', 'channel_hidden', 'channel_center'];
-	
-	ocvs.addLayer( alayer[0],  'cyan', 'solid', 1.5);
-	ocvs.addLayer( alayer[1], 'cyan', 'hidden', 1.5);
-	ocvs.addLayer( alayer[2], 'red', 'solid', 1.5);
+    var viewport2d = document.createElement('div');
+    viewport2d.id = 'channel_2dview';
+    viewport2d.style.cssText = 'width:100%;flex:1;background:#000;';
+    divRight.appendChild(viewport2d);
+    _container.appendChild(divRight);
 
-	/* DXF Preparation */		
-	odxf_channel.init();
-	odxf_channel.layer( alayer[0], 4, "CONTINUOUS");
-	odxf_channel.layer( alayer[1], 4, "HIDDEN");
-	odxf_channel.layer( alayer[2], 1, "CENTER");
+    odxf_channel.init();
+    odxf_channel.layer(alayer[0], 4, "CONTINUOUS");
+    odxf_channel.layer(alayer[1], 4, "HIDDEN");
+    odxf_channel.layer(alayer[2], 1, "CENTER");
 
+    let auserdata = getParams_channel();
+    let aparam = auserdata.aparam;
+    let dseg_leng = auserdata.dseg_leng;
+    let ouserTextArea = document.getElementById('sUserText');
+    if (ouserTextArea) ouserTextArea.value = auserdata.combText + "\n" + dseg_leng;
 
-	let ptw   = {x:0, y:0};  // 상연 복부측
-	let ptf  = {x:0, y:0};  // 상연 플랜지 끝단측
-	let pbw   = {x:0, y:0};  // 하연 복부측
-	let pbf  = {x:0, y:0};  // 하연 플랜지 끝단측
+    let geo = geo_channel(aparam);
 
-	let ptbf = {x:0, y:0};  // 하부 플랜지측 접점
-	let ptbw = {x:0, y:0};  // 하부 복부측 접점
-	let pttf = {x:0, y:0};  // 상부 플랜지측 접점
-	let pttw = {x:0, y:0};  // 상부 복부측 접점
+    // DXF output
+    let _col = Math.max(aparam.db, dseg_leng) * 1.5;
+    let _row = aparam.dh * 2.0;
+    geo.lines.forEach(l => odxf_channel.line(l.x1, l.y1, l.x2, l.y2, alayer[0]));
+    geo.arcs.forEach(a => odxf_channel.arc(a.x, a.y, a.r, a.angb, a.ange, alayer[0]));
 
-	let pit = {x:0, y:0};  // 플랜지 복부 상부 교차점
-	let pib = {x:0, y:0};  // 플랜지 복부 하부 교차점
+    function _dxf_long(off_x, off_y, names, hidden, axis) {
+        let half = dseg_leng / 2;
+        function _gp(n) { var f = geo.points.find(p => p.name === n); return f ? f[n] : {x:0,y:0}; }
+        names.forEach(n => {
+            let p = _gp(n);
+            if (axis === 'top') odxf_channel.line(off_x + p.x, off_y - half, off_x + p.x, off_y + half, alayer[0]);
+            else odxf_channel.line(off_x - half, off_y + p.y, off_x + half, off_y + p.y, alayer[0]);
+        });
+        if (names.length >= 2) {
+            let n1 = _gp(names[0]), n2 = _gp(names[names.length-1]);
+            if (axis === 'top') {
+                odxf_channel.line(off_x + n1.x, off_y - half, off_x + n2.x, off_y - half, alayer[0]);
+                odxf_channel.line(off_x + n1.x, off_y + half, off_x + n2.x, off_y + half, alayer[0]);
+            } else {
+                odxf_channel.line(off_x - half, off_y + n1.y, off_x - half, off_y + n2.y, alayer[0]);
+                odxf_channel.line(off_x + half, off_y + n1.y, off_x + half, off_y + n2.y, alayer[0]);
+            }
+        }
+        hidden.forEach(n => {
+            let p = _gp(n);
+            if (axis === 'top') odxf_channel.line(off_x + p.x, off_y - half, off_x + p.x, off_y + half, alayer[1]);
+            else odxf_channel.line(off_x - half, off_y + p.y, off_x + half, off_y + p.y, alayer[1]);
+        });
+    }
+    _dxf_long(0,    _row,    ['ptw','ptf'], ['pbti','ptti'], 'top');
+    _dxf_long(_col, _row,    ['pbw','pbf'], [], 'top');
+    _dxf_long(0,    _row*2,  ['ptw','ptf','ptft','pbft','pbf','pbw'], [], 'side');
 
-	let pwt = {x:0, y:0};  // 복부측 상단
-	let pwb = {x:0, y:0};  // 복부측 하단
+    _channel_drawData = { geo, aparam, dseg_leng, alayer };
 
-	let ptm = {x:0, y:0};  // 상부 플랜지 중앙
-	let pbm = {x:0, y:0};  // 하부 플랜지 중앙
+    function _render3d() {
+        if (typeof render_channel_3d === 'function' && typeof THREE !== 'undefined') {
+            render_channel_3d('channel3d', geo, geo, dseg_leng);
+            return;
+        }
+        var msg = document.getElementById('channel3d');
+        if (msg) msg.innerHTML = '<div style="display:flex;align-items:center;justify-content:center;height:100%;color:#666;font-size:14px;">3D Loading...</div>';
+        var urls = [];
+        if (typeof THREE === 'undefined') {
+            urls.push('https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js');
+            urls.push('https://unpkg.com/three@0.128.0/examples/js/controls/OrbitControls.js');
+        }
+        if (typeof render_channel_3d !== 'function') {
+            urls.push('https://macrobim.github.io/macroBIM/bim_channel_3d.js');
+        }
+        (function loadNext(i) {
+            if (i >= urls.length) {
+                if (typeof render_channel_3d === 'function') render_channel_3d('channel3d', geo, geo, dseg_leng);
+                return;
+            }
+            var s = document.createElement('script');
+            s.src = urls[i];
+            s.onload = function() { loadNext(i+1); };
+            s.onerror = function() { loadNext(i+1); };
+            document.head.appendChild(s);
+        })(0);
+    }
+    _render3d();
 
-	let filtf = {ox:0, oy:0, r:0, angb:0, ange:0} 
-	let filtw = {ox:0, oy:0, r:0, angb:0, ange:0} 
-	let filbw = {ox:0, oy:0, r:0, angb:0, ange:0} 
-	let filbf = {ox:0, oy:0, r:0, angb:0, ange:0} 
+    fdraw_channel_2d('front');
+}
 
-	var ddl, dtl;
-	var dang1, dang2, dang, dangb, dange;
+function fdraw_channel_2d(viewName) {
+    if (!_channel_drawData) return;
+    var data = _channel_drawData;
+    var geo = data.geo;
+    var aparam = data.aparam;
+    var dseg_leng = data.dseg_leng;
+    var alayer = data.alayer;
 
-	dOx = 0	, dOy = 0;
-	dOx_side = Math.max( dh, dleng ) * 3	, dOy_side = 0;
-	dOx_top = 0									, dOy_top = Math.max( dh, dleng, db ) * 3.0;
-	dOx_bot = Math.max( dh, dleng ) * 3	, dOy_bot = Math.max( dh, dleng, db ) * 3.0;
+    ['front','back','left','center','right','top','bottom'].forEach(function(name) {
+        var btn = document.getElementById('channel_tab_' + name);
+        if (!btn) return;
+        if (name === viewName) {
+            btn.style.background = '#2563eb'; btn.style.color = '#fff'; btn.style.borderColor = '#2563eb';
+        } else {
+            btn.style.background = '#334155'; btn.style.color = '#94a3b8'; btn.style.borderColor = '#475569';
+        }
+    });
 
-	/* 외곽선 */
-	// vertical line
-	pbw.x = dOx  	, pbw.y = dOy ;
-	ptw.x = dOx 	, ptw.y = dOy + dh;
+    var ocvs = new KonvaViewer('channel_2dview', {
+        gridCols: 1, layout: [{ views: [viewName], span: 1 }]
+    });
+    ocvs.addLayer(alayer[0], 'cyan', 'solid', 1.5);
+    ocvs.addLayer(alayer[1], 'cyan', 'hidden', 1.5);
+    ocvs.addLayer(alayer[2], 'red', 'solid', 1.5);
 
-	// top flange
-	ptf.x  = dOx + db; ptf.y = dOy + dh;
+    function gp(name) { var f = geo.points.find(p => p.name === name); return f ? Object.assign({}, f[name]) : {x:0,y:0}; }
+    var half = dseg_leng / 2;
+    var ddim_off = 20, ddim_ext = 20;
 
-	// bottom flange
-	pbf.x  = dOx + db; pbf.y = dOy;
+    if (viewName === 'front' || viewName === 'back') {
+        geo.lines.forEach(l => ocvs.addLine(viewName, l.x1, l.y1, l.x2, l.y2, alayer[0]));
+        geo.arcs.forEach(a => ocvs.addArc(viewName, a.x, a.y, a.r, a.angb, a.ange, alayer[0]));
 
-	// 하부플랜지 중점
-	pbm.x = dOx + dtw + ( db - dtw ) / 2;
-	pbm.y = dOy + dtf;
-	// 상부플랜지 중점
-	ptm.x = dOx + dtw + ( db - dtw ) / 2;
-	ptm.y = dOy + dh - dtf;        
-		
-	/* 하부 플랜지 필렛 */
-	//  하부 DL 계산
-	ddl = Math.sqrt( ( ( db - dtw ) / 2 - drf ) * (  ( db - dtw ) / 2 - drf ) + dtf * dtf ) ;
-	//  하부 TL 계산
-	dtl = Math.sqrt( ddl * ddl - drf * drf );
+        var pbw = gp('pbw'), ptw = gp('ptw'), pbf = gp('pbf'), ptf = gp('ptf');
+        var pbti = gp('pbti'), pbft = gp('pbft');
+        // Total height (left)
+        ocvs.addDimLinear(viewName, pbw.x - ddim_off, pbw.y, pbw.x - ddim_off, ptw.y, ddim_ext * 6);
+        // tf (bottom flange thickness)
+        ocvs.addDimLinear(viewName, pbw.x - ddim_off, pbw.y, pbw.x - ddim_off, pbft.y, ddim_ext * 3);
+        // tf (top flange thickness)
+        ocvs.addDimLinear(viewName, pbw.x - ddim_off, gp('ptft').y, pbw.x - ddim_off, ptw.y, ddim_ext * 3);
+        // db (total width on top)
+        ocvs.addDimLinear(viewName, ptw.x, ptw.y + ddim_off, ptf.x, ptf.y + ddim_off, ddim_ext * 6);
+        // tw (web thickness)
+        ocvs.addDimLinear(viewName, ptw.x, ptw.y + ddim_off, pbti.x, ptw.y + ddim_off, ddim_ext * 3);
 
-	//  각도 산정
-	dang1 = Math.acos( dtf / ddl );
-	dang2 = Math.acos( dtl / ddl );
-	dang = Math.PI / 2 - dang1 - dang2;
-	
-	// 접점 산정
-	ptbf.x   = pbm.x + dtl * Math.cos(dang);
-	ptbf.y   = pbm.y - dtl * Math.sin(dang);
+    } else if (viewName === 'top') {
+        var ptw = gp('ptw'), ptf = gp('ptf'), pbti = gp('pbti');
+        ['ptw','ptf'].forEach(n => {
+            var p = gp(n);
+            ocvs.addLine(viewName, p.x, -half, p.x, half, alayer[0]);
+        });
+        ocvs.addLine(viewName, ptw.x, -half, ptf.x, -half, alayer[0]);
+        ocvs.addLine(viewName, ptw.x,  half, ptf.x,  half, alayer[0]);
+        // hidden: web inner edge
+        ocvs.addLine(viewName, pbti.x, -half, pbti.x, half, alayer[1]);
+        ocvs.addDimLinear(viewName, ptw.x - ddim_off, -half, ptw.x - ddim_off, half, ddim_ext * 6);
+        ocvs.addDimLinear(viewName, ptw.x, half + ddim_off, ptf.x, half + ddim_off, ddim_ext * 6);
 
-	pttf.x   = ptm.x + dtl * Math.cos(dang);
-	pttf.y   = ptm.y + dtl * Math.sin(dang);
+    } else if (viewName === 'bottom') {
+        var pbw = gp('pbw'), pbf = gp('pbf'), pbti = gp('pbti');
+        ['pbw','pbf'].forEach(n => {
+            var p = gp(n);
+            ocvs.addLine(viewName, p.x, -half, p.x, half, alayer[0]);
+        });
+        ocvs.addLine(viewName, pbw.x, -half, pbf.x, -half, alayer[0]);
+        ocvs.addLine(viewName, pbw.x,  half, pbf.x,  half, alayer[0]);
+        ocvs.addLine(viewName, pbti.x, -half, pbti.x, half, alayer[1]);
+        ocvs.addDimLinear(viewName, pbw.x - ddim_off, -half, pbw.x - ddim_off, half, ddim_ext * 6);
+        ocvs.addDimLinear(viewName, pbw.x, half + ddim_off, pbf.x, half + ddim_off, ddim_ext * 6);
 
-	if( drf > 0 ){
-	  //  arc 작도
-	  //  하부플랜지 필렛원점
-	  filbf.ox = dOx + db - drf;
-	  filbf.oy = dOy + 0;
-	  filbf.r = drf;
-	  filbf.angb = 0;
-	  filbf.ange = Math.acos( ( ptbf.x - filbf.ox ) / drf ) * 180 / Math.PI ;
+    } else if (viewName === 'left' || viewName === 'right' || viewName === 'center') {
+        var ptw = gp('ptw'), pbw = gp('pbw');
+        ['ptw','ptft','pbft','pbw'].forEach(n => {
+            var p = gp(n);
+            ocvs.addLine(viewName, -half, p.y, half, p.y, alayer[0]);
+        });
+        ocvs.addLine(viewName, -half, pbw.y, -half, ptw.y, alayer[0]);
+        ocvs.addLine(viewName,  half, pbw.y,  half, ptw.y, alayer[0]);
+        ocvs.addDimLinear(viewName, -half - ddim_off, pbw.y, -half - ddim_off, ptw.y, ddim_ext * 6);
+        ocvs.addDimLinear(viewName, -half, ptw.y + ddim_off, half, ptw.y + ddim_off, ddim_ext * 6);
+    }
 
-	  // 상부
-	  filtf.ox = dOx + db - drf;
-	  filtf.oy = dOy + dh;
-	  filtf.r = drf;
-	  filtf.ange = 0;
-	  filtf.angb = Math.acos( ( pttf.x - filtf.ox ) / drf ) * 180 / Math.PI *-1 ;
-	  
-	} else {
-	  
-	  dang = 0;
-	  
-	  // 플랜지 끝단 산정
-	  ptbf.x   = dOx + db;
-	  ptbf.y   = dOy + dtf;
-
-	  pttf.x   = dOx + db;
-	  pttf.y   = dOy + dh - dtf;
-				
-	}
-
-	/* 하부 복부 필렛 */
-	//  1) 복부와 접점 계산
-	var dx, dy, dtl2, ddl2;
-
-	//  플랜지 중심으로부터 복부까지 대각선 거리
-	dx = ( db - dtw ) / 2;
-	ddl2 =  dx / Math.cos( dang );
-
-	//  접선길이 TL2
-	dtl2 = drw * Math.tan( ( Math.PI / 2 - dang ) / 2 );
-
-	//  복부와 교점
-	pwb.x = pbm.x - ( ddl2 ) * Math.cos( dang );
-	pwb.y = pbm.y + ( ddl2 ) * Math.sin( dang );
-
-	pib.x = pwb.x;
-	pib.y = pwb.y;
-
-	if( drw > 0){
-	  //  복부측 하부 fillet arc
-	  filbw.ox = dOx + dtw + drw;
-	  filbw.oy = pwb.y + dtl2;
-	  filbw.r = drw;
-	  filbw.angb = 180;
-	  filbw.ange = 180 + ( Math.PI / 2 - dang ) * 180 / Math.PI;
-	}
-	//  복부교점 및 하부접점 정확히 산정
-	pwb.x = pwb.x ;
-	pwb.y = pwb.y + dtl2;
-
-	ptbw.x = pbm.x - ( ddl2 - dtl2 ) * Math.cos( dang );
-	ptbw.y = pbm.y + ( ddl2 - dtl2 ) * Math.sin( dang );
-
-
-	/* 상부 복부 필렛 */
-	//  복부측 교점
-	pwt.x = ptm.x - ddl2 * Math.cos( dang );
-	pwt.y = ptm.y - ddl2 * Math.sin( dang );
-
-	pit.x = pwt.x;
-	pit.y = pwt.y;
-
-	if( drw > 0){        
-	  //  복부측 상부 fillet arc
-	  filtw.ox = dOx + dtw + drw;
-	  filtw.oy = pwt.y - dtl2;
-	  filtw.r = drw;
-	  filtw.ange = 180;
-	  filtw.angb = 180 - ( Math.PI / 2 - dang ) * 180 / Math.PI;
-	}
-
-	//  복부교점 및 하부접점 정확히 산정
-	pwt.x = pwt.x ;
-	pwt.y = pwt.y - dtl2;
-
-	pttw.x = ptm.x - ( ddl2 - dtl2 ) * Math.cos( dang );
-	pttw.y = ptm.y - ( ddl2 - dtl2 ) * Math.sin( dang );        
-
-	/* draw canvas */
-	let ddim_ext = 20;	// 디멘젼 길이
-	let ddim_off = 20;	// 구조물에서 이격
-	
-	let sview;
-	// front
-	sview = 'front';
-		ocvs.addLine(sview, pbw.x, pbw.y, ptw.x, ptw.y, alayer[0] );  // verical
-		ocvs.addLine(sview, ptw.x, ptw.y, ptf.x, ptf.y, alayer[0] );  // top hori
-		ocvs.addLine(sview, pbw.x, pbw.y, pbf.x, pbf.y, alayer[0] );  // bottom hori
-		ocvs.addLine(sview, pwb.x, pwb.y, pwt.x, pwt.y, alayer[0] );  // inner web vert
-		ocvs.addLine(sview, ptbw.x, ptbw.y, ptbf.x, ptbf.y, alayer[0] );  // inner bot hori
-		ocvs.addLine(sview, pttw.x, pttw.y, pttf.x, pttf.y, alayer[0] );  // inner top hori
-		
-		ocvs.addDimLinear(sview,  pbw.x,  pbw.y, ptw.x, ptw.y, ddim_ext * 6);
-
-		ocvs.addDimLinear(sview,  pbw.x,  pbw.y, pbw.x, pib.y, ddim_ext * 3);
-		ocvs.addDimLinear(sview,  pbw.x,  pib.y, pbw.x, pit.y, ddim_ext * 3);
-		ocvs.addDimLinear(sview,  pbw.x,  pit.y, pbw.x, ptw.y, ddim_ext * 3);
-
-		ocvs.addDimLinear(sview,  ptw.x,  ptw.y, ptf.x, ptf.y, ddim_ext * 6);
-		ocvs.addDimLinear(sview,  ptw.x,  ptw.y, pit.x, ptf.y, ddim_ext * 3);
-		ocvs.addDimLinear(sview,  pit.x,  ptw.y, ptf.x, ptf.y, ddim_ext * 3);
-		
-		ocvs.addDimLinear(sview,  ptm.x,  ptm.y, ptm.x, ptf.y, ddim_ext * -0.5);
-		ocvs.addDimLinear(sview,  pbm.x,  pbw.y, pbm.x, pbm.y, ddim_ext * -0.5);
-		
-		odxf_channel.line( dOx + pbw.x, dOy + pbw.y, dOx + ptw.x, dOy + ptw.y, alayer[0] );
-		odxf_channel.line( dOx + ptw.x, dOy + ptw.y, dOx + ptf.x, dOy + ptf.y, alayer[0] );  // top hori
-		odxf_channel.line( dOx + pbw.x, dOy + pbw.y, dOx + pbf.x, dOy + pbf.y, alayer[0] );  // bottom hori
-		odxf_channel.line( dOx + pwb.x, dOy + pwb.y, dOx + pwt.x, dOy + pwt.y, alayer[0] );  // inner web vert
-		odxf_channel.line( dOx + ptbw.x, dOy + ptbw.y, dOx + ptbf.x, dOy + ptbf.y, alayer[0] );  // inner bot hori
-		odxf_channel.line( dOx + pttw.x, dOy + pttw.y, dOx + pttf.x, dOy + pttf.y, alayer[0] );  // inner top hori
-
-	  if( drf > 0 ){
-		ocvs.addArc(sview, filbf.ox, filbf.oy, filbf.r, filbf.angb, filbf.ange, alayer[0]);
-		ocvs.addArc(sview, filtf.ox, filtf.oy, filtf.r, filtf.angb, filtf.ange, alayer[0]);
-		
-		ocvs.addDimRadius(sview, filbf.ox, filbf.oy, filbf.r, 45);		
-		
-		odxf_channel.arc( dOx + filbf.ox, dOy + filbf.oy, filbf.r, filbf.angb, filbf.ange, alayer[0] );
-		odxf_channel.arc( dOx + filtf.ox, dOy + filtf.oy, filtf.r, filtf.angb, filtf.ange, alayer[0] );
-	  } else {
-		// 플랜지 끝단 수직선
-		ocvs.addLine(sview, pbf.x, pbf.y, ptbf.x, ptbf.y, alayer[0] );
-		ocvs.addLine(sview, pttf.x, pttf.y, ptf.x, ptf.y, alayer[0] );
-		
-		odxf_channel.line( dOx + pbf.x, dOy + pbf.y, dOx + ptbf.x, dOy + ptbf.y, alayer[0] );  // inner top hori
-		odxf_channel.line( dOx + pttf.x, dOy + pttf.y, dOx + ptf.x, dOy + ptf.y, alayer[0] );  // inner top hori
-	  }
-	  
-	  if( drw > 0 ){
-		ocvs.addArc(sview, filbw.ox, filbw.oy, filbw.r, filbw.angb, filbw.ange, alayer[0]);
-		ocvs.addArc(sview, filtw.ox, filtw.oy, filtw.r, filtw.angb, filtw.ange, alayer[0]);
-
-		ocvs.addDimRadius(sview, filbw.ox, filbw.oy, filbw.r, 225);		
-		
-		odxf_channel.arc( dOx + filbw.ox, dOy + filbw.oy, filbw.r, filbw.angb, filbw.ange, alayer[0] );
-		odxf_channel.arc( dOx + filtw.ox, dOy + filtw.oy, filtw.r, filtw.angb, filtw.ange, alayer[0] );
-	  }
-	  
-	// top
-	sview = 'top';
-
-		ocvs.addLine(sview, ptw.x, dOy - dleng / 2, ptf.x, dOy - dleng / 2, alayer[0] );  // hori
-		ocvs.addLine(sview, ptw.x, dOy + dleng / 2, ptf.x, dOy + dleng / 2, alayer[0] );  // hori
-
-		ocvs.addLine(sview, ptw.x, dOy - dleng / 2, ptw.x, dOy + dleng / 2, alayer[0] );  // verical
-		ocvs.addLine(sview, ptf.x, dOy - dleng / 2, ptf.x, dOy + dleng / 2, alayer[0] );  // verical
-		ocvs.addLine(sview, pwt.x, dOy - dleng / 2, pwt.x, dOy + dleng / 2, alayer[1] );  // verical
-
-		ocvs.addDimLinear(sview,  ptw.x, dOy - dleng / 2, ptw.x, dOy + dleng / 2, ddim_ext * 6);
-		
-		ocvs.addDimLinear(sview,  ptw.x,  dOy + dleng / 2, ptf.x, dOy + dleng / 2, ddim_ext * 6);
-		ocvs.addDimLinear(sview,  ptw.x,  dOy + dleng / 2, pit.x, dOy + dleng / 2, ddim_ext * 3);
-		ocvs.addDimLinear(sview,  pit.x,  dOy + dleng / 2, ptf.x, dOy + dleng / 2, ddim_ext * 3);
-		
-		odxf_channel.line( dOx_top + ptw.x, dOy_top - dleng / 2, dOx_top + ptf.x, dOy_top - dleng / 2, alayer[0] );  // inner top hori
-		odxf_channel.line( dOx_top + ptw.x, dOy_top + dleng / 2, dOx_top + ptf.x, dOy_top + dleng / 2, alayer[0] );  // inner top hori
-		
-		odxf_channel.line( dOx_top + ptw.x, dOy_top - dleng / 2, dOx_top + ptw.x, dOy_top + dleng / 2, alayer[0] );  // inner top hori
-		odxf_channel.line( dOx_top + ptf.x, dOy_top - dleng / 2, dOx_top + ptf.x, dOy_top + dleng / 2, alayer[0] );  // inner top hori
-		odxf_channel.line( dOx_top + pwt.x, dOy_top - dleng / 2, dOx_top + pwt.x, dOy_top + dleng / 2, alayer[1] );  // inner top hori		
-	  
-	// bottom
-	sview = 'bottom';
-
-	  ocvs.addLine(sview, pbw.x, dOy - dleng / 2, pbf.x, dOy - dleng / 2, alayer[0] );  // hori
-	  ocvs.addLine(sview, pbw.x, dOy + dleng / 2, pbf.x, dOy + dleng / 2, alayer[0] );  // hori
-
-	  ocvs.addLine(sview, pbw.x, dOy - dleng / 2, pbw.x, dOy + dleng / 2, alayer[0] );  // verical
-	  ocvs.addLine(sview, pbf.x, dOy - dleng / 2, pbf.x, dOy + dleng / 2, alayer[0] );  // verical
-	  ocvs.addLine(sview, pwb.x, dOy - dleng / 2, pwb.x, dOy + dleng / 2, alayer[1] );  // verical
-
-		ocvs.addDimLinear(sview,  pbw.x, dOy - dleng / 2, pbw.x, dOy + dleng / 2, ddim_ext * 6);
-		
-		ocvs.addDimLinear(sview,  pbw.x,  dOy + dleng / 2, pbf.x, dOy + dleng / 2, ddim_ext * 6);
-		ocvs.addDimLinear(sview,  pbw.x,  dOy + dleng / 2, pib.x, dOy + dleng / 2, ddim_ext * 3);
-		ocvs.addDimLinear(sview,  pib.x,  dOy + dleng / 2, pbf.x, dOy + dleng / 2, ddim_ext * 3);
-		
-		odxf_channel.line( dOx_bot + pbw.x, dOy_top - dleng / 2, dOx_bot + pbf.x, dOy_top - dleng / 2, alayer[0] );  // inner top hori
-		odxf_channel.line( dOx_bot + pbw.x, dOy_top + dleng / 2, dOx_bot + pbf.x, dOy_top + dleng / 2, alayer[0] );  // inner top hori
-		
-		odxf_channel.line( dOx_bot + pbw.x, dOy_top - dleng / 2, dOx_bot + pbw.x, dOy_top + dleng / 2, alayer[0] );  // inner top hori
-		odxf_channel.line( dOx_bot + pbf.x, dOy_top - dleng / 2, dOx_bot + pbf.x, dOy_top + dleng / 2, alayer[0] );  // inner top hori
-		odxf_channel.line( dOx_bot + pwb.x, dOy_top - dleng / 2, dOx_bot + pwb.x, dOy_top + dleng / 2, alayer[1] );  // inner top hori
-	  
-	// side
-	sview = 'side';
- 
-	  ocvs.addLine(sview, ptw.x - dleng / 2, ptw.y, ptw.x + dleng / 2, ptw.y , alayer[0] );  // hori
-	  ocvs.addLine(sview, pbw.x - dleng / 2, pbw.y, pbw.x + dleng / 2, pbw.y , alayer[0] );  // hori
-	  ocvs.addLine(sview, pbw.x - dleng / 2, pbw.y, ptw.x - dleng / 2, ptw.y , alayer[0] );  // vert
-	  ocvs.addLine(sview, pbw.x + dleng / 2, pbw.y, ptw.x + dleng / 2, ptw.y , alayer[0] );  // vert
-	  // 상부 교점
-	  ocvs.addLine(sview, ptw.x - dleng / 2, pit.y, ptw.x + dleng / 2, pit.y , alayer[1] );  // vert
-	  // 하부 교점
-	  ocvs.addLine(sview, pbw.x - dleng / 2, pib.y, pbw.x + dleng / 2, pib.y , alayer[1] );  // vert
-	  
-		ocvs.addDimLinear(sview, dOx - dleng / 2, ptw.y, dOx + dleng / 2, ptw.y, ddim_ext * 3);
-
-		ocvs.addDimLinear(sview, dOy - dleng / 2, pbw.y, dOy - dleng / 2, ptw.y, ddim_ext * 6);
-
-		ocvs.addDimLinear(sview, dOy - dleng / 2, pbw.y, dOy - dleng / 2, pib.y, ddim_ext * 3);
-		ocvs.addDimLinear(sview, dOy - dleng / 2, pib.y, dOy - dleng / 2, pit.y, ddim_ext * 3);
-		ocvs.addDimLinear(sview, dOy - dleng / 2, pit.y, dOy - dleng / 2, ptw.y, ddim_ext * 3);
-
-		odxf_channel.line( dOx_side - dleng / 2, dOy_side + ptw.y, dOx_side + dleng / 2, dOy_side + ptw.y, alayer[0] );  // inner top hori
-		odxf_channel.line( dOx_side - dleng / 2, dOy_side + pbw.y, dOx_side + dleng / 2, dOy_side + pbw.y, alayer[0] );  // inner top hori
-
-		odxf_channel.line( dOx_side - dleng / 2, dOy_side + pit.y, dOx_side + dleng / 2, dOy_side + pit.y, alayer[1] );  // inner top hori
-		odxf_channel.line( dOx_side - dleng / 2, dOy_side + pib.y, dOx_side + dleng / 2, dOy_side + pib.y, alayer[1] );  // inner top hori
-		
-		odxf_channel.line( dOx_side - dleng / 2, dOy_side + pbw.y, dOx_side - dleng / 2, dOy_side + ptw.y, alayer[0] );  // inner top hori
-		odxf_channel.line( dOx_side + dleng / 2, dOy_side + pbw.y, dOx_side + dleng / 2, dOy_side + ptw.y, alayer[0] );  // inner top hori
-
-	// regen
-	ocvs.render();
+    ocvs.render();
 }
