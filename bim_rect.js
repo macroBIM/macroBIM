@@ -2,6 +2,7 @@
     Rect (직사각형) 단면 작도를 위한 JS
     - H/B: 외부 높이/폭, h/b: 내부 구멍 높이/폭
     - hollow 옵션: true=중공, false=충실
+    - Begin/End (Front/Back) 지원
     - 3D (left) + tabbed 2D (right) 패턴
 */
 const odxf_rect = dxf_generator();
@@ -14,13 +15,23 @@ function getParams_rect() {
         const el = document.getElementById(id);
         return el ? Number(el.value) : 0;
     };
-    let aparam = {};
-    _RECT_KEYS.forEach(k => { aparam[k] = getValue(k); });
+
+    let aparam_b = {};
+    let aparam_e = {};
+    _RECT_KEYS.forEach(k => {
+        aparam_b[k] = getValue(k + '_s');
+        aparam_e[k] = getValue(k + '_e');
+    });
     let chk = document.getElementById('drect_hollow');
-    aparam.hollow = chk ? chk.checked : true;
+    aparam_b.hollow = chk ? chk.checked : true;
+    aparam_e.hollow = aparam_b.hollow;
+
     let dseg_leng = getValue('dseg_leng');
-    let combText = _RECT_KEYS.map(k => aparam[k]).join(',') + ',' + (aparam.hollow ? '1' : '0');
-    return { aparam, dseg_leng, combText };
+
+    let combText = _RECT_KEYS.map(k => aparam_b[k]).join(',') + ',' +
+                   _RECT_KEYS.map(k => aparam_e[k]).join(',') + ',' +
+                   (aparam_b.hollow ? '1' : '0');
+    return { aparam_b, aparam_e, dseg_leng, combText };
 }
 
 function putParams_rect(textareaId) {
@@ -32,13 +43,20 @@ function putParams_rect(textareaId) {
 
     _RECT_KEYS.forEach((key, index) => {
         if (values[index] !== undefined) {
-            const el = document.getElementById(key);
+            const el = document.getElementById(key + '_s');
             if (el) el.value = values[index].trim();
         }
     });
-    if (values[4] !== undefined) {
+    _RECT_KEYS.forEach((key, index) => {
+        let vi = index + 4;
+        if (values[vi] !== undefined) {
+            const el = document.getElementById(key + '_e');
+            if (el) el.value = values[vi].trim();
+        }
+    });
+    if (values[8] !== undefined) {
         let chk = document.getElementById('drect_hollow');
-        if (chk) chk.checked = values[4].trim() === '1';
+        if (chk) chk.checked = values[8].trim() === '1';
     }
     const dseg_leng = lines.length >= 2 ? lines[1] : '';
     if (dseg_leng !== undefined && dseg_leng !== '') {
@@ -49,7 +67,7 @@ function putParams_rect(textareaId) {
 }
 
 /*
-    geo_rect: rectangular cross-section (origin = bottom-left corner)
+    geo_rect: rectangular cross-section (origin = bottom-center)
     H, B = outer dimensions; h, b = inner hole dimensions; hollow = bool
     Returns { points, lines, arcs, outerOutline, innerOutline }
 */
@@ -142,65 +160,75 @@ function fdraw_rect() {
     odxf_rect.layer(alayer[2], 1, "CENTER");
 
     let auserdata = getParams_rect();
-    let aparam = auserdata.aparam;
+    let aparam_b = auserdata.aparam_b;
+    let aparam_e = auserdata.aparam_e;
     let dseg_leng = auserdata.dseg_leng;
 
     let ouserTextArea = document.getElementById('sUserText');
     if (ouserTextArea) ouserTextArea.value = auserdata.combText + "\n" + dseg_leng;
 
-    let geo = geo_rect(aparam);
+    let geoBegin = geo_rect(aparam_b);
+    let geoEnd = geo_rect(aparam_e);
 
     // ── DXF layout ──
-    let H = aparam.drect_H, B = aparam.drect_B;
-    let _col = Math.max(B, dseg_leng) * 1.5;
-    let _row = H * 2.0;
+    let Hb = aparam_b.drect_H, Bb = aparam_b.drect_B;
+    let He = aparam_e.drect_H, Be = aparam_e.drect_B;
+    let Hmax = Math.max(Hb, He), Bmax = Math.max(Bb, Be);
     let half = dseg_leng / 2;
+    let gap = Math.max(Hmax, Bmax) * 0.4;
+    let _col = Math.max(Bmax, dseg_leng) * 1.5;
 
-    // Row0: Front view (cross-section at origin)
-    geo.lines.forEach(l => odxf_rect.line(l.x1, l.y1, l.x2, l.y2, alayer[0]));
+    // Row0 col0: Front (begin) cross-section at origin
+    geoBegin.lines.forEach(l => odxf_rect.line(l.x1, l.y1, l.x2, l.y2, alayer[0]));
+    // Row0 col1: Back (end) cross-section
+    geoEnd.lines.forEach(l => odxf_rect.line(l.x1 + _col, l.y1, l.x2 + _col, l.y2, alayer[0]));
 
-    // Row1: Top view (looking down — outer B x Length)
-    let ox_top = 0, oy_top = _row;
-    odxf_rect.line(ox_top - B / 2, oy_top - half, ox_top + B / 2, oy_top - half, alayer[0]);
-    odxf_rect.line(ox_top + B / 2, oy_top - half, ox_top + B / 2, oy_top + half, alayer[0]);
-    odxf_rect.line(ox_top + B / 2, oy_top + half, ox_top - B / 2, oy_top + half, alayer[0]);
-    odxf_rect.line(ox_top - B / 2, oy_top + half, ox_top - B / 2, oy_top - half, alayer[0]);
-    if (geo.innerOutline) {
-        let b = aparam.drect_b;
-        odxf_rect.line(ox_top - b / 2, oy_top - half, ox_top - b / 2, oy_top + half, alayer[1]);
-        odxf_rect.line(ox_top + b / 2, oy_top - half, ox_top + b / 2, oy_top + half, alayer[1]);
+    // Row1: Top and Bottom views (tapered)
+    let oy_top = Hmax + gap + half;
+    let ox_top = 0;
+    // Top view — outer trapezoid
+    odxf_rect.line(ox_top - Bb / 2, oy_top - half, ox_top - Be / 2, oy_top + half, alayer[0]);
+    odxf_rect.line(ox_top - Be / 2, oy_top + half, ox_top + Be / 2, oy_top + half, alayer[0]);
+    odxf_rect.line(ox_top + Be / 2, oy_top + half, ox_top + Bb / 2, oy_top - half, alayer[0]);
+    odxf_rect.line(ox_top + Bb / 2, oy_top - half, ox_top - Bb / 2, oy_top - half, alayer[0]);
+    if (geoBegin.innerOutline && geoEnd.innerOutline) {
+        let bb = aparam_b.drect_b, be = aparam_e.drect_b;
+        odxf_rect.line(ox_top - bb / 2, oy_top - half, ox_top - be / 2, oy_top + half, alayer[1]);
+        odxf_rect.line(ox_top + bb / 2, oy_top - half, ox_top + be / 2, oy_top + half, alayer[1]);
     }
 
-    // Row1 col1: Bottom view
-    let ox_bot = _col, oy_bot = _row;
-    odxf_rect.line(ox_bot - B / 2, oy_bot - half, ox_bot + B / 2, oy_bot - half, alayer[0]);
-    odxf_rect.line(ox_bot + B / 2, oy_bot - half, ox_bot + B / 2, oy_bot + half, alayer[0]);
-    odxf_rect.line(ox_bot + B / 2, oy_bot + half, ox_bot - B / 2, oy_bot + half, alayer[0]);
-    odxf_rect.line(ox_bot - B / 2, oy_bot + half, ox_bot - B / 2, oy_bot - half, alayer[0]);
-    if (geo.innerOutline) {
-        let b = aparam.drect_b;
-        odxf_rect.line(ox_bot - b / 2, oy_bot - half, ox_bot - b / 2, oy_bot + half, alayer[1]);
-        odxf_rect.line(ox_bot + b / 2, oy_bot - half, ox_bot + b / 2, oy_bot + half, alayer[1]);
+    // Bottom view
+    let ox_bot = _col, oy_bot = oy_top;
+    odxf_rect.line(ox_bot - Bb / 2, oy_bot - half, ox_bot - Be / 2, oy_bot + half, alayer[0]);
+    odxf_rect.line(ox_bot - Be / 2, oy_bot + half, ox_bot + Be / 2, oy_bot + half, alayer[0]);
+    odxf_rect.line(ox_bot + Be / 2, oy_bot + half, ox_bot + Bb / 2, oy_bot - half, alayer[0]);
+    odxf_rect.line(ox_bot + Bb / 2, oy_bot - half, ox_bot - Bb / 2, oy_bot - half, alayer[0]);
+    if (geoBegin.innerOutline && geoEnd.innerOutline) {
+        let bb = aparam_b.drect_b, be = aparam_e.drect_b;
+        odxf_rect.line(ox_bot - bb / 2, oy_bot - half, ox_bot - be / 2, oy_bot + half, alayer[1]);
+        odxf_rect.line(ox_bot + bb / 2, oy_bot - half, ox_bot + be / 2, oy_bot + half, alayer[1]);
     }
 
-    // Row2: Left/Right side view (H x Length)
-    let ox_side = 0, oy_side = _row * 2;
-    odxf_rect.line(ox_side - half, oy_side,     ox_side + half, oy_side,     alayer[0]);
-    odxf_rect.line(ox_side + half, oy_side,     ox_side + half, oy_side + H, alayer[0]);
-    odxf_rect.line(ox_side + half, oy_side + H, ox_side - half, oy_side + H, alayer[0]);
-    odxf_rect.line(ox_side - half, oy_side + H, ox_side - half, oy_side,     alayer[0]);
-    if (geo.innerOutline) {
-        let ih = aparam.drect_h, cy = H / 2;
-        odxf_rect.line(ox_side - half, oy_side + cy - ih / 2, ox_side + half, oy_side + cy - ih / 2, alayer[1]);
-        odxf_rect.line(ox_side - half, oy_side + cy + ih / 2, ox_side + half, oy_side + cy + ih / 2, alayer[1]);
+    // Row2: Left/Right side view (tapered H x Length)
+    let oy_side = oy_top + half + gap;
+    let ox_side = 0;
+    odxf_rect.line(ox_side - half, oy_side,      ox_side + half, oy_side,      alayer[0]);
+    odxf_rect.line(ox_side + half, oy_side,      ox_side + half, oy_side + He, alayer[0]);
+    odxf_rect.line(ox_side + half, oy_side + He,  ox_side - half, oy_side + Hb, alayer[0]);
+    odxf_rect.line(ox_side - half, oy_side + Hb,  ox_side - half, oy_side,      alayer[0]);
+    if (geoBegin.innerOutline && geoEnd.innerOutline) {
+        let hb = aparam_b.drect_h, he = aparam_e.drect_h;
+        let cyb = Hb / 2, cye = He / 2;
+        odxf_rect.line(ox_side - half, oy_side + cyb - hb / 2, ox_side + half, oy_side + cye - he / 2, alayer[1]);
+        odxf_rect.line(ox_side - half, oy_side + cyb + hb / 2, ox_side + half, oy_side + cye + he / 2, alayer[1]);
     }
 
-    _rect_drawData = { geo, aparam, dseg_leng, alayer };
+    _rect_drawData = { geoBegin, geoEnd, aparam_b, aparam_e, dseg_leng, alayer };
 
     // ── 3D ──
     function _render3d() {
         if (typeof render_rect_3d === 'function' && typeof THREE !== 'undefined') {
-            render_rect_3d('rect3d', geo, geo, dseg_leng);
+            render_rect_3d('rect3d', geoBegin, geoEnd, dseg_leng);
             return;
         }
         var msg = document.getElementById('rect3d');
@@ -215,7 +243,7 @@ function fdraw_rect() {
         }
         (function loadNext(i) {
             if (i >= urls.length) {
-                if (typeof render_rect_3d === 'function') render_rect_3d('rect3d', geo, geo, dseg_leng);
+                if (typeof render_rect_3d === 'function') render_rect_3d('rect3d', geoBegin, geoEnd, dseg_leng);
                 return;
             }
             var s = document.createElement('script');
@@ -233,8 +261,10 @@ function fdraw_rect() {
 function fdraw_rect_2d(viewName) {
     if (!_rect_drawData) return;
     var data = _rect_drawData;
-    var geo = data.geo;
-    var aparam = data.aparam;
+    var geoBegin = data.geoBegin;
+    var geoEnd = data.geoEnd;
+    var aparam_b = data.aparam_b;
+    var aparam_e = data.aparam_e;
     var dseg_leng = data.dseg_leng;
     var alayer = data.alayer;
 
@@ -255,80 +285,82 @@ function fdraw_rect_2d(viewName) {
     ocvs.addLayer(alayer[1], 'cyan', 'hidden', 1.5);
     ocvs.addLayer(alayer[2], 'red', 'solid', 1.5);
 
-    function gp(name) { var f = geo.points.find(p => p.name === name); return f ? Object.assign({}, f[name]) : { x: 0, y: 0 }; }
     var half = dseg_leng / 2;
-    var H = aparam.drect_H, B = aparam.drect_B;
-    var h = aparam.drect_h, b = aparam.drect_b;
-    var hasHole = aparam.hollow && h > 0 && b > 0 && h < H && b < B;
-    var ddim_off = Math.max(H, B) * 0.04, ddim_ext = Math.max(H, B) * 0.04;
-    var cy = H / 2;
+    var Hb = aparam_b.drect_H, Bb = aparam_b.drect_B;
+    var hb = aparam_b.drect_h, bb = aparam_b.drect_b;
+    var He = aparam_e.drect_H, Be = aparam_e.drect_B;
+    var he = aparam_e.drect_h, be = aparam_e.drect_b;
+    var Hmax = Math.max(Hb, He), Bmax = Math.max(Bb, Be);
+    var ddim_off = Math.max(Hmax, Bmax) * 0.04, ddim_ext = Math.max(Hmax, Bmax) * 0.04;
 
-    if (viewName === 'front' || viewName === 'back') {
-        // Outer rectangle
+    if (viewName === 'front') {
+        var geo = geoBegin, ap = aparam_b;
+        var H = Hb, B = Bb, h = hb, b = bb;
+        var hasHole = ap.hollow && h > 0 && b > 0 && h < H && b < B;
+        function gp(name) { var f = geo.points.find(p => p.name === name); return f ? Object.assign({}, f[name]) : { x: 0, y: 0 }; }
+
         geo.lines.forEach(l => ocvs.addLine(viewName, l.x1, l.y1, l.x2, l.y2, alayer[0]));
-
         var ptl = gp('ptl'), ptr = gp('ptr'), pbl = gp('pbl'), pbr = gp('pbr');
-        // Total height (left)
         ocvs.addDimLinear(viewName, ptl.x - ddim_off, pbl.y, ptl.x - ddim_off, ptl.y, ddim_ext * 6);
-        // Total width (top)
         ocvs.addDimLinear(viewName, ptl.x, ptl.y + ddim_off, ptr.x, ptr.y + ddim_off, ddim_ext * 6);
-        // Total width (bottom)
         ocvs.addDimLinear(viewName, pbl.x, pbl.y - ddim_off, pbr.x, pbr.y - ddim_off, ddim_ext * -6);
-
         if (hasHole) {
             var itl = gp('itl'), itr = gp('itr'), ibl = gp('ibl'), ibr = gp('ibr');
-            // Inner h dimension (right side)
             ocvs.addDimLinear(viewName, ptr.x + ddim_off, ibl.y, ptr.x + ddim_off, itl.y, ddim_ext * 6);
-            // Inner b dimension (inside)
             ocvs.addDimLinear(viewName, ibl.x, ibl.y - ddim_off * 0.5, ibr.x, ibr.y - ddim_off * 0.5, ddim_ext * 3);
         }
 
-    } else if (viewName === 'top') {
-        // Looking down: B x dseg_leng
-        ocvs.addLine(viewName, -B / 2, -half, B / 2, -half, alayer[0]);
-        ocvs.addLine(viewName, B / 2, -half, B / 2, half, alayer[0]);
-        ocvs.addLine(viewName, B / 2, half, -B / 2, half, alayer[0]);
-        ocvs.addLine(viewName, -B / 2, half, -B / 2, -half, alayer[0]);
+    } else if (viewName === 'back') {
+        var geo = geoEnd, ap = aparam_e;
+        var H = He, B = Be, h = he, b = be;
+        var hasHole = ap.hollow && h > 0 && b > 0 && h < H && b < B;
+        function gp2(name) { var f = geo.points.find(p => p.name === name); return f ? Object.assign({}, f[name]) : { x: 0, y: 0 }; }
+
+        geo.lines.forEach(l => ocvs.addLine(viewName, l.x1, l.y1, l.x2, l.y2, alayer[0]));
+        var ptl = gp2('ptl'), ptr = gp2('ptr'), pbl = gp2('pbl'), pbr = gp2('pbr');
+        ocvs.addDimLinear(viewName, ptl.x - ddim_off, pbl.y, ptl.x - ddim_off, ptl.y, ddim_ext * 6);
+        ocvs.addDimLinear(viewName, ptl.x, ptl.y + ddim_off, ptr.x, ptr.y + ddim_off, ddim_ext * 6);
+        ocvs.addDimLinear(viewName, pbl.x, pbl.y - ddim_off, pbr.x, pbr.y - ddim_off, ddim_ext * -6);
         if (hasHole) {
-            ocvs.addLine(viewName, -b / 2, -half, -b / 2, half, alayer[1]);
-            ocvs.addLine(viewName, b / 2, -half, b / 2, half, alayer[1]);
-        }
-        ocvs.addDimLinear(viewName, -B / 2 - ddim_off, -half, -B / 2 - ddim_off, half, ddim_ext * 6);
-        ocvs.addDimLinear(viewName, -B / 2, half + ddim_off, B / 2, half + ddim_off, ddim_ext * 6);
-        if (hasHole) {
-            ocvs.addDimLinear(viewName, -b / 2, half + ddim_off, b / 2, half + ddim_off, ddim_ext * 3);
+            var itl = gp2('itl'), itr = gp2('itr'), ibl = gp2('ibl'), ibr = gp2('ibr');
+            ocvs.addDimLinear(viewName, ptr.x + ddim_off, ibl.y, ptr.x + ddim_off, itl.y, ddim_ext * 6);
+            ocvs.addDimLinear(viewName, ibl.x, ibl.y - ddim_off * 0.5, ibr.x, ibr.y - ddim_off * 0.5, ddim_ext * 3);
         }
 
-    } else if (viewName === 'bottom') {
-        ocvs.addLine(viewName, -B / 2, -half, B / 2, -half, alayer[0]);
-        ocvs.addLine(viewName, B / 2, -half, B / 2, half, alayer[0]);
-        ocvs.addLine(viewName, B / 2, half, -B / 2, half, alayer[0]);
-        ocvs.addLine(viewName, -B / 2, half, -B / 2, -half, alayer[0]);
-        if (hasHole) {
-            ocvs.addLine(viewName, -b / 2, -half, -b / 2, half, alayer[1]);
-            ocvs.addLine(viewName, b / 2, -half, b / 2, half, alayer[1]);
+    } else if (viewName === 'top' || viewName === 'bottom') {
+        // Tapered plan view: B changes from Bb to Be over length
+        ocvs.addLine(viewName, -Bb / 2, -half, -Be / 2, half, alayer[0]);
+        ocvs.addLine(viewName, -Be / 2, half, Be / 2, half, alayer[0]);
+        ocvs.addLine(viewName, Be / 2, half, Bb / 2, -half, alayer[0]);
+        ocvs.addLine(viewName, Bb / 2, -half, -Bb / 2, -half, alayer[0]);
+
+        var hasHoleB = aparam_b.hollow && bb > 0 && hb > 0 && hb < Hb && bb < Bb;
+        var hasHoleE = aparam_e.hollow && be > 0 && he > 0 && he < He && be < Be;
+        if (hasHoleB && hasHoleE) {
+            ocvs.addLine(viewName, -bb / 2, -half, -be / 2, half, alayer[1]);
+            ocvs.addLine(viewName, bb / 2, -half, be / 2, half, alayer[1]);
         }
-        ocvs.addDimLinear(viewName, -B / 2 - ddim_off, -half, -B / 2 - ddim_off, half, ddim_ext * 6);
-        ocvs.addDimLinear(viewName, -B / 2, half + ddim_off, B / 2, half + ddim_off, ddim_ext * 6);
-        if (hasHole) {
-            ocvs.addDimLinear(viewName, -b / 2, half + ddim_off, b / 2, half + ddim_off, ddim_ext * 3);
-        }
+        ocvs.addDimLinear(viewName, -Bmax / 2 - ddim_off, -half, -Bmax / 2 - ddim_off, half, ddim_ext * 6);
+        ocvs.addDimLinear(viewName, -Bb / 2, -half - ddim_off, Bb / 2, -half - ddim_off, ddim_ext * -6);
+        ocvs.addDimLinear(viewName, -Be / 2, half + ddim_off, Be / 2, half + ddim_off, ddim_ext * 6);
 
     } else if (viewName === 'left' || viewName === 'right') {
-        // Side view: H x dseg_leng
+        // Tapered side view: H changes from Hb to He over length
         ocvs.addLine(viewName, -half, 0, half, 0, alayer[0]);
-        ocvs.addLine(viewName, half, 0, half, H, alayer[0]);
-        ocvs.addLine(viewName, half, H, -half, H, alayer[0]);
-        ocvs.addLine(viewName, -half, H, -half, 0, alayer[0]);
-        if (hasHole) {
-            ocvs.addLine(viewName, -half, cy - h / 2, half, cy - h / 2, alayer[1]);
-            ocvs.addLine(viewName, -half, cy + h / 2, half, cy + h / 2, alayer[1]);
+        ocvs.addLine(viewName, half, 0, half, He, alayer[0]);
+        ocvs.addLine(viewName, half, He, -half, Hb, alayer[0]);
+        ocvs.addLine(viewName, -half, Hb, -half, 0, alayer[0]);
+
+        var hasHoleB = aparam_b.hollow && hb > 0 && bb > 0 && hb < Hb && bb < Bb;
+        var hasHoleE = aparam_e.hollow && he > 0 && be > 0 && he < He && be < Be;
+        if (hasHoleB && hasHoleE) {
+            var cyb = Hb / 2, cye = He / 2;
+            ocvs.addLine(viewName, -half, cyb - hb / 2, half, cye - he / 2, alayer[1]);
+            ocvs.addLine(viewName, -half, cyb + hb / 2, half, cye + he / 2, alayer[1]);
         }
-        ocvs.addDimLinear(viewName, -half - ddim_off, 0, -half - ddim_off, H, ddim_ext * 6);
-        ocvs.addDimLinear(viewName, -half, H + ddim_off, half, H + ddim_off, ddim_ext * 6);
-        if (hasHole) {
-            ocvs.addDimLinear(viewName, half + ddim_off, cy - h / 2, half + ddim_off, cy + h / 2, ddim_ext * 6);
-        }
+        ocvs.addDimLinear(viewName, -half - ddim_off, 0, -half - ddim_off, Hb, ddim_ext * 6);
+        ocvs.addDimLinear(viewName, half + ddim_off, 0, half + ddim_off, He, ddim_ext * 6);
+        ocvs.addDimLinear(viewName, -half, Hmax + ddim_off, half, Hmax + ddim_off, ddim_ext * 6);
     }
 
     ocvs.render();
