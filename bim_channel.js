@@ -70,44 +70,68 @@ function geo_channel({ dh, db, dtw, dtf, drw, drf }) {
      ['ptti',ptti],['ptft',ptft],['ptf',ptf],['ptw',ptw]
     ].forEach(([n,p]) => opts.push({[n]: p, name: n}));
 
-    // === Outline traversal (clockwise from top-left, with optional fillets) ===
-    // Top edge — stop before outer fillet if drf > 0
+    // === Outline traversal (clockwise from top-left) ===
+    // Outer corners at flange tip TOP/BOTTOM are sharp (no drf there).
+    // drf rounds the CONVEX corner on the flange UNDERSIDE at the tip
+    // (where the flange right-side face meets the flange bottom/top face).
+    // drw rounds the CONCAVE inner corners at the web-flange junctions.
+
+    // 1) Top edge (sharp outer corner at (db, dh))
+    olines.push({ x1: ptw.x, y1: ptw.y, x2: db, y2: dh });
+
+    // 2) Right side of top flange — shortened for underside fillet
+    let ye_top_right = drf > 0 ? (dh - dtf + drf) : (dh - dtf);
+    olines.push({ x1: db, y1: dh, x2: db, y2: ye_top_right });
+
+    // 3) Top flange underside fillet (convex) at corner (db, dh-dtf)
+    //    Center inside the material: (db - drf, dh - dtf + drf)
+    //    Arc sweeps from BOTTOM of circle (270°) to RIGHT of circle (360°),
+    //    bulging toward the corner in the lower-right of the circle.
     if (drf > 0) {
-        olines.push({ x1: ptw.x, y1: ptw.y, x2: db - drf, y2: dh });
-        // Outer convex fillet at (db-drf, dh-drf): from (db-drf, dh) → (db, dh-drf)
-        oarcs.push({ x: db - drf, y: dh - drf, r: drf, angb: 0, ange: 90 });
-        olines.push({ x1: db, y1: dh - drf, x2: db, y2: dh - dtf });
-    } else {
-        olines.push({ x1: ptw.x, y1: ptw.y, x2: ptf.x, y2: ptf.y });   // top edge
-        olines.push({ x1: ptf.x, y1: ptf.y, x2: ptft.x, y2: ptft.y }); // right of top flange
+        oarcs.push({ x: db - drf, y: dh - dtf + drf, r: drf, angb: 270, ange: 360 });
     }
 
-    // Top flange bottom — go LEFT to inner web
+    // 4) Top flange bottom — go LEFT toward inner web
+    let xs_top_flange_bot = drf > 0 ? (db - drf) : db;
+    let xe_top_flange_bot = drw > 0 ? (dtw + drw) : dtw;
+    olines.push({ x1: xs_top_flange_bot, y1: dh - dtf, x2: xe_top_flange_bot, y2: dh - dtf });
+
+    // 5) Inner concave fillet (top) at corner (dtw, dh-dtf)
     if (drw > 0) {
-        olines.push({ x1: db, y1: dh - dtf, x2: dtw + drw, y2: dh - dtf });
-        // Inner concave fillet at (dtw+drw, dh-dtf-drw): from (dtw+drw, dh-dtf) → (dtw, dh-dtf-drw)
         oarcs.push({ x: dtw + drw, y: dh - dtf - drw, r: drw, angb: 90, ange: 180 });
-        olines.push({ x1: dtw, y1: dh - dtf - drw, x2: dtw, y2: dtf + drw });
-        // Inner concave fillet at (dtw+drw, dtf+drw): from (dtw, dtf+drw) → (dtw+drw, dtf)
+    }
+
+    // 6) Web inner (vertical)
+    let ys_web = drw > 0 ? (dh - dtf - drw) : (dh - dtf);
+    let ye_web = drw > 0 ? (dtf + drw)        : dtf;
+    olines.push({ x1: dtw, y1: ys_web, x2: dtw, y2: ye_web });
+
+    // 7) Inner concave fillet (bottom) at corner (dtw, dtf)
+    if (drw > 0) {
         oarcs.push({ x: dtw + drw, y: dtf + drw, r: drw, angb: 180, ange: 270 });
-        olines.push({ x1: dtw + drw, y1: dtf, x2: db, y2: dtf });
-    } else {
-        olines.push({ x1: ptft.x, y1: ptft.y, x2: ptti.x, y2: ptti.y }); // top flange bottom
-        olines.push({ x1: ptti.x, y1: ptti.y, x2: pbti.x, y2: pbti.y }); // web inner
-        olines.push({ x1: pbti.x, y1: pbti.y, x2: pbft.x, y2: pbft.y }); // bottom flange top
     }
 
-    // Bottom flange right + bottom edge — with optional outer fillet
+    // 8) Bottom flange top — go RIGHT toward flange tip
+    let xs_bot_flange_top = drw > 0 ? (dtw + drw) : dtw;
+    let xe_bot_flange_top = drf > 0 ? (db - drf)  : db;
+    olines.push({ x1: xs_bot_flange_top, y1: dtf, x2: xe_bot_flange_top, y2: dtf });
+
+    // 9) Bottom flange underside fillet (convex) at corner (db, dtf)
+    //    Center: (db - drf, dtf - drf)
+    //    Arc sweeps from RIGHT of circle (0°) to TOP of circle (90°),
+    //    bulging toward the corner in the upper-right of the circle.
     if (drf > 0) {
-        olines.push({ x1: db, y1: dtf, x2: db, y2: drf });
-        oarcs.push({ x: db - drf, y: drf, r: drf, angb: 270, ange: 360 });
-        olines.push({ x1: db - drf, y1: 0, x2: pbw.x, y2: pbw.y });
-    } else {
-        olines.push({ x1: pbft.x, y1: pbft.y, x2: pbf.x, y2: pbf.y }); // bottom flange right
-        olines.push({ x1: pbf.x, y1: pbf.y, x2: pbw.x, y2: pbw.y });   // bottom edge
+        oarcs.push({ x: db - drf, y: dtf - drf, r: drf, angb: 0, ange: 90 });
     }
 
-    // Close: web outer (vertical left edge)
+    // 10) Right side of bottom flange — shortened for underside fillet
+    let ys_bot_right = drf > 0 ? (dtf - drf) : dtf;
+    olines.push({ x1: db, y1: ys_bot_right, x2: db, y2: 0 });
+
+    // 11) Bottom edge (sharp outer corner at (db, 0))
+    olines.push({ x1: db, y1: 0, x2: pbw.x, y2: pbw.y });
+
+    // 12) Close: web outer (vertical left edge)
     olines.push({ x1: pbw.x, y1: pbw.y, x2: ptw.x, y2: ptw.y });
 
     // === Outline polygon for 3D loft (sharp corners — fillets simplified) ===
