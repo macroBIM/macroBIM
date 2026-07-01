@@ -281,8 +281,6 @@ function fdraw_rect_2d(viewName) {
             ocvs.addDimLinear(viewName, ptr.x + ddim_off, ibl.y, ptr.x + ddim_off, itl.y, ddim_ext * 6);
             // Inner b dimension (inside)
             ocvs.addDimLinear(viewName, ibl.x, ibl.y - ddim_off * 0.5, ibr.x, ibr.y - ddim_off * 0.5, ddim_ext * 3);
-            // Wall thickness b-side
-            ocvs.addDimLinear(viewName, ptl.x, ptl.y + ddim_off, itl.x, itl.y + ddim_off, ddim_ext * 3);
         }
 
     } else if (viewName === 'top') {
