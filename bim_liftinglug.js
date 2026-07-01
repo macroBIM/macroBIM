@@ -1,341 +1,373 @@
 /*
-  LIFTGING LUG를 위한 JS  v000 (Konva.js 치수선 Arrow 적용 및 4분할 동기화 & DXF 버그 수정)
+    LIFTING LUG 작도 JS v002
+    - box1cell 패턴: 3D (left) + tabbed 2D (right)
+    - Front/Back = flat lug outline (2D true shape)
+    - Left/Right/Center = side view (edge-on: lug plate + padeye plates)
+    - Top/Bottom = plan (lugW × padeyeT footprint)
 */
+const odxf_lug = dxf_generator();
+const scvs_lug = "liftinglugplot";
 
-const odxf_lug 	= dxf_generator();
-const scvs_lug  = "liftinglugplot";		// canvas name
-
-function liftinglug_click() {
-    const mainContent = document.getElementById('wrap_main');
-
-    if (mainContent) {
-        mainContent.classList.remove('col-md-9', 'col-lg-10');
-        mainContent.classList.add('col-md-12', 'col-lg-12');
-    }
-    
-    var omain = document.getElementById("wrap_main");	
-    var shtml = "";
-    let dynamicHeight = "calc(100vh - 100px)"; 
-
-	shtml += "<div class='container-fluid px-4' style='height: " + dynamicHeight + "; margin-top: 10px; margin-bottom: 20px;'>";
-    shtml += "  <div class='row g-3 h-100'>"; 
-            
-    // --- 왼쪽: 입력 폼 영역 ---
-    shtml += "      <div class='col-lg-4 h-100'>"; 
-	shtml += "          <div class='card shadow-sm h-100 d-flex flex-column' style='overflow: hidden;'>"; 
-	shtml += "              <div class='card-header bg-secondary text-white flex-shrink-0 d-flex justify-content-between align-items-center'>";
-	shtml += "                  <h6 class='mb-0'>DIMENSION (mm)</h6>"; 
-	shtml += "              </div>";	
-	shtml += "              <div class='card-body overflow-auto flex-grow-1' style='min-height: 0; padding-bottom: 0;'>"; 
-	shtml += "                  <div class='pe-1'>";
-	
-	shtml += createTextInput('sUserText', 'BATCH INPUT (CSV)','', 'putParams_liftinglug(\"sUserText\"); fdraw_liftinglug();');
-	shtml += createLabel('INPUT One by One');
-	
-    shtml += createRowInput('LUG Width', 'lugW', 120, 'fdraw_liftinglug()');
-    shtml += createRowInput('LUG Height', 'lugH', 120, 'fdraw_liftinglug()');
-    shtml += createRowInput('BASE Height', 'baseH', 30, 'fdraw_liftinglug()');
-    shtml += createRowInput('LUG Radius', 'outerR', 40, 'fdraw_liftinglug()');
-    shtml += createRowInput('INNER Hole Radius', 'innerR', 10, 'fdraw_liftinglug()');
-    shtml += createRowInput('PADEYE Radius', 'padeyeR', 30, 'fdraw_liftinglug()');
-    shtml += createRowInput('LUG Thickness', 'lugT', 20, 'fdraw_liftinglug()');
-    shtml += createRowInput('PADEYE Thickness', 'padeyeT', 30, 'fdraw_liftinglug()');
-	
-    shtml += "                  </div>";
-    shtml += "              </div>";
-	shtml += "              <div class='card-footer bg-white border-top flex-shrink-0 p-2 align-items-center justify-content-center text-center'>";
-	shtml += "                  <button class='btn btn-dark w-75 py-2 mb-0 shadow-sm' onclick='odxf_lug.download(\"LiftingLug.dxf\")'>";
-	shtml += "                      DXF DOWNLOAD";
-	shtml += "                  </button>";
-	shtml += "              </div>"; 
-	shtml += "          </div>";
-	shtml += "      </div>";
-				
-    // --- 오른쪽: 도면 뷰어 영역 ---
-    shtml += "      <div class='col-lg-8 h-100'>";
-    shtml += "          <div class='card shadow-sm h-100 d-flex flex-column' style='overflow: hidden;'>";
-	// 헤더 정렬 유지
-    shtml += "              <div class='card-header bg-secondary flex-shrink-0 d-flex justify-content-between align-items-center'>";
-    shtml += "                  <h6 class='mb-0 text-white'>DRAWING VIEW (Synchronized Zoom/Pan)</h6>";
-    
-    // ⭐ 폰트 굵기(bold) 제거 및 패딩/글자 크기를 줄여서 헤더 높이 유지
-    shtml += "                  <button class='btn btn-light' style='padding: 2px 8px; font-size: 12px; line-height: 1.5;' onclick='fdraw_liftinglug()'>";
-    shtml += "                      <i class='fa fa-refresh'></i> REGEN";
-    shtml += "                  </button>";
-    shtml += "              </div>";
-	
-	shtml += "              <div class='card-body p-0 flex-grow-1' style='min-height: 0; position: relative;'>";
-    shtml += "                  <div id='" + scvs_lug + "' style='position: absolute; top:0; left:0; width:100%; height:100%; background-color:#000; cursor: grab;'></div>";
-    shtml += "              </div>";
-    shtml += "          </div>";
-    shtml += "      </div>";
-            
-    shtml += "  </div>"; 
-    shtml += "</div>";
-	
-    omain.innerHTML = shtml;
-    fdraw_liftinglug();
-}
+const _LUG_KEYS = ['lugW','lugH','baseH','outerR','innerR','padeyeR','lugT','padeyeT'];
 
 function getParams_liftinglug() {
     const getValue = (id) => {
         const el = document.getElementById(id);
         return el ? Number(el.value) : 0;
     };
-
-    let aparam = {
-        lugW: getValue('lugW'), lugH: getValue('lugH'), baseH: getValue('baseH'), 
-        outerR: getValue('outerR'), innerR: getValue('innerR'), padeyeR: getValue('padeyeR'),
-        lugT: getValue('lugT'), padeyeT: getValue('padeyeT')
-    };
-    let combText = [ ...Object.values(aparam) ].join(',');
+    let aparam = {};
+    _LUG_KEYS.forEach(k => { aparam[k] = getValue(k); });
+    let combText = _LUG_KEYS.map(k => aparam[k]).join(',');
     return { aparam, combText };
 }
 
 function putParams_liftinglug(textareaId) {
     const textarea = document.getElementById(textareaId);
     if (!textarea) return;
-
     const lines = textarea.value.split('\n');
-    const values = lines[0].split(',');
-    const keys = [ 'lugW', 'lugH', 'baseH', 'outerR', 'innerR', 'padeyeR', 'lugT', 'padeyeT' ];
-
-    keys.forEach((key, index) => {
-        if (values[index] !== undefined) {
-            const elS = document.getElementById( key );
-            if (elS) elS.value = values[index].trim();
-        }			
+    const values = (lines[0] || '').split(',');
+    _LUG_KEYS.forEach((k, i) => {
+        if (values[i] !== undefined) {
+            const el = document.getElementById(k);
+            if (el) el.value = values[i].trim();
+        }
     });
     if (typeof fdraw_liftinglug === 'function') fdraw_liftinglug();
 }
 
+/*
+    geo_liftinglug — pure function returning:
+      {
+        Rcx, Rcy         : arc center (also hole/padeye center)
+        Tlx, Tly, Trx, Try : tangent points (base corners → outer arc)
+        arc_angb, arc_ange : arc angles for the outer curve (degrees)
+        aparam           : echoed input (for renderers)
+      }
+*/
+function geo_liftinglug(aparam) {
+    let { lugW, lugH, baseH, outerR, innerR, padeyeR } = aparam;
+
+    let Rcx = 0;
+    let Rcy = lugH - outerR;
+
+    let dTlx, dTly, dTrx, dTry, arc_angb, arc_ange;
+
+    if (lugW / 2 >= outerR) {
+        const dx = lugW / 2;
+        const ddiag = Math.sqrt(dx * dx + (Rcy - baseH) * (Rcy - baseH));
+        const dTL = Math.sqrt(Math.max(ddiag * ddiag - outerR * outerR, 0));
+        const dang1 = Math.atan(Math.abs(Rcy - baseH) / dx);
+        const dang2 = Math.atan(outerR / dTL);
+        const dang = dang1 + dang2;
+
+        dTlx = -1 * lugW / 2 + dTL * Math.cos(dang);
+        dTly = baseH + dTL * Math.sin(dang);
+        dTrx = -dTlx;
+        dTry = dTly;
+
+        let angb = Math.atan((Math.abs(dTly) - Math.abs(Rcy)) / Math.abs(dTlx));
+        let ange = Math.PI - angb;
+        arc_angb = angb * 180 / Math.PI;
+        arc_ange = ange * 180 / Math.PI;
+    } else {
+        const dx = lugW / 2;
+        const ddiag = Math.sqrt(dx * dx + (Rcy - baseH) * (Rcy - baseH));
+        const dTL = Math.sqrt(Math.max(ddiag * ddiag - outerR * outerR, 0));
+        const dang1 = Math.atan(Math.abs(Rcy - baseH) / dx);
+        const dang2 = Math.atan(outerR / dTL);
+        const dang = Math.PI - (dang1 + dang2);
+
+        dTlx = -lugW / 2 + dTL * Math.cos(dang);
+        dTly = baseH + dTL * Math.sin(dang);
+        dTrx = -dTlx;
+        dTry = dTly;
+
+        let angb = -1 * Math.atan(Math.abs(Math.abs(dTly) - Math.abs(Rcy)) / Math.abs(dTlx));
+        let ange = Math.PI - angb;
+        arc_angb = angb * 180 / Math.PI;
+        arc_ange = ange * 180 / Math.PI;
+    }
+
+    return {
+        Rcx, Rcy, Tlx: dTlx, Tly: dTly, Trx: dTrx, Try: dTry,
+        arc_angb, arc_ange, aparam
+    };
+}
+
+var _lug_drawData = null;
+
 function fdraw_liftinglug() {
-    var dDimgap = 15;
+    var alayer = {
+        lug:   'lug_outline',
+        hlug:  'lug_hidden',
+        peye:  'padeye_outline',
+        hpeye: 'padeye_hidden',
+        cent:  'lug_center'
+    };
+
+    var _container = document.getElementById(scvs_lug);
+    if (!_container) return;
+    _container.innerHTML = '';
+    _container.style.display = 'flex';
+    _container.style.gap = '2px';
+    _container.style.backgroundColor = '#000';
+    _container.style.height = '560px';
+
+    var div3d = document.createElement('div');
+    div3d.id = 'lug3d';
+    div3d.style.cssText = 'width:50%;height:560px;background:#1a1a2e;';
+    _container.appendChild(div3d);
+
+    var divRight = document.createElement('div');
+    divRight.style.cssText = 'width:50%;height:560px;';
+
+    var tabBar = document.createElement('div');
+    tabBar.style.cssText = 'display:flex;gap:2px;padding:4px;background:#1e293b;flex-wrap:wrap;height:34px;box-sizing:border-box;';
+    ['Front','Back','Left','Center','Right','Top','Bottom'].forEach(function(name, i) {
+        var btn = document.createElement('button');
+        btn.textContent = name;
+        btn.id = 'lug_tab_' + name.toLowerCase();
+        btn.style.cssText = 'padding:4px 10px;border:1px solid #475569;background:' +
+            (i === 0 ? '#2563eb' : '#334155') + ';color:' +
+            (i === 0 ? '#fff' : '#94a3b8') +
+            ';cursor:pointer;border-radius:4px;font-size:11px;font-weight:600;';
+        btn.onclick = function() { fdraw_liftinglug_2d(name.toLowerCase()); };
+        tabBar.appendChild(btn);
+    });
+    divRight.appendChild(tabBar);
+
+    var viewport2d = document.createElement('div');
+    viewport2d.id = 'lug_2dview';
+    viewport2d.style.cssText = 'width:100%;height:526px;background:#000;';
+    divRight.appendChild(viewport2d);
+    _container.appendChild(divRight);
+
     let auserdata = getParams_liftinglug();
     let aparam = auserdata.aparam;
     let ouserTextArea = document.getElementById('sUserText');
-    if (ouserTextArea) { ouserTextArea.value = auserdata.combText ; }	
+    if (ouserTextArea) ouserTextArea.value = auserdata.combText;
 
-    let { innerR, padeyeR, outerR, lugW, lugH, baseH, lugT, padeyeT } = aparam;
+    // Sanity — bail if any dim is non-positive
+    if (Object.values(aparam).some(v => v <= 0)) return;
 
-    if (innerR <= 0 || padeyeR <= 0 || outerR <= 0 || lugW <= 0 || lugH <= 0 || baseH <= 0 || lugT <= 0 || padeyeT <= 0) return;
-
-    if( lugW / 2 < outerR ){
-        lugW = outerR * 2;			
-        document.getElementById('lugW').min = lugW;
-        document.getElementById('lugW').value = lugW;
+    // Enforce constraints (only when values are already sensible)
+    if (aparam.lugW / 2 < aparam.outerR) {
+        aparam.lugW = aparam.outerR * 2;
+        var lugWEl = document.getElementById('lugW');
+        if (lugWEl) lugWEl.value = aparam.lugW;
     }
-    document.getElementById('padeyeR').min = innerR;
-    document.getElementById('padeyeR').max = outerR;
-    if ( padeyeR < innerR || outerR < innerR || outerR < padeyeR ) return;
-
-    const minRequiredHeight = outerR + padeyeR + baseH;
-    document.getElementById('lugH').min = minRequiredHeight;
-    if ( lugH < minRequiredHeight ) {						
-        lugH = minRequiredHeight;
-        return;
+    var minRequiredHeight = aparam.outerR + aparam.padeyeR + aparam.baseH;
+    if (aparam.lugH < minRequiredHeight) {
+        aparam.lugH = minRequiredHeight;
+        var lugHEl = document.getElementById('lugH');
+        if (lugHEl) lugHEl.value = aparam.lugH;
     }
-    document.getElementById('padeyeT').min = lugT;
 
-    /* --- 좌표 계산 --- */		
-    var dRx = 0; var dRy = ( lugH - outerR ) ;
-    var dTxl, dTyl, dTxr, dTyr, darcb, darce;
-    var dPbaselx = -lugW / 2, dPbasely = 0;
-    var dPbaserx =  lugW / 2, dPbasery = 0;
-    var dPbase1lx = -lugW / 2, dPbase1ly = baseH;
-    var dPbase1rx =  lugW / 2, dPbase1ry = baseH;
+    let geo = geo_liftinglug(aparam);
 
-    if( lugW / 2 >= outerR ){
-        const dx = lugW / 2; const ddiag = Math.sqrt( dx * dx + (dRy - baseH) * (dRy - baseH) );
-        const dTL = Math.sqrt( ddiag * ddiag - outerR * outerR );
-        const dang1 = Math.atan( Math.abs( dRy - baseH ) / dx );
-        const dang2 = Math.atan( outerR / dTL ) ;
-        const dang = dang1 + dang2;
-
-        dTlx = -1 * lugW / 2 + dTL * Math.cos( dang ); dTly = (baseH + dTL * Math.sin( dang )) ;
-        dTrx = dTlx * -1; dTry = dTly;
-        darcb = Math.atan( ( Math.abs(dTly) - Math.abs( dRy ) ) / Math.abs( dTlx ) ) ; darce = (Math.PI - darcb) ;
-    } else {
-        const dx = lugW / 2; const ddiag = Math.sqrt( dx * dx + (dRy - baseH) * (dRy - baseH) );
-        const dTL = Math.sqrt( ddiag * ddiag - outerR * outerR );
-        const dang1 = Math.atan( Math.abs( dRy - baseH ) / dx );
-        const dang2 = Math.atan( outerR / dTL ) ;
-        const dang = Math.PI - ( dang1 + dang2 );
-
-        dTlx = -lugW / 2 + dTL * Math.cos( dang  ); dTly = (baseH + dTL * Math.sin( dang )) ;
-        dTrx = dTlx * -1; dTry = dTly;
-        darcb = -1 * Math.atan( Math.abs( Math.abs(dTly) - Math.abs( dRy ) ) / Math.abs( dTlx) ) ; darce = (Math.PI - darcb) ;
-    }
-    darcb = darcb * 180 / Math.PI; darce = darce * 180 / Math.PI;
-
-    /* --- KONVA 드로잉 적용 --- */		
-    var ocvs = new KonvaViewer(scvs_lug);
-    
-    ocvs.addLayer('lug_outline', 'cyan', 'solid', 2);
-    ocvs.addLayer('lug_hidden', 'cyan', 'hidden', 1.5);
-    ocvs.addLayer('padeye_outline', '#00ff00', 'solid', 2);
-    ocvs.addLayer('padeye_hidden', '#00ff00', 'hidden', 1.5);
-    ocvs.addLayer('lug_center', 'red', 'solid', 2);
-
-    //** front view **
-    ocvs.addCircle('front', dRx, dRy, innerR, 'lug_outline');
-    ocvs.addCircle('front', dRx, dRy, padeyeR, 'padeye_outline');
-    ocvs.addLine('front', dTlx, dTly, dPbase1lx, dPbase1ly, 'lug_outline');
-    ocvs.addLine('front', dPbase1lx, dPbase1ly, dPbaselx, dPbasely, 'lug_outline');
-    ocvs.addLine('front', dPbaselx, dPbasely, dPbaserx, dPbasery, 'lug_outline');
-    ocvs.addLine('front', dPbaserx, dPbasery, dPbase1rx, dPbase1ry, 'lug_outline');
-    ocvs.addLine('front', dPbase1rx, dPbase1ry, dTrx, dTry, 'lug_outline');
-    ocvs.addArc('front', dRx, dRy, outerR, darcb, darce, 'lug_outline');
-    ocvs.addDimRadius('front', dRx, dRy, outerR, 120);		
-    ocvs.addDimRadius('front', dRx, dRy, innerR, 0);		
-    ocvs.addDimRadius('front', dRx, dRy, padeyeR, 45);		
-    ocvs.addDimLinear('front', dPbaselx, dPbasely, dPbaselx, lugH, dDimgap);
-    ocvs.addDimLinear('front', dPbaserx, dPbasery, dPbase1rx, dPbase1ry, -dDimgap);
-    ocvs.addDimLinear('front', dPbase1rx, dPbase1ry, dPbase1rx, lugH, -dDimgap);
-    ocvs.addDimLinear('front', dPbaselx, dPbasely, dPbaserx, dPbasery, -dDimgap);
-
-    //** side view **
-    ocvs.addLine('side', -lugT/2, lugH, lugT/2, lugH, 'lug_outline');
-    ocvs.addLine('side', -lugT/2,      0,  lugT/2,     0, 'lug_outline');
-    ocvs.addLine('side', -lugT/2,     0, -lugT/2, lugH, 'lug_outline');
-    ocvs.addLine('side',   lugT/2,  0, lugT/2, lugH, 'lug_outline');
-    ocvs.addLine('side', -lugT/2,  baseH,  lugT/2,  baseH, 'lug_outline');
-    ocvs.addLine('side', -padeyeT/2, dRy + padeyeR, -lugT/2, dRy + padeyeR, 'padeye_outline');
-    ocvs.addLine('side',  lugT/2, dRy + padeyeR, padeyeT/2, dRy + padeyeR, 'padeye_outline');
-    ocvs.addLine('side', -padeyeT/2, dRy - padeyeR, -lugT/2, dRy - padeyeR, 'padeye_outline');
-    ocvs.addLine('side',  lugT/2, dRy - padeyeR, padeyeT/2, dRy - padeyeR, 'padeye_outline');
-    ocvs.addLine('side', -padeyeT/2,  dRy - padeyeR, -padeyeT/2, dRy + padeyeR, 'padeye_outline');
-    ocvs.addLine('side',  padeyeT/2,  dRy - padeyeR,  padeyeT/2, dRy + padeyeR, 'padeye_outline');
-    ocvs.addLine('side', -padeyeT/2, dRy + innerR, -lugT/2, dRy + innerR, 'padeye_hidden');
-    ocvs.addLine('side', -lugT/2, dRy + innerR, lugT/2, dRy + innerR, 'lug_hidden');
-    ocvs.addLine('side',  lugT/2, dRy + innerR, padeyeT/2, dRy + innerR, 'padeye_hidden');
-    ocvs.addLine('side', -padeyeT/2, dRy - innerR, -lugT/2, dRy - innerR, 'padeye_hidden');
-    ocvs.addLine('side', -lugT/2, dRy - innerR, lugT/2, dRy - innerR, 'lug_hidden');
-    ocvs.addLine('side',  lugT/2, dRy - innerR, padeyeT/2, dRy - innerR, 'padeye_hidden');
-    ocvs.addDimLinear('side', -padeyeT/2,  dPbasely, -padeyeT/2, lugH, dDimgap*2);
-    ocvs.addDimLinear('side',  padeyeT/2,  dPbasery,  padeyeT/2, dPbase1ry, -dDimgap*2);
-    ocvs.addDimLinear('side',  padeyeT/2, dPbase1ry, padeyeT/2, lugH, -dDimgap*2);
-    ocvs.addDimLinear('side', -padeyeT/2,  dRy - padeyeR, -padeyeT/2, dRy + padeyeR, dDimgap);
-    ocvs.addDimLinear('side',  padeyeT/2,  dRy - innerR, padeyeT/2, dRy + innerR, -dDimgap);
-
-    //** top view **
-    ocvs.addLine('top', -lugW/2, -lugT/2 , lugW/2, -lugT/2, 'lug_outline');
-    ocvs.addLine('top', -lugW/2,  lugT/2 , lugW/2,  lugT/2, 'lug_outline');
-    ocvs.addLine('top', -lugW/2, -lugT/2 , -lugW/2, lugT/2, 'lug_outline');
-    ocvs.addLine('top',  lugW/2, -lugT/2 ,   lugW/2, lugT/2, 'lug_outline');
-    ocvs.addLine('top', -innerR, -padeyeT / 2, -innerR,  padeyeT / 2, 'lug_hidden');		
-    ocvs.addLine('top',  innerR, -padeyeT / 2,   innerR, padeyeT / 2, 'lug_hidden');
-    ocvs.addLine('top', -padeyeR, -padeyeT / 2, -padeyeR, -lugT / 2, 'padeye_outline');
-    ocvs.addLine('top', -padeyeR,  lugT / 2, -padeyeR,  padeyeT / 2, 'padeye_outline');
-    ocvs.addLine('top',  padeyeR, -padeyeT / 2, padeyeR, -lugT / 2, 'padeye_outline');
-    ocvs.addLine('top',  padeyeR,  lugT / 2, padeyeR,  padeyeT / 2, 'padeye_outline');
-    ocvs.addLine('top', -padeyeR, padeyeT / 2,  padeyeR, padeyeT / 2, 'padeye_outline');
-    ocvs.addLine('top', -padeyeR, -padeyeT / 2,  padeyeR, -padeyeT / 2, 'padeye_outline');
-    ocvs.addDimLinear('top',  -lugW/2,  -padeyeT / 2,  lugW/2, -padeyeT / 2, -dDimgap*2);
-    ocvs.addDimLinear('top',  -padeyeR,  -padeyeT / 2,  padeyeR, -padeyeT / 2, -dDimgap);
-    ocvs.addDimLinear('top',  -innerR,  padeyeT / 2,  innerR, padeyeT / 2, dDimgap);
-    ocvs.addDimLinear('top',  -lugW/2,   -padeyeT/ 2,  -lugW/2, padeyeT / 2, dDimgap);
-    ocvs.addDimLinear('top',   lugW/2,   -lugT/ 2,   lugW/2, lugT / 2, -dDimgap);
-
-    //** bottom view **
-    ocvs.addLine('bottom', -lugW/2, -lugT/2 , lugW/2, -lugT/2, 'lug_outline');
-    ocvs.addLine('bottom', -lugW/2,  lugT/2 , lugW/2,  lugT/2, 'lug_outline');
-    ocvs.addLine('bottom', -lugW/2, -lugT/2 , -lugW/2, lugT/2, 'lug_outline');
-    ocvs.addLine('bottom',  lugW/2, -lugT/2 ,   lugW/2, lugT/2, 'lug_outline');
-    ocvs.addLine('bottom', -innerR, -padeyeT / 2, -innerR,  padeyeT / 2, 'lug_hidden');		
-    ocvs.addLine('bottom',  innerR, -padeyeT / 2,   innerR, padeyeT / 2, 'lug_hidden');
-    ocvs.addLine('bottom', -padeyeR, -padeyeT / 2, -padeyeR, -lugT / 2, 'padeye_outline');
-    ocvs.addLine('bottom', -padeyeR,  lugT / 2, -padeyeR,  padeyeT / 2, 'padeye_outline');
-    ocvs.addLine('bottom',  padeyeR, -padeyeT / 2, padeyeR, -lugT / 2, 'padeye_outline');
-    ocvs.addLine('bottom',  padeyeR,  lugT / 2, padeyeR,  padeyeT / 2, 'padeye_outline');
-    ocvs.addLine('bottom', -padeyeR, padeyeT / 2,  padeyeR, padeyeT / 2, 'padeye_outline');
-    ocvs.addLine('bottom', -padeyeR, -padeyeT / 2,  padeyeR, -padeyeT / 2, 'padeye_outline');
-    ocvs.addDimLinear('bottom',  -lugW/2,  -padeyeT / 2,  lugW/2, -padeyeT / 2, -dDimgap*2);
-    ocvs.addDimLinear('bottom',  -padeyeR,  -padeyeT / 2,  padeyeR, -padeyeT / 2, -dDimgap);
-    ocvs.addDimLinear('bottom',  -innerR,  padeyeT / 2,  innerR, padeyeT / 2, dDimgap);
-    ocvs.addDimLinear('bottom',  -lugW/2,   -padeyeT/ 2,  -lugW/2, padeyeT / 2, dDimgap);
-    ocvs.addDimLinear('bottom',   lugW/2,   -lugT/ 2,   lugW/2, lugT / 2, -dDimgap);
-    
-    ocvs.render();
-
-    /* --- DXF Preparation --- */
-    var dDim_ext = 20;
+    // DXF prep + emit 4 views like the old code
     odxf_lug.init();
     odxf_lug.layer("lug_cent", 1, "CENTER");
     odxf_lug.layer("lug_hidden", 4, "HIDDEN");
     odxf_lug.layer("lug_solid", 4, "CONTINUOUS");
     odxf_lug.layer("padeye", 3, "CONTINUOUS");
-    
+
+    _emit_dxf_liftinglug(geo);
+
+    _lug_drawData = { geo, aparam, alayer };
+
+    // 3D
+    function _render3d() {
+        if (typeof render_liftinglug_3d === 'function' && typeof THREE !== 'undefined') {
+            render_liftinglug_3d('lug3d', geo);
+            return;
+        }
+        var msg = document.getElementById('lug3d');
+        if (msg) msg.innerHTML = '<div style="display:flex;align-items:center;justify-content:center;height:100%;color:#666;font-size:14px;">3D Loading...</div>';
+        var urls = [];
+        if (typeof THREE === 'undefined') {
+            urls.push('https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js');
+            urls.push('https://unpkg.com/three@0.128.0/examples/js/controls/OrbitControls.js');
+        }
+        if (typeof render_liftinglug_3d !== 'function') {
+            urls.push('https://macrobim.github.io/macroBIM/bim_liftinglug_3d.js');
+        }
+        (function loadNext(i) {
+            if (i >= urls.length) {
+                if (typeof render_liftinglug_3d === 'function') render_liftinglug_3d('lug3d', geo);
+                return;
+            }
+            var s = document.createElement('script');
+            s.src = urls[i];
+            s.onload = function() { loadNext(i+1); };
+            s.onerror = function() { loadNext(i+1); };
+            document.head.appendChild(s);
+        })(0);
+    }
+    _render3d();
+
+    fdraw_liftinglug_2d('front');
+}
+
+function fdraw_liftinglug_2d(viewName) {
+    if (!_lug_drawData) return;
+    var data = _lug_drawData;
+    var geo = data.geo;
+    var aparam = data.aparam;
+    var alayer = data.alayer;
+
+    ['front','back','left','center','right','top','bottom'].forEach(function(name) {
+        var btn = document.getElementById('lug_tab_' + name);
+        if (!btn) return;
+        if (name === viewName) {
+            btn.style.background = '#2563eb'; btn.style.color = '#fff'; btn.style.borderColor = '#2563eb';
+        } else {
+            btn.style.background = '#334155'; btn.style.color = '#94a3b8'; btn.style.borderColor = '#475569';
+        }
+    });
+
+    var ocvs = new KonvaViewer('lug_2dview', {
+        gridCols: 1, layout: [{ views: [viewName], span: 1 }]
+    });
+    ocvs.addLayer(alayer.lug,   'cyan',    'solid',  2);
+    ocvs.addLayer(alayer.hlug,  'cyan',    'hidden', 1.5);
+    ocvs.addLayer(alayer.peye,  '#00ff00', 'solid',  2);
+    ocvs.addLayer(alayer.hpeye, '#00ff00', 'hidden', 1.5);
+    ocvs.addLayer(alayer.cent,  'red',     'solid',  2);
+
+    var { lugW, lugH, baseH, outerR, innerR, padeyeR, lugT, padeyeT } = aparam;
+    var { Rcx, Rcy, Tlx, Tly, Trx, Try, arc_angb, arc_ange } = geo;
+    var dDimgap = Math.max(15, Math.max(lugW, lugH) * 0.05);
+
+    if (viewName === 'front' || viewName === 'back') {
+        // Flat outline of the lug plate
+        ocvs.addCircle(viewName, Rcx, Rcy, innerR, alayer.lug);
+        ocvs.addCircle(viewName, Rcx, Rcy, padeyeR, alayer.peye);
+        ocvs.addLine(viewName, Tlx, Tly, -lugW/2, baseH, alayer.lug);
+        ocvs.addLine(viewName, -lugW/2, baseH, -lugW/2, 0, alayer.lug);
+        ocvs.addLine(viewName, -lugW/2, 0, lugW/2, 0, alayer.lug);
+        ocvs.addLine(viewName, lugW/2, 0, lugW/2, baseH, alayer.lug);
+        ocvs.addLine(viewName, lugW/2, baseH, Trx, Try, alayer.lug);
+        ocvs.addArc(viewName, Rcx, Rcy, outerR, arc_angb, arc_ange, alayer.lug);
+
+        ocvs.addDimRadius(viewName, Rcx, Rcy, outerR, 120);
+        ocvs.addDimRadius(viewName, Rcx, Rcy, innerR, 0);
+        ocvs.addDimRadius(viewName, Rcx, Rcy, padeyeR, 45);
+        ocvs.addDimLinear(viewName, -lugW/2, 0, -lugW/2, lugH, dDimgap);
+        ocvs.addDimLinear(viewName, lugW/2, 0, lugW/2, baseH, -dDimgap);
+        ocvs.addDimLinear(viewName, lugW/2, baseH, lugW/2, lugH, -dDimgap);
+        ocvs.addDimLinear(viewName, -lugW/2, 0, lugW/2, 0, -dDimgap);
+
+    } else if (viewName === 'left' || viewName === 'center' || viewName === 'right') {
+        // Side elevation (edge-on): lug plate + padeye plates
+        ocvs.addLine(viewName, -lugT/2, lugH, lugT/2, lugH, alayer.lug);
+        ocvs.addLine(viewName, -lugT/2, 0, lugT/2, 0, alayer.lug);
+        ocvs.addLine(viewName, -lugT/2, 0, -lugT/2, lugH, alayer.lug);
+        ocvs.addLine(viewName,  lugT/2, 0, lugT/2, lugH, alayer.lug);
+        ocvs.addLine(viewName, -lugT/2, baseH, lugT/2, baseH, alayer.lug);
+        // Padeye plates (annular in front, rectangles from the side)
+        ocvs.addLine(viewName, -padeyeT/2, Rcy + padeyeR, -lugT/2, Rcy + padeyeR, alayer.peye);
+        ocvs.addLine(viewName,  lugT/2,    Rcy + padeyeR, padeyeT/2, Rcy + padeyeR, alayer.peye);
+        ocvs.addLine(viewName, -padeyeT/2, Rcy - padeyeR, -lugT/2, Rcy - padeyeR, alayer.peye);
+        ocvs.addLine(viewName,  lugT/2,    Rcy - padeyeR, padeyeT/2, Rcy - padeyeR, alayer.peye);
+        ocvs.addLine(viewName, -padeyeT/2, Rcy - padeyeR, -padeyeT/2, Rcy + padeyeR, alayer.peye);
+        ocvs.addLine(viewName,  padeyeT/2, Rcy - padeyeR,  padeyeT/2, Rcy + padeyeR, alayer.peye);
+        // Hidden hole edges
+        ocvs.addLine(viewName, -padeyeT/2, Rcy + innerR, -lugT/2, Rcy + innerR, alayer.hpeye);
+        ocvs.addLine(viewName, -lugT/2, Rcy + innerR, lugT/2, Rcy + innerR, alayer.hlug);
+        ocvs.addLine(viewName,  lugT/2, Rcy + innerR, padeyeT/2, Rcy + innerR, alayer.hpeye);
+        ocvs.addLine(viewName, -padeyeT/2, Rcy - innerR, -lugT/2, Rcy - innerR, alayer.hpeye);
+        ocvs.addLine(viewName, -lugT/2, Rcy - innerR, lugT/2, Rcy - innerR, alayer.hlug);
+        ocvs.addLine(viewName,  lugT/2, Rcy - innerR, padeyeT/2, Rcy - innerR, alayer.hpeye);
+
+        ocvs.addDimLinear(viewName, -padeyeT/2, 0, -padeyeT/2, lugH, dDimgap*2);
+        ocvs.addDimLinear(viewName, padeyeT/2, 0, padeyeT/2, baseH, -dDimgap*2);
+        ocvs.addDimLinear(viewName, padeyeT/2, baseH, padeyeT/2, lugH, -dDimgap*2);
+        ocvs.addDimLinear(viewName, -padeyeT/2, Rcy - padeyeR, -padeyeT/2, Rcy + padeyeR, dDimgap);
+        ocvs.addDimLinear(viewName,  padeyeT/2, Rcy - innerR, padeyeT/2, Rcy + innerR, -dDimgap);
+
+    } else if (viewName === 'top' || viewName === 'bottom') {
+        // Plan looking down (or up) — lugW × padeyeT footprint
+        ocvs.addLine(viewName, -lugW/2, -lugT/2, lugW/2, -lugT/2, alayer.lug);
+        ocvs.addLine(viewName, -lugW/2,  lugT/2, lugW/2,  lugT/2, alayer.lug);
+        ocvs.addLine(viewName, -lugW/2, -lugT/2, -lugW/2, lugT/2, alayer.lug);
+        ocvs.addLine(viewName,  lugW/2, -lugT/2,  lugW/2, lugT/2, alayer.lug);
+        // Padeye rectangles on either side of the lug plate
+        ocvs.addLine(viewName, -padeyeR, -padeyeT/2,  padeyeR, -padeyeT/2, alayer.peye);
+        ocvs.addLine(viewName, -padeyeR,  padeyeT/2,  padeyeR,  padeyeT/2, alayer.peye);
+        ocvs.addLine(viewName, -padeyeR, -padeyeT/2, -padeyeR, -lugT/2, alayer.peye);
+        ocvs.addLine(viewName, -padeyeR,  lugT/2, -padeyeR,  padeyeT/2, alayer.peye);
+        ocvs.addLine(viewName,  padeyeR, -padeyeT/2,  padeyeR, -lugT/2, alayer.peye);
+        ocvs.addLine(viewName,  padeyeR,  lugT/2,  padeyeR,  padeyeT/2, alayer.peye);
+        // Hole projection
+        ocvs.addLine(viewName, -innerR, -padeyeT/2, -innerR,  padeyeT/2, alayer.hlug);
+        ocvs.addLine(viewName,  innerR, -padeyeT/2,  innerR,  padeyeT/2, alayer.hlug);
+
+        ocvs.addDimLinear(viewName, -lugW/2, -padeyeT/2, lugW/2, -padeyeT/2, -dDimgap*2);
+        ocvs.addDimLinear(viewName, -padeyeR, -padeyeT/2, padeyeR, -padeyeT/2, -dDimgap);
+        ocvs.addDimLinear(viewName, -innerR,  padeyeT/2, innerR,  padeyeT/2, dDimgap);
+        ocvs.addDimLinear(viewName, -lugW/2, -padeyeT/2, -lugW/2, padeyeT/2, dDimgap);
+        ocvs.addDimLinear(viewName,  lugW/2, -lugT/2,  lugW/2, lugT/2, -dDimgap);
+    }
+
+    ocvs.render();
+}
+
+/* --- DXF emission (unchanged layout from v001, kept for now) --- */
+function _emit_dxf_liftinglug(geo) {
+    let { lugW, lugH, baseH, outerR, innerR, padeyeR, lugT, padeyeT } = geo.aparam;
+    let { Rcx, Rcy, Tlx, Tly, Trx, Try, arc_angb, arc_ange } = geo;
+    var dDim_ext = 20;
+
     var dOx = 0, dOy = 0;
     var dOx_side = lugW * 1.5, dOy_side = 0;
     var dOx_top = 0, dOy_top = lugH * 1.5;
     var dOx_bot = lugW * 1.5, dOy_bot = lugH * 1.5;
-    var dp1x, dp1y, dp2x, dp2y;
 
-    /** front view **/
-    dp1x = dOx + dTlx, dp1y = dOy + dTly; dp2x = dOx + dPbase1lx, dp2y = dOy + dPbase1ly; odxf_lug.line(dp1x, dp1y, dp2x, dp2y, "lug_solid");			
-    dp1x = dOx + dPbase1lx, dp1y = dOy + dPbase1ly; dp2x = dOx + dPbaselx, dp2y = dOy + dPbasely; odxf_lug.line(dp1x, dp1y, dp2x, dp2y, "lug_solid");			
-    dp1x = dOx + dPbaselx, dp1y = dOy + dPbasely; dp2x = dOx + dPbaserx, dp2y = dOy + dPbasery; odxf_lug.line(dp1x, dp1y, dp2x, dp2y, "lug_solid");			
-    dp1x = dOx + dPbaserx, dp1y = dOy + dPbasery; dp2x = dOx + dPbase1rx, dp2y = dOy + dPbase1ry; odxf_lug.line(dp1x, dp1y, dp2x, dp2y, "lug_solid");			
-    dp1x = dOx + dPbase1rx, dp1y = dOy + dPbase1ry; dp2x = dOx + dTrx, dp2y = dOy + dTry; odxf_lug.line(dp1x, dp1y, dp2x, dp2y, "lug_solid");			
-    dp1x = dOx, dp1y = dOy + lugH - outerR; odxf_lug.arc(dp1x, dp1y, outerR, darcb, darce, "lug_solid");		
-    dp1x = dOx, dp1y = dOy + lugH - outerR; odxf_lug.circle(dp1x, dp1y, innerR, "lug_solid");					
-    dp1x = dOx, dp1y = dOy + lugH - outerR; odxf_lug.circle(dp1x, dp1y, padeyeR, "padeye");			
-    dp1x = dOx, dp1y = dOy - dDim_ext; dp2x = dOx, dp2y = dOy + lugH + dDim_ext; odxf_lug.line(dp1x, dp1y, dp2x, dp2y, "lug_cent");			
-    dp1x = dOx - lugW/2 - dDim_ext, dp1y = dOy + lugH - outerR; dp2x = dOx + lugW/2 + dDim_ext, dp2y = dOy + lugH - outerR; odxf_lug.line(dp1x, dp1y, dp2x, dp2y, "lug_cent");			
+    // Front
+    odxf_lug.line(dOx + Tlx, dOy + Tly, dOx - lugW/2, dOy + baseH, "lug_solid");
+    odxf_lug.line(dOx - lugW/2, dOy + baseH, dOx - lugW/2, dOy, "lug_solid");
+    odxf_lug.line(dOx - lugW/2, dOy, dOx + lugW/2, dOy, "lug_solid");
+    odxf_lug.line(dOx + lugW/2, dOy, dOx + lugW/2, dOy + baseH, "lug_solid");
+    odxf_lug.line(dOx + lugW/2, dOy + baseH, dOx + Trx, dOy + Try, "lug_solid");
+    odxf_lug.arc(dOx + Rcx, dOy + Rcy, outerR, arc_angb, arc_ange, "lug_solid");
+    odxf_lug.circle(dOx + Rcx, dOy + Rcy, innerR, "lug_solid");
+    odxf_lug.circle(dOx + Rcx, dOy + Rcy, padeyeR, "padeye");
 
-    /** side view **/
-    dp1x = dOx_side - lugT/2, dp1y = dOy_side + 0; dp2x = dOx_side + lugT/2, dp2y = dOy_side + 0; odxf_lug.line(dp1x, dp1y, dp2x, dp2y, "lug_solid");			
-    dp1x = dOx_side + lugT/2, dp1y = dOy_side + 0; dp2x = dOx_side + lugT/2, dp2y = dOy_side + lugH; odxf_lug.line(dp1x, dp1y, dp2x, dp2y, "lug_solid");			
-    dp1x = dOx_side + lugT/2, dp1y = dOy_side + lugH; dp2x = dOx_side - lugT/2, dp2y = dOy_side + lugH; odxf_lug.line(dp1x, dp1y, dp2x, dp2y, "lug_solid");			
-    dp1x = dOx_side - lugT/2, dp1y = dOy_side + lugH; dp2x = dOx_side - lugT/2, dp2y = dOy_side + 0; odxf_lug.line(dp1x, dp1y, dp2x, dp2y, "lug_solid");			
-    dp1x = dOx_side - lugT/2, dp1y = dOy_side + baseH; dp2x = dOx_side + lugT/2, dp2y = dOy_side + baseH; odxf_lug.line(dp1x, dp1y, dp2x, dp2y, "lug_solid");			
-    dp1x = dOx_side - padeyeT/2, dp1y = dOy_side + lugH -outerR - padeyeR; dp2x = dOx_side - padeyeT/2, dp2y = dOy_side + lugH -outerR + padeyeR; odxf_lug.line(dp1x, dp1y, dp2x, dp2y, "padeye");			
-    dp1x = dOx_side + padeyeT/2, dp1y = dOy_side + lugH -outerR - padeyeR; dp2x = dOx_side + padeyeT/2, dp2y = dOy_side + lugH -outerR + padeyeR; odxf_lug.line(dp1x, dp1y, dp2x, dp2y, "padeye");			
-    dp1x = dOx_side - padeyeT/2, dp1y = dOy_side + lugH -outerR + padeyeR; dp2x = dOx_side - lugT/2, dp2y = dOy_side + lugH -outerR + padeyeR; odxf_lug.line(dp1x, dp1y, dp2x, dp2y, "padeye");			
-    dp1x = dOx_side + padeyeT/2, dp1y = dOy_side + lugH -outerR + padeyeR; dp2x = dOx_side + lugT/2, dp2y = dOy_side + lugH -outerR + padeyeR; odxf_lug.line(dp1x, dp1y, dp2x, dp2y, "padeye");			
-    dp1x = dOx_side - padeyeT/2, dp1y = dOy_side + lugH -outerR - padeyeR; dp2x = dOx_side - lugT/2, dp2y = dOy_side + lugH -outerR - padeyeR; odxf_lug.line(dp1x, dp1y, dp2x, dp2y, "padeye");			
-    dp1x = dOx_side + padeyeT/2, dp1y = dOy_side + lugH -outerR - padeyeR; dp2x = dOx_side + lugT/2, dp2y = dOy_side + lugH -outerR - padeyeR; odxf_lug.line(dp1x, dp1y, dp2x, dp2y, "padeye");			
-    dp1x = dOx_side - padeyeT/2, dp1y = dOy_side + lugH -outerR - innerR; dp2x = dOx_side + padeyeT/2, dp2y = dOy_side + lugH -outerR - innerR; odxf_lug.line(dp1x, dp1y, dp2x, dp2y, "lug_hidden");			
-    dp1x = dOx_side - padeyeT/2, dp1y = dOy_side + lugH -outerR + innerR; dp2x = dOx_side + padeyeT/2, dp2y = dOy_side + lugH -outerR + innerR; odxf_lug.line(dp1x, dp1y, dp2x, dp2y, "lug_hidden");			
-    dp1x = dOx_side, dp1y = dOy_side - dDim_ext; dp2x = dOx_side, dp2y = dOy_side + lugH + dDim_ext; odxf_lug.line(dp1x, dp1y, dp2x, dp2y, "lug_cent");			
-    dp1x = dOx_side - padeyeT/2 - dDim_ext, dp1y = dOy_side + lugH - outerR; dp2x = dOx_side + padeyeT/2 + dDim_ext, dp2y = dOy_side + lugH - outerR; odxf_lug.line(dp1x, dp1y, dp2x, dp2y, "lug_cent");			
+    // Side
+    odxf_lug.line(dOx_side - lugT/2, dOy_side, dOx_side + lugT/2, dOy_side, "lug_solid");
+    odxf_lug.line(dOx_side + lugT/2, dOy_side, dOx_side + lugT/2, dOy_side + lugH, "lug_solid");
+    odxf_lug.line(dOx_side + lugT/2, dOy_side + lugH, dOx_side - lugT/2, dOy_side + lugH, "lug_solid");
+    odxf_lug.line(dOx_side - lugT/2, dOy_side + lugH, dOx_side - lugT/2, dOy_side, "lug_solid");
+    odxf_lug.line(dOx_side - lugT/2, dOy_side + baseH, dOx_side + lugT/2, dOy_side + baseH, "lug_solid");
+    odxf_lug.line(dOx_side - padeyeT/2, dOy_side + Rcy - padeyeR, dOx_side - padeyeT/2, dOy_side + Rcy + padeyeR, "padeye");
+    odxf_lug.line(dOx_side + padeyeT/2, dOy_side + Rcy - padeyeR, dOx_side + padeyeT/2, dOy_side + Rcy + padeyeR, "padeye");
+    odxf_lug.line(dOx_side - padeyeT/2, dOy_side + Rcy + padeyeR, dOx_side - lugT/2, dOy_side + Rcy + padeyeR, "padeye");
+    odxf_lug.line(dOx_side + padeyeT/2, dOy_side + Rcy + padeyeR, dOx_side + lugT/2, dOy_side + Rcy + padeyeR, "padeye");
+    odxf_lug.line(dOx_side - padeyeT/2, dOy_side + Rcy - padeyeR, dOx_side - lugT/2, dOy_side + Rcy - padeyeR, "padeye");
+    odxf_lug.line(dOx_side + padeyeT/2, dOy_side + Rcy - padeyeR, dOx_side + lugT/2, dOy_side + Rcy - padeyeR, "padeye");
 
-    /** top view **/
-    dp1x = dOx_top - lugW/2, dp1y = dOy_top -lugT/2; dp2x = dOx_top + lugW/2, dp2y = dOy_top -lugT/2; odxf_lug.line(dp1x, dp1y, dp2x, dp2y, "lug_solid");			
-    dp1x = dOx_top + lugW/2, dp1y = dOy_top -lugT/2; dp2x = dOx_top + lugW/2, dp2y = dOy_top +lugT/2; odxf_lug.line(dp1x, dp1y, dp2x, dp2y, "lug_solid");			
-    dp1x = dOx_top + lugW/2, dp1y = dOy_top +lugT/2; dp2x = dOx_top - lugW/2, dp2y = dOy_top +lugT/2; odxf_lug.line(dp1x, dp1y, dp2x, dp2y, "lug_solid");			
-    dp1x = dOx_top - lugW/2, dp1y = dOy_top +lugT/2; dp2x = dOx_top - lugW/2, dp2y = dOy_top -lugT/2; odxf_lug.line(dp1x, dp1y, dp2x, dp2y, "lug_solid");	
-    dp1x = dOx_top - padeyeR, dp1y = dOy_top - padeyeT/2; dp2x = dOx_top + padeyeR, dp2y = dOy_top - padeyeT/2; odxf_lug.line(dp1x, dp1y, dp2x, dp2y, "padeye");			
-    dp1x = dOx_top - padeyeR, dp1y = dOy_top + padeyeT/2; dp2x = dOx_top + padeyeR, dp2y = dOy_top + padeyeT/2; odxf_lug.line(dp1x, dp1y, dp2x, dp2y, "padeye");			
-    dp1x = dOx_top - padeyeR, dp1y = dOy_top - padeyeT/2; dp2x = dOx_top - padeyeR, dp2y = dOy_top - lugT/2; odxf_lug.line(dp1x, dp1y, dp2x, dp2y, "padeye");			
-    dp1x = dOx_top - padeyeR, dp1y = dOy_top + padeyeT/2; dp2x = dOx_top - padeyeR, dp2y = dOy_top + lugT/2; odxf_lug.line(dp1x, dp1y, dp2x, dp2y, "padeye");			
-    dp1x = dOx_top + padeyeR, dp1y = dOy_top - padeyeT/2; dp2x = dOx_top + padeyeR, dp2y = dOy_top - lugT/2; odxf_lug.line(dp1x, dp1y, dp2x, dp2y, "padeye");			
-    
-    // ⭐ [DXF 버그 수정] dp2y 값이 dOy_top + padeyeT/2 로 잘못되어 있던 부분을 lugT/2 로 수정
-    dp1x = dOx_top + padeyeR, dp1y = dOy_top + padeyeT/2; dp2x = dOx_top + padeyeR, dp2y = dOy_top + lugT/2; odxf_lug.line(dp1x, dp1y, dp2x, dp2y, "padeye");			
-    
-    dp1x = dOx_top - innerR, dp1y = dOy_top - padeyeT/2; dp2x = dOx_top - innerR, dp2y = dOy_top + padeyeT/2; odxf_lug.line(dp1x, dp1y, dp2x, dp2y, "lug_hidden");			
-    dp1x = dOx_top + innerR, dp1y = dOy_top - padeyeT/2; dp2x = dOx_top + innerR, dp2y = dOy_top + padeyeT/2; odxf_lug.line(dp1x, dp1y, dp2x, dp2y, "lug_hidden");			
-    dp1x = dOx_top, dp1y = dOy_top - padeyeT/2 - dDim_ext; dp2x = dOx_top, dp2y = dOy_top + padeyeT/2 + dDim_ext; odxf_lug.line(dp1x, dp1y, dp2x, dp2y, "lug_cent");			
-    dp1x = dOx_top - lugW/2 - dDim_ext, dp1y = dOy_top + 0; dp2x = dOx_top + lugW/2 + dDim_ext, dp2y = dOy_top + 0; odxf_lug.line(dp1x, dp1y, dp2x, dp2y, "lug_cent");			
-    
-    /** bot view **/
-    dp1x = dOx_bot - lugW/2, dp1y = dOy_bot -lugT/2; dp2x = dOx_bot + lugW/2, dp2y = dOy_bot -lugT/2; odxf_lug.line(dp1x, dp1y, dp2x, dp2y, "lug_solid");			
-    dp1x = dOx_bot + lugW/2, dp1y = dOy_bot -lugT/2; dp2x = dOx_bot + lugW/2, dp2y = dOy_bot +lugT/2; odxf_lug.line(dp1x, dp1y, dp2x, dp2y, "lug_solid");			
-    dp1x = dOx_bot + lugW/2, dp1y = dOy_bot +lugT/2; dp2x = dOx_bot - lugW/2, dp2y = dOy_bot +lugT/2; odxf_lug.line(dp1x, dp1y, dp2x, dp2y, "lug_solid");			
-    dp1x = dOx_bot - lugW/2, dp1y = dOy_bot +lugT/2; dp2x = dOx_bot - lugW/2, dp2y = dOy_bot -lugT/2; odxf_lug.line(dp1x, dp1y, dp2x, dp2y, "lug_solid");	
-    dp1x = dOx_bot - padeyeR, dp1y = dOy_bot - padeyeT/2; dp2x = dOx_bot + padeyeR, dp2y = dOy_bot - padeyeT/2; odxf_lug.line(dp1x, dp1y, dp2x, dp2y, "padeye");			
-    dp1x = dOx_bot - padeyeR, dp1y = dOy_bot + padeyeT/2; dp2x = dOx_bot + padeyeR, dp2y = dOy_bot + padeyeT/2; odxf_lug.line(dp1x, dp1y, dp2x, dp2y, "padeye");			
-    dp1x = dOx_bot - padeyeR, dp1y = dOy_bot - padeyeT/2; dp2x = dOx_bot - padeyeR, dp2y = dOy_bot - lugT/2; odxf_lug.line(dp1x, dp1y, dp2x, dp2y, "padeye");			
-    dp1x = dOx_bot - padeyeR, dp1y = dOy_bot + padeyeT/2; dp2x = dOx_bot - padeyeR, dp2y = dOy_bot + lugT/2; odxf_lug.line(dp1x, dp1y, dp2x, dp2y, "padeye");			
-    dp1x = dOx_bot + padeyeR, dp1y = dOy_bot - padeyeT/2; dp2x = dOx_bot + padeyeR, dp2y = dOy_bot - lugT/2; odxf_lug.line(dp1x, dp1y, dp2x, dp2y, "padeye");			
-    
-    // ⭐ [DXF 버그 수정] dp2y 값이 dOy_bot + padeyeT/2 로 잘못되어 있던 부분을 lugT/2 로 수정
-    dp1x = dOx_bot + padeyeR, dp1y = dOy_bot + padeyeT/2; dp2x = dOx_bot + padeyeR, dp2y = dOy_bot + lugT/2; odxf_lug.line(dp1x, dp1y, dp2x, dp2y, "padeye");			
-    
-    dp1x = dOx_bot - innerR, dp1y = dOy_bot - padeyeT/2; dp2x = dOx_bot - innerR, dp2y = dOy_bot + padeyeT/2; odxf_lug.line(dp1x, dp1y, dp2x, dp2y, "lug_hidden");			
-    dp1x = dOx_bot + innerR, dp1y = dOy_bot - padeyeT/2; dp2x = dOx_bot + innerR, dp2y = dOy_bot + padeyeT/2; odxf_lug.line(dp1x, dp1y, dp2x, dp2y, "lug_hidden");			
-    dp1x = dOx_bot, dp1y = dOy_bot - padeyeT/2 - dDim_ext; dp2x = dOx_bot, dp2y = dOy_bot + padeyeT/2 + dDim_ext; odxf_lug.line(dp1x, dp1y, dp2x, dp2y, "lug_cent");			
-    dp1x = dOx_bot - lugW/2 - dDim_ext, dp1y = dOy_bot + 0; dp2x = dOx_bot + lugW/2 + dDim_ext, dp2y = dOy_bot + 0; odxf_lug.line(dp1x, dp1y, dp2x, dp2y, "lug_cent");				
+    // Top
+    odxf_lug.line(dOx_top - lugW/2, dOy_top - lugT/2, dOx_top + lugW/2, dOy_top - lugT/2, "lug_solid");
+    odxf_lug.line(dOx_top + lugW/2, dOy_top - lugT/2, dOx_top + lugW/2, dOy_top + lugT/2, "lug_solid");
+    odxf_lug.line(dOx_top + lugW/2, dOy_top + lugT/2, dOx_top - lugW/2, dOy_top + lugT/2, "lug_solid");
+    odxf_lug.line(dOx_top - lugW/2, dOy_top + lugT/2, dOx_top - lugW/2, dOy_top - lugT/2, "lug_solid");
+    odxf_lug.line(dOx_top - padeyeR, dOy_top - padeyeT/2, dOx_top + padeyeR, dOy_top - padeyeT/2, "padeye");
+    odxf_lug.line(dOx_top - padeyeR, dOy_top + padeyeT/2, dOx_top + padeyeR, dOy_top + padeyeT/2, "padeye");
+    odxf_lug.line(dOx_top - padeyeR, dOy_top - padeyeT/2, dOx_top - padeyeR, dOy_top - lugT/2, "padeye");
+    odxf_lug.line(dOx_top - padeyeR, dOy_top + padeyeT/2, dOx_top - padeyeR, dOy_top + lugT/2, "padeye");
+    odxf_lug.line(dOx_top + padeyeR, dOy_top - padeyeT/2, dOx_top + padeyeR, dOy_top - lugT/2, "padeye");
+    odxf_lug.line(dOx_top + padeyeR, dOy_top + padeyeT/2, dOx_top + padeyeR, dOy_top + lugT/2, "padeye");
+
+    // Bottom (same as top)
+    odxf_lug.line(dOx_bot - lugW/2, dOy_bot - lugT/2, dOx_bot + lugW/2, dOy_bot - lugT/2, "lug_solid");
+    odxf_lug.line(dOx_bot + lugW/2, dOy_bot - lugT/2, dOx_bot + lugW/2, dOy_bot + lugT/2, "lug_solid");
+    odxf_lug.line(dOx_bot + lugW/2, dOy_bot + lugT/2, dOx_bot - lugW/2, dOy_bot + lugT/2, "lug_solid");
+    odxf_lug.line(dOx_bot - lugW/2, dOy_bot + lugT/2, dOx_bot - lugW/2, dOy_bot - lugT/2, "lug_solid");
+    odxf_lug.line(dOx_bot - padeyeR, dOy_bot - padeyeT/2, dOx_bot + padeyeR, dOy_bot - padeyeT/2, "padeye");
+    odxf_lug.line(dOx_bot - padeyeR, dOy_bot + padeyeT/2, dOx_bot + padeyeR, dOy_bot + padeyeT/2, "padeye");
+    odxf_lug.line(dOx_bot - padeyeR, dOy_bot - padeyeT/2, dOx_bot - padeyeR, dOy_bot - lugT/2, "padeye");
+    odxf_lug.line(dOx_bot - padeyeR, dOy_bot + padeyeT/2, dOx_bot - padeyeR, dOy_bot + lugT/2, "padeye");
+    odxf_lug.line(dOx_bot + padeyeR, dOy_bot - padeyeT/2, dOx_bot + padeyeR, dOy_bot - lugT/2, "padeye");
+    odxf_lug.line(dOx_bot + padeyeR, dOy_bot + padeyeT/2, dOx_bot + padeyeR, dOy_bot + lugT/2, "padeye");
 }
