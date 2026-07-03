@@ -344,7 +344,11 @@ function fdraw_rect_2d(viewName) {
         }
         ocvs.addDimLinear(viewName, -Bmax / 2 - ddim_off, -half, -Bmax / 2 - ddim_off, half, ddim_ext * 6);
         ocvs.addDimLinear(viewName, -Bb / 2, -half - ddim_off, Bb / 2, -half - ddim_off, ddim_ext * -6);
-        ocvs.addDimLinear(viewName, -Be / 2, half + ddim_off, Be / 2, half + ddim_off, ddim_ext * 6);
+        if (hasHoleB && hasHoleE) {
+            ocvs.addDimLinear(viewName, -be / 2, half + ddim_off, be / 2, half + ddim_off, ddim_ext * 6);
+        } else {
+            ocvs.addDimLinear(viewName, -Be / 2, half + ddim_off, Be / 2, half + ddim_off, ddim_ext * 6);
+        }
 
     } else if (viewName === 'left' || viewName === 'right') {
         // Tapered side view: H changes from Hb to He over length
@@ -361,7 +365,12 @@ function fdraw_rect_2d(viewName) {
             ocvs.addLine(viewName, -half, cyb + hb / 2, half, cye + he / 2, alayer[1]);
         }
         ocvs.addDimLinear(viewName, -half - ddim_off, 0, -half - ddim_off, Hb, ddim_ext * 6);
-        ocvs.addDimLinear(viewName, half + ddim_off, 0, half + ddim_off, He, ddim_ext * -6);
+        if (hasHoleB && hasHoleE) {
+            var cye2 = He / 2;
+            ocvs.addDimLinear(viewName, half + ddim_off, cye2 - he / 2, half + ddim_off, cye2 + he / 2, ddim_ext * -6);
+        } else {
+            ocvs.addDimLinear(viewName, half + ddim_off, 0, half + ddim_off, He, ddim_ext * -6);
+        }
         ocvs.addDimLinear(viewName, -half, Hmax + ddim_off, half, Hmax + ddim_off, ddim_ext * 6);
     }
 
