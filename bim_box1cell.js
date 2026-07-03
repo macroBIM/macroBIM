@@ -955,7 +955,7 @@ function fdraw_box1cell(){
 			document.head.appendChild(s);
 		})(0);
 	}
-	_render3d();
+	try { _render3d(); } catch(e) { console.error('box1cell 3D render error:', e); }
 
 	// Draw default 2D view (front)
 	fdraw_box1cell_2d('front');

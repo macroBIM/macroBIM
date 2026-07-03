@@ -369,7 +369,7 @@ function fdraw_ibeam() {
             document.head.appendChild(s);
         })(0);
     }
-    _render3d();
+    try { _render3d(); } catch(e) { console.error('ibeam 3D render error:', e); }
 
     // Initial 2D view
     fdraw_ibeam_2d('front');

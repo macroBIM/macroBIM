@@ -258,7 +258,7 @@ function fdraw_channel() {
             document.head.appendChild(s);
         })(0);
     }
-    _render3d();
+    try { _render3d(); } catch(e) { console.error('channel 3D render error:', e); }
 
     fdraw_channel_2d('front');
 }

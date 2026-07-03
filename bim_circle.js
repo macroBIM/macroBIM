@@ -262,7 +262,7 @@ function fdraw_circle() {
             document.head.appendChild(s);
         })(0);
     }
-    _render3d();
+    try { _render3d(); } catch(e) { console.error('circle 3D render error:', e); }
 
     fdraw_circle_2d('front');
 }

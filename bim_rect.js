@@ -253,7 +253,7 @@ function fdraw_rect() {
             document.head.appendChild(s);
         })(0);
     }
-    _render3d();
+    try { _render3d(); } catch(e) { console.error('rect 3D render error:', e); }
 
     fdraw_rect_2d('front');
 }

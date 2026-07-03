@@ -358,7 +358,7 @@ function fdraw_track() {
             document.head.appendChild(s);
         })(0);
     }
-    _render3d();
+    try { _render3d(); } catch(e) { console.error('track 3D render error:', e); }
 
     fdraw_track_2d('front');
 }

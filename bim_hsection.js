@@ -241,7 +241,7 @@ function fdraw_hsection() {
             document.head.appendChild(s);
         })(0);
     }
-    _render3d();
+    try { _render3d(); } catch(e) { console.error('hsection 3D render error:', e); }
 
     fdraw_hsection_2d('front');
 }
