@@ -265,16 +265,29 @@ function fdraw_track() {
     // Row1: Top and Bottom views (tapered B from begin to end)
     let oy_top = Dmax + gap + half;
     let ox_top = 0;
-    // Top view -- outer trapezoid
+    let shb_dxf = (Bb - Db) / 2, she_dxf = (Be - De) / 2;
+    if (shb_dxf < 0) shb_dxf = 0;
+    if (she_dxf < 0) she_dxf = 0;
     odxf_track.line(ox_top - Bb / 2, oy_top - half, ox_top - Be / 2, oy_top + half, alayer[0]);
     odxf_track.line(ox_top - Be / 2, oy_top + half, ox_top + Be / 2, oy_top + half, alayer[0]);
     odxf_track.line(ox_top + Be / 2, oy_top + half, ox_top + Bb / 2, oy_top - half, alayer[0]);
     odxf_track.line(ox_top + Bb / 2, oy_top - half, ox_top - Bb / 2, oy_top - half, alayer[0]);
+    if (shb_dxf > 0 || she_dxf > 0) {
+        odxf_track.line(ox_top - shb_dxf, oy_top - half, ox_top - she_dxf, oy_top + half, alayer[0]);
+        odxf_track.line(ox_top + shb_dxf, oy_top - half, ox_top + she_dxf, oy_top + half, alayer[0]);
+    }
     if (geoBegin.innerOutline && geoEnd.innerOutline) {
         let db = aparam_b.dtrack_d, de = aparam_e.dtrack_d;
         let iwb = Bb - (Db - db), iwe = Be - (De - de);
         odxf_track.line(ox_top - iwb / 2, oy_top - half, ox_top - iwe / 2, oy_top + half, alayer[1]);
         odxf_track.line(ox_top + iwb / 2, oy_top - half, ox_top + iwe / 2, oy_top + half, alayer[1]);
+        let ishb = (iwb - db) / 2, ishe = (iwe - de) / 2;
+        if (ishb < 0) ishb = 0;
+        if (ishe < 0) ishe = 0;
+        if (ishb > 0 || ishe > 0) {
+            odxf_track.line(ox_top - ishb, oy_top - half, ox_top - ishe, oy_top + half, alayer[1]);
+            odxf_track.line(ox_top + ishb, oy_top - half, ox_top + ishe, oy_top + half, alayer[1]);
+        }
     }
 
     // Bottom view
@@ -283,11 +296,22 @@ function fdraw_track() {
     odxf_track.line(ox_bot - Be / 2, oy_bot + half, ox_bot + Be / 2, oy_bot + half, alayer[0]);
     odxf_track.line(ox_bot + Be / 2, oy_bot + half, ox_bot + Bb / 2, oy_bot - half, alayer[0]);
     odxf_track.line(ox_bot + Bb / 2, oy_bot - half, ox_bot - Bb / 2, oy_bot - half, alayer[0]);
+    if (shb_dxf > 0 || she_dxf > 0) {
+        odxf_track.line(ox_bot - shb_dxf, oy_bot - half, ox_bot - she_dxf, oy_bot + half, alayer[0]);
+        odxf_track.line(ox_bot + shb_dxf, oy_bot - half, ox_bot + she_dxf, oy_bot + half, alayer[0]);
+    }
     if (geoBegin.innerOutline && geoEnd.innerOutline) {
         let db = aparam_b.dtrack_d, de = aparam_e.dtrack_d;
         let iwb = Bb - (Db - db), iwe = Be - (De - de);
         odxf_track.line(ox_bot - iwb / 2, oy_bot - half, ox_bot - iwe / 2, oy_bot + half, alayer[1]);
         odxf_track.line(ox_bot + iwb / 2, oy_bot - half, ox_bot + iwe / 2, oy_bot + half, alayer[1]);
+        let ishb = (iwb - db) / 2, ishe = (iwe - de) / 2;
+        if (ishb < 0) ishb = 0;
+        if (ishe < 0) ishe = 0;
+        if (ishb > 0 || ishe > 0) {
+            odxf_track.line(ox_bot - ishb, oy_bot - half, ox_bot - ishe, oy_bot + half, alayer[1]);
+            odxf_track.line(ox_bot + ishb, oy_bot - half, ox_bot + ishe, oy_bot + half, alayer[1]);
+        }
     }
 
     // Row2: Left/Right side view (tapered D x Length)
@@ -376,27 +400,35 @@ function fdraw_track_2d(viewName) {
         var geo = (viewName === 'front') ? geoBegin : geoEnd;
         var ap = (viewName === 'front') ? aparam_b : aparam_e;
         var B = ap.dtrack_B, D = ap.dtrack_D, d_inner = ap.dtrack_d;
+        var straightHalf = (B - D) / 2;
+        if (straightHalf < 0) straightHalf = 0;
 
-        // Draw arcs and lines
         geo.arcs.forEach(a => ocvs.addArc(viewName, a.x, a.y, a.r, a.angb, a.ange, alayer[0]));
         geo.lines.forEach(l => ocvs.addLine(viewName, l.x1, l.y1, l.x2, l.y2, alayer[0]));
 
-        // B on bottom, pointing down
-        ocvs.addDimLinear(viewName, -B / 2, -ddim_off, B / 2, -ddim_off, ddim_ext * -6);
-        // D on right side, pointing right
-        ocvs.addDimLinear(viewName, B / 2 + ddim_off, 0, B / 2 + ddim_off, D, ddim_ext * -6);
-
         if (ap.hollow && d_inner > 0 && d_inner < D) {
-            // Inner d on right side, further out, pointing right
-            ocvs.addDimLinear(viewName, B / 2 + ddim_off * 4, D / 2 - d_inner / 2, B / 2 + ddim_off * 4, D / 2 + d_inner / 2, ddim_ext * -6);
+            ocvs.addDimLinear(viewName, B / 2 + ddim_off, D / 2 - d_inner / 2, B / 2 + ddim_off, D / 2 + d_inner / 2, ddim_ext * -6);
         }
+        ocvs.addDimLinear(viewName, B / 2 + ddim_off * 4, 0, B / 2 + ddim_off * 4, D, ddim_ext * -6);
+
+        if (straightHalf > 0) {
+            ocvs.addDimLinear(viewName, -straightHalf, -ddim_off, straightHalf, -ddim_off, ddim_ext * -6);
+        }
+        ocvs.addDimLinear(viewName, -B / 2, -ddim_off * 4, B / 2, -ddim_off * 4, ddim_ext * -6);
 
     } else if (viewName === 'top' || viewName === 'bottom') {
-        // Tapered plan view: B changes from Bb to Be over length
         ocvs.addLine(viewName, -Bb / 2, -half, -Be / 2, half, alayer[0]);
         ocvs.addLine(viewName, -Be / 2, half, Be / 2, half, alayer[0]);
         ocvs.addLine(viewName, Be / 2, half, Bb / 2, -half, alayer[0]);
         ocvs.addLine(viewName, Bb / 2, -half, -Bb / 2, -half, alayer[0]);
+
+        var shb = (Bb - Db) / 2, she = (Be - De) / 2;
+        if (shb < 0) shb = 0;
+        if (she < 0) she = 0;
+        if (shb > 0 || she > 0) {
+            ocvs.addLine(viewName, -shb, -half, -she, half, alayer[0]);
+            ocvs.addLine(viewName, shb, -half, she, half, alayer[0]);
+        }
 
         var hasHoleB = aparam_b.hollow && db > 0 && db < Db;
         var hasHoleE = aparam_e.hollow && de > 0 && de < De;
@@ -404,13 +436,22 @@ function fdraw_track_2d(viewName) {
             var iwb = Bb - (Db - db), iwe = Be - (De - de);
             ocvs.addLine(viewName, -iwb / 2, -half, -iwe / 2, half, alayer[1]);
             ocvs.addLine(viewName, iwb / 2, -half, iwe / 2, half, alayer[1]);
+            var ishb = (iwb - db) / 2, ishe = (iwe - de) / 2;
+            if (ishb < 0) ishb = 0;
+            if (ishe < 0) ishe = 0;
+            if (ishb > 0 || ishe > 0) {
+                ocvs.addLine(viewName, -ishb, -half, -ishe, half, alayer[1]);
+                ocvs.addLine(viewName, ishb, -half, ishe, half, alayer[1]);
+            }
         }
         ocvs.addDimLinear(viewName, -Bmax / 2 - ddim_off, -half, -Bmax / 2 - ddim_off, half, ddim_ext * 6);
-        ocvs.addDimLinear(viewName, -Bb / 2, -half - ddim_off, Bb / 2, -half - ddim_off, ddim_ext * -6);
-        ocvs.addDimLinear(viewName, -Be / 2, half + ddim_off, Be / 2, half + ddim_off, ddim_ext * 6);
+        if (hasHoleB && hasHoleE) {
+            var iwb_d = Bb - (Db - db);
+            ocvs.addDimLinear(viewName, -iwb_d / 2, -half - ddim_off, iwb_d / 2, -half - ddim_off, ddim_ext * -6);
+        }
+        ocvs.addDimLinear(viewName, -Bb / 2, -half - ddim_off * 4, Bb / 2, -half - ddim_off * 4, ddim_ext * -6);
 
     } else if (viewName === 'left' || viewName === 'right') {
-        // Tapered side view: D changes from Db to De over length
         ocvs.addLine(viewName, -half, 0, half, 0, alayer[0]);
         ocvs.addLine(viewName, half, 0, half, De, alayer[0]);
         ocvs.addLine(viewName, half, De, -half, Db, alayer[0]);
@@ -424,7 +465,12 @@ function fdraw_track_2d(viewName) {
             ocvs.addLine(viewName, -half, cyb + db / 2, half, cye + de / 2, alayer[1]);
         }
         ocvs.addDimLinear(viewName, -half - ddim_off, 0, -half - ddim_off, Db, ddim_ext * 6);
-        ocvs.addDimLinear(viewName, half + ddim_off, 0, half + ddim_off, De, ddim_ext * 6);
+        if (hasHoleB && hasHoleE) {
+            var cye2 = De / 2;
+            ocvs.addDimLinear(viewName, half + ddim_off, cye2 - de / 2, half + ddim_off, cye2 + de / 2, ddim_ext * -6);
+        } else {
+            ocvs.addDimLinear(viewName, half + ddim_off, 0, half + ddim_off, De, ddim_ext * -6);
+        }
         ocvs.addDimLinear(viewName, -half, Dmax + ddim_off, half, Dmax + ddim_off, ddim_ext * 6);
     }
 
