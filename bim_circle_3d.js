@@ -2,6 +2,44 @@
     bim_circle_3d.js — Three.js 3D renderer for Circle section extrusion.
     Supports hollow (중공) and solid (충실) sections.
 */
+function _exportSTL_circle(meshes, filename) {
+    var output = 'solid exported\n';
+    meshes.forEach(function(mesh) {
+        var geo = mesh.geometry;
+        var pos = geo.getAttribute('position');
+        var idx = geo.getIndex();
+        var triCount = idx ? idx.count / 3 : pos.count / 3;
+        for (var i = 0; i < triCount; i++) {
+            var a, b, c;
+            if (idx) {
+                a = idx.getX(i * 3); b = idx.getX(i * 3 + 1); c = idx.getX(i * 3 + 2);
+            } else {
+                a = i * 3; b = i * 3 + 1; c = i * 3 + 2;
+            }
+            var vA = new THREE.Vector3(pos.getX(a), pos.getY(a), pos.getZ(a));
+            var vB = new THREE.Vector3(pos.getX(b), pos.getY(b), pos.getZ(b));
+            var vC = new THREE.Vector3(pos.getX(c), pos.getY(c), pos.getZ(c));
+            var edge1 = new THREE.Vector3().subVectors(vB, vA);
+            var edge2 = new THREE.Vector3().subVectors(vC, vA);
+            var normal = new THREE.Vector3().crossVectors(edge1, edge2).normalize();
+            output += '  facet normal ' + normal.x + ' ' + normal.y + ' ' + normal.z + '\n';
+            output += '    outer loop\n';
+            output += '      vertex ' + vA.x + ' ' + vA.y + ' ' + vA.z + '\n';
+            output += '      vertex ' + vB.x + ' ' + vB.y + ' ' + vB.z + '\n';
+            output += '      vertex ' + vC.x + ' ' + vC.y + ' ' + vC.z + '\n';
+            output += '    endloop\n';
+            output += '  endfacet\n';
+        }
+    });
+    output += 'endsolid exported\n';
+    var blob = new Blob([output], { type: 'application/octet-stream' });
+    var link = document.createElement('a');
+    link.href = URL.createObjectURL(blob);
+    link.download = filename;
+    link.click();
+    URL.revokeObjectURL(link.href);
+}
+
 function render_circle_3d(containerId, geoBegin, geoEnd, segLength) {
     const container = document.getElementById(containerId);
     if (!container) return;
@@ -135,9 +173,18 @@ function render_circle_3d(containerId, geoBegin, geoEnd, segLength) {
     var renderer = new THREE.WebGLRenderer({ antialias: true });
     renderer.setPixelRatio(window.devicePixelRatio);
     renderer.setSize(width, height);
+    container.style.position = 'relative';
     container.appendChild(renderer.domElement);
     var controls = new THREE.OrbitControls(camera, renderer.domElement);
     controls.enableDamping = true; controls.dampingFactor = 0.1;
+
+    var btnSTL = document.createElement('button');
+    btnSTL.textContent = 'STL';
+    btnSTL.style.cssText = 'position:absolute;top:6px;left:6px;padding:3px 8px;background:#334155;color:#94a3b8;border:1px solid #475569;border-radius:4px;font-size:11px;font-weight:600;cursor:pointer;z-index:10;';
+    btnSTL.onmouseenter = function() { btnSTL.style.background = '#2563eb'; btnSTL.style.color = '#fff'; };
+    btnSTL.onmouseleave = function() { btnSTL.style.background = '#334155'; btnSTL.style.color = '#94a3b8'; };
+    btnSTL.onclick = function() { _exportSTL_circle(allMeshes, 'circle_section.stl'); };
+    container.appendChild(btnSTL);
 
     var bbox = new THREE.Box3();
     allMeshes.forEach(m => bbox.expandByObject(m));
