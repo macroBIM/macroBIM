@@ -301,17 +301,17 @@ function fdraw_rect_2d(viewName) {
 
         geo.lines.forEach(l => ocvs.addLine(viewName, l.x1, l.y1, l.x2, l.y2, alayer[0]));
         var ptl = gp('ptl'), ptr = gp('ptr'), pbl = gp('pbl'), pbr = gp('pbr');
-        // Outer H on right side, pointing right
-        ocvs.addDimLinear(viewName, ptr.x + ddim_off, pbl.y, ptr.x + ddim_off, ptl.y, ddim_ext * -6);
-        // Outer W on bottom, pointing down
-        ocvs.addDimLinear(viewName, pbl.x, pbl.y - ddim_off, pbr.x, pbr.y - ddim_off, ddim_ext * -6);
         if (hasHole) {
             var itl = gp('itl'), itr = gp('itr'), ibl = gp('ibl'), ibr = gp('ibr');
-            // Inner h on right side, further out, pointing right
-            ocvs.addDimLinear(viewName, ptr.x + ddim_off * 4, ibl.y, ptr.x + ddim_off * 4, itl.y, ddim_ext * -6);
-            // Inner w on bottom, further down, pointing down
-            ocvs.addDimLinear(viewName, ibl.x, pbl.y - ddim_off * 4, ibr.x, pbl.y - ddim_off * 4, ddim_ext * -6);
+            // Inner h (shorter) closer to shape, pointing right
+            ocvs.addDimLinear(viewName, ptr.x + ddim_off, ibl.y, ptr.x + ddim_off, itl.y, ddim_ext * -6);
+            // Inner w (shorter) closer to shape, pointing down
+            ocvs.addDimLinear(viewName, ibl.x, pbl.y - ddim_off, ibr.x, pbl.y - ddim_off, ddim_ext * -6);
         }
+        // Outer H (longer) further from shape, pointing right
+        ocvs.addDimLinear(viewName, ptr.x + ddim_off * 4, pbl.y, ptr.x + ddim_off * 4, ptl.y, ddim_ext * -6);
+        // Outer W (longer) further from shape, pointing down
+        ocvs.addDimLinear(viewName, pbl.x, pbl.y - ddim_off * 4, pbr.x, pbr.y - ddim_off * 4, ddim_ext * -6);
 
     } else if (viewName === 'back') {
         var geo = geoEnd, ap = aparam_e;
@@ -321,13 +321,13 @@ function fdraw_rect_2d(viewName) {
 
         geo.lines.forEach(l => ocvs.addLine(viewName, l.x1, l.y1, l.x2, l.y2, alayer[0]));
         var ptl = gp2('ptl'), ptr = gp2('ptr'), pbl = gp2('pbl'), pbr = gp2('pbr');
-        ocvs.addDimLinear(viewName, ptr.x + ddim_off, pbl.y, ptr.x + ddim_off, ptl.y, ddim_ext * -6);
-        ocvs.addDimLinear(viewName, pbl.x, pbl.y - ddim_off, pbr.x, pbr.y - ddim_off, ddim_ext * -6);
         if (hasHole) {
             var itl = gp2('itl'), itr = gp2('itr'), ibl = gp2('ibl'), ibr = gp2('ibr');
-            ocvs.addDimLinear(viewName, ptr.x + ddim_off * 4, ibl.y, ptr.x + ddim_off * 4, itl.y, ddim_ext * -6);
-            ocvs.addDimLinear(viewName, ibl.x, pbl.y - ddim_off * 4, ibr.x, pbl.y - ddim_off * 4, ddim_ext * -6);
+            ocvs.addDimLinear(viewName, ptr.x + ddim_off, ibl.y, ptr.x + ddim_off, itl.y, ddim_ext * -6);
+            ocvs.addDimLinear(viewName, ibl.x, pbl.y - ddim_off, ibr.x, pbl.y - ddim_off, ddim_ext * -6);
         }
+        ocvs.addDimLinear(viewName, ptr.x + ddim_off * 4, pbl.y, ptr.x + ddim_off * 4, ptl.y, ddim_ext * -6);
+        ocvs.addDimLinear(viewName, pbl.x, pbl.y - ddim_off * 4, pbr.x, pbr.y - ddim_off * 4, ddim_ext * -6);
 
     } else if (viewName === 'top' || viewName === 'bottom') {
         // Tapered plan view: B changes from Bb to Be over length
@@ -361,7 +361,7 @@ function fdraw_rect_2d(viewName) {
             ocvs.addLine(viewName, -half, cyb + hb / 2, half, cye + he / 2, alayer[1]);
         }
         ocvs.addDimLinear(viewName, -half - ddim_off, 0, -half - ddim_off, Hb, ddim_ext * 6);
-        ocvs.addDimLinear(viewName, half + ddim_off, 0, half + ddim_off, He, ddim_ext * 6);
+        ocvs.addDimLinear(viewName, half + ddim_off, 0, half + ddim_off, He, ddim_ext * -6);
         ocvs.addDimLinear(viewName, -half, Hmax + ddim_off, half, Hmax + ddim_off, ddim_ext * 6);
     }
 
