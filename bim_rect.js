@@ -301,13 +301,16 @@ function fdraw_rect_2d(viewName) {
 
         geo.lines.forEach(l => ocvs.addLine(viewName, l.x1, l.y1, l.x2, l.y2, alayer[0]));
         var ptl = gp('ptl'), ptr = gp('ptr'), pbl = gp('pbl'), pbr = gp('pbr');
-        ocvs.addDimLinear(viewName, ptl.x - ddim_off, pbl.y, ptl.x - ddim_off, ptl.y, ddim_ext * 6);
-        ocvs.addDimLinear(viewName, ptl.x, ptl.y + ddim_off, ptr.x, ptr.y + ddim_off, ddim_ext * 6);
+        // Outer H on right side, pointing right
+        ocvs.addDimLinear(viewName, ptr.x + ddim_off, pbl.y, ptr.x + ddim_off, ptl.y, ddim_ext * -6);
+        // Outer W on bottom, pointing down
         ocvs.addDimLinear(viewName, pbl.x, pbl.y - ddim_off, pbr.x, pbr.y - ddim_off, ddim_ext * -6);
         if (hasHole) {
             var itl = gp('itl'), itr = gp('itr'), ibl = gp('ibl'), ibr = gp('ibr');
-            ocvs.addDimLinear(viewName, ptr.x + ddim_off, ibl.y, ptr.x + ddim_off, itl.y, ddim_ext * 6);
-            ocvs.addDimLinear(viewName, ibl.x, ibl.y - ddim_off * 0.5, ibr.x, ibr.y - ddim_off * 0.5, ddim_ext * 3);
+            // Inner h on right side, further out, pointing right
+            ocvs.addDimLinear(viewName, ptr.x + ddim_off * 4, ibl.y, ptr.x + ddim_off * 4, itl.y, ddim_ext * -6);
+            // Inner w on bottom, further down, pointing down
+            ocvs.addDimLinear(viewName, ibl.x, pbl.y - ddim_off * 4, ibr.x, pbl.y - ddim_off * 4, ddim_ext * -6);
         }
 
     } else if (viewName === 'back') {
@@ -318,13 +321,12 @@ function fdraw_rect_2d(viewName) {
 
         geo.lines.forEach(l => ocvs.addLine(viewName, l.x1, l.y1, l.x2, l.y2, alayer[0]));
         var ptl = gp2('ptl'), ptr = gp2('ptr'), pbl = gp2('pbl'), pbr = gp2('pbr');
-        ocvs.addDimLinear(viewName, ptl.x - ddim_off, pbl.y, ptl.x - ddim_off, ptl.y, ddim_ext * 6);
-        ocvs.addDimLinear(viewName, ptl.x, ptl.y + ddim_off, ptr.x, ptr.y + ddim_off, ddim_ext * 6);
+        ocvs.addDimLinear(viewName, ptr.x + ddim_off, pbl.y, ptr.x + ddim_off, ptl.y, ddim_ext * -6);
         ocvs.addDimLinear(viewName, pbl.x, pbl.y - ddim_off, pbr.x, pbr.y - ddim_off, ddim_ext * -6);
         if (hasHole) {
             var itl = gp2('itl'), itr = gp2('itr'), ibl = gp2('ibl'), ibr = gp2('ibr');
-            ocvs.addDimLinear(viewName, ptr.x + ddim_off, ibl.y, ptr.x + ddim_off, itl.y, ddim_ext * 6);
-            ocvs.addDimLinear(viewName, ibl.x, ibl.y - ddim_off * 0.5, ibr.x, ibr.y - ddim_off * 0.5, ddim_ext * 3);
+            ocvs.addDimLinear(viewName, ptr.x + ddim_off * 4, ibl.y, ptr.x + ddim_off * 4, itl.y, ddim_ext * -6);
+            ocvs.addDimLinear(viewName, ibl.x, pbl.y - ddim_off * 4, ibr.x, pbl.y - ddim_off * 4, ddim_ext * -6);
         }
 
     } else if (viewName === 'top' || viewName === 'bottom') {
