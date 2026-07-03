@@ -312,12 +312,10 @@ function fdraw_circle_2d(viewName) {
             ocvs.addCircle(viewName, cx, cy, d / 2, alayer[0]);
         }
 
-        // Outer D on right side, pointing right
-        ocvs.addDimLinear(viewName, cx + R + ddim_off, 0, cx + R + ddim_off, D, ddim_ext * -6);
         if (hasHole) {
-            // Inner d on right side, further out, pointing right
-            ocvs.addDimLinear(viewName, cx + R + ddim_off * 4, cy - d / 2, cx + R + ddim_off * 4, cy + d / 2, ddim_ext * -6);
+            ocvs.addDimLinear(viewName, cx + R + ddim_off, cy - d / 2, cx + R + ddim_off, cy + d / 2, ddim_ext * -6);
         }
+        ocvs.addDimLinear(viewName, cx + R + ddim_off * 4, 0, cx + R + ddim_off * 4, D, ddim_ext * -6);
 
     } else if (viewName === 'back') {
         var D = De, d = de, ap = aparam_e;
@@ -329,12 +327,10 @@ function fdraw_circle_2d(viewName) {
             ocvs.addCircle(viewName, cx, cy, d / 2, alayer[0]);
         }
 
-        // Outer D on right side, pointing right
-        ocvs.addDimLinear(viewName, cx + R + ddim_off, 0, cx + R + ddim_off, D, ddim_ext * -6);
         if (hasHole) {
-            // Inner d on right side, further out, pointing right
-            ocvs.addDimLinear(viewName, cx + R + ddim_off * 4, cy - d / 2, cx + R + ddim_off * 4, cy + d / 2, ddim_ext * -6);
+            ocvs.addDimLinear(viewName, cx + R + ddim_off, cy - d / 2, cx + R + ddim_off, cy + d / 2, ddim_ext * -6);
         }
+        ocvs.addDimLinear(viewName, cx + R + ddim_off * 4, 0, cx + R + ddim_off * 4, D, ddim_ext * -6);
 
     } else if (viewName === 'top' || viewName === 'bottom') {
         // Tapered plan view: D changes width from Db to De over length
@@ -351,7 +347,11 @@ function fdraw_circle_2d(viewName) {
         }
         ocvs.addDimLinear(viewName, -Dmax / 2 - ddim_off, -half, -Dmax / 2 - ddim_off, half, ddim_ext * 6);
         ocvs.addDimLinear(viewName, -Db / 2, -half - ddim_off, Db / 2, -half - ddim_off, ddim_ext * -6);
-        ocvs.addDimLinear(viewName, -De / 2, half + ddim_off, De / 2, half + ddim_off, ddim_ext * 6);
+        if (hasHoleB && hasHoleE) {
+            ocvs.addDimLinear(viewName, -de / 2, half + ddim_off, de / 2, half + ddim_off, ddim_ext * 6);
+        } else {
+            ocvs.addDimLinear(viewName, -De / 2, half + ddim_off, De / 2, half + ddim_off, ddim_ext * 6);
+        }
 
     } else if (viewName === 'left' || viewName === 'right') {
         // Tapered side view: D changes height from Db to De over length
@@ -368,7 +368,12 @@ function fdraw_circle_2d(viewName) {
             ocvs.addLine(viewName, -half, cyb + db / 2, half, cye + de / 2, alayer[1]);
         }
         ocvs.addDimLinear(viewName, -half - ddim_off, 0, -half - ddim_off, Db, ddim_ext * 6);
-        ocvs.addDimLinear(viewName, half + ddim_off, 0, half + ddim_off, De, ddim_ext * 6);
+        if (hasHoleB && hasHoleE) {
+            var cye2 = De / 2;
+            ocvs.addDimLinear(viewName, half + ddim_off, cye2 - de / 2, half + ddim_off, cye2 + de / 2, ddim_ext * -6);
+        } else {
+            ocvs.addDimLinear(viewName, half + ddim_off, 0, half + ddim_off, De, ddim_ext * -6);
+        }
         ocvs.addDimLinear(viewName, -half, Dmax + ddim_off, half, Dmax + ddim_off, ddim_ext * 6);
     }
 
