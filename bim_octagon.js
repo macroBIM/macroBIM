@@ -386,17 +386,26 @@ function fdraw_octagon_2d(viewName) {
         ocvs.addDimLinear(viewName, op2.x, dimY, op3.x, dimY, ddim_ext * -6);
 
     } else if (viewName === 'top' || viewName === 'bottom') {
-        // Tapered plan view: total width changes from Bb to Be over length
+        var B1b = aparam_b.doct_B1, B1e = aparam_e.doct_B1;
+        // Outer outline (total width)
         ocvs.addLine(viewName, -Bb / 2, -half, -Be / 2, half, alayer[0]);
         ocvs.addLine(viewName, -Be / 2, half, Be / 2, half, alayer[0]);
         ocvs.addLine(viewName, Be / 2, half, Bb / 2, -half, alayer[0]);
         ocvs.addLine(viewName, Bb / 2, -half, -Bb / 2, -half, alayer[0]);
+        // Outer chamfer fold lines at ±B1/2 (solid)
+        ocvs.addLine(viewName, -B1b / 2, -half, -B1e / 2, half, alayer[0]);
+        ocvs.addLine(viewName, B1b / 2, -half, B1e / 2, half, alayer[0]);
 
         var hasHoleB = aparam_b.hollow && aparam_b.doct_h1 > 0 && aparam_b.doct_b1 > 0 && hb < Hb && bb < Bb;
         var hasHoleE = aparam_e.hollow && aparam_e.doct_h1 > 0 && aparam_e.doct_b1 > 0 && he < He && be < Be;
         if (hasHoleB && hasHoleE) {
+            // Inner outline (total inner width)
             ocvs.addLine(viewName, -bb / 2, -half, -be / 2, half, alayer[1]);
             ocvs.addLine(viewName, bb / 2, -half, be / 2, half, alayer[1]);
+            // Inner chamfer fold lines at ±b1/2 (dashed)
+            var b1b = aparam_b.doct_b1, b1e = aparam_e.doct_b1;
+            ocvs.addLine(viewName, -b1b / 2, -half, -b1e / 2, half, alayer[1]);
+            ocvs.addLine(viewName, b1b / 2, -half, b1e / 2, half, alayer[1]);
         }
         ocvs.addDimLinear(viewName, -Bmax / 2 - ddim_off, -half, -Bmax / 2 - ddim_off, half, ddim_ext * 6);
         ocvs.addDimLinear(viewName, -Bb / 2, -half - ddim_off, Bb / 2, -half - ddim_off, ddim_ext * -6);
@@ -407,18 +416,28 @@ function fdraw_octagon_2d(viewName) {
         }
 
     } else if (viewName === 'left' || viewName === 'right') {
-        // Tapered side view: total height changes from Hb to He over length
+        var H2b = aparam_b.doct_H2, H1b = aparam_b.doct_H1;
+        var H2e = aparam_e.doct_H2, H1e = aparam_e.doct_H1;
+        // Outer outline (total height)
         ocvs.addLine(viewName, -half, 0, half, 0, alayer[0]);
         ocvs.addLine(viewName, half, 0, half, He, alayer[0]);
         ocvs.addLine(viewName, half, He, -half, Hb, alayer[0]);
         ocvs.addLine(viewName, -half, Hb, -half, 0, alayer[0]);
+        // Outer chamfer fold lines at H2 and H2+H1 (solid)
+        ocvs.addLine(viewName, -half, H2b, half, H2e, alayer[0]);
+        ocvs.addLine(viewName, -half, H2b + H1b, half, H2e + H1e, alayer[0]);
 
         var hasHoleB = aparam_b.hollow && aparam_b.doct_h1 > 0 && aparam_b.doct_b1 > 0 && hb < Hb && bb < Bb;
         var hasHoleE = aparam_e.hollow && aparam_e.doct_h1 > 0 && aparam_e.doct_b1 > 0 && he < He && be < Be;
         if (hasHoleB && hasHoleE) {
             var cyb = Hb / 2, cye = He / 2;
+            // Inner outline (dashed)
             ocvs.addLine(viewName, -half, cyb - hb / 2, half, cye - he / 2, alayer[1]);
             ocvs.addLine(viewName, -half, cyb + hb / 2, half, cye + he / 2, alayer[1]);
+            // Inner chamfer fold lines (dashed)
+            var h2b = aparam_b.doct_h2, h2e = aparam_e.doct_h2;
+            ocvs.addLine(viewName, -half, cyb - hb / 2 + h2b, half, cye - he / 2 + h2e, alayer[1]);
+            ocvs.addLine(viewName, -half, cyb + hb / 2 - h2b, half, cye + he / 2 - h2e, alayer[1]);
         }
         ocvs.addDimLinear(viewName, -half - ddim_off, 0, -half - ddim_off, Hb, ddim_ext * 6);
         if (hasHoleB && hasHoleE) {
