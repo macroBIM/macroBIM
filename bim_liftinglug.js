@@ -204,7 +204,7 @@ function fdraw_liftinglug() {
             document.head.appendChild(s);
         })(0);
     }
-    _render3d();
+    try { _render3d(); } catch(e) { console.error('liftinglug 3D render error:', e); }
 
     fdraw_liftinglug_2d('front');
 }

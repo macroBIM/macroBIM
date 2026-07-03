@@ -305,7 +305,7 @@ function fdraw_octagon() {
             document.head.appendChild(s);
         })(0);
     }
-    _render3d();
+    try { _render3d(); } catch(e) { console.error('octagon 3D render error:', e); }
 
     fdraw_octagon_2d('front');
 }
