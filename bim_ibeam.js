@@ -247,6 +247,17 @@ function fdraw_ibeam() {
     let oibeam_b = geo_ibeam(aparam_b);
     let oibeam_e = geo_ibeam(aparam_e);
 
+    // Store for tab switching (before DXF pass so 2D/3D render even if DXF crashes)
+    _ibeam_drawData = {
+        oibeam_b: oibeam_b,
+        oibeam_e: oibeam_e,
+        aparam_b: aparam_b,
+        aparam_e: aparam_e,
+        dseg_leng: dseg_leng,
+        alayer: alayer
+    };
+
+    try {
     // === DXF layout ===
     //   Row 1 (cross sections): [Front (Begin)]  [Back (End)]
     //   Row 2 (long views):     [Top]            [Bottom]
@@ -327,15 +338,7 @@ function fdraw_ibeam() {
     // Row 3 — Side (elevation) view at column 0
     _dxf_long_view(0, _row_pitch * 2, ['ptl', 'ptfl', 'pwtl', 'pwbl', 'pbfl', 'pbl'], [], 'side');
 
-    // Store for tab switching
-    _ibeam_drawData = {
-        oibeam_b: oibeam_b,
-        oibeam_e: oibeam_e,
-        aparam_b: aparam_b,
-        aparam_e: aparam_e,
-        dseg_leng: dseg_leng,
-        alayer: alayer
-    };
+    } catch(e) { console.error('ibeam DXF pass error:', e); }
 
     // Render 3D view (dynamically load Three.js if missing)
     function _render3d() {
