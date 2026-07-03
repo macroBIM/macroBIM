@@ -312,14 +312,11 @@ function fdraw_circle_2d(viewName) {
             ocvs.addCircle(viewName, cx, cy, d / 2, alayer[0]);
         }
 
-        // Dimension lines
-        // Vertical: diameter D on left
-        ocvs.addDimLinear(viewName, cx - R - ddim_off, 0, cx - R - ddim_off, D, ddim_ext * 6);
-        // Horizontal: diameter D on top
-        ocvs.addDimLinear(viewName, -R, D + ddim_off, R, D + ddim_off, ddim_ext * 6);
+        // Outer D on right side, pointing right
+        ocvs.addDimLinear(viewName, cx + R + ddim_off, 0, cx + R + ddim_off, D, ddim_ext * -6);
         if (hasHole) {
-            // Inner diameter on right
-            ocvs.addDimLinear(viewName, cx + R + ddim_off, cy - d / 2, cx + R + ddim_off, cy + d / 2, ddim_ext * 6);
+            // Inner d on right side, further out, pointing right
+            ocvs.addDimLinear(viewName, cx + R + ddim_off * 4, cy - d / 2, cx + R + ddim_off * 4, cy + d / 2, ddim_ext * -6);
         }
 
     } else if (viewName === 'back') {
@@ -332,10 +329,11 @@ function fdraw_circle_2d(viewName) {
             ocvs.addCircle(viewName, cx, cy, d / 2, alayer[0]);
         }
 
-        ocvs.addDimLinear(viewName, cx - R - ddim_off, 0, cx - R - ddim_off, D, ddim_ext * 6);
-        ocvs.addDimLinear(viewName, -R, D + ddim_off, R, D + ddim_off, ddim_ext * 6);
+        // Outer D on right side, pointing right
+        ocvs.addDimLinear(viewName, cx + R + ddim_off, 0, cx + R + ddim_off, D, ddim_ext * -6);
         if (hasHole) {
-            ocvs.addDimLinear(viewName, cx + R + ddim_off, cy - d / 2, cx + R + ddim_off, cy + d / 2, ddim_ext * 6);
+            // Inner d on right side, further out, pointing right
+            ocvs.addDimLinear(viewName, cx + R + ddim_off * 4, cy - d / 2, cx + R + ddim_off * 4, cy + d / 2, ddim_ext * -6);
         }
 
     } else if (viewName === 'top' || viewName === 'bottom') {

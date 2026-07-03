@@ -332,14 +332,29 @@ function fdraw_octagon_2d(viewName) {
 
         var op1 = gp('p1'), op2 = gp('p2'), op3 = gp('p3'), op4 = gp('p4');
         var op5 = gp('p5'), op6 = gp('p6'), op7 = gp('p7'), op8 = gp('p8');
-        // Outer dimensions: total height (left side), total width (top & bottom)
-        ocvs.addDimLinear(viewName, op8.x - ddim_off, op1.y, op8.x - ddim_off, op6.y, ddim_ext * 6);
-        ocvs.addDimLinear(viewName, op6.x, op6.y + ddim_off, op5.x, op5.y + ddim_off, ddim_ext * 6);
-        ocvs.addDimLinear(viewName, op1.x, op1.y - ddim_off, op2.x, op2.y - ddim_off, ddim_ext * -6);
+        var dimX = op3.x + ddim_off;
+        // Right side: H2 (bottom chamfer), H1 (middle), H2 (top chamfer) — pointing right
+        ocvs.addDimLinear(viewName, dimX, op2.y, dimX, op3.y, ddim_ext * -6);
+        ocvs.addDimLinear(viewName, dimX, op3.y, dimX, op4.y, ddim_ext * -6);
+        ocvs.addDimLinear(viewName, dimX, op4.y, dimX, op5.y, ddim_ext * -6);
+        var dimY = op1.y - ddim_off;
+        // Bottom side: B2 (left chamfer), B1 (middle), B2 (right chamfer) — pointing down
+        ocvs.addDimLinear(viewName, op8.x, dimY, op1.x, dimY, ddim_ext * -6);
+        ocvs.addDimLinear(viewName, op1.x, dimY, op2.x, dimY, ddim_ext * -6);
+        ocvs.addDimLinear(viewName, op2.x, dimY, op3.x, dimY, ddim_ext * -6);
         if (hasHole) {
-            var ip1 = gp('i1'), ip5 = gp('i5'), ip3 = gp('i3');
-            ocvs.addDimLinear(viewName, op3.x + ddim_off, ip1.y, op3.x + ddim_off, ip5.y, ddim_ext * 6);
-            ocvs.addDimLinear(viewName, ip1.x, ip1.y - ddim_off * 0.5, gp('i2').x, gp('i2').y - ddim_off * 0.5, ddim_ext * 3);
+            var ip1 = gp('i1'), ip2 = gp('i2'), ip3 = gp('i3'), ip4 = gp('i4');
+            var ip5 = gp('i5'), ip6 = gp('i6'), ip7 = gp('i7'), ip8 = gp('i8');
+            var idimX = op3.x + ddim_off * 4;
+            // Inner right side: h2, h1, h2 — pointing right
+            ocvs.addDimLinear(viewName, idimX, ip2.y, idimX, ip3.y, ddim_ext * -6);
+            ocvs.addDimLinear(viewName, idimX, ip3.y, idimX, ip4.y, ddim_ext * -6);
+            ocvs.addDimLinear(viewName, idimX, ip4.y, idimX, ip5.y, ddim_ext * -6);
+            var idimY = op1.y - ddim_off * 4;
+            // Inner bottom side: b2, b1, b2 — pointing down
+            ocvs.addDimLinear(viewName, ip8.x, idimY, ip1.x, idimY, ddim_ext * -6);
+            ocvs.addDimLinear(viewName, ip1.x, idimY, ip2.x, idimY, ddim_ext * -6);
+            ocvs.addDimLinear(viewName, ip2.x, idimY, ip3.x, idimY, ddim_ext * -6);
         }
 
     } else if (viewName === 'back') {
@@ -353,13 +368,25 @@ function fdraw_octagon_2d(viewName) {
 
         var op1 = gp2('p1'), op2 = gp2('p2'), op3 = gp2('p3'), op4 = gp2('p4');
         var op5 = gp2('p5'), op6 = gp2('p6'), op7 = gp2('p7'), op8 = gp2('p8');
-        ocvs.addDimLinear(viewName, op8.x - ddim_off, op1.y, op8.x - ddim_off, op6.y, ddim_ext * 6);
-        ocvs.addDimLinear(viewName, op6.x, op6.y + ddim_off, op5.x, op5.y + ddim_off, ddim_ext * 6);
-        ocvs.addDimLinear(viewName, op1.x, op1.y - ddim_off, op2.x, op2.y - ddim_off, ddim_ext * -6);
+        var dimX = op3.x + ddim_off;
+        ocvs.addDimLinear(viewName, dimX, op2.y, dimX, op3.y, ddim_ext * -6);
+        ocvs.addDimLinear(viewName, dimX, op3.y, dimX, op4.y, ddim_ext * -6);
+        ocvs.addDimLinear(viewName, dimX, op4.y, dimX, op5.y, ddim_ext * -6);
+        var dimY = op1.y - ddim_off;
+        ocvs.addDimLinear(viewName, op8.x, dimY, op1.x, dimY, ddim_ext * -6);
+        ocvs.addDimLinear(viewName, op1.x, dimY, op2.x, dimY, ddim_ext * -6);
+        ocvs.addDimLinear(viewName, op2.x, dimY, op3.x, dimY, ddim_ext * -6);
         if (hasHole) {
-            var ip1 = gp2('i1'), ip5 = gp2('i5'), ip3 = gp2('i3');
-            ocvs.addDimLinear(viewName, op3.x + ddim_off, ip1.y, op3.x + ddim_off, ip5.y, ddim_ext * 6);
-            ocvs.addDimLinear(viewName, ip1.x, ip1.y - ddim_off * 0.5, gp2('i2').x, gp2('i2').y - ddim_off * 0.5, ddim_ext * 3);
+            var ip1 = gp2('i1'), ip2 = gp2('i2'), ip3 = gp2('i3'), ip4 = gp2('i4');
+            var ip5 = gp2('i5'), ip6 = gp2('i6'), ip7 = gp2('i7'), ip8 = gp2('i8');
+            var idimX = op3.x + ddim_off * 4;
+            ocvs.addDimLinear(viewName, idimX, ip2.y, idimX, ip3.y, ddim_ext * -6);
+            ocvs.addDimLinear(viewName, idimX, ip3.y, idimX, ip4.y, ddim_ext * -6);
+            ocvs.addDimLinear(viewName, idimX, ip4.y, idimX, ip5.y, ddim_ext * -6);
+            var idimY = op1.y - ddim_off * 4;
+            ocvs.addDimLinear(viewName, ip8.x, idimY, ip1.x, idimY, ddim_ext * -6);
+            ocvs.addDimLinear(viewName, ip1.x, idimY, ip2.x, idimY, ddim_ext * -6);
+            ocvs.addDimLinear(viewName, ip2.x, idimY, ip3.x, idimY, ddim_ext * -6);
         }
 
     } else if (viewName === 'top' || viewName === 'bottom') {

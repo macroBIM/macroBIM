@@ -381,23 +381,14 @@ function fdraw_track_2d(viewName) {
         geo.arcs.forEach(a => ocvs.addArc(viewName, a.x, a.y, a.r, a.angb, a.ange, alayer[0]));
         geo.lines.forEach(l => ocvs.addLine(viewName, l.x1, l.y1, l.x2, l.y2, alayer[0]));
 
-        // Dimensions
-        function gp(name) { var f = geo.points.find(p => p.name === name); return f ? Object.assign({}, f[name]) : { x: 0, y: 0 }; }
-        var pleft = gp('pleft'), pright = gp('pright'), ptop = gp('ptop'), pbot = gp('pbot');
-
-        // Height dimension on left side
-        ocvs.addDimLinear(viewName, -B / 2 - ddim_off, 0, -B / 2 - ddim_off, D, ddim_ext * 6);
-        // Width dimension on top
-        ocvs.addDimLinear(viewName, -B / 2, D + ddim_off, B / 2, D + ddim_off, ddim_ext * 6);
-        // Width dimension on bottom
+        // B on bottom, pointing down
         ocvs.addDimLinear(viewName, -B / 2, -ddim_off, B / 2, -ddim_off, ddim_ext * -6);
+        // D on right side, pointing right
+        ocvs.addDimLinear(viewName, B / 2 + ddim_off, 0, B / 2 + ddim_off, D, ddim_ext * -6);
 
         if (ap.hollow && d_inner > 0 && d_inner < D) {
-            var innerW = B - (D - d_inner);
-            if (innerW > 0) {
-                // Inner height dimension on right side
-                ocvs.addDimLinear(viewName, B / 2 + ddim_off, D / 2 - d_inner / 2, B / 2 + ddim_off, D / 2 + d_inner / 2, ddim_ext * 6);
-            }
+            // Inner d on right side, further out, pointing right
+            ocvs.addDimLinear(viewName, B / 2 + ddim_off * 4, D / 2 - d_inner / 2, B / 2 + ddim_off * 4, D / 2 + d_inner / 2, ddim_ext * -6);
         }
 
     } else if (viewName === 'top' || viewName === 'bottom') {
