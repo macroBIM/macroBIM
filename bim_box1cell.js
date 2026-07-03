@@ -405,18 +405,29 @@ function fdraw_box1cell(){
 	let obox1cell_b = geo_box1cell( aparam_b );
 	let obox1cell_e = geo_box1cell( aparam_e );
 
+	// Store data for tab switching (before DXF pass so 2D/3D render even if DXF crashes)
+	_box1cell_drawData = {
+		obox1cell_b: obox1cell_b,
+		obox1cell_e: obox1cell_e,
+		aparam_b: aparam_b,
+		aparam_e: aparam_e,
+		dseg_leng: dseg_leng,
+		alayer: alayer
+	};
+
         function getPointByName(points, name) {
             const found = points.find(p => p.name === name);
             if (found) {
-                // 현재 데이터 구조가 { pwtlin: {x,y}, name: "pwtlin" } 식이므로 
+                // 현재 데이터 구조가 { pwtlin: {x,y}, name: "pwtlin" } 식이므로
                 // name을 제외한 실제 좌표 객체만 추출하여 반환합니다.
-                //return found[name]; 
+                //return found[name];
                 // ⭐ 원본 객체의 참조를 끊고 복사본을 반환하여 원본 데이터 보호
                 return { ...found[name] };
             }
-            return null;
-        }        	
+            return {x: 0, y: 0};
+        }
 
+	try {
 
 	/*
 		정면도 (시작단면 → front view)
@@ -910,16 +921,7 @@ function fdraw_box1cell(){
         ocvs.addLine(sview, p1.x - dOx, p1.y, p2.x - dOx, p2.y, alayer[1] );
 		odxf_box1cell.line( p1.x + dOx_side + dOx, p1.y + dOy_side, p2.x + dOx_side + dOx, p2.y + dOy_side, alayer[1] );
 
-
-	// Store data for tab switching
-	_box1cell_drawData = {
-		obox1cell_b: obox1cell_b,
-		obox1cell_e: obox1cell_e,
-		aparam_b: aparam_b,
-		aparam_e: aparam_e,
-		dseg_leng: dseg_leng,
-		alayer: alayer
-	};
+	} catch(e) { console.error('box1cell DXF pass error:', e); }
 
 	// Render 3D view (dynamically load Three.js if not available)
 	function _render3d() {
