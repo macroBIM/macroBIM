@@ -209,18 +209,26 @@ function fdraw_octagon() {
     geoEnd.lines.forEach(l => odxf_octagon.line(l.x1 + _col, l.y1, l.x2 + _col, l.y2, alayer[0]));
 
     // Row1: Top and Bottom views (tapered)
-    // Top view — outer outline: width tapers from Bb to Be along length
     let oy_top = Hmax + gap + half;
     let ox_top = 0;
+    let B1b = aparam_b.doct_B1, B1e = aparam_e.doct_B1;
+    // Top view — outer outline
     odxf_octagon.line(ox_top - Bb / 2, oy_top - half, ox_top - Be / 2, oy_top + half, alayer[0]);
     odxf_octagon.line(ox_top - Be / 2, oy_top + half, ox_top + Be / 2, oy_top + half, alayer[0]);
     odxf_octagon.line(ox_top + Be / 2, oy_top + half, ox_top + Bb / 2, oy_top - half, alayer[0]);
     odxf_octagon.line(ox_top + Bb / 2, oy_top - half, ox_top - Bb / 2, oy_top - half, alayer[0]);
+    // Outer chamfer fold lines at ±B1/2
+    odxf_octagon.line(ox_top - B1b / 2, oy_top - half, ox_top - B1e / 2, oy_top + half, alayer[0]);
+    odxf_octagon.line(ox_top + B1b / 2, oy_top - half, ox_top + B1e / 2, oy_top + half, alayer[0]);
     if (geoBegin.innerOutline && geoEnd.innerOutline) {
         let bb = aparam_b.doct_b1 + 2 * aparam_b.doct_b2;
         let be = aparam_e.doct_b1 + 2 * aparam_e.doct_b2;
+        let b1b = aparam_b.doct_b1, b1e = aparam_e.doct_b1;
         odxf_octagon.line(ox_top - bb / 2, oy_top - half, ox_top - be / 2, oy_top + half, alayer[1]);
         odxf_octagon.line(ox_top + bb / 2, oy_top - half, ox_top + be / 2, oy_top + half, alayer[1]);
+        // Inner chamfer fold lines at ±b1/2
+        odxf_octagon.line(ox_top - b1b / 2, oy_top - half, ox_top - b1e / 2, oy_top + half, alayer[1]);
+        odxf_octagon.line(ox_top + b1b / 2, oy_top - half, ox_top + b1e / 2, oy_top + half, alayer[1]);
     }
 
     // Bottom view
@@ -229,26 +237,42 @@ function fdraw_octagon() {
     odxf_octagon.line(ox_bot - Be / 2, oy_bot + half, ox_bot + Be / 2, oy_bot + half, alayer[0]);
     odxf_octagon.line(ox_bot + Be / 2, oy_bot + half, ox_bot + Bb / 2, oy_bot - half, alayer[0]);
     odxf_octagon.line(ox_bot + Bb / 2, oy_bot - half, ox_bot - Bb / 2, oy_bot - half, alayer[0]);
+    odxf_octagon.line(ox_bot - B1b / 2, oy_bot - half, ox_bot - B1e / 2, oy_bot + half, alayer[0]);
+    odxf_octagon.line(ox_bot + B1b / 2, oy_bot - half, ox_bot + B1e / 2, oy_bot + half, alayer[0]);
     if (geoBegin.innerOutline && geoEnd.innerOutline) {
         let bb = aparam_b.doct_b1 + 2 * aparam_b.doct_b2;
         let be = aparam_e.doct_b1 + 2 * aparam_e.doct_b2;
+        let b1b = aparam_b.doct_b1, b1e = aparam_e.doct_b1;
         odxf_octagon.line(ox_bot - bb / 2, oy_bot - half, ox_bot - be / 2, oy_bot + half, alayer[1]);
         odxf_octagon.line(ox_bot + bb / 2, oy_bot - half, ox_bot + be / 2, oy_bot + half, alayer[1]);
+        odxf_octagon.line(ox_bot - b1b / 2, oy_bot - half, ox_bot - b1e / 2, oy_bot + half, alayer[1]);
+        odxf_octagon.line(ox_bot + b1b / 2, oy_bot - half, ox_bot + b1e / 2, oy_bot + half, alayer[1]);
     }
 
     // Row2: Left/Right side view (tapered H x Length)
     let oy_side = oy_top + half + gap;
     let ox_side = 0;
+    let H2b = aparam_b.doct_H2, H1b_v = aparam_b.doct_H1;
+    let H2e = aparam_e.doct_H2, H1e_v = aparam_e.doct_H1;
+    // Outer outline
     odxf_octagon.line(ox_side - half, oy_side,      ox_side + half, oy_side,      alayer[0]);
     odxf_octagon.line(ox_side + half, oy_side,      ox_side + half, oy_side + He, alayer[0]);
     odxf_octagon.line(ox_side + half, oy_side + He,  ox_side - half, oy_side + Hb, alayer[0]);
     odxf_octagon.line(ox_side - half, oy_side + Hb,  ox_side - half, oy_side,      alayer[0]);
+    // Outer chamfer fold lines at H2 and H2+H1
+    odxf_octagon.line(ox_side - half, oy_side + H2b, ox_side + half, oy_side + H2e, alayer[0]);
+    odxf_octagon.line(ox_side - half, oy_side + H2b + H1b_v, ox_side + half, oy_side + H2e + H1e_v, alayer[0]);
     if (geoBegin.innerOutline && geoEnd.innerOutline) {
         let hb = aparam_b.doct_h1 + 2 * aparam_b.doct_h2;
         let he = aparam_e.doct_h1 + 2 * aparam_e.doct_h2;
         let cyb = Hb / 2, cye = He / 2;
+        // Inner outline
         odxf_octagon.line(ox_side - half, oy_side + cyb - hb / 2, ox_side + half, oy_side + cye - he / 2, alayer[1]);
         odxf_octagon.line(ox_side - half, oy_side + cyb + hb / 2, ox_side + half, oy_side + cye + he / 2, alayer[1]);
+        // Inner chamfer fold lines
+        let h2b_i = aparam_b.doct_h2, h2e_i = aparam_e.doct_h2;
+        odxf_octagon.line(ox_side - half, oy_side + cyb - hb / 2 + h2b_i, ox_side + half, oy_side + cye - he / 2 + h2e_i, alayer[1]);
+        odxf_octagon.line(ox_side - half, oy_side + cyb + hb / 2 - h2b_i, ox_side + half, oy_side + cye + he / 2 - h2e_i, alayer[1]);
     }
 
     _octagon_drawData = { geoBegin, geoEnd, aparam_b, aparam_e, dseg_leng, alayer };
