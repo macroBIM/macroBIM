@@ -1,0 +1,94 @@
+/*
+    seoul_phd_style.css — Seoul PhD (CodePen) 공통 스타일
+    GitHub(macroBIM)에서 관리, CodePen 에서 <link> 로 로드
+    단면 드롭다운: box1cell / ibeam / rect / circle / octagon / track
+*/
+
+*{margin:0;padding:0;box-sizing:border-box;}
+body{
+  font-family:'Inter',system-ui,-apple-system,'Segoe UI',Roboto,sans-serif;
+  background:#f0f2f5;color:#444;height:100vh;overflow:hidden;
+  font-size:14px;padding:16px;display:flex;flex-direction:column;gap:14px;
+}
+
+/* ── APP ROOT (seoul_phd_form.html 이 innerHTML 로 주입되는 곳) ── */
+#app-root{display:flex;flex-direction:column;flex:1;min-height:0;gap:14px;}
+
+/* ── TOP BAR + 단면 선택 드롭다운 ── */
+#topbar{
+  display:flex;align-items:center;justify-content:space-between;gap:16px;
+  background:#fff;border-radius:12px;padding:14px 20px;
+  box-shadow:0 1px 3px rgba(0,0,0,.08),0 1px 2px rgba(0,0,0,.06);flex-shrink:0;
+}
+#topbar .brand{font-size:16px;font-weight:700;color:#0f172a;display:flex;align-items:center;gap:10px;}
+#topbar .brand .tag{background:#1e293b;color:#fff;font-size:10px;font-weight:700;letter-spacing:.5px;padding:3px 8px;border-radius:5px;text-transform:uppercase;}
+#topbar .selector{display:flex;align-items:center;gap:10px;}
+#topbar .selector label{font-size:12px;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:.5px;}
+#sectionSelect{
+  padding:9px 34px 9px 14px;border:1px solid #e2e8f0;border-radius:8px;
+  font-size:13.5px;font-family:inherit;font-weight:600;color:#0f172a;
+  background:#fff url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%2364748b' stroke-width='3'><path d='M6 9l6 6 6-6'/></svg>") no-repeat right 12px center;
+  cursor:pointer;outline:none;appearance:none;-webkit-appearance:none;transition:border-color .15s,box-shadow .15s;
+}
+#sectionSelect:focus{border-color:#2563eb;box-shadow:0 0 0 3px rgba(37,99,235,.1);}
+
+/* ── STAGE (활성 단면 폼 + 뷰포트가 마운트되는 스크롤 영역) ── */
+#stage{
+  flex:1;overflow-y:auto;background:#fff;border-radius:12px;padding:24px;
+  box-shadow:0 1px 3px rgba(0,0,0,.08),0 1px 2px rgba(0,0,0,.06);min-height:0;
+}
+#stage::-webkit-scrollbar{width:6px;}
+#stage::-webkit-scrollbar-thumb{background:#ddd;border-radius:4px;}
+
+/* ── COMMON ── */
+.page-heading{font-size:20px;font-weight:700;color:#0f172a;margin-bottom:4px;}
+.breadcrumb{font-size:13px;color:#94a3b8;margin-bottom:20px;}
+.breadcrumb span{color:#64748b;}
+
+/* ── DRAWING CARD ── */
+.draw-card{background:#fff;border-radius:10px;border:1px solid #e2e8f0;margin-bottom:20px;overflow:hidden;}
+.draw-card-header{display:flex;justify-content:space-between;align-items:center;padding:16px 20px;border-bottom:1px solid #e2e8f0;}
+.draw-card-title{font-size:15px;font-weight:600;color:#0f172a;}
+.draw-card-desc{font-size:12.5px;color:#94a3b8;}
+.draw-card-body{padding:20px;}
+
+/* ── FORM ── */
+.form-label{font-size:13px;font-weight:600;color:#0f172a;}
+.form-label span{font-weight:400;color:#94a3b8;}
+.form-input{
+  padding:10px 14px;border:1px solid #e2e8f0;border-radius:8px;
+  font-size:13.5px;font-family:inherit;color:#334155;
+  transition:border-color .15s,box-shadow .15s;outline:none;background:#fff;
+}
+.form-input:focus{border-color:#2563eb;box-shadow:0 0 0 3px rgba(37,99,235,.1);}
+.btn-generate{
+  display:inline-flex;align-items:center;gap:8px;
+  padding:10px 24px;border:none;border-radius:8px;cursor:pointer;
+  font-size:13.5px;font-weight:600;font-family:inherit;
+  background:#1e293b;color:#fff;transition:background .15s;margin-top:8px;
+}
+.btn-generate:hover{background:#334155;}
+
+/* ── DRAWING VIEWPORT (KonvaViewer 컨테이너) ── */
+.drawing-viewport{background:#1e293b;border-radius:10px;overflow:hidden;min-height:560px;}
+#box1cellplot,#ibeamplot,#rectplot,#circleplot,#octagonplot,#trackplot{
+  width:100%;background:#000;border-radius:10px;cursor:grab;
+}
+
+/* ── 9-COLUMN GRID (Variable / Front / Back × 3) ── */
+.form-grid-9col{display:grid;grid-template-columns:80px 1fr 1fr 80px 1fr 1fr 80px 1fr 1fr;gap:8px 10px;align-items:center;}
+.form-grid-9col .col-label{font-size:12px;font-weight:600;color:#0f172a;}
+.form-grid-9col .col-header{font-size:11px;font-weight:700;color:#2563eb;text-align:center;padding-bottom:4px;border-bottom:1px solid #e2e8f0;}
+.form-grid-9col .col-header.var-header{text-align:left;}
+.form-grid-9col .form-input{padding:8px 8px;font-size:12.5px;}
+
+/* ── 6-COLUMN GRID (Variable / Value × 3) ── */
+.form-grid-6col{display:grid;grid-template-columns:130px 1fr 130px 1fr 130px 1fr;gap:8px 12px;align-items:center;}
+.form-grid-6col .col-label{font-size:12px;font-weight:600;color:#0f172a;}
+.form-grid-6col .col-header{font-size:11px;font-weight:700;color:#2563eb;text-align:center;padding-bottom:4px;border-bottom:1px solid #e2e8f0;}
+.form-grid-6col .col-header.var-header{text-align:left;}
+.form-grid-6col .form-input{padding:8px 10px;font-size:12.5px;}
+
+/* ── FALLBACK / ERROR ── */
+.load-msg{padding:40px 20px;text-align:center;color:#94a3b8;font-size:13px;}
+.error-msg{padding:30px 20px;text-align:center;color:#dc2626;font-size:13px;}
