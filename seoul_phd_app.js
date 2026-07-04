@@ -54,9 +54,23 @@
         mount.innerHTML = '';
         var tpl = document.getElementById('tpl-' + kind);
         if (tpl) mount.appendChild(tpl.content.cloneNode(true));
+        this._insertRebarCards(mount);          // Dimension 과 Drawing View 사이에 TRebar/LRebar 삽입
         var sel = document.getElementById('sectionSelect');
         if (sel && sel.value !== kind) sel.value = kind;
         this.redraw(kind);
+      },
+
+      // TRebar/LRebar 카드를 마운트된 섹션의 Drawing View 카드 바로 앞에 삽입
+      _insertRebarCards: function (mount) {
+        var tpl = document.getElementById('tpl-rebar');
+        if (!tpl) return;
+        var cards = mount.querySelectorAll('.draw-card');
+        var drawingCard = cards.length ? cards[cards.length - 1] : null;   // 마지막 카드 = Drawing View
+        if (drawingCard && drawingCard.parentNode) {
+          drawingCard.parentNode.insertBefore(tpl.content.cloneNode(true), drawingCard);
+        } else {
+          mount.appendChild(tpl.content.cloneNode(true));
+        }
       },
 
       // 값 입력(_s)을 숨은 _e 로 미러링(begin=end) 후 front 2D 작도
