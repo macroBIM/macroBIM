@@ -1,0 +1,332 @@
+<!--
+    seoul_phd_form.html — <body> 내부 태그(폼 구성)를 텍스트로 저장
+    GitHub(macroBIM)에서 관리. seoul_phd.html 이 fetch 하여 #app-root 의 innerHTML 로 주입.
+    스크립트는 innerHTML 로는 실행되지 않으므로, 디스패치 로직(SeoulPhD)은 seoul_phd.html 에 둔다.
+    단면 선택: box1cell / ibeam / rect / circle / octagon / track
+-->
+
+<!-- ══ TOP BAR ══ -->
+<div id="topbar">
+  <div class="brand">Seoul PhD <span class="tag">macroBIM</span></div>
+  <div class="selector">
+    <label for="sectionSelect">Section</label>
+    <select id="sectionSelect" onchange="SeoulPhD.select(this.value)">
+      <option value="box1cell">1-Cell Box Girder (박스거더)</option>
+      <option value="ibeam">I-Beam (I형강)</option>
+      <option value="rect">Rectangle (사각형)</option>
+      <option value="circle">Circle (원형)</option>
+      <option value="octagon">Octagon (팔각형)</option>
+      <option value="track">Track (트랙형)</option>
+    </select>
+  </div>
+</div>
+
+<!-- ══ STAGE (활성 단면 폼이 클론되는 곳) ══ -->
+<div id="stage">
+  <div id="mount"><div class="load-msg">Loading section…</div></div>
+</div>
+
+<!-- ══════════════════ SECTION TEMPLATES ══════════════════ -->
+
+<!-- ── BOX1CELL ── -->
+<template id="tpl-box1cell">
+  <h1 class="page-heading">BOX 1-Cell Drawing</h1>
+  <div class="breadcrumb"><span>Section</span> / BOX1CELL</div>
+  <div class="draw-card">
+    <div class="draw-card-header" style="display:flex;justify-content:space-between;align-items:center;">
+      <div><div class="draw-card-title">Dimension (mm)</div><div class="draw-card-desc">Input 1-Cell Box section parameters (Begin / End)</div></div>
+      <button class="btn-generate" onclick="var g=document.getElementById('box1cell_guide_img');g.style.display=g.style.display==='none'?'block':'none'" style="margin:0;font-size:12px;padding:6px 14px;"><i class="bi bi-image"></i> VIEW GUIDE</button>
+    </div>
+    <div id="box1cell_guide_img" style="display:none;padding:10px;background:#f8f9fa;border-bottom:1px solid #e2e8f0;text-align:center;"><img src="https://macrobim.github.io/macroBIM/box1cell_vars.png" style="max-width:100%;height:auto;border:1px solid #ddd;border-radius:4px;"></div>
+    <div class="draw-card-body">
+      <div style="margin-bottom:20px;">
+        <div class="form-label" style="margin-bottom:6px;font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;">Batch Input (CSV) <span style="font-weight:400;text-transform:none;letter-spacing:0;color:#94a3b8;">&mdash; 1줄: Begin / 2줄: End / 3줄: Seg Length</span></div>
+        <textarea class="form-input" id="sUserText" rows="4" style="width:100%;resize:vertical;font-size:12px;" onchange="putParams_box1cell('sUserText'); fdraw_box1cell();">6600,12000,6000,1500,1500,1500,300,300,600,600,300,300,840,500,200,200,100,300,200,400,-2,5,3
+8000,12000,6000,1500,1500,1500,300,300,600,600,300,300,840,500,200,200,100,300,200,400,-2,5,3
+5000</textarea>
+      </div>
+      <div class="form-grid-9col" style="margin-bottom:12px;">
+        <div class="col-header var-header">Variable</div><div class="col-header">Front</div><div class="col-header">Back</div>
+        <div class="col-header var-header">Variable</div><div class="col-header">Front</div><div class="col-header">Back</div>
+        <div class="col-header var-header">Variable</div><div class="col-header">Front</div><div class="col-header">Back</div>
+      </div>
+      <div class="form-grid-9col">
+        <div class="col-label">h</div><input class="form-input" type="number" id="dh_s" value="6600" onchange="fdraw_box1cell()"><input class="form-input" type="number" id="dh_e" value="8000" onchange="fdraw_box1cell()">
+        <div class="col-label">bt</div><input class="form-input" type="number" id="dbt_s" value="12000" onchange="fdraw_box1cell()"><input class="form-input" type="number" id="dbt_e" value="12000" onchange="fdraw_box1cell()">
+        <div class="col-label">bb</div><input class="form-input" type="number" id="dbb_s" value="6000" onchange="fdraw_box1cell()"><input class="form-input" type="number" id="dbb_e" value="6000" onchange="fdraw_box1cell()">
+        <div class="col-label">btsh</div><input class="form-input" type="number" id="dbth_s" value="1500" onchange="fdraw_box1cell()"><input class="form-input" type="number" id="dbth_e" value="1500" onchange="fdraw_box1cell()">
+        <div class="col-label">bcanh</div><input class="form-input" type="number" id="dbch_s" value="1500" onchange="fdraw_box1cell()"><input class="form-input" type="number" id="dbch_e" value="1500" onchange="fdraw_box1cell()">
+        <div class="col-label">bcan</div><input class="form-input" type="number" id="dbc_s" value="1500" onchange="fdraw_box1cell()"><input class="form-input" type="number" id="dbc_e" value="1500" onchange="fdraw_box1cell()">
+        <div class="col-label">t1</div><input class="form-input" type="number" id="dt1_s" value="300" onchange="fdraw_box1cell()"><input class="form-input" type="number" id="dt1_e" value="300" onchange="fdraw_box1cell()">
+        <div class="col-label">t2</div><input class="form-input" type="number" id="dt2_s" value="300" onchange="fdraw_box1cell()"><input class="form-input" type="number" id="dt2_e" value="300" onchange="fdraw_box1cell()">
+        <div class="col-label">t3</div><input class="form-input" type="number" id="dt3_s" value="600" onchange="fdraw_box1cell()"><input class="form-input" type="number" id="dt3_e" value="600" onchange="fdraw_box1cell()">
+        <div class="col-label">t4</div><input class="form-input" type="number" id="dt4_s" value="600" onchange="fdraw_box1cell()"><input class="form-input" type="number" id="dt4_e" value="600" onchange="fdraw_box1cell()">
+        <div class="col-label">t5</div><input class="form-input" type="number" id="dt5_s" value="300" onchange="fdraw_box1cell()"><input class="form-input" type="number" id="dt5_e" value="300" onchange="fdraw_box1cell()">
+        <div class="col-label">t6</div><input class="form-input" type="number" id="dt6_s" value="300" onchange="fdraw_box1cell()"><input class="form-input" type="number" id="dt6_e" value="300" onchange="fdraw_box1cell()">
+        <div class="col-label">tb</div><input class="form-input" type="number" id="dtb_s" value="840" onchange="fdraw_box1cell()"><input class="form-input" type="number" id="dtb_e" value="840" onchange="fdraw_box1cell()">
+        <div class="col-label">tw</div><input class="form-input" type="number" id="dtw_s" value="500" onchange="fdraw_box1cell()"><input class="form-input" type="number" id="dtw_e" value="500" onchange="fdraw_box1cell()">
+        <div class="col-label">bh</div><input class="form-input" type="number" id="dbbh_s" value="200" onchange="fdraw_box1cell()"><input class="form-input" type="number" id="dbbh_e" value="200" onchange="fdraw_box1cell()">
+        <div class="col-label">vh1</div><input class="form-input" type="number" id="dbh1_s" value="200" onchange="fdraw_box1cell()"><input class="form-input" type="number" id="dbh1_e" value="200" onchange="fdraw_box1cell()">
+        <div class="col-label">vh2</div><input class="form-input" type="number" id="dbh2_s" value="100" onchange="fdraw_box1cell()"><input class="form-input" type="number" id="dbh2_e" value="100" onchange="fdraw_box1cell()">
+        <div class="col-label">rwt <span style="color:#94a3b8;font-size:10px;">(0=없음)</span></div><input class="form-input" type="number" id="drwt_s" value="300" onchange="fdraw_box1cell()"><input class="form-input" type="number" id="drwt_e" value="300" onchange="fdraw_box1cell()">
+        <div class="col-label">rwtin <span style="color:#94a3b8;font-size:10px;">(0=없음)</span></div><input class="form-input" type="number" id="drwtin_s" value="200" onchange="fdraw_box1cell()"><input class="form-input" type="number" id="drwtin_e" value="200" onchange="fdraw_box1cell()">
+        <div class="col-label">rb <span style="color:#94a3b8;font-size:10px;">(0=없음)</span></div><input class="form-input" type="number" id="drb_s" value="400" onchange="fdraw_box1cell()"><input class="form-input" type="number" id="drb_e" value="400" onchange="fdraw_box1cell()">
+        <div class="col-label">sl_tl (%)</div><input class="form-input" type="number" id="dsltl_s" value="-2" onchange="fdraw_box1cell()"><input class="form-input" type="number" id="dsltl_e" value="-2" onchange="fdraw_box1cell()">
+        <div class="col-label">sl_tr (%)</div><input class="form-input" type="number" id="dsltr_s" value="5" onchange="fdraw_box1cell()"><input class="form-input" type="number" id="dsltr_e" value="5" onchange="fdraw_box1cell()">
+        <div class="col-label">sl_b (%)</div><input class="form-input" type="number" id="dslb_s" value="3" onchange="fdraw_box1cell()"><input class="form-input" type="number" id="dslb_e" value="3" onchange="fdraw_box1cell()">
+        <div class="col-label">Seg Length</div><input class="form-input" type="number" id="dseg_leng" value="5000" onchange="fdraw_box1cell()" style="grid-column:span 2;">
+        <button class="btn-generate" onclick="odxf_box1cell.download('Box1Cell.dxf')" style="grid-column:7 / 10;margin:8px 0 0 0;justify-content:center;"><i class="bi bi-download"></i> DXF DOWNLOAD</button>
+      </div>
+    </div>
+  </div>
+  <div class="draw-card">
+    <div class="draw-card-header"><div class="draw-card-title">Drawing View <span style="font-weight:400;color:#94a3b8;font-size:12px;">(Synchronized Zoom / Pan)</span></div>
+      <button class="btn-generate" onclick="fdraw_box1cell()" style="margin-top:0;"><i class="bi bi-arrow-repeat"></i> REGEN</button></div>
+    <div class="drawing-viewport"><div id="box1cellplot"></div></div>
+  </div>
+</template>
+
+<!-- ── IBEAM ── -->
+<template id="tpl-ibeam">
+  <h1 class="page-heading">I Beam Drawing</h1>
+  <div class="breadcrumb"><span>Section</span> / I Beam</div>
+  <div class="draw-card">
+    <div class="draw-card-header" style="display:flex;justify-content:space-between;align-items:center;">
+      <div><div class="draw-card-title">Dimension (mm)</div><div class="draw-card-desc">Input I-beam (plate girder) cross-section parameters (Begin / End)</div></div>
+      <button class="btn-generate" onclick="var g=document.getElementById('ibeam_guide_img');g.style.display=g.style.display==='none'?'block':'none'" style="margin:0;font-size:12px;padding:6px 14px;"><i class="bi bi-image"></i> VIEW GUIDE</button>
+    </div>
+    <div id="ibeam_guide_img" style="display:none;padding:10px;background:#f8f9fa;border-bottom:1px solid #e2e8f0;text-align:center;"><img src="https://macrobim.github.io/macroBIM/ibeam_vars.png" style="max-width:100%;height:auto;border:1px solid #ddd;border-radius:4px;"></div>
+    <div class="draw-card-body">
+      <div style="margin-bottom:20px;">
+        <div class="form-label" style="margin-bottom:6px;font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;">Batch Input (CSV) <span style="font-weight:400;text-transform:none;letter-spacing:0;color:#94a3b8;">&mdash; 1줄: Begin / 2줄: End / 3줄: Beam Length</span></div>
+        <textarea class="form-input" id="sUserText" rows="4" style="width:100%;resize:vertical;font-size:12px;" onchange="putParams_ibeam('sUserText'); fdraw_ibeam();">1500,1235,985,85,45,135,140,160,50,200,100,50,20
+1500,1235,985,85,45,135,140,160,50,200,100,50,20
+500</textarea>
+      </div>
+      <div class="form-grid-9col" style="margin-bottom:12px;">
+        <div class="col-header var-header">Variable</div><div class="col-header">Front</div><div class="col-header">Back</div>
+        <div class="col-header var-header">Variable</div><div class="col-header">Front</div><div class="col-header">Back</div>
+        <div class="col-header var-header">Variable</div><div class="col-header">Front</div><div class="col-header">Back</div>
+      </div>
+      <div class="form-grid-9col">
+        <div class="col-label">h</div><input class="form-input" type="number" id="dh_s" value="1500" onchange="fdraw_ibeam()"><input class="form-input" type="number" id="dh_e" value="1500" onchange="fdraw_ibeam()">
+        <div class="col-label">bt</div><input class="form-input" type="number" id="dbt_s" value="1235" onchange="fdraw_ibeam()"><input class="form-input" type="number" id="dbt_e" value="1235" onchange="fdraw_ibeam()">
+        <div class="col-label">bb</div><input class="form-input" type="number" id="dbb_s" value="985" onchange="fdraw_ibeam()"><input class="form-input" type="number" id="dbb_e" value="985" onchange="fdraw_ibeam()">
+        <div class="col-label">ttf</div><input class="form-input" type="number" id="dttf_s" value="85" onchange="fdraw_ibeam()"><input class="form-input" type="number" id="dttf_e" value="85" onchange="fdraw_ibeam()">
+        <div class="col-label">ttf1</div><input class="form-input" type="number" id="dttf1_s" value="45" onchange="fdraw_ibeam()"><input class="form-input" type="number" id="dttf1_e" value="45" onchange="fdraw_ibeam()">
+        <div class="col-label">tbf</div><input class="form-input" type="number" id="dtbf_s" value="135" onchange="fdraw_ibeam()"><input class="form-input" type="number" id="dtbf_e" value="135" onchange="fdraw_ibeam()">
+        <div class="col-label">tbf1</div><input class="form-input" type="number" id="dtbf1_s" value="140" onchange="fdraw_ibeam()"><input class="form-input" type="number" id="dtbf1_e" value="140" onchange="fdraw_ibeam()">
+        <div class="col-label">tw</div><input class="form-input" type="number" id="dtw_s" value="160" onchange="fdraw_ibeam()"><input class="form-input" type="number" id="dtw_e" value="160" onchange="fdraw_ibeam()">
+        <div class="col-label">rtf <span style="color:#94a3b8;font-size:10px;">(0=없음)</span></div><input class="form-input" type="number" id="drtf_s" value="50" onchange="fdraw_ibeam()"><input class="form-input" type="number" id="drtf_e" value="50" onchange="fdraw_ibeam()">
+        <div class="col-label">rwt <span style="color:#94a3b8;font-size:10px;">(0=없음)</span></div><input class="form-input" type="number" id="drwt_s" value="200" onchange="fdraw_ibeam()"><input class="form-input" type="number" id="drwt_e" value="200" onchange="fdraw_ibeam()">
+        <div class="col-label">rwb <span style="color:#94a3b8;font-size:10px;">(0=없음)</span></div><input class="form-input" type="number" id="drwb_s" value="100" onchange="fdraw_ibeam()"><input class="form-input" type="number" id="drwb_e" value="100" onchange="fdraw_ibeam()">
+        <div class="col-label">rbf <span style="color:#94a3b8;font-size:10px;">(0=없음)</span></div><input class="form-input" type="number" id="drbf_s" value="50" onchange="fdraw_ibeam()"><input class="form-input" type="number" id="drbf_e" value="50" onchange="fdraw_ibeam()">
+        <div class="col-label">chb <span style="color:#94a3b8;font-size:10px;">(0=없음)</span></div><input class="form-input" type="number" id="dchb_s" value="20" onchange="fdraw_ibeam()"><input class="form-input" type="number" id="dchb_e" value="20" onchange="fdraw_ibeam()">
+        <div class="col-label">Beam Length</div><input class="form-input" type="number" id="dseg_leng" value="500" onchange="fdraw_ibeam()" style="grid-column:span 5;">
+        <button class="btn-generate" onclick="odxf_ibeam.download('IBeam.dxf')" style="grid-column:7 / 10;margin:8px 0 0 0;justify-content:center;"><i class="bi bi-download"></i> DXF DOWNLOAD</button>
+      </div>
+    </div>
+  </div>
+  <div class="draw-card">
+    <div class="draw-card-header"><div class="draw-card-title">Drawing View <span style="font-weight:400;color:#94a3b8;font-size:12px;">(Synchronized Zoom / Pan)</span></div>
+      <button class="btn-generate" onclick="fdraw_ibeam()" style="margin-top:0;"><i class="bi bi-arrow-repeat"></i> REGEN</button></div>
+    <div class="drawing-viewport"><div id="ibeamplot"></div></div>
+  </div>
+</template>
+
+<!-- ── RECT ── -->
+<template id="tpl-rect">
+  <h1 class="page-heading">Rect Section Drawing</h1>
+  <div class="breadcrumb"><span>Section</span> / Rectangle</div>
+  <div class="draw-card">
+    <div class="draw-card-header" style="display:flex;justify-content:space-between;align-items:center;">
+      <div><div class="draw-card-title">Dimension (mm)</div><div class="draw-card-desc">Input rectangular cross-section parameters (Begin / End)</div></div>
+    </div>
+    <div class="draw-card-body">
+      <div style="margin-bottom:20px;">
+        <div class="form-label" style="margin-bottom:6px;font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;">Batch Input (CSV) <span style="font-weight:400;text-transform:none;letter-spacing:0;color:#94a3b8;">&mdash; 1줄: H_s,B_s,h_s,b_s,H_e,B_e,h_e,b_e,hollow(1/0) / 2줄: L</span></div>
+        <textarea class="form-input" id="sUserText" rows="2" style="width:100%;resize:vertical;font-size:12px;" onchange="putParams_rect('sUserText'); fdraw_rect();">400,300,300,200,400,300,300,200,1
+1000</textarea>
+      </div>
+      <div class="form-grid-9col" style="margin-bottom:12px;">
+        <div class="col-header var-header">Variable</div><div class="col-header">Front</div><div class="col-header">Back</div>
+        <div class="col-header var-header">Variable</div><div class="col-header">Front</div><div class="col-header">Back</div>
+        <div class="col-header var-header">Variable</div><div class="col-header">Front</div><div class="col-header">Back</div>
+      </div>
+      <div class="form-grid-9col">
+        <div class="col-label">H (outer h)</div><input class="form-input" type="number" id="drect_H_s" value="400" onchange="fdraw_rect()"><input class="form-input" type="number" id="drect_H_e" value="400" onchange="fdraw_rect()">
+        <div class="col-label">B (outer w)</div><input class="form-input" type="number" id="drect_B_s" value="300" onchange="fdraw_rect()"><input class="form-input" type="number" id="drect_B_e" value="300" onchange="fdraw_rect()">
+        <div class="col-label">h (inner h)</div><input class="form-input" type="number" id="drect_h_s" value="300" onchange="fdraw_rect()"><input class="form-input" type="number" id="drect_h_e" value="300" onchange="fdraw_rect()">
+        <div class="col-label">b (inner w)</div><input class="form-input" type="number" id="drect_b_s" value="200" onchange="fdraw_rect()"><input class="form-input" type="number" id="drect_b_e" value="200" onchange="fdraw_rect()">
+        <div class="col-label">Seg Length</div><input class="form-input" type="number" id="dseg_leng" value="1000" onchange="fdraw_rect()" style="grid-column:span 2;">
+        <div class="col-label" style="display:flex;align-items:center;gap:8px;"><label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:13px;"><input type="checkbox" id="drect_hollow" checked onchange="fdraw_rect()" style="width:16px;height:16px;accent-color:#2563eb;">Hollow</label></div><div></div><div></div>
+        <div></div><div></div><div></div><div></div><div></div><div></div>
+        <button class="btn-generate" onclick="odxf_rect.download('Rect.dxf')" style="grid-column:7 / 10;margin:0;justify-content:center;"><i class="bi bi-download"></i> DXF DOWNLOAD</button>
+      </div>
+    </div>
+  </div>
+  <div class="draw-card">
+    <div class="draw-card-header"><div class="draw-card-title">Drawing View <span style="font-weight:400;color:#94a3b8;font-size:12px;">(Synchronized Zoom / Pan)</span></div>
+      <button class="btn-generate" onclick="fdraw_rect()" style="margin-top:0;"><i class="bi bi-arrow-repeat"></i> REGEN</button></div>
+    <div class="drawing-viewport"><div id="rectplot"></div></div>
+  </div>
+</template>
+
+<!-- ── CIRCLE ── -->
+<template id="tpl-circle">
+  <h1 class="page-heading">Circle Section Drawing</h1>
+  <div class="breadcrumb"><span>Section</span> / Circle</div>
+  <div class="draw-card">
+    <div class="draw-card-header" style="display:flex;justify-content:space-between;align-items:center;">
+      <div><div class="draw-card-title">Dimension (mm)</div><div class="draw-card-desc">Input circular cross-section parameters (Front / Back)</div></div>
+    </div>
+    <div class="draw-card-body">
+      <div style="margin-bottom:20px;">
+        <div class="form-label" style="margin-bottom:6px;font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;">Batch Input (CSV) <span style="font-weight:400;text-transform:none;letter-spacing:0;color:#94a3b8;">&mdash; 1줄: D_s,d_s,D_e,d_e,hollow(1/0) / 2줄: L</span></div>
+        <textarea class="form-input" id="sUserText" rows="2" style="width:100%;resize:vertical;font-size:12px;" onchange="putParams_circle('sUserText'); fdraw_circle();">500,400,500,400,1
+1000</textarea>
+      </div>
+      <div class="form-grid-9col" style="margin-bottom:12px;">
+        <div class="col-header var-header">Variable</div><div class="col-header">Front</div><div class="col-header">Back</div>
+        <div class="col-header var-header">Variable</div><div class="col-header">Front</div><div class="col-header">Back</div>
+        <div class="col-header var-header">Variable</div><div class="col-header">Front</div><div class="col-header">Back</div>
+      </div>
+      <div class="form-grid-9col">
+        <div class="col-label">D (outer)</div>
+        <input class="form-input" type="number" id="dcircle_D_s" value="500" onchange="fdraw_circle()">
+        <input class="form-input" type="number" id="dcircle_D_e" value="500" onchange="fdraw_circle()">
+        <div class="col-label">d (inner)</div>
+        <input class="form-input" type="number" id="dcircle_d_s" value="400" onchange="fdraw_circle()">
+        <input class="form-input" type="number" id="dcircle_d_e" value="400" onchange="fdraw_circle()">
+        <div class="col-label">Seg Length</div>
+        <input class="form-input" type="number" id="dseg_leng" value="1000" onchange="fdraw_circle()" style="grid-column:span 2;">
+        <div class="col-label" style="display:flex;align-items:center;gap:8px;">
+          <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:13px;">
+            <input type="checkbox" id="dcircle_hollow" checked onchange="fdraw_circle()" style="width:16px;height:16px;accent-color:#2563eb;">
+            Hollow
+          </label>
+        </div><div></div><div></div>
+        <div></div><div></div><div></div>
+        <button class="btn-generate" onclick="odxf_circle.download('Circle.dxf')" style="grid-column:7 / 10;margin:0;justify-content:center;"><i class="bi bi-download"></i> DXF DOWNLOAD</button>
+      </div>
+    </div>
+  </div>
+  <div class="draw-card">
+    <div class="draw-card-header"><div class="draw-card-title">Drawing View <span style="font-weight:400;color:#94a3b8;font-size:12px;">(Synchronized Zoom / Pan)</span></div>
+      <button class="btn-generate" onclick="fdraw_circle()" style="margin-top:0;"><i class="bi bi-arrow-repeat"></i> REGEN</button></div>
+    <div class="drawing-viewport"><div id="circleplot"></div></div>
+  </div>
+</template>
+
+<!-- ── OCTAGON ── -->
+<template id="tpl-octagon">
+  <h1 class="page-heading">Octagon Section Drawing</h1>
+  <div class="breadcrumb"><span>Section</span> / Octagon</div>
+  <div class="draw-card">
+    <div class="draw-card-header" style="display:flex;justify-content:space-between;align-items:center;">
+      <div><div class="draw-card-title">Dimension (mm)</div><div class="draw-card-desc">Input octagon cross-section parameters (Front / Back)</div></div>
+    </div>
+    <div class="draw-card-body">
+      <div style="margin-bottom:20px;">
+        <div class="form-label" style="margin-bottom:6px;font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;">Batch Input (CSV) <span style="font-weight:400;text-transform:none;letter-spacing:0;color:#94a3b8;">&mdash; 1줄: H1,H2,B1,B2,h1,h2,b1,b2 (Begin), same (End), hollow / 2줄: L</span></div>
+        <textarea class="form-input" id="sUserText" rows="2" style="width:100%;resize:vertical;font-size:12px;" onchange="putParams_octagon('sUserText'); fdraw_octagon();">300,100,400,100,200,60,300,60,300,100,400,100,200,60,300,60,1
+1000</textarea>
+      </div>
+      <div class="form-grid-9col" style="margin-bottom:12px;">
+        <div class="col-header var-header">Variable</div><div class="col-header">Front</div><div class="col-header">Back</div>
+        <div class="col-header var-header">Variable</div><div class="col-header">Front</div><div class="col-header">Back</div>
+        <div class="col-header var-header">Variable</div><div class="col-header">Front</div><div class="col-header">Back</div>
+      </div>
+      <div class="form-grid-9col">
+        <div class="col-label">H1 (mid h)</div>
+        <input class="form-input" type="number" id="doct_H1_s" value="300" onchange="fdraw_octagon()">
+        <input class="form-input" type="number" id="doct_H1_e" value="300" onchange="fdraw_octagon()">
+        <div class="col-label">H2 (chamfer h)</div>
+        <input class="form-input" type="number" id="doct_H2_s" value="100" onchange="fdraw_octagon()">
+        <input class="form-input" type="number" id="doct_H2_e" value="100" onchange="fdraw_octagon()">
+        <div class="col-label">B1 (mid w)</div>
+        <input class="form-input" type="number" id="doct_B1_s" value="400" onchange="fdraw_octagon()">
+        <input class="form-input" type="number" id="doct_B1_e" value="400" onchange="fdraw_octagon()">
+        <div class="col-label">B2 (chamfer w)</div>
+        <input class="form-input" type="number" id="doct_B2_s" value="100" onchange="fdraw_octagon()">
+        <input class="form-input" type="number" id="doct_B2_e" value="100" onchange="fdraw_octagon()">
+        <div class="col-label">h1 (inner mid)</div>
+        <input class="form-input" type="number" id="doct_h1_s" value="200" onchange="fdraw_octagon()">
+        <input class="form-input" type="number" id="doct_h1_e" value="200" onchange="fdraw_octagon()">
+        <div class="col-label">h2 (inner ch)</div>
+        <input class="form-input" type="number" id="doct_h2_s" value="60" onchange="fdraw_octagon()">
+        <input class="form-input" type="number" id="doct_h2_e" value="60" onchange="fdraw_octagon()">
+        <div class="col-label">b1 (inner mid)</div>
+        <input class="form-input" type="number" id="doct_b1_s" value="300" onchange="fdraw_octagon()">
+        <input class="form-input" type="number" id="doct_b1_e" value="300" onchange="fdraw_octagon()">
+        <div class="col-label">b2 (inner ch)</div>
+        <input class="form-input" type="number" id="doct_b2_s" value="60" onchange="fdraw_octagon()">
+        <input class="form-input" type="number" id="doct_b2_e" value="60" onchange="fdraw_octagon()">
+        <div class="col-label">Seg Length</div>
+        <input class="form-input" type="number" id="dseg_leng" value="1000" onchange="fdraw_octagon()" style="grid-column:span 2;">
+        <div class="col-label" style="display:flex;align-items:center;gap:8px;">
+          <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:13px;">
+            <input type="checkbox" id="doct_hollow" checked onchange="fdraw_octagon()" style="width:16px;height:16px;accent-color:#2563eb;">
+            Hollow
+          </label>
+        </div><div></div><div></div>
+        <div></div><div></div><div></div>
+        <button class="btn-generate" onclick="odxf_octagon.download('Octagon.dxf')" style="grid-column:7 / 10;margin:0;justify-content:center;"><i class="bi bi-download"></i> DXF DOWNLOAD</button>
+      </div>
+    </div>
+  </div>
+  <div class="draw-card">
+    <div class="draw-card-header"><div class="draw-card-title">Drawing View <span style="font-weight:400;color:#94a3b8;font-size:12px;">(Synchronized Zoom / Pan)</span></div>
+      <button class="btn-generate" onclick="fdraw_octagon()" style="margin-top:0;"><i class="bi bi-arrow-repeat"></i> REGEN</button></div>
+    <div class="drawing-viewport"><div id="octagonplot"></div></div>
+  </div>
+</template>
+
+<!-- ── TRACK ── -->
+<template id="tpl-track">
+  <h1 class="page-heading">Track Section Drawing</h1>
+  <div class="breadcrumb"><span>Section</span> / Track</div>
+  <div class="draw-card">
+    <div class="draw-card-header" style="display:flex;justify-content:space-between;align-items:center;">
+      <div><div class="draw-card-title">Dimension (mm)</div><div class="draw-card-desc">Input track (stadium) cross-section parameters (Front / Back)</div></div>
+    </div>
+    <div class="draw-card-body">
+      <div style="margin-bottom:20px;">
+        <div class="form-label" style="margin-bottom:6px;font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;">Batch Input (CSV) <span style="font-weight:400;text-transform:none;letter-spacing:0;color:#94a3b8;">&mdash; 1줄: B_s,D_s,d_s,B_e,D_e,d_e,hollow(1/0) / 2줄: L</span></div>
+        <textarea class="form-input" id="sUserText" rows="2" style="width:100%;resize:vertical;font-size:12px;" onchange="putParams_track('sUserText'); fdraw_track();">600,400,300,600,400,300,1
+1000</textarea>
+      </div>
+      <div class="form-grid-9col" style="margin-bottom:12px;">
+        <div class="col-header var-header">Variable</div><div class="col-header">Front</div><div class="col-header">Back</div>
+        <div class="col-header var-header">Variable</div><div class="col-header">Front</div><div class="col-header">Back</div>
+        <div class="col-header var-header">Variable</div><div class="col-header">Front</div><div class="col-header">Back</div>
+      </div>
+      <div class="form-grid-9col">
+        <div class="col-label">B (width)</div>
+        <input class="form-input" type="number" id="dtrack_B_s" value="600" onchange="fdraw_track()">
+        <input class="form-input" type="number" id="dtrack_B_e" value="600" onchange="fdraw_track()">
+        <div class="col-label">D (height)</div>
+        <input class="form-input" type="number" id="dtrack_D_s" value="400" onchange="fdraw_track()">
+        <input class="form-input" type="number" id="dtrack_D_e" value="400" onchange="fdraw_track()">
+        <div class="col-label">d (inner h)</div>
+        <input class="form-input" type="number" id="dtrack_d_s" value="300" onchange="fdraw_track()">
+        <input class="form-input" type="number" id="dtrack_d_e" value="300" onchange="fdraw_track()">
+        <div class="col-label">Seg Length</div>
+        <input class="form-input" type="number" id="dseg_leng" value="1000" onchange="fdraw_track()" style="grid-column:span 2;">
+        <div class="col-label" style="display:flex;align-items:center;gap:8px;">
+          <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:13px;">
+            <input type="checkbox" id="dtrack_hollow" checked onchange="fdraw_track()" style="width:16px;height:16px;accent-color:#2563eb;">
+            Hollow
+          </label>
+        </div><div></div><div></div>
+        <div></div><div></div><div></div>
+        <button class="btn-generate" onclick="odxf_track.download('Track.dxf')" style="grid-column:7 / 10;margin:0;justify-content:center;"><i class="bi bi-download"></i> DXF DOWNLOAD</button>
+      </div>
+    </div>
+  </div>
+  <div class="draw-card">
+    <div class="draw-card-header"><div class="draw-card-title">Drawing View <span style="font-weight:400;color:#94a3b8;font-size:12px;">(Synchronized Zoom / Pan)</span></div>
+      <button class="btn-generate" onclick="fdraw_track()" style="margin-top:0;"><i class="bi bi-arrow-repeat"></i> REGEN</button></div>
+    <div class="drawing-viewport"><div id="trackplot"></div></div>
+  </div>
+</template>
