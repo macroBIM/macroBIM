@@ -1,0 +1,106 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Seoul PhD — macroBIM Section Drawer (CodePen)</title>
+
+<!-- 논문작성용 (Seoul PhD). CodePen 붙여넣기용 메인 파일.
+     · style  : seoul_phd_style.css   ← <link> 로 로드
+     · body   : seoul_phd_form.html   ← fetch 후 #app-root.innerHTML 로 주입
+     · 단면    : box1cell / ibeam / rect / circle / octagon / track (드롭다운) -->
+
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/bootstrap-icons/1.11.3/font/bootstrap-icons.min.css">
+
+<!-- ⭐ 스타일 파일 (GitHub macroBIM) -->
+<link rel="stylesheet" href="https://macrobim.github.io/macroBIM/seoul_phd_style.css?v=001">
+
+<!-- ══ Drawing Engine ══ -->
+<script src="https://unpkg.com/konva@9/konva.min.js"></script>
+<script src="https://macrobim.github.io/macroBIM/konvaviewer.js?v=001"></script>
+<script src="https://macrobim.github.io/macroBIM/bim_plotly_geo.js?v=001"></script>
+<script src="https://macrobim.github.io/macroBIM/bim_dxf.js?v=001"></script>
+<script src="https://macrobim.github.io/macroBIM/geomath.js?v=001"></script>
+
+<!-- ══ Section Modules (2D) ══ -->
+<script src="https://macrobim.github.io/macroBIM/bim_box1cell.js?v=001"></script>
+<script src="https://macrobim.github.io/macroBIM/bim_ibeam.js?v=001"></script>
+<script src="https://macrobim.github.io/macroBIM/bim_rect.js?v=001"></script>
+<script src="https://macrobim.github.io/macroBIM/bim_circle.js?v=001"></script>
+<script src="https://macrobim.github.io/macroBIM/bim_octagon.js?v=001"></script>
+<script src="https://macrobim.github.io/macroBIM/bim_track.js?v=001"></script>
+
+<!-- ══ THREE.js + Section Modules (3D) ══ -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script src="https://unpkg.com/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+<script src="https://macrobim.github.io/macroBIM/bim_box1cell_3d.js?v=001"></script>
+<script src="https://macrobim.github.io/macroBIM/bim_ibeam_3d.js?v=001"></script>
+<script src="https://macrobim.github.io/macroBIM/bim_rect_3d.js?v=001"></script>
+<script src="https://macrobim.github.io/macroBIM/bim_circle_3d.js?v=001"></script>
+<script src="https://macrobim.github.io/macroBIM/bim_octagon_3d.js?v=001"></script>
+<script src="https://macrobim.github.io/macroBIM/bim_track_3d.js?v=001"></script>
+</head>
+<body>
+
+<!-- seoul_phd_form.html 의 body 태그들이 여기로 주입됨 -->
+<div id="app-root"><div class="load-msg">Loading Seoul PhD…</div></div>
+
+<script>
+/* ══════════════════════════════════════════════════════════════
+   SeoulPhD — 단면 드롭다운 디스패처
+   (innerHTML 로 주입된 폼의 <script> 는 실행되지 않으므로 여기에 둔다)
+   ══════════════════════════════════════════════════════════════ */
+var SeoulPhD = {
+  sections: ['box1cell', 'ibeam', 'rect', 'circle', 'octagon', 'track'],
+
+  // 드롭다운 onchange → 해당 단면 폼(template)을 mount 에 클론 후 작도
+  select: function (kind) {
+    var mount = document.getElementById('mount');
+    if (!mount) return;
+    mount.innerHTML = '';                       // 이전 폼 제거 (id 충돌 방지)
+    var tpl = document.getElementById('tpl-' + kind);
+    if (tpl) mount.appendChild(tpl.content.cloneNode(true));
+
+    // 드롭다운 상태 동기화
+    var sel = document.getElementById('sectionSelect');
+    if (sel && sel.value !== kind) sel.value = kind;
+
+    // 해당 단면 작도 함수 호출 (bim_<kind>.js 에서 전역 등록)
+    var fn = window['fdraw_' + kind];
+    if (typeof fn === 'function') {
+      try { fn(); } catch (e) { console.error('[SeoulPhD] fdraw_' + kind + ' 오류:', e); }
+    } else {
+      console.warn('[SeoulPhD] fdraw_' + kind + ' 미로드');
+    }
+  },
+
+  init: function () {
+    var sel = document.getElementById('sectionSelect');
+    this.select(sel ? sel.value : this.sections[0]);
+  }
+};
+window.SeoulPhD = SeoulPhD;
+
+/* ═══ 폼 구성 파일(seoul_phd_form.html)을 fetch → innerHTML 주입 ═══ */
+(function () {
+  var FORM_URL = 'https://macrobim.github.io/macroBIM/seoul_phd_form.html?v=001';
+  fetch(FORM_URL)
+    .then(function (r) {
+      if (!r.ok) throw new Error('HTTP ' + r.status);
+      return r.text();
+    })
+    .then(function (html) {
+      document.getElementById('app-root').innerHTML = html;   // ⭐ 링크된 폼을 innerHTML 로
+      SeoulPhD.init();
+    })
+    .catch(function (e) {
+      document.getElementById('app-root').innerHTML =
+        '<div class="error-msg">폼 로드 실패: ' + e.message +
+        '<br>(seoul_phd_form.html 경로/배포 확인)</div>';
+      console.error('[SeoulPhD] form load failed:', e);
+    });
+})();
+</script>
+</body>
+</html>
