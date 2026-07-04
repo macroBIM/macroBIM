@@ -115,39 +115,59 @@
         if (this._cur) this._frontOnly(this._cur);
       },
 
-      // 캡처된 각 세그먼트(선분·아크·원) 중앙에 번호 라벨 표시
+      // 각 세그먼트 중앙에 번호. 라벨은 비-콘크리트 쪽(외곽→바깥, 내부홀→안쪽)으로 오프셋
       _drawNodes: function () {
         var layer = this._normLayer;
         if (!layer || typeof Konva === 'undefined') return;
         if (this._nodeGroup) { this._nodeGroup.destroy(); this._nodeGroup = null; }
 
         var lines = this._lines || [], circs = this._circs || [], arcs = this._arcs || [];
-        // 크기(폰트) 산정용 bbox
-        var pts = [];
-        lines.forEach(function (s) { pts.push([s[0], s[1]], [s[2], s[3]]); });
-        circs.forEach(function (c) { pts.push([c[0] - c[2], c[1] - c[2]], [c[0] + c[2], c[1] + c[2]]); });
-        arcs.forEach(function (c) { pts.push([c[0] - c[2], c[1] - c[2]], [c[0] + c[2], c[1] + c[2]]); });
-        if (pts.length === 0) return;
+        // 내부/외부 판정용 경계(원·아크 테셀레이션)
+        var bnd = lines.slice();
+        circs.forEach(function (c) {
+          var N = 64, ppx, ppy;
+          for (var i = 0; i <= N; i++) { var a = i / N * 2 * Math.PI, px = c[0] + c[2] * Math.cos(a), py = c[1] + c[2] * Math.sin(a); if (i > 0) bnd.push([ppx, ppy, px, py]); ppx = px; ppy = py; }
+        });
+        arcs.forEach(function (c) {
+          var x = c[0], y = c[1], r = c[2], sp = c[4] - c[3]; if (sp <= 0) sp += 360;
+          var n = Math.max(2, Math.ceil(sp / 5)), ppx, ppy;
+          for (var i = 0; i <= n; i++) { var a = (c[3] + sp * i / n) * Math.PI / 180, px = x + r * Math.cos(a), py = y + r * Math.sin(a); if (i > 0) bnd.push([ppx, ppy, px, py]); ppx = px; ppy = py; }
+        });
+        if (bnd.length === 0) return;
+
         var minx = 1e18, miny = 1e18, maxx = -1e18, maxy = -1e18;
-        pts.forEach(function (p) { minx = Math.min(minx, p[0]); maxx = Math.max(maxx, p[0]); miny = Math.min(miny, p[1]); maxy = Math.max(maxy, p[1]); });
+        bnd.forEach(function (s) { minx = Math.min(minx, s[0], s[2]); maxx = Math.max(maxx, s[0], s[2]); miny = Math.min(miny, s[1], s[3]); maxy = Math.max(maxy, s[1], s[3]); });
         var diag = Math.hypot(maxx - minx, maxy - miny) || 100;
-        var fs = diag * 0.028, dotR = diag * 0.006;
+        var fs = diag * 0.016, dotR = diag * 0.005, off = diag * 0.028, eps = diag * 0.006;   // 글씨 축소 + 라벨 오프셋
+        var cx = (minx + maxx) / 2, cy = (miny + maxy) / 2;
+        function inside(px, py) {
+          var c = false;
+          for (var i = 0; i < bnd.length; i++) { var x1 = bnd[i][0], y1 = bnd[i][1], x2 = bnd[i][2], y2 = bnd[i][3]; if (((y1 > py) !== (y2 > py)) && (px < (x2 - x1) * (py - y1) / ((y2 - y1) || 1e-9) + x1)) c = !c; }
+          return c;
+        }
         var ty = function (y) { return -y; };
 
-        // 세그먼트 중앙점 목록 (선분 → 아크 → 원 순으로 번호 부여)
+        // 세그먼트: [mx, my, nx, ny] (중앙점 + 단위 법선)
         var segs = [];
-        lines.forEach(function (s) { segs.push([(s[0] + s[2]) / 2, (s[1] + s[3]) / 2]); });
-        arcs.forEach(function (c) { var sp = c[4] - c[3]; if (sp <= 0) sp += 360; var a = (c[3] + sp / 2) * Math.PI / 180; segs.push([c[0] + c[2] * Math.cos(a), c[1] + c[2] * Math.sin(a)]); });
-        circs.forEach(function (c) { segs.push([c[0], c[1] + c[2]]); });
+        lines.forEach(function (s) { var mx = (s[0] + s[2]) / 2, my = (s[1] + s[3]) / 2, dx = s[2] - s[0], dy = s[3] - s[1], len = Math.hypot(dx, dy) || 1; segs.push([mx, my, -dy / len, dx / len]); });
+        arcs.forEach(function (c) { var sp = c[4] - c[3]; if (sp <= 0) sp += 360; var a = (c[3] + sp / 2) * Math.PI / 180; segs.push([c[0] + c[2] * Math.cos(a), c[1] + c[2] * Math.sin(a), Math.cos(a), Math.sin(a)]); });
+        circs.forEach(function (c) { segs.push([c[0], c[1] + c[2], 0, 1]); });
 
         var g = new Konva.Group({ name: 'seoul_nodes' });
-        segs.forEach(function (m, i) {
-          var lbl = new Konva.Label({ x: m[0], y: ty(m[1]) });
-          lbl.add(new Konva.Tag({ fill: 'rgba(0,0,0,0.78)', cornerRadius: fs * 0.18 }));
-          lbl.add(new Konva.Text({ text: String(i + 1), fontSize: fs, fontStyle: 'bold', fontFamily: 'Arial', fill: '#00E5FF', padding: fs * 0.18 }));
-          lbl.offsetX(lbl.width() / 2); lbl.offsetY(lbl.height() / 2);   // 점 위에 중앙정렬
+        segs.forEach(function (sg, i) {
+          var mx = sg[0], my = sg[1], nx = sg[2], ny = sg[3];
+          // 라벨 방향 = 콘크리트 반대쪽(구조물선 바깥)
+          var ox, oy;
+          if (inside(mx + nx * eps, my + ny * eps)) { ox = -nx; oy = -ny; }
+          else if (inside(mx - nx * eps, my - ny * eps)) { ox = nx; oy = ny; }
+          else { var vx = mx - cx, vy = my - cy, vl = Math.hypot(vx, vy) || 1; ox = vx / vl; oy = vy / vl; }
+
+          var lbl = new Konva.Label({ x: mx + ox * off, y: ty(my + oy * off) });
+          lbl.add(new Konva.Tag({ fill: 'rgba(0,0,0,0.78)', cornerRadius: fs * 0.2 }));
+          lbl.add(new Konva.Text({ text: String(i + 1), fontSize: fs, fontStyle: 'bold', fontFamily: 'Arial', fill: '#00E5FF', padding: fs * 0.2 }));
+          lbl.offsetX(lbl.width() / 2); lbl.offsetY(lbl.height() / 2);
           g.add(lbl);
-          g.add(new Konva.Circle({ x: m[0], y: ty(m[1]), radius: dotR, fill: '#FF5722', strokeScaleEnabled: false }));
+          g.add(new Konva.Circle({ x: mx, y: ty(my), radius: dotR, fill: '#FF5722', strokeScaleEnabled: false }));
         });
         layer.add(g); this._nodeGroup = g; layer.draw();
       },
