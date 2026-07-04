@@ -301,14 +301,15 @@
       };
     }
 
-    /* ─ style / form (raw 브랜치) 로드 후 실행 ─ */
+    /* ─ style / form (raw 브랜치) 로드 후 실행 (캐시 무효화 ?v=) ─ */
     /* (excel_reader.js 는 ENGINE 목록에서 Pages 로 이미 로드됨) */
-    fetch(RAW + 'seoul_phd_style.css')
+    var _bust = '?v=' + Date.now();
+    fetch(RAW + 'seoul_phd_style.css' + _bust)
       .then(function (r) { if (!r.ok) throw new Error('CSS HTTP ' + r.status); return r.text(); })
       .then(function (css) { var st = document.createElement('style'); st.textContent = css; document.head.appendChild(st); })
       .catch(function (e) { console.error('[SeoulPhD] style load failed:', e); });
 
-    fetch(RAW + 'seoul_phd_form.html')
+    fetch(RAW + 'seoul_phd_form.html' + _bust)
       .then(function (r) { if (!r.ok) throw new Error('HTTP ' + r.status); return r.text(); })
       .then(function (html) { document.getElementById('app-root').innerHTML = html; SeoulPhD.init(); })
       .catch(function (e) {
