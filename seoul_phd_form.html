@@ -21,6 +21,11 @@
     </select>
     <button id="btnToggleNormals" class="btn-normal" onclick="SeoulPhD.toggleNormals()"><i class="bi bi-arrows-angle-expand"></i> Toggle Normals</button>
     <button id="btnToggleNodes" class="btn-normal" onclick="SeoulPhD.toggleNodes()"><i class="bi bi-123"></i> Toggle Nodes (#)</button>
+    <span class="tb-sep"></span>
+    <label for="sheetName" class="tb-label">시트명</label>
+    <input id="sheetName" class="sheet-input" type="text" value="input" placeholder="대소문자 무관" />
+    <button id="btnLoadExcel" class="btn-normal" onclick="SeoulPhD.loadExcel()"><i class="bi bi-file-earmark-excel"></i> 엑셀불러오기</button>
+    <input id="excelFileInput" type="file" accept=".xlsx" style="display:none" />
   </div>
 </div>
 

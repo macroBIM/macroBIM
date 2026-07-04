@@ -34,6 +34,10 @@ body{
 #topbar .btn-normal{display:inline-flex;align-items:center;gap:6px;padding:9px 14px;border:1px solid #e2e8f0;border-radius:8px;background:#fff;color:#334155;font-weight:600;font-size:13px;cursor:pointer;font-family:inherit;transition:all .15s;}
 #topbar .btn-normal:hover{background:#f1f5f9;}
 #topbar .btn-normal.active{background:#FFC107;border-color:#FFC107;color:#111827;}
+#topbar .tb-sep{width:1px;height:24px;background:#e2e8f0;margin:0 4px;}
+#topbar .tb-label{font-size:12px;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:.5px;}
+#topbar .sheet-input{width:110px;padding:8px 12px;border:1px solid #e2e8f0;border-radius:8px;font-size:13px;font-family:inherit;font-weight:600;color:#0f172a;outline:none;transition:border-color .15s,box-shadow .15s;}
+#topbar .sheet-input:focus{border-color:#2563eb;box-shadow:0 0 0 3px rgba(37,99,235,.1);}
 
 /* ── STAGE (활성 단면 폼 + 뷰포트가 마운트되는 스크롤 영역) ── */
 #stage{

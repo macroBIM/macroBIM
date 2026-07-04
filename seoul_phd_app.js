@@ -19,6 +19,7 @@
   // ── 엔진 스크립트 (3D 모듈은 로드하지 않음) ──
   var ENGINE = [
     'https://unpkg.com/konva@9/konva.min.js',
+    'https://cdnjs.cloudflare.com/ajax/libs/exceljs/4.3.0/exceljs.min.js',   // 엑셀 읽기용
     PAGES + 'konvaviewer.js', PAGES + 'bim_plotly_geo.js', PAGES + 'bim_dxf.js', PAGES + 'geomath.js',
     PAGES + 'bim_box1cell.js', PAGES + 'bim_ibeam.js', PAGES + 'bim_rect.js',
     PAGES + 'bim_circle.js', PAGES + 'bim_octagon.js', PAGES + 'bim_track.js'
@@ -43,7 +44,7 @@
     var SeoulPhD = {
       sections: ['box1cell', 'ibeam', 'rect', 'circle', 'octagon', 'track'],
       domPfx: { box1cell: 'box1cell', ibeam: 'ibeam', rect: 'rect', circle: 'circle', octagon: 'oct', track: 'track' },
-      showNormals: false, showNodes: false,
+      showNormals: false, showNodes: false, _excelData: null,
       _cur: null, _capturing: false, _lines: [], _circs: [], _arcs: [], _normLayer: null, _normGroup: null, _nodeGroup: null,
 
       select: function (kind) {
@@ -113,6 +114,25 @@
         var b = document.getElementById('btnToggleNodes');
         if (b) b.classList.toggle('active', this.showNodes);
         if (this._cur) this._frontOnly(this._cur);
+      },
+
+      // 엑셀불러오기: 파일 선택 → '시트명' 칸의 시트를 읽어 _excelData 에 저장
+      loadExcel: function () {
+        var fi = document.getElementById('excelFileInput');
+        if (!fi) return;
+        var self = this;
+        fi.value = '';
+        fi.onchange = function () {
+          var file = fi.files[0]; if (!file) return;
+          var sheet = String((document.getElementById('sheetName') || {}).value || 'input').trim();
+          if (typeof window.loadSheetData !== 'function') { alert('엑셀 리더 로딩 중입니다. 잠시 후 다시 시도해주세요.'); return; }
+          window.loadSheetData(file, sheet).then(function (data) {
+            self._excelData = data;
+            console.log('[SeoulPhD] 엑셀 로드 완료:', sheet, data.length + '행', data);
+            alert("'" + sheet + "' 시트 로드 완료 (" + data.length + "행). 데이터는 SeoulPhD._excelData / 콘솔(F12)에서 확인.");
+          }).catch(function (e) { alert('엑셀 로드 오류: ' + e.message); });
+        };
+        fi.click();
       },
 
       // 각 세그먼트 중앙에 번호. 라벨은 비-콘크리트 쪽(외곽→바깥, 내부홀→안쪽)으로 오프셋
@@ -279,6 +299,12 @@
         return _oA.call(this, v, x, y, r, a0, a1, l);
       };
     }
+
+    /* ─ 엑셀 리더 함수(window.loadSheetData) 로드 ─ */
+    fetch(RAW + 'excel_reader.js')
+      .then(function (r) { if (!r.ok) throw new Error('reader HTTP ' + r.status); return r.text(); })
+      .then(function (code) { var s = document.createElement('script'); s.textContent = code; document.head.appendChild(s); })
+      .catch(function (e) { console.error('[SeoulPhD] excel_reader load failed:', e); });
 
     /* ─ style / form (raw 브랜치) 로드 후 실행 ─ */
     fetch(RAW + 'seoul_phd_style.css')
