@@ -43,8 +43,8 @@
     var SeoulPhD = {
       sections: ['box1cell', 'ibeam', 'rect', 'circle', 'octagon', 'track'],
       domPfx: { box1cell: 'box1cell', ibeam: 'ibeam', rect: 'rect', circle: 'circle', octagon: 'oct', track: 'track' },
-      showNormals: false,
-      _cur: null, _capturing: false, _lines: [], _circs: [], _arcs: [], _normLayer: null, _normGroup: null,
+      showNormals: false, showNodes: false,
+      _cur: null, _capturing: false, _lines: [], _circs: [], _arcs: [], _normLayer: null, _normGroup: null, _nodeGroup: null,
 
       select: function (kind) {
         var mount = document.getElementById('mount');
@@ -97,6 +97,7 @@
           try { f2('front'); } catch (e) { console.error('[SeoulPhD] fdraw_' + kind + '_2d 오류:', e); }
           this._capturing = false;
           if (this.showNormals) this._drawNormals();
+          if (this.showNodes) this._drawNodes();
         }
       },
 
@@ -105,6 +106,50 @@
         var b = document.getElementById('btnToggleNormals');
         if (b) b.classList.toggle('active', this.showNormals);
         if (this._cur) this._frontOnly(this._cur);
+      },
+
+      toggleNodes: function () {
+        this.showNodes = !this.showNodes;
+        var b = document.getElementById('btnToggleNodes');
+        if (b) b.classList.toggle('active', this.showNodes);
+        if (this._cur) this._frontOnly(this._cur);
+      },
+
+      // 캡처된 각 세그먼트(선분·아크·원) 중앙에 번호 라벨 표시
+      _drawNodes: function () {
+        var layer = this._normLayer;
+        if (!layer || typeof Konva === 'undefined') return;
+        if (this._nodeGroup) { this._nodeGroup.destroy(); this._nodeGroup = null; }
+
+        var lines = this._lines || [], circs = this._circs || [], arcs = this._arcs || [];
+        // 크기(폰트) 산정용 bbox
+        var pts = [];
+        lines.forEach(function (s) { pts.push([s[0], s[1]], [s[2], s[3]]); });
+        circs.forEach(function (c) { pts.push([c[0] - c[2], c[1] - c[2]], [c[0] + c[2], c[1] + c[2]]); });
+        arcs.forEach(function (c) { pts.push([c[0] - c[2], c[1] - c[2]], [c[0] + c[2], c[1] + c[2]]); });
+        if (pts.length === 0) return;
+        var minx = 1e18, miny = 1e18, maxx = -1e18, maxy = -1e18;
+        pts.forEach(function (p) { minx = Math.min(minx, p[0]); maxx = Math.max(maxx, p[0]); miny = Math.min(miny, p[1]); maxy = Math.max(maxy, p[1]); });
+        var diag = Math.hypot(maxx - minx, maxy - miny) || 100;
+        var fs = diag * 0.028, dotR = diag * 0.006;
+        var ty = function (y) { return -y; };
+
+        // 세그먼트 중앙점 목록 (선분 → 아크 → 원 순으로 번호 부여)
+        var segs = [];
+        lines.forEach(function (s) { segs.push([(s[0] + s[2]) / 2, (s[1] + s[3]) / 2]); });
+        arcs.forEach(function (c) { var sp = c[4] - c[3]; if (sp <= 0) sp += 360; var a = (c[3] + sp / 2) * Math.PI / 180; segs.push([c[0] + c[2] * Math.cos(a), c[1] + c[2] * Math.sin(a)]); });
+        circs.forEach(function (c) { segs.push([c[0], c[1] + c[2]]); });
+
+        var g = new Konva.Group({ name: 'seoul_nodes' });
+        segs.forEach(function (m, i) {
+          var lbl = new Konva.Label({ x: m[0], y: ty(m[1]) });
+          lbl.add(new Konva.Tag({ fill: 'rgba(0,0,0,0.78)', cornerRadius: fs * 0.18 }));
+          lbl.add(new Konva.Text({ text: String(i + 1), fontSize: fs, fontStyle: 'bold', fontFamily: 'Arial', fill: '#00E5FF', padding: fs * 0.18 }));
+          lbl.offsetX(lbl.width() / 2); lbl.offsetY(lbl.height() / 2);   // 점 위에 중앙정렬
+          g.add(lbl);
+          g.add(new Konva.Circle({ x: m[0], y: ty(m[1]), radius: dotR, fill: '#FF5722', strokeScaleEnabled: false }));
+        });
+        layer.add(g); this._nodeGroup = g; layer.draw();
       },
 
       // 캡처된 외곽선(선분+원+아크)에서 벽면 중앙 법선 벡터 (콘크리트 안쪽)
