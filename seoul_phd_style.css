@@ -89,6 +89,12 @@ body{
 .form-grid-6col .col-header.var-header{text-align:left;}
 .form-grid-6col .form-input{padding:8px 10px;font-size:12.5px;}
 
+/* ── 8-COLUMN GRID (Variable / Value × 4, 값칸 고정폭) ── */
+.form-grid-8col{display:grid;grid-template-columns:100px 130px 100px 130px 100px 130px 100px 130px;gap:8px 12px;align-items:center;justify-content:start;}
+.form-grid-8col .col-label{font-size:12px;font-weight:600;color:#0f172a;}
+.form-grid-8col .col-header{font-size:11px;font-weight:700;color:#2563eb;text-align:left;padding-bottom:4px;border-bottom:1px solid #e2e8f0;}
+.form-grid-8col .form-input{padding:8px 8px;font-size:12.5px;width:130px;}
+
 /* ── FALLBACK / ERROR ── */
 .load-msg{padding:40px 20px;text-align:center;color:#94a3b8;font-size:13px;}
 .error-msg{padding:30px 20px;text-align:center;color:#dc2626;font-size:13px;}
