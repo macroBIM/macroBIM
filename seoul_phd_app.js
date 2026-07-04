@@ -19,7 +19,8 @@
   // ── 엔진 스크립트 (3D 모듈은 로드하지 않음) ──
   var ENGINE = [
     'https://unpkg.com/konva@9/konva.min.js',
-    'https://cdnjs.cloudflare.com/ajax/libs/exceljs/4.3.0/exceljs.min.js',   // 엑셀 읽기용
+    'https://cdnjs.cloudflare.com/ajax/libs/exceljs/4.3.0/exceljs.min.js',   // 엑셀 읽기용 (excel_reader 보다 먼저)
+    PAGES + 'excel_reader.js',                                                // 엑셀 리더 (main/Pages)
     PAGES + 'konvaviewer.js', PAGES + 'bim_plotly_geo.js', PAGES + 'bim_dxf.js', PAGES + 'geomath.js',
     PAGES + 'bim_box1cell.js', PAGES + 'bim_ibeam.js', PAGES + 'bim_rect.js',
     PAGES + 'bim_circle.js', PAGES + 'bim_octagon.js', PAGES + 'bim_track.js'
@@ -300,13 +301,8 @@
       };
     }
 
-    /* ─ 엑셀 리더 함수(window.loadSheetData) 로드 ─ */
-    fetch(RAW + 'excel_reader.js')
-      .then(function (r) { if (!r.ok) throw new Error('reader HTTP ' + r.status); return r.text(); })
-      .then(function (code) { var s = document.createElement('script'); s.textContent = code; document.head.appendChild(s); })
-      .catch(function (e) { console.error('[SeoulPhD] excel_reader load failed:', e); });
-
     /* ─ style / form (raw 브랜치) 로드 후 실행 ─ */
+    /* (excel_reader.js 는 ENGINE 목록에서 Pages 로 이미 로드됨) */
     fetch(RAW + 'seoul_phd_style.css')
       .then(function (r) { if (!r.ok) throw new Error('CSS HTTP ' + r.status); return r.text(); })
       .then(function (css) { var st = document.createElement('style'); st.textContent = css; document.head.appendChild(st); })
