@@ -34,29 +34,22 @@
   <div id="mount"><div class="load-msg">Loading section…</div></div>
 </div>
 
-<!-- ══ TRebar / LRebar 카드 템플릿 (Dimension 과 Drawing View 사이에 삽입됨) ══ -->
+<!-- ══ rebar 카드 템플릿 (Dimension 과 Drawing View 사이에 삽입됨) ══ -->
 <template id="tpl-rebar">
   <div class="draw-card">
     <div class="draw-card-header">
-      <div>
-        <div class="draw-card-title">TRebar</div>
-        <div class="draw-card-desc">횡방향 철근 (Transverse) — 엑셀 데이터</div>
-      </div>
+      <div><div class="draw-card-title">rebar</div></div>
     </div>
     <div class="draw-card-body">
-      <div id="trebarBody"><p style="color:#94a3b8;font-size:13px;margin:0;">[엑셀불러오기]로 데이터를 로드하면 여기에 표시됩니다.</p></div>
-    </div>
-  </div>
-
-  <div class="draw-card">
-    <div class="draw-card-header">
-      <div>
-        <div class="draw-card-title">LRebar</div>
-        <div class="draw-card-desc">종방향 철근 (Longitudinal) — 엑셀 데이터</div>
+      <!-- 입력체계 (참고) -->
+      <div class="rebar-schema-wrap">
+        <table class="rebar-schema">
+          <tr><td class="rs-type">trebar</td><td>id</td><td>code</td><td>dia</td><td>init (x, y, rot)</td><td>set</td><td>segs (len)</td><td>angs</td><td>nors</td><td>barStart</td><td>barEnd</td></tr>
+          <tr><td class="rs-type">lrebar</td><td>id</td><td>dia</td><td>num</td><td>init</td><td>nors</td><td>range</td><td>ctc</td><td>ctcmax</td><td>ctcmin</td><td>path</td></tr>
+        </table>
       </div>
-    </div>
-    <div class="draw-card-body">
-      <div id="lrebarBody"><p style="color:#94a3b8;font-size:13px;margin:0;">[엑셀불러오기]로 데이터를 로드하면 여기에 표시됩니다.</p></div>
+      <!-- 로드된 엑셀 데이터 -->
+      <div id="rebarBody" style="margin-top:14px;"><p style="color:#94a3b8;font-size:13px;margin:0;">[엑셀불러오기]로 데이터를 로드하면 여기에 표시됩니다.</p></div>
     </div>
   </div>
 </template>

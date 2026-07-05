@@ -102,6 +102,12 @@ body{
 .form-grid-8col .col-header{font-size:11px;font-weight:700;color:#2563eb;text-align:left;padding-bottom:4px;border-bottom:1px solid #e2e8f0;}
 .form-grid-8col .form-input{padding:8px 10px;font-size:12.5px;width:100%;min-width:0;}
 
+/* ── REBAR 입력체계 참고표 ── */
+.rebar-schema-wrap{overflow-x:auto;}
+.rebar-schema{border-collapse:collapse;font-size:11.5px;font-family:'Courier New',ui-monospace,monospace;}
+.rebar-schema td{border:1px solid #cbd5e1;padding:4px 9px;white-space:nowrap;color:#475569;background:#fff;text-align:center;}
+.rebar-schema .rs-type{font-weight:700;color:#2563eb;background:#eff6ff;}
+
 /* ── REBAR 데이터 표 (엑셀 로딩) ── */
 .rebar-table-wrap{overflow-x:auto;}
 .rebar-table{width:100%;border-collapse:collapse;font-size:12px;margin:2px 0;}
