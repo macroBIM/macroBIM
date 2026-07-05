@@ -37,19 +37,12 @@
 <!-- ══ rebar 카드 템플릿 (Dimension 과 Drawing View 사이에 삽입됨) ══ -->
 <template id="tpl-rebar">
   <div class="draw-card">
-    <div class="draw-card-header" style="display:block;">
-      <div class="draw-card-title" style="margin-bottom:10px;">rebar</div>
-      <!-- 입력체계 (참고) — rebar 글자 바로 아래 -->
-      <div class="rebar-schema-wrap">
-        <table class="rebar-schema">
-          <tr><td class="rs-type">trebar</td><td>id</td><td>code</td><td>dia</td><td>init (x, y, rot)</td><td>set</td><td>segs (len)</td><td>angs</td><td>nors</td><td>barStart</td><td>barEnd</td></tr>
-          <tr><td class="rs-type">lrebar</td><td>id</td><td>dia</td><td>num</td><td>init</td><td>nors</td><td>range</td><td>path</td><td>ctc</td><td>ctcmax</td><td>ctcmin</td></tr>
-        </table>
-      </div>
+    <div class="draw-card-header">
+      <div><div class="draw-card-title">REBAR</div></div>
     </div>
     <div class="draw-card-body">
-      <!-- 로드된 엑셀 데이터 -->
-      <div id="rebarBody"><p style="color:#94a3b8;font-size:13px;margin:0;">[엑셀불러오기]로 데이터를 로드하면 여기에 표시됩니다.</p></div>
+      <!-- 입력데이터 표 (2줄 표제목 = trebar/lrebar 입력체계) — app.js 가 렌더 -->
+      <div id="rebarBody"></div>
     </div>
   </div>
 </template>

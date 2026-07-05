@@ -74,25 +74,39 @@
         this._renderRebarTables();          // 카드 재생성 시 엑셀 데이터 다시 채우기
       },
 
-      // 'type' 키워드 블록을 추출해 rebar 카드(#rebarBody)에 표로 출력
+      // 입력데이터 표: 표제목(헤더)이 trebar/lrebar 2줄(입력체계), 그 아래 엑셀 데이터 행
       _renderRebarTables: function () {
         var body = document.getElementById('rebarBody');
-        if (!body || !this._excelData) return;          // 아직 엑셀 로드 전 → 플레이스홀더 유지
-        if (typeof window.extractBlockFromData !== 'function') return;
+        if (!body) return;
 
-        var block = window.extractBlockFromData(this._excelData, 'type');
-        if (!block || block.length < 1) {
-          body.innerHTML = '<p style="color:#dc2626;font-size:13px;margin:0;">시트에서 \'type\' 키워드를 찾지 못했습니다.</p>';
-          return;
+        // 2줄 표제목 = trebar / lrebar 입력체계
+        var SCHEMA = [
+          ['trebar', 'id', 'code', 'dia', 'init (x, y, rot)', 'set', 'segs (len)', 'angs', 'nors', 'barStart', 'barEnd'],
+          ['lrebar', 'id', 'dia', 'num', 'init', 'nors', 'range', 'path', 'ctc', 'ctcmax', 'ctcmin']
+        ];
+        var ncol = SCHEMA[0].length;
+
+        // 엑셀 로드됐으면 'type' 블록의 데이터 행 추출 (엑셀 자체 헤더 행은 제외)
+        var dataRows = [];
+        if (this._excelData && typeof window.extractBlockFromData === 'function') {
+          var block = window.extractBlockFromData(this._excelData, 'type');
+          if (block && block.length > 1) dataRows = block.slice(1);
         }
 
-        var header = block[0], rows = block.slice(1);
         function esc(v) { return String(v == null ? '' : v).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;'); }
 
-        var h = '<div class="rebar-table-wrap"><table class="rebar-table"><thead><tr>';
-        header.forEach(function (c) { h += '<th>' + esc(c) + '</th>'; });
-        h += '</tr></thead><tbody>';
-        rows.forEach(function (r) { h += '<tr>'; for (var i = 0; i < header.length; i++) h += '<td>' + esc(r[i]) + '</td>'; h += '</tr>'; });
+        var h = '<div class="rebar-table-wrap"><table class="rebar-table"><thead>';
+        SCHEMA.forEach(function (row) {
+          h += '<tr class="rebar-schema-row">';
+          for (var i = 0; i < ncol; i++) h += '<th class="' + (i === 0 ? 'rs-type' : '') + '">' + esc(row[i]) + '</th>';
+          h += '</tr>';
+        });
+        h += '</thead><tbody>';
+        if (dataRows.length) {
+          dataRows.forEach(function (r) { h += '<tr>'; for (var i = 0; i < ncol; i++) h += '<td>' + esc(r[i]) + '</td>'; h += '</tr>'; });
+        } else {
+          h += '<tr><td colspan="' + ncol + '" style="text-align:center;color:#94a3b8;padding:14px;">[엑셀불러오기]로 데이터를 로드하세요.</td></tr>';
+        }
         body.innerHTML = h + '</tbody></table></div>';
       },
 
