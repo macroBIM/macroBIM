@@ -102,6 +102,15 @@ body{
 .form-grid-8col .col-header{font-size:11px;font-weight:700;color:#2563eb;text-align:left;padding-bottom:4px;border-bottom:1px solid #e2e8f0;}
 .form-grid-8col .form-input{padding:8px 10px;font-size:12.5px;width:100%;min-width:0;}
 
+/* ── REBAR 데이터 표 (엑셀 로딩) ── */
+.rebar-table-wrap{overflow-x:auto;}
+.rebar-table{width:100%;border-collapse:collapse;font-size:12px;margin:2px 0;}
+.rebar-table th{background:#1e293b;color:#fff;font-weight:600;padding:6px 9px;text-align:left;white-space:nowrap;border:1px solid #334155;position:sticky;top:0;}
+.rebar-table td{padding:5px 9px;border:1px solid #e2e8f0;color:#334155;white-space:nowrap;}
+.rebar-table td:first-child,.rebar-table th:first-child{text-align:center;}
+.rebar-table tr:nth-child(even) td{background:#f8fafc;}
+.rebar-table tr:hover td{background:#eff6ff;}
+
 /* ── FALLBACK / ERROR ── */
 .load-msg{padding:40px 20px;text-align:center;color:#94a3b8;font-size:13px;}
 .error-msg{padding:30px 20px;text-align:center;color:#dc2626;font-size:13px;}

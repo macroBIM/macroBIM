@@ -71,6 +71,45 @@
         } else {
           mount.appendChild(tpl.content.cloneNode(true));
         }
+        this._renderRebarTables();          // 카드 재생성 시 엑셀 데이터 다시 채우기
+      },
+
+      // 'type' 키워드 블록을 추출해 TRebar/LRebar 카드에 표로 출력
+      _renderRebarTables: function () {
+        var tb = document.getElementById('trebarBody');
+        var lb = document.getElementById('lrebarBody');
+        if (!this._excelData) return;                 // 아직 엑셀 로드 전 → 플레이스홀더 유지
+        if (typeof window.extractBlockFromData !== 'function') return;
+
+        var block = window.extractBlockFromData(this._excelData, 'type');
+        if (!block || block.length < 1) {
+          if (tb) tb.innerHTML = '<p style="color:#dc2626;font-size:13px;margin:0;">시트에서 \'type\' 키워드를 찾지 못했습니다.</p>';
+          if (lb) lb.innerHTML = '';
+          return;
+        }
+
+        var header = block[0], rows = block.slice(1);
+        var typeIdx = 0;
+        for (var i = 0; i < header.length; i++) { if (String(header[i]).trim().toLowerCase() === 'type') { typeIdx = i; break; } }
+
+        var tRows = [], lRows = [];
+        rows.forEach(function (r) {
+          var t = String(r[typeIdx] == null ? '' : r[typeIdx]).trim().toLowerCase();
+          if (t === 'lrebar') lRows.push(r); else tRows.push(r);   // trebar 외 나머지는 TRebar 로
+        });
+
+        function esc(v) { return String(v == null ? '' : v).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;'); }
+        function build(rws) {
+          if (!rws.length) return '<p style="color:#94a3b8;font-size:13px;margin:0;">데이터 없음.</p>';
+          var h = '<div class="rebar-table-wrap"><table class="rebar-table"><thead><tr>';
+          header.forEach(function (c) { h += '<th>' + esc(c) + '</th>'; });
+          h += '</tr></thead><tbody>';
+          rws.forEach(function (r) { h += '<tr>'; for (var i = 0; i < header.length; i++) h += '<td>' + esc(r[i]) + '</td>'; h += '</tr>'; });
+          return h + '</tbody></table></div>';
+        }
+
+        if (tb) tb.innerHTML = build(tRows);
+        if (lb) lb.innerHTML = build(lRows);
       },
 
       // 값 입력(_s)을 숨은 _e 로 미러링(begin=end) 후 front 2D 작도
@@ -144,7 +183,7 @@
           window.loadSheetData(file, sheet).then(function (data) {
             self._excelData = data;
             console.log('[SeoulPhD] 엑셀 로드 완료:', sheet, data.length + '행', data);
-            alert("'" + sheet + "' 시트 로드 완료 (" + data.length + "행). 데이터는 SeoulPhD._excelData / 콘솔(F12)에서 확인.");
+            self._renderRebarTables();      // 'type' 블록 추출 → TRebar/LRebar 카드에 표 출력
           }).catch(function (e) { alert('엑셀 로드 오류: ' + e.message); });
         };
         fi.click();
