@@ -51,6 +51,7 @@
       select: function (kind) {
         var mount = document.getElementById('mount');
         if (!mount) return;
+        this._excelData = null;                 // 섹션 변경 시 로딩된 rebar 데이터 초기화
         mount.innerHTML = '';
         var tpl = document.getElementById('tpl-' + kind);
         if (tpl) mount.appendChild(tpl.content.cloneNode(true));
