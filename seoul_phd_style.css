@@ -105,8 +105,8 @@ body{
 /* ── REBAR 입력체계 참고표 ── */
 .rebar-schema-wrap{overflow-x:auto;}
 .rebar-schema{border-collapse:collapse;font-size:11.5px;font-family:'Courier New',ui-monospace,monospace;}
-.rebar-schema td{border:1px solid #cbd5e1;padding:4px 9px;white-space:nowrap;color:#475569;background:#fff;text-align:center;}
-.rebar-schema .rs-type{font-weight:700;color:#2563eb;background:#eff6ff;}
+.rebar-schema td{border:1px solid #334155;padding:6px 9px;white-space:nowrap;color:#e2e8f0;background:#1e293b;text-align:center;font-weight:600;}
+.rebar-schema .rs-type{font-weight:700;color:#FFC107;background:#0f172a;}
 
 /* ── REBAR 데이터 표 (엑셀 로딩) ── */
 .rebar-table-wrap{overflow-x:auto;}
