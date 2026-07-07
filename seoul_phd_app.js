@@ -23,7 +23,10 @@
     PAGES + 'excel_reader.js',                                                // 엑셀 리더 (main/Pages)
     PAGES + 'konvaviewer.js', PAGES + 'bim_plotly_geo.js', PAGES + 'bim_dxf.js', PAGES + 'geomath.js',
     PAGES + 'bim_box1cell.js', PAGES + 'bim_ibeam.js', PAGES + 'bim_rect.js',
-    PAGES + 'bim_circle.js', PAGES + 'bim_octagon.js', PAGES + 'bim_track.js'
+    PAGES + 'bim_circle.js', PAGES + 'bim_octagon.js', PAGES + 'bim_track.js',
+    // ── 철근 물리 엔진 (equation → trebar → lrebar → physics → domain) ──
+    PAGES + 'equation.js', PAGES + 'trebar.js', PAGES + 'lrebar.js',
+    PAGES + 'physics.js', PAGES + 'domain.js'
   ];
   (function load(i) {
     if (i >= ENGINE.length) { start(); return; }
@@ -45,13 +48,13 @@
     var SeoulPhD = {
       sections: ['box1cell', 'ibeam', 'rect', 'circle', 'octagon', 'track'],
       domPfx: { box1cell: 'box1cell', ibeam: 'ibeam', rect: 'rect', circle: 'circle', octagon: 'oct', track: 'track' },
-      showNormals: false, showNodes: false, _excelData: null,
-      _cur: null, _capturing: false, _lines: [], _circs: [], _arcs: [], _normLayer: null, _normGroup: null, _nodeGroup: null,
+      showNormals: false, showNodes: false, _excelData: null, _rebarData: null,
+      _cur: null, _capturing: false, _lines: [], _circs: [], _arcs: [], _normLayer: null, _normGroup: null, _nodeGroup: null, _rebarGroup: null, _walls: null,
 
       select: function (kind) {
         var mount = document.getElementById('mount');
         if (!mount) return;
-        this._excelData = null;                 // 섹션 변경 시 로딩된 rebar 데이터 초기화
+        this._excelData = null; this._rebarData = null;  // 섹션 변경 시 로딩된 rebar 데이터 초기화
         mount.innerHTML = '';
         var tpl = document.getElementById('tpl-' + kind);
         if (tpl) mount.appendChild(tpl.content.cloneNode(true));
@@ -150,8 +153,10 @@
           this._lines = []; this._circs = []; this._arcs = []; this._normLayer = null; this._normGroup = null; this._capturing = true;
           try { f2('front'); } catch (e) { console.error('[SeoulPhD] fdraw_' + kind + '_2d 오류:', e); }
           this._capturing = false;
+          this._walls = this._buildWalls();       // 캡처 외곽선 → 벽체(loop, 안쪽 법선, E-id)
           if (this.showNormals) this._drawNormals();
           if (this.showNodes) this._drawNodes();
+          if (this._rebarData && this._rebarData.length) this._drawRebar();  // 로딩된 철근 재작도
         }
       },
 
@@ -182,10 +187,255 @@
           window.loadSheetData(file, sheet).then(function (data) {
             self._excelData = data;
             console.log('[SeoulPhD] 엑셀 로드 완료:', sheet, data.length + '행', data);
-            self._renderRebarTables();      // 'type' 블록 추출 → TRebar/LRebar 카드에 표 출력
+            self._renderRebarTables();      // 'type' 블록 추출 → REBAR 카드에 표 출력
+            self._rebarData = self._parseRebar(data);   // 표 → trebar/lrebar 객체 배열
+            console.log('[SeoulPhD] 철근 파싱:', self._rebarData);
+            self._drawRebar();              // physics 로 철근 작도
           }).catch(function (e) { alert('엑셀 로드 오류: ' + e.message); });
         };
         fi.click();
+      },
+
+      // ─────────────────────────────────────────────────────────
+      //  엑셀 'type' 블록 → trebar/lrebar 객체 배열 (rebar_excel.js 이식)
+      //  trebar: type|id|code|dia|init(x,y,rot)|set|segs(len)|angs|nors|barStart|barEnd
+      //  lrebar: type|id|dia |num|init         |nors|range   |path|ctc|ctcmax  |ctcmin
+      // ─────────────────────────────────────────────────────────
+      _parseRebar: function (fullData) {
+        if (typeof window.extractBlockFromData !== 'function') return [];
+        var block = window.extractBlockFromData(fullData, 'type');
+        if (!block || block.length < 2) return [];
+        var out = [], self = this;
+        for (var r = 1; r < block.length; r++) {
+          var row = block[r], type = self._rbStr(row[0]).toLowerCase();
+          if (!type) continue;
+          out.push(type === 'lrebar' ? self._parseLrebarRow(row) : self._parseTrebarRow(row));
+        }
+        return out;
+      },
+      _parseTrebarRow: function (row) {
+        var o = { type: 'trebar', id: this._rbStr(row[1]) };
+        if (this._rbHas(row[2])) o.code = Number(row[2]);
+        if (this._rbHas(row[3])) o.dia = Number(row[3]);
+        var init = this._rbInit(row[4], ['x', 'y', 'rot']); if (init) o.init = init;
+        var segs = this._rbSegs(row[6], row[5]); if (segs) o.segs = segs;
+        var angs = this._rbAngs(row[7]); if (angs) o.angs = angs;
+        var nors = this._rbNors(row[8]); if (nors) o.nors = nors;
+        var be = {}, bs = this._rbEnd(row[9]), bee = this._rbEnd(row[10]);
+        if (bs) be.start = bs; if (bee) be.end = bee;
+        if (Object.keys(be).length) o.barEnds = be;
+        return o;
+      },
+      _parseLrebarRow: function (row) {
+        var o = { type: 'lrebar', id: this._rbStr(row[1]), bar: {} };
+        if (this._rbHas(row[2])) o.bar.dia = Number(row[2]);
+        if (this._rbHas(row[3])) o.bar.num = Number(row[3]);
+        if (this._rbHas(row[8])) o.bar.ctc = Number(row[8]);
+        if (this._rbHas(row[9])) o.bar.max = Number(row[9]);
+        if (this._rbHas(row[10])) o.bar.min = Number(row[10]);
+        var init = this._rbInit(row[4], ['x', 'y', 'rot', 'grav']); if (init) o.init = init;
+        var range = this._rbRange(row[6]); if (range) o.range = range;
+        var path = this._rbList(row[7]).map(function (s) { return s.toUpperCase(); });
+        if (path.length) o.path = path;
+        return o;
+      },
+      _rbStr: function (v) { return String(v == null ? '' : v).trim(); },
+      _rbHas: function (v) { return v != null && String(v).trim() !== ''; },
+      _rbNum: function (v) { v = this._rbStr(v); if (v === '') return undefined; return isNaN(Number(v)) ? v : Number(v); },
+      _rbList: function (v) { return this._rbStr(v).split(',').map(function (s) { return s.trim(); }).filter(function (s) { return s !== ''; }); },
+      _rbKV: function (v) {
+        var o = {}, self = this;
+        this._rbStr(v).split(',').forEach(function (pair) {
+          var m = pair.split(/[:=]/);
+          if (m.length >= 2) { var k = self._rbStr(m[0]).toLowerCase(); if (k) o[k] = self._rbStr(m.slice(1).join('=')); }
+        });
+        return o;
+      },
+      _rbInit: function (cell, keys) {
+        var toks = this._rbList(cell); if (!toks.length) return null;
+        var o = {}, self = this;
+        keys.forEach(function (k, i) { if (self._rbHas(toks[i])) o[k] = self._rbNum(toks[i]); });
+        return Object.keys(o).length ? o : null;
+      },
+      _rbSegs: function (segsCell, setCell) {
+        var kv = this._rbKV(segsCell), segs = {}, self = this;
+        Object.keys(kv).forEach(function (k) { segs[k] = { len: self._rbNum(kv[k]) }; });
+        var setKV = this._rbKV(setCell);
+        Object.keys(setKV).forEach(function (k) { if (!segs[k]) segs[k] = {}; segs[k].set = self._rbStr(setKV[k]).toUpperCase(); });
+        return Object.keys(segs).length ? segs : null;
+      },
+      _rbAngs: function (cell) {
+        var kv = this._rbKV(cell), angs = {}, self = this;
+        Object.keys(kv).forEach(function (k) { angs['r' + k] = self._rbNum(kv[k]); });
+        return Object.keys(angs).length ? angs : null;
+      },
+      _rbNors: function (cell) {
+        var kv = this._rbKV(cell), nors = {}, self = this;
+        Object.keys(kv).forEach(function (k) { nors[k] = self._rbNum(kv[k]); });
+        return Object.keys(nors).length ? nors : null;
+      },
+      _rbRange: function (cell) {
+        var toks = this._rbList(cell); if (!toks.length) return null;
+        var o = {};
+        if (this._rbHas(toks[0])) o.min = this._rbNum(toks[0]);
+        if (this._rbHas(toks[1])) o.max = this._rbNum(toks[1]);
+        return Object.keys(o).length ? o : null;
+      },
+      _rbEnd: function (cell) {
+        var toks = this._rbList(cell); if (!toks.length) return null;
+        var mode = this._rbStr(toks[0]).toLowerCase(); if (!mode) return null;
+        var o = {}; o[mode] = toks.length > 1 ? (Number(toks[1]) || 0) : 0; return o;
+      },
+
+      // ─────────────────────────────────────────────────────────
+      //  캡처된 외곽선(_lines + _arcs + _circs) → 벽체 배열
+      //  · 끝점을 이어 닫힌 loop 로 정렬 (physics.splitWallLoops 요건)
+      //  · 각 벽면 안쪽(콘크리트 쪽) 법선 nx,ny 부여, id = E1,E2,…
+      // ─────────────────────────────────────────────────────────
+      _buildWalls: function () {
+        var lines = this._lines || [], arcs = this._arcs || [], circs = this._circs || [];
+        // 경계 세그먼트(직선 + 아크 테셀레이션) — 안/밖 판정 및 체이닝 대상
+        var raw = [];
+        lines.forEach(function (s) { raw.push([s[0], s[1], s[2], s[3]]); });
+        arcs.forEach(function (c) {
+          var x = c[0], y = c[1], r = c[2], sp = c[4] - c[3]; if (sp <= 0) sp += 360;
+          var n = Math.max(2, Math.ceil(sp / 10)), ppx, ppy;
+          for (var i = 0; i <= n; i++) { var a = (c[3] + sp * i / n) * Math.PI / 180, px = x + r * Math.cos(a), py = y + r * Math.sin(a); if (i > 0) raw.push([ppx, ppy, px, py]); ppx = px; ppy = py; }
+        });
+        if (raw.length === 0 && circs.length === 0) return [];
+
+        // 경계 폴리라인(안/밖 판정, 원 포함)
+        var bnd = raw.slice();
+        circs.forEach(function (c) {
+          var N = 64, ppx, ppy;
+          for (var i = 0; i <= N; i++) { var a = i / N * 2 * Math.PI, px = c[0] + c[2] * Math.cos(a), py = c[1] + c[2] * Math.sin(a); if (i > 0) bnd.push([ppx, ppy, px, py]); ppx = px; ppy = py; }
+        });
+        var minx = 1e18, miny = 1e18, maxx = -1e18, maxy = -1e18;
+        bnd.forEach(function (s) { minx = Math.min(minx, s[0], s[2]); maxx = Math.max(maxx, s[0], s[2]); miny = Math.min(miny, s[1], s[3]); maxy = Math.max(maxy, s[1], s[3]); });
+        var diag = Math.hypot(maxx - minx, maxy - miny) || 100;
+        var cx = (minx + maxx) / 2, cy = (miny + maxy) / 2;
+        var tol = Math.max(1, diag * 0.005), eps = diag * 0.006;
+        function inside(px, py) {
+          var c = false;
+          for (var i = 0; i < bnd.length; i++) { var x1 = bnd[i][0], y1 = bnd[i][1], x2 = bnd[i][2], y2 = bnd[i][3]; if (((y1 > py) !== (y2 > py)) && (px < (x2 - x1) * (py - y1) / ((y2 - y1) || 1e-9) + x1)) c = !c; }
+          return c;
+        }
+        function near(ax, ay, bx, by) { return Math.hypot(ax - bx, ay - by) <= tol; }
+
+        // 직선/아크 세그먼트를 끝점 이어 닫힌 loop 로 체이닝
+        var segs = raw.map(function (s) { return { x1: s[0], y1: s[1], x2: s[2], y2: s[3], used: false }; });
+        var loops = [];
+        for (var s0 = 0; s0 < segs.length; s0++) {
+          if (segs[s0].used) continue;
+          segs[s0].used = true;
+          var sx = segs[s0].x1, sy = segs[s0].y1, ex = segs[s0].x2, ey = segs[s0].y2;
+          var loop = [{ x1: sx, y1: sy, x2: ex, y2: ey }];
+          var guard = 0;
+          while (guard++ < segs.length + 2) {
+            if (near(ex, ey, sx, sy)) break;
+            var found = null, rev = false;
+            for (var j = 0; j < segs.length; j++) {
+              if (segs[j].used) continue;
+              if (near(segs[j].x1, segs[j].y1, ex, ey)) { found = segs[j]; rev = false; break; }
+              if (near(segs[j].x2, segs[j].y2, ex, ey)) { found = segs[j]; rev = true; break; }
+            }
+            if (!found) break;
+            found.used = true;
+            var nx2 = rev ? found.x1 : found.x2, ny2 = rev ? found.y1 : found.y2;
+            loop.push({ x1: ex, y1: ey, x2: nx2, y2: ny2 });
+            ex = nx2; ey = ny2;
+          }
+          if (near(ex, ey, sx, sy)) { loop[loop.length - 1].x2 = sx; loop[loop.length - 1].y2 = sy; }  // 정확히 닫기
+          loops.push(loop);
+        }
+        // 원은 각각 독립 loop
+        circs.forEach(function (c) {
+          var N = 48, loop = [], ppx, ppy;
+          for (var i = 0; i <= N; i++) { var a = i / N * 2 * Math.PI, px = c[0] + c[2] * Math.cos(a), py = c[1] + c[2] * Math.sin(a); if (i > 0) loop.push({ x1: ppx, y1: ppy, x2: px, y2: py }); ppx = px; ppy = py; }
+          if (loop.length) { loop[loop.length - 1].x2 = loop[0].x1; loop[loop.length - 1].y2 = loop[0].y1; loops.push(loop); }
+        });
+
+        // 벽체 배열 (E-id + 안쪽 법선)
+        var walls = [], eid = 0;
+        loops.forEach(function (loop) {
+          loop.forEach(function (seg) {
+            var mx = (seg.x1 + seg.x2) / 2, my = (seg.y1 + seg.y2) / 2;
+            var dx = seg.x2 - seg.x1, dy = seg.y2 - seg.y1, len = Math.hypot(dx, dy) || 1;
+            var nx = -dy / len, ny = dx / len;
+            if (!inside(mx + nx * eps, my + ny * eps)) {
+              if (inside(mx - nx * eps, my - ny * eps)) { nx = -nx; ny = -ny; }
+              else { var vx = cx - mx, vy = cy - my, vl = Math.hypot(vx, vy) || 1; nx = vx / vl; ny = vy / vl; }
+            }
+            eid++;
+            walls.push({ id: 'E' + eid, tag: 'outer', nx: nx, ny: ny, x1: seg.x1, y1: seg.y1, x2: seg.x2, y2: seg.y2 });
+          });
+        });
+        return walls;
+      },
+
+      // ─────────────────────────────────────────────────────────
+      //  physics 로 철근 작도: 벽체 세팅 → 큐 생성 → 수렴까지 step → 그리기
+      // ─────────────────────────────────────────────────────────
+      _drawRebar: function () {
+        var layer = this._normLayer;
+        if (!layer || typeof Konva === 'undefined') return;
+        if (this._rebarGroup) { this._rebarGroup.destroy(); this._rebarGroup = null; }
+        if (!this._rebarData || !this._rebarData.length) { layer.draw(); return; }
+
+        // 엔진 준비 대기 (equation/trebar/lrebar/physics/domain)
+        if (typeof Domain === 'undefined' || typeof Physics === 'undefined' ||
+            typeof TrebarFactory === 'undefined' || typeof EquationParser === 'undefined') {
+          var self = this; setTimeout(function () { self._drawRebar(); }, 300); return;
+        }
+
+        var walls = this._walls && this._walls.length ? this._walls : this._buildWalls();
+        if (!walls.length) { console.warn('[SeoulPhD] 벽체를 만들지 못했습니다.'); return; }
+        Domain.currentSection = { walls: walls, covers: { outer: 50, inner: 50, top: 50 } };
+
+        // 큐 초기화 후 입력 → trebar/lrebar 객체 생성 (domain.js 로직 재사용)
+        Domain.trebarList = []; Domain.lrebarList = []; Domain.queue = [];
+        Domain.activeQueueIndex = 0; Domain.isPaused = false; Domain.wallStack = {};
+        Domain.USER_REBAR_DATA = this._rebarData; Domain.USER_TREBAR_DATA = null; Domain.USER_LREBAR_DATA = null;
+        this._rebarData.forEach(function (rd) {
+          var t = String(rd.type || 'trebar').toLowerCase();
+          try {
+            if (t === 'trebar') {
+              var rb = Domain._createTrebarFromData(rd);
+              if (rb) { Domain.trebarList.push(rb); Domain.queue.push({ kind: 'trebar', obj: rb }); }
+            } else if (t === 'lrebar' && typeof LRebarEngine !== 'undefined') {
+              var grp = Domain._createLrebarFromData(rd);
+              if (grp) { Domain.lrebarList.push(grp); Domain.queue.push({ kind: 'lrebar', obj: grp }); }
+            }
+          } catch (e) { console.error('[SeoulPhD] 철근 생성 오류:', rd.id, e); }
+        });
+
+        // 물리 수렴 (동기 반복)
+        var iter = 0, MAX = 30000;
+        while (Domain.activeQueueIndex < Domain.queue.length && iter++ < MAX) {
+          try { Domain.stepPhysics(); } catch (e) { console.error('[SeoulPhD] stepPhysics 오류:', e); break; }
+        }
+        if (iter >= MAX) console.warn('[SeoulPhD] 철근 물리 미수렴 (일부 철근 위치 부정확 가능).');
+
+        // 작도 (ty(y) = -y : Konva 좌표계)
+        var ty = function (y) { return -y; };
+        var g = new Konva.Group({ name: 'seoul_rebar' });
+        Domain.trebarList.forEach(function (rb) {
+          if (!rb.segments || !rb.segments.length) return;
+          var pts = [rb.segments[0].p1.x, ty(rb.segments[0].p1.y)];
+          rb.segments.forEach(function (s) { pts.push(s.p2.x, ty(s.p2.y)); });
+          g.add(new Konva.Line({
+            points: pts, stroke: '#22c55e', strokeWidth: Math.max(6, rb.dia || 13),
+            lineCap: 'round', lineJoin: 'round', strokeScaleEnabled: true
+          }));
+        });
+        Domain.lrebarList.forEach(function (grp) {
+          var r = (grp.dia || 13) / 2;
+          grp.particles.forEach(function (p) {
+            g.add(new Konva.Circle({ x: p.x, y: ty(p.y), radius: r, fill: '#ef4444', stroke: '#7f1d1d', strokeWidth: 1, strokeScaleEnabled: false }));
+          });
+        });
+        layer.add(g); this._rebarGroup = g; layer.draw();
+        console.log('[SeoulPhD] 철근 작도 완료 — T:' + Domain.trebarList.length + ' / L:' + Domain.lrebarList.length + ' (walls:' + walls.length + ')');
       },
 
       // 각 세그먼트 중앙에 번호. 라벨은 비-콘크리트 쪽(외곽→바깥, 내부홀→안쪽)으로 오프셋
