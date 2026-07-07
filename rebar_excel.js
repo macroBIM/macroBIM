@@ -72,6 +72,8 @@ var RebarExcel = {
     var o = { type: 'lrebar', id: this._str(row[1]), bar: {} };
     if (this._has(row[2])) o.bar.dia = Number(row[2]);
     if (this._has(row[3])) o.bar.num = Number(row[3]);
+    if (this._has(row[8])) o.bar.ctc = Number(row[8]);     // ctc
+    if (this._has(row[9])) o.bar.max = Number(row[9]);     // ctcmax
     if (this._has(row[10])) o.bar.min = Number(row[10]);   // ctcmin → 최소 간격
     var init = this._initObj(row[4], ['x', 'y', 'rot', 'grav']); if (init) o.init = init;
     var range = this._rangeObj(row[6]); if (range) o.range = range;
