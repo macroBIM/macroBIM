@@ -113,6 +113,9 @@ body{
 .rebar-table tbody tr:hover td{background:#eff6ff;}
 
 /* ── REBAR PHYSICS (엔진 ui.js 렌더 카드의 상태표시) ── */
+.engine-ctrls{display:flex;align-items:center;gap:8px;}
+.engine-btn{display:inline-flex;align-items:center;gap:6px;padding:8px 14px;border:1px solid #e2e8f0;border-radius:8px;background:#1e293b;color:#fff;font-weight:600;font-size:13px;font-family:inherit;cursor:pointer;transition:background .15s;}
+.engine-btn:hover{background:#334155;}
 #stat-grid{font-size:12px;color:#64748b;text-align:right;line-height:1.5;}
 #stat-grid .stat-row{white-space:nowrap;}
 #stat-grid .stat-row .val{font-weight:700;color:#0f172a;}

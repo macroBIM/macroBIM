@@ -302,6 +302,10 @@
         '<div class="draw-card" id="rebarRenderCard">' +
           '<div class="draw-card-header">' +
             '<div class="draw-card-title">Rebar Physics <span style="color:#8A2BE2;">(engine)</span></div>' +
+            '<div class="engine-ctrls">' +
+              '<button type="button" class="engine-btn" onclick="SeoulPhD.rebarRespawn()"><i class="bi bi-arrow-counterclockwise"></i> Respawn</button>' +
+              '<button type="button" class="engine-btn" id="btnPause" onclick="SeoulPhD.rebarPause()"><i class="bi bi-pause-fill"></i> Pause</button>' +
+            '</div>' +
             '<div class="draw-card-desc" id="stat-grid">철근이 설계 위치를 찾아갑니다…</div>' +
           '</div>' +
           '<div class="draw-card-body" style="padding:0;">' +
@@ -345,6 +349,18 @@
         }
         if (typeof UI.drawGrid === 'function') UI.drawGrid();
         UI.mainLayer.draw();
+      },
+
+      // Respawn — 물리 재시작 (엔진 UI.reset 재실행)
+      rebarRespawn: function () {
+        var b = document.getElementById('btnPause');
+        if (b) b.innerHTML = '<i class="bi bi-pause-fill"></i> Pause';
+        this._drawRebar();
+      },
+
+      // Pause/Start — 엔진 Domain.togglePause() 그대로 호출 (btnPause 라벨 토글은 엔진이 처리)
+      rebarPause: function () {
+        if (typeof Domain !== 'undefined' && typeof Domain.togglePause === 'function') Domain.togglePause();
       },
 
       // 철근 렌더 실행: USER_BOX_DATA + 입력데이터 전달 후 원본 UI 로 작도/애니메이션
