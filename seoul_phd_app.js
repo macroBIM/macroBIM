@@ -309,7 +309,7 @@
             '<div class="draw-card-desc" id="stat-grid">철근이 설계 위치를 찾아갑니다…</div>' +
           '</div>' +
           '<div class="draw-card-body" style="padding:0;">' +
-            '<div id="renderContainer" style="width:100%;height:600px;background:#0b1220;border-radius:0 0 10px 10px;overflow:hidden;cursor:grab;"></div>' +
+            '<div id="renderContainer" style="width:100%;height:600px;background:#41699b;border-radius:0 0 10px 10px;overflow:hidden;cursor:grab;"></div>' +
           '</div>' +
         '</div>',
 
@@ -371,6 +371,10 @@
           var self = this; setTimeout(function () { self._drawRebar(); }, 300); return;
         }
         if (!this._ensureRebarHost()) return;
+        // rebar physics 를 쓸 땐 bim "Drawing View" 카드는 숨긴다 (그림 하나만)
+        var _plot = document.getElementById(this._cur + 'plot');
+        var _bimCard = _plot && _plot.closest ? _plot.closest('.draw-card') : null;
+        if (_bimCard) _bimCard.style.display = 'none';
 
         // 단면형상 + 입력데이터만 전달 (엔진/렌더러는 손대지 않음)
         Domain.USER_BOX_DATA = REBAR_BOX_DATA;
