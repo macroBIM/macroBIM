@@ -70,6 +70,7 @@
         var sel = document.getElementById('sectionSelect');
         if (sel && sel.value !== kind) sel.value = kind;
         this.redraw(kind);
+        this._drawRebar();          // 디폴트: 파란 배경+그리드 엔진 뷰 (철근 없으면 단면만)
       },
 
       // TRebar/LRebar 카드를 마운트된 섹션의 Drawing View 카드 바로 앞에 삽입
@@ -365,8 +366,7 @@
 
       // 철근 렌더 실행: USER_BOX_DATA + 입력데이터 전달 후 원본 UI 로 작도/애니메이션
       _drawRebar: function () {
-        if (!this._rebarData || !this._rebarData.length) return;
-        // 엔진/렌더러 준비 대기
+        // 엔진/렌더러 준비 대기 (철근 데이터가 없어도 단면+그리드는 렌더 → 디폴트 화면)
         if (typeof UI === 'undefined' || typeof Domain === 'undefined' || typeof Konva === 'undefined') {
           var self = this; setTimeout(function () { self._drawRebar(); }, 300); return;
         }
@@ -378,7 +378,7 @@
 
         // 단면형상 + 입력데이터만 전달 (엔진/렌더러는 손대지 않음)
         Domain.USER_BOX_DATA = REBAR_BOX_DATA;
-        Domain.USER_REBAR_DATA = this._rebarData;
+        Domain.USER_REBAR_DATA = this._rebarData || [];
         Domain.USER_TREBAR_DATA = null; Domain.USER_LREBAR_DATA = null;
 
         // domain.buildModel 은 sectionSelect.value==="BOXGIRDER" 일 때만 철근 큐를 만든다.
@@ -396,7 +396,7 @@
           if (sel && prev != null) sel.value = prev;   // 복원 (updateVisuals 는 box 로 계속 동작)
           this._fitEngineStage();
           var rc = document.getElementById('renderContainer');
-          if (rc) rc.scrollIntoView({ behavior: 'smooth', block: 'center' });
+          if (rc && this._rebarData && this._rebarData.length) rc.scrollIntoView({ behavior: 'smooth', block: 'center' });
           console.log('[SeoulPhD] 철근 렌더(ui.js) — T:' + Domain.trebarList.length + ' / L:' + Domain.lrebarList.length);
         } catch (e) { console.error('[SeoulPhD] UI 렌더 오류:', e); }
         finally { if (sel && prev != null) sel.value = prev; }
