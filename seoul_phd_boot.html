@@ -1,0 +1,17 @@
+<!-- Seoul PhD — CodePen 부트스트랩 (이것만 붙여넣기)
+     · app.js 를 브랜치(raw)에서 매번 최신으로 fetch (?v=Date.now 캐시 무효화)
+     · 엔진/스타일/폼은 app.js 가 알아서 로드 -->
+<div id="app-root"></div>
+<script>
+(function () {
+  var BR = 'claude/rebar-solver-v5-t3wst2';
+  var RAW = 'https://raw.githubusercontent.com/macroBIM/macroBIM/' + BR + '/';
+  fetch(RAW + 'seoul_phd_app.js?v=' + Date.now())
+    .then(function (r) { if (!r.ok) throw new Error('app.js HTTP ' + r.status); return r.text(); })
+    .then(function (code) { var s = document.createElement('script'); s.textContent = code; document.body.appendChild(s); })
+    .catch(function (e) {
+      document.getElementById('app-root').innerHTML =
+        '<div style="padding:30px;color:#dc2626;font-family:sans-serif;">부트스트랩 로드 실패: ' + e.message + '</div>';
+    });
+})();
+</script>
