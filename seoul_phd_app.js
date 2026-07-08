@@ -376,30 +376,160 @@
         var _bimCard = _plot && _plot.closest ? _plot.closest('.draw-card') : null;
         if (_bimCard) _bimCard.style.display = 'none';
 
-        // 단면형상 + 입력데이터만 전달 (엔진/렌더러는 손대지 않음)
-        Domain.USER_BOX_DATA = REBAR_BOX_DATA;
-        Domain.USER_REBAR_DATA = this._rebarData || [];
-        Domain.USER_TREBAR_DATA = null; Domain.USER_LREBAR_DATA = null;
-
-        // domain.buildModel 은 sectionSelect.value==="BOXGIRDER" 일 때만 철근 큐를 만든다.
-        // seoul_phd 드롭다운(box1cell…)엔 없는 값이므로, 빌드 순간에만 임시로 넣었다 복원.
-        var sel = document.getElementById('sectionSelect');
-        var prev = sel ? sel.value : null;
-        if (sel) {
-          var has = Array.prototype.some.call(sel.options, function (o) { return o.value === 'BOXGIRDER'; });
-          if (!has) { var op = document.createElement('option'); op.value = 'BOXGIRDER'; op.text = 'BOXGIRDER'; op.hidden = true; sel.appendChild(op); }
-          sel.value = 'BOXGIRDER';
+        // 스테이지/그룹/애니메이션 1회 생성 (엔진 UI.init — box branch 는 아래서 다시 reset)
+        if (!this._uiInited) {
+          try { UI.init(); this._uiInited = true; } catch (e) { console.error('[SeoulPhD] UI.init 오류:', e); return; }
         }
+
+        var isBox = (this._cur === 'box1cell');   // box1cell 만 엔진 BoxGirder(당신 데이터와 정확히 일치)
+        var sel = null, prev = null;
         try {
-          if (!this._uiInited) { UI.init(); this._uiInited = true; }
-          else { UI.reset(); }
-          if (sel && prev != null) sel.value = prev;   // 복원 (updateVisuals 는 box 로 계속 동작)
+          if (isBox) {
+            Domain.USER_BOX_DATA = REBAR_BOX_DATA;
+            Domain.USER_REBAR_DATA = this._rebarData || [];
+            Domain.USER_TREBAR_DATA = null; Domain.USER_LREBAR_DATA = null;
+            // buildModel 은 sectionSelect.value==="BOXGIRDER" 일 때만 큐를 만든다 → 빌드 순간만 주입 후 복원
+            sel = document.getElementById('sectionSelect'); prev = sel ? sel.value : null;
+            if (sel) {
+              var has = Array.prototype.some.call(sel.options, function (o) { return o.value === 'BOXGIRDER'; });
+              if (!has) { var op = document.createElement('option'); op.value = 'BOXGIRDER'; op.text = 'BOXGIRDER'; op.hidden = true; sel.appendChild(op); }
+              sel.value = 'BOXGIRDER';
+            }
+            UI.reset();
+            if (sel && prev != null) sel.value = prev;
+          } else {
+            // ── 범용 어댑터: bim 외곽선 → 엔진 단면(walls/displayPaths/covers) → 그리기 ──
+            var sec = this._buildSectionFromBim();
+            if (sec && sec.walls.length) this._applyGenericSection(sec);
+            else console.warn('[SeoulPhD] ' + this._cur + ' 외곽선을 벽체로 변환하지 못했습니다.');
+          }
           this._fitEngineStage();
           var rc = document.getElementById('renderContainer');
           if (rc && this._rebarData && this._rebarData.length) rc.scrollIntoView({ behavior: 'smooth', block: 'center' });
-          console.log('[SeoulPhD] 철근 렌더(ui.js) — T:' + Domain.trebarList.length + ' / L:' + Domain.lrebarList.length);
-        } catch (e) { console.error('[SeoulPhD] UI 렌더 오류:', e); }
+          console.log('[SeoulPhD] 철근 렌더 — ' + this._cur + ' | T:' + Domain.trebarList.length + ' / L:' + Domain.lrebarList.length + ' | walls:' + (Domain.currentSection ? Domain.currentSection.walls.length : 0));
+        } catch (e) { console.error('[SeoulPhD] 렌더 오류:', e); }
         finally { if (sel && prev != null) sel.value = prev; }
+      },
+
+      // ─────────────────────────────────────────────────────────
+      //  범용 어댑터 — 캡처된 bim 외곽선(_lines/_arcs/_circs) → 엔진 단면
+      //  · 끝점을 이어 닫힌 loop 로 정렬 (physics.splitWallLoops 요건)
+      //  · 각 벽면 안쪽(콘크리트 쪽) 법선 + E1,E2… id + displayPaths
+      //  · 좌표는 bim 논리좌표(y-up) 그대로 — UI.mainLayer(scaleY:-1)가 bim 뷰와 동일 방향으로 반전
+      // ─────────────────────────────────────────────────────────
+      _buildSectionFromBim: function () {
+        var lines = this._lines || [], arcs = this._arcs || [], circs = this._circs || [];
+        var raw = [];
+        lines.forEach(function (s) { raw.push([s[0], s[1], s[2], s[3]]); });
+        arcs.forEach(function (c) {
+          var x = c[0], y = c[1], r = c[2], sp = c[4] - c[3]; if (sp <= 0) sp += 360;
+          var n = Math.max(2, Math.ceil(sp / 10)), ppx, ppy;
+          for (var i = 0; i <= n; i++) { var a = (c[3] + sp * i / n) * Math.PI / 180, px = x + r * Math.cos(a), py = y + r * Math.sin(a); if (i > 0) raw.push([ppx, ppy, px, py]); ppx = px; ppy = py; }
+        });
+        if (raw.length === 0 && circs.length === 0) return null;
+
+        var bnd = raw.slice();
+        circs.forEach(function (c) {
+          var N = 64, ppx, ppy;
+          for (var i = 0; i <= N; i++) { var a = i / N * 2 * Math.PI, px = c[0] + c[2] * Math.cos(a), py = c[1] + c[2] * Math.sin(a); if (i > 0) bnd.push([ppx, ppy, px, py]); ppx = px; ppy = py; }
+        });
+        var minx = 1e18, miny = 1e18, maxx = -1e18, maxy = -1e18;
+        bnd.forEach(function (s) { minx = Math.min(minx, s[0], s[2]); maxx = Math.max(maxx, s[0], s[2]); miny = Math.min(miny, s[1], s[3]); maxy = Math.max(maxy, s[1], s[3]); });
+        var diag = Math.hypot(maxx - minx, maxy - miny) || 100;
+        var cx = (minx + maxx) / 2, cy = (miny + maxy) / 2;
+        var tol = Math.max(1, diag * 0.005), eps = diag * 0.006;
+        function inside(px, py) {
+          var c = false;
+          for (var i = 0; i < bnd.length; i++) { var x1 = bnd[i][0], y1 = bnd[i][1], x2 = bnd[i][2], y2 = bnd[i][3]; if (((y1 > py) !== (y2 > py)) && (px < (x2 - x1) * (py - y1) / ((y2 - y1) || 1e-9) + x1)) c = !c; }
+          return c;
+        }
+        function near(ax, ay, bx, by) { return Math.hypot(ax - bx, ay - by) <= tol; }
+
+        // 직선/아크 세그먼트를 끝점 이어 닫힌 loop 로 체이닝
+        var segs = raw.map(function (s) { return { x1: s[0], y1: s[1], x2: s[2], y2: s[3], used: false }; });
+        var loops = [];
+        for (var s0 = 0; s0 < segs.length; s0++) {
+          if (segs[s0].used) continue;
+          segs[s0].used = true;
+          var sx = segs[s0].x1, sy = segs[s0].y1, ex = segs[s0].x2, ey = segs[s0].y2;
+          var loop = [{ x1: sx, y1: sy, x2: ex, y2: ey }], guard = 0;
+          while (guard++ < segs.length + 2) {
+            if (near(ex, ey, sx, sy)) break;
+            var found = null, rev = false;
+            for (var j = 0; j < segs.length; j++) {
+              if (segs[j].used) continue;
+              if (near(segs[j].x1, segs[j].y1, ex, ey)) { found = segs[j]; rev = false; break; }
+              if (near(segs[j].x2, segs[j].y2, ex, ey)) { found = segs[j]; rev = true; break; }
+            }
+            if (!found) break;
+            found.used = true;
+            var nX = rev ? found.x1 : found.x2, nY = rev ? found.y1 : found.y2;
+            loop.push({ x1: ex, y1: ey, x2: nX, y2: nY });
+            ex = nX; ey = nY;
+          }
+          if (near(ex, ey, sx, sy)) { loop[loop.length - 1].x2 = sx; loop[loop.length - 1].y2 = sy; }
+          loops.push(loop);
+        }
+        // 원은 각각 독립 loop
+        circs.forEach(function (c) {
+          var N = 48, loop = [], ppx, ppy;
+          for (var i = 0; i <= N; i++) { var a = i / N * 2 * Math.PI, px = c[0] + c[2] * Math.cos(a), py = c[1] + c[2] * Math.sin(a); if (i > 0) loop.push({ x1: ppx, y1: ppy, x2: px, y2: py }); ppx = px; ppy = py; }
+          if (loop.length) { loop[loop.length - 1].x2 = loop[0].x1; loop[loop.length - 1].y2 = loop[0].y1; loops.push(loop); }
+        });
+
+        var walls = [], displayPaths = [], eid = 0;
+        loops.forEach(function (loop) {
+          if (!loop.length) return;
+          var pts = [{ x: loop[0].x1, y: loop[0].y1 }];
+          loop.forEach(function (seg) {
+            var mx = (seg.x1 + seg.x2) / 2, my = (seg.y1 + seg.y2) / 2;
+            var dx = seg.x2 - seg.x1, dy = seg.y2 - seg.y1, len = Math.hypot(dx, dy) || 1;
+            var nx = -dy / len, ny = dx / len;
+            if (!inside(mx + nx * eps, my + ny * eps)) {
+              if (inside(mx - nx * eps, my - ny * eps)) { nx = -nx; ny = -ny; }
+              else { var vx = cx - mx, vy = cy - my, vl = Math.hypot(vx, vy) || 1; nx = vx / vl; ny = vy / vl; }
+            }
+            eid++;
+            walls.push({ id: 'E' + eid, tag: 'outer', nx: nx, ny: ny, x1: seg.x1, y1: seg.y1, x2: seg.x2, y2: seg.y2 });
+            pts.push({ x: seg.x2, y: seg.y2 });
+          });
+          displayPaths.push(pts);
+        });
+        return { walls: walls, displayPaths: displayPaths, covers: { top: 50, outer: 50, inner: 50 } };
+      },
+
+      // 어댑터 단면을 엔진에 적용 + 큐 생성 + 단면 그리기 (UI.reset 의 섹션 파트 재현, 엔진 렌더 함수 사용)
+      _applyGenericSection: function (sec) {
+        Domain.currentSection = sec;
+        Domain.trebarList = []; Domain.lrebarList = []; Domain.queue = [];
+        Domain.activeQueueIndex = 0; Domain.isPaused = false; Domain.wallStack = {};
+        Domain.USER_REBAR_DATA = this._rebarData || []; Domain.USER_TREBAR_DATA = null; Domain.USER_LREBAR_DATA = null;
+        (this._rebarData || []).forEach(function (rd) {
+          var t = String(rd.type || 'trebar').toLowerCase();
+          try {
+            if (t === 'trebar') {
+              var rb = Domain._createTrebarFromData(rd);
+              if (rb) { Domain.trebarList.push(rb); Domain.queue.push({ kind: 'trebar', obj: rb }); }
+            } else if (t === 'lrebar' && typeof LRebarEngine !== 'undefined') {
+              var g = Domain._createLrebarFromData(rd);
+              if (g) { Domain.lrebarList.push(g); Domain.queue.push({ kind: 'lrebar', obj: g }); }
+            }
+          } catch (e) { console.error('[SeoulPhD] 철근 생성 오류:', rd.id, e); }
+        });
+        // 섹션 폴리라인 (엔진 UI 그룹/렌더 함수 사용)
+        UI.sectionGroup.destroyChildren();
+        UI.normalGroup.destroyChildren();
+        UI.trebarGroup.destroyChildren();
+        UI.lrebarGroup.destroyChildren();
+        UI.debugGroup.destroyChildren();
+        sec.displayPaths.forEach(function (path) {
+          var flat = []; path.forEach(function (p) { flat.push(p.x, p.y); });
+          UI.sectionGroup.add(new Konva.Line({ points: flat, stroke: '#ffffff', strokeWidth: 2, closed: true, lineJoin: 'round', strokeScaleEnabled: false }));
+        });
+        if (typeof UI.drawGrid === 'function') UI.drawGrid();
+        if (typeof UI.drawNormals === 'function') UI.drawNormals();
+        if (typeof UI.drawDebugNodes === 'function') UI.drawDebugNodes();
+        UI.mainLayer.draw();
       },
 
       // 각 세그먼트 중앙에 번호. 라벨은 비-콘크리트 쪽(외곽→바깥, 내부홀→안쪽)으로 오프셋
