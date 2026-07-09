@@ -69,8 +69,7 @@
         this._insertRebarCards(mount);          // Dimension 과 Drawing View 사이에 TRebar/LRebar 삽입
         var sel = document.getElementById('sectionSelect');
         if (sel && sel.value !== kind) sel.value = kind;
-        this.redraw(kind);
-        this._drawRebar();          // 디폴트: 파란 배경+그리드 엔진 뷰 (철근 없으면 단면만)
+        this.redraw(kind);          // redraw 가 끝에서 _drawRebar 로 엔진 뷰까지 그린다
       },
 
       // TRebar/LRebar 카드를 마운트된 섹션의 Drawing View 카드 바로 앞에 삽입
@@ -142,6 +141,7 @@
         } else {
           console.warn('[SeoulPhD] fdraw_' + kind + ' 미로드');
         }
+        this._drawRebar();   // 형상 변경(치수·중공 등)마다 엔진 뷰도 재작도 (bim 캡처 반영)
       },
 
       // 3D 패널·뷰 탭 제거 후 front 2D 를 전폭 재작도 (+ 법선)
