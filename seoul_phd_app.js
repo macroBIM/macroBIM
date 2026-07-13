@@ -69,7 +69,7 @@
       sections: ['box1cell', 'ibeam', 'rect', 'circle', 'octagon', 'track'],
       domPfx: { box1cell: 'box1cell', ibeam: 'ibeam', rect: 'rect', circle: 'circle', octagon: 'oct', track: 'track' },
       showNormals: false, showNodes: false, _excelData: null, _rebarData: null,
-      _cur: null, _capturing: false, _lines: [], _circs: [], _arcs: [], _normLayer: null, _normGroup: null, _nodeGroup: null, _uiInited: false, _settleTimer: null, _rebarSettled: false, _vars: null,
+      _cur: null, _capturing: false, _lines: [], _circs: [], _arcs: [], _normLayer: null, _normGroup: null, _nodeGroup: null, _uiInited: false, _settleTimer: null, _rebarSettled: false, _vars: null, _showEngNormals: false, _showEngNodes: false, _engNormGroup: null, _engNodeGroup: null,
 
       select: function (kind) {
         var mount = document.getElementById('mount');
@@ -192,29 +192,69 @@
         }
       },
 
-      // 법선/노드 토글 — 현재 표시 중인 엔진 뷰(ui.js)에 위임 (bim 뷰는 숨겨져 있음)
+      // 법선/노드 토글 — 엔진 뷰에 단면 치수 비례 스케일로 앞단이 직접 그림 (엔진 UI.drawNormals 는 고정크기라 미사용)
       toggleNormals: function () {
-        if (this._uiInited && typeof UI !== 'undefined' && typeof UI.toggleNormals === 'function') {
-          UI.toggleNormals();                       // 엔진: UI.showNormals 토글 + drawNormals + 버튼 active
-          if (UI.mainLayer) UI.mainLayer.draw();    // 애니 정지(안착) 상태에서도 즉시 반영
-          return;
-        }
-        this.showNormals = !this.showNormals;       // (폴백) 엔진 미준비 시 bim 뷰
+        this._showEngNormals = !this._showEngNormals;
         var b = document.getElementById('btnToggleNormals');
-        if (b) b.classList.toggle('active', this.showNormals);
-        if (this._cur) this._frontOnly(this._cur);
+        if (b) b.classList.toggle('active', this._showEngNormals);
+        this._drawEngineNormals();
+      },
+      toggleNodes: function () {
+        this._showEngNodes = !this._showEngNodes;
+        var b = document.getElementById('btnToggleNodes');
+        if (b) b.classList.toggle('active', this._showEngNodes);
+        this._drawEngineNodes();
       },
 
-      toggleNodes: function () {
-        if (this._uiInited && typeof UI !== 'undefined' && typeof UI.toggleDebugNodes === 'function') {
-          UI.toggleDebugNodes();                    // 엔진: 벽 id(E1,E2…) 라벨 + 끝점 표시
-          if (UI.mainLayer) UI.mainLayer.draw();
-          return;
-        }
-        this.showNodes = !this.showNodes;
-        var b = document.getElementById('btnToggleNodes');
-        if (b) b.classList.toggle('active', this.showNodes);
-        if (this._cur) this._frontOnly(this._cur);
+      // Domain.currentSection.walls 의 bbox → 대각선 길이 (스케일 기준)
+      _sectionDiag: function (walls) {
+        var minx = 1e18, miny = 1e18, maxx = -1e18, maxy = -1e18;
+        walls.forEach(function (w) { minx = Math.min(minx, w.x1, w.x2); maxx = Math.max(maxx, w.x1, w.x2); miny = Math.min(miny, w.y1, w.y2); maxy = Math.max(maxy, w.y1, w.y2); });
+        return Math.hypot(maxx - minx, maxy - miny) || 1000;
+      },
+
+      // 안쪽 법선 화살표 — 길이 = diag×0.045 (치수 비례), 곡선은 minGap 간격으로 솎아 표시
+      _drawEngineNormals: function () {
+        if (typeof UI === 'undefined' || !UI.mainLayer) return;
+        if (this._engNormGroup) { this._engNormGroup.destroy(); this._engNormGroup = null; }
+        var walls = (typeof Domain !== 'undefined' && Domain.currentSection && Domain.currentSection.walls) || [];
+        if (!this._showEngNormals || !walls.length) { UI.mainLayer.draw(); return; }
+        var diag = this._sectionDiag(walls);
+        var L = diag * 0.045, minGap = diag * 0.06, dotR = diag * 0.006;
+        var g = new Konva.Group({ name: 'eng_normals' });
+        var lastx = null, lasty = null;
+        walls.forEach(function (w) {
+          var mx = (w.x1 + w.x2) / 2, my = (w.y1 + w.y2) / 2;
+          if (lastx !== null && Math.hypot(mx - lastx, my - lasty) < minGap) return;   // 간격 유지(곡선 촘촘함 방지)
+          lastx = mx; lasty = my;
+          g.add(new Konva.Arrow({ points: [mx, my, mx + w.nx * L, my + w.ny * L], stroke: '#FFC107', fill: '#FFC107', strokeWidth: 2, pointerLength: L * 0.3, pointerWidth: L * 0.26, strokeScaleEnabled: false }));
+          g.add(new Konva.Circle({ x: mx, y: my, radius: dotR, fill: '#FF5722', strokeScaleEnabled: false }));
+        });
+        UI.mainLayer.add(g); this._engNormGroup = g; UI.mainLayer.draw();
+      },
+
+      // 벽 id(E1,E2…) 라벨 + 끝점 — 폰트/점 크기도 diag 비례, 간격 솎음
+      _drawEngineNodes: function () {
+        if (typeof UI === 'undefined' || !UI.mainLayer) return;
+        if (this._engNodeGroup) { this._engNodeGroup.destroy(); this._engNodeGroup = null; }
+        var walls = (typeof Domain !== 'undefined' && Domain.currentSection && Domain.currentSection.walls) || [];
+        if (!this._showEngNodes || !walls.length) { UI.mainLayer.draw(); return; }
+        var diag = this._sectionDiag(walls);
+        var fs = diag * 0.022, dotR = diag * 0.007, minGap = diag * 0.05;
+        var g = new Konva.Group({ name: 'eng_nodes' });
+        var lastx = null, lasty = null;
+        walls.forEach(function (w) {
+          var mx = (w.x1 + w.x2) / 2, my = (w.y1 + w.y2) / 2;
+          if (lastx !== null && Math.hypot(mx - lastx, my - lasty) < minGap) return;
+          lastx = mx; lasty = my;
+          g.add(new Konva.Circle({ x: mx, y: my, radius: dotR, fill: '#FF5722', strokeScaleEnabled: false }));
+          var lbl = new Konva.Label({ x: mx + w.nx * fs * 0.6, y: my + w.ny * fs * 0.6, scaleY: -1 });   // 라벨은 안쪽으로 약간
+          lbl.add(new Konva.Tag({ fill: 'rgba(0,0,0,0.78)', cornerRadius: fs * 0.2 }));
+          lbl.add(new Konva.Text({ text: String(w.id || ''), fontSize: fs, fontStyle: 'bold', fontFamily: 'Arial', fill: '#00E5FF', padding: fs * 0.18 }));
+          lbl.offsetX(lbl.width() / 2); lbl.offsetY(lbl.height() / 2);
+          g.add(lbl);
+        });
+        UI.mainLayer.add(g); this._engNodeGroup = g; UI.mainLayer.draw();
       },
 
       // 엑셀불러오기: 파일 선택 → '시트명' 칸의 시트를 읽어 _excelData 에 저장
@@ -571,6 +611,8 @@
           }
           this._fitEngineStage();
           this._watchSettle();     // 안착 완료되면 trebar 모서리를 굴짐 아크로 대체
+          if (this._showEngNormals) this._drawEngineNormals();   // 켜져 있으면 새 단면에 맞춰 재작도
+          if (this._showEngNodes) this._drawEngineNodes();
           var rc = document.getElementById('renderContainer');
           if (rc && this._rebarData && this._rebarData.length) rc.scrollIntoView({ behavior: 'smooth', block: 'center' });
           console.log('[SeoulPhD] 철근 렌더 — ' + this._cur + ' | T:' + Domain.trebarList.length + ' / L:' + Domain.lrebarList.length + ' | walls:' + (Domain.currentSection ? Domain.currentSection.walls.length : 0));
