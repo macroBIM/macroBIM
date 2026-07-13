@@ -69,7 +69,7 @@
       sections: ['box1cell', 'ibeam', 'rect', 'circle', 'octagon', 'track'],
       domPfx: { box1cell: 'box1cell', ibeam: 'ibeam', rect: 'rect', circle: 'circle', octagon: 'oct', track: 'track' },
       showNormals: false, showNodes: false, _excelData: null, _rebarData: null,
-      _cur: null, _capturing: false, _lines: [], _circs: [], _arcs: [], _normLayer: null, _normGroup: null, _nodeGroup: null, _uiInited: false, _settleTimer: null, _rebarSettled: false,
+      _cur: null, _capturing: false, _lines: [], _circs: [], _arcs: [], _normLayer: null, _normGroup: null, _nodeGroup: null, _uiInited: false, _settleTimer: null, _rebarSettled: false, _vars: null,
 
       select: function (kind) {
         var mount = document.getElementById('mount');
@@ -143,12 +143,19 @@
       redraw: function (kind) {
         this._cur = kind;
         var mount = document.getElementById('mount');
+        // VAR 카드 → 변수 scope. Dimension 입력이 수식이면 계산값으로 임시 치환 후 작도, 이후 원 수식 복원.
+        var scope = this._evalScope();
+        var restores = [];
         if (mount) {
           mount.querySelectorAll('input[id$="_s"]').forEach(function (inp) {
+            var raw = inp.value;
+            var num = (typeof Calc !== 'undefined') ? Calc.num(raw, scope, raw) : raw;
+            restores.push([inp, raw]);
+            inp.value = num;                       // bim 모듈이 읽을 계산값
             var eid = inp.id.slice(0, -2) + '_e';
             var e = document.getElementById(eid);
             if (!e) { e = document.createElement('input'); e.type = 'hidden'; e.id = eid; mount.appendChild(e); }
-            e.value = inp.value;
+            e.value = num;
           });
         }
         var fn = window['fdraw_' + kind];
@@ -158,6 +165,7 @@
         } else {
           console.warn('[SeoulPhD] fdraw_' + kind + ' 미로드');
         }
+        restores.forEach(function (p) { p[0].value = p[1]; });   // 화면 입력엔 원래 수식 복원
         this._drawRebar();   // 형상 변경(치수·중공 등)마다 엔진 뷰도 재작도 (bim 캡처 반영)
       },
 
@@ -816,7 +824,78 @@
         layer.add(g); this._normGroup = g; layer.draw();
       },
 
+      // ─────────────────────────────────────────────────────────
+      //  VAR 카드 — 상수·수식 변수를 정의(순차 참조) → Dimension 에서 사용
+      // ─────────────────────────────────────────────────────────
+      _ensureVarCard: function () {
+        if (document.getElementById('varCard')) return;
+        var stage = document.getElementById('stage'), mount = document.getElementById('mount');
+        if (!stage || !mount) return;
+        var card = document.createElement('div');
+        card.className = 'draw-card'; card.id = 'varCard';
+        card.innerHTML =
+          '<div class="draw-card-header">' +
+            '<div><div class="draw-card-title">Variables <span style="font-weight:400;color:#94a3b8;font-size:12px;">(상수·수식 정의 — 아래 Dimension 에서 참조. 예: W=12000, H=W/2, t=sqrt(W))</span></div></div>' +
+            '<button type="button" class="engine-btn" onclick="SeoulPhD.addVarRow()"><i class="bi bi-plus-lg"></i> Add</button>' +
+          '</div>' +
+          '<div class="draw-card-body"><div id="varBody" class="var-grid"></div></div>';
+        stage.insertBefore(card, mount);
+        if (!this._vars) this._vars = [{ name: '', expr: '' }];
+        this._renderVarRows();
+      },
+
+      _esc: function (v) { return String(v == null ? '' : v).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;'); },
+
+      _renderVarRows: function () {
+        var body = document.getElementById('varBody');
+        if (!body) return;
+        if (!this._vars || !this._vars.length) this._vars = [{ name: '', expr: '' }];
+        var self = this, h = '';
+        this._vars.forEach(function (v, i) {
+          h += '<div class="var-row">' +
+            '<input class="form-input var-name" placeholder="이름 (예: W)" value="' + self._esc(v.name) + '" oninput="SeoulPhD.onVarInput(' + i + ',\'name\',this.value)" onchange="SeoulPhD.onVarChange()">' +
+            '<input class="form-input var-expr" placeholder="값 또는 수식 (예: 12000, W/2, sqrt(W)*2)" value="' + self._esc(v.expr) + '" oninput="SeoulPhD.onVarInput(' + i + ',\'expr\',this.value)" onchange="SeoulPhD.onVarChange()">' +
+            '<span class="var-val" id="varval-' + i + '"></span>' +
+            '<button type="button" class="var-del" title="행 삭제" onclick="SeoulPhD.removeVarRow(' + i + ')">×</button>' +
+          '</div>';
+        });
+        body.innerHTML = h;
+        this._evalScope();   // 미리보기 갱신
+      },
+
+      onVarInput: function (i, key, val) {
+        if (!this._vars || !this._vars[i]) return;
+        this._vars[i][key] = val;
+        this._evalScope();   // 계산값 미리보기만 (재작도는 onchange)
+      },
+      onVarChange: function () { if (this._cur) this.redraw(this._cur); },
+      addVarRow: function () { if (!this._vars) this._vars = []; this._vars.push({ name: '', expr: '' }); this._renderVarRows(); },
+      removeVarRow: function (i) {
+        if (!this._vars) return;
+        this._vars.splice(i, 1);
+        if (!this._vars.length) this._vars.push({ name: '', expr: '' });
+        this._renderVarRows();
+        this.onVarChange();
+      },
+
+      // VAR 행 → scope. 각 행 미리보기(계산값/오류)도 갱신.
+      _evalScope: function () {
+        var scope = {}, errors = [];
+        if (typeof Calc !== 'undefined') { var b = Calc.buildScope(this._vars || []); scope = b.scope; errors = b.errors; }
+        var errMap = {}; errors.forEach(function (e) { errMap[e.name] = e.msg; });
+        (this._vars || []).forEach(function (v, i) {
+          var span = document.getElementById('varval-' + i);
+          if (!span) return;
+          var nm = String(v.name || '').trim();
+          if (!nm) { span.textContent = ''; span.className = 'var-val'; return; }
+          if (errMap[nm] || !(nm in scope) || !isFinite(scope[nm])) { span.textContent = '⚠ ' + (errMap[nm] || '오류'); span.className = 'var-val err'; }
+          else { span.textContent = '= ' + (Math.round(scope[nm] * 1000) / 1000); span.className = 'var-val ok'; }
+        });
+        return scope;
+      },
+
       init: function () {
+        this._ensureVarCard();
         var sel = document.getElementById('sectionSelect');
         this.select(sel ? sel.value : this.sections[0]);
       }
@@ -853,9 +932,16 @@
       .then(function (css) { var st = document.createElement('style'); st.textContent = css; document.head.appendChild(st); })
       .catch(function (e) { console.error('[SeoulPhD] style load failed:', e); });
 
-    fetch(RAW + 'seoul_phd_form.html' + _bust)
-      .then(function (r) { if (!r.ok) throw new Error('HTTP ' + r.status); return r.text(); })
-      .then(function (html) { document.getElementById('app-root').innerHTML = html; SeoulPhD.init(); })
+    // calc.js(프런트 수식 평가기) 먼저 주입 → 그다음 form + init (init 의 첫 redraw 전에 Calc 준비)
+    fetch(RAW + 'calc.js' + _bust)
+      .then(function (r) { if (!r.ok) throw new Error('calc HTTP ' + r.status); return r.text(); })
+      .then(function (code) { var s = document.createElement('script'); s.textContent = code; document.head.appendChild(s); })
+      .catch(function (e) { console.error('[SeoulPhD] calc.js load failed:', e); })
+      .then(function () {
+        return fetch(RAW + 'seoul_phd_form.html' + _bust)
+          .then(function (r) { if (!r.ok) throw new Error('HTTP ' + r.status); return r.text(); })
+          .then(function (html) { document.getElementById('app-root').innerHTML = html; SeoulPhD.init(); });
+      })
       .catch(function (e) {
         document.getElementById('app-root').innerHTML =
           '<div style="padding:30px;text-align:center;color:#dc2626;font-family:sans-serif;">폼 로드 실패: ' + e.message + '</div>';
