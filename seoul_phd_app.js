@@ -32,6 +32,9 @@
 
   // 철근 데이터가 겨냥해 만들어진 단면(엔진 BoxGirder) — 원본과 동일 결과를 위해 그대로 전달
   var REBAR_BOX_DATA = '{PSCBOX,1,{BOX,2400,5150,5150,2250,2250,5,-5},{WP,-3000,3000},{CS,L,0,400,1250,225},{CS,R,0,400,1250,225},{TS,{1,{0,400,1200,225},{0,400,1200,225}}},{BS,{1,{0,400,150,250},{0,400,150,250}}},{WB,800,800},{COVER, 50, 50, 40}}';
+
+  // trebar 굴짐반경 기본값 = DEFAULT_BEND_MULT × dia (입력데이터에 radius 없을 때)
+  var DEFAULT_BEND_MULT = 3;
   (function load(i) {
     if (i >= ENGINE.length) { start(); return; }
     var s = document.createElement('script');
@@ -53,12 +56,13 @@
       sections: ['box1cell', 'ibeam', 'rect', 'circle', 'octagon', 'track'],
       domPfx: { box1cell: 'box1cell', ibeam: 'ibeam', rect: 'rect', circle: 'circle', octagon: 'oct', track: 'track' },
       showNormals: false, showNodes: false, _excelData: null, _rebarData: null,
-      _cur: null, _capturing: false, _lines: [], _circs: [], _arcs: [], _normLayer: null, _normGroup: null, _nodeGroup: null, _uiInited: false,
+      _cur: null, _capturing: false, _lines: [], _circs: [], _arcs: [], _normLayer: null, _normGroup: null, _nodeGroup: null, _uiInited: false, _settleTimer: null, _rebarSettled: false,
 
       select: function (kind) {
         var mount = document.getElementById('mount');
         if (!mount) return;
         this._excelData = null; this._rebarData = null;  // 섹션 변경 시 로딩된 rebar 데이터 초기화
+        if (this._settleTimer) { clearInterval(this._settleTimer); this._settleTimer = null; }
         if (typeof UI !== 'undefined' && this._uiInited) {   // 이전 엔진 렌더 정지 (컨테이너가 곧 제거됨)
           if (UI.anim && UI.anim.stop) UI.anim.stop();
           this._uiInited = false;
@@ -93,8 +97,8 @@
 
         // 2줄 표제목 = trebar / lrebar 입력체계
         var SCHEMA = [
-          ['trebar', 'id', 'code', 'dia', 'init (x, y, rot)', 'set', 'segs (len)', 'angs', 'nors', 'barStart', 'barEnd'],
-          ['lrebar', 'id', 'dia', 'num', 'init', 'nors', 'range', 'path', 'ctc', 'ctcmax', 'ctcmin']
+          ['trebar', 'id', 'code', 'dia', 'init (x, y, rot)', 'set', 'segs (len)', 'angs', 'nors', 'barStart', 'barEnd', 'radius'],
+          ['lrebar', 'id', 'dia', 'num', 'init', 'nors', 'range', 'path', 'ctc', 'ctcmax', 'ctcmin', '']
         ];
         var ncol = SCHEMA[0].length;
 
@@ -231,6 +235,7 @@
         var be = {}, bs = this._rbEnd(row[9]), bee = this._rbEnd(row[10]);
         if (bs) be.start = bs; if (bee) be.end = bee;
         if (Object.keys(be).length) o.barEnds = be;
+        if (this._rbHas(row[11])) o.radius = Number(row[11]);   // 굴짐반경(선택) — 없으면 dia 기본값
         return o;
       },
       _parseLrebarRow: function (row) {
@@ -306,6 +311,7 @@
             '<div class="engine-ctrls">' +
               '<button type="button" class="engine-btn" onclick="SeoulPhD.rebarRespawn()"><i class="bi bi-arrow-counterclockwise"></i> Respawn</button>' +
               '<button type="button" class="engine-btn" id="btnPause" onclick="SeoulPhD.rebarPause()"><i class="bi bi-pause-fill"></i> Pause</button>' +
+              '<button type="button" class="engine-btn" onclick="SeoulPhD.exportDXF()"><i class="bi bi-download"></i> Export DXF</button>' +
             '</div>' +
             '<div class="draw-card-desc" id="stat-grid">철근이 설계 위치를 찾아갑니다…</div>' +
           '</div>' +
@@ -364,6 +370,130 @@
         if (typeof Domain !== 'undefined' && typeof Domain.togglePause === 'function') Domain.togglePause();
       },
 
+      // ─────────────────────────────────────────────────────────
+      //  굴짐(bend) 후처리 — 안착된 trebar 세그먼트 모서리에 곡선반경 아크 적용
+      //  · geo_fillet(geomath.js) 재사용 → 직선-아크-직선-아크 경로 (line/arc primitive)
+      //  · 반경 = 철근별 radius, 없으면 DEFAULT_BEND_MULT × dia. 인접 직선 안에 들어오게 클램프
+      //  · 렌더(아크 테셀레이션 폴리라인) 와 DXF(line+arc) 가 같은 primitive 사용
+      // ─────────────────────────────────────────────────────────
+      _trebarPrimitives: function (t) {
+        var segs = t.segments || [], n = segs.length;
+        if (!n) return [];
+        var dia = t.dia || 13;
+        var rBase = (t.radius && t.radius > 0) ? t.radius : DEFAULT_BEND_MULT * dia;
+        var hasFillet = (typeof geo_fillet === 'function' && typeof get_inner_angle === 'function');
+        var prims = [], cur = { x: segs[0].p1.x, y: segs[0].p1.y };
+        for (var i = 0; i < n; i++) {
+          var V = { x: segs[i].p2.x, y: segs[i].p2.y };
+          var filletDone = false;
+          if (i < n - 1 && hasFillet) {
+            var P1 = { x: segs[i].p1.x, y: segs[i].p1.y };
+            var P3 = { x: segs[i + 1].p2.x, y: segs[i + 1].p2.y };
+            var inner = get_inner_angle(P1, V, P3);   // 내각(도) 0..180
+            if (isFinite(inner) && inner <= 178 && inner >= 2) {
+              var half = (inner / 2) * Math.PI / 180, tanH = Math.tan(half) || 1e-6;
+              var availIn = Math.hypot(V.x - cur.x, V.y - cur.y), lenOut = Math.hypot(P3.x - V.x, P3.y - V.y);
+              var maxTL = Math.min(availIn * 0.95, lenOut * 0.45), r = rBase;
+              if (r / tanH > maxTL) r = maxTL * tanH;
+              if (r >= 1e-3) {
+                var f = geo_fillet(P1, V, P3, r);
+                if (f && isFinite(f.ox) && isFinite(f.r) && f.r > 0) {
+                  prims.push({ t: 'line', p: [cur.x, cur.y, f.xb, f.yb] });
+                  prims.push({ t: 'arc', p: [f.ox, f.oy, f.r, f.angb, f.ange] });
+                  cur = { x: f.xe, y: f.ye };
+                  filletDone = true;
+                }
+              }
+            }
+          }
+          if (!filletDone) { prims.push({ t: 'line', p: [cur.x, cur.y, V.x, V.y] }); cur = V; }
+        }
+        return prims;
+      },
+
+      _arcTess: function (cx, cy, r, a0, a1) {
+        var span = a1 - a0; while (span < 0) span += 360; while (span > 360) span -= 360;
+        var m = Math.max(2, Math.ceil(span / 6)), pts = [];
+        for (var i = 0; i <= m; i++) { var a = (a0 + span * i / m) * Math.PI / 180; pts.push([cx + r * Math.cos(a), cy + r * Math.sin(a)]); }
+        return pts;
+      },
+
+      // 굴짐 아크 trebar 를 하나의 폴리라인(아크 테셀레이션)으로 그린다 (엔진 색상 #8A2BE2)
+      _drawFilletedTrebar: function (t, group) {
+        var prims = this._trebarPrimitives(t);
+        if (!prims.length) return;
+        var self = this, pts = [];
+        function pushPt(x, y) { var L = pts.length; if (L >= 2 && Math.abs(pts[L - 2] - x) < 1e-6 && Math.abs(pts[L - 1] - y) < 1e-6) return; pts.push(x, y); }
+        prims.forEach(function (pr) {
+          if (pr.t === 'line') { pushPt(pr.p[0], pr.p[1]); pushPt(pr.p[2], pr.p[3]); }
+          else {
+            var arr = self._arcTess(pr.p[0], pr.p[1], pr.p[2], pr.p[3], pr.p[4]);
+            var lx = pts.length ? pts[pts.length - 2] : arr[0][0], ly = pts.length ? pts[pts.length - 1] : arr[0][1];
+            if (Math.hypot(arr[arr.length - 1][0] - lx, arr[arr.length - 1][1] - ly) < Math.hypot(arr[0][0] - lx, arr[0][1] - ly)) arr = arr.slice().reverse();
+            arr.forEach(function (p) { pushPt(p[0], p[1]); });
+          }
+        });
+        var dia = t.dia || 13;
+        group.add(new Konva.Line({ points: pts, stroke: '#8A2BE2', strokeWidth: (dia > 0 ? dia : 5), lineCap: 'round', lineJoin: 'round', strokeScaleEnabled: true }));
+      },
+
+      // 안착 완료 감시 → 완료되면 애니메이션 정지 후 trebar 를 굴짐 아크로 대체
+      _watchSettle: function () {
+        var self = this;
+        if (this._settleTimer) { clearInterval(this._settleTimer); this._settleTimer = null; }
+        if (typeof Domain === 'undefined' || !Domain.queue || Domain.queue.length === 0) return;
+        var ticks = 0;
+        this._settleTimer = setInterval(function () {
+          ticks++;
+          var done = Domain.activeQueueIndex >= Domain.queue.length;
+          var allFormed = Domain.trebarList.every(function (t) { return t.state === 'FORMED'; });
+          if ((done && allFormed) || ticks > 80) {
+            clearInterval(self._settleTimer); self._settleTimer = null;
+            if (done && allFormed) self._finalizeArcs();
+          }
+        }, 150);
+      },
+
+      _finalizeArcs: function () {
+        if (typeof UI === 'undefined') return;
+        this._rebarSettled = true;
+        try { if (typeof UI.updateVisuals === 'function') UI.updateVisuals(); } catch (e) {}  // 최종 프레임 반영
+        if (UI.anim && UI.anim.stop) UI.anim.stop();      // 정지 → 굴짐 아크가 직선으로 덮이지 않음
+        if (!UI.trebarGroup) return;
+        UI.trebarGroup.destroyChildren();
+        var self = this;
+        Domain.trebarList.forEach(function (t) { if (t.state === 'FORMED') self._drawFilletedTrebar(t, UI.trebarGroup); });
+        if (UI.mainLayer) UI.mainLayer.draw();
+        console.log('[SeoulPhD] 굴짐 아크 적용 (안착 완료) — T:' + Domain.trebarList.length);
+      },
+
+      // ── DXF 출력: 단면(SECTION) + trebar(굴짐 line+arc) + lrebar(원) ──
+      exportDXF: function () {
+        if (typeof dxf_generator !== 'function') { alert('DXF 생성기가 로드되지 않았습니다.'); return; }
+        if (typeof Domain === 'undefined' || !Domain.currentSection) { alert('먼저 단면을 렌더링하세요.'); return; }
+        var dxf = dxf_generator();
+        dxf.init();
+        dxf.layer('SECTION', 7, 'CONTINUOUS');   // white
+        dxf.layer('TREBAR', 3, 'CONTINUOUS');    // green
+        dxf.layer('LREBAR', 1, 'CONTINUOUS');    // red
+        (Domain.currentSection.displayPaths || []).forEach(function (path) {
+          for (var i = 0; i < path.length - 1; i++) dxf.line(path[i].x, path[i].y, path[i + 1].x, path[i + 1].y, 'SECTION');
+          if (path.length > 2) { var a = path[path.length - 1], b = path[0]; if (Math.hypot(a.x - b.x, a.y - b.y) > 1e-6) dxf.line(a.x, a.y, b.x, b.y, 'SECTION'); }
+        });
+        var self = this;
+        (Domain.trebarList || []).forEach(function (t) {
+          self._trebarPrimitives(t).forEach(function (pr) {
+            if (pr.t === 'line') dxf.line(pr.p[0], pr.p[1], pr.p[2], pr.p[3], 'TREBAR');
+            else dxf.arc(pr.p[0], pr.p[1], pr.p[2], pr.p[3], pr.p[4], 'TREBAR');
+          });
+        });
+        (Domain.lrebarList || []).forEach(function (g) {
+          var r = (g.dia || 13) / 2;
+          (g.particles || []).forEach(function (p) { dxf.circle(p.x, p.y, r, 'LREBAR'); });
+        });
+        dxf.download('seoul_phd_' + (this._cur || 'section') + '.dxf');
+      },
+
       // 철근 렌더 실행: USER_BOX_DATA + 입력데이터 전달 후 원본 UI 로 작도/애니메이션
       _drawRebar: function () {
         // 엔진/렌더러 준비 대기 (철근 데이터가 없어도 단면+그리드는 렌더 → 디폴트 화면)
@@ -380,6 +510,10 @@
         if (!this._uiInited) {
           try { UI.init(); this._uiInited = true; } catch (e) { console.error('[SeoulPhD] UI.init 오류:', e); return; }
         }
+        // 재작도마다: 직선 애니메이션 재개 + 안착 감시 리셋 (안착 후 굴짐 아크로 대체)
+        this._rebarSettled = false;
+        if (this._settleTimer) { clearInterval(this._settleTimer); this._settleTimer = null; }
+        if (UI.anim && UI.anim.start) UI.anim.start();
 
         var isBox = (this._cur === 'box1cell');   // box1cell 만 엔진 BoxGirder(당신 데이터와 정확히 일치)
         var sel = null, prev = null;
@@ -404,6 +538,7 @@
             else console.warn('[SeoulPhD] ' + this._cur + ' 외곽선을 벽체로 변환하지 못했습니다.');
           }
           this._fitEngineStage();
+          this._watchSettle();     // 안착 완료되면 trebar 모서리를 굴짐 아크로 대체
           var rc = document.getElementById('renderContainer');
           if (rc && this._rebarData && this._rebarData.length) rc.scrollIntoView({ behavior: 'smooth', block: 'center' });
           console.log('[SeoulPhD] 철근 렌더 — ' + this._cur + ' | T:' + Domain.trebarList.length + ' / L:' + Domain.lrebarList.length + ' | walls:' + (Domain.currentSection ? Domain.currentSection.walls.length : 0));
