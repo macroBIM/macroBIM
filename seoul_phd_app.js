@@ -213,21 +213,38 @@
         return Math.hypot(maxx - minx, maxy - miny) || 1000;
       },
 
-      // 안쪽 법선 화살표 — 길이 = diag×0.045 (치수 비례), 곡선은 minGap 간격으로 솎아 표시
+      // 광선-세그먼트 교차 (n 단위벡터, 반환 t = 거리; 미교차 -1)
+      _rayHit: function (px, py, dx, dy, ax, ay, bx, by) {
+        var ex = bx - ax, ey = by - ay, den = dx * ey - dy * ex;
+        if (Math.abs(den) < 1e-9) return -1;
+        var t = ((ax - px) * ey - (ay - py) * ex) / den;
+        var s = ((ax - px) * dy - (ay - py) * dx) / den;
+        return (t > 1e-6 && s >= -0.02 && s <= 1.02) ? t : -1;
+      },
+
+      // 안쪽 법선 화살표 — 길이 = diag×0.05, 단 반대편 벽까지 거리의 42%로 제한(얇은 웹·환형 겹침 방지)
       _drawEngineNormals: function () {
         if (typeof UI === 'undefined' || !UI.mainLayer) return;
         if (this._engNormGroup) { this._engNormGroup.destroy(); this._engNormGroup = null; }
         var walls = (typeof Domain !== 'undefined' && Domain.currentSection && Domain.currentSection.walls) || [];
         if (!this._showEngNormals || !walls.length) { UI.mainLayer.draw(); return; }
-        var diag = this._sectionDiag(walls);
-        var L = diag * 0.045, minGap = diag * 0.06, dotR = diag * 0.006;
+        var self = this, diag = this._sectionDiag(walls);
+        var baseL = diag * 0.05, minGap = diag * 0.09, dotR = diag * 0.006, floorL = diag * 0.008;
         var g = new Konva.Group({ name: 'eng_normals' });
         var lastx = null, lasty = null;
-        walls.forEach(function (w) {
+        walls.forEach(function (w, wi) {
           var mx = (w.x1 + w.x2) / 2, my = (w.y1 + w.y2) / 2;
-          if (lastx !== null && Math.hypot(mx - lastx, my - lasty) < minGap) return;   // 간격 유지(곡선 촘촘함 방지)
+          if (lastx !== null && Math.hypot(mx - lastx, my - lasty) < minGap) return;   // 간격 유지
           lastx = mx; lasty = my;
-          g.add(new Konva.Arrow({ points: [mx, my, mx + w.nx * L, my + w.ny * L], stroke: '#FFC107', fill: '#FFC107', strokeWidth: 2, pointerLength: L * 0.3, pointerWidth: L * 0.26, strokeScaleEnabled: false }));
+          var nearest = Infinity;
+          for (var j = 0; j < walls.length; j++) {
+            if (j === wi) continue;
+            var t = self._rayHit(mx, my, w.nx, w.ny, walls[j].x1, walls[j].y1, walls[j].x2, walls[j].y2);
+            if (t > 0 && t < nearest) nearest = t;
+          }
+          var L = isFinite(nearest) ? Math.min(baseL, nearest * 0.42) : baseL;
+          if (L < floorL) L = floorL;
+          g.add(new Konva.Arrow({ points: [mx, my, mx + w.nx * L, my + w.ny * L], stroke: '#FFC107', fill: '#FFC107', strokeWidth: 2, pointerLength: L * 0.32, pointerWidth: L * 0.28, strokeScaleEnabled: false }));
           g.add(new Konva.Circle({ x: mx, y: my, radius: dotR, fill: '#FF5722', strokeScaleEnabled: false }));
         });
         UI.mainLayer.add(g); this._engNormGroup = g; UI.mainLayer.draw();
@@ -240,7 +257,7 @@
         var walls = (typeof Domain !== 'undefined' && Domain.currentSection && Domain.currentSection.walls) || [];
         if (!this._showEngNodes || !walls.length) { UI.mainLayer.draw(); return; }
         var diag = this._sectionDiag(walls);
-        var fs = diag * 0.022, dotR = diag * 0.007, minGap = diag * 0.05;
+        var fs = diag * 0.022, dotR = diag * 0.007, minGap = diag * 0.08;
         var g = new Konva.Group({ name: 'eng_nodes' });
         var lastx = null, lasty = null;
         walls.forEach(function (w) {
