@@ -229,10 +229,11 @@
         var walls = (typeof Domain !== 'undefined' && Domain.currentSection && Domain.currentSection.walls) || [];
         if (!this._showEngNormals || !walls.length) { UI.mainLayer.draw(); return; }
         var self = this, diag = this._sectionDiag(walls);
-        var baseL = diag * 0.05, minGap = diag * 0.09, dotR = diag * 0.006, floorL = diag * 0.008;
+        var baseL = diag * 0.05, minGap = diag * 0.09, dotR = diag * 0.006, floorL = diag * 0.008, minWall = diag * 0.025;
         var g = new Konva.Group({ name: 'eng_normals' });
         var lastx = null, lasty = null;
         walls.forEach(function (w, wi) {
+          if (Math.hypot(w.x2 - w.x1, w.y2 - w.y1) < minWall) return;   // 짧은 벽(작은 필렛 조각)은 화살표 생략
           var mx = (w.x1 + w.x2) / 2, my = (w.y1 + w.y2) / 2;
           if (lastx !== null && Math.hypot(mx - lastx, my - lasty) < minGap) return;   // 간격 유지
           lastx = mx; lasty = my;
@@ -257,10 +258,11 @@
         var walls = (typeof Domain !== 'undefined' && Domain.currentSection && Domain.currentSection.walls) || [];
         if (!this._showEngNodes || !walls.length) { UI.mainLayer.draw(); return; }
         var diag = this._sectionDiag(walls);
-        var fs = diag * 0.022, dotR = diag * 0.007, minGap = diag * 0.08;
+        var fs = diag * 0.014, dotR = diag * 0.006, minGap = diag * 0.09, minWall = diag * 0.025;
         var g = new Konva.Group({ name: 'eng_nodes' });
         var lastx = null, lasty = null;
         walls.forEach(function (w) {
+          if (Math.hypot(w.x2 - w.x1, w.y2 - w.y1) < minWall) return;   // 짧은 벽(필렛·헌치 조각) 라벨 생략
           var mx = (w.x1 + w.x2) / 2, my = (w.y1 + w.y2) / 2;
           if (lastx !== null && Math.hypot(mx - lastx, my - lasty) < minGap) return;
           lastx = mx; lasty = my;
