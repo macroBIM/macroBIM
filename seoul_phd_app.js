@@ -33,8 +33,21 @@
   // 철근 데이터가 겨냥해 만들어진 단면(엔진 BoxGirder) — 원본과 동일 결과를 위해 그대로 전달
   var REBAR_BOX_DATA = '{PSCBOX,1,{BOX,2400,5150,5150,2250,2250,5,-5},{WP,-3000,3000},{CS,L,0,400,1250,225},{CS,R,0,400,1250,225},{TS,{1,{0,400,1200,225},{0,400,1200,225}}},{BS,{1,{0,400,150,250},{0,400,150,250}}},{WB,800,800},{COVER, 50, 50, 40}}';
 
-  // trebar 굴짐반경 기본값 = DEFAULT_BEND_MULT × dia (입력데이터에 radius 없을 때)
-  var DEFAULT_BEND_MULT = 3;
+  // ── trebar 굴짐반경(중심선) 기본값 ─────────────────────────────
+  //  · EN 1992-1-1 Table 8.1N 최소 맨드럴: ϕ≤16 → 4ϕ, ϕ>16 → 7ϕ (내면 지름)
+  //    내면반경 = 맨드럴/2, 세그먼트는 철근 중심선이므로 중심선반경 = 내면반경 + ϕ/2
+  //    → ϕ≤16 : 2.5ϕ,  ϕ>16 : 4ϕ  (모두 중심선 기준, 단위 mm)
+  //  · KS 규격 철근 직경별 값은 아래 맵에 미리 채워둠 — 특정 직경을 바꾸려면 여기서 mm 수정
+  //  · 우선순위: 철근별 radius 입력 > 직경별 맵 > EN 규칙
+  var BEND_RADIUS_BY_DIA = {   // KS 공칭직경(D) → 중심선 곡선반경(mm), EN 최소기준
+    10: 25, 13: 32.5, 16: 40, 19: 76, 22: 88, 25: 100, 29: 116, 32: 128, 35: 140, 38: 152, 41: 164, 51: 204
+  };
+  function bendRadiusForDia(dia) {
+    if (dia == null || !(dia > 0)) return 0;
+    if (BEND_RADIUS_BY_DIA[dia] != null) return BEND_RADIUS_BY_DIA[dia];
+    var inside = (dia <= 16) ? 2 * dia : 3.5 * dia;   // EN 맨드럴/2 = 내면반경
+    return inside + dia / 2;                            // 중심선 반경
+  }
   (function load(i) {
     if (i >= ENGINE.length) { start(); return; }
     var s = document.createElement('script');
@@ -380,7 +393,7 @@
         var segs = t.segments || [], n = segs.length;
         if (!n) return [];
         var dia = t.dia || 13;
-        var rBase = (t.radius && t.radius > 0) ? t.radius : DEFAULT_BEND_MULT * dia;
+        var rBase = (t.radius && t.radius > 0) ? t.radius : bendRadiusForDia(dia);   // 철근별 입력 > 직경별 맵 > EN 규칙
         var hasFillet = (typeof geo_fillet === 'function' && typeof get_inner_angle === 'function');
         var prims = [], cur = { x: segs[0].p1.x, y: segs[0].p1.y };
         for (var i = 0; i < n; i++) {
