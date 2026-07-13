@@ -192,14 +192,25 @@
         }
       },
 
+      // 법선/노드 토글 — 현재 표시 중인 엔진 뷰(ui.js)에 위임 (bim 뷰는 숨겨져 있음)
       toggleNormals: function () {
-        this.showNormals = !this.showNormals;
+        if (this._uiInited && typeof UI !== 'undefined' && typeof UI.toggleNormals === 'function') {
+          UI.toggleNormals();                       // 엔진: UI.showNormals 토글 + drawNormals + 버튼 active
+          if (UI.mainLayer) UI.mainLayer.draw();    // 애니 정지(안착) 상태에서도 즉시 반영
+          return;
+        }
+        this.showNormals = !this.showNormals;       // (폴백) 엔진 미준비 시 bim 뷰
         var b = document.getElementById('btnToggleNormals');
         if (b) b.classList.toggle('active', this.showNormals);
         if (this._cur) this._frontOnly(this._cur);
       },
 
       toggleNodes: function () {
+        if (this._uiInited && typeof UI !== 'undefined' && typeof UI.toggleDebugNodes === 'function') {
+          UI.toggleDebugNodes();                    // 엔진: 벽 id(E1,E2…) 라벨 + 끝점 표시
+          if (UI.mainLayer) UI.mainLayer.draw();
+          return;
+        }
         this.showNodes = !this.showNodes;
         var b = document.getElementById('btnToggleNodes');
         if (b) b.classList.toggle('active', this.showNodes);
