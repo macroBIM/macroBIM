@@ -132,15 +132,18 @@
       var frun = H1 / N1;                      // horizontal run of front batter 1:N1
       var topL = -B1 + frun, topR = topL + bt; // stem top (front face 1:N1 from base left end)
       var xc = (topL + topR) / 2;
+      var hasKey = (hk > 0 && bk > 0);         // key height or width 0 → no shear key
 
       // [structure] stem: top width bt, front 1:N1 / back derived, base at y=0
       var stem = [[topL, ywt], [topR, ywt], [B2, 0], [-B1, 0]];
       // [structure] shear key: front (left) vertical, back (right) at ak, flat bottom width bk
-      var kin = hk / Math.tan(akr);
+      var kin = hasKey ? hk / Math.tan(akr) : 0;
       var key = [[0, 0], [bk + kin, 0], [bk, -hk], [0, -hk]];
-      // [foundation] blinding concrete: thickness tbl, projects ff/fb beyond the wall
-      var blindL = [[-B1 - ff, 0], [0, 0], [0, -tbl], [-B1 - ff, -tbl]];
-      var blindR = [[bk + kin, 0], [B2 + fb, 0], [B2 + fb, -tbl], [bk + kin, -tbl]];
+      // [foundation] blinding concrete: split into toe/heel segments around the key; continuous if no key
+      var blinds = hasKey
+        ? [[[-B1 - ff, 0], [0, 0], [0, -tbl], [-B1 - ff, -tbl]],
+           [[bk + kin, 0], [B2 + fb, 0], [B2 + fb, -tbl], [bk + kin, -tbl]]]
+        : [[[-B1 - ff, 0], [B2 + fb, 0], [B2 + fb, -tbl], [-B1 - ff, -tbl]]];
 
       // backfill surface: 1:N up by H0 from wall back-top corner, then horizontal (q loaded)
       var gx0 = topR, gy0 = ywt;
@@ -148,12 +151,15 @@
       var plat = Math.max(1500, B2 + 900);
       var bx = ax + plat, by = ay;
 
-      // --- fit to viewport ---
+      // --- fit to viewport (viewBox trimmed to content to avoid slack margins) ---
+      var kh = hasKey ? hk : 0;
       var minX = -B1 - ff - 40, maxX = bx + 40;
-      var minY = -hk - 45, maxY = ay + 55;
-      var padL = 120, padR = 24, padT = 18, padB = 74;
+      var minY = -Math.max(kh, tbl) - 45, maxY = ay + 10;
+      var padL = 120, padR = 24, padT = 40, padB = 74;
       var s = Math.min((W - padL - padR) / (maxX - minX), (H - padT - padB) / (maxY - minY));
-      var ox = padL - minX * s, oy = H - padB + minY * s;
+      var cW = (maxX - minX) * s + padL + padR, cH = (maxY - minY) * s + padT + padB;
+      svg.setAttribute("viewBox", "0 0 " + cW.toFixed(1) + " " + cH.toFixed(1));
+      var ox = padL - minX * s, oy = cH - padB + minY * s;
       function SX(mx) { return ox + mx * s; }
       function SY(my) { return oy - my * s; }
       function pts(arr) { return arr.map(function (p) { return SX(p[0]) + "," + SY(p[1]); }).join(" "); }
@@ -176,12 +182,12 @@
       g.appendChild(el("polygon", { points: pts(soilPoly), fill: "url(#gwSoil)", stroke: "none" }));
 
       // --- foundation: blinding concrete (distinct hatch + dashed outline) ---
-      [blindL, blindR].forEach(function (poly) {
+      blinds.forEach(function (poly) {
         g.appendChild(el("polygon", { points: pts(poly), fill: "url(#gwBlind)", stroke: "var(--found)", "stroke-width": 1, "stroke-dasharray": "4 2" }));
       });
 
       // --- wall structure: stem + shear key (one monolithic concrete) ---
-      [stem, key].forEach(function (poly) {
+      (hasKey ? [stem, key] : [stem]).forEach(function (poly) {
         g.appendChild(el("polygon", { points: pts(poly), fill: "url(#gwConc)", stroke: "var(--ink)", "stroke-width": 1.8, "stroke-linejoin": "round" }));
       });
 
@@ -213,12 +219,12 @@
         txt(g, (X1 + X2) / 2, Yscr + 11, label, cls);
       }
 
-      // left height stack: H0, H1, hk
+      // left height stack: H0, H1, (hk only when a key exists)
       var col1 = 42, col2 = 84;
-      extS(ax, ay, col1); extS(topL, ywt, col1); extS(-B1, 0, col2);
+      extS(ax, ay, col1); extS(topL, ywt, col1);
       dimVs(col1, ywt, ay, "H₀ = " + H0);
       dimVs(col1, 0, ywt, "H₁ = " + H1);
-      dimVs(col2, -hk, 0, "hk = " + hk);
+      if (hasKey) { extS(-B1, 0, col2); dimVs(col2, -hk, 0, "hk = " + hk); }
 
       // right: blinding thickness tbl
       var colR = SX(B2 + fb) + 22;
@@ -232,12 +238,14 @@
       dimLine(g, SX(topL), Ybt, SX(topR), Ybt);
       txt(g, (SX(topL) + SX(topR)) / 2, Ybt - 9, "bt = " + bt, "d");
 
-      // bottom dims: bk, B1/B2, B
-      var Y0 = SY(-hk), Yk = Y0 + 14, Yb1 = Y0 + 36, Yb2 = Y0 + 58;
-      g.appendChild(el("line", { x1: SX(bk), y1: SY(-hk), x2: SX(bk), y2: Yk + 5, stroke: "var(--line)", "stroke-width": 0.8, "stroke-dasharray": "2 2" }));
-      dimHscreen(Yk, 0, bk, "bk = " + bk);
+      // bottom dims: (bk only when a key exists), B1/B2, B
+      var Y0 = SY(-kh), Yk = Y0 + 14, Yb1 = Y0 + 36, Yb2 = Y0 + 58;
+      if (hasKey) {
+        g.appendChild(el("line", { x1: SX(bk), y1: SY(-hk), x2: SX(bk), y2: Yk + 5, stroke: "var(--line)", "stroke-width": 0.8, "stroke-dasharray": "2 2" }));
+        dimHscreen(Yk, 0, bk, "bk = " + bk);
+      }
       g.appendChild(el("line", { x1: SX(-B1), y1: SY(0), x2: SX(-B1), y2: Yb2 + 6, stroke: "var(--line)", "stroke-width": 0.8, "stroke-dasharray": "2 2" }));
-      g.appendChild(el("line", { x1: SX(0), y1: SY(-hk), x2: SX(0), y2: Yb1 + 6, stroke: "var(--line)", "stroke-width": 0.8, "stroke-dasharray": "2 2" }));
+      g.appendChild(el("line", { x1: SX(0), y1: SY(-kh), x2: SX(0), y2: Yb1 + 6, stroke: "var(--line)", "stroke-width": 0.8, "stroke-dasharray": "2 2" }));
       g.appendChild(el("line", { x1: SX(B2), y1: SY(0), x2: SX(B2), y2: Yb2 + 6, stroke: "var(--line)", "stroke-width": 0.8, "stroke-dasharray": "2 2" }));
       dimHscreen(Yb1, -B1, 0, "B₁ = " + B1);
       dimHscreen(Yb1, 0, B2, "B₂ = " + B2);
@@ -260,17 +268,19 @@
       var gmx = (gx0 + ax) / 2, gmy = (gy0 + ay) / 2;
       txt(g, SX(gmx) - 6, SY(gmy) - 6, "1:N = 1:" + N, "s", -(Math.atan(1 / N) * 180 / Math.PI), "middle");
 
-      // key back angle ak — arc at the key bottom-right corner (bk,-hk)
-      var vx = SX(bk), vy = SY(-hk), r = 26;
-      g.appendChild(el("line", { x1: vx, y1: vy, x2: vx + r + 12, y2: vy, stroke: "var(--slope)", "stroke-width": 0.9, "stroke-dasharray": "3 2" }));
-      g.appendChild(el("path", { d: "M " + (vx + r) + " " + vy + " A " + r + " " + r + " 0 0 0 " + (vx + r * Math.cos(akr)) + " " + (vy - r * Math.sin(akr)), fill: "none", stroke: "var(--slope)", "stroke-width": 1.1 }));
-      txt(g, vx + r + 16, vy - (r + 2) * Math.sin(akr) / 1.6, "ak = " + P.ak + "°", "s", 0, "start");
+      // key back angle ak — arc at the key bottom-right corner (bk,-hk); only when a key exists
+      if (hasKey) {
+        var vx = SX(bk), vy = SY(-hk), r = 26;
+        g.appendChild(el("line", { x1: vx, y1: vy, x2: vx + r + 12, y2: vy, stroke: "var(--slope)", "stroke-width": 0.9, "stroke-dasharray": "3 2" }));
+        g.appendChild(el("path", { d: "M " + (vx + r) + " " + vy + " A " + r + " " + r + " 0 0 0 " + (vx + r * Math.cos(akr)) + " " + (vy - r * Math.sin(akr)), fill: "none", stroke: "var(--slope)", "stroke-width": 1.1 }));
+        txt(g, vx + r + 16, vy - (r + 2) * Math.sin(akr) / 1.6, "ak = " + P.ak + "°", "s", 0, "start");
+      }
 
       // blinding-concrete callout (toe side)
       txt(g, SX(-B1 * 0.55), SY(-tbl) + 16, "Blinding conc.", "f");
 
       // centreline (chain line)
-      g.appendChild(el("line", { x1: SX(xc), y1: SY(ywt) + 6, x2: SX(xc), y2: SY(-hk) - 2, stroke: "var(--muted)", "stroke-width": 0.7, "stroke-dasharray": "6 2 1 2", opacity: 0.55 }));
+      g.appendChild(el("line", { x1: SX(xc), y1: SY(ywt) + 6, x2: SX(xc), y2: SY(-kh) - 2, stroke: "var(--muted)", "stroke-width": 0.7, "stroke-dasharray": "6 2 1 2", opacity: 0.55 }));
     }
 
     draw();
