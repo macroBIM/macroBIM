@@ -40,9 +40,8 @@
     ".gw-hd-r{display:flex;align-items:center;gap:10px}" +
     ".gw-btn{font:inherit;font-size:10.5px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:#fff;" +
     "background:var(--dim);border:1px solid var(--dim);border-radius:6px;padding:5px 12px;cursor:pointer;" +
-    "box-shadow:0 1px 3px rgba(37,99,235,.35);transition:filter .12s,transform .06s}" +
+    "min-width:104px;text-align:center;box-shadow:0 1px 3px rgba(37,99,235,.35);transition:filter .12s,transform .06s}" +
     ".gw-btn:hover{filter:brightness(1.12)}.gw-btn:active{filter:brightness(.94);transform:translateY(1px)}" +
-    ".gw-btn.gw-btn-dxf{background:var(--slope);border-color:var(--slope);box-shadow:0 1px 3px rgba(31,142,158,.35)}" +
     ".gw-batch-wrap{padding:0 0 10px;margin-bottom:8px;border-bottom:1px dashed var(--hair)}" +
     ".gw-batch-lbl{font-size:10px;font-weight:700;letter-spacing:.07em;text-transform:uppercase;color:var(--muted);margin-bottom:5px}" +
     ".gw-batch-hint{font-weight:400;text-transform:none;letter-spacing:0;color:var(--dim);font-family:ui-monospace,Menlo,Consolas,monospace;font-size:10px}" +
@@ -80,7 +79,7 @@
       "    </div>" +
       "    <div class='gw-card'>" +
       "      <div class='gw-hd'><span class='gw-ttl'>Dimension Input &mdash; live redraw on edit</span>" +
-      "        <button type='button' class='gw-btn gw-btn-dxf' data-gw-dxf>DXF out</button></div>" +
+      "        <button type='button' class='gw-btn' data-gw-dxf>DXF out</button></div>" +
       "      <div class='gw-inputs'></div>" +
       "    </div>" +
       "  </div>" +
