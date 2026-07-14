@@ -40,7 +40,12 @@
     ".gw-hd-r{display:flex;align-items:center;gap:10px}" +
     ".gw-btn{font:inherit;font-size:10px;letter-spacing:.06em;text-transform:uppercase;color:var(--dim);" +
     "background:transparent;border:1px solid var(--line);border-radius:5px;padding:3px 8px;cursor:pointer}" +
-    ".gw-btn:hover{background:var(--chip);border-color:var(--dim)}";
+    ".gw-btn:hover{background:var(--chip);border-color:var(--dim)}" +
+    ".gw-batch-wrap{padding:0 0 10px;margin-bottom:8px;border-bottom:1px dashed var(--hair)}" +
+    ".gw-batch-lbl{font-size:10px;font-weight:700;letter-spacing:.07em;text-transform:uppercase;color:var(--muted);margin-bottom:5px}" +
+    ".gw-batch-hint{font-weight:400;text-transform:none;letter-spacing:0;color:var(--dim);font-family:ui-monospace,Menlo,Consolas,monospace;font-size:10px}" +
+    ".gw-batch{width:100%;resize:vertical;font-family:ui-monospace,Menlo,Consolas,monospace;font-size:12px;line-height:1.5;padding:6px 8px;border:1px solid var(--line);border-radius:6px;background:var(--panel);color:var(--ink)}" +
+    ".gw-batch:focus{outline:2px solid var(--dim);outline-offset:1px;border-color:var(--dim)}";
 
   // [name, default, description, colour-tag]  (units mm unless noted)
   var VARS = [
@@ -66,7 +71,7 @@
       "<div class='gw-root'>" +
       "  <div class='gw-grid'>" +
       "    <div class='gw-card'>" +
-      "      <div class='gw-hd'><span class='gw-ttl'>Section</span>" +
+      "      <div class='gw-hd'><span class='gw-ttl'>Layout</span>" +
       "        <span class='gw-hd-r'><button type='button' class='gw-btn' data-gw-fit>Reset view</button>" +
       "        <span class='gw-ttl gw-mono'>SCALE&nbsp;NTS</span></span></div>" +
       "      <svg class='gw-plot' viewBox='0 0 620 724' role='img' aria-label='Gravity wall section (scroll to zoom, drag to pan)'></svg>" +
@@ -84,6 +89,18 @@
 
     // ---- input form ----
     var box = root.querySelector(".gw-inputs");
+    var order = VARS.map(function (v) { return v[0]; });
+    function currentCSV() { return order.map(function (k) { return P[k]; }).join(","); }
+
+    // batch input (CSV) — one line, values in VARS order
+    var bwrap = document.createElement("div");
+    bwrap.className = "gw-batch-wrap";
+    bwrap.innerHTML =
+      "<div class='gw-batch-lbl'>Batch Input (CSV) <span class='gw-batch-hint'>" + order.join(",") + "</span></div>" +
+      "<textarea class='gw-batch' rows='2' spellcheck='false'></textarea>";
+    box.appendChild(bwrap);
+    var batchTa = bwrap.querySelector(".gw-batch");
+
     VARS.forEach(function (v) {
       var k = v[0],
         unit = (k === "ak") ? "deg" : (k === "q") ? "t/m²" : (k === "N" || k === "N1") ? "ratio" : "mm",
@@ -96,11 +113,26 @@
         "<span class='gw-unit'>" + unit + "</span></span>";
       box.appendChild(row);
     });
+
+    // individual field edit → update model, keep the CSV in sync, redraw
     box.addEventListener("input", function (e) {
       var t = e.target; if (!t.dataset || !t.dataset.k) return;
       var val = parseFloat(t.value); if (isNaN(val)) return;
-      P[t.dataset.k] = val; draw();
+      P[t.dataset.k] = val; batchTa.value = currentCSV(); draw();
     });
+    // CSV edit → fan out to model + fields, redraw
+    batchTa.addEventListener("input", function () {
+      var parts = batchTa.value.split(/[,\s]+/).filter(function (s) { return s !== ""; });
+      order.forEach(function (k, i) {
+        if (i >= parts.length) return;
+        var val = parseFloat(parts[i]); if (isNaN(val)) return;
+        P[k] = val;
+        var inp = box.querySelector("input[data-k='" + k + "']");
+        if (inp) inp.value = val;
+      });
+      draw();
+    });
+    batchTa.value = currentCSV();
 
     // ---- drawing ----
     var svg = root.querySelector(".gw-plot");
@@ -218,9 +250,17 @@
       curVB.x = 0; curVB.y = 0; curVB.w = cW; curVB.h = cH;       // input change / resize refits
       var ox = padL - minX * s, oy = cH - padB + minY * s;
 
-      // size the SVG element in px to fit the available screen box (never overflow the viewport)
+      // size the SVG element in px to fit the available box (matches the Dimension card height,
+      // and never overflows the viewport)
       var availW = (svg.parentNode && svg.parentNode.clientWidth) || W;
-      var availH = Math.max(300, (window.innerHeight || 800) - svg.getBoundingClientRect().top - 16);
+      var vpH = Math.max(300, (window.innerHeight || 800) - svg.getBoundingClientRect().top - 16);
+      var availH = vpH;
+      var cards = root.querySelectorAll(".gw-card");
+      var secHd = svg.parentNode && svg.parentNode.querySelector(".gw-hd");
+      if (cards.length > 1 && secHd) {                          // = Dimension Input card height − Layout header
+        var matchH = cards[1].getBoundingClientRect().height - secHd.getBoundingClientRect().height - 2;
+        if (matchH > 160) availH = Math.min(vpH, matchH);
+      }
       var fit = Math.min(availW / cW, availH / cH);
       svg.style.width = Math.round(cW * fit) + "px";
       svg.style.height = Math.round(cH * fit) + "px";
@@ -276,7 +316,7 @@
         txt(g, Xs + (labRight ? 9 : -9), (Y1 + Y2) / 2, label, cls || "d", -90);
       }
       function extS(mx, my, Xs) {
-        g.appendChild(el("line", { x1: SX(mx), y1: SY(my), x2: Xs, y2: SY(my), stroke: "var(--line)", "stroke-width": 0.8, "stroke-dasharray": "2 2" }));
+        g.appendChild(el("line", { x1: SX(mx), y1: SY(my), x2: Xs, y2: SY(my), stroke: "var(--dim)", "stroke-width": 0.7, "stroke-dasharray": "2 2", opacity: 0.5 }));
       }
       function dimHscreen(Yscr, mx1, mx2, label, cls) {
         var X1 = SX(mx1), X2 = SX(mx2);
@@ -298,32 +338,32 @@
 
       // top width bt — raised above the structure with extension lines
       var Ybt = SY(ywt) - 42;
-      g.appendChild(el("line", { x1: SX(topL), y1: SY(ywt), x2: SX(topL), y2: Ybt, stroke: "var(--line)", "stroke-width": 0.8, "stroke-dasharray": "2 2" }));
-      g.appendChild(el("line", { x1: SX(topR), y1: SY(ywt), x2: SX(topR), y2: Ybt, stroke: "var(--line)", "stroke-width": 0.8, "stroke-dasharray": "2 2" }));
+      g.appendChild(el("line", { x1: SX(topL), y1: SY(ywt), x2: SX(topL), y2: Ybt, stroke: "var(--dim)", "stroke-width": 0.7, "stroke-dasharray": "2 2", opacity: 0.5 }));
+      g.appendChild(el("line", { x1: SX(topR), y1: SY(ywt), x2: SX(topR), y2: Ybt, stroke: "var(--dim)", "stroke-width": 0.7, "stroke-dasharray": "2 2", opacity: 0.5 }));
       dimLine(g, SX(topL), Ybt, SX(topR), Ybt);
       txt(g, (SX(topL) + SX(topR)) / 2, Ybt - 9, "bt = " + bt, "d");
 
       // bottom dims: (bk only when a key exists), B1/B2, B
       var Y0 = SY(-kh), Yk = Y0 + 14, Yb1 = Y0 + 36, Yb2 = Y0 + 58;
       if (hasKey) {
-        g.appendChild(el("line", { x1: SX(bk), y1: SY(-hk), x2: SX(bk), y2: Yk + 5, stroke: "var(--line)", "stroke-width": 0.8, "stroke-dasharray": "2 2" }));
+        g.appendChild(el("line", { x1: SX(bk), y1: SY(-hk), x2: SX(bk), y2: Yk + 5, stroke: "var(--dim)", "stroke-width": 0.7, "stroke-dasharray": "2 2", opacity: 0.5 }));
         dimHscreen(Yk, 0, bk, "bk = " + bk);
       }
-      g.appendChild(el("line", { x1: SX(-B1), y1: SY(0), x2: SX(-B1), y2: Yb2 + 6, stroke: "var(--line)", "stroke-width": 0.8, "stroke-dasharray": "2 2" }));
-      g.appendChild(el("line", { x1: SX(0), y1: SY(-kh), x2: SX(0), y2: Yb1 + 6, stroke: "var(--line)", "stroke-width": 0.8, "stroke-dasharray": "2 2" }));
-      g.appendChild(el("line", { x1: SX(B2), y1: SY(0), x2: SX(B2), y2: Yb2 + 6, stroke: "var(--line)", "stroke-width": 0.8, "stroke-dasharray": "2 2" }));
+      g.appendChild(el("line", { x1: SX(-B1), y1: SY(0), x2: SX(-B1), y2: Yb2 + 6, stroke: "var(--dim)", "stroke-width": 0.7, "stroke-dasharray": "2 2", opacity: 0.5 }));
+      g.appendChild(el("line", { x1: SX(0), y1: SY(-kh), x2: SX(0), y2: Yb1 + 6, stroke: "var(--dim)", "stroke-width": 0.7, "stroke-dasharray": "2 2", opacity: 0.5 }));
+      g.appendChild(el("line", { x1: SX(B2), y1: SY(0), x2: SX(B2), y2: Yb2 + 6, stroke: "var(--dim)", "stroke-width": 0.7, "stroke-dasharray": "2 2", opacity: 0.5 }));
       dimHscreen(Yb1, -B1, 0, "B₁ = " + B1);
       dimHscreen(Yb1, 0, B2, "B₂ = " + B2);
       dimHscreen(Yb2, -B1, B2, "B = " + B);
 
       // foundation front/back projection ff, fb (same style/colour as other dims)
       var Yr = SY(0) - 30;
-      g.appendChild(el("line", { x1: SX(-B1), y1: SY(0), x2: SX(-B1), y2: Yr, stroke: "var(--line)", "stroke-width": 0.8, "stroke-dasharray": "2 2" }));
-      g.appendChild(el("line", { x1: SX(-B1 - ff), y1: SY(-tbl), x2: SX(-B1 - ff), y2: Yr, stroke: "var(--line)", "stroke-width": 0.8, "stroke-dasharray": "2 2" }));
+      g.appendChild(el("line", { x1: SX(-B1), y1: SY(0), x2: SX(-B1), y2: Yr, stroke: "var(--dim)", "stroke-width": 0.7, "stroke-dasharray": "2 2", opacity: 0.5 }));
+      g.appendChild(el("line", { x1: SX(-B1 - ff), y1: SY(-tbl), x2: SX(-B1 - ff), y2: Yr, stroke: "var(--dim)", "stroke-width": 0.7, "stroke-dasharray": "2 2", opacity: 0.5 }));
       dimLine(g, SX(-B1 - ff), Yr, SX(-B1), Yr);
       txt(g, (SX(-B1 - ff) + SX(-B1)) / 2, Yr - 8, "ff = " + ff, "d");
-      g.appendChild(el("line", { x1: SX(B2), y1: SY(0), x2: SX(B2), y2: Yr, stroke: "var(--line)", "stroke-width": 0.8, "stroke-dasharray": "2 2" }));
-      g.appendChild(el("line", { x1: SX(B2 + fb), y1: SY(-tbl), x2: SX(B2 + fb), y2: Yr, stroke: "var(--line)", "stroke-width": 0.8, "stroke-dasharray": "2 2" }));
+      g.appendChild(el("line", { x1: SX(B2), y1: SY(0), x2: SX(B2), y2: Yr, stroke: "var(--dim)", "stroke-width": 0.7, "stroke-dasharray": "2 2", opacity: 0.5 }));
+      g.appendChild(el("line", { x1: SX(B2 + fb), y1: SY(-tbl), x2: SX(B2 + fb), y2: Yr, stroke: "var(--dim)", "stroke-width": 0.7, "stroke-dasharray": "2 2", opacity: 0.5 }));
       dimLine(g, SX(B2), Yr, SX(B2 + fb), Yr);
       txt(g, (SX(B2) + SX(B2 + fb)) / 2, Yr - 8, "fb = " + fb, "d");
 
