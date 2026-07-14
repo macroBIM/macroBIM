@@ -7,6 +7,12 @@
 (function () {
   "use strict";
 
+  var _gwDraw = null, _gwRT = null;   // current instance's draw() + debounce timer
+  window.addEventListener("resize", function () {
+    clearTimeout(_gwRT);
+    _gwRT = setTimeout(function () { if (_gwDraw) _gwDraw(); }, 120);
+  });
+
   var CSS =
     ".gw-root{--dim:#2563eb;--slope:#1f8e9e;--soil:#b4813a;--found:#6e7e8c;--foundfill:#eef2f6;" +
     "--ink:#182430;--muted:#64748b;--line:#cbd5e1;--hair:#e2e8f0;--panel:#fff;--chip:#f1f5f9;--concrete-ln:#aeb9c6;" +
@@ -120,6 +126,7 @@
     }
 
     function draw() {
+      if (!svg.isConnected) return;            // stale (mount cleared) → ignore
       while (svg.firstChild) svg.removeChild(svg.firstChild);
       var g = el("g", {}); svg.appendChild(g);
 
@@ -148,7 +155,7 @@
       // backfill surface: rises 1:N (1 horizontal : N vertical, same sense as 1:N1 →
       // larger N = steeper) then goes horizontal under q.  N = 0 → level backfill:
       // no rise, a horizontal line at the wall-top level.
-      var flat = (N <= 0);
+      var flat = (N <= 0 || H0 <= 0);          // level backfill: no rise
       var gx0 = topR, gy0 = ywt;
       var ax = flat ? gx0 : gx0 + H0 / N;
       var ay = flat ? ywt : ywt + H0;
@@ -159,11 +166,20 @@
       var kh = hasKey ? hk : 0;
       var minX = -B1 - ff - 40, maxX = bx + 40;
       var minY = -Math.max(kh, tbl) - 45, maxY = ay + 10;
-      var padL = 120, padR = 24, padT = 40, padB = 74;
+      // level backfill has no H0 band above the wall, so reserve more top room for the bt dim
+      var padL = 120, padR = 24, padT = flat ? 58 : 40, padB = 74;
       var s = Math.min((W - padL - padR) / (maxX - minX), (H - padT - padB) / (maxY - minY));
       var cW = (maxX - minX) * s + padL + padR, cH = (maxY - minY) * s + padT + padB;
       svg.setAttribute("viewBox", "0 0 " + cW.toFixed(1) + " " + cH.toFixed(1));
       var ox = padL - minX * s, oy = cH - padB + minY * s;
+
+      // size the SVG element in px to fit the available screen box (never overflow the viewport)
+      var availW = (svg.parentNode && svg.parentNode.clientWidth) || W;
+      var availH = Math.max(300, (window.innerHeight || 800) - svg.getBoundingClientRect().top - 16);
+      var fit = Math.min(availW / cW, availH / cH);
+      svg.style.width = Math.round(cW * fit) + "px";
+      svg.style.height = Math.round(cH * fit) + "px";
+      svg.style.margin = "0 auto";
       function SX(mx) { return ox + mx * s; }
       function SY(my) { return oy - my * s; }
       function pts(arr) { return arr.map(function (p) { return SX(p[0]) + "," + SY(p[1]); }).join(" "); }
@@ -287,6 +303,7 @@
       g.appendChild(el("line", { x1: SX(xc), y1: SY(ywt) + 6, x2: SX(xc), y2: SY(-kh) - 2, stroke: "var(--muted)", "stroke-width": 0.7, "stroke-dasharray": "6 2 1 2", opacity: 0.55 }));
     }
 
+    _gwDraw = draw;   // latest instance; a single module-level resize listener refits it
     draw();
   }
 
