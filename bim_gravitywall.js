@@ -146,10 +146,12 @@
         : [[[-B1 - ff, 0], [B2 + fb, 0], [B2 + fb, -tbl], [-B1 - ff, -tbl]]];
 
       // backfill surface: rises 1:N (1 horizontal : N vertical, same sense as 1:N1 →
-      // larger N = steeper) then goes horizontal under the surcharge q
-      var Nb = Math.max(N, 0.05);
+      // larger N = steeper) then goes horizontal under q.  N = 0 → level backfill:
+      // no rise, a horizontal line at the wall-top level.
+      var flat = (N <= 0);
       var gx0 = topR, gy0 = ywt;
-      var ax = gx0 + H0 / Nb, ay = ywt + H0;
+      var ax = flat ? gx0 : gx0 + H0 / N;
+      var ay = flat ? ywt : ywt + H0;
       var plat = Math.max(1500, B2 + 900);
       var bx = ax + plat, by = ay;
 
@@ -223,8 +225,8 @@
 
       // left height stack: H0, H1, (hk only when a key exists)
       var col1 = 42, col2 = 84;
-      extS(ax, ay, col1); extS(topL, ywt, col1);
-      dimVs(col1, ywt, ay, "H₀ = " + H0);
+      extS(topL, ywt, col1);
+      if (!flat) { extS(ax, ay, col1); dimVs(col1, ywt, ay, "H₀ = " + H0); }
       dimVs(col1, 0, ywt, "H₁ = " + H1);
       if (hasKey) { extS(-B1, 0, col2); dimVs(col2, -hk, 0, "hk = " + hk); }
 
@@ -267,8 +269,8 @@
       // slope labels with values
       var lmx = (topL + (-B1)) / 2, lmy = ywt / 2;
       txt(g, SX(lmx) - 6, SY(lmy), "1:N₁ = 1:" + N1, "s", -(Math.atan(H1 / frun) * 180 / Math.PI), "middle");
-      var gmx = (gx0 + ax) / 2, gmy = (gy0 + ay) / 2;
-      txt(g, SX(gmx) - 6, SY(gmy) - 6, "1:N = 1:" + N, "s", -(Math.atan(Nb) * 180 / Math.PI), "middle");
+      var gmx = flat ? gx0 + plat * 0.3 : (gx0 + ax) / 2, gmy = (gy0 + ay) / 2;
+      txt(g, SX(gmx) - 6, SY(gmy) - 6, "1:N = 1:" + N, "s", flat ? 0 : -(Math.atan(N) * 180 / Math.PI), "middle");
 
       // key back angle ak — arc at the key bottom-right corner (bk,-hk); only when a key exists
       if (hasKey) {
