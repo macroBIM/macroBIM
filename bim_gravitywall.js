@@ -35,7 +35,12 @@
     ".gw-inrow .desc{color:var(--muted);font-size:12px}" +
     ".gw-inrow input{width:96px;text-align:right;padding:5px 8px;border:1px solid var(--line);border-radius:6px;background:var(--panel);color:var(--ink);font-size:13px;font-variant-numeric:tabular-nums}" +
     ".gw-inrow input:focus{outline:2px solid var(--dim);outline-offset:1px;border-color:var(--dim)}" +
-    ".gw-unit{color:var(--muted);font-size:11px;margin-left:6px}";
+    ".gw-unit{color:var(--muted);font-size:11px;margin-left:6px}" +
+    ".gw-plot{cursor:grab;touch-action:none;-webkit-user-select:none;user-select:none}.gw-plot:active{cursor:grabbing}" +
+    ".gw-hd-r{display:flex;align-items:center;gap:10px}" +
+    ".gw-btn{font:inherit;font-size:10px;letter-spacing:.06em;text-transform:uppercase;color:var(--dim);" +
+    "background:transparent;border:1px solid var(--line);border-radius:5px;padding:3px 8px;cursor:pointer}" +
+    ".gw-btn:hover{background:var(--chip);border-color:var(--dim)}";
 
   // [name, default, description, colour-tag]  (units mm unless noted)
   var VARS = [
@@ -61,8 +66,10 @@
       "<div class='gw-root'>" +
       "  <div class='gw-grid'>" +
       "    <div class='gw-card'>" +
-      "      <div class='gw-hd'><span class='gw-ttl'>Section</span><span class='gw-ttl gw-mono'>SCALE&nbsp;NTS</span></div>" +
-      "      <svg class='gw-plot' viewBox='0 0 620 724' role='img' aria-label='Gravity wall section'></svg>" +
+      "      <div class='gw-hd'><span class='gw-ttl'>Section</span>" +
+      "        <span class='gw-hd-r'><button type='button' class='gw-btn' data-gw-fit>Reset view</button>" +
+      "        <span class='gw-ttl gw-mono'>SCALE&nbsp;NTS</span></span></div>" +
+      "      <svg class='gw-plot' viewBox='0 0 620 724' role='img' aria-label='Gravity wall section (scroll to zoom, drag to pan)'></svg>" +
       "    </div>" +
       "    <div class='gw-card'>" +
       "      <div class='gw-hd'><span class='gw-ttl'>Dimension Input &mdash; live redraw on edit</span></div>" +
@@ -98,6 +105,42 @@
     // ---- drawing ----
     var svg = root.querySelector(".gw-plot");
     var W = 620, H = 724, NS = "http://www.w3.org/2000/svg";
+
+    // ---- zoom / pan (viewBox based; base is the auto-fit view set each draw) ----
+    var baseVB = { x: 0, y: 0, w: 0, h: 0 }, curVB = { x: 0, y: 0, w: 0, h: 0 };
+    function applyVB() { svg.setAttribute("viewBox", curVB.x + " " + curVB.y + " " + curVB.w + " " + curVB.h); }
+    function resetView() { curVB.x = baseVB.x; curVB.y = baseVB.y; curVB.w = baseVB.w; curVB.h = baseVB.h; applyVB(); }
+    svg.addEventListener("wheel", function (e) {
+      if (!curVB.w) return;
+      e.preventDefault();
+      var r = svg.getBoundingClientRect();
+      var mx = (e.clientX - r.left) / r.width, my = (e.clientY - r.top) / r.height;
+      var nw = curVB.w * (e.deltaY < 0 ? 0.88 : 1 / 0.88);
+      nw = Math.min(baseVB.w, Math.max(baseVB.w * 0.08, nw));           // clamp: fit-out … 12.5× in
+      var nh = nw * (baseVB.h / baseVB.w);
+      var wx = curVB.x + mx * curVB.w, wy = curVB.y + my * curVB.h;     // keep point under cursor fixed
+      curVB.x = wx - mx * nw; curVB.y = wy - my * nh; curVB.w = nw; curVB.h = nh;
+      applyVB();
+    }, { passive: false });
+    var drag = null;
+    svg.addEventListener("pointerdown", function (e) {
+      e.preventDefault();                       // no text selection while panning
+      drag = { x: e.clientX, y: e.clientY };
+      if (svg.setPointerCapture) try { svg.setPointerCapture(e.pointerId); } catch (x) {}
+    });
+    svg.addEventListener("pointermove", function (e) {
+      if (!drag || !curVB.w) return;
+      var r = svg.getBoundingClientRect();
+      curVB.x -= (e.clientX - drag.x) * (curVB.w / r.width);
+      curVB.y -= (e.clientY - drag.y) * (curVB.h / r.height);
+      drag.x = e.clientX; drag.y = e.clientY; applyVB();
+    });
+    function endDrag() { drag = null; }
+    svg.addEventListener("pointerup", endDrag);
+    svg.addEventListener("pointercancel", endDrag);
+    svg.addEventListener("dblclick", resetView);
+    var fitBtn = root.querySelector("[data-gw-fit]");
+    if (fitBtn) fitBtn.addEventListener("click", resetView);
 
     function el(name, attrs) {
       var e = document.createElementNS(NS, name);
@@ -171,6 +214,8 @@
       var s = Math.min((W - padL - padR) / (maxX - minX), (H - padT - padB) / (maxY - minY));
       var cW = (maxX - minX) * s + padL + padR, cH = (maxY - minY) * s + padT + padB;
       svg.setAttribute("viewBox", "0 0 " + cW.toFixed(1) + " " + cH.toFixed(1));
+      baseVB.x = 0; baseVB.y = 0; baseVB.w = cW; baseVB.h = cH;   // auto-fit view
+      curVB.x = 0; curVB.y = 0; curVB.w = cW; curVB.h = cH;       // input change / resize refits
       var ox = padL - minX * s, oy = cH - padB + minY * s;
 
       // size the SVG element in px to fit the available screen box (never overflow the viewport)
