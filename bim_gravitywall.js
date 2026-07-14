@@ -145,9 +145,11 @@
            [[bk + kin, 0], [B2 + fb, 0], [B2 + fb, -tbl], [bk + kin, -tbl]]]
         : [[[-B1 - ff, 0], [B2 + fb, 0], [B2 + fb, -tbl], [-B1 - ff, -tbl]]];
 
-      // backfill surface: 1:N up by H0 from wall back-top corner, then horizontal (q loaded)
+      // backfill surface: rises 1:N (1 horizontal : N vertical, same sense as 1:N1 →
+      // larger N = steeper) then goes horizontal under the surcharge q
+      var Nb = Math.max(N, 0.05);
       var gx0 = topR, gy0 = ywt;
-      var ax = gx0 + H0 * N, ay = ywt + H0;
+      var ax = gx0 + H0 / Nb, ay = ywt + H0;
       var plat = Math.max(1500, B2 + 900);
       var bx = ax + plat, by = ay;
 
@@ -266,7 +268,7 @@
       var lmx = (topL + (-B1)) / 2, lmy = ywt / 2;
       txt(g, SX(lmx) - 6, SY(lmy), "1:N₁ = 1:" + N1, "s", -(Math.atan(H1 / frun) * 180 / Math.PI), "middle");
       var gmx = (gx0 + ax) / 2, gmy = (gy0 + ay) / 2;
-      txt(g, SX(gmx) - 6, SY(gmy) - 6, "1:N = 1:" + N, "s", -(Math.atan(1 / N) * 180 / Math.PI), "middle");
+      txt(g, SX(gmx) - 6, SY(gmy) - 6, "1:N = 1:" + N, "s", -(Math.atan(Nb) * 180 / Math.PI), "middle");
 
       // key back angle ak — arc at the key bottom-right corner (bk,-hk); only when a key exists
       if (hasKey) {
