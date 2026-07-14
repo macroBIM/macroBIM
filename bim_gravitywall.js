@@ -44,7 +44,7 @@
     ".gw-batch-wrap{padding:0 0 10px;margin-bottom:8px;border-bottom:1px dashed var(--hair)}" +
     ".gw-batch-lbl{font-size:10px;font-weight:700;letter-spacing:.07em;text-transform:uppercase;color:var(--muted);margin-bottom:5px}" +
     ".gw-batch-hint{font-weight:400;text-transform:none;letter-spacing:0;color:var(--dim);font-family:ui-monospace,Menlo,Consolas,monospace;font-size:10px}" +
-    ".gw-batch{width:100%;resize:vertical;font-family:ui-monospace,Menlo,Consolas,monospace;font-size:12px;line-height:1.5;padding:6px 8px;border:1px solid var(--line);border-radius:6px;background:var(--panel);color:var(--ink)}" +
+    ".gw-batch{width:100%;resize:none;font-family:ui-monospace,Menlo,Consolas,monospace;font-size:12px;line-height:1.5;padding:6px 8px;border:1px solid var(--line);border-radius:6px;background:var(--panel);color:var(--ink)}" +
     ".gw-batch:focus{outline:2px solid var(--dim);outline-offset:1px;border-color:var(--dim)}";
 
   // [name, default, description, colour-tag]  (units mm unless noted)
@@ -77,7 +77,8 @@
       "      <svg class='gw-plot' viewBox='0 0 620 724' role='img' aria-label='Gravity wall section (scroll to zoom, drag to pan)'></svg>" +
       "    </div>" +
       "    <div class='gw-card'>" +
-      "      <div class='gw-hd'><span class='gw-ttl'>Dimension Input &mdash; live redraw on edit</span></div>" +
+      "      <div class='gw-hd'><span class='gw-ttl'>Dimension Input &mdash; live redraw on edit</span>" +
+      "        <button type='button' class='gw-btn' data-gw-dxf>DXF out</button></div>" +
       "      <div class='gw-inputs'></div>" +
       "    </div>" +
       "  </div>" +
@@ -387,6 +388,79 @@
       // centreline (chain line)
       g.appendChild(el("line", { x1: SX(xc), y1: SY(ywt) + 6, x2: SX(xc), y2: SY(-kh) - 2, stroke: "var(--muted)", "stroke-width": 0.7, "stroke-dasharray": "6 2 1 2", opacity: 0.55 }));
     }
+
+    // ---- DXF export (geometry + dimension lines, in model mm; R12 ASCII) ----
+    function buildDXF() {
+      var H0 = P.H0, H1 = P.H1, bt = P.bt, N1 = P.N1, B1 = P.B1, B2 = P.B2,
+        hk = P.hk, bk = P.bk, tbl = P.tbl, ff = P.ff, fb = P.fb, N = P.N;
+      var akr = P.ak * Math.PI / 180, B = B1 + B2, ywt = H1;
+      var frun = H1 / N1, topL = -B1 + frun, topR = topL + bt;
+      var hasKey = (hk > 0 && bk > 0), kin = hasKey ? hk / Math.tan(akr) : 0;
+      var flat = (N <= 0 || H0 <= 0);
+      var gx0 = topR, ax = flat ? gx0 : gx0 + H0 / N, ay = flat ? ywt : ywt + H0;
+      var plat = Math.max(1500, B2 + 900), bx = ax + plat, kh = hasKey ? hk : 0;
+      var stem = [[topL, ywt], [topR, ywt], [B2, 0], [-B1, 0]];
+      var key = [[0, 0], [bk + kin, 0], [bk, -hk], [0, -hk]];
+      var blinds = hasKey
+        ? [[[-B1 - ff, 0], [0, 0], [0, -tbl], [-B1 - ff, -tbl]], [[bk + kin, 0], [B2 + fb, 0], [B2 + fb, -tbl], [bk + kin, -tbl]]]
+        : [[[-B1 - ff, 0], [B2 + fb, 0], [B2 + fb, -tbl], [-B1 - ff, -tbl]]];
+
+      var span = Math.max(B + ff + fb, H1 + (flat ? 0 : H0) + kh + tbl);
+      var th = span * 0.022, asz = th * 0.95;        // text height / arrow length
+      var BLACK = 7, GRAY = 8, BLUE = 5, TEAL = 4, BROWN = 42;
+      var e = [];
+      function f(n) { return Math.round(n * 1000) / 1000; }
+      function L(x1, y1, x2, y2, c) { e.push("0\nLINE\n8\n0\n62\n" + c + "\n10\n" + f(x1) + "\n20\n" + f(y1) + "\n30\n0\n11\n" + f(x2) + "\n21\n" + f(y2) + "\n31\n0\n"); }
+      function POLY(p, c) { for (var i = 0; i < p.length; i++) { var a = p[i], b = p[(i + 1) % p.length]; L(a[0], a[1], b[0], b[1], c); } }
+      function SOL(x1, y1, x2, y2, x3, y3, c) { e.push("0\nSOLID\n8\n0\n62\n" + c + "\n10\n" + f(x1) + "\n20\n" + f(y1) + "\n30\n0\n11\n" + f(x2) + "\n21\n" + f(y2) + "\n31\n0\n12\n" + f(x3) + "\n22\n" + f(y3) + "\n32\n0\n13\n" + f(x3) + "\n23\n" + f(y3) + "\n33\n0\n"); }
+      function ARR(x, y, ux, uy, c) { var bxx = x - asz * ux, byy = y - asz * uy, px = -uy * asz * 0.33, py = ux * asz * 0.33; SOL(x, y, bxx + px, byy + py, bxx - px, byy - py, c); }
+      function T(x, y, s, rot, c) { e.push("0\nTEXT\n8\n0\n62\n" + c + "\n10\n0\n20\n0\n30\n0\n40\n" + f(th) + "\n1\n" + s + "\n50\n" + f(rot || 0) + "\n72\n1\n73\n2\n11\n" + f(x) + "\n21\n" + f(y) + "\n31\n0\n"); }
+      function DIMH(x1, x2, Y, s) { L(x1, Y, x2, Y, BLUE); ARR(x1, Y, -1, 0, BLUE); ARR(x2, Y, 1, 0, BLUE); T((x1 + x2) / 2, Y + th * 0.85, s, 0, BLUE); }
+      function DIMV(X, y1, y2, s) { L(X, y1, X, y2, BLUE); ARR(X, y1, 0, -1, BLUE); ARR(X, y2, 0, 1, BLUE); T(X - th * 0.85, (y1 + y2) / 2, s, 90, BLUE); }
+      function W(x1, y1, x2, y2) { L(x1, y1, x2, y2, BLUE); }
+
+      // geometry
+      POLY(stem, BLACK); if (hasKey) POLY(key, BLACK);
+      blinds.forEach(function (b) { POLY(b, GRAY); });
+      L(gx0, ywt, ax, ay, BROWN); L(ax, ay, bx, ay, BROWN);           // ground line
+      var qy = ay + asz * 2.2; L(ax, qy, bx, qy, BROWN);              // surcharge q
+      for (var i = 0; i <= 5; i++) { var qx = ax + (bx - ax) * (i / 5); L(qx, qy, qx, ay, BROWN); ARR(qx, ay, 0, -1, BROWN); }
+      T((ax + bx) / 2, qy + th * 0.8, "q = " + P.q.toFixed(1) + " t/m2", 0, BROWN);
+
+      // linear dimensions
+      var colA = -B1 - ff - 3.2 * th, colB = -B1 - ff - 1.4 * th;
+      W(-B1, 0, colA, 0); W(topL, ywt, colA, ywt); DIMV(colA, 0, ywt, "H1 = " + H1);
+      if (!flat) { W(ax, ay, colA, ay); DIMV(colA, ywt, ay, "H0 = " + H0); }
+      if (hasKey) { W(-B1, -hk, colB, -hk); W(-B1, 0, colB, 0); DIMV(colB, -hk, 0, "hk = " + hk); }
+      var colR = B2 + fb + 1.6 * th; W(B2 + fb, 0, colR, 0); W(B2 + fb, -tbl, colR, -tbl); DIMV(colR, -tbl, 0, "tbl = " + tbl);
+      var ybt = ywt + 1.8 * th; W(topL, ywt, topL, ybt); W(topR, ywt, topR, ybt); DIMH(topL, topR, ybt, "bt = " + bt);
+      var lowY = -Math.max(kh, tbl);
+      if (hasKey) { W(0, -hk, 0, -hk - 1.4 * th); W(bk, -hk, bk, -hk - 1.4 * th); DIMH(0, bk, -hk - 1.4 * th, "bk = " + bk); }
+      var yb1 = lowY - 2.4 * th, yb2 = lowY - 4.0 * th;
+      W(-B1, 0, -B1, yb2); W(0, 0, 0, yb1); W(B2, 0, B2, yb2);
+      DIMH(-B1, 0, yb1, "B1 = " + B1); DIMH(0, B2, yb1, "B2 = " + B2); DIMH(-B1, B2, yb2, "B = " + B);
+      var yff = 1.4 * th; W(-B1, 0, -B1, yff); W(-B1 - ff, 0, -B1 - ff, yff); DIMH(-B1 - ff, -B1, yff, "ff = " + ff);
+      W(B2, 0, B2, yff); W(B2 + fb, 0, B2 + fb, yff); DIMH(B2, B2 + fb, yff, "fb = " + fb);
+
+      // slope / angle / callout text
+      T((topL + (-B1)) / 2 - th * 0.5, ywt / 2, "1:N1 = 1:" + N1, Math.atan2(ywt, frun) * 180 / Math.PI, TEAL);
+      if (flat) T(gx0 + (bx - gx0) * 0.25, ay + th * 0.7, "1:N = 1:" + N, 0, TEAL);
+      else T((gx0 + ax) / 2 - th * 0.4, (ywt + ay) / 2 + th * 0.4, "1:N = 1:" + N, Math.atan2(ay - ywt, ax - gx0) * 180 / Math.PI, TEAL);
+      if (hasKey) T(bk + kin * 0.5 + th, -hk * 0.45, "ak = " + P.ak + " deg", 0, TEAL);
+      T(-B1 * 0.5, -tbl - th * 0.9, "Blinding conc.", 0, GRAY);
+
+      return "0\nSECTION\n2\nENTITIES\n" + e.join("") + "0\nENDSEC\n0\nEOF\n";
+    }
+    function downloadDXF() {
+      var blob = new Blob([buildDXF()], { type: "application/dxf" });
+      var url = URL.createObjectURL(blob);
+      var a = document.createElement("a");
+      a.href = url; a.download = "GravityWall.dxf";
+      document.body.appendChild(a); a.click(); a.remove();
+      setTimeout(function () { URL.revokeObjectURL(url); }, 1500);
+    }
+    var dxfBtn = root.querySelector("[data-gw-dxf]");
+    if (dxfBtn) dxfBtn.addEventListener("click", downloadDXF);
 
     _gwDraw = draw;   // latest instance; a single module-level resize listener refits it
     draw();
