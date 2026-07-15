@@ -430,11 +430,13 @@
       var gmx = flat ? fx + plat * 0.3 : (fx + ax) / 2, gmy = flat ? Hs : (Hs + ay) / 2;
       txt(g, SX(gmx) - 6, SY(gmy) - 6, "1:N = 1:" + N, "s", flat ? 0 : -(Math.atan(N) * 180 / Math.PI), "middle");
 
-      // heel haunch callout
+      // heel haunch callout (blue leader with arrowhead pointing at the haunch)
       if (hhc > 0) {
         var hmx = (xbackHH + sb + hhc) / 2, hmy = hhc / 2;
-        g.appendChild(el("line", { x1: SX(hmx), y1: SY(hmy), x2: SX(hmx) + 26, y2: SY(hmy), stroke: "var(--muted)", "stroke-width": 0.7 }));
-        txt(g, SX(hmx) + 30, SY(hmy), hh + " × " + hh, "d", 0, "start");
+        var hpx = SX(hmx), hpy = SY(hmy), htx = hpx + 30;
+        g.appendChild(el("line", { x1: hpx, y1: hpy, x2: htx, y2: hpy, stroke: "var(--dim)", "stroke-width": 1 }));
+        arrow(g, hpx, hpy, -1, 0, "var(--dim)");
+        txt(g, htx + 4, hpy, "haunch " + hh + " × " + hh, "d", 0, "start");
       }
 
       // blinding-concrete callout (toe side)
@@ -540,7 +542,7 @@
       if (bo > 0) T((stemTB + sb) / 2 + th * 0.5, Hs * 0.55, "1:" + Nb.toFixed(3), Math.atan2(Hs, -Math.max(bo, 1)) * 180 / Math.PI, TEAL);
       if (flat) T(fx + (bx - fx) * 0.25, ay + th * 0.7, "1:N = 1:" + N, 0, TEAL);
       else T((fx + ax) / 2 - th * 0.4, (Hs + ay) / 2 + th * 0.4, "1:N = 1:" + N, Math.atan2(ay - Hs, ax - fx) * 180 / Math.PI, TEAL);
-      if (hhc > 0) T((xbackHH + sb + hhc) / 2 + th, hhc / 2, hh + " x " + hh, 0, GRAY);
+      if (hhc > 0) T((xbackHH + sb + hhc) / 2 + th, hhc / 2, "haunch " + hh + " x " + hh, 0, BLUE);
       T((baseFront - ff + Math.min(kf, baseBack)) / 2, -bB - tbl - th * 0.9, "Blinding conc.", 0, GRAY);
 
       return "0\nSECTION\n2\nENTITIES\n" + e.join("") + "0\nENDSEC\n0\nEOF\n";
