@@ -388,9 +388,7 @@
       dimLine(g, SX(sb), Yabove, SX(baseBack), Yabove);
       txt(g, (SX(baseFront) + SX(0)) / 2, Ylab, "toe = " + toe, "d");                   // toe: on the line
       txt(g, (SX(sb) + SX(baseBack)) / 2, Ylab, "heel = " + heel, "d");                 // heel: on the line (wide)
-      var sbcx = (SX(0) + SX(sb)) / 2;                                                  // sb raised on a leader (narrow, would hit toe)
-      g.appendChild(el("line", { x1: sbcx, y1: Yabove, x2: sbcx, y2: Yabove - 15, stroke: "var(--dim)", "stroke-width": 0.6, opacity: 0.6 }));
-      txt(g, sbcx, Yabove - 22, "sb = " + sb, "d");
+      txt(g, (SX(0) + SX(sb)) / 2, Yabove - 22, "sb = " + sb, "d");                     // sb raised (narrow, would hit toe); bracketed by its witness lines
 
       // BELOW the base — underside chain (blinding + shear-key horizontals) then total width B
       var yB0 = SY(-bB - Math.max(keyD, tbl));
@@ -414,12 +412,13 @@
         g.appendChild(el("line", { x1: SX(baseFront), y1: SY(-tsfc), x2: Xtt, y2: SY(-tsfc), stroke: "var(--dim)", "stroke-width": 0.7, "stroke-dasharray": "2 2", opacity: 0.5 }));
         dimVs(Xtt, -tsfc, 0, "tsf = " + tsf);
       }
-      if (tsbc > 0) {
-        var Xht = SX(baseBack) + 13;                   // heel tip (right of tip)
-        g.appendChild(el("line", { x1: SX(baseBack), y1: SY(0), x2: Xht, y2: SY(0), stroke: "var(--dim)", "stroke-width": 0.7, "stroke-dasharray": "2 2", opacity: 0.5 }));
-        g.appendChild(el("line", { x1: SX(baseBack), y1: SY(-tsbc), x2: Xht, y2: SY(-tsbc), stroke: "var(--dim)", "stroke-width": 0.7, "stroke-dasharray": "2 2", opacity: 0.5 }));
-        dimVs(Xht, -tsbc, 0, "tsb = " + tsb, "d", true);
-      }
+      // heel tip: top slope tsb (at the tip) + rear base thickness tbr (own column past the blinding, excludes tsb)
+      var Xht = SX(baseBack) + 13;                      // heel tip (right of tip)
+      function hwit(my, Xto) { g.appendChild(el("line", { x1: SX(baseBack), y1: SY(my), x2: Xto, y2: SY(my), stroke: "var(--dim)", "stroke-width": 0.7, "stroke-dasharray": "2 2", opacity: 0.5 })); }
+      if (tsbc > 0) { hwit(0, Xht); hwit(-tsbc, Xht); dimVs(Xht, -tsbc, 0, "tsb = " + tsb, "d", true); }
+      var colRb = colR + 26;
+      hwit(-bB, colRb); hwit(-tsbc, colRb);
+      dimVs(colRb, -bB, -tsbc, "tbr = " + Math.round(bB - tsbc), "d", true);
 
       // rear soil level run bh (top); H0 (backfill height) is dimensioned on the left; 1:N slope label along the slope
       var Ybd = SY(ay) - 30;
@@ -529,7 +528,10 @@
       }
       DIMH(baseFront, baseBack, yb2, "B = " + B);
       if (tsfc > 0) { var xtt = baseFront - 1.4 * th; W(baseFront, 0, xtt, 0); W(baseFront, -tsfc, xtt, -tsfc); DIMV(xtt, -tsfc, 0, "tsf = " + tsf); }
-      if (tsbc > 0) { var xht = baseBack + 1.4 * th; W(baseBack, 0, xht, 0); W(baseBack, -tsbc, xht, -tsbc); DIMV(xht, -tsbc, 0, "tsb = " + tsb); }
+      var xht = baseBack + 1.4 * th;                                                     // heel tip: slope tsb
+      if (tsbc > 0) { W(baseBack, 0, xht, 0); W(baseBack, -tsbc, xht, -tsbc); DIMV(xht, -tsbc, 0, "tsb = " + tsb); }
+      var colRb = baseBack + fb + 1.6 * th + 2.6 * th;                                   // rear thickness tbr, past the blinding column
+      W(baseBack, -bB, colRb, -bB); W(baseBack, -tsbc, colRb, -tsbc); DIMV(colRb, -bB, -tsbc, "tbr = " + Math.round(bB - tsbc));
       var ybd = ay + 1.8 * th;
       if (bh > 0) { W(gx0, gy0, gx0, ybd); W(fx, Hs, fx, ybd); DIMH(gx0, fx, ybd, "bh = " + bh); }
 
