@@ -226,20 +226,23 @@
       var xbackHH = sb + (stemTB - sb) * (hhc / Hs);   // stem back-face x at haunch top
       var tsfc = Math.max(0, Math.min(tsf, tb * 0.8)); // toe-top slope drop (clamped)
       var tsbc = Math.max(0, Math.min(tsb, tb * 0.8)); // heel-top slope drop (clamped)
+      // tb is the base-slab thickness at the (toe) tip, EXCLUDING the top slope; the slab bottom
+      // therefore sits at -(tb + tsfc) so the tip face reads exactly tb and tsf stacks above it.
+      var bB = tb + tsfc;
 
       // [structure] wall outline: stem + base slab (top slopes to toe/heel tips) + heel haunch
       var wall = [
         [stemTF, Hs], [stemTB, Hs],                    // stem top
         [xbackHH, hhc], [sb + hhc, 0],                 // stem back down to haunch, chamfer onto base top
-        [baseBack, -tsbc], [baseBack, -tb],            // heel top slopes to tip → heel edge → down
-        [baseFront, -tb], [baseFront, -tsfc],          // base bottom → toe edge up to sloped tip
+        [baseBack, -tsbc], [baseBack, -bB],            // heel top slopes to tip → heel edge → down
+        [baseFront, -bB], [baseFront, -tsfc],          // base bottom → toe edge up to sloped tip
         [0, 0]                                         // toe top slopes back up to stem front base
       ];
       // [structure] shear key below the base
       var kf = baseFront + kx;
-      var key = [[kf, -tb], [kf + bk, -tb], [kf + bk, -tb - hk], [kf, -tb - hk]];
+      var key = [[kf, -bB], [kf + bk, -bB], [kf + bk, -bB - hk], [kf, -bB - hk]];
       // [foundation] blinding under the base, split around the key (continuous if no key)
-      var blT = -tb, blB = -tb - tbl;
+      var blT = -bB, blB = -bB - tbl;
       var blinds = hasKey
         ? [[[baseFront - ff, blT], [kf, blT], [kf, blB], [baseFront - ff, blB]],
            [[kf + bk, blT], [baseBack + fb, blT], [baseBack + fb, blB], [kf + bk, blB]]]
@@ -257,8 +260,8 @@
       // --- fit to viewport (viewBox trimmed to content to avoid slack margins) ---
       var keyD = hasKey ? hk : 0;
       var minX = baseFront - ff - 40, maxX = bx + 40;
-      var minY = -tb - Math.max(keyD, tbl) - 50, maxY = ay + 12;
-      var padL = 128, padR = 30, padT = flat ? 54 : 40, padB = 96;
+      var minY = -bB - Math.max(keyD, tbl) - 50, maxY = ay + 12;
+      var padL = 128, padR = 30, padT = flat ? 58 : 50, padB = 66;
       var s = Math.min((W - padL - padR) / (maxX - minX), (H - padT - padB) / (maxY - minY));
       var cW = (maxX - minX) * s + padL + padR, cH = (maxY - minY) * s + padT + padB;
       svg.setAttribute("viewBox", "0 0 " + cW.toFixed(1) + " " + cH.toFixed(1));
@@ -346,20 +349,21 @@
       var col1 = 40, col2 = 82;
       extS(baseFront, 0, col1); extS(stemTF, Hs, col1); dimVs(col1, 0, Hs, "Hs = " + Hs);
       if (!flat) { extS(ax, ay, col1); dimVs(col1, Hs, ay, "H0 = " + H0); }
-      extS(baseFront, 0, col2); extS(baseFront, -tb, col2); dimVs(col2, -tb, 0, "tb = " + tb);
+      // tb: base thickness at the TIP (base bottom → toe-tip top), so it excludes the tsf slope
+      extS(baseFront, -tsfc, col2); extS(baseFront, -bB, col2); dimVs(col2, -bB, -tsfc, "tb = " + tb);
 
       // shear key: depth hk (left of key), width bk (below key)
       if (hasKey) {
         var kX = SX(kf) - 18;
-        g.appendChild(el("line", { x1: SX(kf), y1: SY(-tb), x2: kX, y2: SY(-tb), stroke: "var(--dim)", "stroke-width": 0.7, "stroke-dasharray": "2 2", opacity: 0.5 }));
-        g.appendChild(el("line", { x1: SX(kf), y1: SY(-tb - hk), x2: kX, y2: SY(-tb - hk), stroke: "var(--dim)", "stroke-width": 0.7, "stroke-dasharray": "2 2", opacity: 0.5 }));
-        dimVs(kX, -tb - hk, -tb, "hk = " + hk);
+        g.appendChild(el("line", { x1: SX(kf), y1: SY(-bB), x2: kX, y2: SY(-bB), stroke: "var(--dim)", "stroke-width": 0.7, "stroke-dasharray": "2 2", opacity: 0.5 }));
+        g.appendChild(el("line", { x1: SX(kf), y1: SY(-bB - hk), x2: kX, y2: SY(-bB - hk), stroke: "var(--dim)", "stroke-width": 0.7, "stroke-dasharray": "2 2", opacity: 0.5 }));
+        dimVs(kX, -bB - hk, -bB, "hk = " + hk);
       }
 
       // right: blinding thickness tbl
       var colR = SX(baseBack + fb) + 22;
-      extS(baseBack + fb, -tb, colR); extS(baseBack + fb, -tb - tbl, colR);
-      dimVs(colR, -tb - tbl, -tb, "tbl = " + tbl, "f", true);
+      extS(baseBack + fb, -bB, colR); extS(baseBack + fb, -bB - tbl, colR);
+      dimVs(colR, -bB - tbl, -bB, "tbl = " + tbl, "f", true);
 
       // top: stem-top thickness st ABOVE the dim line; front/back batter offsets fo | bo BELOW it (so nothing overlaps)
       var Yst = SY(Hs) - 40;
@@ -376,25 +380,31 @@
 
       // ===== base plan dimensions, SPLIT above / below the slab =====
       // ABOVE the base — base-top subdivisions + stem base thickness: toe | sb | heel
-      var Yabove = SY(0) - 46;
+      // labels sit ABOVE the dim line, spread to the segment ends so the narrow toe/sb never collide
+      var Yabove = SY(0) - 46, Ylab = Yabove - 9;
       vwit(baseFront, 0, Yabove); vwit(0, 0, Yabove); vwit(sb, 0, Yabove); vwit(baseBack, 0, Yabove);
-      dimHscreen(Yabove, baseFront, 0, "toe = " + toe);
-      dimHscreen(Yabove, 0, sb, "sb = " + sb);
-      dimHscreen(Yabove, sb, baseBack, "heel = " + heel);
+      dimLine(g, SX(baseFront), Yabove, SX(0), Yabove);
+      dimLine(g, SX(0), Yabove, SX(sb), Yabove);
+      dimLine(g, SX(sb), Yabove, SX(baseBack), Yabove);
+      txt(g, (SX(baseFront) + SX(0)) / 2, Ylab, "toe = " + toe, "d");                   // toe: on the line
+      txt(g, (SX(sb) + SX(baseBack)) / 2, Ylab, "heel = " + heel, "d");                 // heel: on the line (wide)
+      var sbcx = (SX(0) + SX(sb)) / 2;                                                  // sb raised on a leader (narrow, would hit toe)
+      g.appendChild(el("line", { x1: sbcx, y1: Yabove, x2: sbcx, y2: Yabove - 15, stroke: "var(--dim)", "stroke-width": 0.6, opacity: 0.6 }));
+      txt(g, sbcx, Yabove - 22, "sb = " + sb, "d");
 
       // BELOW the base — underside chain (blinding + shear-key horizontals) then total width B
-      var yB0 = SY(-tb - Math.max(keyD, tbl));
+      var yB0 = SY(-bB - Math.max(keyD, tbl));
       var Yseg = yB0 + 24, Ytot = yB0 + 46;
-      vwit(baseFront - ff, -tb, Yseg); vwit(baseFront, -tb, Yseg); vwit(baseBack, -tb, Yseg); vwit(baseBack + fb, -tb, Yseg);
+      vwit(baseFront - ff, -bB, Yseg); vwit(baseFront, -bB, Yseg); vwit(baseBack, -bB, Yseg); vwit(baseBack + fb, -bB, Yseg);
       dimHscreen(Yseg, baseFront - ff, baseFront, "ff = " + ff);
       dimHscreen(Yseg, baseBack, baseBack + fb, "fb = " + fb);
       if (hasKey) {
-        vwit(kf, -tb - hk, Yseg); vwit(kf + bk, -tb - hk, Yseg);
+        vwit(kf, -bB - hk, Yseg); vwit(kf + bk, -bB - hk, Yseg);
         dimHscreen(Yseg, baseFront, kf, "kx = " + kx);                                  // base front → shear key
         dimHscreen(Yseg, kf, kf + bk, "bk = " + bk);                                    // key width
         dimHscreen(Yseg, kf + bk, baseBack, "" + Math.round(baseBack - kf - bk));       // key → base back (derived)
       }
-      vwit(baseFront, -tb, Ytot); vwit(baseBack, -tb, Ytot);
+      vwit(baseFront, -bB, Ytot); vwit(baseBack, -bB, Ytot);
       dimHscreen(Ytot, baseFront, baseBack, "B = " + B);
 
       // base-top slope: toe-tip drop tsf (front), heel-tip drop tsb (back)
@@ -429,7 +439,7 @@
       }
 
       // blinding-concrete callout (toe side)
-      txt(g, SX((baseFront - ff + Math.min(kf, baseBack)) / 2), SY(-tb - tbl) + 15, "Blinding conc.", "f");
+      txt(g, SX((baseFront - ff + Math.min(kf, baseBack)) / 2), SY(-bB - tbl) + 15, "Blinding conc.", "f");
     }
 
     // ---- DXF export (geometry + dimension lines, in model mm; R12 ASCII) ----
@@ -445,13 +455,14 @@
       var hhc = Math.max(0, Math.min(hh, Hs * 0.9));
       var xbackHH = sb + (stemTB - sb) * (hhc / Hs);
       var tsfc = Math.max(0, Math.min(tsf, tb * 0.8)), tsbc = Math.max(0, Math.min(tsb, tb * 0.8));
+      var bB = tb + tsfc;                              // slab bottom: tb is the tip thickness, tsf stacks above it
       var wall = [
         [stemTF, Hs], [stemTB, Hs], [xbackHH, hhc], [sb + hhc, 0],
-        [baseBack, -tsbc], [baseBack, -tb], [baseFront, -tb], [baseFront, -tsfc], [0, 0]
+        [baseBack, -tsbc], [baseBack, -bB], [baseFront, -bB], [baseFront, -tsfc], [0, 0]
       ];
       var kf = baseFront + kx;
-      var key = [[kf, -tb], [kf + bk, -tb], [kf + bk, -tb - hk], [kf, -tb - hk]];
-      var blT = -tb, blB = -tb - tbl;
+      var key = [[kf, -bB], [kf + bk, -bB], [kf + bk, -bB - hk], [kf, -bB - hk]];
+      var blT = -bB, blB = -bB - tbl;
       var blinds = hasKey
         ? [[[baseFront - ff, blT], [kf, blT], [kf, blB], [baseFront - ff, blB]],
            [[kf + bk, blT], [baseBack + fb, blT], [baseBack + fb, blB], [kf + bk, blB]]]
@@ -463,7 +474,7 @@
       var plat = Math.max(1200, heel + 700), bx = ax + plat;
       var kh = hasKey ? hk : 0;
 
-      var span = Math.max(B + ff + fb, Hs + (flat ? 0 : H0) + tb + Math.max(kh, tbl));
+      var span = Math.max(B + ff + fb, Hs + (flat ? 0 : H0) + bB + Math.max(kh, tbl));
       var th = span * 0.022, asz = th * 0.95;        // text height / arrow length
       var BLACK = 7, GRAY = 8, BLUE = 5, TEAL = 4, BROWN = 42;
       var e = [];
@@ -489,9 +500,9 @@
       var colA = baseFront - ff - 3.4 * th, colB = baseFront - ff - 1.5 * th;
       W(baseFront, 0, colA, 0); W(stemTF, Hs, colA, Hs); DIMV(colA, 0, Hs, "Hs = " + Hs);
       if (!flat) { W(ax, ay, colA, ay); DIMV(colA, Hs, ay, "H0 = " + H0); }               // backfill height, stacked above Hs
-      W(baseFront, -tb, colB, -tb); W(baseFront, 0, colB, 0); DIMV(colB, -tb, 0, "tb = " + tb);
-      if (hasKey) { var colK = kf - 1.6 * th; W(kf, -tb, colK, -tb); W(kf, -tb - hk, colK, -tb - hk); DIMV(colK, -tb - hk, -tb, "hk = " + hk); }
-      var colR = baseBack + fb + 1.6 * th; W(baseBack + fb, -tb, colR, -tb); W(baseBack + fb, -tb - tbl, colR, -tb - tbl); DIMV(colR, -tb - tbl, -tb, "tbl = " + tbl);
+      W(baseFront, -bB, colB, -bB); W(baseFront, -tsfc, colB, -tsfc); DIMV(colB, -bB, -tsfc, "tb = " + tb);   // tip thickness, excludes tsf
+      if (hasKey) { var colK = kf - 1.6 * th; W(kf, -bB, colK, -bB); W(kf, -bB - hk, colK, -bB - hk); DIMV(colK, -bB - hk, -bB, "hk = " + hk); }
+      var colR = baseBack + fb + 1.6 * th; W(baseBack + fb, -bB, colR, -bB); W(baseBack + fb, -bB - tbl, colR, -bB - tbl); DIMV(colR, -bB - tbl, -bB, "tbl = " + tbl);
       // top of stem: st thickness ABOVE the reference line; fo | bo offsets BELOW it
       var yst = Hs + 2.0 * th;
       W(0, 0, 0, yst); W(sb, 0, sb, yst); W(stemTF, Hs, stemTF, yst); W(stemTB, Hs, stemTB, yst);
@@ -501,17 +512,17 @@
       if (fo > 0) T(stemTF - 2.6 * th, yst - th * 1.25, "fo = " + fo, 0, BLUE);            // fo below-left
       if (bo > 0) T(stemTB + 2.6 * th, yst - th * 1.25, "bo = " + bo, 0, BLUE);            // bo below-right
       // ABOVE the base — base-top subdivisions + stem base thickness: toe | sb | heel
-      var yA = Math.max(hhc, tb) + 2.2 * th;
-      W(baseFront, 0, baseFront, yA); W(0, 0, 0, yA); W(sb, 0, sb, yA); W(baseBack, 0, baseBack, yA);
-      DIMH(baseFront, 0, yA, "toe = " + toe); DIMH(0, sb, yA, "sb = " + sb); DIMH(sb, baseBack, yA, "heel = " + heel);
+      var yA = Math.max(hhc, tb) + 2.2 * th, yA2 = yA + 1.8 * th;   // sb raised a line so it clears the narrow toe segment
+      W(baseFront, 0, baseFront, yA); W(0, 0, 0, yA2); W(sb, 0, sb, yA2); W(baseBack, 0, baseBack, yA);
+      DIMH(baseFront, 0, yA, "toe = " + toe); DIMH(0, sb, yA2, "sb = " + sb); DIMH(sb, baseBack, yA, "heel = " + heel);
       // BELOW the base — ff | kx | bk | (rem) | fb, then total B
-      var lowY = -tb - Math.max(kh, tbl);
+      var lowY = -bB - Math.max(kh, tbl);
       var yb1 = lowY - 2.4 * th, yb2 = lowY - 4.0 * th;
-      W(baseFront - ff, -tb, baseFront - ff, yb1); W(baseFront, -tb, baseFront, yb2); W(baseBack, -tb, baseBack, yb2); W(baseBack + fb, -tb, baseBack + fb, yb1);
+      W(baseFront - ff, -bB, baseFront - ff, yb1); W(baseFront, -bB, baseFront, yb2); W(baseBack, -bB, baseBack, yb2); W(baseBack + fb, -bB, baseBack + fb, yb1);
       DIMH(baseFront - ff, baseFront, yb1, "ff = " + ff);
       DIMH(baseBack, baseBack + fb, yb1, "fb = " + fb);
       if (hasKey) {
-        W(kf, -tb - hk, kf, yb1); W(kf + bk, -tb - hk, kf + bk, yb1);
+        W(kf, -bB - hk, kf, yb1); W(kf + bk, -bB - hk, kf + bk, yb1);
         DIMH(baseFront, kf, yb1, "kx = " + kx);
         DIMH(kf, kf + bk, yb1, "bk = " + bk);
         DIMH(kf + bk, baseBack, yb1, "" + Math.round(baseBack - kf - bk));
@@ -528,7 +539,7 @@
       if (flat) T(fx + (bx - fx) * 0.25, ay + th * 0.7, "1:N = 1:" + N, 0, TEAL);
       else T((fx + ax) / 2 - th * 0.4, (Hs + ay) / 2 + th * 0.4, "1:N = 1:" + N, Math.atan2(ay - Hs, ax - fx) * 180 / Math.PI, TEAL);
       if (hhc > 0) T((xbackHH + sb + hhc) / 2 + th, hhc / 2, hh + " x " + hh, 0, GRAY);
-      T((baseFront - ff + Math.min(kf, baseBack)) / 2, -tb - tbl - th * 0.9, "Blinding conc.", 0, GRAY);
+      T((baseFront - ff + Math.min(kf, baseBack)) / 2, -bB - tbl - th * 0.9, "Blinding conc.", 0, GRAY);
 
       return "0\nSECTION\n2\nENTITIES\n" + e.join("") + "0\nENDSEC\n0\nEOF\n";
     }
