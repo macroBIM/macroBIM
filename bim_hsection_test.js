@@ -40,13 +40,13 @@
       var ptl = gp('ptl'), ptr = gp('ptr'), pbl = gp('pbl'), pbr = gp('pbr');
       var ptfl = gp('ptfl'), pwtl = gp('pwtl'), pwbl = gp('pwbl'), pbfl = gp('pbfl'), pwtr = gp('pwtr');
       var xleft = Math.min(pbl.x, ptl.x);
-      DL.push({ x1: xleft - off, y1: pbl.y, x2: xleft - off, y2: ptl.y, gap: ext * 6 });
-      DL.push({ x1: xleft - off, y1: pbl.y, x2: xleft - off, y2: pbfl.y, gap: ext * 3 });
-      DL.push({ x1: xleft - off, y1: pwbl.y, x2: xleft - off, y2: pwtl.y, gap: ext * 3 });
-      DL.push({ x1: xleft - off, y1: ptfl.y, x2: xleft - off, y2: ptl.y, gap: ext * 3 });
-      DL.push({ x1: ptl.x, y1: ptl.y + off, x2: ptr.x, y2: ptr.y + off, gap: ext * 6 });
-      DL.push({ x1: pbl.x, y1: pbl.y - off, x2: pbr.x, y2: pbr.y - off, gap: ext * -6 });
-      DL.push({ x1: pwtl.x, y1: (pwtl.y + pwbl.y) / 2, x2: pwtr.x, y2: (pwtl.y + pwbl.y) / 2, gap: ext * 1 });
+      DL.push({ x1: xleft - off, y1: pbl.y, x2: xleft - off, y2: ptl.y, gap: ext * 6, t: 'H' });
+      DL.push({ x1: xleft - off, y1: pbl.y, x2: xleft - off, y2: pbfl.y, gap: ext * 3, t: 'tbf' });
+      DL.push({ x1: xleft - off, y1: pwbl.y, x2: xleft - off, y2: pwtl.y, gap: ext * 3, t: 'hw' });
+      DL.push({ x1: xleft - off, y1: ptfl.y, x2: xleft - off, y2: ptl.y, gap: ext * 3, t: 'tft' });
+      DL.push({ x1: ptl.x, y1: ptl.y + off, x2: ptr.x, y2: ptr.y + off, gap: ext * 6, t: 'Bt' });
+      DL.push({ x1: pbl.x, y1: pbl.y - off, x2: pbr.x, y2: pbr.y - off, gap: ext * -6, t: 'Bb' });
+      DL.push({ x1: pwtl.x, y1: (pwtl.y + pwbl.y) / 2, x2: pwtr.x, y2: (pwtl.y + pwbl.y) / 2, gap: ext * 1, t: 'tw' });
       geo.arcs.forEach(function (a) {
         DR.push({ x: a.x, y: a.y, r: a.r, ang: (a.angb + a.ange) / 2 });   // point at the arc mid-point
       });
@@ -59,18 +59,18 @@
       L.push({ x1: o0.x, y1: -half, x2: o1.x, y2: -half, lay: S });
       L.push({ x1: o0.x, y1: half, x2: o1.x, y2: half, lay: S });
       wL.forEach(function (n) { var p = gp(n); L.push({ x1: p.x, y1: -half, x2: p.x, y2: half, lay: H }); });
-      DL.push({ x1: o0.x - off, y1: -half, x2: o0.x - off, y2: half, gap: ext * 6 });
-      DL.push({ x1: o0.x, y1: half + off, x2: o1.x, y2: half + off, gap: ext * 6 });
-      DL.push({ x1: w0.x, y1: half + off, x2: w1.x, y2: half + off, gap: ext * 3 });
+      DL.push({ x1: o0.x - off, y1: -half, x2: o0.x - off, y2: half, gap: ext * 6, t: 'L' });
+      DL.push({ x1: o0.x, y1: half + off, x2: o1.x, y2: half + off, gap: ext * 6, t: top ? 'Bt' : 'Bb' });
+      DL.push({ x1: w0.x, y1: half + off, x2: w1.x, y2: half + off, gap: ext * 3, t: 'tw' });
     } else { // left / right / center
       var ptl2 = gp('ptl'), pbl2 = gp('pbl'), ptfl2 = gp('ptfl'), pwtl2 = gp('pwtl'), pwbl2 = gp('pwbl'), pbfl2 = gp('pbfl');
       ['ptl', 'ptfl', 'pwtl', 'pwbl', 'pbfl', 'pbl'].forEach(function (n) { var p = gp(n); L.push({ x1: -half, y1: p.y, x2: half, y2: p.y, lay: S }); });
       L.push({ x1: -half, y1: pbl2.y, x2: -half, y2: ptl2.y, lay: S });
       L.push({ x1: half, y1: pbl2.y, x2: half, y2: ptl2.y, lay: S });
-      DL.push({ x1: -half - off, y1: pbl2.y, x2: -half - off, y2: ptl2.y, gap: ext * 6 });
-      DL.push({ x1: -half - off, y1: pbl2.y, x2: -half - off, y2: pbfl2.y, gap: ext * 3 });
-      DL.push({ x1: -half - off, y1: pwtl2.y, x2: -half - off, y2: ptfl2.y, gap: ext * 3 });
-      DL.push({ x1: -half, y1: ptl2.y + off, x2: half, y2: ptl2.y + off, gap: ext * 6 });
+      DL.push({ x1: -half - off, y1: pbl2.y, x2: -half - off, y2: ptl2.y, gap: ext * 6, t: 'H' });
+      DL.push({ x1: -half - off, y1: pbl2.y, x2: -half - off, y2: pbfl2.y, gap: ext * 3, t: 'tbf' });
+      DL.push({ x1: -half - off, y1: pwtl2.y, x2: -half - off, y2: ptfl2.y, gap: ext * 3, t: 'tft' });
+      DL.push({ x1: -half, y1: ptl2.y + off, x2: half, y2: ptl2.y + off, gap: ext * 6, t: 'L' });
     }
     return { L: L, A: A, DL: DL, DR: DR };
   }
@@ -129,8 +129,10 @@
       line(SX(d.x1), SY(d.y1), s1x, s1y, DIM, 0.6, '2 2');       // witness
       line(SX(d.x2), SY(d.y2), s2x, s2y, DIM, 0.6, '2 2');
       var ang = Math.atan2(s2y - s1y, s2x - s1x) * 180 / Math.PI; if (ang > 90 || ang < -90) ang += 180;
-      var mx = (s1x + s2x) / 2 - uy * 9, my = (s1y + s2y) / 2 + ux * 9;   // offset perpendicular
-      text(mx, my, num(len), DIM, ang);
+      // text on the OUTER side (the placement side): left dim → left, right → right, top → above, bottom → below
+      var sgn = d.gap >= 0 ? 1 : -1, gdx = nx * sgn, gdy = -ny * sgn, gm = Math.hypot(gdx, gdy) || 1;
+      var mx = (s1x + s2x) / 2 + gdx / gm * 12, my = (s1y + s2y) / 2 + gdy / gm * 12;
+      text(mx, my, (d.t ? d.t + '=' : '') + num(len), DIM, ang);
     });
     // radius dims
     vd.DR.forEach(function (d) {
