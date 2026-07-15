@@ -58,6 +58,7 @@
     ["toe", 450, "Toe length",                   "d"],
     ["heel",2100,"Heel length",                  "d"],
     ["hh",  300, "Heel haunch",                  "d"],
+    ["ts",   50, "Base top slope (toe/heel)",    "d"],
     ["hk",  400, "Shear key depth",              "d"],
     ["bk",  400, "Shear key width",              "d"],
     ["kx", 1950, "Key pos. from base front",     "d"],
@@ -65,6 +66,7 @@
     ["ff",  100, "Blinding front projection",    "f"],
     ["fb",  100, "Blinding back projection",     "f"],
     ["N",   1.5, "Backfill slope  1:N",          "s"],
+    ["bh",  300, "Rear soil level run",           "s"],
     ["bd", 1130, "Backfill horizontal distance", "s"],
     ["q",   1.0, "Surcharge q (t/m²)",      "o"]
   ];
@@ -212,21 +214,22 @@
 
       // --- model coords (mm). y=0 = base slab top; x=0 = stem front face at the base ---
       var Hs = P.Hs, st = P.st, sb = P.sb, Nf = P.Nf, tb = P.tb, toe = P.toe, heel = P.heel, hh = P.hh,
-        hk = P.hk, bk = P.bk, kx = P.kx, tbl = P.tbl, ff = P.ff, fb = P.fb, N = P.N, bd = P.bd;
+        ts = P.ts, hk = P.hk, bk = P.bk, kx = P.kx, tbl = P.tbl, ff = P.ff, fb = P.fb, N = P.N, bh = P.bh, bd = P.bd;
       var hasKey = (hk > 0 && bk > 0);
       var frontOff = Nf * Hs;                          // front face lean over the stem height
       var stemTF = frontOff, stemTB = frontOff + st;   // stem top corners (x)
       var baseFront = -toe, baseBack = sb + heel, B = toe + sb + heel;
       var hhc = Math.max(0, Math.min(hh, Hs * 0.9));   // haunch (clamped)
       var xbackHH = sb + (stemTB - sb) * (hhc / Hs);   // stem back-face x at haunch top
+      var tsc = Math.max(0, Math.min(ts, tb * 0.8));   // base-top slope drop (clamped)
 
-      // [structure] wall outline: stem + base slab + heel haunch (one monolithic pour)
+      // [structure] wall outline: stem + base slab (top slopes ts to toe/heel tips) + heel haunch
       var wall = [
         [stemTF, Hs], [stemTB, Hs],                    // stem top
         [xbackHH, hhc], [sb + hhc, 0],                 // stem back down to haunch, chamfer onto base top
-        [baseBack, 0], [baseBack, -tb],                // heel top → heel edge → down
-        [baseFront, -tb], [baseFront, 0],              // base bottom → toe edge → up
-        [0, 0]                                         // base top → stem front base (closes up the front face)
+        [baseBack, -tsc], [baseBack, -tb],             // heel top slopes to tip → heel edge → down
+        [baseFront, -tb], [baseFront, -tsc],           // base bottom → toe edge up to sloped tip
+        [0, 0]                                         // toe top slopes back up to stem front base
       ];
       // [structure] shear key below the base
       var kf = baseFront + kx;
@@ -238,13 +241,14 @@
            [[kf + bk, blT], [baseBack + fb, blT], [baseBack + fb, blB], [kf + bk, blB]]]
         : [[[baseFront - ff, blT], [baseBack + fb, blT], [baseBack + fb, blB], [baseFront - ff, blB]]];
 
-      // backfill on the heel: from stem back-top, slope 1:N over run bd, then horizontal under q
+      // backfill on the heel: from stem back-top, level run bh, then slope 1:N over run bd, then horizontal under q
       var flat = (N <= 0 || bd <= 0);
       var gx0 = stemTB, gy0 = Hs;
-      var ax = flat ? gx0 : gx0 + bd, ay = flat ? Hs : Hs + bd * N;
+      var fx = gx0 + bh;                                // end of level (flat) rear-soil run
+      var ax = flat ? fx : fx + bd, ay = flat ? Hs : Hs + bd * N;
       var plat = Math.max(1200, heel + 700);
       var bx = ax + plat, by = ay;
-      var soilPoly = [[gx0, gy0], [ax, ay], [bx, by], [bx, 0], [sb + hhc, 0], [xbackHH, hhc]];
+      var soilPoly = [[gx0, gy0], [fx, Hs], [ax, ay], [bx, by], [bx, 0], [baseBack, -tsc], [sb + hhc, 0], [xbackHH, hhc]];
 
       // --- fit to viewport (viewBox trimmed to content to avoid slack margins) ---
       var keyD = hasKey ? hk : 0;
@@ -303,8 +307,8 @@
         g.appendChild(el("polygon", { points: pts(poly), fill: "url(#iwConc)", stroke: "var(--ink)", "stroke-width": 1.8, "stroke-linejoin": "round" }));
       });
 
-      // --- ground line: 1:N slope then horizontal ---
-      g.appendChild(el("polyline", { points: pts([[gx0, gy0], [ax, ay], [bx, by]]), fill: "none", stroke: "var(--soil)", "stroke-width": 1.8 }));
+      // --- ground line: level run bh → 1:N slope → horizontal ---
+      g.appendChild(el("polyline", { points: pts([[gx0, gy0], [fx, Hs], [ax, ay], [bx, by]]), fill: "none", stroke: "var(--soil)", "stroke-width": 1.8 }));
 
       // --- surcharge q: vertical arrows on the horizontal surface ---
       var qN = 5, X0 = SX(ax), X1 = SX(bx), Ytop = SY(ay) - 20, Yb = SY(ay) - 4;
@@ -378,14 +382,31 @@
       dimHscreen(Yseg, baseFront - ff, baseFront, "ff = " + ff);
       dimHscreen(Yseg, baseBack, baseBack + fb, "fb = " + fb);
 
-      // backfill horizontal distance bd (top) + 1:N slope label
-      if (!flat) {
-        var Ybd = SY(ay) - 30;
-        vwit(gx0, gy0, Ybd); vwit(ax, ay, Ybd);
-        dimLine(g, SX(gx0), Ybd, SX(ax), Ybd);
-        txt(g, (SX(gx0) + SX(ax)) / 2, Ybd - 9, "bd = " + bd, "d");
+      // base-top slope ts (drop at toe tip & heel tip)
+      if (tsc > 0) {
+        var Xtt = SX(baseFront) - 13;                  // toe tip (left of tip)
+        g.appendChild(el("line", { x1: SX(baseFront), y1: SY(0), x2: Xtt, y2: SY(0), stroke: "var(--dim)", "stroke-width": 0.7, "stroke-dasharray": "2 2", opacity: 0.5 }));
+        g.appendChild(el("line", { x1: SX(baseFront), y1: SY(-tsc), x2: Xtt, y2: SY(-tsc), stroke: "var(--dim)", "stroke-width": 0.7, "stroke-dasharray": "2 2", opacity: 0.5 }));
+        dimVs(Xtt, -tsc, 0, "ts = " + ts);
+        var Xht = SX(baseBack) + 13;                   // heel tip (right of tip)
+        g.appendChild(el("line", { x1: SX(baseBack), y1: SY(0), x2: Xht, y2: SY(0), stroke: "var(--dim)", "stroke-width": 0.7, "stroke-dasharray": "2 2", opacity: 0.5 }));
+        g.appendChild(el("line", { x1: SX(baseBack), y1: SY(-tsc), x2: Xht, y2: SY(-tsc), stroke: "var(--dim)", "stroke-width": 0.7, "stroke-dasharray": "2 2", opacity: 0.5 }));
+        dimVs(Xht, -tsc, 0, "ts = " + ts, "d", true);
       }
-      var gmx = flat ? gx0 + plat * 0.3 : (gx0 + ax) / 2, gmy = (gy0 + ay) / 2;
+
+      // rear soil level run bh + backfill slope run bd (top) + 1:N slope label
+      var Ybd = SY(ay) - 30;
+      if (bh > 0) {
+        vwit(gx0, gy0, Ybd); vwit(fx, Hs, Ybd);
+        dimLine(g, SX(gx0), Ybd, SX(fx), Ybd);
+        txt(g, (SX(gx0) + SX(fx)) / 2, Ybd - 9, "bh = " + bh, "d");
+      }
+      if (!flat) {
+        vwit(fx, Hs, Ybd); vwit(ax, ay, Ybd);
+        dimLine(g, SX(fx), Ybd, SX(ax), Ybd);
+        txt(g, (SX(fx) + SX(ax)) / 2, Ybd - 9, "bd = " + bd, "d");
+      }
+      var gmx = flat ? fx + plat * 0.3 : (fx + ax) / 2, gmy = flat ? Hs : (Hs + ay) / 2;
       txt(g, SX(gmx) - 6, SY(gmy) - 6, "1:N = 1:" + N, "s", flat ? 0 : -(Math.atan(N) * 180 / Math.PI), "middle");
 
       // heel haunch callout
@@ -402,16 +423,17 @@
     // ---- DXF export (geometry + dimension lines, in model mm; R12 ASCII) ----
     function buildDXF() {
       var Hs = P.Hs, st = P.st, sb = P.sb, Nf = P.Nf, tb = P.tb, toe = P.toe, heel = P.heel, hh = P.hh,
-        hk = P.hk, bk = P.bk, kx = P.kx, tbl = P.tbl, ff = P.ff, fb = P.fb, N = P.N, bd = P.bd;
+        ts = P.ts, hk = P.hk, bk = P.bk, kx = P.kx, tbl = P.tbl, ff = P.ff, fb = P.fb, N = P.N, bh = P.bh, bd = P.bd;
       var hasKey = (hk > 0 && bk > 0);
       var frontOff = Nf * Hs;
       var stemTF = frontOff, stemTB = frontOff + st;
       var baseFront = -toe, baseBack = sb + heel, B = toe + sb + heel;
       var hhc = Math.max(0, Math.min(hh, Hs * 0.9));
       var xbackHH = sb + (stemTB - sb) * (hhc / Hs);
+      var tsc = Math.max(0, Math.min(ts, tb * 0.8));
       var wall = [
         [stemTF, Hs], [stemTB, Hs], [xbackHH, hhc], [sb + hhc, 0],
-        [baseBack, 0], [baseBack, -tb], [baseFront, -tb], [baseFront, 0], [0, 0]
+        [baseBack, -tsc], [baseBack, -tb], [baseFront, -tb], [baseFront, -tsc], [0, 0]
       ];
       var kf = baseFront + kx;
       var key = [[kf, -tb], [kf + bk, -tb], [kf + bk, -tb - hk], [kf, -tb - hk]];
@@ -422,7 +444,8 @@
         : [[[baseFront - ff, blT], [baseBack + fb, blT], [baseBack + fb, blB], [baseFront - ff, blB]]];
       var flat = (N <= 0 || bd <= 0);
       var gx0 = stemTB, gy0 = Hs;
-      var ax = flat ? gx0 : gx0 + bd, ay = flat ? Hs : Hs + bd * N;
+      var fx = gx0 + bh;
+      var ax = flat ? fx : fx + bd, ay = flat ? Hs : Hs + bd * N;
       var plat = Math.max(1200, heel + 700), bx = ax + plat;
       var kh = hasKey ? hk : 0;
 
@@ -443,7 +466,7 @@
       // geometry
       POLY(wall, BLACK); if (hasKey) POLY(key, BLACK);
       blinds.forEach(function (b) { POLY(b, GRAY); });
-      L(gx0, gy0, ax, ay, BROWN); L(ax, ay, bx, ay, BROWN);           // ground line
+      L(gx0, gy0, fx, Hs, BROWN); L(fx, Hs, ax, ay, BROWN); L(ax, ay, bx, ay, BROWN);   // ground line: level bh, slope, platform
       var qy = ay + asz * 2.2; L(ax, qy, bx, qy, BROWN);              // surcharge q
       for (var i = 0; i <= 5; i++) { var qx = ax + (bx - ax) * (i / 5); L(qx, qy, qx, ay, BROWN); ARR(qx, ay, 0, -1, BROWN); }
       T((ax + bx) / 2, qy + th * 0.8, "q = " + P.q.toFixed(1) + " t/m2", 0, BROWN);
@@ -462,12 +485,18 @@
       DIMH(baseFront, 0, yb1, "toe = " + toe); DIMH(0, sb, yb1, "sb = " + sb); DIMH(sb, baseBack, yb1, "heel = " + heel); DIMH(baseFront, baseBack, yb2, "B = " + B);
       W(baseFront - ff, -tb, baseFront - ff, yb1); DIMH(baseFront - ff, baseFront, yb1, "ff = " + ff);
       W(baseBack + fb, -tb, baseBack + fb, yb1); DIMH(baseBack, baseBack + fb, yb1, "fb = " + fb);
-      if (!flat) { var ybd = ay + 1.8 * th; W(gx0, gy0, gx0, ybd); W(ax, ay, ax, ybd); DIMH(gx0, ax, ybd, "bd = " + bd); }
+      if (tsc > 0) {                                    // base-top slope ts at toe tip & heel tip
+        var xtt = baseFront - 1.4 * th; W(baseFront, 0, xtt, 0); W(baseFront, -tsc, xtt, -tsc); DIMV(xtt, -tsc, 0, "ts = " + ts);
+        var xht = baseBack + 1.4 * th; W(baseBack, 0, xht, 0); W(baseBack, -tsc, xht, -tsc); DIMV(xht, -tsc, 0, "ts = " + ts);
+      }
+      var ybd = ay + 1.8 * th;
+      if (bh > 0) { W(gx0, gy0, gx0, ybd); W(fx, Hs, fx, ybd); DIMH(gx0, fx, ybd, "bh = " + bh); }
+      if (!flat) { W(fx, Hs, fx, ybd); W(ax, ay, ax, ybd); DIMH(fx, ax, ybd, "bd = " + bd); }
 
       // slope / batter / callout text
       T(stemTF / 2 - th * 0.5, Hs / 2, "1:Nf = 1:" + Nf, Math.atan2(Hs, Math.max(frontOff, 1)) * 180 / Math.PI, TEAL);
-      if (flat) T(gx0 + (bx - gx0) * 0.25, ay + th * 0.7, "1:N = 1:" + N, 0, TEAL);
-      else T((gx0 + ax) / 2 - th * 0.4, (gy0 + ay) / 2 + th * 0.4, "1:N = 1:" + N, Math.atan2(ay - gy0, ax - gx0) * 180 / Math.PI, TEAL);
+      if (flat) T(fx + (bx - fx) * 0.25, ay + th * 0.7, "1:N = 1:" + N, 0, TEAL);
+      else T((fx + ax) / 2 - th * 0.4, (Hs + ay) / 2 + th * 0.4, "1:N = 1:" + N, Math.atan2(ay - Hs, ax - fx) * 180 / Math.PI, TEAL);
       if (hhc > 0) T((xbackHH + sb + hhc) / 2 + th, hhc / 2, "haunch " + hh, 0, GRAY);
       T((baseFront - ff + Math.min(kf, baseBack)) / 2, -tb - tbl - th * 0.9, "Blinding conc.", 0, GRAY);
 
