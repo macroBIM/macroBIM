@@ -57,6 +57,7 @@
       L.push({ x1: pbti.x, y1: -half, x2: pbti.x, y2: half, lay: H });   // web inner edge (hidden)
       DL.push({ x1: o0.x - off, y1: -half, x2: o0.x - off, y2: half, gap: ext * 6, t: 'L' });
       DL.push({ x1: o0.x, y1: half + off, x2: o1.x, y2: half + off, gap: ext * 6, t: 'B' });
+      DL.push({ x1: o0.x, y1: half + off, x2: pbti.x, y2: half + off, gap: ext * 3, t: 'tw' });
     } else { // left / right / center
       var ptw2 = gp('ptw'), pbw2 = gp('pbw'), ptft2 = gp('ptft'), pbft2 = gp('pbft');
       ['ptw', 'ptft', 'pbft', 'pbw'].forEach(function (n) { var p = gp(n); L.push({ x1: -half, y1: p.y, x2: half, y2: p.y, lay: S }); });

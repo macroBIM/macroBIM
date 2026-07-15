@@ -38,7 +38,7 @@
       ddVar: '_rect_drawData', getParams: 'getParams_rect', geo: 'geo_rect',
       odxf: 'odxf_rect', render3d: 'render_rect_3d', mod3d: 'bim_rect_3d.js',
       layers: ['rect_solid', 'rect_hidden', 'rect_center'],
-      wLabel: 'B', hLabel: 'H',
+      wLabel: 'B', hLabel: 'H', wLabelIn: 'b', hLabelIn: 'h',
       W: function (a) { return a.drect_B; }, H: function (a) { return a.drect_H; },
       iW: function (a) { return a.drect_b; }, iH: function (a) { return a.drect_h; },
       hollow: function (a) { return a.hollow && a.drect_h > 0 && a.drect_b > 0 && a.drect_h < a.drect_H && a.drect_b < a.drect_B; },
@@ -59,7 +59,7 @@
       ddVar: '_circle_drawData', getParams: 'getParams_circle', geo: 'geo_circle',
       odxf: 'odxf_circle', render3d: 'render_circle_3d', mod3d: 'bim_circle_3d.js',
       layers: ['circle_solid', 'circle_hidden', 'circle_center'],
-      wLabel: 'D', hLabel: 'D',
+      wLabel: 'D', hLabel: 'D', wLabelIn: 'd', hLabelIn: 'd',
       W: function (a) { return a.dcircle_D; }, H: function (a) { return a.dcircle_D; },
       iW: function (a) { return a.dcircle_d; }, iH: function (a) { return a.dcircle_d; },
       hollow: function (a) { return a.hollow && a.dcircle_d > 0 && a.dcircle_d < a.dcircle_D; },
@@ -78,7 +78,7 @@
       ddVar: '_track_drawData', getParams: 'getParams_track', geo: 'geo_track',
       odxf: 'odxf_track', render3d: 'render_track_3d', mod3d: 'bim_track_3d.js',
       layers: ['track_solid', 'track_hidden', 'track_center'],
-      wLabel: 'B', hLabel: 'D',
+      wLabel: 'B', hLabel: 'D', wLabelIn: 'b', hLabelIn: 'd',
       W: function (a) { return a.dtrack_B; }, H: function (a) { return a.dtrack_D; },
       iW: function (a) { return a.dtrack_B - (a.dtrack_D - a.dtrack_d); }, iH: function (a) { return a.dtrack_d; },
       hollow: function (a) { return a.hollow && a.dtrack_d > 0 && a.dtrack_d < a.dtrack_D && (a.dtrack_B - (a.dtrack_D - a.dtrack_d)) > 0; },
@@ -98,7 +98,7 @@
       ddVar: '_octagon_drawData', getParams: 'getParams_octagon', geo: 'geo_octagon',
       odxf: 'odxf_octagon', render3d: 'render_octagon_3d', mod3d: 'bim_octagon_3d.js',
       layers: ['oct_solid', 'oct_hidden', 'oct_center'],
-      wLabel: 'B', hLabel: 'H',
+      wLabel: 'B', hLabel: 'H', wLabelIn: 'b', hLabelIn: 'h',
       W: function (a) { return a.doct_B1 + 2 * a.doct_B2; }, H: function (a) { return a.doct_H1 + 2 * a.doct_H2; },
       iW: function (a) { return a.doct_b1 + 2 * a.doct_b2; }, iH: function (a) { return a.doct_h1 + 2 * a.doct_h2; },
       hollow: function (a) {
@@ -175,6 +175,11 @@
       DL.push({ x1: -Wmax / 2 - off, y1: -half, x2: -Wmax / 2 - off, y2: half, gap: ext * 6, t: 'L' });
       DL.push({ x1: -Wb / 2, y1: -half - off, x2: Wb / 2, y2: -half - off, gap: ext * -6, t: cfg.wLabel });
       DL.push({ x1: -We / 2, y1: half + off, x2: We / 2, y2: half + off, gap: ext * 6, t: cfg.wLabel });
+      if (cfg.hollow(ab) && cfg.hollow(ae)) {
+        var iWbd = cfg.iW(ab), iWed = cfg.iW(ae);
+        DL.push({ x1: -iWbd / 2, y1: -half - off, x2: iWbd / 2, y2: -half - off, gap: ext * -3, t: cfg.wLabelIn });
+        DL.push({ x1: -iWed / 2, y1: half + off, x2: iWed / 2, y2: half + off, gap: ext * 3, t: cfg.wLabelIn });
+      }
     } else { // left / right / center
       var Hb = cfg.H(ab), He = cfg.H(ae), Hmax = Math.max(Hb, He);
       L.push({ x1: -half, y1: 0, x2: half, y2: 0, lay: S });
@@ -190,6 +195,11 @@
       DL.push({ x1: -half - off, y1: 0, x2: -half - off, y2: Hb, gap: ext * 6, t: cfg.hLabel });
       DL.push({ x1: half + off, y1: 0, x2: half + off, y2: He, gap: ext * -6, t: cfg.hLabel });
       DL.push({ x1: -half, y1: Hmax + off, x2: half, y2: Hmax + off, gap: ext * 6, t: 'L' });
+      if (cfg.hollow(ab) && cfg.hollow(ae)) {
+        var hbd = cfg.iH(ab), hed = cfg.iH(ae), cybd = Hb / 2, cyed = He / 2;
+        DL.push({ x1: -half - off, y1: cybd - hbd / 2, x2: -half - off, y2: cybd + hbd / 2, gap: ext * 3, t: cfg.hLabelIn });
+        DL.push({ x1: half + off, y1: cyed - hed / 2, x2: half + off, y2: cyed + hed / 2, gap: ext * -3, t: cfg.hLabelIn });
+      }
     }
     return { L: L, A: A, DL: DL, DR: DR };
   }
