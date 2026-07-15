@@ -52,13 +52,14 @@
   var VARS = [
     ["Hs", 4050, "Stem height",                  "d"],
     ["st",  300, "Stem top width",               "d"],
-    ["sb",  450, "Stem base width",              "d"],
-    ["Nf", 0.02, "Front batter 1:Nf",            "s"],
+    ["fo",   81, "Stem front batter offset",     "s"],
+    ["bo",   69, "Stem back batter offset",      "s"],
     ["tb",  400, "Base slab thickness",          "d"],
     ["toe", 450, "Toe length",                   "d"],
     ["heel",2100,"Heel length",                  "d"],
     ["hh",  300, "Heel haunch",                  "d"],
-    ["ts",   50, "Base top slope (toe/heel)",    "d"],
+    ["tsf",  50, "Toe top slope (front)",        "d"],
+    ["tsb",  50, "Heel top slope (back)",        "d"],
     ["hk",  400, "Shear key depth",              "d"],
     ["bk",  400, "Shear key width",              "d"],
     ["kx", 1950, "Key pos. from base front",     "d"],
@@ -213,22 +214,25 @@
       var g = el("g", {}); svg.appendChild(g);
 
       // --- model coords (mm). y=0 = base slab top; x=0 = stem front face at the base ---
-      var Hs = P.Hs, st = P.st, sb = P.sb, Nf = P.Nf, tb = P.tb, toe = P.toe, heel = P.heel, hh = P.hh,
-        ts = P.ts, hk = P.hk, bk = P.bk, kx = P.kx, tbl = P.tbl, ff = P.ff, fb = P.fb, N = P.N, bh = P.bh, bd = P.bd;
+      var Hs = P.Hs, st = P.st, fo = P.fo, bo = P.bo, tb = P.tb, toe = P.toe, heel = P.heel, hh = P.hh,
+        tsf = P.tsf, tsb = P.tsb, hk = P.hk, bk = P.bk, kx = P.kx, tbl = P.tbl, ff = P.ff, fb = P.fb, N = P.N, bh = P.bh, bd = P.bd;
+      var sb = st + fo + bo;                           // stem base width (top width + front/back batter offsets)
+      var Nf = Hs > 0 ? fo / Hs : 0, Nb = Hs > 0 ? bo / Hs : 0;   // batters computed from offsets & height (1:Nf front, 1:Nb back)
       var hasKey = (hk > 0 && bk > 0);
-      var frontOff = Nf * Hs;                          // front face lean over the stem height
+      var frontOff = fo;                               // front face lean over the stem height
       var stemTF = frontOff, stemTB = frontOff + st;   // stem top corners (x)
       var baseFront = -toe, baseBack = sb + heel, B = toe + sb + heel;
       var hhc = Math.max(0, Math.min(hh, Hs * 0.9));   // haunch (clamped)
       var xbackHH = sb + (stemTB - sb) * (hhc / Hs);   // stem back-face x at haunch top
-      var tsc = Math.max(0, Math.min(ts, tb * 0.8));   // base-top slope drop (clamped)
+      var tsfc = Math.max(0, Math.min(tsf, tb * 0.8)); // toe-top slope drop (clamped)
+      var tsbc = Math.max(0, Math.min(tsb, tb * 0.8)); // heel-top slope drop (clamped)
 
-      // [structure] wall outline: stem + base slab (top slopes ts to toe/heel tips) + heel haunch
+      // [structure] wall outline: stem + base slab (top slopes to toe/heel tips) + heel haunch
       var wall = [
         [stemTF, Hs], [stemTB, Hs],                    // stem top
         [xbackHH, hhc], [sb + hhc, 0],                 // stem back down to haunch, chamfer onto base top
-        [baseBack, -tsc], [baseBack, -tb],             // heel top slopes to tip → heel edge → down
-        [baseFront, -tb], [baseFront, -tsc],           // base bottom → toe edge up to sloped tip
+        [baseBack, -tsbc], [baseBack, -tb],            // heel top slopes to tip → heel edge → down
+        [baseFront, -tb], [baseFront, -tsfc],          // base bottom → toe edge up to sloped tip
         [0, 0]                                         // toe top slopes back up to stem front base
       ];
       // [structure] shear key below the base
@@ -248,7 +252,7 @@
       var ax = flat ? fx : fx + bd, ay = flat ? Hs : Hs + bd * N;
       var plat = Math.max(1200, heel + 700);
       var bx = ax + plat, by = ay;
-      var soilPoly = [[gx0, gy0], [fx, Hs], [ax, ay], [bx, by], [bx, 0], [baseBack, -tsc], [sb + hhc, 0], [xbackHH, hhc]];
+      var soilPoly = [[gx0, gy0], [fx, Hs], [ax, ay], [bx, by], [bx, 0], [baseBack, -tsbc], [sb + hhc, 0], [xbackHH, hhc]];
 
       // --- fit to viewport (viewBox trimmed to content to avoid slack margins) ---
       var keyD = hasKey ? hk : 0;
@@ -356,12 +360,26 @@
       extS(baseBack + fb, -tb, colR); extS(baseBack + fb, -tb - tbl, colR);
       dimVs(colR, -tb - tbl, -tb, "tbl = " + tbl, "f", true);
 
-      // top: stem top width st (raised) + front batter 1:Nf
+      // top: batter offsets fo | st | bo on one chained dim line (labels spread out, stem is thin) + computed batters on the faces
       var Yst = SY(Hs) - 42;
+      function fwit(mx) { g.appendChild(el("line", { x1: SX(mx), y1: SY(0), x2: SX(mx), y2: Yst, stroke: "var(--dim)", "stroke-width": 0.6, "stroke-dasharray": "3 3", opacity: 0.33 })); }
+      fwit(0); fwit(sb);                                // reference projections up from the base corners
       vwit(stemTF, Hs, Yst); vwit(stemTB, Hs, Yst);
-      dimLine(g, SX(stemTF), Yst, SX(stemTB), Yst);
-      txt(g, (SX(stemTF) + SX(stemTB)) / 2, Yst - 9, "st = " + st, "d");
-      txt(g, SX(stemTF / 2) - 8, SY(Hs / 2), "1:Nf = 1:" + Nf, "s", -(Math.atan(Hs / Math.max(frontOff, 1)) * 180 / Math.PI), "middle");
+      dimLine(g, SX(0), Yst, SX(sb), Yst);             // one line across the base width
+      [stemTF, stemTB].forEach(function (mx) { g.appendChild(el("line", { x1: SX(mx), y1: Yst - 3, x2: SX(mx), y2: Yst + 3, stroke: "var(--dim)", "stroke-width": 1 })); });
+      txt(g, (SX(stemTF) + SX(stemTB)) / 2, Yst - 9, "st = " + st, "d");   // middle segment (widest)
+      if (fo > 0) {                                    // fo pulled out left with a leader (segment is thin)
+        var foMid = (SX(0) + SX(stemTF)) / 2, foLX = SX(0) - 16;
+        g.appendChild(el("line", { x1: foMid, y1: Yst, x2: foLX, y2: Yst - 20, stroke: "var(--dim)", "stroke-width": 0.6, opacity: 0.6 }));
+        txt(g, foLX - 2, Yst - 22, "fo = " + fo, "d", 0, "end");
+      }
+      if (bo > 0) {                                    // bo pulled out right with a leader
+        var boMid = (SX(stemTB) + SX(sb)) / 2, boRX = SX(sb) + 16;
+        g.appendChild(el("line", { x1: boMid, y1: Yst, x2: boRX, y2: Yst - 20, stroke: "var(--dim)", "stroke-width": 0.6, opacity: 0.6 }));
+        txt(g, boRX + 2, Yst - 22, "bo = " + bo, "d", 0, "start");
+      }
+      if (frontOff > 0) txt(g, SX(stemTF / 2) - 8, SY(Hs / 2), "1:" + Nf.toFixed(3), "s", -(Math.atan(Hs / Math.max(frontOff, 1)) * 180 / Math.PI), "middle");
+      if (bo > 0) txt(g, SX((stemTB + sb) / 2) + 8, SY(Hs * 0.55), "1:" + Nb.toFixed(3), "s", (Math.atan(Hs / Math.max(bo, 1)) * 180 / Math.PI), "middle");
 
       // shear-key width bk (below the key)
       if (hasKey) {
@@ -382,16 +400,18 @@
       dimHscreen(Yseg, baseFront - ff, baseFront, "ff = " + ff);
       dimHscreen(Yseg, baseBack, baseBack + fb, "fb = " + fb);
 
-      // base-top slope ts (drop at toe tip & heel tip)
-      if (tsc > 0) {
+      // base-top slope: toe-tip drop tsf (front), heel-tip drop tsb (back)
+      if (tsfc > 0) {
         var Xtt = SX(baseFront) - 13;                  // toe tip (left of tip)
         g.appendChild(el("line", { x1: SX(baseFront), y1: SY(0), x2: Xtt, y2: SY(0), stroke: "var(--dim)", "stroke-width": 0.7, "stroke-dasharray": "2 2", opacity: 0.5 }));
-        g.appendChild(el("line", { x1: SX(baseFront), y1: SY(-tsc), x2: Xtt, y2: SY(-tsc), stroke: "var(--dim)", "stroke-width": 0.7, "stroke-dasharray": "2 2", opacity: 0.5 }));
-        dimVs(Xtt, -tsc, 0, "ts = " + ts);
+        g.appendChild(el("line", { x1: SX(baseFront), y1: SY(-tsfc), x2: Xtt, y2: SY(-tsfc), stroke: "var(--dim)", "stroke-width": 0.7, "stroke-dasharray": "2 2", opacity: 0.5 }));
+        dimVs(Xtt, -tsfc, 0, "tsf = " + tsf);
+      }
+      if (tsbc > 0) {
         var Xht = SX(baseBack) + 13;                   // heel tip (right of tip)
         g.appendChild(el("line", { x1: SX(baseBack), y1: SY(0), x2: Xht, y2: SY(0), stroke: "var(--dim)", "stroke-width": 0.7, "stroke-dasharray": "2 2", opacity: 0.5 }));
-        g.appendChild(el("line", { x1: SX(baseBack), y1: SY(-tsc), x2: Xht, y2: SY(-tsc), stroke: "var(--dim)", "stroke-width": 0.7, "stroke-dasharray": "2 2", opacity: 0.5 }));
-        dimVs(Xht, -tsc, 0, "ts = " + ts, "d", true);
+        g.appendChild(el("line", { x1: SX(baseBack), y1: SY(-tsbc), x2: Xht, y2: SY(-tsbc), stroke: "var(--dim)", "stroke-width": 0.7, "stroke-dasharray": "2 2", opacity: 0.5 }));
+        dimVs(Xht, -tsbc, 0, "tsb = " + tsb, "d", true);
       }
 
       // rear soil level run bh + backfill slope run bd (top) + 1:N slope label
@@ -422,18 +442,20 @@
 
     // ---- DXF export (geometry + dimension lines, in model mm; R12 ASCII) ----
     function buildDXF() {
-      var Hs = P.Hs, st = P.st, sb = P.sb, Nf = P.Nf, tb = P.tb, toe = P.toe, heel = P.heel, hh = P.hh,
-        ts = P.ts, hk = P.hk, bk = P.bk, kx = P.kx, tbl = P.tbl, ff = P.ff, fb = P.fb, N = P.N, bh = P.bh, bd = P.bd;
+      var Hs = P.Hs, st = P.st, fo = P.fo, bo = P.bo, tb = P.tb, toe = P.toe, heel = P.heel, hh = P.hh,
+        tsf = P.tsf, tsb = P.tsb, hk = P.hk, bk = P.bk, kx = P.kx, tbl = P.tbl, ff = P.ff, fb = P.fb, N = P.N, bh = P.bh, bd = P.bd;
+      var sb = st + fo + bo;
+      var Nf = Hs > 0 ? fo / Hs : 0, Nb = Hs > 0 ? bo / Hs : 0;
       var hasKey = (hk > 0 && bk > 0);
-      var frontOff = Nf * Hs;
+      var frontOff = fo;
       var stemTF = frontOff, stemTB = frontOff + st;
       var baseFront = -toe, baseBack = sb + heel, B = toe + sb + heel;
       var hhc = Math.max(0, Math.min(hh, Hs * 0.9));
       var xbackHH = sb + (stemTB - sb) * (hhc / Hs);
-      var tsc = Math.max(0, Math.min(ts, tb * 0.8));
+      var tsfc = Math.max(0, Math.min(tsf, tb * 0.8)), tsbc = Math.max(0, Math.min(tsb, tb * 0.8));
       var wall = [
         [stemTF, Hs], [stemTB, Hs], [xbackHH, hhc], [sb + hhc, 0],
-        [baseBack, -tsc], [baseBack, -tb], [baseFront, -tb], [baseFront, -tsc], [0, 0]
+        [baseBack, -tsbc], [baseBack, -tb], [baseFront, -tb], [baseFront, -tsfc], [0, 0]
       ];
       var kf = baseFront + kx;
       var key = [[kf, -tb], [kf + bk, -tb], [kf + bk, -tb - hk], [kf, -tb - hk]];
@@ -477,7 +499,13 @@
       W(baseFront, -tb, colB, -tb); W(baseFront, 0, colB, 0); DIMV(colB, -tb, 0, "tb = " + tb);
       if (hasKey) { var colK = kf - 1.6 * th; W(kf, -tb, colK, -tb); W(kf, -tb - hk, colK, -tb - hk); DIMV(colK, -tb - hk, -tb, "hk = " + hk); }
       var colR = baseBack + fb + 1.6 * th; W(baseBack + fb, -tb, colR, -tb); W(baseBack + fb, -tb - tbl, colR, -tb - tbl); DIMV(colR, -tb - tbl, -tb, "tbl = " + tbl);
-      var yst = Hs + 1.8 * th; W(stemTF, Hs, stemTF, yst); W(stemTB, Hs, stemTB, yst); DIMH(stemTF, stemTB, yst, "st = " + st);
+      var yst = Hs + 1.8 * th;
+      W(0, 0, 0, yst); W(sb, 0, sb, yst); W(stemTF, Hs, stemTF, yst); W(stemTB, Hs, stemTB, yst);
+      L(0, yst, sb, yst, BLUE); ARR(0, yst, -1, 0, BLUE); ARR(sb, yst, 1, 0, BLUE);   // one chained dim line
+      L(stemTF, yst - th * 0.3, stemTF, yst + th * 0.3, BLUE); L(stemTB, yst - th * 0.3, stemTB, yst + th * 0.3, BLUE);   // interior ticks
+      if (fo > 0) T(0 - 3.5 * th, yst + th * 0.85, "fo = " + fo, 0, BLUE);
+      T((stemTF + stemTB) / 2, yst + th * 0.85, "st = " + st, 0, BLUE);
+      if (bo > 0) T(sb + 3.5 * th, yst + th * 0.85, "bo = " + bo, 0, BLUE);
       if (hasKey) { W(kf, -tb - hk, kf, -tb - hk - 1.4 * th); W(kf + bk, -tb - hk, kf + bk, -tb - hk - 1.4 * th); DIMH(kf, kf + bk, -tb - hk - 1.4 * th, "bk = " + bk); }
       var lowY = -tb - Math.max(kh, tbl);
       var yb1 = lowY - 2.4 * th, yb2 = lowY - 4.0 * th;
@@ -485,16 +513,15 @@
       DIMH(baseFront, 0, yb1, "toe = " + toe); DIMH(0, sb, yb1, "sb = " + sb); DIMH(sb, baseBack, yb1, "heel = " + heel); DIMH(baseFront, baseBack, yb2, "B = " + B);
       W(baseFront - ff, -tb, baseFront - ff, yb1); DIMH(baseFront - ff, baseFront, yb1, "ff = " + ff);
       W(baseBack + fb, -tb, baseBack + fb, yb1); DIMH(baseBack, baseBack + fb, yb1, "fb = " + fb);
-      if (tsc > 0) {                                    // base-top slope ts at toe tip & heel tip
-        var xtt = baseFront - 1.4 * th; W(baseFront, 0, xtt, 0); W(baseFront, -tsc, xtt, -tsc); DIMV(xtt, -tsc, 0, "ts = " + ts);
-        var xht = baseBack + 1.4 * th; W(baseBack, 0, xht, 0); W(baseBack, -tsc, xht, -tsc); DIMV(xht, -tsc, 0, "ts = " + ts);
-      }
+      if (tsfc > 0) { var xtt = baseFront - 1.4 * th; W(baseFront, 0, xtt, 0); W(baseFront, -tsfc, xtt, -tsfc); DIMV(xtt, -tsfc, 0, "tsf = " + tsf); }
+      if (tsbc > 0) { var xht = baseBack + 1.4 * th; W(baseBack, 0, xht, 0); W(baseBack, -tsbc, xht, -tsbc); DIMV(xht, -tsbc, 0, "tsb = " + tsb); }
       var ybd = ay + 1.8 * th;
       if (bh > 0) { W(gx0, gy0, gx0, ybd); W(fx, Hs, fx, ybd); DIMH(gx0, fx, ybd, "bh = " + bh); }
       if (!flat) { W(fx, Hs, fx, ybd); W(ax, ay, ax, ybd); DIMH(fx, ax, ybd, "bd = " + bd); }
 
-      // slope / batter / callout text
-      T(stemTF / 2 - th * 0.5, Hs / 2, "1:Nf = 1:" + Nf, Math.atan2(Hs, Math.max(frontOff, 1)) * 180 / Math.PI, TEAL);
+      // slope / batter / callout text (batters computed from offsets & height)
+      if (frontOff > 0) T(stemTF / 2 - th * 0.5, Hs / 2, "1:" + Nf.toFixed(3), Math.atan2(Hs, Math.max(frontOff, 1)) * 180 / Math.PI, TEAL);
+      if (bo > 0) T((stemTB + sb) / 2 + th * 0.5, Hs * 0.55, "1:" + Nb.toFixed(3), Math.atan2(Hs, -Math.max(bo, 1)) * 180 / Math.PI, TEAL);
       if (flat) T(fx + (bx - fx) * 0.25, ay + th * 0.7, "1:N = 1:" + N, 0, TEAL);
       else T((fx + ax) / 2 - th * 0.4, (Hs + ay) / 2 + th * 0.4, "1:N = 1:" + N, Math.atan2(ay - Hs, ax - fx) * 180 / Math.PI, TEAL);
       if (hhc > 0) T((xbackHH + sb + hhc) / 2 + th, hhc / 2, "haunch " + hh, 0, GRAY);
