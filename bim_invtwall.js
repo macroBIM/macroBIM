@@ -69,6 +69,7 @@
     ["N",   1.5, "Backfill slope  1:N",          "s"],
     ["bh",  300, "Rear soil level run",           "s"],
     ["H0", 1500, "Backfill height",               "s"],
+    ["Df", 1000, "Front soil depth",              "s"],
     ["q",   1.0, "Surcharge q (t/m²)",      "o"]
   ];
 
@@ -215,24 +216,27 @@
 
       // --- model coords (mm). y=0 = base slab top; x=0 = stem front face at the base ---
       var Hs = P.Hs, st = P.st, fo = P.fo, bo = P.bo, tb = P.tb, toe = P.toe, heel = P.heel, hh = P.hh,
-        tsf = P.tsf, tsb = P.tsb, hk = P.hk, bk = P.bk, kx = P.kx, tbl = P.tbl, ff = P.ff, fb = P.fb, N = P.N, bh = P.bh, H0 = P.H0;
+        tsf = P.tsf, tsb = P.tsb, hk = P.hk, bk = P.bk, kx = P.kx, tbl = P.tbl, ff = P.ff, fb = P.fb, N = P.N, bh = P.bh, H0 = P.H0, Df = P.Df;
       var sb = st + fo + bo;                           // stem base width (top width + front/back batter offsets)
-      var Nf = Hs > 0 ? fo / Hs : 0, Nb = Hs > 0 ? bo / Hs : 0;   // batters computed from offsets & height (1:Nf front, 1:Nb back)
       var hasKey = (hk > 0 && bk > 0);
       var frontOff = fo;                               // front face lean over the stem height
       var stemTF = frontOff, stemTB = frontOff + st;   // stem top corners (x)
       var baseFront = -toe, baseBack = sb + heel, B = toe + sb + heel;
-      var hhc = Math.max(0, Math.min(hh, Hs * 0.9));   // haunch (clamped)
-      var xbackHH = sb + (stemTB - sb) * (hhc / Hs);   // stem back-face x at haunch top
       var tsfc = Math.max(0, Math.min(tsf, tb * 0.8)); // toe-top slope drop (clamped)
       var tsbc = Math.max(0, Math.min(tsb, tb * 0.8)); // heel-top slope drop (clamped)
       // tb is the base-slab thickness at the (toe) tip, EXCLUDING the top slope; the slab bottom
       // therefore sits at -(tb + tsfc) so the tip face reads exactly tb and tsf stacks above it.
       var bB = tb + tsfc;
+      // Hs is the FULL wall height from the slab bottom (-bB, = blinding top) to the stem top,
+      // so the stem top sits at Ht = Hs - bB above the base top.
+      var Ht = Math.max(1, Hs - bB);
+      var Nf = fo / Ht, Nb = bo / Ht;                  // batters over the stem height (1:Nf front, 1:Nb back)
+      var hhc = Math.max(0, Math.min(hh, Ht * 0.9));   // haunch (clamped)
+      var xbackHH = sb + (stemTB - sb) * (hhc / Ht);   // stem back-face x at haunch top
 
       // [structure] wall outline: stem + base slab (top slopes to toe/heel tips) + heel haunch
       var wall = [
-        [stemTF, Hs], [stemTB, Hs],                    // stem top
+        [stemTF, Ht], [stemTB, Ht],                    // stem top
         [xbackHH, hhc], [sb + hhc, 0],                 // stem back down to haunch, chamfer onto base top
         [baseBack, -tsbc], [baseBack, -bB],            // heel top slopes to tip → heel edge → down
         [baseFront, -bB], [baseFront, -tsfc],          // base bottom → toe edge up to sloped tip
@@ -250,16 +254,23 @@
 
       // backfill on the heel: from stem back-top, level run bh, then slope 1:N rising by H0 (run H0/N), then horizontal under q
       var flat = (N <= 0 || H0 <= 0);
-      var gx0 = stemTB, gy0 = Hs;
+      var gx0 = stemTB, gy0 = Ht;
       var fx = gx0 + bh;                                // end of level (flat) rear-soil run
-      var ax = flat ? fx : fx + H0 / N, ay = flat ? Hs : Hs + H0;
+      var ax = flat ? fx : fx + H0 / N, ay = flat ? Ht : Ht + H0;
       var plat = Math.max(1200, heel + 700);
       var bx = ax + plat, by = ay;
-      var soilPoly = [[gx0, gy0], [fx, Hs], [ax, ay], [bx, by], [bx, 0], [baseBack, -tsbc], [sb + hhc, 0], [xbackHH, hhc]];
+      var soilPoly = [[gx0, gy0], [fx, Ht], [ax, ay], [bx, by], [bx, 0], [baseBack, -tsbc], [sb + hhc, 0], [xbackHH, hhc]];
+
+      // front (passive-side) soil on the toe: surface height Df measured from the slab bottom (-bB), extending 2×toe in front
+      var Dfy = Math.min(Df - bB, Ht * 0.95);          // front ground-surface y (Df is from the slab bottom, like Hs)
+      var hasFront = (Dfy > 0);
+      var xfDf = frontOff * Math.max(Dfy, 0) / Ht;     // stem front-face x at the ground surface
+      var fgL = baseFront - toe;                        // front-soil left extent = 2×toe in front of the stem front
+      var frontSoil = [[xfDf, Dfy], [fgL, Dfy], [fgL, 0], [baseFront, -tsfc], [0, 0]];
 
       // --- fit to viewport (viewBox trimmed to content to avoid slack margins) ---
       var keyD = hasKey ? hk : 0;
-      var minX = baseFront - ff - 40, maxX = bx + 40;
+      var minX = Math.min(baseFront - ff, hasFront ? fgL : baseFront) - 40, maxX = bx + 40;
       var minY = -bB - Math.max(keyD, tbl) - 50, maxY = ay + 12;
       var padL = 128, padR = 30, padT = flat ? 58 : 50, padB = 66;
       var s = Math.min((W - padL - padR) / (maxX - minX), (H - padT - padB) / (maxY - minY));
@@ -304,6 +315,9 @@
       // --- soil on the heel (behind the stem, up the slope, under the surcharge) ---
       g.appendChild(el("polygon", { points: pts(soilPoly), fill: "url(#iwSoil)", stroke: "none" }));
 
+      // --- front (passive) soil on the toe ---
+      if (hasFront) g.appendChild(el("polygon", { points: pts(frontSoil), fill: "url(#iwSoil)", stroke: "none" }));
+
       // --- foundation: blinding concrete (distinct hatch + dashed outline) ---
       blinds.forEach(function (poly) {
         g.appendChild(el("polygon", { points: pts(poly), fill: "url(#iwBlind)", stroke: "var(--found)", "stroke-width": 1, "stroke-dasharray": "4 2" }));
@@ -315,7 +329,17 @@
       });
 
       // --- ground line: level run bh → 1:N slope → horizontal ---
-      g.appendChild(el("polyline", { points: pts([[gx0, gy0], [fx, Hs], [ax, ay], [bx, by]]), fill: "none", stroke: "var(--soil)", "stroke-width": 1.8 }));
+      g.appendChild(el("polyline", { points: pts([[gx0, gy0], [fx, Ht], [ax, ay], [bx, by]]), fill: "none", stroke: "var(--soil)", "stroke-width": 1.8 }));
+
+      // --- front ground surface line + natural-ground hachure symbol (toe side, extends 2×toe) ---
+      if (hasFront) {
+        var fgY = SY(Dfy), fgXr = SX(xfDf), fgXl = SX(fgL);
+        g.appendChild(el("line", { x1: fgXl, y1: fgY, x2: fgXr, y2: fgY, stroke: "var(--soil)", "stroke-width": 1.8 }));
+        for (var hi = 0; hi < 5; hi++) {                 // short 45° hachures hanging below the line
+          var hx = fgXl + 7 + hi * 9;
+          g.appendChild(el("line", { x1: hx, y1: fgY, x2: hx - 5, y2: fgY + 5, stroke: "var(--soil)", "stroke-width": 1 }));
+        }
+      }
 
       // --- surcharge q: vertical arrows on the horizontal surface ---
       var qN = 5, X0 = SX(ax), X1 = SX(bx), Ytop = SY(ay) - 20, Yb = SY(ay) - 4;
@@ -345,12 +369,13 @@
       // vertical witness helper (dashed blue)
       function vwit(mx, my, Yscr) { g.appendChild(el("line", { x1: SX(mx), y1: SY(my), x2: SX(mx), y2: Yscr, stroke: "var(--dim)", "stroke-width": 0.7, "stroke-dasharray": "2 2", opacity: 0.5 })); }
 
-      // left: stem height Hs, backfill height H0 (stacked above Hs), base thickness tb
+      // left: full wall height Hs (slab bottom → stem top), backfill height H0 (above), tip thickness tb
       var col1 = 40, col2 = 82;
-      extS(baseFront, 0, col1); extS(stemTF, Hs, col1); dimVs(col1, 0, Hs, "Hs = " + Hs);
-      if (!flat) { extS(ax, ay, col1); dimVs(col1, Hs, ay, "H0 = " + H0); }
-      // tb: base thickness at the TIP (base bottom → toe-tip top), so it excludes the tsf slope
-      extS(baseFront, -tsfc, col2); extS(baseFront, -bB, col2); dimVs(col2, -bB, -tsfc, "tb = " + tb);
+      extS(baseFront, -bB, col1); extS(stemTF, Ht, col1); dimVs(col1, -bB, Ht, "Hs = " + Hs);
+      if (!flat) { extS(ax, ay, col1); dimVs(col1, Ht, ay, "H0 = " + H0); }
+      // tb: base thickness at the TIP (base bottom → toe-tip top), excludes the tsf slope; sits INNER (swapped with Df)
+      var colTb = SX(baseFront) - 30;
+      extS(baseFront, -tsfc, colTb); extS(baseFront, -bB, colTb); dimVs(colTb, -bB, -tsfc, "tb = " + tb);
 
       // shear key: depth hk (left of key), width bk (below key)
       if (hasKey) {
@@ -366,17 +391,18 @@
       dimVs(colR, -bB - tbl, -bB, "tbl = " + tbl, "f", true);
 
       // top: stem-top thickness st ABOVE the dim line; front/back batter offsets fo | bo BELOW it (so nothing overlaps)
-      var Yst = SY(Hs) - 40;
+      var Yst = SY(Ht) - 40;
       function fwit(mx) { g.appendChild(el("line", { x1: SX(mx), y1: SY(0), x2: SX(mx), y2: Yst, stroke: "var(--dim)", "stroke-width": 0.6, "stroke-dasharray": "3 3", opacity: 0.33 })); }
       fwit(0); fwit(sb);                                // reference projections up from the base corners
-      vwit(stemTF, Hs, Yst); vwit(stemTB, Hs, Yst);
-      dimLine(g, SX(0), Yst, SX(sb), Yst);             // horizontal reference line across the base width
-      [stemTF, stemTB].forEach(function (mx) { g.appendChild(el("line", { x1: SX(mx), y1: Yst - 3, x2: SX(mx), y2: Yst + 3, stroke: "var(--dim)", "stroke-width": 1 })); });
-      txt(g, (SX(stemTF) + SX(stemTB)) / 2, Yst - 9, "st = " + st, "d");                    // st: stem-top thickness only, ABOVE
+      vwit(stemTF, Ht, Yst); vwit(stemTB, Ht, Yst);
+      dimLine(g, SX(stemTF), Yst, SX(stemTB), Yst);    // st: dimensioned between the stem TOP corners (top width)
+      if (fo > 0) dimLine(g, SX(0), Yst, SX(stemTF), Yst);        // fo: base-front → top-front batter offset
+      if (bo > 0) dimLine(g, SX(stemTB), Yst, SX(sb), Yst);       // bo: top-back → base-back batter offset
+      txt(g, (SX(stemTF) + SX(stemTB)) / 2, Yst - 9, "st = " + st, "d");                    // st: stem-TOP width, ABOVE
       if (fo > 0) txt(g, SX(stemTF) - 3, Yst + 13, "fo = " + fo, "d", 0, "end");            // fo: BELOW, left of the stem
       if (bo > 0) txt(g, SX(stemTB) + 3, Yst + 13, "bo = " + bo, "d", 0, "start");          // bo: BELOW, right of the stem
-      if (frontOff > 0) txt(g, SX(stemTF / 2) - 8, SY(Hs / 2), "1:" + Nf.toFixed(3), "s", -(Math.atan(Hs / Math.max(frontOff, 1)) * 180 / Math.PI), "middle");
-      if (bo > 0) txt(g, SX((stemTB + sb) / 2) + 8, SY(Hs * 0.55), "1:" + Nb.toFixed(3), "s", (Math.atan(Hs / Math.max(bo, 1)) * 180 / Math.PI), "middle");
+      if (frontOff > 0) txt(g, SX(stemTF / 2) - 8, SY(Ht / 2), "1:" + Nf.toFixed(3), "s", -(Math.atan(Ht / Math.max(frontOff, 1)) * 180 / Math.PI), "middle");
+      if (bo > 0) txt(g, SX((stemTB + sb) / 2) + 8, SY(Ht * 0.55), "1:" + Nb.toFixed(3), "s", (Math.atan(Ht / Math.max(bo, 1)) * 180 / Math.PI), "middle");
 
       // ===== base plan dimensions, SPLIT above / below the slab =====
       // ABOVE the base — base-top subdivisions + stem base thickness: toe | sb | heel
@@ -412,6 +438,13 @@
         g.appendChild(el("line", { x1: SX(baseFront), y1: SY(-tsfc), x2: Xtt, y2: SY(-tsfc), stroke: "var(--dim)", "stroke-width": 0.7, "stroke-dasharray": "2 2", opacity: 0.5 }));
         dimVs(Xtt, -tsfc, 0, "tsf = " + tsf);
       }
+      // front soil depth Df (toe side): from the slab bottom up to the front ground surface; sits OUTER (swapped with tb)
+      if (hasFront) {
+        var dfCol = col2;
+        g.appendChild(el("line", { x1: SX(baseFront), y1: SY(-bB), x2: dfCol, y2: SY(-bB), stroke: "var(--dim)", "stroke-width": 0.7, "stroke-dasharray": "2 2", opacity: 0.5 }));
+        g.appendChild(el("line", { x1: SX(baseFront), y1: SY(Dfy), x2: dfCol, y2: SY(Dfy), stroke: "var(--dim)", "stroke-width": 0.7, "stroke-dasharray": "2 2", opacity: 0.5 }));
+        dimVs(dfCol, -bB, Dfy, "Df = " + Df);
+      }
       // heel tip: top slope tsb (at the tip) + rear base thickness tbr (own column past the blinding, excludes tsb)
       var Xht = SX(baseBack) + 13;                      // heel tip (right of tip)
       function hwit(my, Xto) { g.appendChild(el("line", { x1: SX(baseBack), y1: SY(my), x2: Xto, y2: SY(my), stroke: "var(--dim)", "stroke-width": 0.7, "stroke-dasharray": "2 2", opacity: 0.5 })); }
@@ -423,11 +456,11 @@
       // rear soil level run bh (top); H0 (backfill height) is dimensioned on the left; 1:N slope label along the slope
       var Ybd = SY(ay) - 30;
       if (bh > 0) {
-        vwit(gx0, gy0, Ybd); vwit(fx, Hs, Ybd);
+        vwit(gx0, gy0, Ybd); vwit(fx, Ht, Ybd);
         dimLine(g, SX(gx0), Ybd, SX(fx), Ybd);
         txt(g, (SX(gx0) + SX(fx)) / 2, Ybd - 9, "bh = " + bh, "d");
       }
-      var gmx = flat ? fx + plat * 0.3 : (fx + ax) / 2, gmy = flat ? Hs : (Hs + ay) / 2;
+      var gmx = flat ? fx + plat * 0.3 : (fx + ax) / 2, gmy = flat ? Ht : (Ht + ay) / 2;
       txt(g, SX(gmx) - 6, SY(gmy) - 6, "1:N = 1:" + N, "s", flat ? 0 : -(Math.atan(N) * 180 / Math.PI), "middle");
 
       // heel haunch callout (blue leader with arrowhead pointing at the haunch)
@@ -446,19 +479,22 @@
     // ---- DXF export (geometry + dimension lines, in model mm; R12 ASCII) ----
     function buildDXF() {
       var Hs = P.Hs, st = P.st, fo = P.fo, bo = P.bo, tb = P.tb, toe = P.toe, heel = P.heel, hh = P.hh,
-        tsf = P.tsf, tsb = P.tsb, hk = P.hk, bk = P.bk, kx = P.kx, tbl = P.tbl, ff = P.ff, fb = P.fb, N = P.N, bh = P.bh, H0 = P.H0;
+        tsf = P.tsf, tsb = P.tsb, hk = P.hk, bk = P.bk, kx = P.kx, tbl = P.tbl, ff = P.ff, fb = P.fb, N = P.N, bh = P.bh, H0 = P.H0, Df = P.Df;
       var sb = st + fo + bo;
-      var Nf = Hs > 0 ? fo / Hs : 0, Nb = Hs > 0 ? bo / Hs : 0;
       var hasKey = (hk > 0 && bk > 0);
       var frontOff = fo;
       var stemTF = frontOff, stemTB = frontOff + st;
       var baseFront = -toe, baseBack = sb + heel, B = toe + sb + heel;
-      var hhc = Math.max(0, Math.min(hh, Hs * 0.9));
-      var xbackHH = sb + (stemTB - sb) * (hhc / Hs);
       var tsfc = Math.max(0, Math.min(tsf, tb * 0.8)), tsbc = Math.max(0, Math.min(tsb, tb * 0.8));
       var bB = tb + tsfc;                              // slab bottom: tb is the tip thickness, tsf stacks above it
+      var Ht = Math.max(1, Hs - bB);                   // stem top y (Hs = full slab-bottom → stem-top height)
+      var Nf = fo / Ht, Nb = bo / Ht;
+      var Dfy = Math.min(Df - bB, Ht * 0.95), hasFront = (Dfy > 0), xfDf = frontOff * Math.max(Dfy, 0) / Ht;  // surface y (Df from slab bottom)
+      var fgL = baseFront - toe;                        // front-soil extent = 2×toe in front of the stem
+      var hhc = Math.max(0, Math.min(hh, Ht * 0.9));
+      var xbackHH = sb + (stemTB - sb) * (hhc / Ht);
       var wall = [
-        [stemTF, Hs], [stemTB, Hs], [xbackHH, hhc], [sb + hhc, 0],
+        [stemTF, Ht], [stemTB, Ht], [xbackHH, hhc], [sb + hhc, 0],
         [baseBack, -tsbc], [baseBack, -bB], [baseFront, -bB], [baseFront, -tsfc], [0, 0]
       ];
       var kf = baseFront + kx;
@@ -469,13 +505,13 @@
            [[kf + bk, blT], [baseBack + fb, blT], [baseBack + fb, blB], [kf + bk, blB]]]
         : [[[baseFront - ff, blT], [baseBack + fb, blT], [baseBack + fb, blB], [baseFront - ff, blB]]];
       var flat = (N <= 0 || H0 <= 0);
-      var gx0 = stemTB, gy0 = Hs;
+      var gx0 = stemTB, gy0 = Ht;
       var fx = gx0 + bh;
-      var ax = flat ? fx : fx + H0 / N, ay = flat ? Hs : Hs + H0;
+      var ax = flat ? fx : fx + H0 / N, ay = flat ? Ht : Ht + H0;
       var plat = Math.max(1200, heel + 700), bx = ax + plat;
       var kh = hasKey ? hk : 0;
 
-      var span = Math.max(B + ff + fb, Hs + (flat ? 0 : H0) + bB + Math.max(kh, tbl));
+      var span = Math.max(B + ff + fb, Ht + (flat ? 0 : H0) + bB + Math.max(kh, tbl));
       var th = span * 0.022, asz = th * 0.95;        // text height / arrow length
       var BLACK = 7, GRAY = 8, BLUE = 5, TEAL = 4, BROWN = 42;
       var e = [];
@@ -492,24 +528,29 @@
       // geometry
       POLY(wall, BLACK); if (hasKey) POLY(key, BLACK);
       blinds.forEach(function (b) { POLY(b, GRAY); });
-      L(gx0, gy0, fx, Hs, BROWN); L(fx, Hs, ax, ay, BROWN); L(ax, ay, bx, ay, BROWN);   // ground line: level bh, slope, platform
+      L(gx0, gy0, fx, Ht, BROWN); L(fx, Ht, ax, ay, BROWN); L(ax, ay, bx, ay, BROWN);   // ground line: level bh, slope, platform
+      if (hasFront) {                                                // front (passive) soil surface on the toe (2×toe) + hachures
+        L(fgL, Dfy, xfDf, Dfy, BROWN);
+        for (var fi = 0; fi < 5; fi++) { var fhx = fgL + asz * (1 + fi * 1.3); L(fhx, Dfy, fhx - asz * 0.7, Dfy - asz * 0.7, BROWN); }
+      }
       var qy = ay + asz * 2.2; L(ax, qy, bx, qy, BROWN);              // surcharge q
       for (var i = 0; i <= 5; i++) { var qx = ax + (bx - ax) * (i / 5); L(qx, qy, qx, ay, BROWN); ARR(qx, ay, 0, -1, BROWN); }
       T((ax + bx) / 2, qy + th * 0.8, "q = " + P.q.toFixed(1) + " t/m2", 0, BROWN);
 
       // linear dimensions
       var colA = baseFront - ff - 3.4 * th, colB = baseFront - ff - 1.5 * th;
-      W(baseFront, 0, colA, 0); W(stemTF, Hs, colA, Hs); DIMV(colA, 0, Hs, "Hs = " + Hs);
-      if (!flat) { W(ax, ay, colA, ay); DIMV(colA, Hs, ay, "H0 = " + H0); }               // backfill height, stacked above Hs
+      W(baseFront, -bB, colA, -bB); W(stemTF, Ht, colA, Ht); DIMV(colA, -bB, Ht, "Hs = " + Hs);   // full height: slab bottom → stem top
+      if (!flat) { W(ax, ay, colA, ay); DIMV(colA, Ht, ay, "H0 = " + H0); }               // backfill height, stacked above the stem top
       W(baseFront, -bB, colB, -bB); W(baseFront, -tsfc, colB, -tsfc); DIMV(colB, -bB, -tsfc, "tb = " + tb);   // tip thickness, excludes tsf
       if (hasKey) { var colK = kf - 1.6 * th; W(kf, -bB, colK, -bB); W(kf, -bB - hk, colK, -bB - hk); DIMV(colK, -bB - hk, -bB, "hk = " + hk); }
       var colR = baseBack + fb + 1.6 * th; W(baseBack + fb, -bB, colR, -bB); W(baseBack + fb, -bB - tbl, colR, -bB - tbl); DIMV(colR, -bB - tbl, -bB, "tbl = " + tbl);
       // top of stem: st thickness ABOVE the reference line; fo | bo offsets BELOW it
-      var yst = Hs + 2.0 * th;
-      W(0, 0, 0, yst); W(sb, 0, sb, yst); W(stemTF, Hs, stemTF, yst); W(stemTB, Hs, stemTB, yst);
-      L(0, yst, sb, yst, BLUE); ARR(0, yst, -1, 0, BLUE); ARR(sb, yst, 1, 0, BLUE);
-      L(stemTF, yst - th * 0.3, stemTF, yst + th * 0.3, BLUE); L(stemTB, yst - th * 0.3, stemTB, yst + th * 0.3, BLUE);
-      T((stemTF + stemTB) / 2, yst + th * 0.85, "st = " + st, 0, BLUE);                    // st above
+      var yst = Ht + 2.0 * th;
+      W(0, 0, 0, yst); W(sb, 0, sb, yst); W(stemTF, Ht, stemTF, yst); W(stemTB, Ht, stemTB, yst);
+      L(stemTF, yst, stemTB, yst, BLUE); ARR(stemTF, yst, -1, 0, BLUE); ARR(stemTB, yst, 1, 0, BLUE);   // st: between the stem TOP corners
+      if (fo > 0) { L(0, yst, stemTF, yst, BLUE); ARR(0, yst, -1, 0, BLUE); ARR(stemTF, yst, 1, 0, BLUE); }   // fo offset
+      if (bo > 0) { L(stemTB, yst, sb, yst, BLUE); ARR(stemTB, yst, -1, 0, BLUE); ARR(sb, yst, 1, 0, BLUE); }   // bo offset
+      T((stemTF + stemTB) / 2, yst + th * 0.85, "st = " + st, 0, BLUE);                    // st: stem-TOP width, above
       if (fo > 0) T(stemTF - 2.6 * th, yst - th * 1.25, "fo = " + fo, 0, BLUE);            // fo below-left
       if (bo > 0) T(stemTB + 2.6 * th, yst - th * 1.25, "bo = " + bo, 0, BLUE);            // bo below-right
       // ABOVE the base — base-top subdivisions + stem base thickness: toe | sb | heel
@@ -530,18 +571,19 @@
       }
       DIMH(baseFront, baseBack, yb2, "B = " + B);
       if (tsfc > 0) { var xtt = baseFront - 1.4 * th; W(baseFront, 0, xtt, 0); W(baseFront, -tsfc, xtt, -tsfc); DIMV(xtt, -tsfc, 0, "tsf = " + tsf); }
+      if (hasFront) { var dcol = baseFront - 3.0 * th; W(baseFront, -bB, dcol, -bB); W(baseFront, Dfy, dcol, Dfy); DIMV(dcol, -bB, Dfy, "Df = " + Df); }
       var xht = baseBack + 1.4 * th;                                                     // heel tip: slope tsb
       if (tsbc > 0) { W(baseBack, 0, xht, 0); W(baseBack, -tsbc, xht, -tsbc); DIMV(xht, -tsbc, 0, "tsb = " + tsb); }
       var colRb = baseBack + fb + 1.6 * th + 2.6 * th;                                   // rear thickness tbr, past the blinding column
       W(baseBack, -bB, colRb, -bB); W(baseBack, -tsbc, colRb, -tsbc); DIMV(colRb, -bB, -tsbc, "tbr = " + Math.round(bB - tsbc));
       var ybd = ay + 1.8 * th;
-      if (bh > 0) { W(gx0, gy0, gx0, ybd); W(fx, Hs, fx, ybd); DIMH(gx0, fx, ybd, "bh = " + bh); }
+      if (bh > 0) { W(gx0, gy0, gx0, ybd); W(fx, Ht, fx, ybd); DIMH(gx0, fx, ybd, "bh = " + bh); }
 
       // slope / batter / callout text (batters computed from offsets & height)
-      if (frontOff > 0) T(stemTF / 2 - th * 0.5, Hs / 2, "1:" + Nf.toFixed(3), Math.atan2(Hs, Math.max(frontOff, 1)) * 180 / Math.PI, TEAL);
-      if (bo > 0) T((stemTB + sb) / 2 + th * 0.5, Hs * 0.55, "1:" + Nb.toFixed(3), Math.atan2(Hs, -Math.max(bo, 1)) * 180 / Math.PI, TEAL);
+      if (frontOff > 0) T(stemTF / 2 - th * 0.5, Ht / 2, "1:" + Nf.toFixed(3), Math.atan2(Ht, Math.max(frontOff, 1)) * 180 / Math.PI, TEAL);
+      if (bo > 0) T((stemTB + sb) / 2 + th * 0.5, Ht * 0.55, "1:" + Nb.toFixed(3), Math.atan2(Ht, -Math.max(bo, 1)) * 180 / Math.PI, TEAL);
       if (flat) T(fx + (bx - fx) * 0.25, ay + th * 0.7, "1:N = 1:" + N, 0, TEAL);
-      else T((fx + ax) / 2 - th * 0.4, (Hs + ay) / 2 + th * 0.4, "1:N = 1:" + N, Math.atan2(ay - Hs, ax - fx) * 180 / Math.PI, TEAL);
+      else T((fx + ax) / 2 - th * 0.4, (Ht + ay) / 2 + th * 0.4, "1:N = 1:" + N, Math.atan2(ay - Ht, ax - fx) * 180 / Math.PI, TEAL);
       if (hhc > 0) T((xbackHH + sb + hhc) / 2 + th, hhc / 2, "haunch " + hh + " x " + hh, 0, BLUE);
       T((baseFront - ff + Math.min(kf, baseBack)) / 2, -bB - tbl - th * 0.9, "Blinding conc.", 0, GRAY);
 
