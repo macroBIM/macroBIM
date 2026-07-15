@@ -374,8 +374,9 @@
       var col1 = 40, col2 = 82;
       extS(baseFront, -bB, col1); extS(stemTF, Ht, col1); dimVs(col1, -bB, Ht, "Hs = " + Hs);
       if (!flat) { extS(ax, ay, col1); dimVs(col1, Ht, ay, "H0 = " + H0); }
-      // tb: base thickness at the TIP (base bottom → toe-tip top), so it excludes the tsf slope
-      extS(baseFront, -tsfc, col2); extS(baseFront, -bB, col2); dimVs(col2, -bB, -tsfc, "tb = " + tb);
+      // tb: base thickness at the TIP (base bottom → toe-tip top), excludes the tsf slope; sits INNER (swapped with Df)
+      var colTb = SX(baseFront) - 30;
+      extS(baseFront, -tsfc, colTb); extS(baseFront, -bB, colTb); dimVs(colTb, -bB, -tsfc, "tb = " + tb);
 
       // shear key: depth hk (left of key), width bk (below key)
       if (hasKey) {
@@ -395,9 +396,10 @@
       function fwit(mx) { g.appendChild(el("line", { x1: SX(mx), y1: SY(0), x2: SX(mx), y2: Yst, stroke: "var(--dim)", "stroke-width": 0.6, "stroke-dasharray": "3 3", opacity: 0.33 })); }
       fwit(0); fwit(sb);                                // reference projections up from the base corners
       vwit(stemTF, Ht, Yst); vwit(stemTB, Ht, Yst);
-      dimLine(g, SX(0), Yst, SX(sb), Yst);             // horizontal reference line across the base width
-      [stemTF, stemTB].forEach(function (mx) { g.appendChild(el("line", { x1: SX(mx), y1: Yst - 3, x2: SX(mx), y2: Yst + 3, stroke: "var(--dim)", "stroke-width": 1 })); });
-      txt(g, (SX(stemTF) + SX(stemTB)) / 2, Yst - 9, "st = " + st, "d");                    // st: stem-top thickness only, ABOVE
+      dimLine(g, SX(stemTF), Yst, SX(stemTB), Yst);    // st: dimensioned between the stem TOP corners (top width)
+      if (fo > 0) dimLine(g, SX(0), Yst, SX(stemTF), Yst);        // fo: base-front → top-front batter offset
+      if (bo > 0) dimLine(g, SX(stemTB), Yst, SX(sb), Yst);       // bo: top-back → base-back batter offset
+      txt(g, (SX(stemTF) + SX(stemTB)) / 2, Yst - 9, "st = " + st, "d");                    // st: stem-TOP width, ABOVE
       if (fo > 0) txt(g, SX(stemTF) - 3, Yst + 13, "fo = " + fo, "d", 0, "end");            // fo: BELOW, left of the stem
       if (bo > 0) txt(g, SX(stemTB) + 3, Yst + 13, "bo = " + bo, "d", 0, "start");          // bo: BELOW, right of the stem
       if (frontOff > 0) txt(g, SX(stemTF / 2) - 8, SY(Ht / 2), "1:" + Nf.toFixed(3), "s", -(Math.atan(Ht / Math.max(frontOff, 1)) * 180 / Math.PI), "middle");
@@ -437,9 +439,9 @@
         g.appendChild(el("line", { x1: SX(baseFront), y1: SY(-tsfc), x2: Xtt, y2: SY(-tsfc), stroke: "var(--dim)", "stroke-width": 0.7, "stroke-dasharray": "2 2", opacity: 0.5 }));
         dimVs(Xtt, -tsfc, 0, "tsf = " + tsf);
       }
-      // front soil depth Df (toe side): from the slab bottom up to the front ground surface
+      // front soil depth Df (toe side): from the slab bottom up to the front ground surface; sits OUTER (swapped with tb)
       if (hasFront) {
-        var dfCol = SX(baseFront) - 30;
+        var dfCol = col2;
         g.appendChild(el("line", { x1: SX(baseFront), y1: SY(-bB), x2: dfCol, y2: SY(-bB), stroke: "var(--dim)", "stroke-width": 0.7, "stroke-dasharray": "2 2", opacity: 0.5 }));
         g.appendChild(el("line", { x1: SX(baseFront), y1: SY(Dfy), x2: dfCol, y2: SY(Dfy), stroke: "var(--dim)", "stroke-width": 0.7, "stroke-dasharray": "2 2", opacity: 0.5 }));
         dimVs(dfCol, -bB, Dfy, "Df = " + Df);
@@ -546,9 +548,10 @@
       // top of stem: st thickness ABOVE the reference line; fo | bo offsets BELOW it
       var yst = Ht + 2.0 * th;
       W(0, 0, 0, yst); W(sb, 0, sb, yst); W(stemTF, Ht, stemTF, yst); W(stemTB, Ht, stemTB, yst);
-      L(0, yst, sb, yst, BLUE); ARR(0, yst, -1, 0, BLUE); ARR(sb, yst, 1, 0, BLUE);
-      L(stemTF, yst - th * 0.3, stemTF, yst + th * 0.3, BLUE); L(stemTB, yst - th * 0.3, stemTB, yst + th * 0.3, BLUE);
-      T((stemTF + stemTB) / 2, yst + th * 0.85, "st = " + st, 0, BLUE);                    // st above
+      L(stemTF, yst, stemTB, yst, BLUE); ARR(stemTF, yst, -1, 0, BLUE); ARR(stemTB, yst, 1, 0, BLUE);   // st: between the stem TOP corners
+      if (fo > 0) { L(0, yst, stemTF, yst, BLUE); ARR(0, yst, -1, 0, BLUE); ARR(stemTF, yst, 1, 0, BLUE); }   // fo offset
+      if (bo > 0) { L(stemTB, yst, sb, yst, BLUE); ARR(stemTB, yst, -1, 0, BLUE); ARR(sb, yst, 1, 0, BLUE); }   // bo offset
+      T((stemTF + stemTB) / 2, yst + th * 0.85, "st = " + st, 0, BLUE);                    // st: stem-TOP width, above
       if (fo > 0) T(stemTF - 2.6 * th, yst - th * 1.25, "fo = " + fo, 0, BLUE);            // fo below-left
       if (bo > 0) T(stemTB + 2.6 * th, yst - th * 1.25, "bo = " + bo, 0, BLUE);            // bo below-right
       // ABOVE the base — base-top subdivisions + stem base thickness: toe | sb | heel
