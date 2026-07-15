@@ -48,8 +48,7 @@
       DL.push({ x1: pbl.x, y1: pbl.y - off, x2: pbr.x, y2: pbr.y - off, gap: ext * -6 });
       DL.push({ x1: pwtl.x, y1: (pwtl.y + pwbl.y) / 2, x2: pwtr.x, y2: (pwtl.y + pwbl.y) / 2, gap: ext * 1 });
       geo.arcs.forEach(function (a) {
-        var ang = a.x > 0 ? (a.y > aparam.dsech / 2 ? -45 : 45) : (a.y > aparam.dsech / 2 ? 135 : 225);
-        DR.push({ x: a.x, y: a.y, r: a.r, ang: ang });
+        DR.push({ x: a.x, y: a.y, r: a.r, ang: (a.angb + a.ange) / 2 });   // point at the arc mid-point
       });
     } else if (view === 'top' || view === 'bottom') {
       var top = view === 'top';
@@ -179,6 +178,30 @@
     return 480;
   }
 
+  // wheel-zoom (toward cursor) + drag-pan via the SVG viewBox
+  function attachZoomPan(svg) {
+    var vb = (svg.getAttribute('viewBox') || '0 0 1 1').split(/\s+/).map(Number);
+    var cur = { x: vb[0], y: vb[1], w: vb[2], h: vb[3] };
+    function apply() { svg.setAttribute('viewBox', cur.x + ' ' + cur.y + ' ' + cur.w + ' ' + cur.h); }
+    svg.style.cursor = 'grab'; svg.style.touchAction = 'none';
+    svg.addEventListener('wheel', function (e) {
+      e.preventDefault();
+      var r = svg.getBoundingClientRect(), fx = (e.clientX - r.left) / r.width, fy = (e.clientY - r.top) / r.height;
+      var mx = cur.x + fx * cur.w, my = cur.y + fy * cur.h, k = e.deltaY < 0 ? 0.9 : 1.1;
+      cur.w *= k; cur.h *= k; cur.x = mx - fx * cur.w; cur.y = my - fy * cur.h; apply();
+    }, { passive: false });
+    var drag = false, lx = 0, ly = 0;
+    svg.addEventListener('pointerdown', function (e) { drag = true; lx = e.clientX; ly = e.clientY; svg.style.cursor = 'grabbing'; try { svg.setPointerCapture(e.pointerId); } catch (_) {} e.preventDefault(); });
+    svg.addEventListener('pointermove', function (e) {
+      if (!drag) return;
+      var r = svg.getBoundingClientRect();
+      cur.x -= (e.clientX - lx) / r.width * cur.w; cur.y -= (e.clientY - ly) / r.height * cur.h;
+      lx = e.clientX; ly = e.clientY; apply();
+    });
+    function end(e) { drag = false; svg.style.cursor = 'grab'; if (e && e.pointerId != null) { try { svg.releasePointerCapture(e.pointerId); } catch (_) {} } }
+    svg.addEventListener('pointerup', end); svg.addEventListener('pointerleave', end);
+  }
+
   function renderView() {
     var host = document.getElementById(scvs_hsec);
     if (!host || typeof _hsec_drawData === 'undefined' || !_hsec_drawData) return;
@@ -196,6 +219,8 @@
     } else {
       var W = host.clientWidth || 600;
       host.innerHTML = renderSVG(buildView(view, dd.geo, dd.aparam, dd.dseg_leng), W, Hpx);
+      var svg = host.querySelector('svg');
+      if (svg) attachZoomPan(svg);
     }
   }
 
