@@ -68,7 +68,7 @@
     ["fb",  100, "Blinding back projection",     "f"],
     ["N",   1.5, "Backfill slope  1:N",          "s"],
     ["bh",  300, "Rear soil level run",           "s"],
-    ["bd", 1130, "Backfill horizontal distance", "s"],
+    ["H0", 1500, "Backfill height",               "s"],
     ["q",   1.0, "Surcharge q (t/m²)",      "o"]
   ];
 
@@ -215,7 +215,7 @@
 
       // --- model coords (mm). y=0 = base slab top; x=0 = stem front face at the base ---
       var Hs = P.Hs, st = P.st, fo = P.fo, bo = P.bo, tb = P.tb, toe = P.toe, heel = P.heel, hh = P.hh,
-        tsf = P.tsf, tsb = P.tsb, hk = P.hk, bk = P.bk, kx = P.kx, tbl = P.tbl, ff = P.ff, fb = P.fb, N = P.N, bh = P.bh, bd = P.bd;
+        tsf = P.tsf, tsb = P.tsb, hk = P.hk, bk = P.bk, kx = P.kx, tbl = P.tbl, ff = P.ff, fb = P.fb, N = P.N, bh = P.bh, H0 = P.H0;
       var sb = st + fo + bo;                           // stem base width (top width + front/back batter offsets)
       var Nf = Hs > 0 ? fo / Hs : 0, Nb = Hs > 0 ? bo / Hs : 0;   // batters computed from offsets & height (1:Nf front, 1:Nb back)
       var hasKey = (hk > 0 && bk > 0);
@@ -245,11 +245,11 @@
            [[kf + bk, blT], [baseBack + fb, blT], [baseBack + fb, blB], [kf + bk, blB]]]
         : [[[baseFront - ff, blT], [baseBack + fb, blT], [baseBack + fb, blB], [baseFront - ff, blB]]];
 
-      // backfill on the heel: from stem back-top, level run bh, then slope 1:N over run bd, then horizontal under q
-      var flat = (N <= 0 || bd <= 0);
+      // backfill on the heel: from stem back-top, level run bh, then slope 1:N rising by H0 (run H0/N), then horizontal under q
+      var flat = (N <= 0 || H0 <= 0);
       var gx0 = stemTB, gy0 = Hs;
       var fx = gx0 + bh;                                // end of level (flat) rear-soil run
-      var ax = flat ? fx : fx + bd, ay = flat ? Hs : Hs + bd * N;
+      var ax = flat ? fx : fx + H0 / N, ay = flat ? Hs : Hs + H0;
       var plat = Math.max(1200, heel + 700);
       var bx = ax + plat, by = ay;
       var soilPoly = [[gx0, gy0], [fx, Hs], [ax, ay], [bx, by], [bx, 0], [baseBack, -tsbc], [sb + hhc, 0], [xbackHH, hhc]];
@@ -342,9 +342,10 @@
       // vertical witness helper (dashed blue)
       function vwit(mx, my, Yscr) { g.appendChild(el("line", { x1: SX(mx), y1: SY(my), x2: SX(mx), y2: Yscr, stroke: "var(--dim)", "stroke-width": 0.7, "stroke-dasharray": "2 2", opacity: 0.5 })); }
 
-      // left: stem height Hs, base thickness tb
+      // left: stem height Hs, backfill height H0 (stacked above Hs), base thickness tb
       var col1 = 40, col2 = 82;
       extS(baseFront, 0, col1); extS(stemTF, Hs, col1); dimVs(col1, 0, Hs, "Hs = " + Hs);
+      if (!flat) { extS(ax, ay, col1); dimVs(col1, Hs, ay, "H0 = " + H0); }
       extS(baseFront, 0, col2); extS(baseFront, -tb, col2); dimVs(col2, -tb, 0, "tb = " + tb);
 
       // shear key: depth hk (left of key), width bk (below key)
@@ -360,45 +361,41 @@
       extS(baseBack + fb, -tb, colR); extS(baseBack + fb, -tb - tbl, colR);
       dimVs(colR, -tb - tbl, -tb, "tbl = " + tbl, "f", true);
 
-      // top: batter offsets fo | st | bo on one chained dim line (labels spread out, stem is thin) + computed batters on the faces
-      var Yst = SY(Hs) - 42;
+      // top: stem-top thickness st ABOVE the dim line; front/back batter offsets fo | bo BELOW it (so nothing overlaps)
+      var Yst = SY(Hs) - 40;
       function fwit(mx) { g.appendChild(el("line", { x1: SX(mx), y1: SY(0), x2: SX(mx), y2: Yst, stroke: "var(--dim)", "stroke-width": 0.6, "stroke-dasharray": "3 3", opacity: 0.33 })); }
       fwit(0); fwit(sb);                                // reference projections up from the base corners
       vwit(stemTF, Hs, Yst); vwit(stemTB, Hs, Yst);
-      dimLine(g, SX(0), Yst, SX(sb), Yst);             // one line across the base width
+      dimLine(g, SX(0), Yst, SX(sb), Yst);             // horizontal reference line across the base width
       [stemTF, stemTB].forEach(function (mx) { g.appendChild(el("line", { x1: SX(mx), y1: Yst - 3, x2: SX(mx), y2: Yst + 3, stroke: "var(--dim)", "stroke-width": 1 })); });
-      txt(g, (SX(stemTF) + SX(stemTB)) / 2, Yst - 9, "st = " + st, "d");   // middle segment (widest)
-      if (fo > 0) {                                    // fo pulled out left with a leader (segment is thin)
-        var foMid = (SX(0) + SX(stemTF)) / 2, foLX = SX(0) - 16;
-        g.appendChild(el("line", { x1: foMid, y1: Yst, x2: foLX, y2: Yst - 20, stroke: "var(--dim)", "stroke-width": 0.6, opacity: 0.6 }));
-        txt(g, foLX - 2, Yst - 22, "fo = " + fo, "d", 0, "end");
-      }
-      if (bo > 0) {                                    // bo pulled out right with a leader
-        var boMid = (SX(stemTB) + SX(sb)) / 2, boRX = SX(sb) + 16;
-        g.appendChild(el("line", { x1: boMid, y1: Yst, x2: boRX, y2: Yst - 20, stroke: "var(--dim)", "stroke-width": 0.6, opacity: 0.6 }));
-        txt(g, boRX + 2, Yst - 22, "bo = " + bo, "d", 0, "start");
-      }
+      txt(g, (SX(stemTF) + SX(stemTB)) / 2, Yst - 9, "st = " + st, "d");                    // st: stem-top thickness only, ABOVE
+      if (fo > 0) txt(g, SX(stemTF) - 3, Yst + 13, "fo = " + fo, "d", 0, "end");            // fo: BELOW, left of the stem
+      if (bo > 0) txt(g, SX(stemTB) + 3, Yst + 13, "bo = " + bo, "d", 0, "start");          // bo: BELOW, right of the stem
       if (frontOff > 0) txt(g, SX(stemTF / 2) - 8, SY(Hs / 2), "1:" + Nf.toFixed(3), "s", -(Math.atan(Hs / Math.max(frontOff, 1)) * 180 / Math.PI), "middle");
       if (bo > 0) txt(g, SX((stemTB + sb) / 2) + 8, SY(Hs * 0.55), "1:" + Nb.toFixed(3), "s", (Math.atan(Hs / Math.max(bo, 1)) * 180 / Math.PI), "middle");
 
-      // shear-key width bk (below the key)
-      if (hasKey) {
-        var Ybk = SY(-tb - hk) + 16;
-        vwit(kf, -tb - hk, Ybk); vwit(kf + bk, -tb - hk, Ybk);
-        dimHscreen(Ybk, kf, kf + bk, "bk = " + bk);
-      }
+      // ===== base plan dimensions, SPLIT above / below the slab =====
+      // ABOVE the base — base-top subdivisions + stem base thickness: toe | sb | heel
+      var Yabove = SY(0) - 46;
+      vwit(baseFront, 0, Yabove); vwit(0, 0, Yabove); vwit(sb, 0, Yabove); vwit(baseBack, 0, Yabove);
+      dimHscreen(Yabove, baseFront, 0, "toe = " + toe);
+      dimHscreen(Yabove, 0, sb, "sb = " + sb);
+      dimHscreen(Yabove, sb, baseBack, "heel = " + heel);
 
-      // bottom stack: toe / sb / heel + ff / fb (upper row), B (lower row)
+      // BELOW the base — underside chain (blinding + shear-key horizontals) then total width B
       var yB0 = SY(-tb - Math.max(keyD, tbl));
       var Yseg = yB0 + 24, Ytot = yB0 + 46;
-      vwit(baseFront, 0, Ytot); vwit(baseBack, 0, Ytot); vwit(0, 0, Yseg); vwit(sb, 0, Yseg);
-      dimHscreen(Yseg, baseFront, 0, "toe = " + toe);
-      dimHscreen(Yseg, 0, sb, "sb = " + sb);
-      dimHscreen(Yseg, sb, baseBack, "heel = " + heel);
-      dimHscreen(Ytot, baseFront, baseBack, "B = " + B);
-      vwit(baseFront - ff, -tb, Yseg); vwit(baseBack + fb, -tb, Yseg);
+      vwit(baseFront - ff, -tb, Yseg); vwit(baseFront, -tb, Yseg); vwit(baseBack, -tb, Yseg); vwit(baseBack + fb, -tb, Yseg);
       dimHscreen(Yseg, baseFront - ff, baseFront, "ff = " + ff);
       dimHscreen(Yseg, baseBack, baseBack + fb, "fb = " + fb);
+      if (hasKey) {
+        vwit(kf, -tb - hk, Yseg); vwit(kf + bk, -tb - hk, Yseg);
+        dimHscreen(Yseg, baseFront, kf, "kx = " + kx);                                  // base front → shear key
+        dimHscreen(Yseg, kf, kf + bk, "bk = " + bk);                                    // key width
+        dimHscreen(Yseg, kf + bk, baseBack, "" + Math.round(baseBack - kf - bk));       // key → base back (derived)
+      }
+      vwit(baseFront, -tb, Ytot); vwit(baseBack, -tb, Ytot);
+      dimHscreen(Ytot, baseFront, baseBack, "B = " + B);
 
       // base-top slope: toe-tip drop tsf (front), heel-tip drop tsb (back)
       if (tsfc > 0) {
@@ -414,17 +411,12 @@
         dimVs(Xht, -tsbc, 0, "tsb = " + tsb, "d", true);
       }
 
-      // rear soil level run bh + backfill slope run bd (top) + 1:N slope label
+      // rear soil level run bh (top); H0 (backfill height) is dimensioned on the left; 1:N slope label along the slope
       var Ybd = SY(ay) - 30;
       if (bh > 0) {
         vwit(gx0, gy0, Ybd); vwit(fx, Hs, Ybd);
         dimLine(g, SX(gx0), Ybd, SX(fx), Ybd);
         txt(g, (SX(gx0) + SX(fx)) / 2, Ybd - 9, "bh = " + bh, "d");
-      }
-      if (!flat) {
-        vwit(fx, Hs, Ybd); vwit(ax, ay, Ybd);
-        dimLine(g, SX(fx), Ybd, SX(ax), Ybd);
-        txt(g, (SX(fx) + SX(ax)) / 2, Ybd - 9, "bd = " + bd, "d");
       }
       var gmx = flat ? fx + plat * 0.3 : (fx + ax) / 2, gmy = flat ? Hs : (Hs + ay) / 2;
       txt(g, SX(gmx) - 6, SY(gmy) - 6, "1:N = 1:" + N, "s", flat ? 0 : -(Math.atan(N) * 180 / Math.PI), "middle");
@@ -433,7 +425,7 @@
       if (hhc > 0) {
         var hmx = (xbackHH + sb + hhc) / 2, hmy = hhc / 2;
         g.appendChild(el("line", { x1: SX(hmx), y1: SY(hmy), x2: SX(hmx) + 26, y2: SY(hmy), stroke: "var(--muted)", "stroke-width": 0.7 }));
-        txt(g, SX(hmx) + 30, SY(hmy), "haunch " + hh, "d", 0, "start");
+        txt(g, SX(hmx) + 30, SY(hmy), hh + " × " + hh, "d", 0, "start");
       }
 
       // blinding-concrete callout (toe side)
@@ -443,7 +435,7 @@
     // ---- DXF export (geometry + dimension lines, in model mm; R12 ASCII) ----
     function buildDXF() {
       var Hs = P.Hs, st = P.st, fo = P.fo, bo = P.bo, tb = P.tb, toe = P.toe, heel = P.heel, hh = P.hh,
-        tsf = P.tsf, tsb = P.tsb, hk = P.hk, bk = P.bk, kx = P.kx, tbl = P.tbl, ff = P.ff, fb = P.fb, N = P.N, bh = P.bh, bd = P.bd;
+        tsf = P.tsf, tsb = P.tsb, hk = P.hk, bk = P.bk, kx = P.kx, tbl = P.tbl, ff = P.ff, fb = P.fb, N = P.N, bh = P.bh, H0 = P.H0;
       var sb = st + fo + bo;
       var Nf = Hs > 0 ? fo / Hs : 0, Nb = Hs > 0 ? bo / Hs : 0;
       var hasKey = (hk > 0 && bk > 0);
@@ -464,14 +456,14 @@
         ? [[[baseFront - ff, blT], [kf, blT], [kf, blB], [baseFront - ff, blB]],
            [[kf + bk, blT], [baseBack + fb, blT], [baseBack + fb, blB], [kf + bk, blB]]]
         : [[[baseFront - ff, blT], [baseBack + fb, blT], [baseBack + fb, blB], [baseFront - ff, blB]]];
-      var flat = (N <= 0 || bd <= 0);
+      var flat = (N <= 0 || H0 <= 0);
       var gx0 = stemTB, gy0 = Hs;
       var fx = gx0 + bh;
-      var ax = flat ? fx : fx + bd, ay = flat ? Hs : Hs + bd * N;
+      var ax = flat ? fx : fx + H0 / N, ay = flat ? Hs : Hs + H0;
       var plat = Math.max(1200, heel + 700), bx = ax + plat;
       var kh = hasKey ? hk : 0;
 
-      var span = Math.max(B + ff + fb, Hs + (flat ? 0 : bd * N) + tb + Math.max(kh, tbl));
+      var span = Math.max(B + ff + fb, Hs + (flat ? 0 : H0) + tb + Math.max(kh, tbl));
       var th = span * 0.022, asz = th * 0.95;        // text height / arrow length
       var BLACK = 7, GRAY = 8, BLUE = 5, TEAL = 4, BROWN = 42;
       var e = [];
@@ -496,35 +488,46 @@
       // linear dimensions
       var colA = baseFront - ff - 3.4 * th, colB = baseFront - ff - 1.5 * th;
       W(baseFront, 0, colA, 0); W(stemTF, Hs, colA, Hs); DIMV(colA, 0, Hs, "Hs = " + Hs);
+      if (!flat) { W(ax, ay, colA, ay); DIMV(colA, Hs, ay, "H0 = " + H0); }               // backfill height, stacked above Hs
       W(baseFront, -tb, colB, -tb); W(baseFront, 0, colB, 0); DIMV(colB, -tb, 0, "tb = " + tb);
       if (hasKey) { var colK = kf - 1.6 * th; W(kf, -tb, colK, -tb); W(kf, -tb - hk, colK, -tb - hk); DIMV(colK, -tb - hk, -tb, "hk = " + hk); }
       var colR = baseBack + fb + 1.6 * th; W(baseBack + fb, -tb, colR, -tb); W(baseBack + fb, -tb - tbl, colR, -tb - tbl); DIMV(colR, -tb - tbl, -tb, "tbl = " + tbl);
-      var yst = Hs + 1.8 * th;
+      // top of stem: st thickness ABOVE the reference line; fo | bo offsets BELOW it
+      var yst = Hs + 2.0 * th;
       W(0, 0, 0, yst); W(sb, 0, sb, yst); W(stemTF, Hs, stemTF, yst); W(stemTB, Hs, stemTB, yst);
-      L(0, yst, sb, yst, BLUE); ARR(0, yst, -1, 0, BLUE); ARR(sb, yst, 1, 0, BLUE);   // one chained dim line
-      L(stemTF, yst - th * 0.3, stemTF, yst + th * 0.3, BLUE); L(stemTB, yst - th * 0.3, stemTB, yst + th * 0.3, BLUE);   // interior ticks
-      if (fo > 0) T(0 - 3.5 * th, yst + th * 0.85, "fo = " + fo, 0, BLUE);
-      T((stemTF + stemTB) / 2, yst + th * 0.85, "st = " + st, 0, BLUE);
-      if (bo > 0) T(sb + 3.5 * th, yst + th * 0.85, "bo = " + bo, 0, BLUE);
-      if (hasKey) { W(kf, -tb - hk, kf, -tb - hk - 1.4 * th); W(kf + bk, -tb - hk, kf + bk, -tb - hk - 1.4 * th); DIMH(kf, kf + bk, -tb - hk - 1.4 * th, "bk = " + bk); }
+      L(0, yst, sb, yst, BLUE); ARR(0, yst, -1, 0, BLUE); ARR(sb, yst, 1, 0, BLUE);
+      L(stemTF, yst - th * 0.3, stemTF, yst + th * 0.3, BLUE); L(stemTB, yst - th * 0.3, stemTB, yst + th * 0.3, BLUE);
+      T((stemTF + stemTB) / 2, yst + th * 0.85, "st = " + st, 0, BLUE);                    // st above
+      if (fo > 0) T(stemTF - 2.6 * th, yst - th * 1.25, "fo = " + fo, 0, BLUE);            // fo below-left
+      if (bo > 0) T(stemTB + 2.6 * th, yst - th * 1.25, "bo = " + bo, 0, BLUE);            // bo below-right
+      // ABOVE the base — base-top subdivisions + stem base thickness: toe | sb | heel
+      var yA = Math.max(hhc, tb) + 2.2 * th;
+      W(baseFront, 0, baseFront, yA); W(0, 0, 0, yA); W(sb, 0, sb, yA); W(baseBack, 0, baseBack, yA);
+      DIMH(baseFront, 0, yA, "toe = " + toe); DIMH(0, sb, yA, "sb = " + sb); DIMH(sb, baseBack, yA, "heel = " + heel);
+      // BELOW the base — ff | kx | bk | (rem) | fb, then total B
       var lowY = -tb - Math.max(kh, tbl);
       var yb1 = lowY - 2.4 * th, yb2 = lowY - 4.0 * th;
-      W(baseFront, -tb, baseFront, yb2); W(0, -tb, 0, yb1); W(sb, -tb, sb, yb1); W(baseBack, -tb, baseBack, yb2);
-      DIMH(baseFront, 0, yb1, "toe = " + toe); DIMH(0, sb, yb1, "sb = " + sb); DIMH(sb, baseBack, yb1, "heel = " + heel); DIMH(baseFront, baseBack, yb2, "B = " + B);
-      W(baseFront - ff, -tb, baseFront - ff, yb1); DIMH(baseFront - ff, baseFront, yb1, "ff = " + ff);
-      W(baseBack + fb, -tb, baseBack + fb, yb1); DIMH(baseBack, baseBack + fb, yb1, "fb = " + fb);
+      W(baseFront - ff, -tb, baseFront - ff, yb1); W(baseFront, -tb, baseFront, yb2); W(baseBack, -tb, baseBack, yb2); W(baseBack + fb, -tb, baseBack + fb, yb1);
+      DIMH(baseFront - ff, baseFront, yb1, "ff = " + ff);
+      DIMH(baseBack, baseBack + fb, yb1, "fb = " + fb);
+      if (hasKey) {
+        W(kf, -tb - hk, kf, yb1); W(kf + bk, -tb - hk, kf + bk, yb1);
+        DIMH(baseFront, kf, yb1, "kx = " + kx);
+        DIMH(kf, kf + bk, yb1, "bk = " + bk);
+        DIMH(kf + bk, baseBack, yb1, "" + Math.round(baseBack - kf - bk));
+      }
+      DIMH(baseFront, baseBack, yb2, "B = " + B);
       if (tsfc > 0) { var xtt = baseFront - 1.4 * th; W(baseFront, 0, xtt, 0); W(baseFront, -tsfc, xtt, -tsfc); DIMV(xtt, -tsfc, 0, "tsf = " + tsf); }
       if (tsbc > 0) { var xht = baseBack + 1.4 * th; W(baseBack, 0, xht, 0); W(baseBack, -tsbc, xht, -tsbc); DIMV(xht, -tsbc, 0, "tsb = " + tsb); }
       var ybd = ay + 1.8 * th;
       if (bh > 0) { W(gx0, gy0, gx0, ybd); W(fx, Hs, fx, ybd); DIMH(gx0, fx, ybd, "bh = " + bh); }
-      if (!flat) { W(fx, Hs, fx, ybd); W(ax, ay, ax, ybd); DIMH(fx, ax, ybd, "bd = " + bd); }
 
       // slope / batter / callout text (batters computed from offsets & height)
       if (frontOff > 0) T(stemTF / 2 - th * 0.5, Hs / 2, "1:" + Nf.toFixed(3), Math.atan2(Hs, Math.max(frontOff, 1)) * 180 / Math.PI, TEAL);
       if (bo > 0) T((stemTB + sb) / 2 + th * 0.5, Hs * 0.55, "1:" + Nb.toFixed(3), Math.atan2(Hs, -Math.max(bo, 1)) * 180 / Math.PI, TEAL);
       if (flat) T(fx + (bx - fx) * 0.25, ay + th * 0.7, "1:N = 1:" + N, 0, TEAL);
       else T((fx + ax) / 2 - th * 0.4, (Hs + ay) / 2 + th * 0.4, "1:N = 1:" + N, Math.atan2(ay - Hs, ax - fx) * 180 / Math.PI, TEAL);
-      if (hhc > 0) T((xbackHH + sb + hhc) / 2 + th, hhc / 2, "haunch " + hh, 0, GRAY);
+      if (hhc > 0) T((xbackHH + sb + hhc) / 2 + th, hhc / 2, hh + " x " + hh, 0, GRAY);
       T((baseFront - ff + Math.min(kf, baseBack)) / 2, -tb - tbl - th * 0.9, "Blinding conc.", 0, GRAY);
 
       return "0\nSECTION\n2\nENTITIES\n" + e.join("") + "0\nENDSEC\n0\nEOF\n";
