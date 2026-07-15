@@ -262,12 +262,12 @@
       var bx = ax + plat, by = ay;
       var soilPoly = [[gx0, gy0], [fx, Ht], [ax, ay], [bx, by], [bx, 0], [baseBack, -tsbc], [sb + hhc, 0], [xbackHH, hhc]];
 
-      // front (passive-side) soil on the toe: surface at height Df above the base top, extending 2×toe in front
-      var Dfc = Math.max(0, Math.min(Df, Ht * 0.95));  // clamp under the stem top
-      var hasFront = (Dfc > 0);
-      var xfDf = frontOff * Dfc / Ht;                  // stem front-face x at height Dfc
+      // front (passive-side) soil on the toe: surface height Df measured from the slab bottom (-bB), extending 2×toe in front
+      var Dfy = Math.min(Df - bB, Ht * 0.95);          // front ground-surface y (Df is from the slab bottom, like Hs)
+      var hasFront = (Dfy > 0);
+      var xfDf = frontOff * Math.max(Dfy, 0) / Ht;     // stem front-face x at the ground surface
       var fgL = baseFront - toe;                        // front-soil left extent = 2×toe in front of the stem front
-      var frontSoil = [[xfDf, Dfc], [fgL, Dfc], [fgL, 0], [baseFront, -tsfc], [0, 0]];
+      var frontSoil = [[xfDf, Dfy], [fgL, Dfy], [fgL, 0], [baseFront, -tsfc], [0, 0]];
 
       // --- fit to viewport (viewBox trimmed to content to avoid slack margins) ---
       var keyD = hasKey ? hk : 0;
@@ -334,7 +334,7 @@
 
       // --- front ground surface line + natural-ground hachure symbol (toe side, extends 2×toe) ---
       if (hasFront) {
-        var fgY = SY(Dfc), fgXr = SX(xfDf), fgXl = SX(fgL);
+        var fgY = SY(Dfy), fgXr = SX(xfDf), fgXl = SX(fgL);
         g.appendChild(el("line", { x1: fgXl, y1: fgY, x2: fgXr, y2: fgY, stroke: "var(--soil)", "stroke-width": 1.8 }));
         for (var hi = 0; hi < 5; hi++) {                 // short 45° hachures hanging below the line
           var hx = fgXl + 7 + hi * 9;
@@ -437,12 +437,12 @@
         g.appendChild(el("line", { x1: SX(baseFront), y1: SY(-tsfc), x2: Xtt, y2: SY(-tsfc), stroke: "var(--dim)", "stroke-width": 0.7, "stroke-dasharray": "2 2", opacity: 0.5 }));
         dimVs(Xtt, -tsfc, 0, "tsf = " + tsf);
       }
-      // front soil depth Df (toe side): base top up to the front ground surface
+      // front soil depth Df (toe side): from the slab bottom up to the front ground surface
       if (hasFront) {
         var dfCol = SX(baseFront) - 30;
-        g.appendChild(el("line", { x1: SX(baseFront), y1: SY(0), x2: dfCol, y2: SY(0), stroke: "var(--dim)", "stroke-width": 0.7, "stroke-dasharray": "2 2", opacity: 0.5 }));
-        g.appendChild(el("line", { x1: SX(baseFront), y1: SY(Dfc), x2: dfCol, y2: SY(Dfc), stroke: "var(--dim)", "stroke-width": 0.7, "stroke-dasharray": "2 2", opacity: 0.5 }));
-        dimVs(dfCol, 0, Dfc, "Df = " + Df);
+        g.appendChild(el("line", { x1: SX(baseFront), y1: SY(-bB), x2: dfCol, y2: SY(-bB), stroke: "var(--dim)", "stroke-width": 0.7, "stroke-dasharray": "2 2", opacity: 0.5 }));
+        g.appendChild(el("line", { x1: SX(baseFront), y1: SY(Dfy), x2: dfCol, y2: SY(Dfy), stroke: "var(--dim)", "stroke-width": 0.7, "stroke-dasharray": "2 2", opacity: 0.5 }));
+        dimVs(dfCol, -bB, Dfy, "Df = " + Df);
       }
       // heel tip: top slope tsb (at the tip) + rear base thickness tbr (own column past the blinding, excludes tsb)
       var Xht = SX(baseBack) + 13;                      // heel tip (right of tip)
@@ -488,7 +488,7 @@
       var bB = tb + tsfc;                              // slab bottom: tb is the tip thickness, tsf stacks above it
       var Ht = Math.max(1, Hs - bB);                   // stem top y (Hs = full slab-bottom → stem-top height)
       var Nf = fo / Ht, Nb = bo / Ht;
-      var Dfc = Math.max(0, Math.min(Df, Ht * 0.95)), hasFront = (Dfc > 0), xfDf = frontOff * Dfc / Ht;
+      var Dfy = Math.min(Df - bB, Ht * 0.95), hasFront = (Dfy > 0), xfDf = frontOff * Math.max(Dfy, 0) / Ht;  // surface y (Df from slab bottom)
       var fgL = baseFront - toe;                        // front-soil extent = 2×toe in front of the stem
       var hhc = Math.max(0, Math.min(hh, Ht * 0.9));
       var xbackHH = sb + (stemTB - sb) * (hhc / Ht);
@@ -529,8 +529,8 @@
       blinds.forEach(function (b) { POLY(b, GRAY); });
       L(gx0, gy0, fx, Ht, BROWN); L(fx, Ht, ax, ay, BROWN); L(ax, ay, bx, ay, BROWN);   // ground line: level bh, slope, platform
       if (hasFront) {                                                // front (passive) soil surface on the toe (2×toe) + hachures
-        L(fgL, Dfc, xfDf, Dfc, BROWN);
-        for (var fi = 0; fi < 5; fi++) { var fhx = fgL + asz * (1 + fi * 1.3); L(fhx, Dfc, fhx - asz * 0.7, Dfc - asz * 0.7, BROWN); }
+        L(fgL, Dfy, xfDf, Dfy, BROWN);
+        for (var fi = 0; fi < 5; fi++) { var fhx = fgL + asz * (1 + fi * 1.3); L(fhx, Dfy, fhx - asz * 0.7, Dfy - asz * 0.7, BROWN); }
       }
       var qy = ay + asz * 2.2; L(ax, qy, bx, qy, BROWN);              // surcharge q
       for (var i = 0; i <= 5; i++) { var qx = ax + (bx - ax) * (i / 5); L(qx, qy, qx, ay, BROWN); ARR(qx, ay, 0, -1, BROWN); }
@@ -569,7 +569,7 @@
       }
       DIMH(baseFront, baseBack, yb2, "B = " + B);
       if (tsfc > 0) { var xtt = baseFront - 1.4 * th; W(baseFront, 0, xtt, 0); W(baseFront, -tsfc, xtt, -tsfc); DIMV(xtt, -tsfc, 0, "tsf = " + tsf); }
-      if (hasFront) { var dcol = baseFront - 3.0 * th; W(baseFront, 0, dcol, 0); W(baseFront, Dfc, dcol, Dfc); DIMV(dcol, 0, Dfc, "Df = " + Df); }
+      if (hasFront) { var dcol = baseFront - 3.0 * th; W(baseFront, -bB, dcol, -bB); W(baseFront, Dfy, dcol, Dfy); DIMV(dcol, -bB, Dfy, "Df = " + Df); }
       var xht = baseBack + 1.4 * th;                                                     // heel tip: slope tsb
       if (tsbc > 0) { W(baseBack, 0, xht, 0); W(baseBack, -tsbc, xht, -tsbc); DIMV(xht, -tsbc, 0, "tsb = " + tsb); }
       var colRb = baseBack + fb + 1.6 * th + 2.6 * th;                                   // rear thickness tbr, past the blinding column
