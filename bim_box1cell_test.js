@@ -80,7 +80,7 @@
       var ptc_b = gp(pts_b, 'ptc'), pbc_b = gp(pts_b, 'pbc'), ptc_e = gp(pts_e, 'ptc'), pbc_e = gp(pts_e, 'pbc');
       rec.addDimLinear(viewName, -half, Math.max(ptc_b.y, ptc_e.y) + off, half, Math.max(ptc_b.y, ptc_e.y) + off, ext * 6, 'L');
       rec.addDimLinear(viewName, -half - off, pbc_b.y, -half - off, ptc_b.y, ext * 6, 'H');
-      rec.addDimLinear(viewName, half + off, pbc_e.y, half + off, ptc_e.y, ext * 6, 'H');
+      rec.addDimLinear(viewName, half + off, pbc_e.y, half + off, ptc_e.y, ext * -6, 'H');
     } else if (viewName === 'left') {
       p1 = gp(pts_b, 'ptc'); p1.x = -half; p2 = gp(pts_e, 'ptc'); p2.x = half; rec.addLine(viewName, p1.x, p1.y, p2.x, p2.y, 's');
       p1 = gp(pts_b, 'pbc'); p1.x = -half; p2 = gp(pts_e, 'pbc'); p2.x = half; rec.addLine(viewName, p1.x, p1.y, p2.x, p2.y, 's');
@@ -95,7 +95,7 @@
       var ptl_b = gp(pts_b, 'ptl'), pbl_b = gp(pts_b, 'pbl'), ptl_e = gp(pts_e, 'ptl'), pbl_e = gp(pts_e, 'pbl');
       rec.addDimLinear(viewName, -half, Math.max(ptl_b.y, ptl_e.y) + off, half, Math.max(ptl_b.y, ptl_e.y) + off, ext * 6, 'L');
       rec.addDimLinear(viewName, -half - off, pbl_b.y, -half - off, ptl_b.y, ext * 6, 'H');
-      rec.addDimLinear(viewName, half + off, pbl_e.y, half + off, ptl_e.y, ext * 6, 'H');
+      rec.addDimLinear(viewName, half + off, pbl_e.y, half + off, ptl_e.y, ext * -6, 'H');
     } else if (viewName === 'right') {
       p1 = gp(pts_b, 'ptc'); p1.x = -half; p2 = gp(pts_e, 'ptc'); p2.x = half; rec.addLine(viewName, p1.x, p1.y, p2.x, p2.y, 's');
       p1 = gp(pts_b, 'pbc'); p1.x = -half; p2 = gp(pts_e, 'pbc'); p2.x = half; rec.addLine(viewName, p1.x, p1.y, p2.x, p2.y, 's');
@@ -110,7 +110,7 @@
       var ptr_b = gp(pts_b, 'ptr'), pbr_b = gp(pts_b, 'pbr'), ptr_e = gp(pts_e, 'ptr'), pbr_e = gp(pts_e, 'pbr');
       rec.addDimLinear(viewName, -half, Math.max(ptr_b.y, ptr_e.y) + off, half, Math.max(ptr_b.y, ptr_e.y) + off, ext * 6, 'L');
       rec.addDimLinear(viewName, -half - off, pbr_b.y, -half - off, ptr_b.y, ext * 6, 'H');
-      rec.addDimLinear(viewName, half + off, pbr_e.y, half + off, ptr_e.y, ext * 6, 'H');
+      rec.addDimLinear(viewName, half + off, pbr_e.y, half + off, ptr_e.y, ext * -6, 'H');
     }
   }
 

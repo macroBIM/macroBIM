@@ -95,7 +95,7 @@
       rec.addDimLinear(viewName, -half - off, pwtl_b.y, -half - off, ptfl_b.y, ext * 3, 'ttf1');
       rec.addDimLinear(viewName, -half - off, ptfl_b.y, -half - off, tb.y, ext * 3, 'ttf');
       rec.addDimLinear(viewName, -half, tb.y + off, half, te.y + off, ext * 6, 'L');
-      rec.addDimLinear(viewName, half + off, be.y, half + off, te.y, ext * 6, 'H');
+      rec.addDimLinear(viewName, half + off, be.y, half + off, te.y, ext * -6, 'H');
     }
   }
 
