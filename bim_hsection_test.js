@@ -9,17 +9,17 @@
 (function () {
   "use strict";
 
-  window._hsecView = window._hsecView || '3d';
+  window._hsecView = window._hsecView || 'front';
 
-  // highlight the active view button in the header bar
+  // highlight the active view button in the header bar (light theme, matching the card header)
   function setActive(view) {
     var bar = document.getElementById('hsec-viewbar');
     if (!bar) return;
     Array.prototype.forEach.call(bar.querySelectorAll('[data-hview]'), function (b) {
       var on = b.getAttribute('data-hview') === view;
-      b.style.background = on ? '#2563eb' : '#334155';
-      b.style.color = on ? '#fff' : '#cbd5e1';
-      b.style.borderColor = on ? '#2563eb' : '#475569';
+      b.style.background = on ? '#2563eb' : '#eef2f6';
+      b.style.color = on ? '#fff' : '#475569';
+      b.style.borderColor = on ? '#2563eb' : '#cbd5e1';
     });
   }
 
