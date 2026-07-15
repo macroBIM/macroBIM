@@ -69,7 +69,7 @@
       L.push({ x1: half, y1: pbl2.y, x2: half, y2: ptl2.y, lay: S });
       DL.push({ x1: -half - off, y1: pbl2.y, x2: -half - off, y2: ptl2.y, gap: ext * 6, t: 'H' });
       DL.push({ x1: -half - off, y1: pbl2.y, x2: -half - off, y2: pbfl2.y, gap: ext * 3, t: 'tbf' });
-      DL.push({ x1: -half - off, y1: pwtl2.y, x2: -half - off, y2: ptfl2.y, gap: ext * 3, t: 'tft' });
+      DL.push({ x1: -half - off, y1: ptfl2.y, x2: -half - off, y2: ptl2.y, gap: ext * 3, t: 'tft' });   // top flange thickness
       DL.push({ x1: -half, y1: ptl2.y + off, x2: half, y2: ptl2.y + off, gap: ext * 6, t: 'L' });
     }
     return { L: L, A: A, DL: DL, DR: DR };
