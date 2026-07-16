@@ -48,7 +48,7 @@
     "@media(max-width:900px){.pr-grid{grid-template-columns:1fr}}" +
     ".pr-col{display:flex;flex-direction:column;gap:16px}" +
     ".pr-card{background:var(--panel);border:1px solid var(--line);border-radius:10px;overflow:hidden}" +
-    ".pr-hd{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:9px 14px;border-bottom:1px solid var(--hair);background:var(--chip)}" +
+    ".pr-hd{display:flex;justify-content:space-between;align-items:center;gap:10px;min-height:43px;padding:9px 14px;border-bottom:1px solid var(--hair);background:var(--chip)}" +
     ".pr-ttl{font-size:11px;letter-spacing:.14em;text-transform:uppercase;font-weight:700;color:var(--muted)}" +
     ".pr-sub{font-size:11px;color:var(--muted);font-weight:400;text-transform:none;letter-spacing:0}" +
     ".pr-body{padding:12px 14px}" +
@@ -77,9 +77,9 @@
     ".pr-mode{flex:1;font:inherit;font-size:12px;font-weight:600;text-align:center;padding:8px;border:1px solid var(--line);border-radius:8px;background:var(--panel);color:var(--muted);cursor:pointer}" +
     ".pr-mode.on{background:var(--foundfill);border-color:var(--found);color:var(--found)}" +
     ".pr-stepper{display:flex;align-items:center;gap:6px}" +
-    ".pr-step{width:28px;height:28px;border:1px solid var(--line);border-radius:6px;background:var(--panel);color:var(--ink);font-size:15px;font-weight:700;cursor:pointer;line-height:1}" +
+    ".pr-step{width:24px;height:24px;border:1px solid var(--line);border-radius:6px;background:var(--panel);color:var(--ink);font-size:14px;font-weight:700;cursor:pointer;line-height:1}" +
     ".pr-step:hover{border-color:var(--dim);color:var(--dim)}" +
-    ".pr-cnt{width:52px;text-align:center;padding:5px;border:1px solid var(--line);border-radius:6px;font-size:13px;font-variant-numeric:tabular-nums}" +
+    ".pr-cnt{width:48px;text-align:center;padding:3px 5px;border:1px solid var(--line);border-radius:6px;font-size:13px;font-variant-numeric:tabular-nums}" +
     ".pr-names{display:flex;flex-wrap:wrap;gap:8px;margin-top:10px}" +
     ".pr-name{display:flex;align-items:center;gap:6px;font-size:12px;color:var(--muted)}" +
     ".pr-name input{width:76px;padding:4px 7px;border:1px solid var(--line);border-radius:6px;font-size:12px}" +
@@ -224,7 +224,7 @@
     // ── card builders ──
     function cardPiers() {
       var c = h("div", "pr-card");
-      c.appendChild(h("div", "pr-hd", "<span class='pr-ttl'>Piers <span class='pr-sub'>총 교각 개수 &amp; 이름</span></span>"));
+      c.appendChild(h("div", "pr-hd", "<span class='pr-ttl'>Piers <span class='pr-sub'>count &amp; names</span></span>"));
       var b = h("div", "pr-body");
       var r = h("div", "pr-inrow");
       r.appendChild(h("label", null, "<span class='var'>N</span><span class='desc'>교각 개수</span>"));
@@ -257,7 +257,7 @@
     var selWrap = h("div", "pr-card");
     function renderSelector() {
       selWrap.innerHTML = "";
-      selWrap.appendChild(h("div", "pr-hd", "<span class='pr-ttl'>Active Pier <span class='pr-sub'>편집할 교각 선택</span></span>"));
+      selWrap.appendChild(h("div", "pr-hd", "<span class='pr-ttl'>Active Pier <span class='pr-sub'>select to edit</span></span>"));
       var b = h("div", "pr-body"); var tabs = h("div", "pr-tabs");
       S.piers.forEach(function (p, i) {
         var t = h("button", "pr-tab" + (i === S.sel ? " on" : ""), p.name || ("P" + (i + 1)));
@@ -270,7 +270,7 @@
     function cardCoping() {
       var p = P(), cp = p.coping;
       var c = h("div", "pr-card");
-      c.appendChild(h("div", "pr-hd", "<span class='pr-ttl'>Coping <span class='pr-sub'>두부보</span></span>"));
+      c.appendChild(h("div", "pr-hd", "<span class='pr-ttl'>Coping <span class='pr-sub'>cap beam</span></span>"));
       var b = h("div", "pr-body");
       b.appendChild(numRow("TL", "두부보 길이(전장)", cp.TL, function (v) { cp.TL = v; }));
       b.appendChild(numRow("TB", "두부보 폭원", cp.TB, function (v) { cp.TB = v; }));
@@ -294,7 +294,7 @@
     function cardColumns() {
       var p = P();
       var c = h("div", "pr-card");
-      var hd = h("div", "pr-hd", "<span class='pr-ttl'>Columns <span class='pr-sub'>기둥</span></span>");
+      var hd = h("div", "pr-hd", "<span class='pr-ttl'>Columns <span class='pr-sub'>sections</span></span>");
       var stp = h("div", "pr-stepper");
       var minus = h("button", "pr-step", "−"), cnt = h("input", "pr-cnt"), plus = h("button", "pr-step", "+");
       cnt.type = "number"; cnt.value = p.colCount; cnt.min = 1; cnt.max = 8;
@@ -332,7 +332,7 @@
     function cardFoundation() {
       var p = P(), f = p.fdn;
       var c = h("div", "pr-card");
-      c.appendChild(h("div", "pr-hd", "<span class='pr-ttl'>Foundation <span class='pr-sub'>기초</span></span>"));
+      c.appendChild(h("div", "pr-hd", "<span class='pr-ttl'>Foundation <span class='pr-sub'>footing</span></span>"));
       var b = h("div", "pr-body");
       var modes = h("div", "pr-modes");
       [["combined", "Combined (통합 1개)"], ["individual", "Individual (기둥별)"]].forEach(function (m) {
@@ -355,7 +355,7 @@
     var plotHost = null, plotSub = null;
     function cardPreview() {
       var c = h("div", "pr-card");
-      var hd = h("div", "pr-hd", "<span class='pr-ttl'>Elevation <span class='pr-sub' data-pr-sub>선택 교각 정면도</span></span>" +
+      var hd = h("div", "pr-hd", "<span class='pr-ttl'>Elevation <span class='pr-sub' data-pr-sub>front elevation</span></span>" +
         "<button type='button' class='pr-btn' data-pr-regen>&#8635; Regen</button>");
       c.appendChild(hd);
       plotSub = hd.querySelector("[data-pr-sub]");
@@ -464,7 +464,7 @@
       plotHost.innerHTML = window.RWSVG.renderSVG(rec, W, Hpx);
       var svg = plotHost.querySelector("svg");
       if (svg) window.RWSVG.attachZoomPan(svg);
-      if (plotSub) plotSub.textContent = "선택 교각 정면도 — " + p.name +
+      if (plotSub) plotSub.textContent = p.name +
         " · " + p.colCount + " col · " + (p.fdnMode === "combined" ? "combined ftg" : "individual ftg");
     }
     _pierDraw = draw;
