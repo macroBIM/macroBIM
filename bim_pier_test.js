@@ -20,6 +20,23 @@
   var TYPES  = [["T", "T-type"], ["MC", "Multi-column"], ["WALL", "Wall"], ["COL", "Single-column"], ["PORTAL", "Portal"], ["TORCH", "Torch"]];
   var SHAPES = [["rect", "Rectangle"], ["circle", "Circle"], ["track", "Track"], ["octagon", "Octagon"]];
 
+  // latest instance's elevation draw() — for window resize redraw
+  var _pierDraw = null, _pierRT = null;
+  window.addEventListener("resize", function () { clearTimeout(_pierRT); _pierRT = setTimeout(function () { if (_pierDraw) _pierDraw(); }, 140); });
+
+  // Ensure the shared drawing core (window.RWSVG) is loaded, then run cb.
+  // Reuses the same _rwCore* flag/queue as layout_body_test.js (safe to share).
+  function ensureCore(cb) {
+    if (typeof window.RWSVG !== "undefined") { cb(); return; }
+    if (window._rwCoreLoading) { (window._rwCoreCbs = window._rwCoreCbs || []).push(cb); return; }
+    window._rwCoreLoading = true; window._rwCoreCbs = [cb];
+    var sc = document.createElement("script");
+    sc.src = "https://macrobim.github.io/macroBIM/bim_draw_test_core.js?v=1";
+    sc.onload = function () { window._rwCoreLoading = false; var q = window._rwCoreCbs || []; window._rwCoreCbs = []; q.forEach(function (f) { f(); }); };
+    sc.onerror = function () { window._rwCoreLoading = false; window._rwCoreCbs = []; };
+    document.head.appendChild(sc);
+  }
+
   var CSS =
     ".pr-root{--dim:#2563eb;--found:#6e7e8c;--foundfill:#eef2f6;--cope:#1f8e9e;--col:#b4813a;" +
     "--ink:#182430;--muted:#64748b;--line:#cbd5e1;--hair:#e2e8f0;--panel:#fff;--chip:#f1f5f9;--concrete-ln:#aeb9c6;" +
@@ -117,32 +134,25 @@
     return { V: V, R: R };
   }
 
-  // Build an SVG path 'd' for a closed polygon V with per-vertex fillet radii R,
-  // mapping model→screen via SX/SY (scale s). Straight edges + circular-arc fillets.
-  function roundedPathD(V, R, SX, SY, s) {
-    var n = V.length, seg = [];
+  // Trace the coping outline as a closed list of model points (fillets tessellated
+  // as quadratic-bézier corners tangent to both edges). Fed to the shared core as
+  // consecutive addLine segments, so no SVG-path/arc primitive is needed.
+  function copingOutlinePoints(cp) {
+    var m = copingModel(cp), V = m.V, R = m.R, n = V.length, out = [];
     function U(ax, ay) { var L = Math.hypot(ax, ay) || 1; return [ax / L, ay / L]; }
     for (var i = 0; i < n; i++) {
       var p = V[i], pv = V[(i - 1 + n) % n], nx = V[(i + 1) % n], r = R[i];
-      if (!r) { seg.push({ t1: p, t2: p, r: 0 }); continue; }
+      if (!r) { out.push(p); continue; }
       var din = U(p[0] - pv[0], p[1] - pv[1]), dou = U(nx[0] - p[0], nx[1] - p[1]);
       var lin = Math.hypot(p[0] - pv[0], p[1] - pv[1]), lou = Math.hypot(nx[0] - p[0], nx[1] - p[1]);
       var d = Math.min(r, lin * 0.49, lou * 0.49);
-      seg.push({
-        t1: [p[0] - din[0] * d, p[1] - din[1] * d], t2: [p[0] + dou[0] * d, p[1] + dou[1] * d],
-        r: d, cw: (din[0] * dou[1] - din[1] * dou[0]) < 0
-      });
-    }
-    var d = "";
-    for (var j = 0; j < n; j++) {
-      var c = seg[j];
-      d += (j === 0 ? "M " : " L ") + SX(c.t1[0]).toFixed(2) + " " + SY(c.t1[1]).toFixed(2);
-      if (c.r > 0) {
-        var rs = (c.r * s).toFixed(2);
-        d += " A " + rs + " " + rs + " 0 0 " + (c.cw ? 0 : 1) + " " + SX(c.t2[0]).toFixed(2) + " " + SY(c.t2[1]).toFixed(2);
+      var t1 = [p[0] - din[0] * d, p[1] - din[1] * d], t2 = [p[0] + dou[0] * d, p[1] + dou[1] * d], K = 6;
+      for (var k = 0; k <= K; k++) {
+        var t = k / K, u = 1 - t;
+        out.push([u * u * t1[0] + 2 * u * t * p[0] + t * t * t2[0], u * u * t1[1] + 2 * u * t * p[1] + t * t * t2[1]]);
       }
     }
-    return d + " Z";
+    return out;
   }
 
   window.fdraw_pier = function (mountId) {
@@ -322,13 +332,15 @@
     }
 
     // ── live elevation preview (selected pier) ──
-    var svg = null;
+    var plotHost = null, plotSub = null;
     function cardPreview() {
       var c = h("div", "pr-card");
-      c.appendChild(h("div", "pr-hd", "<span class='pr-ttl'>Elevation <span class='pr-sub'>선택 교각 정면도 (개략)</span></span>"));
-      var s = document.createElementNS(NS, "svg");
-      s.setAttribute("viewBox", "0 0 620 460"); s.setAttribute("role", "img"); s.className.baseVal = "pr-plot";
-      c.appendChild(s); svg = s; return c;
+      var hd = h("div", "pr-hd", "<span class='pr-ttl'>Elevation <span class='pr-sub' data-pr-sub>선택 교각 정면도</span></span>");
+      c.appendChild(hd);
+      plotSub = hd.querySelector("[data-pr-sub]");
+      plotHost = h("div"); plotHost.style.cssText = "width:100%;overflow:hidden";
+      c.appendChild(plotHost);
+      return c;
     }
 
     function colCenters(p) {
@@ -339,70 +351,53 @@
       return cs;
     }
 
+    // Elevation preview, drawn through the shared core (window.RWSVG): geometry is
+    // emitted as KonvaViewer-style primitives, so dims / fonts / zoom-pan match the
+    // retaining-wall and section drawings exactly.
     function draw() {
-      if (!svg || !svg.isConnected) return;
-      while (svg.firstChild) svg.removeChild(svg.firstChild);
-      var g = el("g", {}); svg.appendChild(g);
+      if (!plotHost || !plotHost.isConnected) return;
+      if (typeof window.RWSVG === "undefined") { ensureCore(draw); return; }
       var p = P(), cp = p.coping, f = p.fdn;
       var cs = colCenters(p);
       var maxCH = Math.max.apply(null, p.cols.map(function (c) { return c.CH; }).concat([1000]));
-      var polys = [];
 
-      // foundation (y-up: top at 0, below to -BH; blinding to -BH-EH)
+      var rec = new window.RWSVG.MockViewer();
+      rec.addLayer("c", "cyan", "solid", 1);              // cyan → ink outline
+      function rect(x1, y1, x2, y2) {
+        rec.addLine(0, x1, y1, x2, y1, "c"); rec.addLine(0, x2, y1, x2, y2, "c");
+        rec.addLine(0, x2, y2, x1, y2, "c"); rec.addLine(0, x1, y2, x1, y1, "c");
+      }
+      function foot(L, R) { rect(L, 0, R, -f.BH); if (f.EFL > 0 || f.EH > 0) rect(L - f.EFL, -f.BH, R + f.EFL, -f.BH - f.EH); }
+
+      // foundation (combined single footing, or one per column)
       if (p.fdnMode === "combined") {
-        var lC = cs[0], rC = cs[cs.length - 1];
-        var lD = p.cols[0].D, rD = p.cols[p.cols.length - 1].D;
-        var L = lC - lD / 2 - f.BLF, R = rC + rD / 2 + f.BRF;
-        polys.push({ pts: [[L, 0], [R, 0], [R, -f.BH], [L, -f.BH]], cls: "f" });
-        if (f.EFL > 0 || f.EH > 0) polys.push({ pts: [[L - f.EFL, -f.BH], [R + f.EFL, -f.BH], [R + f.EFL, -f.BH - f.EH], [L - f.EFL, -f.BH - f.EH]], cls: "fb" });
+        var L = cs[0] - p.cols[0].D / 2 - f.BLF, R = cs[cs.length - 1] + p.cols[p.cols.length - 1].D / 2 + f.BRF;
+        foot(L, R);
       } else {
-        p.cols.forEach(function (col, i) {
-          var L = cs[i] - col.D / 2 - f.BLF, R = cs[i] + col.D / 2 + f.BRF;
-          polys.push({ pts: [[L, 0], [R, 0], [R, -f.BH], [L, -f.BH]], cls: "f" });
-          if (f.EFL > 0 || f.EH > 0) polys.push({ pts: [[L - f.EFL, -f.BH], [R + f.EFL, -f.BH], [R + f.EFL, -f.BH - f.EH], [L - f.EFL, -f.BH - f.EH]], cls: "fb" });
-        });
+        p.cols.forEach(function (col, i) { foot(cs[i] - col.D / 2 - f.BLF, cs[i] + col.D / 2 + f.BRF); });
       }
-      // columns (0 → CH)
-      p.cols.forEach(function (col, i) {
-        polys.push({ pts: [[cs[i] - col.D / 2, 0], [cs[i] + col.D / 2, 0], [cs[i] + col.D / 2, col.CH], [cs[i] - col.D / 2, col.CH]], cls: "k" });
-      });
-      // coping — full outline from PDF vars, seated on columns (soffit-mid at maxCH)
-      var cm = copingModel(cp);
-      var copV = cm.V.map(function (v) { return [v[0], v[1] + maxCH]; });
-      var TL = cp.TL, x0 = -TL / 2, copTop = maxCH + cp.THL;
+      // columns
+      p.cols.forEach(function (col, i) { rect(cs[i] - col.D / 2, 0, cs[i] + col.D / 2, col.CH); });
+      // coping outline (seated on columns), as a closed polyline
+      var op = copingOutlinePoints(cp).map(function (q) { return [q[0], q[1] + maxCH]; });
+      for (var i = 0; i < op.length; i++) { var a = op[i], b = op[(i + 1) % op.length]; rec.addLine(0, a[0], a[1], b[0], b[1], "c"); }
 
-      // bounds + fit (columns/foundation polys + coping outline)
-      var minX = 1e9, maxX = -1e9, minY = 1e9, maxY = -1e9;
-      function accum(q) { if (q[0] < minX) minX = q[0]; if (q[0] > maxX) maxX = q[0]; if (q[1] < minY) minY = q[1]; if (q[1] > maxY) maxY = q[1]; }
-      polys.forEach(function (o) { o.pts.forEach(accum); });
-      copV.forEach(accum);
-      var W = 620, H = 460, padL = 70, padR = 70, padT = 44, padB = 56;
-      var s = Math.min((W - padL - padR) / ((maxX - minX) || 1), (H - padT - padB) / ((maxY - minY) || 1));
-      var cW = (maxX - minX) * s + padL + padR, cH = (maxY - minY) * s + padT + padB;
-      svg.setAttribute("viewBox", "0 0 " + cW.toFixed(1) + " " + cH.toFixed(1));
-      var ox = padL - minX * s, oy = cH - padB + minY * s;
-      function SX(mx) { return ox + mx * s; }
-      function SY(my) { return oy - my * s; }
-      function scr(pp) { return pp.map(function (q) { return SX(q[0]) + "," + SY(q[1]); }).join(" "); }
+      // key dims (label + auto value via the core)
+      var TL = cp.TL, copTop = maxCH + cp.THL, x0f = cs[0] - p.cols[0].D / 2;
+      rec.addDimLinear(0, -TL / 2, copTop, TL / 2, copTop, 1600, "TL");        // above coping
+      rec.addDimLinear(0, x0f, 0, x0f, p.cols[0].CH, 2200, "CH");              // left of first column
+      var fL = (p.fdnMode === "combined") ? (cs[0] - p.cols[0].D / 2 - f.BLF) : (cs[0] - p.cols[0].D / 2 - f.BLF);
+      rec.addDimLinear(0, fL, 0, fL, -f.BH, -1400, "BH");                      // left of footing
 
-      polys.forEach(function (o) {
-        var fill = o.cls === "fb" ? "var(--foundfill)" : o.cls === "k" ? "#fbf6ee" : o.cls === "c" ? "#eef7f8" : "#f2f5f8";
-        var stroke = (o.cls === "f" || o.cls === "fb") ? "var(--found)" : o.cls === "k" ? "var(--col)" : "var(--cope)";
-        g.appendChild(el("polygon", { points: scr(o.pts), fill: fill, stroke: stroke, "stroke-width": 1.6, "stroke-linejoin": "round" }));
-      });
-      // coping outline (fillets/groove/end-slope from PDF vars)
-      g.appendChild(el("path", { d: roundedPathD(copV, cm.R, SX, SY, s), fill: "#eef7f8", stroke: "var(--cope)", "stroke-width": 1.6, "stroke-linejoin": "round" }));
-      // key dims: TL (top), CH (left column), BH (foundation left)
-      function dimTxt(x, y, str, ang) {
-        var t = el("text", { x: x, y: y, "text-anchor": "middle", "dominant-baseline": "middle", "font-size": 11.5, "font-family": "ui-monospace,Menlo,Consolas,monospace", fill: "var(--dim)" });
-        if (ang) t.setAttribute("transform", "rotate(" + ang + " " + x + " " + y + ")"); t.textContent = str; g.appendChild(t);
-      }
-      function line(x1, y1, x2, y2) { g.appendChild(el("line", { x1: x1, y1: y1, x2: x2, y2: y2, stroke: "var(--dim)", "stroke-width": 1 })); }
-      var yT = SY(copTop) - 22; line(SX(x0), yT, SX(x0 + TL), yT); dimTxt((SX(x0) + SX(x0 + TL)) / 2, yT - 9, "TL = " + TL, 0);
-      var xL = SX(cs[0] - p.cols[0].D / 2) - 20; line(xL, SY(0), xL, SY(p.cols[0].CH)); dimTxt(xL - 9, (SY(0) + SY(p.cols[0].CH)) / 2, "CH = " + p.cols[0].CH, 90);
-      var xF = SX(minX) - 20; line(xF, SY(0), xF, SY(-f.BH)); dimTxt(xF - 9, (SY(0) + SY(-f.BH)) / 2, "BH = " + f.BH, 90);
-      dimTxt(SX((minX + maxX) / 2), SY(minY) + 26, p.name + " · " + (TYPES.filter(function (t) { return t[0] === p.type; })[0] || [, p.type])[1] + " · " + p.colCount + " col · " + (p.fdnMode === "combined" ? "combined ftg" : "individual ftg"), 0);
+      var W = plotHost.clientWidth || 620, Hpx = Math.max(360, Math.min(560, Math.round(W * 0.62)));
+      plotHost.innerHTML = window.RWSVG.renderSVG(rec, W, Hpx);
+      var svg = plotHost.querySelector("svg");
+      if (svg) window.RWSVG.attachZoomPan(svg);
+      if (plotSub) plotSub.textContent = "선택 교각 정면도 — " + p.name + " · " +
+        (TYPES.filter(function (t) { return t[0] === p.type; })[0] || [, p.type])[1] +
+        " · " + p.colCount + " col · " + (p.fdnMode === "combined" ? "combined ftg" : "individual ftg");
     }
+    _pierDraw = draw;
 
     // ── render orchestration ──
     var perWrap = h("div", "pr-col");        // right column: Type/Coping/Columns/Foundation
