@@ -101,14 +101,17 @@
   function clamp(v, lo, hi) { return Math.max(lo, Math.min(hi, v)); }
 
   // Coping (두부보) outline from the PDF variable set. Model coords, y-up, centred on x=0.
-  //   top surface at y=THL, haunch-root soffit at y=0 (deepest), tip soffit at y=THL-THU.
+  //   THU = 외측(tip) thickness; THL = 헌치 높이(haunch rise over the haunch length HLL/HLR).
+  //   top surface at y=THU+THL; central/haunch-root soffit at y=0 (deepest, thickness THU+THL);
+  //   tip soffit at y=THL (tip thickness THU). The haunch drops THL across HLL/HLR → sloped
+  //   cantilever soffit even when THU == THL.
   //   Returns ordered vertices V[] + per-vertex fillet radii R[] (0 = sharp).
   function copingModel(cp) {
     var TL = +cp.TL, THL = +cp.THL, THU = +cp.THU, HLL = +cp.HLL, HLR = +cp.HLR,
       HEL = +cp.HEL || 0, HER = +cp.HER || 0, HLU = +cp.HLU || 0, HRU = +cp.HRU || 0,
       CR = +cp.CR || 0, HRL = +cp.HRL || 0, HRR = +cp.HRR || 0,
       HD = +cp.HD || 0, HW = +cp.HW || 0, HS = +cp.HS || 0;
-    var xL = -TL / 2, xR = TL / 2, yTop = THL, yMid = 0, yTip = THL - THU;
+    var xL = -TL / 2, xR = TL / 2, yTop = THU + THL, yMid = 0, yTip = THL;
     var xLH = xL + HLL, xRH = xR - HLR;
     if (xLH > 0) xLH = 0;
     if (xRH < 0) xRH = 0;                       // keep haunch roots from crossing centre
@@ -383,7 +386,7 @@
       for (var i = 0; i < op.length; i++) { var a = op[i], b = op[(i + 1) % op.length]; rec.addLine(0, a[0], a[1], b[0], b[1], "c"); }
 
       // key dims (label + auto value via the core)
-      var TL = cp.TL, copTop = maxCH + cp.THL, x0f = cs[0] - p.cols[0].D / 2;
+      var TL = cp.TL, copTop = maxCH + cp.THU + cp.THL, x0f = cs[0] - p.cols[0].D / 2;
       rec.addDimLinear(0, -TL / 2, copTop, TL / 2, copTop, 1600, "TL");        // above coping
       rec.addDimLinear(0, x0f, 0, x0f, p.cols[0].CH, 2200, "CH");              // left of first column
       var fL = (p.fdnMode === "combined") ? (cs[0] - p.cols[0].D / 2 - f.BLF) : (cs[0] - p.cols[0].D / 2 - f.BLF);
