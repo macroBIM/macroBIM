@@ -81,8 +81,12 @@
     ".pr-step:hover{border-color:var(--dim);color:var(--dim)}" +
     ".pr-cnt{width:48px;text-align:center;padding:3px 5px;border:1px solid var(--line);border-radius:6px;font-size:13px;font-variant-numeric:tabular-nums}" +
     ".pr-names{display:flex;flex-wrap:wrap;gap:8px;margin-top:10px}" +
-    ".pr-name{display:flex;align-items:center;gap:6px;font-size:12px;color:var(--muted)}" +
+    ".pr-name{display:flex;align-items:center;gap:7px;font-size:12px;color:var(--muted);padding:4px 9px;border:1px solid var(--line);border-radius:8px;cursor:pointer}" +
+    ".pr-name.on{border-color:var(--dim);background:rgba(37,99,235,.06)}" +
+    ".pr-name .pr-pieridx{min-width:16px;text-align:right}" +
     ".pr-name input{width:76px;padding:4px 7px;border:1px solid var(--line);border-radius:6px;font-size:12px}" +
+    ".pr-radio{width:15px;height:15px;border-radius:50%;border:2px solid var(--line);background:var(--panel);cursor:pointer;padding:0;flex:0 0 auto}" +
+    ".pr-radio.on{border-color:var(--dim);background:var(--dim);box-shadow:inset 0 0 0 2.5px var(--panel)}" +
     ".pr-btn{font:inherit;font-size:10.5px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:#fff;" +
     "background:var(--dim);border:1px solid var(--dim);border-radius:6px;padding:5px 12px;cursor:pointer;" +
     "box-shadow:0 1px 3px rgba(37,99,235,.35);transition:filter .12s,transform .06s}" +
@@ -244,27 +248,20 @@
       stp.appendChild(minus); stp.appendChild(cnt); stp.appendChild(plus);
       var rw = h("span"); rw.appendChild(stp); r.appendChild(rw); b.appendChild(r);
 
+      // per-pier rows double as the active-pier selector (radio + highlight)
       var names = h("div", "pr-names");
       S.piers.forEach(function (p, i) {
-        var nm = h("div", "pr-name", "<span>" + (i + 1) + ".</span>");
+        var nm = h("div", "pr-name" + (i === S.sel ? " on" : ""));
+        var radio = h("button", "pr-radio" + (i === S.sel ? " on" : "")); radio.type = "button";
         var inp = h("input"); inp.type = "text"; inp.value = p.name;
-        inp.addEventListener("input", function () { p.name = inp.value; renderSelector(); draw(); });
-        nm.appendChild(inp); names.appendChild(nm);
+        inp.addEventListener("input", function () { p.name = inp.value; draw(); });
+        nm.onclick = function (e) { if (e.target === inp || i === S.sel) return; S.sel = i; renderAll(); };
+        nm.appendChild(radio);
+        nm.appendChild(h("span", "pr-pieridx", (i + 1) + "."));
+        nm.appendChild(inp);
+        names.appendChild(nm);
       });
       b.appendChild(names); c.appendChild(b); return c;
-    }
-
-    var selWrap = h("div", "pr-card");
-    function renderSelector() {
-      selWrap.innerHTML = "";
-      selWrap.appendChild(h("div", "pr-hd", "<span class='pr-ttl'>Active Pier <span class='pr-sub'>select to edit</span></span>"));
-      var b = h("div", "pr-body"); var tabs = h("div", "pr-tabs");
-      S.piers.forEach(function (p, i) {
-        var t = h("button", "pr-tab" + (i === S.sel ? " on" : ""), p.name || ("P" + (i + 1)));
-        t.onclick = function () { S.sel = i; renderPerPier(); renderSelector(); draw(); };
-        tabs.appendChild(t);
-      });
-      b.appendChild(tabs); selWrap.appendChild(b);
     }
 
     function cardCoping() {
@@ -480,7 +477,6 @@
     function renderAll() {
       stack.innerHTML = "";
       stack.appendChild(cardPiers());
-      renderSelector(); stack.appendChild(selWrap);
       var grid = h("div", "pr-grid");
       var left = h("div", "pr-col"); left.appendChild(cardPreview());
       grid.appendChild(left);
