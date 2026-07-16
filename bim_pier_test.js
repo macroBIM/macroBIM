@@ -419,10 +419,13 @@
       };
       // coping-bottom dim line (HLL/HLR/HEL/HER) sits just below the cantilever soffit
       var cbY = maxCH - Math.max(700, maxCH * 0.14);
+      // top gutters: HLU/HRU on an inner lane, TL raised to an outer lane above it
+      var spanT = Math.max(bnd.maxX - bnd.minX, bnd.maxY - bnd.minY);
+      var topGut = bnd.maxY + spanT * 0.03, tlGut = bnd.maxY + spanT * 0.09;
       // all vertical dims measure at the outer tip x (xLtip/xRtip) so their witness lines
       // stay outside the structure (never cross into it)
       var dims = [
-        { side: "T", at: maxCH + A.yTop, lo: -TL / 2, hi: TL / 2, label: "TL" },      // overall width (top)
+        { side: "T", at: maxCH + A.yTop, gutter: tlGut, lo: -TL / 2, hi: TL / 2, label: "TL" },  // overall width (top, outer lane)
         // verticals — single left gutter; THL label flipped to the other side of the line
         { side: "L", at: A.xLtip, lo: maxCH + A.yTip, hi: maxCH + A.yTop, label: "THU" },
         { side: "L", at: A.xLtip, lo: maxCH + A.yMid, hi: maxCH + A.yTip, label: "THL", lp: -24 },
@@ -437,8 +440,7 @@
       // HEL/HER: tip (연단) horizontal soffit length — dimensioned below the coping (labels flipped up)
       if (A.HEL > 0) dims.push({ side: "B", at: maxCH + A.yTip, gutter: cbY, lo: A.xLtip, hi: A.xLe, label: "HEL", lp: -22 });
       if (A.HER > 0) dims.push({ side: "B", at: maxCH + A.yTip, gutter: cbY, lo: A.xRe, hi: A.xRtip, label: "HER", lp: -22 });
-      // HLU/HRU: top-edge inset horizontal length — dimensioned at the top (lane below TL)
-      var topGut = bnd.maxY + Math.max(bnd.maxX - bnd.minX, bnd.maxY - bnd.minY) * 0.025;
+      // HLU/HRU: top-edge inset horizontal length — dimensioned at the top (inner lane, below TL)
       if (A.HLU > 0) dims.push({ side: "T", at: maxCH + A.yTop, gutter: topGut, lo: A.xLtip, hi: A.xLtop, label: "HLU" });
       if (A.HRU > 0) dims.push({ side: "T", at: maxCH + A.yTop, gutter: topGut, lo: A.xRtop, hi: A.xRtip, label: "HRU" });
       layoutDims(dims, bnd).forEach(function (d) { rec.addDimLinear(0, d.x1, d.y1, d.x2, d.y2, d.gap, d.label, { la: d.la, lp: d.lp }); });
