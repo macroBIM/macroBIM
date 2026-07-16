@@ -162,6 +162,39 @@
     };
   }
 
+  // Align linear dims to shared gutters outside the drawing: left/right verticals
+  // to the left/right, top/bottom horizontals above/below; stack overlapping dims
+  // into successive lanes. dims: [{side:'L'|'R'|'T'|'B', at, lo, hi, label}]
+  //   V (L/R): measures y lo→hi at x=at.   H (T/B): measures x lo→hi at y=at.
+  // Returns addDimLinear-ready specs {x1,y1,x2,y2,gap,label}.
+  function layoutDims(dims, b) {
+    var span = Math.max(b.maxX - b.minX, b.maxY - b.minY) || 1;
+    var M = span * 0.05, STEP = span * 0.062, PAD = span * 0.05, out = [];   // PAD ≈ label clearance
+    ["L", "R", "T", "B"].forEach(function (side) {
+      var g = dims.filter(function (d) { return d.side === side; });
+      g.sort(function (a, c) { return a.lo - c.lo; });
+      var lanes = [];
+      g.forEach(function (d) {
+        var li = 0;
+        for (; ;) {
+          if (!lanes[li]) lanes[li] = [];
+          var ok = true;   // reject if this dim's span (padded for the label) meets one already in the lane
+          for (var j = 0; j < lanes[li].length; j++) { var iv = lanes[li][j]; if (!(d.hi + PAD <= iv[0] || d.lo - PAD >= iv[1])) { ok = false; break; } }
+          if (ok) { lanes[li].push([d.lo, d.hi]); d._l = li; break; }
+          li++;
+        }
+      });
+      g.forEach(function (d) {
+        var gut, gap;
+        if (side === "L") { gut = b.minX - M - d._l * STEP; gap = d.at - gut; out.push({ x1: d.at, y1: d.lo, x2: d.at, y2: d.hi, gap: gap, label: d.label }); }
+        else if (side === "R") { gut = b.maxX + M + d._l * STEP; gap = d.at - gut; out.push({ x1: d.at, y1: d.lo, x2: d.at, y2: d.hi, gap: gap, label: d.label }); }
+        else if (side === "T") { gut = b.maxY + M + d._l * STEP; gap = gut - d.at; out.push({ x1: d.lo, y1: d.at, x2: d.hi, y2: d.at, gap: gap, label: d.label }); }
+        else { gut = b.minY - M - d._l * STEP; gap = gut - d.at; out.push({ x1: d.lo, y1: d.at, x2: d.hi, y2: d.at, gap: gap, label: d.label }); }
+      });
+    });
+    return out;
+  }
+
   window.fdraw_pier = function (mountId) {
     var root = document.getElementById(mountId || "mount-draw-pier");
     if (!root) return;
@@ -376,7 +409,14 @@
         rec.addLine(0, x1, y1, x2, y1, "c"); rec.addLine(0, x2, y1, x2, y2, "c");
         rec.addLine(0, x2, y2, x1, y2, "c"); rec.addLine(0, x1, y2, x1, y1, "c");
       }
-      function foot(L, R) { rect(L, 0, R, -f.BH); if (f.EFL > 0 || f.EH > 0) rect(L - f.EFL, -f.BH, R + f.EFL, -f.BH - f.EH); }
+      var footMinX = 1e9, footMaxX = -1e9;
+      function foot(L, R) {
+        rect(L, 0, R, -f.BH);
+        var bl = (f.EFL > 0 || f.EH > 0);
+        if (bl) rect(L - f.EFL, -f.BH, R + f.EFL, -f.BH - f.EH);
+        var lo = bl ? L - f.EFL : L, hi = bl ? R + f.EFL : R;
+        if (lo < footMinX) footMinX = lo; if (hi > footMaxX) footMaxX = hi;
+      }
 
       // foundation (combined single footing, or one per column)
       if (p.fdnMode === "combined") {
@@ -392,21 +432,26 @@
       var op = geo.points.map(function (q) { return [q[0], q[1] + maxCH]; });
       for (var i = 0; i < op.length; i++) { var a = op[i], b = op[(i + 1) % op.length]; rec.addLine(0, a[0], a[1], b[0], b[1], "c"); }
 
-      // key dims (label + auto value via the core)
-      var TL = cp.TL, copTop = maxCH + A.yTop, x0f = cs[0] - p.cols[0].D / 2;
-      rec.addDimLinear(0, -TL / 2, copTop, TL / 2, copTop, 1600, "TL");        // above coping
-      rec.addDimLinear(0, x0f, 0, x0f, p.cols[0].CH, 2200, "CH");              // left of first column
-      rec.addDimLinear(0, cs[0] - p.cols[0].D / 2 - f.BLF, 0, cs[0] - p.cols[0].D / 2 - f.BLF, -f.BH, -1400, "BH");
-
-      // coping cantilever dims — THU/THL both tips, HLL left / HLR right, HEL/HER when set
-      rec.addDimLinear(0, A.xLtip, maxCH + A.yTip, A.xLtip, maxCH + A.yTop, -520, "THU");   // left tip thickness
-      rec.addDimLinear(0, A.xRtip, maxCH + A.yTip, A.xRtip, maxCH + A.yTop, 520, "THU");    // right tip thickness
-      rec.addDimLinear(0, A.xLH, maxCH + A.yMid, A.xLH, maxCH + A.yTip, -520, "THL");       // left haunch rise
-      rec.addDimLinear(0, A.xRH, maxCH + A.yMid, A.xRH, maxCH + A.yTip, 520, "THL");        // right haunch rise
-      rec.addDimLinear(0, A.xLe, maxCH + A.yMid, A.xLH, maxCH + A.yMid, -900, "HLL");       // left haunch length
-      rec.addDimLinear(0, A.xRH, maxCH + A.yMid, A.xRe, maxCH + A.yMid, -900, "HLR");       // right haunch length
-      if (A.HEL > 0) rec.addDimLinear(0, A.xLtip, maxCH + A.yTip, A.xLe, maxCH + A.yTip, 460, "HEL");
-      if (A.HER > 0) rec.addDimLinear(0, A.xRe, maxCH + A.yTip, A.xRtip, maxCH + A.yTip, 460, "HER");
+      // ---- dimensions, aligned to shared gutters (L/R verticals, T/B horizontals) ----
+      var TL = cp.TL, x0f = cs[0] - p.cols[0].D / 2, xFL = cs[0] - p.cols[0].D / 2 - f.BLF;
+      var bnd = {
+        minX: Math.min(-TL / 2, footMinX), maxX: Math.max(TL / 2, footMaxX),
+        minY: -f.BH - (f.EH > 0 ? f.EH : 0), maxY: maxCH + A.yTop
+      };
+      var dims = [
+        { side: "T", at: maxCH + A.yTop, lo: -TL / 2, hi: TL / 2, label: "TL" },      // overall width (top)
+        { side: "T", at: maxCH + A.yMid, lo: A.xLe, hi: A.xLH, label: "HLL" },        // left haunch length
+        { side: "T", at: maxCH + A.yMid, lo: A.xRH, hi: A.xRe, label: "HLR" },        // right haunch length
+        { side: "L", at: A.xLtip, lo: maxCH + A.yTip, hi: maxCH + A.yTop, label: "THU" },
+        { side: "L", at: A.xLH, lo: maxCH + A.yMid, hi: maxCH + A.yTip, label: "THL" },
+        { side: "L", at: x0f, lo: 0, hi: p.cols[0].CH, label: "CH" },                 // column height
+        { side: "L", at: xFL, lo: -f.BH, hi: 0, label: "BH" },                        // footing height
+        { side: "R", at: A.xRtip, lo: maxCH + A.yTip, hi: maxCH + A.yTop, label: "THU" },
+        { side: "R", at: A.xRH, lo: maxCH + A.yMid, hi: maxCH + A.yTip, label: "THL" }
+      ];
+      if (A.HEL > 0) dims.push({ side: "T", at: maxCH + A.yTip, lo: A.xLtip, hi: A.xLe, label: "HEL" });
+      if (A.HER > 0) dims.push({ side: "T", at: maxCH + A.yTip, lo: A.xRe, hi: A.xRtip, label: "HER" });
+      layoutDims(dims, bnd).forEach(function (d) { rec.addDimLinear(0, d.x1, d.y1, d.x2, d.y2, d.gap, d.label); });
       // curved-soffit radius dims (HRL outer / HRR inner) when set
       geo.radiusDims.forEach(function (rd) { rec.addDimRadius(0, rd.c[0], rd.c[1] + maxCH, rd.r, rd.ang, rd.label); });
 
