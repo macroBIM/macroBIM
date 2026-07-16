@@ -160,8 +160,8 @@
 
     return {
       points: pts, radiusDims: rad,
-      A: { xL: xL, xR: xR, xLtip: xLtip, xRtip: xRtip, xLe: xLe, xRe: xRe, xLH: xLH, xRH: xRH,
-        yTop: yTop, yTip: yTip, yMid: yMid, THU: THU, THL: THL, HLL: HLL, HLR: HLR, HEL: HEL, HER: HER }
+      A: { xL: xL, xR: xR, xLtip: xLtip, xRtip: xRtip, xLtop: xLtop, xRtop: xRtop, xLe: xLe, xRe: xRe, xLH: xLH, xRH: xRH,
+        yTop: yTop, yTip: yTip, yMid: yMid, THU: THU, THL: THL, HLL: HLL, HLR: HLR, HEL: HEL, HER: HER, HLU: HLU, HRU: HRU }
     };
   }
 
@@ -279,10 +279,10 @@
       b.appendChild(numRow("HLR", "우측 내민보 헌치길이", cp.HLR, function (v) { cp.HLR = v; }));
       b.appendChild(numRow("HRL", "좌측 내민보 헌치 곡선 R", cp.HRL, function (v) { cp.HRL = v; }));
       b.appendChild(numRow("HRR", "우측 내민보 헌치 곡선 R", cp.HRR, function (v) { cp.HRR = v; }));
-      b.appendChild(numRow("HEL", "좌측 상단 수평 길이", cp.HEL, function (v) { cp.HEL = v; }));
-      b.appendChild(numRow("HER", "우측 상단 수평 길이", cp.HER, function (v) { cp.HER = v; }));
-      b.appendChild(numRow("HLU", "좌측 외측연단 경사", cp.HLU, function (v) { cp.HLU = v; }));
-      b.appendChild(numRow("HRU", "우측 외측연단 경사", cp.HRU, function (v) { cp.HRU = v; }));
+      b.appendChild(numRow("HEL", "좌측 연단 수평 길이", cp.HEL, function (v) { cp.HEL = v; }));
+      b.appendChild(numRow("HER", "우측 연단 수평 길이", cp.HER, function (v) { cp.HER = v; }));
+      b.appendChild(numRow("HLU", "좌측 내민보 상단 수평 길이", cp.HLU, function (v) { cp.HLU = v; }));
+      b.appendChild(numRow("HRU", "우측 내민보 상단 수평 길이", cp.HRU, function (v) { cp.HRU = v; }));
       b.appendChild(numRow("CR", "외측연단 라운드", cp.CR, function (v) { cp.CR = v; }));
       b.appendChild(numRow("HD", "중앙 홈파기 깊이", cp.HD, function (v) { cp.HD = v; }));
       b.appendChild(numRow("HW", "중앙 홈파기 폭", cp.HW, function (v) { cp.HW = v; }));
@@ -434,12 +434,13 @@
         { side: "B", at: maxCH + A.yMid, gutter: cbY, lo: A.xLe, hi: A.xLH, label: "HLL" },
         { side: "B", at: maxCH + A.yMid, gutter: cbY, lo: A.xRH, hi: A.xRe, label: "HLR" }
       ];
-      // tip horizontal runs — same coping-bottom line, labels flipped above to clear HLL/HLR
-      // HEL/HER: the tip horizontal length, dimensioned at the top (just above the coping,
-      // on a lane below the overall TL line)
-      var helGut = bnd.maxY + Math.max(bnd.maxX - bnd.minX, bnd.maxY - bnd.minY) * 0.025;
-      if (A.HEL > 0) dims.push({ side: "T", at: maxCH + A.yTip, gutter: helGut, lo: A.xLtip, hi: A.xLe, label: "HEL" });
-      if (A.HER > 0) dims.push({ side: "T", at: maxCH + A.yTip, gutter: helGut, lo: A.xRe, hi: A.xRtip, label: "HER" });
+      // HEL/HER: tip (연단) horizontal soffit length — dimensioned below the coping (labels flipped up)
+      if (A.HEL > 0) dims.push({ side: "B", at: maxCH + A.yTip, gutter: cbY, lo: A.xLtip, hi: A.xLe, label: "HEL", lp: -22 });
+      if (A.HER > 0) dims.push({ side: "B", at: maxCH + A.yTip, gutter: cbY, lo: A.xRe, hi: A.xRtip, label: "HER", lp: -22 });
+      // HLU/HRU: top-edge inset horizontal length — dimensioned at the top (lane below TL)
+      var topGut = bnd.maxY + Math.max(bnd.maxX - bnd.minX, bnd.maxY - bnd.minY) * 0.025;
+      if (A.HLU > 0) dims.push({ side: "T", at: maxCH + A.yTop, gutter: topGut, lo: A.xLtip, hi: A.xLtop, label: "HLU" });
+      if (A.HRU > 0) dims.push({ side: "T", at: maxCH + A.yTop, gutter: topGut, lo: A.xRtop, hi: A.xRtip, label: "HRU" });
       layoutDims(dims, bnd).forEach(function (d) { rec.addDimLinear(0, d.x1, d.y1, d.x2, d.y2, d.gap, d.label, { la: d.la, lp: d.lp }); });
       // curved-soffit radius dims (HRL outer / HRR inner) when set
       geo.radiusDims.forEach(function (rd) { rec.addDimRadius(0, rd.c[0], rd.c[1] + maxCH, rd.r, rd.ang, rd.label); });
