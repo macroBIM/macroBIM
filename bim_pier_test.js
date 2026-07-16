@@ -82,7 +82,11 @@
     ".pr-cnt{width:52px;text-align:center;padding:5px;border:1px solid var(--line);border-radius:6px;font-size:13px;font-variant-numeric:tabular-nums}" +
     ".pr-names{display:flex;flex-wrap:wrap;gap:8px;margin-top:10px}" +
     ".pr-name{display:flex;align-items:center;gap:6px;font-size:12px;color:var(--muted)}" +
-    ".pr-name input{width:76px;padding:4px 7px;border:1px solid var(--line);border-radius:6px;font-size:12px}";
+    ".pr-name input{width:76px;padding:4px 7px;border:1px solid var(--line);border-radius:6px;font-size:12px}" +
+    ".pr-btn{font:inherit;font-size:10.5px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:#fff;" +
+    "background:var(--dim);border:1px solid var(--dim);border-radius:6px;padding:5px 12px;cursor:pointer;" +
+    "box-shadow:0 1px 3px rgba(37,99,235,.35);transition:filter .12s,transform .06s}" +
+    ".pr-btn:hover{filter:brightness(1.12)}.pr-btn:active{filter:brightness(.94);transform:translateY(1px)}";
 
   // ── data model ──────────────────────────────────────────────────────────────
   function newCol() { return { shape: "circle", D: 2500, H: 2500, CH: 8000 }; }
@@ -100,62 +104,62 @@
   }
   function clamp(v, lo, hi) { return Math.max(lo, Math.min(hi, v)); }
 
-  // Coping (두부보) outline from the PDF variable set. Model coords, y-up, centred on x=0.
-  //   THU = 외측(tip) thickness; THL = 헌치 높이(haunch rise over the haunch length HLL/HLR).
-  //   top surface at y=THU+THL; central/haunch-root soffit at y=0 (deepest, thickness THU+THL);
-  //   tip soffit at y=THL (tip thickness THU). The haunch drops THL across HLL/HLR → sloped
-  //   cantilever soffit even when THU == THL.
-  //   Returns ordered vertices V[] + per-vertex fillet radii R[] (0 = sharp).
-  function copingModel(cp) {
+  // Coping (두부보) geometry from the PDF variable set. Model coords, y-up, centred on x=0.
+  //   THU = 외측(tip) thickness; THL = 헌치 높이(haunch rise). top surface y=THU+THL;
+  //   central soffit y=0 (deepest, thickness THU+THL); tip soffit y=THL (tip thickness THU).
+  //   Per side: HEL/HER add a horizontal soffit run at the tip; HLL/HLR = haunch (slope) length;
+  //   HLU/HRU batter the tip end; HRL (outer)/HRR (inner-span) round the soffit corners into
+  //   real circular arcs. Groove HD/HW/HS at the top-centre; CR rounds top-outer corners.
+  // Returns { points[] (closed, arcs tessellated), radiusDims[] (HRL/HRR), A (dim anchors) }.
+  function copingGeometry(cp) {
     var TL = +cp.TL, THL = +cp.THL, THU = +cp.THU, HLL = +cp.HLL, HLR = +cp.HLR,
       HEL = +cp.HEL || 0, HER = +cp.HER || 0, HLU = +cp.HLU || 0, HRU = +cp.HRU || 0,
       CR = +cp.CR || 0, HRL = +cp.HRL || 0, HRR = +cp.HRR || 0,
       HD = +cp.HD || 0, HW = +cp.HW || 0, HS = +cp.HS || 0;
-    var xL = -TL / 2, xR = TL / 2, yTop = THU + THL, yMid = 0, yTip = THL;
-    var xLH = xL + HLL, xRH = xR - HLR;
+    var xL = -TL / 2, xR = TL / 2, yTop = THU + THL, yTip = THL, yMid = 0;
+    var xLtip = xL + HLU, xLe = xLtip + HEL, xLH = xLe + HLL;   // left: tip → flat-end → haunch root
+    var xRtip = xR - HRU, xRe = xRtip - HER, xRH = xRe - HLR;   // right mirror
     if (xLH > 0) xLH = 0;
-    if (xRH < 0) xRH = 0;                       // keep haunch roots from crossing centre
-    var V = [], R = [];
-    function add(x, y, r) { V.push([x, y]); R.push(r || 0); }
-    // top edge spans the full length; ends are battered inward at the soffit (HLU/HRU),
-    // top-outer corners rounded by CR. Groove notched into the top-centre (HD/HW/HS).
-    add(xL, yTop, CR);                          // top-left extreme
-    if (HD > 0 && HW > 0) {                     // central groove (funnel: +HS each side at top)
-      add(-HW / 2 - HS, yTop, 0);
-      add(-HW / 2, yTop - HD, 0);
-      add(HW / 2, yTop - HD, 0);
-      add(HW / 2 + HS, yTop, 0);
-    }
-    add(xR, yTop, CR);                          // top-right extreme
-    // right end: batter down to soffit (inset by HRU), optional horizontal run HER, then haunch
-    if (HER > 0) { add(xR - HRU, yTip, 0); add(xR - HRU - HER, yTip, HRL); }
-    else { add(xR - HRU, yTip, HRL); }
-    add(xRH, yMid, HRR);                        // right haunch root (deepest)
-    add(xLH, yMid, HRR);                        // left haunch root (deepest)
-    if (HEL > 0) { add(xL + HLU + HEL, yTip, HRL); add(xL + HLU, yTip, 0); }
-    else { add(xL + HLU, yTip, HRL); }
-    return { V: V, R: R };
-  }
+    if (xRH < 0) xRH = 0;
+    var V = [], R = [], tag = [];
+    function add(x, y, r, t) { V.push([x, y]); R.push(r || 0); tag.push(t || null); }
+    add(xL, yTop, CR);                           // top-left
+    if (HD > 0 && HW > 0) { add(-HW / 2 - HS, yTop, 0); add(-HW / 2, yTop - HD, 0); add(HW / 2, yTop - HD, 0); add(HW / 2 + HS, yTop, 0); }
+    add(xR, yTop, CR);                           // top-right
+    // right end → soffit: HER>0 gives a flat run (sharp tip corner + HRL at flat→slope),
+    // otherwise the HRL round sits at the tip corner directly (no degenerate zero edge).
+    if (HER > 0) { add(xRtip, yTip, 0); add(xRe, yTip, HRL, "hrl"); }
+    else { add(xRtip, yTip, HRL, "hrl"); }
+    add(xRH, yMid, HRR, "hrr");                  // right haunch root (HRR)
+    add(xLH, yMid, HRR, "hrrL");                 // left haunch root (HRR)
+    if (HEL > 0) { add(xLe, yTip, HRL, "hrlL"); add(xLtip, yTip, 0); }
+    else { add(xLtip, yTip, HRL, "hrlL"); }
 
-  // Trace the coping outline as a closed list of model points (fillets tessellated
-  // as quadratic-bézier corners tangent to both edges). Fed to the shared core as
-  // consecutive addLine segments, so no SVG-path/arc primitive is needed.
-  function copingOutlinePoints(cp) {
-    var m = copingModel(cp), V = m.V, R = m.R, n = V.length, out = [];
+    var n = V.length, pts = [], rad = [];
     function U(ax, ay) { var L = Math.hypot(ax, ay) || 1; return [ax / L, ay / L]; }
     for (var i = 0; i < n; i++) {
-      var p = V[i], pv = V[(i - 1 + n) % n], nx = V[(i + 1) % n], r = R[i];
-      if (!r) { out.push(p); continue; }
+      var p = V[i], pv = V[(i - 1 + n) % n], nx = V[(i + 1) % n], R0 = R[i];
+      if (!R0) { pts.push(p); continue; }
       var din = U(p[0] - pv[0], p[1] - pv[1]), dou = U(nx[0] - p[0], nx[1] - p[1]);
       var lin = Math.hypot(p[0] - pv[0], p[1] - pv[1]), lou = Math.hypot(nx[0] - p[0], nx[1] - p[1]);
-      var d = Math.min(r, lin * 0.49, lou * 0.49);
-      var t1 = [p[0] - din[0] * d, p[1] - din[1] * d], t2 = [p[0] + dou[0] * d, p[1] + dou[1] * d], K = 6;
-      for (var k = 0; k <= K; k++) {
-        var t = k / K, u = 1 - t;
-        out.push([u * u * t1[0] + 2 * u * t * p[0] + t * t * t2[0], u * u * t1[1] + 2 * u * t * p[1] + t * t * t2[1]]);
-      }
+      var cosphi = Math.max(-1, Math.min(1, -(din[0] * dou[0] + din[1] * dou[1])));
+      var half = Math.acos(cosphi) / 2, tanh = Math.tan(half) || 1e-6;
+      var t = Math.min(R0 / tanh, lin * 0.49, lou * 0.49), Ract = t * tanh;
+      var t1 = [p[0] - din[0] * t, p[1] - din[1] * t], t2 = [p[0] + dou[0] * t, p[1] + dou[1] * t];
+      var bis = U(-din[0] + dou[0], -din[1] + dou[1]), sinh = Math.sin(half) || 1e-6;
+      var c = [p[0] + bis[0] * (Ract / sinh), p[1] + bis[1] * (Ract / sinh)];   // arc centre
+      var a1 = Math.atan2(t1[1] - c[1], t1[0] - c[0]), a2 = Math.atan2(t2[1] - c[1], t2[0] - c[0]);
+      var dd = a2 - a1; while (dd <= -Math.PI) dd += 2 * Math.PI; while (dd > Math.PI) dd -= 2 * Math.PI;  // minor arc
+      var K = 10;
+      for (var k = 0; k <= K; k++) { var aa = a1 + dd * k / K; pts.push([c[0] + Ract * Math.cos(aa), c[1] + Ract * Math.sin(aa)]); }
+      if (tag[i] === "hrlL" && HRL > 0) rad.push({ c: c, r: Ract, ang: Math.atan2(p[1] - c[1], p[0] - c[0]) * 180 / Math.PI, label: "HRL=" });
+      if (tag[i] === "hrrL" && HRR > 0) rad.push({ c: c, r: Ract, ang: Math.atan2(p[1] - c[1], p[0] - c[0]) * 180 / Math.PI, label: "HRR=" });
     }
-    return out;
+    return {
+      points: pts, radiusDims: rad,
+      A: { xL: xL, xR: xR, xLtip: xLtip, xRtip: xRtip, xLe: xLe, xRe: xRe, xLH: xLH, xRH: xRH,
+        yTop: yTop, yTip: yTip, yMid: yMid, THU: THU, THL: THL, HLL: HLL, HLR: HLR, HEL: HEL, HER: HER }
+    };
   }
 
   window.fdraw_pier = function (mountId) {
@@ -338,9 +342,11 @@
     var plotHost = null, plotSub = null;
     function cardPreview() {
       var c = h("div", "pr-card");
-      var hd = h("div", "pr-hd", "<span class='pr-ttl'>Elevation <span class='pr-sub' data-pr-sub>선택 교각 정면도</span></span>");
+      var hd = h("div", "pr-hd", "<span class='pr-ttl'>Elevation <span class='pr-sub' data-pr-sub>선택 교각 정면도</span></span>" +
+        "<button type='button' class='pr-btn' data-pr-regen>&#8635; Regen</button>");
       c.appendChild(hd);
       plotSub = hd.querySelector("[data-pr-sub]");
+      hd.querySelector("[data-pr-regen]").addEventListener("click", function () { draw(); });
       plotHost = h("div"); plotHost.style.cssText = "width:100%;overflow:hidden";
       c.appendChild(plotHost);
       return c;
@@ -381,16 +387,28 @@
       }
       // columns
       p.cols.forEach(function (col, i) { rect(cs[i] - col.D / 2, 0, cs[i] + col.D / 2, col.CH); });
-      // coping outline (seated on columns), as a closed polyline
-      var op = copingOutlinePoints(cp).map(function (q) { return [q[0], q[1] + maxCH]; });
+      // coping outline (seated on columns), as a closed polyline (arcs tessellated)
+      var geo = copingGeometry(cp), A = geo.A;
+      var op = geo.points.map(function (q) { return [q[0], q[1] + maxCH]; });
       for (var i = 0; i < op.length; i++) { var a = op[i], b = op[(i + 1) % op.length]; rec.addLine(0, a[0], a[1], b[0], b[1], "c"); }
 
       // key dims (label + auto value via the core)
-      var TL = cp.TL, copTop = maxCH + cp.THU + cp.THL, x0f = cs[0] - p.cols[0].D / 2;
+      var TL = cp.TL, copTop = maxCH + A.yTop, x0f = cs[0] - p.cols[0].D / 2;
       rec.addDimLinear(0, -TL / 2, copTop, TL / 2, copTop, 1600, "TL");        // above coping
       rec.addDimLinear(0, x0f, 0, x0f, p.cols[0].CH, 2200, "CH");              // left of first column
-      var fL = (p.fdnMode === "combined") ? (cs[0] - p.cols[0].D / 2 - f.BLF) : (cs[0] - p.cols[0].D / 2 - f.BLF);
-      rec.addDimLinear(0, fL, 0, fL, -f.BH, -1400, "BH");                      // left of footing
+      rec.addDimLinear(0, cs[0] - p.cols[0].D / 2 - f.BLF, 0, cs[0] - p.cols[0].D / 2 - f.BLF, -f.BH, -1400, "BH");
+
+      // coping cantilever dims — THU/THL both tips, HLL left / HLR right, HEL/HER when set
+      rec.addDimLinear(0, A.xLtip, maxCH + A.yTip, A.xLtip, maxCH + A.yTop, -520, "THU");   // left tip thickness
+      rec.addDimLinear(0, A.xRtip, maxCH + A.yTip, A.xRtip, maxCH + A.yTop, 520, "THU");    // right tip thickness
+      rec.addDimLinear(0, A.xLH, maxCH + A.yMid, A.xLH, maxCH + A.yTip, -520, "THL");       // left haunch rise
+      rec.addDimLinear(0, A.xRH, maxCH + A.yMid, A.xRH, maxCH + A.yTip, 520, "THL");        // right haunch rise
+      rec.addDimLinear(0, A.xLe, maxCH + A.yMid, A.xLH, maxCH + A.yMid, -900, "HLL");       // left haunch length
+      rec.addDimLinear(0, A.xRH, maxCH + A.yMid, A.xRe, maxCH + A.yMid, -900, "HLR");       // right haunch length
+      if (A.HEL > 0) rec.addDimLinear(0, A.xLtip, maxCH + A.yTip, A.xLe, maxCH + A.yTip, 460, "HEL");
+      if (A.HER > 0) rec.addDimLinear(0, A.xRe, maxCH + A.yTip, A.xRtip, maxCH + A.yTip, 460, "HER");
+      // curved-soffit radius dims (HRL outer / HRR inner) when set
+      geo.radiusDims.forEach(function (rd) { rec.addDimRadius(0, rd.c[0], rd.c[1] + maxCH, rd.r, rd.ang, rd.label); });
 
       var W = plotHost.clientWidth || 620, Hpx = Math.max(360, Math.min(560, Math.round(W * 0.62)));
       plotHost.innerHTML = window.RWSVG.renderSVG(rec, W, Hpx);
