@@ -147,7 +147,8 @@
     if (leftCurved) { aL = haunchArcChord([xLe, yTip], [xLH, yMid], HRL); rad.push({ c: aL.c, r: HRL, ang: aL.ang, label: "HRL=" }); }
 
     P(xLtop, yTop);                                           // top-left (inset by HLU)
-    if (HD > 0 && HW > 0) { P(-HW / 2 - HS, yTop); P(-HW / 2, yTop - HD); P(HW / 2, yTop - HD); P(HW / 2 + HS, yTop); }
+    // groove: bottom width HW at depth HD, sides sloped 1:HS → top widens by HD*HS each side
+    if (HD > 0 && HW > 0) { var gho = HD * HS; P(-HW / 2 - gho, yTop); P(-HW / 2, yTop - HD); P(HW / 2, yTop - HD); P(HW / 2 + gho, yTop); }
     P(xRtop, yTop);                                           // top-right (inset by HRU)
     P(xRtip, yTip);                                           // right tip bottom (end face height THU)
     if (HER > 0) P(xRe, yTip);                                // right tip flat
@@ -211,12 +212,12 @@
     }
 
     // ── small input helpers ──
-    function numRow(vari, desc, val, on) {
+    function numRow(vari, desc, val, on, unit, step) {
       var row = h("div", "pr-inrow");
       row.appendChild(h("label", null, "<span class='var'>" + vari + "</span><span class='desc'>" + desc + "</span>"));
-      var wrap = h("span"); var inp = h("input"); inp.type = "number"; inp.step = "10"; inp.value = val; inp.className = "pr-mono";
+      var wrap = h("span"); var inp = h("input"); inp.type = "number"; inp.step = step || "10"; inp.value = val; inp.className = "pr-mono";
       inp.addEventListener("input", function () { var v = parseFloat(inp.value); if (!isNaN(v)) { on(v); draw(); } });
-      wrap.appendChild(inp); wrap.appendChild(h("span", "pr-unit", "mm")); row.appendChild(wrap);
+      wrap.appendChild(inp); wrap.appendChild(h("span", "pr-unit", unit || "mm")); row.appendChild(wrap);
       return row;
     }
 
@@ -286,7 +287,7 @@
       b.appendChild(numRow("CR", "외측연단 라운드", cp.CR, function (v) { cp.CR = v; }));
       b.appendChild(numRow("HD", "중앙 홈파기 깊이", cp.HD, function (v) { cp.HD = v; }));
       b.appendChild(numRow("HW", "중앙 홈파기 폭", cp.HW, function (v) { cp.HW = v; }));
-      b.appendChild(numRow("HS", "중앙 홈파기 상부확폭", cp.HS, function (v) { cp.HS = v; }));
+      b.appendChild(numRow("HS", "중앙 홈파기 기울기", cp.HS, function (v) { cp.HS = v; }, "1:s", "0.1"));
       c.appendChild(b); return c;
     }
 
