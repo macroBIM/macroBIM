@@ -267,8 +267,8 @@
       var c = h("div", "pr-card");
       c.appendChild(h("div", "pr-hd", "<span class='pr-ttl'>Coping <span class='pr-sub'>cap beam</span></span>"));
       var b = h("div", "pr-body");
-      b.appendChild(numRow("TL", "Cap length (overall)", cp.TL, function (v) { cp.TL = v; }));
-      b.appendChild(numRow("TB", "Cap width", cp.TB, function (v) { cp.TB = v; }));
+      b.appendChild(numRow("TL", "Cap length (transversal)", cp.TL, function (v) { cp.TL = v; }));
+      b.appendChild(numRow("TB", "Cap width (longitudinal)", cp.TB, function (v) { cp.TB = v; }));
       b.appendChild(numRow("THL", "Cantilever haunch thickness", cp.THL, function (v) { cp.THL = v; }));
       b.appendChild(numRow("THU", "Cantilever tip thickness", cp.THU, function (v) { cp.THU = v; }));
       b.appendChild(numRow("HLL", "Left cantilever haunch length", cp.HLL, function (v) { cp.HLL = v; }));
