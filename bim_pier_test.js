@@ -265,17 +265,6 @@
       b.appendChild(tabs); selWrap.appendChild(b);
     }
 
-    function cardType() {
-      var c = h("div", "pr-card");
-      c.appendChild(h("div", "pr-hd", "<span class='pr-ttl'>Type <span class='pr-sub'>교각 형식</span></span>"));
-      var b = h("div", "pr-body"); var r = h("div", "pr-inrow");
-      r.appendChild(h("label", null, "<span class='desc'>Pier type</span>"));
-      var sel = h("select", "pr-sel");
-      TYPES.forEach(function (t) { var o = h("option"); o.value = t[0]; o.textContent = t[1]; if (P().type === t[0]) o.selected = true; sel.appendChild(o); });
-      sel.addEventListener("change", function () { P().type = sel.value; draw(); });
-      var rw = h("span"); rw.appendChild(sel); r.appendChild(rw); b.appendChild(r); c.appendChild(b); return c;
-    }
-
     function cardCoping() {
       var p = P(), cp = p.coping;
       var c = h("div", "pr-card");
@@ -285,10 +274,10 @@
       b.appendChild(numRow("TB", "두부보 폭원", cp.TB, function (v) { cp.TB = v; }));
       b.appendChild(numRow("THL", "내민보 헌치부 두께", cp.THL, function (v) { cp.THL = v; }));
       b.appendChild(numRow("THU", "내민보 외측 두께", cp.THU, function (v) { cp.THU = v; }));
-      b.appendChild(numRow("HLL", "좌측 헌치길이", cp.HLL, function (v) { cp.HLL = v; }));
-      b.appendChild(numRow("HLR", "우측 헌치길이", cp.HLR, function (v) { cp.HLR = v; }));
-      b.appendChild(numRow("HRL", "하단 곡선 R(외측)", cp.HRL, function (v) { cp.HRL = v; }));
-      b.appendChild(numRow("HRR", "하단 곡선 R(내측지간)", cp.HRR, function (v) { cp.HRR = v; }));
+      b.appendChild(numRow("HLL", "좌측 내민보 헌치길이", cp.HLL, function (v) { cp.HLL = v; }));
+      b.appendChild(numRow("HLR", "우측 내민보 헌치길이", cp.HLR, function (v) { cp.HLR = v; }));
+      b.appendChild(numRow("HRL", "좌측 내민보 헌치 곡선 R", cp.HRL, function (v) { cp.HRL = v; }));
+      b.appendChild(numRow("HRR", "우측 내민보 헌치 곡선 R", cp.HRR, function (v) { cp.HRR = v; }));
       b.appendChild(numRow("HEL", "좌측 연단 수평처리", cp.HEL, function (v) { cp.HEL = v; }));
       b.appendChild(numRow("HER", "우측 연단 수평처리", cp.HER, function (v) { cp.HER = v; }));
       b.appendChild(numRow("HLU", "좌측 외측연단 경사", cp.HLU, function (v) { cp.HLU = v; }));
@@ -455,17 +444,15 @@
       plotHost.innerHTML = window.RWSVG.renderSVG(rec, W, Hpx);
       var svg = plotHost.querySelector("svg");
       if (svg) window.RWSVG.attachZoomPan(svg);
-      if (plotSub) plotSub.textContent = "선택 교각 정면도 — " + p.name + " · " +
-        (TYPES.filter(function (t) { return t[0] === p.type; })[0] || [, p.type])[1] +
+      if (plotSub) plotSub.textContent = "선택 교각 정면도 — " + p.name +
         " · " + p.colCount + " col · " + (p.fdnMode === "combined" ? "combined ftg" : "individual ftg");
     }
     _pierDraw = draw;
 
     // ── render orchestration ──
-    var perWrap = h("div", "pr-col");        // right column: Type/Coping/Columns/Foundation
+    var perWrap = h("div", "pr-col");        // right column: Coping/Columns/Foundation
     function renderPerPier() {
       perWrap.innerHTML = "";
-      perWrap.appendChild(cardType());
       perWrap.appendChild(cardCoping());
       perWrap.appendChild(cardColumns());
       perWrap.appendChild(cardFoundation());
