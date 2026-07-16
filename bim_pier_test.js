@@ -134,7 +134,8 @@
       HEL = +cp.HEL || 0, HER = +cp.HER || 0, HLU = +cp.HLU || 0, HRU = +cp.HRU || 0,
       HRL = +cp.HRL || 0, HRR = +cp.HRR || 0, HD = +cp.HD || 0, HW = +cp.HW || 0, HS = +cp.HS || 0;
     var xL = -TL / 2, xR = TL / 2, yTop = THU + THL, yTip = THL, yMid = 0;
-    var xLtip = xL + HLU, xLe = xLtip + HEL, xRtip = xR - HRU, xRe = xRtip - HER;
+    // HLU/HRU inset the TOP edge inward (bottom tips stay at the full extent xL/xR)
+    var xLtop = xL + HLU, xLtip = xL, xLe = xLtip + HEL, xRtop = xR - HRU, xRtip = xR, xRe = xRtip - HER;
     // one radius per cantilever: HRL → left, HRR → right. The haunch root (xLH/xRH)
     // stays fixed by HLL/HLR; R only bows the diagonal (its chord) into an arc.
     var xLH = xLe + HLL, xRH = xRe - HLR;
@@ -145,9 +146,9 @@
     if (rightCurved) { aR = haunchArcChord([xRe, yTip], [xRH, yMid], HRR); rad.push({ c: aR.c, r: HRR, ang: aR.ang, label: "HRR=" }); }
     if (leftCurved) { aL = haunchArcChord([xLe, yTip], [xLH, yMid], HRL); rad.push({ c: aL.c, r: HRL, ang: aL.ang, label: "HRL=" }); }
 
-    P(xL, yTop);                                              // top-left
+    P(xLtop, yTop);                                           // top-left (inset by HLU)
     if (HD > 0 && HW > 0) { P(-HW / 2 - HS, yTop); P(-HW / 2, yTop - HD); P(HW / 2, yTop - HD); P(HW / 2 + HS, yTop); }
-    P(xR, yTop);                                              // top-right
+    P(xRtop, yTop);                                           // top-right (inset by HRU)
     P(xRtip, yTip);                                           // right tip bottom (end face height THU)
     if (HER > 0) P(xRe, yTip);                                // right tip flat
     if (rightCurved) { aR.pts.forEach(function (q) { P(q[0], q[1]); }); }   // arc xRe → right root
