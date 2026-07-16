@@ -72,13 +72,78 @@
   function newPier(name) {
     return {
       name: name, type: "T",
-      coping: { TL: 20000, TB: 4000, THL: 1250, THU: 1250, HLL: 3250, HLR: 3250 },
+      coping: {
+        TL: 20000, TB: 4000, THL: 1250, THU: 1250, HLL: 3250, HLR: 3250,
+        HRL: 0, HRR: 0, HEL: 0, HER: 0, HLU: 0, HRU: 0, CR: 0, HD: 0, HW: 0, HS: 0
+      },
       colCount: 1, cols: [newCol()],
       fdnMode: "combined",
       fdn: { BH: 2000, BLF: 2750, BRF: 2750, FF: 2750, FB: 2750, EFL: 150, EH: 100 }
     };
   }
   function clamp(v, lo, hi) { return Math.max(lo, Math.min(hi, v)); }
+
+  // Coping (두부보) outline from the PDF variable set. Model coords, y-up, centred on x=0.
+  //   top surface at y=THL, haunch-root soffit at y=0 (deepest), tip soffit at y=THL-THU.
+  //   Returns ordered vertices V[] + per-vertex fillet radii R[] (0 = sharp).
+  function copingModel(cp) {
+    var TL = +cp.TL, THL = +cp.THL, THU = +cp.THU, HLL = +cp.HLL, HLR = +cp.HLR,
+      HEL = +cp.HEL || 0, HER = +cp.HER || 0, HLU = +cp.HLU || 0, HRU = +cp.HRU || 0,
+      CR = +cp.CR || 0, HRL = +cp.HRL || 0, HRR = +cp.HRR || 0,
+      HD = +cp.HD || 0, HW = +cp.HW || 0, HS = +cp.HS || 0;
+    var xL = -TL / 2, xR = TL / 2, yTop = THL, yMid = 0, yTip = THL - THU;
+    var xLH = xL + HLL, xRH = xR - HLR;
+    if (xLH > 0) xLH = 0;
+    if (xRH < 0) xRH = 0;                       // keep haunch roots from crossing centre
+    var V = [], R = [];
+    function add(x, y, r) { V.push([x, y]); R.push(r || 0); }
+    // top edge spans the full length; ends are battered inward at the soffit (HLU/HRU),
+    // top-outer corners rounded by CR. Groove notched into the top-centre (HD/HW/HS).
+    add(xL, yTop, CR);                          // top-left extreme
+    if (HD > 0 && HW > 0) {                     // central groove (funnel: +HS each side at top)
+      add(-HW / 2 - HS, yTop, 0);
+      add(-HW / 2, yTop - HD, 0);
+      add(HW / 2, yTop - HD, 0);
+      add(HW / 2 + HS, yTop, 0);
+    }
+    add(xR, yTop, CR);                          // top-right extreme
+    // right end: batter down to soffit (inset by HRU), optional horizontal run HER, then haunch
+    if (HER > 0) { add(xR - HRU, yTip, 0); add(xR - HRU - HER, yTip, HRL); }
+    else { add(xR - HRU, yTip, HRL); }
+    add(xRH, yMid, HRR);                        // right haunch root (deepest)
+    add(xLH, yMid, HRR);                        // left haunch root (deepest)
+    if (HEL > 0) { add(xL + HLU + HEL, yTip, HRL); add(xL + HLU, yTip, 0); }
+    else { add(xL + HLU, yTip, HRL); }
+    return { V: V, R: R };
+  }
+
+  // Build an SVG path 'd' for a closed polygon V with per-vertex fillet radii R,
+  // mapping model→screen via SX/SY (scale s). Straight edges + circular-arc fillets.
+  function roundedPathD(V, R, SX, SY, s) {
+    var n = V.length, seg = [];
+    function U(ax, ay) { var L = Math.hypot(ax, ay) || 1; return [ax / L, ay / L]; }
+    for (var i = 0; i < n; i++) {
+      var p = V[i], pv = V[(i - 1 + n) % n], nx = V[(i + 1) % n], r = R[i];
+      if (!r) { seg.push({ t1: p, t2: p, r: 0 }); continue; }
+      var din = U(p[0] - pv[0], p[1] - pv[1]), dou = U(nx[0] - p[0], nx[1] - p[1]);
+      var lin = Math.hypot(p[0] - pv[0], p[1] - pv[1]), lou = Math.hypot(nx[0] - p[0], nx[1] - p[1]);
+      var d = Math.min(r, lin * 0.49, lou * 0.49);
+      seg.push({
+        t1: [p[0] - din[0] * d, p[1] - din[1] * d], t2: [p[0] + dou[0] * d, p[1] + dou[1] * d],
+        r: d, cw: (din[0] * dou[1] - din[1] * dou[0]) < 0
+      });
+    }
+    var d = "";
+    for (var j = 0; j < n; j++) {
+      var c = seg[j];
+      d += (j === 0 ? "M " : " L ") + SX(c.t1[0]).toFixed(2) + " " + SY(c.t1[1]).toFixed(2);
+      if (c.r > 0) {
+        var rs = (c.r * s).toFixed(2);
+        d += " A " + rs + " " + rs + " 0 0 " + (c.cw ? 0 : 1) + " " + SX(c.t2[0]).toFixed(2) + " " + SY(c.t2[1]).toFixed(2);
+      }
+    }
+    return d + " Z";
+  }
 
   window.fdraw_pier = function (mountId) {
     var root = document.getElementById(mountId || "mount-draw-pier");
@@ -183,6 +248,16 @@
       b.appendChild(numRow("THU", "내민보 외측 두께", cp.THU, function (v) { cp.THU = v; }));
       b.appendChild(numRow("HLL", "좌측 헌치길이", cp.HLL, function (v) { cp.HLL = v; }));
       b.appendChild(numRow("HLR", "우측 헌치길이", cp.HLR, function (v) { cp.HLR = v; }));
+      b.appendChild(numRow("HRL", "하단 곡선 R(외측)", cp.HRL, function (v) { cp.HRL = v; }));
+      b.appendChild(numRow("HRR", "하단 곡선 R(내측지간)", cp.HRR, function (v) { cp.HRR = v; }));
+      b.appendChild(numRow("HEL", "좌측 연단 수평처리", cp.HEL, function (v) { cp.HEL = v; }));
+      b.appendChild(numRow("HER", "우측 연단 수평처리", cp.HER, function (v) { cp.HER = v; }));
+      b.appendChild(numRow("HLU", "좌측 외측연단 경사", cp.HLU, function (v) { cp.HLU = v; }));
+      b.appendChild(numRow("HRU", "우측 외측연단 경사", cp.HRU, function (v) { cp.HRU = v; }));
+      b.appendChild(numRow("CR", "외측연단 라운드", cp.CR, function (v) { cp.CR = v; }));
+      b.appendChild(numRow("HD", "중앙 홈파기 깊이", cp.HD, function (v) { cp.HD = v; }));
+      b.appendChild(numRow("HW", "중앙 홈파기 폭", cp.HW, function (v) { cp.HW = v; }));
+      b.appendChild(numRow("HS", "중앙 홈파기 상부확폭", cp.HS, function (v) { cp.HS = v; }));
       c.appendChild(b); return c;
     }
 
@@ -291,13 +366,16 @@
       p.cols.forEach(function (col, i) {
         polys.push({ pts: [[cs[i] - col.D / 2, 0], [cs[i] + col.D / 2, 0], [cs[i] + col.D / 2, col.CH], [cs[i] - col.D / 2, col.CH]], cls: "k" });
       });
-      // coping (maxCH → maxCH+THL), haunched beam centered on 0
-      var TL = cp.TL, x0 = -TL / 2, yb = maxCH, top = yb + cp.THL, soffU = yb + (cp.THL - cp.THU);
-      polys.push({ pts: [[x0, top], [x0 + TL, top], [x0 + TL, soffU], [x0 + TL - cp.HLR, yb], [x0 + cp.HLL, yb], [x0, soffU]], cls: "c" });
+      // coping — full outline from PDF vars, seated on columns (soffit-mid at maxCH)
+      var cm = copingModel(cp);
+      var copV = cm.V.map(function (v) { return [v[0], v[1] + maxCH]; });
+      var TL = cp.TL, x0 = -TL / 2, copTop = maxCH + cp.THL;
 
-      // bounds + fit
+      // bounds + fit (columns/foundation polys + coping outline)
       var minX = 1e9, maxX = -1e9, minY = 1e9, maxY = -1e9;
-      polys.forEach(function (o) { o.pts.forEach(function (q) { if (q[0] < minX) minX = q[0]; if (q[0] > maxX) maxX = q[0]; if (q[1] < minY) minY = q[1]; if (q[1] > maxY) maxY = q[1]; }); });
+      function accum(q) { if (q[0] < minX) minX = q[0]; if (q[0] > maxX) maxX = q[0]; if (q[1] < minY) minY = q[1]; if (q[1] > maxY) maxY = q[1]; }
+      polys.forEach(function (o) { o.pts.forEach(accum); });
+      copV.forEach(accum);
       var W = 620, H = 460, padL = 70, padR = 70, padT = 44, padB = 56;
       var s = Math.min((W - padL - padR) / ((maxX - minX) || 1), (H - padT - padB) / ((maxY - minY) || 1));
       var cW = (maxX - minX) * s + padL + padR, cH = (maxY - minY) * s + padT + padB;
@@ -312,13 +390,15 @@
         var stroke = (o.cls === "f" || o.cls === "fb") ? "var(--found)" : o.cls === "k" ? "var(--col)" : "var(--cope)";
         g.appendChild(el("polygon", { points: scr(o.pts), fill: fill, stroke: stroke, "stroke-width": 1.6, "stroke-linejoin": "round" }));
       });
+      // coping outline (fillets/groove/end-slope from PDF vars)
+      g.appendChild(el("path", { d: roundedPathD(copV, cm.R, SX, SY, s), fill: "#eef7f8", stroke: "var(--cope)", "stroke-width": 1.6, "stroke-linejoin": "round" }));
       // key dims: TL (top), CH (left column), BH (foundation left)
       function dimTxt(x, y, str, ang) {
         var t = el("text", { x: x, y: y, "text-anchor": "middle", "dominant-baseline": "middle", "font-size": 11.5, "font-family": "ui-monospace,Menlo,Consolas,monospace", fill: "var(--dim)" });
         if (ang) t.setAttribute("transform", "rotate(" + ang + " " + x + " " + y + ")"); t.textContent = str; g.appendChild(t);
       }
       function line(x1, y1, x2, y2) { g.appendChild(el("line", { x1: x1, y1: y1, x2: x2, y2: y2, stroke: "var(--dim)", "stroke-width": 1 })); }
-      var yT = SY(top) - 22; line(SX(x0), yT, SX(x0 + TL), yT); dimTxt((SX(x0) + SX(x0 + TL)) / 2, yT - 9, "TL = " + TL, 0);
+      var yT = SY(copTop) - 22; line(SX(x0), yT, SX(x0 + TL), yT); dimTxt((SX(x0) + SX(x0 + TL)) / 2, yT - 9, "TL = " + TL, 0);
       var xL = SX(cs[0] - p.cols[0].D / 2) - 20; line(xL, SY(0), xL, SY(p.cols[0].CH)); dimTxt(xL - 9, (SY(0) + SY(p.cols[0].CH)) / 2, "CH = " + p.cols[0].CH, 90);
       var xF = SX(minX) - 20; line(xF, SY(0), xF, SY(-f.BH)); dimTxt(xF - 9, (SY(0) + SY(-f.BH)) / 2, "BH = " + f.BH, 90);
       dimTxt(SX((minX + maxX) / 2), SY(minY) + 26, p.name + " · " + (TYPES.filter(function (t) { return t[0] === p.type; })[0] || [, p.type])[1] + " · " + p.colCount + " col · " + (p.fdnMode === "combined" ? "combined ftg" : "individual ftg"), 0);
