@@ -42,7 +42,7 @@
   MockViewer.prototype.addLine = function (v, x1, y1, x2, y2, name) { var l = this._c(name); this.L.push({ x1: x1, y1: y1, x2: x2, y2: y2, lay: (l.type === 'hidden' ? 'hidden' : 'solid'), col: l.color }); };
   MockViewer.prototype.addCircle = function (v, x, y, r, name) { var l = this._c(name); this.A.push({ x: x, y: y, r: r, a1: 0, a2: 360, lay: (l.type === 'hidden' ? 'hidden' : 'solid'), col: l.color }); };
   MockViewer.prototype.addArc = function (v, x, y, r, a1, a2, name) { var l = this._c(name); this.A.push({ x: x, y: y, r: r, a1: a1, a2: a2, lay: (l.type === 'hidden' ? 'hidden' : 'solid'), col: l.color }); };
-  MockViewer.prototype.addDimLinear = function (v, x1, y1, x2, y2, gap, label) { this.DL.push({ x1: x1, y1: y1, x2: x2, y2: y2, gap: gap, t: label || '' }); };
+  MockViewer.prototype.addDimLinear = function (v, x1, y1, x2, y2, gap, label, opts) { this.DL.push({ x1: x1, y1: y1, x2: x2, y2: y2, gap: gap, t: label || '', la: (opts && opts.la) || 0, lp: (opts && opts.lp) || 0 }); };
   MockViewer.prototype.addDimRadius = function (v, x, y, r, ang, label) { this.DR.push({ x: x, y: y, r: r, ang: ang, t: label || '' }); };
   MockViewer.prototype.render = function () { /* no-op: rendered externally via renderSVG */ };
 
@@ -99,7 +99,8 @@
       line(SX(d.x2), SY(d.y2), s2x, s2y, DIM, 0.6, '2 2');
       var ang = Math.atan2(s2y - s1y, s2x - s1x) * 180 / Math.PI; if (ang > 90 || ang < -90) ang += 180;
       var sgn = d.gap >= 0 ? 1 : -1, gdx = nx * sgn, gdy = -ny * sgn, gm = Math.hypot(gdx, gdy) || 1;
-      var mx = (s1x + s2x) / 2 + gdx / gm * 12, my = (s1y + s2y) / 2 + gdy / gm * 12;
+      var la = d.la || 0, lp = d.lp || 0;   // label offset: la along the dim line, lp perpendicular (px)
+      var mx = (s1x + s2x) / 2 + gdx / gm * (12 + lp) + ux * la, my = (s1y + s2y) / 2 + gdy / gm * (12 + lp) + uy * la;
       text(mx, my, (d.t ? d.t + '=' : '') + num(len), DIM, ang);
     });
     rec.DR.forEach(function (d) {

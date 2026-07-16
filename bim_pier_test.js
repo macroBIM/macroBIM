@@ -31,7 +31,7 @@
     if (window._rwCoreLoading) { (window._rwCoreCbs = window._rwCoreCbs || []).push(cb); return; }
     window._rwCoreLoading = true; window._rwCoreCbs = [cb];
     var sc = document.createElement("script");
-    sc.src = "https://macrobim.github.io/macroBIM/bim_draw_test_core.js?v=1";
+    sc.src = "https://macrobim.github.io/macroBIM/bim_draw_test_core.js?v=2";
     sc.onload = function () { window._rwCoreLoading = false; var q = window._rwCoreCbs || []; window._rwCoreCbs = []; q.forEach(function (f) { f(); }); };
     sc.onerror = function () { window._rwCoreLoading = false; window._rwCoreCbs = []; };
     document.head.appendChild(sc);
@@ -162,35 +162,22 @@
     };
   }
 
-  // Align linear dims to shared gutters outside the drawing: left/right verticals
-  // to the left/right, top/bottom horizontals above/below; stack overlapping dims
-  // into successive lanes. dims: [{side:'L'|'R'|'T'|'B', at, lo, hi, label}]
+  // Place linear dims on a single shared gutter per side (left/right verticals to
+  // the left/right edge, top horizontals above); no lane splitting. A dim may set an
+  // explicit `gutter` (model coord of its dim line) — used to drop HLL/HLR below the
+  // coping. Label collisions are handled by the caller via la/lp (label offsets, px).
+  // dims: [{side:'L'|'R'|'T'|'B', at, lo, hi, label, gutter?, la?, lp?}]
   //   V (L/R): measures y lo→hi at x=at.   H (T/B): measures x lo→hi at y=at.
-  // Returns addDimLinear-ready specs {x1,y1,x2,y2,gap,label}.
   function layoutDims(dims, b) {
-    var span = Math.max(b.maxX - b.minX, b.maxY - b.minY) || 1;
-    var M = span * 0.05, STEP = span * 0.062, PAD = span * 0.05, out = [];   // PAD ≈ label clearance
-    ["L", "R", "T", "B"].forEach(function (side) {
-      var g = dims.filter(function (d) { return d.side === side; });
-      g.sort(function (a, c) { return a.lo - c.lo; });
-      var lanes = [];
-      g.forEach(function (d) {
-        var li = 0;
-        for (; ;) {
-          if (!lanes[li]) lanes[li] = [];
-          var ok = true;   // reject if this dim's span (padded for the label) meets one already in the lane
-          for (var j = 0; j < lanes[li].length; j++) { var iv = lanes[li][j]; if (!(d.hi + PAD <= iv[0] || d.lo - PAD >= iv[1])) { ok = false; break; } }
-          if (ok) { lanes[li].push([d.lo, d.hi]); d._l = li; break; }
-          li++;
-        }
-      });
-      g.forEach(function (d) {
-        var gut, gap;
-        if (side === "L") { gut = b.minX - M - d._l * STEP; gap = d.at - gut; out.push({ x1: d.at, y1: d.lo, x2: d.at, y2: d.hi, gap: gap, label: d.label }); }
-        else if (side === "R") { gut = b.maxX + M + d._l * STEP; gap = d.at - gut; out.push({ x1: d.at, y1: d.lo, x2: d.at, y2: d.hi, gap: gap, label: d.label }); }
-        else if (side === "T") { gut = b.maxY + M + d._l * STEP; gap = gut - d.at; out.push({ x1: d.lo, y1: d.at, x2: d.hi, y2: d.at, gap: gap, label: d.label }); }
-        else { gut = b.minY - M - d._l * STEP; gap = gut - d.at; out.push({ x1: d.lo, y1: d.at, x2: d.hi, y2: d.at, gap: gap, label: d.label }); }
-      });
+    var span = Math.max(b.maxX - b.minX, b.maxY - b.minY) || 1, M = span * 0.05, out = [];
+    dims.forEach(function (d) {
+      var gut, spec;
+      if (d.side === "L") { gut = d.gutter != null ? d.gutter : b.minX - M; spec = { x1: d.at, y1: d.lo, x2: d.at, y2: d.hi, gap: d.at - gut }; }
+      else if (d.side === "R") { gut = d.gutter != null ? d.gutter : b.maxX + M; spec = { x1: d.at, y1: d.lo, x2: d.at, y2: d.hi, gap: d.at - gut }; }
+      else if (d.side === "T") { gut = d.gutter != null ? d.gutter : b.maxY + M; spec = { x1: d.lo, y1: d.at, x2: d.hi, y2: d.at, gap: gut - d.at }; }
+      else { gut = d.gutter != null ? d.gutter : b.minY - M; spec = { x1: d.lo, y1: d.at, x2: d.hi, y2: d.at, gap: gut - d.at }; }
+      spec.label = d.label; spec.la = d.la || 0; spec.lp = d.lp || 0;
+      out.push(spec);
     });
     return out;
   }
@@ -438,20 +425,25 @@
         minX: Math.min(-TL / 2, footMinX), maxX: Math.max(TL / 2, footMaxX),
         minY: -f.BH - (f.EH > 0 ? f.EH : 0), maxY: maxCH + A.yTop
       };
+      // coping-bottom dim line (HLL/HLR/HEL/HER) sits just below the cantilever soffit
+      var cbY = maxCH - Math.max(700, maxCH * 0.14);
       var dims = [
         { side: "T", at: maxCH + A.yTop, lo: -TL / 2, hi: TL / 2, label: "TL" },      // overall width (top)
-        { side: "T", at: maxCH + A.yMid, lo: A.xLe, hi: A.xLH, label: "HLL" },        // left haunch length
-        { side: "T", at: maxCH + A.yMid, lo: A.xRH, hi: A.xRe, label: "HLR" },        // right haunch length
+        // verticals — single left gutter; THL label flipped to the other side of the line
         { side: "L", at: A.xLtip, lo: maxCH + A.yTip, hi: maxCH + A.yTop, label: "THU" },
-        { side: "L", at: A.xLH, lo: maxCH + A.yMid, hi: maxCH + A.yTip, label: "THL" },
+        { side: "L", at: A.xLH, lo: maxCH + A.yMid, hi: maxCH + A.yTip, label: "THL", lp: -24 },
         { side: "L", at: x0f, lo: 0, hi: p.cols[0].CH, label: "CH" },                 // column height
         { side: "L", at: xFL, lo: -f.BH, hi: 0, label: "BH" },                        // footing height
         { side: "R", at: A.xRtip, lo: maxCH + A.yTip, hi: maxCH + A.yTop, label: "THU" },
-        { side: "R", at: A.xRH, lo: maxCH + A.yMid, hi: maxCH + A.yTip, label: "THL" }
+        { side: "R", at: A.xRH, lo: maxCH + A.yMid, hi: maxCH + A.yTip, label: "THL", lp: -24 },
+        // haunch lengths — below the coping (gutter at cbY), labels below the line
+        { side: "B", at: maxCH + A.yMid, gutter: cbY, lo: A.xLe, hi: A.xLH, label: "HLL" },
+        { side: "B", at: maxCH + A.yMid, gutter: cbY, lo: A.xRH, hi: A.xRe, label: "HLR" }
       ];
-      if (A.HEL > 0) dims.push({ side: "T", at: maxCH + A.yTip, lo: A.xLtip, hi: A.xLe, label: "HEL" });
-      if (A.HER > 0) dims.push({ side: "T", at: maxCH + A.yTip, lo: A.xRe, hi: A.xRtip, label: "HER" });
-      layoutDims(dims, bnd).forEach(function (d) { rec.addDimLinear(0, d.x1, d.y1, d.x2, d.y2, d.gap, d.label); });
+      // tip horizontal runs — same coping-bottom line, labels flipped above to clear HLL/HLR
+      if (A.HEL > 0) dims.push({ side: "B", at: maxCH + A.yTip, gutter: cbY, lo: A.xLtip, hi: A.xLe, label: "HEL", lp: -22 });
+      if (A.HER > 0) dims.push({ side: "B", at: maxCH + A.yTip, gutter: cbY, lo: A.xRe, hi: A.xRtip, label: "HER", lp: -22 });
+      layoutDims(dims, bnd).forEach(function (d) { rec.addDimLinear(0, d.x1, d.y1, d.x2, d.y2, d.gap, d.label, { la: d.la, lp: d.lp }); });
       // curved-soffit radius dims (HRL outer / HRR inner) when set
       geo.radiusDims.forEach(function (rd) { rec.addDimRadius(0, rd.c[0], rd.c[1] + maxCH, rd.r, rd.ang, rd.label); });
 
