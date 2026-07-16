@@ -1,6 +1,14 @@
 /*
-    bim_draw_test_core.js — shared rendering core for the retaining-wall-style
-    TEST builds of the Konva-based drawings (lifting lug / I-beam / box1cell).
+    bim_draw_test_core.js — SHARED 2D drawing core (window.RWSVG).
+
+    Promoted to the canonical rendering core for all retaining-wall-style SVG
+    drawings. Consumers: the Konva-based section TEST builds (lifting lug /
+    I-beam / box1cell) AND the Pier input elevation (bim_pier_test.js).
+    Any module that expresses its geometry through the KonvaViewer-style
+    primitive API (addLine/addArc/addDimLinear) renders here with one uniform
+    look (dims, fonts, zoom/pan), so styling lives in one place.
+
+    Backward-compatible: existing consumers are unaffected by this promotion.
 
     Provides window.RWSVG with:
       - MockViewer: records addLine/addArc/addCircle/addDimLinear/addDimRadius
