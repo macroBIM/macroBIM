@@ -228,11 +228,8 @@
     // ── card builders ──
     function cardPiers() {
       var c = h("div", "pr-card");
-      c.appendChild(h("div", "pr-hd", "<span class='pr-ttl'>Piers <span class='pr-sub'>count &amp; names</span></span>"));
-      var b = h("div", "pr-body");
-      var r = h("div", "pr-inrow");
-      r.appendChild(h("label", null, "<span class='var'>N</span><span class='desc'>교각 개수</span>"));
-      var stp = h("div", "pr-stepper");
+      var hd = h("div", "pr-hd", "<span class='pr-ttl'>Piers <span class='pr-sub'>count &amp; names</span></span>");
+      var stp = h("div", "pr-stepper");   // count stepper lives in the header (right)
       var minus = h("button", "pr-step", "−"), cnt = h("input", "pr-cnt"), plus = h("button", "pr-step", "+");
       cnt.type = "number"; cnt.value = S.piers.length; cnt.min = 1; cnt.max = 20;
       function setCount(n) {
@@ -246,7 +243,8 @@
       plus.onclick = function () { setCount(S.piers.length + 1); };
       cnt.addEventListener("change", function () { setCount(parseInt(cnt.value, 10)); });
       stp.appendChild(minus); stp.appendChild(cnt); stp.appendChild(plus);
-      var rw = h("span"); rw.appendChild(stp); r.appendChild(rw); b.appendChild(r);
+      hd.appendChild(stp); c.appendChild(hd);
+      var b = h("div", "pr-body");
 
       // per-pier rows double as the active-pier selector (radio + highlight)
       var names = h("div", "pr-names");
