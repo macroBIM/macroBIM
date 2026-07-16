@@ -267,22 +267,22 @@
       var c = h("div", "pr-card");
       c.appendChild(h("div", "pr-hd", "<span class='pr-ttl'>Coping <span class='pr-sub'>cap beam</span></span>"));
       var b = h("div", "pr-body");
-      b.appendChild(numRow("TL", "두부보 길이(전장)", cp.TL, function (v) { cp.TL = v; }));
-      b.appendChild(numRow("TB", "두부보 폭원", cp.TB, function (v) { cp.TB = v; }));
-      b.appendChild(numRow("THL", "내민보 헌치부 두께", cp.THL, function (v) { cp.THL = v; }));
-      b.appendChild(numRow("THU", "내민보 외측 두께", cp.THU, function (v) { cp.THU = v; }));
-      b.appendChild(numRow("HLL", "좌측 내민보 헌치길이", cp.HLL, function (v) { cp.HLL = v; }));
-      b.appendChild(numRow("HLR", "우측 내민보 헌치길이", cp.HLR, function (v) { cp.HLR = v; }));
-      b.appendChild(numRow("HRL", "좌측 내민보 헌치 곡선 R", cp.HRL, function (v) { cp.HRL = v; }));
-      b.appendChild(numRow("HRR", "우측 내민보 헌치 곡선 R", cp.HRR, function (v) { cp.HRR = v; }));
-      b.appendChild(numRow("HEL", "좌측 연단 수평 길이", cp.HEL, function (v) { cp.HEL = v; }));
-      b.appendChild(numRow("HER", "우측 연단 수평 길이", cp.HER, function (v) { cp.HER = v; }));
-      b.appendChild(numRow("HLU", "좌측 내민보 상단 수평 길이", cp.HLU, function (v) { cp.HLU = v; }));
-      b.appendChild(numRow("HRU", "우측 내민보 상단 수평 길이", cp.HRU, function (v) { cp.HRU = v; }));
-      b.appendChild(numRow("CR", "외측연단 라운드", cp.CR, function (v) { cp.CR = v; }));
-      b.appendChild(numRow("HD", "중앙 홈파기 깊이", cp.HD, function (v) { cp.HD = v; }));
-      b.appendChild(numRow("HW", "중앙 홈파기 폭", cp.HW, function (v) { cp.HW = v; }));
-      b.appendChild(numRow("HS", "중앙 홈파기 기울기", cp.HS, function (v) { cp.HS = v; }, "1:s", "0.1"));
+      b.appendChild(numRow("TL", "Cap length (overall)", cp.TL, function (v) { cp.TL = v; }));
+      b.appendChild(numRow("TB", "Cap width", cp.TB, function (v) { cp.TB = v; }));
+      b.appendChild(numRow("THL", "Cantilever haunch thickness", cp.THL, function (v) { cp.THL = v; }));
+      b.appendChild(numRow("THU", "Cantilever tip thickness", cp.THU, function (v) { cp.THU = v; }));
+      b.appendChild(numRow("HLL", "Left cantilever haunch length", cp.HLL, function (v) { cp.HLL = v; }));
+      b.appendChild(numRow("HLR", "Right cantilever haunch length", cp.HLR, function (v) { cp.HLR = v; }));
+      b.appendChild(numRow("HRL", "Left cantilever haunch arc R", cp.HRL, function (v) { cp.HRL = v; }));
+      b.appendChild(numRow("HRR", "Right cantilever haunch arc R", cp.HRR, function (v) { cp.HRR = v; }));
+      b.appendChild(numRow("HEL", "Left tip flat length", cp.HEL, function (v) { cp.HEL = v; }));
+      b.appendChild(numRow("HER", "Right tip flat length", cp.HER, function (v) { cp.HER = v; }));
+      b.appendChild(numRow("HLU", "Left top flat length", cp.HLU, function (v) { cp.HLU = v; }));
+      b.appendChild(numRow("HRU", "Right top flat length", cp.HRU, function (v) { cp.HRU = v; }));
+      b.appendChild(numRow("CR", "Tip edge round", cp.CR, function (v) { cp.CR = v; }));
+      b.appendChild(numRow("HD", "Center groove depth", cp.HD, function (v) { cp.HD = v; }));
+      b.appendChild(numRow("HW", "Center groove width", cp.HW, function (v) { cp.HW = v; }));
+      b.appendChild(numRow("HS", "Center groove slope", cp.HS, function (v) { cp.HS = v; }, "1:s", "0.1"));
       c.appendChild(b); return c;
     }
 
@@ -316,9 +316,9 @@
         sel.addEventListener("change", function () { col.shape = sel.value; renderPerPier(); draw(); });
         var selw = h("span"); selw.style.marginLeft = "auto"; selw.appendChild(sel); ch.appendChild(selw);
         cc.appendChild(ch);
-        cc.appendChild(numRow("D", col.shape === "circle" ? "직경" : "폭(교축직각)", col.D, function (v) { col.D = v; }));
-        if (col.shape !== "circle") cc.appendChild(numRow("H", "폭(교축방향)", col.H, function (v) { col.H = v; }));
-        cc.appendChild(numRow("CH", "기둥 높이", col.CH, function (v) { col.CH = v; }));
+        cc.appendChild(numRow("D", col.shape === "circle" ? "Diameter" : "Width (transverse)", col.D, function (v) { col.D = v; }));
+        if (col.shape !== "circle") cc.appendChild(numRow("H", "Width (longitudinal)", col.H, function (v) { col.H = v; }));
+        cc.appendChild(numRow("CH", "Column height", col.CH, function (v) { col.CH = v; }));
         b.appendChild(cc);
       });
       c.appendChild(b); return c;
@@ -330,19 +330,19 @@
       c.appendChild(h("div", "pr-hd", "<span class='pr-ttl'>Foundation <span class='pr-sub'>footing</span></span>"));
       var b = h("div", "pr-body");
       var modes = h("div", "pr-modes");
-      [["combined", "Combined (통합 1개)"], ["individual", "Individual (기둥별)"]].forEach(function (m) {
+      [["combined", "Combined (single)"], ["individual", "Individual (per column)"]].forEach(function (m) {
         var btn = h("button", "pr-mode" + (p.fdnMode === m[0] ? " on" : ""), m[1]);
         btn.onclick = function () { p.fdnMode = m[0]; renderPerPier(); draw(); };
         modes.appendChild(btn);
       });
       b.appendChild(modes);
-      b.appendChild(numRow("BH", "기초부 높이", f.BH, function (v) { f.BH = v; }));
-      b.appendChild(numRow("BLF", "기초연단→기둥(좌,직각)", f.BLF, function (v) { f.BLF = v; }));
-      b.appendChild(numRow("BRF", "기초연단→기둥(우,직각)", f.BRF, function (v) { f.BRF = v; }));
-      b.appendChild(numRow("FF", "기초연단→기둥(좌,교축)", f.FF, function (v) { f.FF = v; }));
-      b.appendChild(numRow("FB", "기초연단→기둥(우,교축)", f.FB, function (v) { f.FB = v; }));
-      b.appendChild(numRow("EFL", "버림 돌출길이", f.EFL, function (v) { f.EFL = v; }));
-      b.appendChild(numRow("EH", "버림 높이", f.EH, function (v) { f.EH = v; }));
+      b.appendChild(numRow("BH", "Footing height", f.BH, function (v) { f.BH = v; }));
+      b.appendChild(numRow("BLF", "Edge to col, left (transv.)", f.BLF, function (v) { f.BLF = v; }));
+      b.appendChild(numRow("BRF", "Edge to col, right (transv.)", f.BRF, function (v) { f.BRF = v; }));
+      b.appendChild(numRow("FF", "Edge to col, left (longit.)", f.FF, function (v) { f.FF = v; }));
+      b.appendChild(numRow("FB", "Edge to col, right (longit.)", f.FB, function (v) { f.FB = v; }));
+      b.appendChild(numRow("EFL", "Blinding projection", f.EFL, function (v) { f.EFL = v; }));
+      b.appendChild(numRow("EH", "Blinding height", f.EH, function (v) { f.EH = v; }));
       c.appendChild(b); return c;
     }
 
