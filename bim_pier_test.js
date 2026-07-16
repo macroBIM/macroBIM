@@ -31,7 +31,7 @@
     if (window._rwCoreLoading) { (window._rwCoreCbs = window._rwCoreCbs || []).push(cb); return; }
     window._rwCoreLoading = true; window._rwCoreCbs = [cb];
     var sc = document.createElement("script");
-    sc.src = "https://macrobim.github.io/macroBIM/bim_draw_test_core.js?v=2";
+    sc.src = "https://macrobim.github.io/macroBIM/bim_draw_test_core.js?v=3";
     sc.onload = function () { window._rwCoreLoading = false; var q = window._rwCoreCbs || []; window._rwCoreCbs = []; q.forEach(function (f) { f(); }); };
     sc.onerror = function () { window._rwCoreLoading = false; window._rwCoreCbs = []; };
     document.head.appendChild(sc);
@@ -444,6 +444,16 @@
       // HLU/HRU: top-edge inset horizontal length — dimensioned at the top (inner lane, below TL)
       if (A.HLU > 0) dims.push({ side: "T", at: maxCH + A.yTop, gutter: topGut, lo: A.xLtip, hi: A.xLtop, label: "HLU" });
       if (A.HRU > 0) dims.push({ side: "T", at: maxCH + A.yTop, gutter: topGut, lo: A.xRtop, hi: A.xRtip, label: "HRU" });
+      // central groove dims: HD (left vertical), HW (bottom horizontal), 1:s slope text on the face
+      if (cp.HD > 0 && cp.HW > 0) {
+        var gT = maxCH + A.yTop, gB = gT - cp.HD, gO = cp.HW / 2 + cp.HD * cp.HS, goff = spanT * 0.03;
+        dims.push({ side: "L", at: -gO, gutter: -gO - goff, lo: gB, hi: gT, label: "HD" });
+        dims.push({ side: "B", at: gB, gutter: gB - goff, lo: -cp.HW / 2, hi: cp.HW / 2, label: "HW" });
+        if (cp.HS > 0 && rec.addText) {
+          var srot = Math.atan2(-cp.HD, cp.HD * cp.HS) * 180 / Math.PI;
+          rec.addText(0, cp.HW / 2 + cp.HD * cp.HS / 2, gT - cp.HD / 2, "1:" + cp.HS, srot);
+        }
+      }
       layoutDims(dims, bnd).forEach(function (d) { rec.addDimLinear(0, d.x1, d.y1, d.x2, d.y2, d.gap, d.label, { la: d.la, lp: d.lp }); });
       // curved-soffit radius dims (HRL outer / HRR inner) when set
       geo.radiusDims.forEach(function (rd) { rec.addDimRadius(0, rd.c[0], rd.c[1] + maxCH, rd.r, rd.ang, rd.label); });
