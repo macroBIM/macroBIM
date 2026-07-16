@@ -99,7 +99,8 @@
       name: name, type: "T",
       coping: {
         TL: 20000, TB: 4000, THL: 1250, THU: 1250, HLL: 3250, HLR: 3250,
-        HRL: 0, HRR: 0, HEL: 0, HER: 0, HLU: 0, HRU: 0, CR: 0, HD: 0, HW: 0, HS: 0
+        HRL: 0, HRR: 0, HEL: 0, HER: 0, HLU: 0, HRU: 0, CR: 0, HD: 0, HW: 0, HS: 0,
+        IHLA: 0, IHL: 0, IHH: 0, IHR: 0, IHSR: 0
       },
       colCount: 1, cols: [newCol()],
       fdnMode: "combined",
@@ -283,6 +284,11 @@
       b.appendChild(numRow("HD", "Center groove depth", cp.HD, function (v) { cp.HD = v; }));
       b.appendChild(numRow("HW", "Center groove width", cp.HW, function (v) { cp.HW = v; }));
       b.appendChild(numRow("HS", "Center groove slope", cp.HS, function (v) { cp.HS = v; }, "1:s", "0.1"));
+      b.appendChild(numRow("IHLA", "Inner haunch left offset", cp.IHLA, function (v) { cp.IHLA = v; }));
+      b.appendChild(numRow("IHL", "Inner haunch left length", cp.IHL, function (v) { cp.IHL = v; }));
+      b.appendChild(numRow("IHH", "Inner haunch height", cp.IHH, function (v) { cp.IHH = v; }));
+      b.appendChild(numRow("IHR", "Inner haunch radius R", cp.IHR, function (v) { cp.IHR = v; }));
+      b.appendChild(numRow("IHSR", "Inner haunch corner R", cp.IHSR, function (v) { cp.IHSR = v; }));
       c.appendChild(b); return c;
     }
 
