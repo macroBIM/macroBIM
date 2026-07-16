@@ -104,17 +104,21 @@
   }
   function clamp(v, lo, hi) { return Math.max(lo, Math.min(hi, v)); }
 
-  // One cantilever haunch as a SINGLE circular arc of radius R, replacing the straight
-  // diagonal: tangent to the central soffit at the root, rising to the tip-flat end.
-  // Derived from the drop THL and R; the horizontal run is an output. s = +1 inward-right
-  // (left cantilever, HRL), −1 inward-left (right cantilever, HRR). Returns tip→root points.
-  function haunchArcSingle(xTip, yTip, yMid, R, s) {
-    var drop = yTip - yMid;
-    var cph = Math.max(-1, Math.min(1, 1 - drop / R)), phi = Math.acos(cph);
-    var run = R * Math.sin(phi), xRoot = xTip + s * run, c = [xRoot, yMid + R], K = 14, pts = [];
-    for (var i = 0; i <= K; i++) { var ph = phi * (1 - i / K); pts.push([xRoot - s * R * Math.sin(ph), yMid + R * (1 - Math.cos(ph))]); }
-    var pm = phi / 2, ang = Math.atan2((yMid + R * (1 - Math.cos(pm))) - c[1], (xRoot - s * R * Math.sin(pm)) - c[0]) * 180 / Math.PI;
-    return { pts: pts, run: run, xRoot: xRoot, c: c, ang: ang };
+  // One cantilever haunch as a single circular arc whose CHORD is the straight
+  // diagonal A→B (A = tip-flat end, B = haunch root, both fixed by HLL/HLR). Radius R
+  // bows the diagonal into a concave soffit (arc bulges up, toward the coping interior).
+  // R is clamped to ≥ chord/2. Returns the A→B arc points, centre, and label angle.
+  function haunchArcChord(A, B, R) {
+    var dx = B[0] - A[0], dy = B[1] - A[1], L = Math.hypot(dx, dy) || 1;
+    R = Math.max(R, L / 2 + 1e-6);
+    var M = [(A[0] + B[0]) / 2, (A[1] + B[1]) / 2];
+    var n = [dy / L, -dx / L]; if (n[1] < 0) { n = [-n[0], -n[1]]; }   // perpendicular, pointing up
+    var d = Math.sqrt(Math.max(0, R * R - L * L / 4)), C = [M[0] - n[0] * d, M[1] - n[1] * d];  // centre below → arc bulges up
+    var a1 = Math.atan2(A[1] - C[1], A[0] - C[0]), a2 = Math.atan2(B[1] - C[1], B[0] - C[0]);
+    var dd = a2 - a1; while (dd <= -Math.PI) dd += 2 * Math.PI; while (dd > Math.PI) dd -= 2 * Math.PI;
+    var K = 16, pts = [];
+    for (var i = 0; i <= K; i++) { var aa = a1 + dd * i / K; pts.push([C[0] + R * Math.cos(aa), C[1] + R * Math.sin(aa)]); }
+    return { pts: pts, c: C, ang: (a1 + dd / 2) * 180 / Math.PI };
   }
 
   // Coping (두부보) geometry from the PDF variable set. Model coords, y-up, centred on x=0.
@@ -131,23 +135,25 @@
       HRL = +cp.HRL || 0, HRR = +cp.HRR || 0, HD = +cp.HD || 0, HW = +cp.HW || 0, HS = +cp.HS || 0;
     var xL = -TL / 2, xR = TL / 2, yTop = THU + THL, yTip = THL, yMid = 0;
     var xLtip = xL + HLU, xLe = xLtip + HEL, xRtip = xR - HRU, xRe = xRtip - HER;
-    // one radius per cantilever: HRL → left, HRR → right (each a single arc when set)
+    // one radius per cantilever: HRL → left, HRR → right. The haunch root (xLH/xRH)
+    // stays fixed by HLL/HLR; R only bows the diagonal (its chord) into an arc.
+    var xLH = xLe + HLL, xRH = xRe - HLR;
+    if (xLH > 0) xLH = 0; if (xRH < 0) xRH = 0;
     var leftCurved = (HRL > 0 && THL > 0), rightCurved = (HRR > 0 && THL > 0);
-    var pts = [], rad = [], hR = null, hL = null, xLH, xRH;
+    var pts = [], rad = [], aR = null, aL = null;
     function P(x, y) { pts.push([x, y]); }
-    if (rightCurved) { hR = haunchArcSingle(xRe, yTip, yMid, HRR, -1); xRH = hR.xRoot; rad.push({ c: hR.c, r: HRR, ang: hR.ang, label: "HRR=" }); }
-    else { xRH = xRe - HLR; }
-    if (leftCurved) { hL = haunchArcSingle(xLe, yTip, yMid, HRL, 1); xLH = hL.xRoot; rad.push({ c: hL.c, r: HRL, ang: hL.ang, label: "HRL=" }); }
-    else { xLH = xLe + HLL; }
+    if (rightCurved) { aR = haunchArcChord([xRe, yTip], [xRH, yMid], HRR); rad.push({ c: aR.c, r: HRR, ang: aR.ang, label: "HRR=" }); }
+    if (leftCurved) { aL = haunchArcChord([xLe, yTip], [xLH, yMid], HRL); rad.push({ c: aL.c, r: HRL, ang: aL.ang, label: "HRL=" }); }
 
     P(xL, yTop);                                              // top-left
     if (HD > 0 && HW > 0) { P(-HW / 2 - HS, yTop); P(-HW / 2, yTop - HD); P(HW / 2, yTop - HD); P(HW / 2 + HS, yTop); }
     P(xR, yTop);                                              // top-right
     P(xRtip, yTip);                                           // right tip bottom (end face height THU)
-    if (rightCurved) { hR.pts.forEach(function (q) { P(q[0], q[1]); }); }   // xRe … right root (arc)
-    else { if (HER > 0) P(xRe, yTip); P(xRH, yMid); }         // tip flat + straight diagonal
+    if (HER > 0) P(xRe, yTip);                                // right tip flat
+    if (rightCurved) { aR.pts.forEach(function (q) { P(q[0], q[1]); }); }   // arc xRe → right root
+    else { P(xRH, yMid); }                                    // straight diagonal
     P(xLH, yMid);                                             // central flat → left root
-    if (leftCurved) { var rev = hL.pts.slice().reverse(); for (var i = 1; i < rev.length; i++) P(rev[i][0], rev[i][1]); }  // root → xLe (arc)
+    if (leftCurved) { var rev = aL.pts.slice().reverse(); for (var i = 1; i < rev.length; i++) P(rev[i][0], rev[i][1]); }  // arc left root → xLe
     else { if (HEL > 0) P(xLe, yTip); }
     P(xLtip, yTip);                                           // left tip bottom (close to top-left = end face)
 
