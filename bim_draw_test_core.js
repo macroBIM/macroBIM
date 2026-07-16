@@ -36,7 +36,7 @@
   }
 
   // ---- recorder with the KonvaViewer drawing API ----
-  function MockViewer() { this.L = []; this.A = []; this.DL = []; this.DR = []; this._lay = {}; }
+  function MockViewer() { this.L = []; this.A = []; this.DL = []; this.DR = []; this.TX = []; this._lay = {}; }
   MockViewer.prototype.addLayer = function (name, color, type, w) { this._lay[name] = { color: color, type: type }; };
   MockViewer.prototype._c = function (name) { return this._lay[name] || {}; };
   MockViewer.prototype.addLine = function (v, x1, y1, x2, y2, name) { var l = this._c(name); this.L.push({ x1: x1, y1: y1, x2: x2, y2: y2, lay: (l.type === 'hidden' ? 'hidden' : 'solid'), col: l.color }); };
@@ -44,6 +44,7 @@
   MockViewer.prototype.addArc = function (v, x, y, r, a1, a2, name) { var l = this._c(name); this.A.push({ x: x, y: y, r: r, a1: a1, a2: a2, lay: (l.type === 'hidden' ? 'hidden' : 'solid'), col: l.color }); };
   MockViewer.prototype.addDimLinear = function (v, x1, y1, x2, y2, gap, label, opts) { this.DL.push({ x1: x1, y1: y1, x2: x2, y2: y2, gap: gap, t: label || '', la: (opts && opts.la) || 0, lp: (opts && opts.lp) || 0 }); };
   MockViewer.prototype.addDimRadius = function (v, x, y, r, ang, label) { this.DR.push({ x: x, y: y, r: r, ang: ang, t: label || '' }); };
+  MockViewer.prototype.addText = function (v, x, y, str, rot) { this.TX.push({ x: x, y: y, t: str || '', rot: rot || 0 }); };
   MockViewer.prototype.render = function () { /* no-op: rendered externally via renderSVG */ };
 
   // ---- SVG rendering (retaining-wall look) ----
@@ -59,6 +60,7 @@
       acc(d.x1 + nx * d.gap, d.y1 + ny * d.gap); acc(d.x2 + nx * d.gap, d.y2 + ny * d.gap);
     });
     rec.DR.forEach(function (d) { acc(d.x, d.y); var rr = d.ang * Math.PI / 180; acc(d.x + d.r * Math.cos(rr), d.y + d.r * Math.sin(rr)); });
+    (rec.TX || []).forEach(function (t) { acc(t.x, t.y); });
     if (!isFinite(minX)) { minX = 0; maxX = 1; minY = 0; maxY = 1; }
 
     var padL = 46, padR = 30, padT = 30, padB = 30;
@@ -111,6 +113,7 @@
       var ang = Math.atan2(py - ty, px - tx) * 180 / Math.PI; if (ang > 90 || ang < -90) ang += 180;
       text((tx + px) / 2, (ty + py) / 2 - 7, (d.t ? d.t : 'R') + num(d.r), DIM, ang);
     });
+    (rec.TX || []).forEach(function (t) { text(SX(t.x), SY(t.y), t.t, DIM, t.rot); });
 
     var bg = 'background:linear-gradient(#e2e8f0 1px,transparent 1px) 0 0/26px 26px,linear-gradient(90deg,#e2e8f0 1px,transparent 1px) 0 0/26px 26px,#fff;';
     return '<svg width="' + cW + '" height="' + cH + '" viewBox="0 0 ' + cW + ' ' + cH + '" style="display:block;' + bg + '">' + e.join('') + '</svg>';
