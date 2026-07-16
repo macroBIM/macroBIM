@@ -451,7 +451,9 @@
         dims.push({ side: "B", at: gB, gutter: gB - goff, lo: -cp.HW / 2, hi: cp.HW / 2, label: "HW" });
         if (cp.HS > 0 && rec.addText) {
           var srot = Math.atan2(-cp.HD, cp.HD * cp.HS) * 180 / Math.PI;
-          rec.addText(0, cp.HW / 2 + cp.HD * cp.HS / 2, gT - cp.HD / 2, "1:" + cp.HS, srot);
+          var sL = Math.hypot(cp.HD * cp.HS, cp.HD) || 1, sOff = Math.max(260, cp.HD * 0.5);
+          var spx = cp.HD / sL, spy = -cp.HD * cp.HS / sL;   // perpendicular, outward/below the slope face
+          rec.addText(0, cp.HW / 2 + cp.HD * cp.HS / 2 + spx * sOff, gT - cp.HD / 2 + spy * sOff, "1:" + cp.HS, srot);
         }
       }
       layoutDims(dims, bnd).forEach(function (d) { rec.addDimLinear(0, d.x1, d.y1, d.x2, d.y2, d.gap, d.label, { la: d.la, lp: d.lp }); });
