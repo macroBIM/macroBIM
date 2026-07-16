@@ -2,9 +2,10 @@
     bim_box1cell_test.js — TEST build of the single-cell box culvert drawing
     (retaining-wall style). Begin/End sections + tapered plan/side views drawn as
     self-contained SVG via window.RWSVG (bim_draw_test_core.js). View logic mirrors
-    the production fdraw_box1cell_2d, recorded through a MockViewer, with variable
-    labels on the main dims. Reuses geo_box1cell + odxf_box1cell + render_box1cell_3d.
-    Overrides fdraw_box1cell.
+    the production fdraw_box1cell_2d, recorded through a MockViewer, with the FULL
+    front/back dimension set from the box1cell_vars guide (bt / bcan / bcanh / btsh /
+    t1..t5 / tb / bb / tw / bh / hv / rwt / rwtin / rb). Reuses geo_box1cell +
+    odxf_box1cell + render_box1cell_3d. Overrides fdraw_box1cell.
 */
 (function () {
   "use strict";
@@ -19,23 +20,52 @@
   }
   function gp(points, name) { var f = points.find(function (p) { return p.name === name; }); return f ? Object.assign({}, f[name]) : { x: 0, y: 0 }; }
 
-  function xsecDims(rec, view, geo, off, ext) {
-    var ptl = gp(geo.points, 'ptl'), ptr = gp(geo.points, 'ptr'), ptc = gp(geo.points, 'ptc'),
-        pcml = gp(geo.points, 'pcml'), pcmr = gp(geo.points, 'pcmr'), pwtl = gp(geo.points, 'pwtl'), pwtr = gp(geo.points, 'pwtr'),
-        pbl = gp(geo.points, 'pbl'), pbr = gp(geo.points, 'pbr'), pbc = gp(geo.points, 'pbc'),
-        ptsl = gp(geo.points, 'ptsl'), pbsl = gp(geo.points, 'pbsl');
-    var ymax = Math.max(ptl.y, ptr.y, ptc.y), ymin = Math.min(pbl.y, pbr.y, pbc.y);
-    var xleft = Math.min(ptl.x, pbl.x);
-    rec.addDimLinear(view, xleft - off, ymin, xleft - off, ymax, ext * 6, 'H');
-    if (ptsl.x !== 0 || ptsl.y !== 0) rec.addDimLinear(view, xleft - off, ptsl.y, xleft - off, ymax, ext * 3, 't1');
-    if (pbsl.x !== 0 || pbsl.y !== 0) rec.addDimLinear(view, xleft - off, ymin, xleft - off, pbsl.y, ext * 3, 'tb');
-    rec.addDimLinear(view, ptl.x, ymax + off, ptr.x, ymax + off, ext * 6, 'Bt');
-    rec.addDimLinear(view, ptl.x, ymax + off, pcml.x, ymax + off, ext * 3);
-    rec.addDimLinear(view, pcml.x, ymax + off, pwtl.x, ymax + off, ext * 3);
-    rec.addDimLinear(view, pwtl.x, ymax + off, pwtr.x, ymax + off, ext * 3, 'bc');
-    rec.addDimLinear(view, pwtr.x, ymax + off, pcmr.x, ymax + off, ext * 3);
-    rec.addDimLinear(view, pcmr.x, ymax + off, ptr.x, ymax + off, ext * 3);
-    rec.addDimLinear(view, pbl.x, ymin - off, pbr.x, ymin - off, ext * -6, 'Bb');
+  // Full cross-section dimensioning (mirrors the box1cell_vars guide).
+  // NOTE: geo coords are y-DOWN (top centre = y0, bottom = -dh). Positive gap
+  // places a top/horizontal dim above and a vertical dim to the left; negative
+  // gap places below / to the right.
+  function xsecDims(rec, view, geo, ap, off, ext) {
+    function P(n) { return gp(geo.points, n); }
+    var ptc = P('ptc'), pbc = P('pbc'), ptsc = P('ptsc'), pbsc = P('pbsc');
+    var ptl = P('ptl'), ptr = P('ptr'), pcr = P('pcr');
+    var pbl = P('pbl'), pbr = P('pbr'), pcmr = P('pcmr'), pwtr = P('pwtr');
+    var pwtrin = P('pwtrin'), ptsr = P('ptsr'), pwbrin = P('pwbrin'), pbsr = P('pbsr');
+    var sr = (ap.dsltr || 0) / 100;
+    function topYr(x) { return x * sr; }           // right top-surface y at station x
+    var ymax = Math.max(ptl.y, ptc.y, ptr.y), ymin = Math.min(pbl.y, pbr.y, pbc.y);
+
+    // total height (right) + total top width & right cantilever chain (above)
+    rec.addDimLinear(view, ptr.x, ymin, ptr.x, ymax, ext * -8, 'h');
+    rec.addDimLinear(view, ptl.x, ymax, ptr.x, ymax, ext * 8, 'bt');
+    rec.addDimLinear(view, pcmr.x, ymax, ptr.x, ymax, ext * 4, 'bcan');
+    rec.addDimLinear(view, pwtr.x, ymax, pcmr.x, ymax, ext * 4, 'bcanh');
+    // inner top-slab haunch (btsh)
+    rec.addDimLinear(view, ptsr.x, ptsr.y, pwtrin.x, ptsr.y, ext * -3, 'btsh');
+    // top-slab thickness stations t1..t5 (inline verticals)
+    rec.addDimLinear(view, 0, ptc.y, 0, ptsc.y, 0, 't1');
+    rec.addDimLinear(view, ptsr.x, topYr(ptsr.x), ptsr.x, ptsr.y, 0, 't2');
+    rec.addDimLinear(view, pwtr.x, topYr(pwtr.x), pwtr.x, pwtr.y, 0, 't3');
+    rec.addDimLinear(view, pcmr.x, topYr(pcmr.x), pcmr.x, pcmr.y, 0, 't4');
+    rec.addDimLinear(view, pcr.x, ptr.y, pcr.x, pcr.y, 0, 't5');
+    // bottom slab thickness (centre) + total bottom width
+    rec.addDimLinear(view, 0, pbc.y, 0, pbsc.y, 0, 'tb');
+    rec.addDimLinear(view, pbl.x, ymin, pbr.x, ymin, ext * -6, 'bb');
+    // web thickness (perpendicular, at the right web top)
+    var wdx = pbr.x - pwtr.x, wdy = pbr.y - pwtr.y, wl = Math.hypot(wdx, wdy) || 1;
+    var nx = -wdy / wl, ny = wdx / wl; if (nx > 0) { nx = -nx; ny = -ny; }
+    rec.addDimLinear(view, pwtr.x, pwtr.y, pwtr.x + nx * (ap.dtw || 0), pwtr.y + ny * (ap.dtw || 0), 0, 'tw');
+    // void bottom haunch (bh horizontal, hv vertical) on the right
+    rec.addDimLinear(view, pbsr.x, pbsr.y, pwbrin.x, pbsr.y, ext * 3, 'bh');
+    rec.addDimLinear(view, pbsr.x, pbsr.y, pbsr.x, pwbrin.y, 0, 'hv');
+    // fillet / chamfer radii (right side, labelled by matching radius)
+    (geo.arcs || []).forEach(function (a) {
+      if (a.x <= 0) return;
+      var lab = 'R';
+      if (Math.abs(a.r - (ap.drwt || -1)) < 0.5) lab = 'rwt';
+      else if (Math.abs(a.r - (ap.drwtin || -1)) < 0.5) lab = 'rwtin';
+      else if (Math.abs(a.r - (ap.drb || -1)) < 0.5) lab = 'rb';
+      rec.addDimRadius(view, a.x, a.y, a.r, (a.angb + a.ange) / 2, lab);
+    });
   }
 
   function drawBox1cell(viewName, rec, data) {
@@ -50,11 +80,11 @@
     if (viewName === 'front') {
       gb.lines.forEach(function (l) { rec.addLine(viewName, l.x1, l.y1, l.x2, l.y2, 's'); });
       gb.arcs.forEach(function (a) { rec.addArc(viewName, a.x, a.y, a.r, a.angb, a.ange, 's'); });
-      xsecDims(rec, viewName, gb, off, ext);
+      xsecDims(rec, viewName, gb, apb, off, ext);
     } else if (viewName === 'back') {
       ge.lines.forEach(function (l) { rec.addLine(viewName, l.x1, l.y1, l.x2, l.y2, 's'); });
       ge.arcs.forEach(function (a) { rec.addArc(viewName, a.x, a.y, a.r, a.angb, a.ange, 's'); });
-      xsecDims(rec, viewName, ge, off, ext);
+      xsecDims(rec, viewName, ge, ape, off, ext);
     } else if (viewName === 'top') {
       ['ptc', 'ptl', 'ptr'].forEach(function (n) { p1 = gp(pts_b, n); p1.y = -half; p2 = gp(pts_e, n); p2.y = half; rec.addLine(viewName, p1.x, p1.y, p2.x, p2.y, 's'); });
       p1 = gp(pts_b, 'ptl'); p1.y = -half; p2 = gp(pts_b, 'ptr'); p2.y = -half; rec.addLine(viewName, p1.x, p1.y, p2.x, p2.y, 's');
