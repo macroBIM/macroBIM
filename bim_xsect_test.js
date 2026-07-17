@@ -197,8 +197,8 @@
   // ── DOM-driven entry (layout test) ───────────────────────────────────────
   // Inputs by id  xs_<shape>_<var>  and checkbox  xs_<shape>_hollow;
   // preview mounts into  xs_<shape>_plot.
-  function mount(shape) {
-    var cfg = SHAPES[shape]; if (!cfg) return;
+  function readParams(shape) {
+    var cfg = SHAPES[shape]; if (!cfg) return {};
     var pfx = "xs_" + shape, params = {};
     cfg.vars.forEach(function (v) {
       var el = document.getElementById(pfx + "_" + v[0]);
@@ -207,9 +207,35 @@
     });
     var hc = document.getElementById(pfx + "_hollow");
     params.hollow = hc ? hc.checked : true;
-    draw(shape, pfx + "_plot", params);
+    return params;
   }
+  function mount(shape) { if (SHAPES[shape]) draw(shape, "xs_" + shape + "_plot", readParams(shape)); }
   function install(shape) { window["fdraw_" + shape] = function () { mount(shape); }; }
 
-  window.XSECT = { shapes: SHAPES, geo: geo, draw: draw, offsetPoly: offsetPoly, mount: mount, install: install };
+  // ── DXF export (minimal ASCII DXF; model coords are already y-up) ──────────
+  function toDXF(shape, params) {
+    var g = geo(shape, params), e = ["0", "SECTION", "2", "ENTITIES"];
+    function n(v) { return String(Math.round(v * 1000) / 1000); }
+    function line(x1, y1, x2, y2) { e.push("0", "LINE", "8", "0", "10", n(x1), "20", n(y1), "30", "0", "11", n(x2), "21", n(y2), "31", "0"); }
+    function arc(x, y, r, a1, a2) { e.push("0", "ARC", "8", "0", "10", n(x), "20", n(y), "30", "0", "40", n(r), "50", n(a1), "51", n(a2)); }
+    function circle(x, y, r) { e.push("0", "CIRCLE", "8", "0", "10", n(x), "20", n(y), "30", "0", "40", n(r)); }
+    function emit(part) {
+      if (!part) return;
+      part.lines.forEach(function (l) { line(l.x1, l.y1, l.x2, l.y2); });
+      part.arcs.forEach(function (a) { if (a.a2 - a.a1 >= 360) circle(a.x, a.y, a.r); else arc(a.x, a.y, a.r, a.a1, a.a2); });
+    }
+    emit(g.outer); emit(g.inner);
+    e.push("0", "ENDSEC", "0", "EOF");
+    return e.join("\n");
+  }
+  function dxf(shape) {
+    var txt = toDXF(shape, readParams(shape));
+    var name = shape.charAt(0).toUpperCase() + shape.slice(1) + ".dxf";
+    var blob = new Blob([txt], { type: "application/dxf" });
+    var url = URL.createObjectURL(blob), a = document.createElement("a");
+    a.href = url; a.download = name; document.body.appendChild(a); a.click();
+    document.body.removeChild(a); setTimeout(function () { URL.revokeObjectURL(url); }, 1000);
+  }
+
+  window.XSECT = { shapes: SHAPES, geo: geo, draw: draw, offsetPoly: offsetPoly, mount: mount, install: install, dxf: dxf, toDXF: toDXF };
 })();
