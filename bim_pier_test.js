@@ -106,7 +106,7 @@
   // Returns transverse (front) and longitudinal (side) offsets where a round
   // surface projects, bunched toward the silhouette. Empty for flat sections.
   function curveGens(col) {
-    var s = col.sect || {}, shape = col.shape, N = 7, G = 2.6;   // G>1: edge-bias strength (all curved surfaces)
+    var s = col.sect || {}, shape = col.shape, N = 7, G = 1.9;   // G>1: edge-bias strength (all curved surfaces)
     // full round: lines across (−R..R), bunched toward BOTH ±R silhouettes
     function bRound(R) {
       var a = [];
