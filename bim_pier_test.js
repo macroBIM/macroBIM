@@ -474,8 +474,8 @@
       mergeOffset(rec, sRec, ox);
       var labY = Math.max(fbox.maxY, sbox.maxY) + gap * 0.6;
       if (rec.addText) {
-        rec.addText(0, (fbox.minX + fbox.maxX) / 2, labY, "FRONT (정면도)");
-        rec.addText(0, ox + (sbox.minX + sbox.maxX) / 2, labY, "SIDE (측면도)");
+        rec.addText(0, (fbox.minX + fbox.maxX) / 2, labY, "FRONT");
+        rec.addText(0, ox + (sbox.minX + sbox.maxX) / 2, labY, "SIDE");
       }
       // fit to card width; height follows content so the card stays compact
       var full = bboxOf(rec), bw = Math.max(full.maxX - full.minX, 1), bh = Math.max(full.maxY - full.minY, 1);
