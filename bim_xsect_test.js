@@ -80,7 +80,31 @@
     return { lines: L, arcs: A };
   }
 
-  // ── per-shape geometry → { outer:{lines,arcs}, inner:{lines,arcs}|null, dims:[], W, H } ──
+  function ptsOf(V) { return V.map(function (q) { return { x: q[0], y: q[1] }; }); }
+  // arc tessellation, inclusive of both endpoints (na+1 points)
+  function arcPts(cx, cy, r, a1, a2, na) {
+    var p = [];
+    for (var i = 0; i <= na; i++) { var t = (a1 + (a2 - a1) * i / na) * Math.PI / 180; p.push({ x: cx + r * Math.cos(t), y: cy + r * Math.sin(t) }); }
+    return p;
+  }
+  function circlePts(cx, cy, r, n) {
+    var p = [];
+    for (var i = 0; i < n; i++) { var t = 2 * Math.PI * i / n; p.push({ x: cx + r * Math.cos(t), y: cy + r * Math.sin(t) }); }
+    return p;
+  }
+  // ordered CCW boundary of a rounded rectangle (fixed points per corner arc)
+  function roundRectPts(x0, x1, y0, y1, r, na) {
+    r = Math.max(0, Math.min(r, (x1 - x0) / 2, (y1 - y0) / 2));
+    if (r <= 0) return [{ x: x0, y: y0 }, { x: x1, y: y0 }, { x: x1, y: y1 }, { x: x0, y: y1 }];
+    var p = [];
+    Array.prototype.push.apply(p, arcPts(x1 - r, y0 + r, r, -90, 0, na));
+    Array.prototype.push.apply(p, arcPts(x1 - r, y1 - r, r, 0, 90, na));
+    Array.prototype.push.apply(p, arcPts(x0 + r, y1 - r, r, 90, 180, na));
+    Array.prototype.push.apply(p, arcPts(x0 + r, y0 + r, r, 180, 270, na));
+    return p;
+  }
+
+  // ── per-shape geometry → { outer, inner, dims, W, H, iW, iH, outerOutline, innerOutline } ──
   function geo(shape, p) {
     p = p || {};
     var hollow = p.hollow !== false;   // default hollow on
@@ -94,7 +118,8 @@
       var inner = (hollow && tw > 0 && tw < R) ? { lines: [], arcs: [{ x: 0, y: cy, r: R - tw, a1: 0, a2: 360 }] } : null;
       dims.push({ x1: R, y1: 0, x2: R, y2: D, gap: -off, t: "D" });   // right vertical → right
       if (inner) dims.push({ x1: R - tw, y1: cy, x2: R, y2: cy, gap: off * 0.5, t: "tw" });
-      return { outer: outer, inner: inner, dims: dims, W: D, H: D, cx: 0, cy: cy, R: R, tw: tw };
+      return { outer: outer, inner: inner, dims: dims, W: D, H: D, iW: inner ? D - 2 * tw : 0, iH: inner ? D - 2 * tw : 0,
+        outerOutline: circlePts(0, cy, R, 48), innerOutline: inner ? circlePts(0, cy, R - tw, 48) : [] };
     }
 
     if (shape === "rect") {
@@ -102,17 +127,18 @@
         ha = num(p.ha), hb = num(p.hb);
       off = Math.max(H, B) * 0.12;
       var xo0 = -B / 2, xo1 = B / 2;
-      var outer = { lines: polyLines([[xo0, 0], [xo1, 0], [xo1, H], [xo0, H]]), arcs: [] };
-      var ix0 = xo0 + twl, ix1 = xo1 - twr, iy0 = tf2, iy1 = H - tf1;
+      var outerV = [[xo0, 0], [xo1, 0], [xo1, H], [xo0, H]];
+      var outer = { lines: polyLines(outerV), arcs: [] };
+      var ix0 = xo0 + twl, ix1 = xo1 - twr, iy0 = tf2, iy1 = H - tf1, innerV = null;
       var inner = null;
       if (hollow && ix1 > ix0 && iy1 > iy0) {
         // inner void: chamfered corners (내부 헌치) with legs ha (horizontal) / hb (vertical)
         var cha = Math.max(0, Math.min(ha, (ix1 - ix0) / 2)), chb = Math.max(0, Math.min(hb, (iy1 - iy0) / 2));
-        var IV = (cha > 0 && chb > 0)
+        innerV = (cha > 0 && chb > 0)
           ? [[ix0 + cha, iy0], [ix1 - cha, iy0], [ix1, iy0 + chb], [ix1, iy1 - chb],
              [ix1 - cha, iy1], [ix0 + cha, iy1], [ix0, iy1 - chb], [ix0, iy0 + chb]]
           : [[ix0, iy0], [ix1, iy0], [ix1, iy1], [ix0, iy1]];
-        inner = { lines: polyLines(IV), arcs: [], cha: cha, chb: chb, box: [ix0, ix1, iy0, iy1] };
+        inner = { lines: polyLines(innerV), arcs: [], cha: cha, chb: chb, box: [ix0, ix1, iy0, iy1] };
       }
       dims.push({ x1: xo1, y1: 0, x2: xo1, y2: H, gap: -off * 1.5, t: "H" });   // right vertical → right
       dims.push({ x1: xo0, y1: H, x2: xo1, y2: H, gap: off * 1.5, t: "B" });     // top → up
@@ -127,7 +153,9 @@
           dims.push({ x1: ix1, y1: iy1 - inner.chb, x2: ix1, y2: iy1, gap: -off * 0.5, t: "hb" });  // right vertical → right
         }
       }
-      return { outer: outer, inner: inner, dims: dims, W: B, H: H };
+      return { outer: outer, inner: inner, dims: dims, W: B, H: H,
+        iW: inner ? ix1 - ix0 : 0, iH: inner ? iy1 - iy0 : 0,
+        outerOutline: ptsOf(outerV), innerOutline: innerV ? ptsOf(innerV) : [] };
     }
 
     if (shape === "track") {
@@ -140,7 +168,10 @@
       dims.push({ x1: -tB / 2, y1: tH, x2: tB / 2, y2: tH, gap: off * 1.6, t: "B" });   // top → up
       dims.push({ radiusDim: true, x: tB / 2 - tR, y: tH - tR, r: tR, ang: 45 });        // TR arc: centre → arc (up-right)
       if (inner) dims.push({ x1: -tB / 2, y1: tH / 2, x2: -tB / 2 + tt, y2: tH / 2, gap: -off * 0.7, t: "t" });
-      return { outer: outer, inner: inner, dims: dims, W: tB, H: tH };
+      return { outer: outer, inner: inner, dims: dims, W: tB, H: tH,
+        iW: inner ? tB - 2 * tt : 0, iH: inner ? tH - 2 * tt : 0,
+        outerOutline: roundRectPts(-tB / 2, tB / 2, 0, tH, tR, 6),
+        innerOutline: inner ? roundRectPts(-tB / 2 + tt, tB / 2 - tt, tt, tH - tt, tR - tt, 6) : [] };
     }
 
     if (shape === "octagon") {
@@ -152,43 +183,133 @@
         [oB / 2 - oa, oH], [-oB / 2 + oa, oH], [-oB / 2, oH - ob], [-oB / 2, ob]
       ];
       var outer = { lines: polyLines(V), arcs: [] };
-      var inner = null;
+      var inner = null, octIV = null;
       if (hollow) {
         var t = num(p.t);
         var IV = offsetPoly(V, t);
         var okInner = IV.every(function (q) { return isFinite(q[0]) && isFinite(q[1]); });
-        if (okInner && t > 0) inner = { lines: polyLines(IV), arcs: [] };
+        if (okInner && t > 0) { inner = { lines: polyLines(IV), arcs: [] }; octIV = IV; }
       }
       dims.push({ x1: oB / 2, y1: 0, x2: oB / 2, y2: oH, gap: -off * 1.8, t: "H" });   // right vertical → right
       dims.push({ x1: -oB / 2, y1: oH, x2: oB / 2, y2: oH, gap: off * 1.8, t: "B" });   // top → up
       dims.push({ x1: oB / 2 - oa, y1: oH, x2: oB / 2, y2: oH, gap: off * 0.7, t: "a" });   // top → up
       dims.push({ x1: oB / 2, y1: oH - ob, x2: oB / 2, y2: oH, gap: -off * 0.7, t: "b" });  // right vertical → right
       if (inner) dims.push({ x1: -oB / 2, y1: oH / 2, x2: -oB / 2 + num(p.t), y2: oH / 2, gap: -off * 0.7, t: "t" });  // wall thickness, left
-      return { outer: outer, inner: inner, dims: dims, W: oB, H: oH };
+      return { outer: outer, inner: inner, dims: dims, W: oB, H: oH,
+        iW: inner ? oB - 2 * num(p.t) : 0, iH: inner ? oH - 2 * num(p.t) : 0,
+        outerOutline: ptsOf(V), innerOutline: octIV ? ptsOf(octIV) : [] };
     }
 
-    return { outer: { lines: [], arcs: [] }, inner: null, dims: [], W: 1, H: 1 };
+    return { outer: { lines: [], arcs: [] }, inner: null, dims: [], W: 1, H: 1, iW: 0, iH: 0, outerOutline: [], innerOutline: [] };
   }
 
-  // ── draw onto a mount via the shared core ────────────────────────────────
-  function draw(shape, mountId, params) {
-    var host = document.getElementById(mountId);
-    if (!host) return;
-    if (typeof window.RWSVG === "undefined") return;
-    var g = geo(shape, params);
-    var rec = new window.RWSVG.MockViewer();
-    rec.addLayer("c", "#182430", "solid", 1);
+  // ── views (prism of length L) on the shared core ─────────────────────────
+  var VIEW = {};   // per-shape current view
+
+  function emitSection(rec, g) {
     function emit(part) {
       if (!part) return;
       part.lines.forEach(function (l) { rec.addLine(0, l.x1, l.y1, l.x2, l.y2, "c"); });
-      part.arcs.forEach(function (a) { if (a.a2 - a.a1 >= 360 || a.a1 === 0 && a.a2 === 360) rec.addCircle(0, a.x, a.y, a.r, "c"); else rec.addArc(0, a.x, a.y, a.r, a.a1, a.a2, "c"); });
+      part.arcs.forEach(function (a) { if (a.a2 - a.a1 >= 360 || (a.a1 === 0 && a.a2 === 360)) rec.addCircle(0, a.x, a.y, a.r, "c"); else rec.addArc(0, a.x, a.y, a.r, a.a1, a.a2, "c"); });
     }
     emit(g.outer); emit(g.inner);
     g.dims.forEach(function (d) {
       if (d.radiusDim) { rec.addDimRadius(0, d.x, d.y, d.r, d.ang, "R="); return; }
       rec.addDimLinear(0, d.x1, d.y1, d.x2, d.y2, d.gap, d.t);
     });
-    var W = host.clientWidth || 560, Hpx = Math.max(340, Math.min(560, Math.round(W * 0.75)));
+  }
+  // tapered/extruded plan (top/bottom): width across x, length L along y
+  function emitPlan(rec, g, L) {
+    var w = g.W / 2, hl = L / 2, off = Math.max(g.W, L) * 0.1;
+    rec.addLine(0, -w, -hl, w, -hl, "c"); rec.addLine(0, w, -hl, w, hl, "c");
+    rec.addLine(0, w, hl, -w, hl, "c"); rec.addLine(0, -w, hl, -w, -hl, "c");
+    if (g.iW > 0) { var iw = g.iW / 2; rec.addLine(0, -iw, -hl, -iw, hl, "h"); rec.addLine(0, iw, -hl, iw, hl, "h"); }
+    rec.addDimLinear(0, -w, hl, w, hl, off, "W");
+    rec.addDimLinear(0, w, -hl, w, hl, -off, "L");
+  }
+  // extruded elevation (left/right/center): length L along x, height across y
+  function emitSide(rec, g, L) {
+    var hl = L / 2, H = g.H, off = Math.max(g.H, L) * 0.1;
+    rec.addLine(0, -hl, 0, hl, 0, "c"); rec.addLine(0, hl, 0, hl, H, "c");
+    rec.addLine(0, hl, H, -hl, H, "c"); rec.addLine(0, -hl, H, -hl, 0, "c");
+    if (g.iH > 0) { var cy = H / 2, ih = g.iH / 2; rec.addLine(0, -hl, cy - ih, hl, cy - ih, "h"); rec.addLine(0, -hl, cy + ih, hl, cy + ih, "h"); }
+    rec.addDimLinear(0, hl, 0, hl, H, -off, "H");
+    rec.addDimLinear(0, -hl, H, hl, H, off, "L");
+  }
+  function buildView(rec, shape, view, g, L) {
+    if (view === "front" || view === "back") emitSection(rec, g);
+    else if (view === "top" || view === "bottom") emitPlan(rec, g, L);
+    else emitSide(rec, g, L);   // left / right / center
+  }
+
+  function setActiveBar(shape, view) {
+    var bar = document.getElementById(shape + "-viewbar"); if (!bar) return;
+    Array.prototype.forEach.call(bar.querySelectorAll("[data-sview]"), function (b) {
+      var on = b.getAttribute("data-sview") === view;
+      b.style.background = on ? "#2563eb" : "#eef2f6";
+      b.style.color = on ? "#fff" : "#475569";
+      b.style.borderColor = on ? "#2563eb" : "#cbd5e1";
+    });
+  }
+
+  function render2D(shape, view, g, L) {
+    var host = document.getElementById("xs_" + shape + "_plot"); if (!host) return;
+    if (typeof window.RWSVG === "undefined") return;
+    var rec = new window.RWSVG.MockViewer();
+    rec.addLayer("c", "#182430", "solid", 1);
+    rec.addLayer("h", "#94a3b8", "hidden", 1);
+    buildView(rec, shape, view, g, L);
+    var W = host.clientWidth || 560, Hpx = Math.max(340, Math.min(560, Math.round(W * 0.72)));
+    host.innerHTML = window.RWSVG.renderSVG(rec, W, Hpx);
+    var svg = host.querySelector("svg");
+    if (svg) window.RWSVG.attachZoomPan(svg);
+  }
+
+  // 3D via the existing bim_<sec>_3d.js modules (they loft outlines + expose STL)
+  var MOD3D = { rect: "render_rect_3d", circle: "render_circle_3d", track: "render_track_3d", octagon: "render_octagon_3d" };
+  var FILE3D = { rect: "bim_rect_3d.js", circle: "bim_circle_3d.js", track: "bim_track_3d.js", octagon: "bim_octagon_3d.js" };
+  function G(n) { try { return (0, eval)(n); } catch (e) { return undefined; } }
+  function render3d(shape, g, L) {
+    var host = document.getElementById("xs_" + shape + "_plot"); if (!host) return;
+    var W = host.clientWidth || 560, Hpx = Math.max(340, Math.min(560, Math.round(W * 0.72)));
+    host.innerHTML = "";
+    var d3 = document.createElement("div"); d3.id = "xs_" + shape + "_3d";
+    d3.style.cssText = "width:100%;height:" + Hpx + "px;background:#1a1a2e;position:relative;";
+    host.appendChild(d3);
+    var geoB = { outerOutline: g.outerOutline, innerOutline: g.innerOutline };
+    function go() { var fn = G(MOD3D[shape]); if (typeof fn === "function") fn(d3.id, geoB, geoB, L || Math.max(g.W, g.H)); }
+    if (typeof G(MOD3D[shape]) === "function" && typeof THREE !== "undefined") { go(); return; }
+    d3.innerHTML = '<div style="display:flex;align-items:center;justify-content:center;height:100%;color:#889;font-size:14px;">3D loading…</div>';
+    var urls = [];
+    if (typeof THREE === "undefined") {
+      urls.push("https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js");
+      urls.push("https://unpkg.com/three@0.128.0/examples/js/controls/OrbitControls.js");
+    }
+    if (typeof G(MOD3D[shape]) !== "function") urls.push("https://macrobim.github.io/macroBIM/" + FILE3D[shape]);
+    (function next(i) {
+      if (i >= urls.length) { go(); return; }
+      var sc = document.createElement("script"); sc.src = urls[i];
+      sc.onload = function () { next(i + 1); }; sc.onerror = function () { next(i + 1); };
+      document.head.appendChild(sc);
+    })(0);
+  }
+
+  function renderView(shape) {
+    var view = VIEW[shape] || "front";
+    setActiveBar(shape, view);
+    var g = geo(shape, readParams(shape)), L = readL(shape);
+    if (view === "3d") render3d(shape, g, L); else render2D(shape, view, g, L);
+  }
+  function setview(shape, v) { VIEW[shape] = v; renderView(shape); }
+
+  // direct cross-section render to an arbitrary mount (headless / embedding)
+  function draw(shape, mountId, params) {
+    var host = document.getElementById(mountId);
+    if (!host || typeof window.RWSVG === "undefined") return;
+    var rec = new window.RWSVG.MockViewer();
+    rec.addLayer("c", "#182430", "solid", 1); rec.addLayer("h", "#94a3b8", "hidden", 1);
+    emitSection(rec, geo(shape, params));
+    var W = host.clientWidth || 560, Hpx = Math.max(340, Math.min(560, Math.round(W * 0.72)));
     host.innerHTML = window.RWSVG.renderSVG(rec, W, Hpx);
     var svg = host.querySelector("svg");
     if (svg) window.RWSVG.attachZoomPan(svg);
@@ -209,8 +330,15 @@
     params.hollow = hc ? hc.checked : true;
     return params;
   }
-  function mount(shape) { if (SHAPES[shape]) draw(shape, "xs_" + shape + "_plot", readParams(shape)); }
-  function install(shape) { window["fdraw_" + shape] = function () { mount(shape); }; }
+  function readL(shape) {
+    var el = document.getElementById("xs_" + shape + "_L"), v = el ? parseFloat(el.value) : NaN;
+    return isNaN(v) || v <= 0 ? 3000 : v;
+  }
+  function mount(shape) { if (SHAPES[shape]) renderView(shape); }
+  function install(shape) {
+    window["fdraw_" + shape] = function () { mount(shape); };
+    window[shape + "_setview"] = function (v) { setview(shape, v); };
+  }
 
   // Batch (CSV) → input fields, in variable order, optional trailing hollow flag.
   function applyBatch(shape) {
