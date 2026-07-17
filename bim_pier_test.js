@@ -26,7 +26,7 @@
   var SECT_VARS = {
     circle: [["D", 2500], ["tw", 250, 1]],
     rect: [["B", 2500], ["H", 2500], ["twl", 300, 1], ["twr", 300, 1], ["tf1", 300, 1], ["tf2", 300, 1], ["ha", 0, 1], ["hb", 0, 1]],
-    track: [["B", 2500], ["H", 2500], ["R", 800], ["t", 250, 1]],
+    track: [["B", 4000], ["H", 2500], ["t", 250, 1]],
     octagon: [["B", 2500], ["H", 2500], ["a", 500], ["b", 500], ["t", 250, 1]]
   };
   function sectDefaults(shape) { var o = {}; (SECT_VARS[shape] || []).forEach(function (v) { o[v[0]] = v[1]; }); return o; }
@@ -64,10 +64,12 @@
       return { fx: [], fy: [], ix: ir ? [-ir, ir] : [], iy: ir ? [-ir, ir] : [] };
     }
     if (shape === "track") {
-      var t = +s.t || 0, R = +s.R || 0, bxr = B / 2 - R, hyr = H / 2 - R;   // straight/arc branch
-      var iw = (hollow && t > 0 && t < B / 2) ? B / 2 - t : 0, ih = (hollow && t > 0 && t < H / 2) ? H / 2 - t : 0;
-      return { fx: (R > 0 && bxr > 0) ? [-bxr, bxr] : [], fy: (R > 0 && hyr > 0) ? [-hyr, hyr] : [],
-        ix: iw ? [-iw, iw] : [], iy: ih ? [-ih, ih] : [] };
+      // obround: caps on L/R (radius H/2), straight top/bottom. The only fold
+      // lines are the vertical straight/arc junctions at x = ±(B/2 - H/2).
+      var t = +s.t || 0, rr = H / 2, sx = Math.max(0, B / 2 - rr);
+      var hollowOK = hollow && t > 0 && t < rr;
+      return { fx: sx > 0 ? [-sx, sx] : [], fy: [],
+        ix: (hollowOK && sx > 0) ? [-sx, sx] : [], iy: [] };
     }
     var outer, inner = null;
     if (shape === "octagon") {
@@ -120,7 +122,7 @@
       if (window._pierXsLoading) { (window._pierXsCbs = window._pierXsCbs || []).push(cb); return; }
       window._pierXsLoading = true; window._pierXsCbs = [cb];
       var sc = document.createElement("script");
-      sc.src = "https://macrobim.github.io/macroBIM/bim_xsect_test.js?v=9";
+      sc.src = "https://macrobim.github.io/macroBIM/bim_xsect_test.js?v=10";
       sc.onload = function () { window._pierXsLoading = false; var q = window._pierXsCbs || []; window._pierXsCbs = []; q.forEach(function (f) { f(); }); };
       sc.onerror = function () { window._pierXsLoading = false; window._pierXsCbs = []; };
       document.head.appendChild(sc);
