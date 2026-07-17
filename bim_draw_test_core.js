@@ -144,12 +144,16 @@
   function attachZoomPan(svg) {
     var vb = (svg.getAttribute('viewBox') || '0 0 1 1').split(/\s+/).map(Number);
     var cur = { x: vb[0], y: vb[1], w: vb[2], h: vb[3] };
+    var w0 = vb[2] || 1;                       // initial view width (fit-to-content)
+    var MINW = w0 * 0.35, MAXW = w0 * 2.2;     // zoom-in ≈ 2.9×, zoom-out ≈ 0.45× — bounded
     function apply() { svg.setAttribute('viewBox', cur.x + ' ' + cur.y + ' ' + cur.w + ' ' + cur.h); }
     svg.style.cursor = 'grab'; svg.style.touchAction = 'none';
     svg.addEventListener('wheel', function (e) {
       e.preventDefault();
       var r = svg.getBoundingClientRect(), fx = (e.clientX - r.left) / r.width, fy = (e.clientY - r.top) / r.height;
-      var mx = cur.x + fx * cur.w, my = cur.y + fy * cur.h, k = e.deltaY < 0 ? 0.9 : 1.1;
+      var mx = cur.x + fx * cur.w, my = cur.y + fy * cur.h;
+      var newW = Math.max(MINW, Math.min(MAXW, cur.w * (e.deltaY < 0 ? 0.9 : 1.1)));
+      var k = newW / cur.w; if (k === 1) return;   // at a limit — ignore
       cur.w *= k; cur.h *= k; cur.x = mx - fx * cur.w; cur.y = my - fy * cur.h; apply();
     }, { passive: false });
     var drag = false, lx = 0, ly = 0;
