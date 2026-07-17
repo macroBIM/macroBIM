@@ -119,7 +119,7 @@
       dims.push({ x1: R, y1: 0, x2: R, y2: D, gap: -off, t: "D" });   // right vertical → right
       if (inner) dims.push({ x1: R - tw, y1: cy, x2: R, y2: cy, gap: off * 0.5, t: "tw" });
       return { outer: outer, inner: inner, dims: dims, W: D, H: D, iW: inner ? D - 2 * tw : 0, iH: inner ? D - 2 * tw : 0,
-        innerBox: inner ? { x0: -(R - tw), x1: R - tw, y0: cy - (R - tw), y1: cy + (R - tw) } : null,
+        innerBox: inner ? { x0: -(R - tw), x1: R - tw, y0: cy - (R - tw), y1: cy + (R - tw) } : null, curved: true,
         outerOutline: circlePts(0, cy, R, 48), innerOutline: inner ? circlePts(0, cy, R - tw, 48) : [] };
     }
 
@@ -156,7 +156,7 @@
       }
       return { outer: outer, inner: inner, dims: dims, W: B, H: H,
         iW: inner ? ix1 - ix0 : 0, iH: inner ? iy1 - iy0 : 0,
-        innerBox: inner ? { x0: ix0, x1: ix1, y0: iy0, y1: iy1 } : null,
+        innerBox: inner ? { x0: ix0, x1: ix1, y0: iy0, y1: iy1 } : null, curved: false,
         outerOutline: ptsOf(outerV), innerOutline: innerV ? ptsOf(innerV) : [] };
     }
 
@@ -172,7 +172,7 @@
       if (inner) dims.push({ x1: -tB / 2, y1: tH / 2, x2: -tB / 2 + tt, y2: tH / 2, gap: -off * 0.7, t: "t" });
       return { outer: outer, inner: inner, dims: dims, W: tB, H: tH,
         iW: inner ? tB - 2 * tt : 0, iH: inner ? tH - 2 * tt : 0,
-        innerBox: inner ? { x0: -(tB / 2 - tt), x1: tB / 2 - tt, y0: tt, y1: tH - tt } : null,
+        innerBox: inner ? { x0: -(tB / 2 - tt), x1: tB / 2 - tt, y0: tt, y1: tH - tt } : null, curved: true,
         outerOutline: roundRectPts(-tB / 2, tB / 2, 0, tH, tR, 6),
         innerOutline: inner ? roundRectPts(-tB / 2 + tt, tB / 2 - tt, tt, tH - tt, tR - tt, 6) : [] };
     }
@@ -200,11 +200,11 @@
       if (inner) dims.push({ x1: -oB / 2, y1: oH / 2, x2: -oB / 2 + num(p.t), y2: oH / 2, gap: -off * 0.7, t: "t" });  // wall thickness, left
       return { outer: outer, inner: inner, dims: dims, W: oB, H: oH,
         iW: inner ? oB - 2 * num(p.t) : 0, iH: inner ? oH - 2 * num(p.t) : 0,
-        innerBox: inner ? { x0: -oB / 2 + num(p.t), x1: oB / 2 - num(p.t), y0: num(p.t), y1: oH - num(p.t) } : null,
+        innerBox: inner ? { x0: -oB / 2 + num(p.t), x1: oB / 2 - num(p.t), y0: num(p.t), y1: oH - num(p.t) } : null, curved: false,
         outerOutline: ptsOf(V), innerOutline: octIV ? ptsOf(octIV) : [] };
     }
 
-    return { outer: { lines: [], arcs: [] }, inner: null, dims: [], W: 1, H: 1, iW: 0, iH: 0, innerBox: null, outerOutline: [], innerOutline: [] };
+    return { outer: { lines: [], arcs: [] }, inner: null, dims: [], W: 1, H: 1, iW: 0, iH: 0, innerBox: null, curved: false, outerOutline: [], innerOutline: [] };
   }
 
   // ── views (prism of length L) on the shared core ─────────────────────────
@@ -222,23 +222,35 @@
       rec.addDimLinear(0, d.x1, d.y1, d.x2, d.y2, d.gap, d.t);
     });
   }
+  // distinct edge-levels of an outline along one axis. For curved outlines
+  // (circle/track) only the silhouette extremes; for polygons every vertex level
+  // (so chamfers / inner haunches appear as fold lines).
+  function foldLevels(outline, key, curved) {
+    if (!outline || !outline.length) return [];
+    var vals = outline.map(function (q) { return Math.round(q[key] * 100) / 100; });
+    if (curved) return [Math.min.apply(null, vals), Math.max.apply(null, vals)];
+    var seen = {}; vals.forEach(function (v) { seen[v] = 1; });
+    return Object.keys(seen).map(Number);
+  }
   // plan (top/bottom): width W across x, length L along y (original orientation).
-  // The two width-walls project as vertical lines → outer+inner = 4 vertical lines.
+  // Width-direction fold levels (outer chamfers + inner haunch) → vertical lines.
   function emitPlan(rec, g, L) {
     var w = g.W / 2, hl = L / 2, off = Math.max(g.W, L) * 0.1;
     rec.addLine(0, -w, -hl, w, -hl, "c"); rec.addLine(0, w, -hl, w, hl, "c");
     rec.addLine(0, w, hl, -w, hl, "c"); rec.addLine(0, -w, hl, -w, -hl, "c");
-    if (g.innerBox) { rec.addLine(0, g.innerBox.x0, -hl, g.innerBox.x0, hl, "h"); rec.addLine(0, g.innerBox.x1, -hl, g.innerBox.x1, hl, "h"); }
+    foldLevels(g.outerOutline, "x", g.curved).forEach(function (x) { if (Math.abs(Math.abs(x) - w) > 0.5) rec.addLine(0, x, -hl, x, hl, "c"); });
+    foldLevels(g.innerOutline, "x", g.curved).forEach(function (x) { rec.addLine(0, x, -hl, x, hl, "h"); });
     rec.addDimLinear(0, -w, hl, w, hl, off, "W");
     rec.addDimLinear(0, w, -hl, w, hl, -off, "L");
   }
-  // extruded elevation (left/right/center): length L along x, height across y.
-  // The two height-walls (flanges) project as horizontal lines → outer+inner = 4.
+  // elevation (left/right/center): length L along x, height H across y.
+  // Height-direction fold levels (outer chamfers + inner haunch) → horizontal lines.
   function emitSide(rec, g, L) {
     var hl = L / 2, H = g.H, off = Math.max(g.H, L) * 0.1;
     rec.addLine(0, -hl, 0, hl, 0, "c"); rec.addLine(0, hl, 0, hl, H, "c");
     rec.addLine(0, hl, H, -hl, H, "c"); rec.addLine(0, -hl, H, -hl, 0, "c");
-    if (g.innerBox) { rec.addLine(0, -hl, g.innerBox.y0, hl, g.innerBox.y0, "h"); rec.addLine(0, -hl, g.innerBox.y1, hl, g.innerBox.y1, "h"); }
+    foldLevels(g.outerOutline, "y", g.curved).forEach(function (y) { if (y > 0.5 && y < H - 0.5) rec.addLine(0, -hl, y, hl, y, "c"); });
+    foldLevels(g.innerOutline, "y", g.curved).forEach(function (y) { rec.addLine(0, -hl, y, hl, y, "h"); });
     rec.addDimLinear(0, hl, 0, hl, H, -off, "H");
     rec.addDimLinear(0, -hl, H, hl, H, off, "L");
   }
@@ -383,14 +395,16 @@
     var gap = Math.max(g.W, g.H, L) * 0.4, w = g.W / 2, hl = L / 2;
     // 1) cross-section (front) at origin
     emit(g.outer, 0, 0); emit(g.inner, 0, 0);
-    // 2) plan (top): width W across x, length L along y — placed above; width-walls → vertical
+    // 2) plan (top): width W across x, length L along y — placed above; fold levels → vertical
     var pOy = g.H + gap;
     rect(-w, pOy, w, pOy + L);
-    if (g.innerBox) { line(g.innerBox.x0, pOy, g.innerBox.x0, pOy + L); line(g.innerBox.x1, pOy, g.innerBox.x1, pOy + L); }
-    // 3) elevation (side): length L across x, height H across y — placed to the right; height-walls → horizontal
+    foldLevels(g.outerOutline, "x", g.curved).forEach(function (x) { if (Math.abs(Math.abs(x) - w) > 0.5) line(x, pOy, x, pOy + L); });
+    foldLevels(g.innerOutline, "x", g.curved).forEach(function (x) { line(x, pOy, x, pOy + L); });
+    // 3) elevation (side): length L across x, height H across y — placed to the right; fold levels → horizontal
     var sOx = w + gap;
     rect(sOx, 0, sOx + L, g.H);
-    if (g.innerBox) { line(sOx, g.innerBox.y0, sOx + L, g.innerBox.y0); line(sOx, g.innerBox.y1, sOx + L, g.innerBox.y1); }
+    foldLevels(g.outerOutline, "y", g.curved).forEach(function (y) { if (y > 0.5 && y < g.H - 0.5) line(sOx, y, sOx + L, y); });
+    foldLevels(g.innerOutline, "y", g.curved).forEach(function (y) { line(sOx, y, sOx + L, y); });
     e.push("0", "ENDSEC", "0", "EOF");
     return e.join("\n");
   }
