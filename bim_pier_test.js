@@ -12,7 +12,7 @@
     already shipped as bim_rect/circle/track/octagon). Foundation is either one
     combined footing or individual footings per column.
     Pure vanilla JS + inline SVG (no deps). Styles scoped to .pr-root.
-    build: v26 (columns: per-column height+position table, CL from pier centre)
+    build: v27 (asymmetric cap: TLL/TLR half-widths from pier centre)
 */
 (function () {
   "use strict";
@@ -108,7 +108,7 @@
     return {
       name: name, type: "T",
       coping: {
-        TL: 20000, TB: 4000, THL: 1250, THU: 1250, HLL: 3250, HLR: 3250,
+        TLL: 10000, TLR: 10000, TB: 4000, THL: 1250, THU: 1250, HLL: 3250, HLR: 3250,
         HRL: 0, HRR: 0, HEL: 0, HER: 0, HLU: 0, HRU: 0, CR: 0, HD: 0, HW: 0, HS: 0,
         IHLA: 0, IHL: 0, IHH: 0, IHR: 0, IHSR: 0
       },
@@ -145,10 +145,11 @@
   //   Groove HD/HW/HS at the top-centre.
   // Returns { points[] (closed outline), radiusDims[] (HRL/HRR), A (dim anchors) }.
   function copingGeometry(cp) {
-    var TL = +cp.TL, THL = +cp.THL, THU = +cp.THU, HLL = +cp.HLL, HLR = +cp.HLR,
+    var TLL = +cp.TLL, TLR = +cp.TLR, THL = +cp.THL, THU = +cp.THU, HLL = +cp.HLL, HLR = +cp.HLR,
       HEL = +cp.HEL || 0, HER = +cp.HER || 0, HLU = +cp.HLU || 0, HRU = +cp.HRU || 0,
       HRL = +cp.HRL || 0, HRR = +cp.HRR || 0, HD = +cp.HD || 0, HW = +cp.HW || 0, HS = +cp.HS || 0;
-    var xL = -TL / 2, xR = TL / 2, yTop = THU + THL, yTip = THL, yMid = 0;
+    // cap half-widths measured from the pier centre (x=0): may be asymmetric (TLL≠TLR)
+    var xL = -TLL, xR = TLR, yTop = THU + THL, yTip = THL, yMid = 0;
     // HLU/HRU inset the TOP edge inward (bottom tips stay at the full extent xL/xR)
     var xLtop = xL + HLU, xLtip = xL, xLe = xLtip + HEL, xRtop = xR - HRU, xRtip = xR, xRe = xRtip - HER;
     // one radius per cantilever: HRL → left, HRR → right. The haunch root (xLH/xRH)
@@ -278,7 +279,8 @@
       var c = h("div", "pr-card");
       c.appendChild(h("div", "pr-hd", "<span class='pr-ttl'>Coping <span class='pr-sub'>cap beam</span></span>"));
       var b = h("div", "pr-body");
-      b.appendChild(numRow("TL", "Cap length (transversal)", cp.TL, function (v) { cp.TL = v; }));
+      b.appendChild(numRow("TLL", "Cap half-length left (from centre)", cp.TLL, function (v) { cp.TLL = v; }));
+      b.appendChild(numRow("TLR", "Cap half-length right (from centre)", cp.TLR, function (v) { cp.TLR = v; }));
       b.appendChild(numRow("TB", "Cap width (longitudinal)", cp.TB, function (v) { cp.TB = v; }));
       b.appendChild(numRow("THL", "Cantilever haunch thickness", cp.THL, function (v) { cp.THL = v; }));
       b.appendChild(numRow("THU", "Cantilever tip thickness", cp.THU, function (v) { cp.THU = v; }));
@@ -406,12 +408,12 @@
     }
     // Even-spaced default CLs about the centre; used when the column count changes.
     function spaceCols(p) {
-      var N = p.colCount, TL = p.coping.TL, pos;
-      if (N <= 1) pos = [0];
+      var N = p.colCount, xLc = -(+p.coping.TLL || 0), xRc = (+p.coping.TLR || 0), pos;
+      if (N <= 1) pos = [Math.round((xLc + xRc) / 2 * 10) / 10];
       else {
-        var margin = Math.min(TL * 0.2, 3000), span = TL - 2 * margin;
+        var margin = Math.min((xRc - xLc) * 0.2, 3000), lo = xLc + margin, hi = xRc - margin;
         pos = [];
-        for (var i = 0; i < N; i++) pos.push(Math.round((-span / 2 + span * i / (N - 1)) * 10) / 10);
+        for (var i = 0; i < N; i++) pos.push(Math.round((lo + (hi - lo) * i / (N - 1)) * 10) / 10);
       }
       p.cols.forEach(function (c, i) { c.CL = pos[i]; });
     }
@@ -456,20 +458,22 @@
       for (var i = 0; i < op.length; i++) { var a = op[i], b = op[(i + 1) % op.length]; rec.addLine(0, a[0], a[1], b[0], b[1], "c"); }
 
       // ---- dimensions, aligned to shared gutters (L/R verticals, T/B horizontals) ----
-      var TL = cp.TL, x0f = cs[0] - p.cols[0].D / 2, xFL = cs[0] - p.cols[0].D / 2 - f.BLF;
+      var TLL = +cp.TLL || 0, TLR = +cp.TLR || 0, x0f = cs[0] - p.cols[0].D / 2, xFL = cs[0] - p.cols[0].D / 2 - f.BLF;
       var bnd = {
-        minX: Math.min(-TL / 2, footMinX), maxX: Math.max(TL / 2, footMaxX),
+        minX: Math.min(-TLL, footMinX), maxX: Math.max(TLR, footMaxX),
         minY: -f.BH - (f.EH > 0 ? f.EH : 0), maxY: maxCH + A.yTop
       };
       // coping-bottom dim line (HLL/HLR/HEL/HER) sits just below the cantilever soffit
       var cbY = maxCH - Math.max(700, maxCH * 0.14);
-      // top gutters: HLU/HRU on an inner lane, TL raised to an outer lane above it
+      // top gutters: HLU/HRU on an inner lane, TLL/TLR raised to an outer lane above it
       var spanT = Math.max(bnd.maxX - bnd.minX, bnd.maxY - bnd.minY);
       var topGut = bnd.maxY + spanT * 0.03, tlGut = bnd.maxY + spanT * 0.09;
       // all vertical dims measure at the outer tip x (xLtip/xRtip) so their witness lines
       // stay outside the structure (never cross into it)
       var dims = [
-        { side: "T", at: maxCH + A.yTop, gutter: tlGut, lo: -TL / 2, hi: TL / 2, label: "TL" },  // overall width (top, outer lane)
+        // half-widths from the pier centre (asymmetric-aware), split at x=0
+        { side: "T", at: maxCH + A.yTop, gutter: tlGut, lo: -TLL, hi: 0, label: "TLL" },
+        { side: "T", at: maxCH + A.yTop, gutter: tlGut, lo: 0, hi: TLR, label: "TLR" },
         // verticals — single left gutter; THL label flipped to the other side of the line
         { side: "L", at: A.xLtip, lo: maxCH + A.yTip, hi: maxCH + A.yTop, label: "THU" },
         { side: "L", at: A.xLtip, lo: maxCH + A.yMid, hi: maxCH + A.yTip, label: "THL", lp: -24 },
@@ -484,7 +488,7 @@
       // HEL/HER: tip (연단) horizontal soffit length — dimensioned below the coping (labels flipped up)
       if (A.HEL > 0) dims.push({ side: "B", at: maxCH + A.yTip, gutter: cbY, lo: A.xLtip, hi: A.xLe, label: "HEL", lp: -22 });
       if (A.HER > 0) dims.push({ side: "B", at: maxCH + A.yTip, gutter: cbY, lo: A.xRe, hi: A.xRtip, label: "HER", lp: -22 });
-      // HLU/HRU: top-edge inset horizontal length — dimensioned at the top (inner lane, below TL)
+      // HLU/HRU: top-edge inset horizontal length — dimensioned at the top (inner lane, below TLL/TLR)
       if (A.HLU > 0) dims.push({ side: "T", at: maxCH + A.yTop, gutter: topGut, lo: A.xLtip, hi: A.xLtop, label: "HLU" });
       if (A.HRU > 0) dims.push({ side: "T", at: maxCH + A.yTop, gutter: topGut, lo: A.xRtop, hi: A.xRtip, label: "HRU" });
       // central groove dims: HD (left vertical), HW (bottom horizontal), 1:s slope text on the face
