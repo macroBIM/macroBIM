@@ -222,15 +222,15 @@
       rec.addDimLinear(0, d.x1, d.y1, d.x2, d.y2, d.gap, d.t);
     });
   }
-  // extruded plan (top/bottom): length L along x, width W across y.
-  // The two width-walls project as horizontal lines → outer+inner = 4 horizontal lines.
+  // plan (top/bottom): width W across x, length L along y (original orientation).
+  // The two width-walls project as vertical lines → outer+inner = 4 vertical lines.
   function emitPlan(rec, g, L) {
     var w = g.W / 2, hl = L / 2, off = Math.max(g.W, L) * 0.1;
-    rec.addLine(0, -hl, -w, hl, -w, "c"); rec.addLine(0, hl, -w, hl, w, "c");
-    rec.addLine(0, hl, w, -hl, w, "c"); rec.addLine(0, -hl, w, -hl, -w, "c");
-    if (g.innerBox) { rec.addLine(0, -hl, g.innerBox.x0, hl, g.innerBox.x0, "h"); rec.addLine(0, -hl, g.innerBox.x1, hl, g.innerBox.x1, "h"); }
-    rec.addDimLinear(0, -hl, -w, -hl, w, -off, "W");
-    rec.addDimLinear(0, -hl, w, hl, w, off, "L");
+    rec.addLine(0, -w, -hl, w, -hl, "c"); rec.addLine(0, w, -hl, w, hl, "c");
+    rec.addLine(0, w, hl, -w, hl, "c"); rec.addLine(0, -w, hl, -w, -hl, "c");
+    if (g.innerBox) { rec.addLine(0, g.innerBox.x0, -hl, g.innerBox.x0, hl, "h"); rec.addLine(0, g.innerBox.x1, -hl, g.innerBox.x1, hl, "h"); }
+    rec.addDimLinear(0, -w, hl, w, hl, off, "W");
+    rec.addDimLinear(0, w, -hl, w, hl, -off, "L");
   }
   // extruded elevation (left/right/center): length L along x, height across y.
   // The two height-walls (flanges) project as horizontal lines → outer+inner = 4.
@@ -383,11 +383,11 @@
     var gap = Math.max(g.W, g.H, L) * 0.4, w = g.W / 2, hl = L / 2;
     // 1) cross-section (front) at origin
     emit(g.outer, 0, 0); emit(g.inner, 0, 0);
-    // 2) plan (top): length L across x, width W across y — placed above; width-walls → horizontal
-    var pcy = g.H + gap + w;                      // plan centre-line (width centred)
-    rect(-hl, pcy - w, hl, pcy + w);
-    if (g.innerBox) { line(-hl, pcy + g.innerBox.x0, hl, pcy + g.innerBox.x0); line(-hl, pcy + g.innerBox.x1, hl, pcy + g.innerBox.x1); }
-    // 3) elevation (side): length L across x, height H across y — placed to the right
+    // 2) plan (top): width W across x, length L along y — placed above; width-walls → vertical
+    var pOy = g.H + gap;
+    rect(-w, pOy, w, pOy + L);
+    if (g.innerBox) { line(g.innerBox.x0, pOy, g.innerBox.x0, pOy + L); line(g.innerBox.x1, pOy, g.innerBox.x1, pOy + L); }
+    // 3) elevation (side): length L across x, height H across y — placed to the right; height-walls → horizontal
     var sOx = w + gap;
     rect(sOx, 0, sOx + L, g.H);
     if (g.innerBox) { line(sOx, g.innerBox.y0, sOx + L, g.innerBox.y0); line(sOx, g.innerBox.y1, sOx + L, g.innerBox.y1); }
