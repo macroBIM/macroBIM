@@ -654,7 +654,7 @@
       var ox = fbox.maxX + gap - sbox.minX;
       mergeOffset(rec, sRec, ox);
       var vspan = Math.max(fbox.maxY, sbox.maxY) - Math.min(fbox.minY, sbox.minY);
-      var labY = Math.max(fbox.maxY, sbox.maxY) + vspan * 0.045;   // title sits just above the structure
+      var labY = Math.max(fbox.maxY, sbox.maxY) + vspan * 0.11;   // clear the raised coping-top dims (TLL/TLR, TB)
       if (rec.addText) {
         rec.addText(0, (fbox.minX + fbox.maxX) / 2, labY, "FRONT");
         rec.addText(0, ox + (sbox.minX + sbox.maxX) / 2, labY, "SIDE");
@@ -690,6 +690,7 @@
       if (plotSub) plotSub.textContent = pp.name + " · " + pp.colCount + " col · " + (pp.fdnMode === "combined" ? "combined ftg" : "individual ftg");
     }
 
+    var _copingGutY = 0;   // absolute Y of the coping-top dim gutter (set by buildFront, reused by buildSide)
     function buildFront(rec) {
       var p = P(), cp = p.coping, f = p.fdn;
       var cs = colCenters(p);
@@ -739,6 +740,7 @@
       // top gutters: HLU/HRU on an inner lane, TLL/TLR raised to an outer lane above it
       var spanT = Math.max(bnd.maxX - bnd.minX, bnd.maxY - bnd.minY);
       var topGut = bnd.maxY + spanT * 0.03, tlGut = bnd.maxY + spanT * 0.09;
+      _copingGutY = tlGut;   // SIDE reuses this so TB sits on the same coping-top gutter
       // all vertical dims measure at the outer tip x (xLtip/xRtip) so their witness lines
       // stay outside the structure (never cross into it)
       var dims = [
@@ -813,7 +815,7 @@
       // all vertical dims share one left anchor → same-length witness lines, stacked on the left
       var xAnc = bnd.minX;
       var dims = [
-        { side: "T", at: maxCH + copeH, lo: -TB / 2, hi: TB / 2, label: "TB" },
+        { side: "T", at: maxCH + copeH, gutter: _copingGutY || undefined, lo: -TB / 2, hi: TB / 2, label: "TB" },
         { side: "L", at: xAnc, lo: maxCH + THL, hi: maxCH + copeH, label: "THU" },
         { side: "L", at: xAnc, lo: maxCH, hi: maxCH + THL, label: "THL", lp: -26 },
         { side: "L", at: xAnc, lo: 0, hi: maxCH, label: "CH" },
