@@ -92,7 +92,7 @@
       off = D * 0.14;
       var outer = { lines: [], arcs: [{ x: 0, y: cy, r: R, a1: 0, a2: 360 }] };
       var inner = (hollow && tw > 0 && tw < R) ? { lines: [], arcs: [{ x: 0, y: cy, r: R - tw, a1: 0, a2: 360 }] } : null;
-      dims.push({ x1: R, y1: 0, x2: R, y2: D, gap: off, t: "D" });
+      dims.push({ x1: R, y1: 0, x2: R, y2: D, gap: -off, t: "D" });   // right vertical → right
       if (inner) dims.push({ x1: R - tw, y1: cy, x2: R, y2: cy, gap: off * 0.5, t: "tw" });
       return { outer: outer, inner: inner, dims: dims, W: D, H: D, cx: 0, cy: cy, R: R, tw: tw };
     }
@@ -114,17 +114,17 @@
           : [[ix0, iy0], [ix1, iy0], [ix1, iy1], [ix0, iy1]];
         inner = { lines: polyLines(IV), arcs: [], cha: cha, chb: chb, box: [ix0, ix1, iy0, iy1] };
       }
-      dims.push({ x1: xo1, y1: 0, x2: xo1, y2: H, gap: off * 1.5, t: "H" });
-      dims.push({ x1: xo0, y1: H, x2: xo1, y2: H, gap: off * 1.5, t: "B" });
+      dims.push({ x1: xo1, y1: 0, x2: xo1, y2: H, gap: -off * 1.5, t: "H" });   // right vertical → right
+      dims.push({ x1: xo0, y1: H, x2: xo1, y2: H, gap: off * 1.5, t: "B" });     // top → up
       if (inner) {
         var ymid = (iy0 + iy1) / 2;
         dims.push({ x1: xo0, y1: ymid, x2: ix0, y2: ymid, gap: -off * 0.5, t: "twl" });   // left wall, mid-height
         dims.push({ x1: ix1, y1: ymid, x2: xo1, y2: ymid, gap: off * 0.5, t: "twr" });    // right wall, mid-height
-        dims.push({ x1: xo0, y1: iy1, x2: xo0, y2: H, gap: -off * 0.9, t: "tf1" });        // top flange, left edge upper
-        dims.push({ x1: xo0, y1: 0, x2: xo0, y2: iy0, gap: -off * 0.9, t: "tf2" });        // bottom flange, left edge lower
+        dims.push({ x1: xo0, y1: iy1, x2: xo0, y2: H, gap: off * 0.9, t: "tf1" });         // left vertical → left
+        dims.push({ x1: xo0, y1: 0, x2: xo0, y2: iy0, gap: off * 0.9, t: "tf2" });         // left vertical → left
         if (inner.cha > 0 && inner.chb > 0) {
           dims.push({ x1: ix1 - inner.cha, y1: iy1, x2: ix1, y2: iy1, gap: off * 0.5, t: "ha" });
-          dims.push({ x1: ix1, y1: iy1 - inner.chb, x2: ix1, y2: iy1, gap: off * 0.5, t: "hb" });
+          dims.push({ x1: ix1, y1: iy1 - inner.chb, x2: ix1, y2: iy1, gap: -off * 0.5, t: "hb" });  // right vertical → right
         }
       }
       return { outer: outer, inner: inner, dims: dims, W: B, H: H };
@@ -136,9 +136,9 @@
       var outer = roundRect(-tB / 2, tB / 2, 0, tH, tR);
       var inner = (hollow && tt > 0 && tt < tH / 2 && tt < tB / 2)
         ? roundRect(-tB / 2 + tt, tB / 2 - tt, tt, tH - tt, tR - tt) : null;
-      dims.push({ x1: tB / 2, y1: 0, x2: tB / 2, y2: tH, gap: off * 1.6, t: "H" });
-      dims.push({ x1: -tB / 2, y1: tH, x2: tB / 2, y2: tH, gap: off * 1.6, t: "B" });
-      dims.push({ radiusDim: true, x: tB / 2 - tR, y: tH - tR, r: tR, ang: 135, t: "R" });
+      dims.push({ x1: tB / 2, y1: 0, x2: tB / 2, y2: tH, gap: -off * 1.6, t: "H" });   // right vertical → right
+      dims.push({ x1: -tB / 2, y1: tH, x2: tB / 2, y2: tH, gap: off * 1.6, t: "B" });   // top → up
+      dims.push({ radiusDim: true, x: tB / 2 - tR, y: tH - tR, r: tR, ang: 45 });        // TR arc: centre → arc (up-right)
       if (inner) dims.push({ x1: -tB / 2, y1: tH / 2, x2: -tB / 2 + tt, y2: tH / 2, gap: -off * 0.7, t: "t" });
       return { outer: outer, inner: inner, dims: dims, W: tB, H: tH };
     }
@@ -159,10 +159,10 @@
         var okInner = IV.every(function (q) { return isFinite(q[0]) && isFinite(q[1]); });
         if (okInner && t > 0) inner = { lines: polyLines(IV), arcs: [] };
       }
-      dims.push({ x1: oB / 2, y1: 0, x2: oB / 2, y2: oH, gap: off * 1.8, t: "H" });
-      dims.push({ x1: -oB / 2, y1: oH, x2: oB / 2, y2: oH, gap: off * 1.8, t: "B" });
-      dims.push({ x1: oB / 2 - oa, y1: oH, x2: oB / 2, y2: oH, gap: off * 0.7, t: "a" });
-      dims.push({ x1: oB / 2, y1: oH - ob, x2: oB / 2, y2: oH, gap: off * 0.7, t: "b" });
+      dims.push({ x1: oB / 2, y1: 0, x2: oB / 2, y2: oH, gap: -off * 1.8, t: "H" });   // right vertical → right
+      dims.push({ x1: -oB / 2, y1: oH, x2: oB / 2, y2: oH, gap: off * 1.8, t: "B" });   // top → up
+      dims.push({ x1: oB / 2 - oa, y1: oH, x2: oB / 2, y2: oH, gap: off * 0.7, t: "a" });   // top → up
+      dims.push({ x1: oB / 2, y1: oH - ob, x2: oB / 2, y2: oH, gap: -off * 0.7, t: "b" });  // right vertical → right
       return { outer: outer, inner: inner, dims: dims, W: oB, H: oH };
     }
 
