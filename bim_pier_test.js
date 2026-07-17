@@ -93,6 +93,21 @@
   function polyOn(rec, pts, cx, cy, lay) {
     for (var i = 0; i < pts.length; i++) { var a = pts[i], b = pts[(i + 1) % pts.length]; rec.addLine(0, cx + a[0], cy + a[1], cx + b[0], cy + b[1], lay); }
   }
+  // rounded-rectangle outline drawn on rec (lines + corner arcs), radius r on all corners
+  function roundRectOn(rec, x0, x1, y0, y1, r, lay) {
+    r = Math.max(0, Math.min(r, (x1 - x0) / 2, (y1 - y0) / 2));
+    if (r <= 0) { rec.addLine(0, x0, y0, x1, y0, lay); rec.addLine(0, x1, y0, x1, y1, lay); rec.addLine(0, x1, y1, x0, y1, lay); rec.addLine(0, x0, y1, x0, y0, lay); return; }
+    rec.addLine(0, x0 + r, y0, x1 - r, y0, lay); rec.addArc(0, x1 - r, y0 + r, r, -90, 0, lay);
+    rec.addLine(0, x1, y0 + r, x1, y1 - r, lay); rec.addArc(0, x1 - r, y1 - r, r, 0, 90, lay);
+    rec.addLine(0, x1 - r, y1, x0 + r, y1, lay); rec.addArc(0, x0 + r, y1 - r, r, 90, 180, lay);
+    rec.addLine(0, x0, y1 - r, x0, y0 + r, lay); rec.addArc(0, x0 + r, y0 + r, r, 180, 270, lay);
+  }
+  // edge-biased offsets (0..r) for rounded-edge hatch, dense near the silhouette (offset 0)
+  function tipHatch(r) {
+    var N = 6, G = 1.9, a = [];
+    for (var i = 1; i < N; i++) a.push(r * (1 - Math.cos(Math.PI / 2 * Math.pow(i / N, G))));
+    return a;
+  }
   // section edge-lines projected for the elevation. Returns fold levels (visible outer
   // corners) and inner levels (hollow/haunch, hidden), for transverse (x) and longitudinal (y).
   function colFolds(col) {
@@ -728,6 +743,14 @@
       var geo = copingGeometry(cp), A = geo.A;
       var op = geo.points.map(function (q) { return [q[0], q[1] + maxCH]; });
       for (var i = 0; i < op.length; i++) { var a = op[i], b = op[(i + 1) % op.length]; rec.addLine(0, a[0], a[1], b[0], b[1], "c"); }
+      // CR rounds the tip vertical edges → curved-surface hatch on the tip end faces
+      var CRf = Math.min(+cp.CR || 0, (+cp.TB || 4000) / 2);
+      if (CRf > 0) {
+        tipHatch(CRf).forEach(function (o) {
+          rec.addLine(0, A.xLtip + o, maxCH + A.yTip, A.xLtip + o, maxCH + A.yTop, "g");
+          rec.addLine(0, A.xRtip - o, maxCH + A.yTip, A.xRtip - o, maxCH + A.yTop, "g");
+        });
+      }
 
       // ---- dimensions, aligned to shared gutters (L/R verticals, T/B horizontals) ----
       var TLL = +cp.TLL || 0, TLR = +cp.TLR || 0, x0f = cs[0] - colW(p.cols[0]) / 2, xFL = cs[0] - colW(p.cols[0]) / 2 - f.BLF;
@@ -809,6 +832,15 @@
       // coping: TB wide × copeH, seated on the columns, with the THU/THL split line
       rect(-TB / 2, maxCH, TB / 2, maxCH + copeH);
       if (THU > 0 && THL > 0) rec.addLine(0, -TB / 2, maxCH + THL, TB / 2, maxCH + THL, "c");   // lower THL / upper THU
+      // CR rounds the tip vertical edges → seen end-on here as curved-surface hatch
+      // near the coping's ±TB/2 edges
+      var CRs = Math.min(+cp.CR || 0, TB / 2);
+      if (CRs > 0) {
+        tipHatch(CRs).forEach(function (o) {
+          rec.addLine(0, TB / 2 - o, maxCH, TB / 2 - o, maxCH + copeH, "g");
+          rec.addLine(0, -TB / 2 + o, maxCH, -TB / 2 + o, maxCH + copeH, "g");
+        });
+      }
 
       var footLo = bl ? footL - f.EFL : footL, footHi = bl ? footR + f.EFL : footR;
       var bnd = { minX: Math.min(-TB / 2, footLo), maxX: Math.max(TB / 2, footHi), minY: -f.BH - (f.EH > 0 ? f.EH : 0), maxY: maxCH + copeH };
@@ -833,7 +865,9 @@
       function rect(x1, y1, x2, y2, lay) { rec.addLine(0, x1, y1, x2, y1, lay); rec.addLine(0, x2, y1, x2, y2, lay); rec.addLine(0, x2, y2, x1, y2, lay); rec.addLine(0, x1, y2, x1, y1, lay); }
       // outer outline is the visible top silhouette → solid; everything under it
       // (head-block soffit edges, column tops) is concealed → hidden (dashed).
-      rect(A.xLtip, -TB / 2, A.xRtip, TB / 2, "c");             // coping plan outline (visible)
+      var CRp = Math.min(+cp.CR || 0, TB / 2, (A.xRtip - A.xLtip) / 2);
+      if (CRp > 0) roundRectOn(rec, A.xLtip, A.xRtip, -TB / 2, TB / 2, CRp, "c");   // CR rounds the cantilever tips
+      else rect(A.xLtip, -TB / 2, A.xRtip, TB / 2, "c");        // coping plan outline (visible)
       // soffit fold edges (hidden): tip-flat/haunch junctions (xLe/xRe, moved by
       // HEL/HER) and the central head-block edges (xLH/xRH).
       if (A.HEL > 0) rec.addLine(0, A.xLe, -TB / 2, A.xLe, TB / 2, "h");
