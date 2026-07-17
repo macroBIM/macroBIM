@@ -64,12 +64,15 @@
       return { fx: [], fy: [], ix: ir ? [-ir, ir] : [], iy: ir ? [-ir, ir] : [] };
     }
     if (shape === "track") {
-      // obround: caps on L/R (radius H/2), straight top/bottom. The only fold
-      // lines are the vertical straight/arc junctions at x = ±(B/2 - H/2).
+      // obround: caps on L/R (radius H/2), straight top/bottom. Visible outer
+      // folds are the straight/arc junctions at x = ±(B/2 - H/2). Hollow inner
+      // void silhouette: transverse ±(B/2 - t) (front), longitudinal ±(H/2 - t)
+      // (side) — drawn hidden. (These sit inside the outer creases, so they show.)
       var t = +s.t || 0, rr = H / 2, sx = Math.max(0, B / 2 - rr);
       var hollowOK = hollow && t > 0 && t < rr;
+      var ixw = B / 2 - t, iyh = H / 2 - t;
       return { fx: sx > 0 ? [-sx, sx] : [], fy: [],
-        ix: (hollowOK && sx > 0) ? [-sx, sx] : [], iy: [] };
+        ix: hollowOK ? [-ixw, ixw] : [], iy: hollowOK ? [-iyh, iyh] : [] };
     }
     var outer, inner = null;
     if (shape === "octagon") {
