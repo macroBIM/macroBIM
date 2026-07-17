@@ -466,8 +466,10 @@
       sRec.addLayer("c", "cyan", "solid", 1);
       buildSide(sRec);
       var sbox = bboxOf(sRec);
-      // place side to the right of front, uniform scale (both share this one drawing)
-      var gap = Math.max(fbox.maxY - fbox.minY, fbox.maxX - fbox.minX) * 0.10;
+      // place side to the right of front, uniform scale (both share this one drawing).
+      // gap keyed to structure height so the two views sit well apart (fills the
+      // horizontal room left when the drawing is height-fit).
+      var gap = (fbox.maxY - fbox.minY) * 0.5;
       var ox = fbox.maxX + gap - sbox.minX;
       mergeOffset(rec, sRec, ox);
       var labY = Math.max(fbox.maxY, sbox.maxY) + gap * 0.6;
