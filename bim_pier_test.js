@@ -844,6 +844,11 @@
         { side: "R", at: A.xRtip, lo: -TB / 2, hi: TB / 2, label: "TB" },
         { side: "T", at: TB / 2, lo: A.xLtip, hi: A.xRtip, label: "L" }
       ];
+      // cantilever soffit lengths along the bottom (same segments as the elevation)
+      if (A.HEL > 0) dims.push({ side: "B", at: -TB / 2, lo: A.xLtip, hi: A.xLe, label: "HEL", lp: 16 });
+      if (A.HLL > 0) dims.push({ side: "B", at: -TB / 2, lo: A.xLe, hi: A.xLH, label: "HLL" });
+      if (A.HLR > 0) dims.push({ side: "B", at: -TB / 2, lo: A.xRH, hi: A.xRe, label: "HLR" });
+      if (A.HER > 0) dims.push({ side: "B", at: -TB / 2, lo: A.xRe, hi: A.xRtip, label: "HER", lp: 16 });
       layoutDims(dims, b).forEach(function (d) { rec.addDimLinear(0, d.x1, d.y1, d.x2, d.y2, d.gap, d.label, { la: d.la, lp: d.lp }); });
     }
 
