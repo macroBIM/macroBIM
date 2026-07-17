@@ -538,8 +538,7 @@
       if (typeof window.RWSVG === "undefined") return;
       var p = P(), cp = p.coping, f = p.fdn;
       var maxCH = Math.max.apply(null, p.cols.map(function (c) { return c.CH; }).concat([1000]));
-      var TB = +cp.TB || 4000;
-      var geo = copingGeometry(cp), copeH = geo.A.yTop;          // coping thickness at centre
+      var TB = +cp.TB || 4000, THU = +cp.THU || 0, THL = +cp.THL || 0, copeH = THU + THL;   // upper + lower
       var colDep = Math.max.apply(null, p.cols.map(function (c) { return c.shape === "circle" ? +c.D : (+c.H || +c.D); }).concat([500]));
 
       var rec = new window.RWSVG.MockViewer();
@@ -555,16 +554,20 @@
       if (bl) rect(footL - f.EFL, -f.BH - f.EH, footR + f.EFL, -f.BH);
       // columns superimpose to one shaft at the longitudinal centre
       rect(-colDep / 2, 0, colDep / 2, maxCH);
-      // coping: TB wide × copeH, seated on the columns
+      // coping: TB wide × copeH, seated on the columns, with the THU/THL split line
       rect(-TB / 2, maxCH, TB / 2, maxCH + copeH);
+      if (THU > 0 && THL > 0) rec.addLine(0, -TB / 2, maxCH + THL, TB / 2, maxCH + THL, "c");   // lower THL / upper THU
 
       var footLo = bl ? footL - f.EFL : footL, footHi = bl ? footR + f.EFL : footR;
       var bnd = { minX: Math.min(-TB / 2, footLo), maxX: Math.max(TB / 2, footHi), minY: -f.BH - (f.EH > 0 ? f.EH : 0), maxY: maxCH + copeH };
+      // all vertical dims share one left anchor → same-length witness lines, stacked on the left
+      var xAnc = bnd.minX;
       var dims = [
         { side: "T", at: maxCH + copeH, lo: -TB / 2, hi: TB / 2, label: "TB" },
-        { side: "R", at: TB / 2, lo: maxCH, hi: maxCH + copeH, label: "TH" },
-        { side: "L", at: -colDep / 2, lo: 0, hi: maxCH, label: "CH" },
-        { side: "L", at: footL, lo: -f.BH, hi: 0, label: "BH" },
+        { side: "L", at: xAnc, lo: maxCH + THL, hi: maxCH + copeH, label: "THU" },
+        { side: "L", at: xAnc, lo: maxCH, hi: maxCH + THL, label: "THL", lp: -26 },
+        { side: "L", at: xAnc, lo: 0, hi: maxCH, label: "CH" },
+        { side: "L", at: xAnc, lo: -f.BH, hi: 0, label: "BH" },
         { side: "B", at: -f.BH, lo: footL, hi: footR, label: "FW" }
       ];
       layoutDims(dims, bnd).forEach(function (d) { rec.addDimLinear(0, d.x1, d.y1, d.x2, d.y2, d.gap, d.label, { la: d.la, lp: d.lp }); });
