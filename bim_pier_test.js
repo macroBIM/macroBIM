@@ -102,6 +102,23 @@
     };
   }
 
+  // curved-surface representation lines (모선/generatrix) for the elevation.
+  // Returns transverse (front) and longitudinal (side) offsets where a round
+  // surface projects, bunched toward the silhouette. Empty for flat sections.
+  function curveGens(col) {
+    var s = col.sect || {}, shape = col.shape, N = 7;
+    function halfRound(R) {   // R*cos(θ), θ in (0,π) — dense near ±R
+      var a = []; for (var i = 1; i < N; i++) a.push(R * Math.cos(Math.PI * i / N)); return a;
+    }
+    if (shape === "circle") { var R = (+s.D || 2500) / 2, g = halfRound(R); return { front: g, side: g }; }
+    if (shape === "track") {
+      var B = +s.B || 2500, H = +s.H || 2500, rr = H / 2, sx = Math.max(0, B / 2 - rr), fg = [];
+      for (var i = 1; i < N; i++) { var x = sx + rr * Math.cos(Math.PI / 2 * i / N); fg.push(x); fg.push(-x); }
+      return { front: fg, side: halfRound(rr) };   // side: cap viewed end-on = round r=H/2
+    }
+    return { front: [], side: [] };
+  }
+
   // latest instance's elevation draw() — for window resize redraw
   var _pierDraw = null, _pierRT = null;
   window.addEventListener("resize", function () { clearTimeout(_pierRT); _pierRT = setTimeout(function () { if (_pierDraw) _pierDraw(); }, 140); });
@@ -113,7 +130,7 @@
     if (window._rwCoreLoading) { (window._rwCoreCbs = window._rwCoreCbs || []).push(cb); return; }
     window._rwCoreLoading = true; window._rwCoreCbs = [cb];
     var sc = document.createElement("script");
-    sc.src = "https://macrobim.github.io/macroBIM/bim_draw_test_core.js?v=4";
+    sc.src = "https://macrobim.github.io/macroBIM/bim_draw_test_core.js?v=5";
     sc.onload = function () { window._rwCoreLoading = false; var q = window._rwCoreCbs || []; window._rwCoreCbs = []; q.forEach(function (f) { f(); }); };
     sc.onerror = function () { window._rwCoreLoading = false; window._rwCoreCbs = []; };
     document.head.appendChild(sc);
@@ -574,11 +591,11 @@
       if (!plotHost || !plotHost.isConnected) return;
       if (typeof window.RWSVG === "undefined") { ensureCore(draw); return; }
       var rec = new window.RWSVG.MockViewer();
-      rec.addLayer("c", "cyan", "solid", 1); rec.addLayer("h", "gray", "hidden", 1);
+      rec.addLayer("c", "cyan", "solid", 1); rec.addLayer("h", "gray", "hidden", 1); rec.addLayer("g", "#c2ccd8", "faint", 1);
       buildFront(rec);
       var fbox = bboxOf(rec);
       var sRec = new window.RWSVG.MockViewer();
-      sRec.addLayer("c", "cyan", "solid", 1); sRec.addLayer("h", "gray", "hidden", 1);
+      sRec.addLayer("c", "cyan", "solid", 1); sRec.addLayer("h", "gray", "hidden", 1); sRec.addLayer("g", "#c2ccd8", "faint", 1);
       buildSide(sRec);
       var sbox = bboxOf(sRec);
       // place side to the right of front, uniform scale (both share this one drawing).
@@ -632,6 +649,7 @@
         var cx = cs[i], w = colW(col), cH = col.CH;
         rect(cx - w / 2, 0, cx + w / 2, cH);
         var fd = colFolds(col);
+        curveGens(col).front.forEach(function (x) { rec.addLine(0, cx + x, 0, cx + x, cH, "g"); });
         fd.fx.forEach(function (x) { rec.addLine(0, cx + x, 0, cx + x, cH, "c"); });
         fd.ix.forEach(function (x) { rec.addLine(0, cx + x, 0, cx + x, cH, "h"); });
       });
@@ -713,6 +731,7 @@
       rect(-colDep / 2, 0, colDep / 2, maxCH);
       var rep = p.cols.reduce(function (a, c) { return colDepth(c) > colDepth(a) ? c : a; }, p.cols[0]);
       var fdS = colFolds(rep);
+      curveGens(rep).side.forEach(function (y) { rec.addLine(0, y, 0, y, maxCH, "g"); });
       fdS.fy.forEach(function (y) { rec.addLine(0, y, 0, y, maxCH, "c"); });
       fdS.iy.forEach(function (y) { rec.addLine(0, y, 0, y, maxCH, "h"); });
       // coping: TB wide × copeH, seated on the columns, with the THU/THL split line

@@ -26,7 +26,7 @@
 (function () {
   "use strict";
 
-  var INK = '#182430', DIM = '#2563eb', HID = '#94a3b8', CEN = '#e5484d', ACC = '#16a34a';
+  var INK = '#182430', DIM = '#2563eb', HID = '#94a3b8', CEN = '#e5484d', ACC = '#16a34a', FNT = '#c2ccd8';
 
   function mapColor(col) {
     if (!col || col === 'cyan') return INK;
@@ -39,7 +39,8 @@
   function MockViewer() { this.L = []; this.A = []; this.DL = []; this.DR = []; this.TX = []; this._lay = {}; }
   MockViewer.prototype.addLayer = function (name, color, type, w) { this._lay[name] = { color: color, type: type }; };
   MockViewer.prototype._c = function (name) { return this._lay[name] || {}; };
-  MockViewer.prototype.addLine = function (v, x1, y1, x2, y2, name) { var l = this._c(name); this.L.push({ x1: x1, y1: y1, x2: x2, y2: y2, lay: (l.type === 'hidden' ? 'hidden' : 'solid'), col: l.color }); };
+  function _layName(t) { return t === 'hidden' ? 'hidden' : (t === 'faint' ? 'faint' : 'solid'); }
+  MockViewer.prototype.addLine = function (v, x1, y1, x2, y2, name) { var l = this._c(name); this.L.push({ x1: x1, y1: y1, x2: x2, y2: y2, lay: _layName(l.type), col: l.color }); };
   MockViewer.prototype.addCircle = function (v, x, y, r, name) { var l = this._c(name); this.A.push({ x: x, y: y, r: r, a1: 0, a2: 360, lay: (l.type === 'hidden' ? 'hidden' : 'solid'), col: l.color }); };
   MockViewer.prototype.addArc = function (v, x, y, r, a1, a2, name) { var l = this._c(name); this.A.push({ x: x, y: y, r: r, a1: a1, a2: a2, lay: (l.type === 'hidden' ? 'hidden' : 'solid'), col: l.color }); };
   MockViewer.prototype.addDimLinear = function (v, x1, y1, x2, y2, gap, label, opts) { this.DL.push({ x1: x1, y1: y1, x2: x2, y2: y2, gap: gap, t: label || '', la: (opts && opts.la) || 0, lp: (opts && opts.lp) || 0 }); };
@@ -82,6 +83,7 @@
 
     rec.L.forEach(function (l) {
       if (l.lay === 'hidden') line(SX(l.x1), SY(l.y1), SX(l.x2), SY(l.y2), HID, 1, '6 3');
+      else if (l.lay === 'faint') line(SX(l.x1), SY(l.y1), SX(l.x2), SY(l.y2), FNT, 0.7);
       else line(SX(l.x1), SY(l.y1), SX(l.x2), SY(l.y2), mapColor(l.col), 1.8);
     });
     rec.A.forEach(function (a) {
