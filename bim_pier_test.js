@@ -832,6 +832,10 @@
       // outer outline is the visible top silhouette → solid; everything under it
       // (head-block soffit edges, column tops) is concealed → hidden (dashed).
       rect(A.xLtip, -TB / 2, A.xRtip, TB / 2, "c");             // coping plan outline (visible)
+      // soffit fold edges (hidden): tip-flat/haunch junctions (xLe/xRe, moved by
+      // HEL/HER) and the central head-block edges (xLH/xRH).
+      if (A.HEL > 0) rec.addLine(0, A.xLe, -TB / 2, A.xLe, TB / 2, "h");
+      if (A.HER > 0) rec.addLine(0, A.xRe, -TB / 2, A.xRe, TB / 2, "h");
       rec.addLine(0, A.xLH, -TB / 2, A.xLH, TB / 2, "h");       // central head-block edges (coping soffit)
       rec.addLine(0, A.xRH, -TB / 2, A.xRH, TB / 2, "h");
       p.cols.forEach(function (col, i) { var sp = sectionPts(col); polyOn(rec, sp.outer, cs[i], 0, "h"); if (sp.inner) polyOn(rec, sp.inner, cs[i], 0, "h"); });
