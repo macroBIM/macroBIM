@@ -119,6 +119,7 @@
       dims.push({ x1: R, y1: 0, x2: R, y2: D, gap: -off, t: "D" });   // right vertical → right
       if (inner) dims.push({ x1: R - tw, y1: cy, x2: R, y2: cy, gap: off * 0.5, t: "tw" });
       return { outer: outer, inner: inner, dims: dims, W: D, H: D, iW: inner ? D - 2 * tw : 0, iH: inner ? D - 2 * tw : 0,
+        innerBox: inner ? { x0: -(R - tw), x1: R - tw, y0: cy - (R - tw), y1: cy + (R - tw) } : null,
         outerOutline: circlePts(0, cy, R, 48), innerOutline: inner ? circlePts(0, cy, R - tw, 48) : [] };
     }
 
@@ -155,6 +156,7 @@
       }
       return { outer: outer, inner: inner, dims: dims, W: B, H: H,
         iW: inner ? ix1 - ix0 : 0, iH: inner ? iy1 - iy0 : 0,
+        innerBox: inner ? { x0: ix0, x1: ix1, y0: iy0, y1: iy1 } : null,
         outerOutline: ptsOf(outerV), innerOutline: innerV ? ptsOf(innerV) : [] };
     }
 
@@ -170,6 +172,7 @@
       if (inner) dims.push({ x1: -tB / 2, y1: tH / 2, x2: -tB / 2 + tt, y2: tH / 2, gap: -off * 0.7, t: "t" });
       return { outer: outer, inner: inner, dims: dims, W: tB, H: tH,
         iW: inner ? tB - 2 * tt : 0, iH: inner ? tH - 2 * tt : 0,
+        innerBox: inner ? { x0: -(tB / 2 - tt), x1: tB / 2 - tt, y0: tt, y1: tH - tt } : null,
         outerOutline: roundRectPts(-tB / 2, tB / 2, 0, tH, tR, 6),
         innerOutline: inner ? roundRectPts(-tB / 2 + tt, tB / 2 - tt, tt, tH - tt, tR - tt, 6) : [] };
     }
@@ -197,10 +200,11 @@
       if (inner) dims.push({ x1: -oB / 2, y1: oH / 2, x2: -oB / 2 + num(p.t), y2: oH / 2, gap: -off * 0.7, t: "t" });  // wall thickness, left
       return { outer: outer, inner: inner, dims: dims, W: oB, H: oH,
         iW: inner ? oB - 2 * num(p.t) : 0, iH: inner ? oH - 2 * num(p.t) : 0,
+        innerBox: inner ? { x0: -oB / 2 + num(p.t), x1: oB / 2 - num(p.t), y0: num(p.t), y1: oH - num(p.t) } : null,
         outerOutline: ptsOf(V), innerOutline: octIV ? ptsOf(octIV) : [] };
     }
 
-    return { outer: { lines: [], arcs: [] }, inner: null, dims: [], W: 1, H: 1, iW: 0, iH: 0, outerOutline: [], innerOutline: [] };
+    return { outer: { lines: [], arcs: [] }, inner: null, dims: [], W: 1, H: 1, iW: 0, iH: 0, innerBox: null, outerOutline: [], innerOutline: [] };
   }
 
   // ── views (prism of length L) on the shared core ─────────────────────────
@@ -218,21 +222,23 @@
       rec.addDimLinear(0, d.x1, d.y1, d.x2, d.y2, d.gap, d.t);
     });
   }
-  // tapered/extruded plan (top/bottom): width across x, length L along y
+  // extruded plan (top/bottom): length L along x, width W across y.
+  // The two width-walls project as horizontal lines → outer+inner = 4 horizontal lines.
   function emitPlan(rec, g, L) {
     var w = g.W / 2, hl = L / 2, off = Math.max(g.W, L) * 0.1;
-    rec.addLine(0, -w, -hl, w, -hl, "c"); rec.addLine(0, w, -hl, w, hl, "c");
-    rec.addLine(0, w, hl, -w, hl, "c"); rec.addLine(0, -w, hl, -w, -hl, "c");
-    if (g.iW > 0) { var iw = g.iW / 2; rec.addLine(0, -iw, -hl, -iw, hl, "h"); rec.addLine(0, iw, -hl, iw, hl, "h"); }
-    rec.addDimLinear(0, -w, hl, w, hl, off, "W");
-    rec.addDimLinear(0, w, -hl, w, hl, -off, "L");
+    rec.addLine(0, -hl, -w, hl, -w, "c"); rec.addLine(0, hl, -w, hl, w, "c");
+    rec.addLine(0, hl, w, -hl, w, "c"); rec.addLine(0, -hl, w, -hl, -w, "c");
+    if (g.innerBox) { rec.addLine(0, -hl, g.innerBox.x0, hl, g.innerBox.x0, "h"); rec.addLine(0, -hl, g.innerBox.x1, hl, g.innerBox.x1, "h"); }
+    rec.addDimLinear(0, -hl, -w, -hl, w, -off, "W");
+    rec.addDimLinear(0, -hl, w, hl, w, off, "L");
   }
-  // extruded elevation (left/right/center): length L along x, height across y
+  // extruded elevation (left/right/center): length L along x, height across y.
+  // The two height-walls (flanges) project as horizontal lines → outer+inner = 4.
   function emitSide(rec, g, L) {
     var hl = L / 2, H = g.H, off = Math.max(g.H, L) * 0.1;
     rec.addLine(0, -hl, 0, hl, 0, "c"); rec.addLine(0, hl, 0, hl, H, "c");
     rec.addLine(0, hl, H, -hl, H, "c"); rec.addLine(0, -hl, H, -hl, 0, "c");
-    if (g.iH > 0) { var cy = H / 2, ih = g.iH / 2; rec.addLine(0, -hl, cy - ih, hl, cy - ih, "h"); rec.addLine(0, -hl, cy + ih, hl, cy + ih, "h"); }
+    if (g.innerBox) { rec.addLine(0, -hl, g.innerBox.y0, hl, g.innerBox.y0, "h"); rec.addLine(0, -hl, g.innerBox.y1, hl, g.innerBox.y1, "h"); }
     rec.addDimLinear(0, hl, 0, hl, H, -off, "H");
     rec.addDimLinear(0, -hl, H, hl, H, off, "L");
   }
@@ -374,17 +380,17 @@
       part.arcs.forEach(function (a) { if (a.a2 - a.a1 >= 360) circle(a.x + dx, a.y + dy, a.r); else arc(a.x + dx, a.y + dy, a.r, a.a1, a.a2); });
     }
     L = L > 0 ? L : Math.max(g.W, g.H);
-    var gap = Math.max(g.W, g.H, L) * 0.4, w = g.W / 2;
+    var gap = Math.max(g.W, g.H, L) * 0.4, w = g.W / 2, hl = L / 2;
     // 1) cross-section (front) at origin
     emit(g.outer, 0, 0); emit(g.inner, 0, 0);
-    // 2) plan (top): width W across x, length L across y — placed above
-    var pOy = g.H + gap;
-    rect(-w, pOy, w, pOy + L);
-    if (g.iW > 0) { var iw = g.iW / 2; line(-iw, pOy, -iw, pOy + L); line(iw, pOy, iw, pOy + L); }
+    // 2) plan (top): length L across x, width W across y — placed above; width-walls → horizontal
+    var pcy = g.H + gap + w;                      // plan centre-line (width centred)
+    rect(-hl, pcy - w, hl, pcy + w);
+    if (g.innerBox) { line(-hl, pcy + g.innerBox.x0, hl, pcy + g.innerBox.x0); line(-hl, pcy + g.innerBox.x1, hl, pcy + g.innerBox.x1); }
     // 3) elevation (side): length L across x, height H across y — placed to the right
     var sOx = w + gap;
     rect(sOx, 0, sOx + L, g.H);
-    if (g.iH > 0) { var cy = g.H / 2, ih = g.iH / 2; line(sOx, cy - ih, sOx + L, cy - ih); line(sOx, cy + ih, sOx + L, cy + ih); }
+    if (g.innerBox) { line(sOx, g.innerBox.y0, sOx + L, g.innerBox.y0); line(sOx, g.innerBox.y1, sOx + L, g.innerBox.y1); }
     e.push("0", "ENDSEC", "0", "EOF");
     return e.join("\n");
   }
