@@ -108,6 +108,78 @@
     for (var i = 1; i < N; i++) a.push(r * (1 - Math.cos(Math.PI / 2 * Math.pow(i / N, G))));
     return a;
   }
+
+  // ── 3D solid mesh helpers (flat triangle list; x transverse, y longitudinal, z up) ──
+  function _tri(T, a, b, c) { T.push(a[0], a[1], a[2], b[0], b[1], b[2], c[0], c[1], c[2]); }
+  function _quad(T, a, b, c, d) { _tri(T, a, b, c); _tri(T, a, c, d); }
+  function _box(T, x0, x1, y0, y1, z0, z1) {
+    var v = [[x0, y0, z0], [x1, y0, z0], [x1, y1, z0], [x0, y1, z0], [x0, y0, z1], [x1, y0, z1], [x1, y1, z1], [x0, y1, z1]];
+    _quad(T, v[0], v[3], v[2], v[1]); _quad(T, v[4], v[5], v[6], v[7]);   // bottom, top
+    _quad(T, v[0], v[1], v[5], v[4]); _quad(T, v[3], v[7], v[6], v[2]);   // -y, +y
+    _quad(T, v[0], v[4], v[7], v[3]); _quad(T, v[1], v[2], v[6], v[5]);   // -x, +x
+  }
+  // extrude a closed polygon (pts in local x,y, placed at cx,cy) vertically z0..z1
+  function _extrudeZ(T, pts, cx, cy, z0, z1) {
+    var n = pts.length, sx = 0, sy = 0, i;
+    for (i = 0; i < n; i++) { sx += pts[i][0]; sy += pts[i][1]; }
+    var gx = cx + sx / n, gy = cy + sy / n;
+    for (i = 0; i < n; i++) {
+      var a = [cx + pts[i][0], cy + pts[i][1]], b = [cx + pts[(i + 1) % n][0], cy + pts[(i + 1) % n][1]];
+      _quad(T, [a[0], a[1], z0], [b[0], b[1], z0], [b[0], b[1], z1], [a[0], a[1], z1]);   // wall
+      _tri(T, [gx, gy, z1], [a[0], a[1], z1], [b[0], b[1], z1]);                          // top cap
+      _tri(T, [gx, gy, z0], [b[0], b[1], z0], [a[0], a[1], z0]);                          // bottom cap
+    }
+  }
+  // coping solid: swept along x with y half-width w(x) (CR-rounded tips) and soffit zbot(x)
+  function _copingMesh(T, cp, maxCH) {
+    var A = copingGeometry(cp).A, TB = +cp.TB || 4000, CR = Math.min(+cp.CR || 0, TB / 2);
+    var zTop = maxCH + A.yTop, zTip = maxCH + A.yTip, zMid = maxCH + A.yMid;
+    function wAt(x) {
+      if (CR <= 0) return TB / 2;
+      var dL = x - A.xLtip, dR = A.xRtip - x, d = Math.min(dL, dR);
+      if (d < CR) return TB / 2 - CR + Math.sqrt(Math.max(0, CR * CR - (CR - d) * (CR - d)));
+      return TB / 2;
+    }
+    function zbotAt(x) {
+      if (x <= A.xLe) return zTip;
+      if (x < A.xLH) return zTip + (zMid - zTip) * (x - A.xLe) / ((A.xLH - A.xLe) || 1);
+      if (x <= A.xRH) return zMid;
+      if (x < A.xRe) return zMid + (zTip - zMid) * (x - A.xRH) / ((A.xRe - A.xRH) || 1);
+      return zTip;
+    }
+    var xs = [], i;
+    function addRange(a, b, n) { for (i = 0; i <= n; i++) xs.push(a + (b - a) * i / n); }
+    if (CR > 0) addRange(A.xLtip, A.xLtip + CR, 6); else xs.push(A.xLtip);
+    [A.xLe, A.xLH, A.xRH, A.xRe].forEach(function (x) { xs.push(x); });
+    if (CR > 0) addRange(A.xRtip - CR, A.xRtip, 6); else xs.push(A.xRtip);
+    xs = xs.filter(function (x) { return x >= A.xLtip - 1 && x <= A.xRtip + 1; }).sort(function (a, b) { return a - b; });
+    var uq = []; xs.forEach(function (x) { if (!uq.length || x - uq[uq.length - 1] > 1) uq.push(x); }); xs = uq;
+    for (i = 0; i < xs.length - 1; i++) {
+      var x0 = xs[i], x1 = xs[i + 1], w0 = wAt(x0), w1 = wAt(x1), b0 = zbotAt(x0), b1 = zbotAt(x1);
+      _quad(T, [x0, -w0, zTop], [x0, w0, zTop], [x1, w1, zTop], [x1, -w1, zTop]);          // top
+      _quad(T, [x0, -w0, b0], [x1, -w1, b1], [x1, w1, b1], [x0, w0, b0]);                   // bottom
+      _quad(T, [x0, w0, b0], [x0, w0, zTop], [x1, w1, zTop], [x1, w1, b1]);                 // +y wall
+      _quad(T, [x0, -w0, b0], [x1, -w1, b1], [x1, -w1, zTop], [x0, -w0, zTop]);             // -y wall
+    }
+    var xa = xs[0], wa = wAt(xa), ba = zbotAt(xa);
+    _quad(T, [xa, -wa, ba], [xa, -wa, zTop], [xa, wa, zTop], [xa, wa, ba]);                 // left cap
+    var xb = xs[xs.length - 1], wb = wAt(xb), bb = zbotAt(xb);
+    _quad(T, [xb, -wb, bb], [xb, wb, bb], [xb, wb, zTop], [xb, -wb, zTop]);                 // right cap
+  }
+  // triangle list → binary STL ArrayBuffer
+  function _stl(T) {
+    var n = T.length / 9, buf = new ArrayBuffer(84 + n * 50), dv = new DataView(buf), off = 84, i;
+    dv.setUint32(80, n, true);
+    for (i = 0; i < n; i++) {
+      var o = i * 9, ax = T[o], ay = T[o + 1], az = T[o + 2], bx = T[o + 3], by = T[o + 4], bz = T[o + 5], cx = T[o + 6], cy = T[o + 7], cz = T[o + 8];
+      var ux = bx - ax, uy = by - ay, uz = bz - az, vx = cx - ax, vy = cy - ay, vz = cz - az;
+      var nx = uy * vz - uz * vy, ny = uz * vx - ux * vz, nz = ux * vy - uy * vx, L = Math.hypot(nx, ny, nz) || 1;
+      dv.setFloat32(off, nx / L, true); dv.setFloat32(off + 4, ny / L, true); dv.setFloat32(off + 8, nz / L, true);
+      for (var k = 0; k < 9; k++) dv.setFloat32(off + 12 + k * 4, T[o + k], true);
+      dv.setUint16(off + 48, 0, true); off += 50;
+    }
+    return buf;
+  }
   // section edge-lines projected for the elevation. Returns fold levels (visible outer
   // corners) and inner levels (hollow/haunch, hidden), for transverse (x) and longitudinal (y).
   function colFolds(col) {
@@ -595,10 +667,15 @@
     function cardPreview() {
       var c = h("div", "pr-card");
       var hd = h("div", "pr-hd", "<span class='pr-ttl'>Elevation <span class='pr-sub' data-pr-sub>front + side</span></span>" +
-        "<button type='button' class='pr-btn' data-pr-regen>&#8635; Regen</button>");
+        "<span style='display:inline-flex;gap:6px'>" +
+        "<button type='button' class='pr-btn' data-pr-3d>3D</button>" +
+        "<button type='button' class='pr-btn' data-pr-stl>&#8681; STL</button>" +
+        "<button type='button' class='pr-btn' data-pr-regen>&#8635; Regen</button></span>");
       c.appendChild(hd);
       plotSub = hd.querySelector("[data-pr-sub]");
       hd.querySelector("[data-pr-regen]").addEventListener("click", function () { draw(); });
+      hd.querySelector("[data-pr-3d]").addEventListener("click", function () { show3D(); });
+      hd.querySelector("[data-pr-stl]").addEventListener("click", function () { downloadSTL(); });
       var body = h("div", "pr-body");
       plotHost = h("div"); plotHost.style.cssText = "width:100%;overflow:hidden";
       body.appendChild(plotHost); c.appendChild(body);
@@ -911,6 +988,35 @@
         { side: "T", at: yHi, lo: minX, hi: maxX, label: "L" }
       ];
       layoutDims(dims, b).forEach(function (d) { rec.addDimLinear(0, d.x1, d.y1, d.x2, d.y2, d.gap, d.label, { la: d.la, lp: d.lp }); });
+    }
+
+    // Whole-pier 3D solid mesh (coping + columns + foundation), one triangle list.
+    function buildPierMesh() {
+      var p = P(), cp = p.coping, f = p.fdn, cs = colCenters(p), T = [];
+      var maxCH = Math.max.apply(null, p.cols.map(function (c) { return +c.CH || 0; }).concat([1000]));
+      p.cols.forEach(function (col, i) { var sp = sectionPts(col); _extrudeZ(T, sp.outer, cs[i], 0, 0, +col.CH || maxCH); });
+      _copingMesh(T, cp, maxCH);
+      var colDep = Math.max.apply(null, p.cols.map(function (c) { return colDepth(c); }).concat([500]));
+      var yB = -(colDep / 2 + (+f.FF || 0)), yT = colDep / 2 + (+f.FB || 0), EFL = +f.EFL || 0, EH = +f.EH || 0, BH = +f.BH || 0;
+      function foot(Lx, Rx) { _box(T, Lx, Rx, yB, yT, -BH, 0); if (EFL > 0 || EH > 0) _box(T, Lx - EFL, Rx + EFL, yB - EFL, yT + EFL, -BH - EH, -BH); }
+      if (p.fdnMode === "combined") foot(cs[0] - colW(p.cols[0]) / 2 - (+f.BLF || 0), cs[cs.length - 1] + colW(p.cols[p.cols.length - 1]) / 2 + (+f.BRF || 0));
+      else p.cols.forEach(function (col, i) { foot(cs[i] - colW(col) / 2 - (+f.BLF || 0), cs[i] + colW(col) / 2 + (+f.BRF || 0)); });
+      return T;
+    }
+    function downloadSTL() {
+      var blob = new Blob([_stl(buildPierMesh())], { type: "application/octet-stream" });
+      var url = URL.createObjectURL(blob), a = document.createElement("a");
+      a.href = url; a.download = (P().name || "pier") + ".stl"; document.body.appendChild(a); a.click();
+      document.body.removeChild(a); setTimeout(function () { URL.revokeObjectURL(url); }, 1000);
+    }
+    function show3D() {
+      if (!plotHost) return;
+      var Hpx = 460;
+      plotHost.innerHTML = "";
+      var d3 = h("div"); d3.id = "pr-3d-host"; d3.style.cssText = "width:100%;height:" + Hpx + "px;background:#1a1a2e;border-radius:8px;overflow:hidden";
+      plotHost.appendChild(d3);
+      window.RWSVG.render3d("pr-3d-host", "render_pier_3d", "https://macrobim.github.io/macroBIM/bim_pier_3d.js?v=1", [buildPierMesh()]);
+      if (plotSub) plotSub.textContent = P().name + " · 3D solid (drag to orbit)";
     }
     _pierDraw = draw;
 
