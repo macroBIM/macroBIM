@@ -395,8 +395,9 @@
       c.appendChild(b); return c;
     }
 
-    // ── live elevation preview (selected pier) ──
-    var plotHost = null, plotHostSide = null, plotSub = null;
+    // ── live elevation preview (selected pier) — front + side in ONE drawing
+    // so both share a single scale (same structure height) ──
+    var plotHost = null, plotSub = null;
     function cardPreview() {
       var c = h("div", "pr-card");
       var hd = h("div", "pr-hd", "<span class='pr-ttl'>Elevation <span class='pr-sub' data-pr-sub>front + side</span></span>" +
@@ -405,14 +406,33 @@
       plotSub = hd.querySelector("[data-pr-sub]");
       hd.querySelector("[data-pr-regen]").addEventListener("click", function () { draw(); });
       var body = h("div", "pr-body");
-      var elev = h("div", "pr-elev");
-      var frontW = h("div"); frontW.appendChild(h("div", "pr-elhd", "Front (정면도)"));
-      plotHost = h("div"); plotHost.style.cssText = "width:100%;overflow:hidden"; frontW.appendChild(plotHost);
-      var sideW = h("div"); sideW.appendChild(h("div", "pr-elhd", "Side (측면도)"));
-      plotHostSide = h("div"); plotHostSide.style.cssText = "width:100%;overflow:hidden"; sideW.appendChild(plotHostSide);
-      elev.appendChild(frontW); elev.appendChild(sideW);
-      body.appendChild(elev); c.appendChild(body);
+      plotHost = h("div"); plotHost.style.cssText = "width:100%;overflow:hidden";
+      body.appendChild(plotHost); c.appendChild(body);
       return c;
+    }
+
+    // model-space bounding box of a MockViewer (mirrors renderSVG's accumulation)
+    function bboxOf(rec) {
+      var mnX = Infinity, mnY = Infinity, mxX = -Infinity, mxY = -Infinity;
+      function acc(x, y) { if (x < mnX) mnX = x; if (x > mxX) mxX = x; if (y < mnY) mnY = y; if (y > mxY) mxY = y; }
+      (rec.L || []).forEach(function (l) { acc(l.x1, l.y1); acc(l.x2, l.y2); });
+      (rec.A || []).forEach(function (a) { acc(a.x - a.r, a.y - a.r); acc(a.x + a.r, a.y + a.r); });
+      (rec.DL || []).forEach(function (d) {
+        var len = Math.hypot(d.x2 - d.x1, d.y2 - d.y1) || 1, nx = -(d.y2 - d.y1) / len, ny = (d.x2 - d.x1) / len;
+        acc(d.x1, d.y1); acc(d.x2, d.y2); acc(d.x1 + nx * d.gap, d.y1 + ny * d.gap); acc(d.x2 + nx * d.gap, d.y2 + ny * d.gap);
+      });
+      (rec.DR || []).forEach(function (d) { var rr = d.ang * Math.PI / 180; acc(d.x, d.y); acc(d.x + d.r * Math.cos(rr), d.y + d.r * Math.sin(rr)); });
+      (rec.TX || []).forEach(function (t) { acc(t.x, t.y); });
+      if (!isFinite(mnX)) { mnX = 0; mxX = 1; mnY = 0; mxY = 1; }
+      return { minX: mnX, minY: mnY, maxX: mxX, maxY: mxY };
+    }
+    // append src's primitives into dst, shifted by (ox,0)
+    function mergeOffset(dst, src, ox) {
+      (src.L || []).forEach(function (l) { dst.L.push({ x1: l.x1 + ox, y1: l.y1, x2: l.x2 + ox, y2: l.y2, lay: l.lay, col: l.col }); });
+      (src.A || []).forEach(function (a) { dst.A.push({ x: a.x + ox, y: a.y, r: a.r, a1: a.a1, a2: a.a2, lay: a.lay, col: a.col }); });
+      (src.DL || []).forEach(function (d) { dst.DL.push({ x1: d.x1 + ox, y1: d.y1, x2: d.x2 + ox, y2: d.y2, gap: d.gap, t: d.t, la: d.la, lp: d.lp }); });
+      (src.DR || []).forEach(function (d) { dst.DR.push({ x: d.x + ox, y: d.y, r: d.r, ang: d.ang, t: d.t }); });
+      (src.TX || []).forEach(function (t) { dst.TX.push({ x: t.x + ox, y: t.y, t: t.t, rot: t.rot }); });
     }
 
     // Column transverse positions (교축직각방향), measured from the PIER CENTRE (x=0);
@@ -435,17 +455,41 @@
     // Elevation preview, drawn through the shared core (window.RWSVG): geometry is
     // emitted as KonvaViewer-style primitives, so dims / fonts / zoom-pan match the
     // retaining-wall and section drawings exactly.
-    function draw() { drawFront(); drawSide(); }
-
-    function drawFront() {
+    function draw() {
       if (!plotHost || !plotHost.isConnected) return;
       if (typeof window.RWSVG === "undefined") { ensureCore(draw); return; }
+      var rec = new window.RWSVG.MockViewer();
+      rec.addLayer("c", "cyan", "solid", 1);
+      buildFront(rec);
+      var fbox = bboxOf(rec);
+      var sRec = new window.RWSVG.MockViewer();
+      sRec.addLayer("c", "cyan", "solid", 1);
+      buildSide(sRec);
+      var sbox = bboxOf(sRec);
+      // place side to the right of front, uniform scale (both share this one drawing)
+      var gap = Math.max(fbox.maxY - fbox.minY, fbox.maxX - fbox.minX) * 0.10;
+      var ox = fbox.maxX + gap - sbox.minX;
+      mergeOffset(rec, sRec, ox);
+      var labY = Math.max(fbox.maxY, sbox.maxY) + gap * 0.6;
+      if (rec.addText) {
+        rec.addText(0, (fbox.minX + fbox.maxX) / 2, labY, "FRONT (정면도)");
+        rec.addText(0, ox + (sbox.minX + sbox.maxX) / 2, labY, "SIDE (측면도)");
+      }
+      // fit to card width; height follows content so the card stays compact
+      var full = bboxOf(rec), bw = Math.max(full.maxX - full.minX, 1), bh = Math.max(full.maxY - full.minY, 1);
+      var W = plotHost.clientWidth || 1000, s = (W - 80) / bw;
+      var Hpx = Math.max(260, Math.min(440, Math.round(bh * s) + 50));
+      plotHost.innerHTML = window.RWSVG.renderSVG(rec, W, Hpx);
+      var svg = plotHost.querySelector("svg");
+      if (svg) window.RWSVG.attachZoomPan(svg);
+      var pp = P();
+      if (plotSub) plotSub.textContent = pp.name + " · " + pp.colCount + " col · " + (pp.fdnMode === "combined" ? "combined ftg" : "individual ftg");
+    }
+
+    function buildFront(rec) {
       var p = P(), cp = p.coping, f = p.fdn;
       var cs = colCenters(p);
       var maxCH = Math.max.apply(null, p.cols.map(function (c) { return c.CH; }).concat([1000]));
-
-      var rec = new window.RWSVG.MockViewer();
-      rec.addLayer("c", "cyan", "solid", 1);              // cyan → ink outline
       function rect(x1, y1, x2, y2) {
         rec.addLine(0, x1, y1, x2, y1, "c"); rec.addLine(0, x2, y1, x2, y2, "c");
         rec.addLine(0, x2, y2, x1, y2, "c"); rec.addLine(0, x1, y2, x1, y1, "c");
@@ -522,27 +566,16 @@
       layoutDims(dims, bnd).forEach(function (d) { rec.addDimLinear(0, d.x1, d.y1, d.x2, d.y2, d.gap, d.label, { la: d.la, lp: d.lp }); });
       // curved-soffit radius dims (HRL outer / HRR inner) when set
       geo.radiusDims.forEach(function (rd) { rec.addDimRadius(0, rd.c[0], rd.c[1] + maxCH, rd.r, rd.ang, rd.label); });
-
-      var W = plotHost.clientWidth || 620, Hpx = Math.max(360, Math.min(560, Math.round(W * 0.62)));
-      plotHost.innerHTML = window.RWSVG.renderSVG(rec, W, Hpx);
-      var svg = plotHost.querySelector("svg");
-      if (svg) window.RWSVG.attachZoomPan(svg);
-      if (plotSub) plotSub.textContent = p.name +
-        " · " + p.colCount + " col · " + (p.fdnMode === "combined" ? "combined ftg" : "individual ftg");
     }
 
     // Side elevation (측면도) — longitudinal (교축방향) view: cap TB wide, columns
     // superimposed at the longitudinal centre, footing spanning FF/FB about the columns.
-    function drawSide() {
-      if (!plotHostSide || !plotHostSide.isConnected) return;
-      if (typeof window.RWSVG === "undefined") return;
+    function buildSide(rec) {
       var p = P(), cp = p.coping, f = p.fdn;
       var maxCH = Math.max.apply(null, p.cols.map(function (c) { return c.CH; }).concat([1000]));
       var TB = +cp.TB || 4000, THU = +cp.THU || 0, THL = +cp.THL || 0, copeH = THU + THL;   // upper + lower
       var colDep = Math.max.apply(null, p.cols.map(function (c) { return c.shape === "circle" ? +c.D : (+c.H || +c.D); }).concat([500]));
 
-      var rec = new window.RWSVG.MockViewer();
-      rec.addLayer("c", "cyan", "solid", 1);
       function rect(x1, y1, x2, y2) {
         rec.addLine(0, x1, y1, x2, y1, "c"); rec.addLine(0, x2, y1, x2, y2, "c");
         rec.addLine(0, x2, y2, x1, y2, "c"); rec.addLine(0, x1, y2, x1, y1, "c");
@@ -571,11 +604,6 @@
         { side: "B", at: -f.BH, lo: footL, hi: footR, label: "FW" }
       ];
       layoutDims(dims, bnd).forEach(function (d) { rec.addDimLinear(0, d.x1, d.y1, d.x2, d.y2, d.gap, d.label, { la: d.la, lp: d.lp }); });
-
-      var W = plotHostSide.clientWidth || 380, Hpx = Math.max(360, Math.min(560, Math.round(W * 0.9)));
-      plotHostSide.innerHTML = window.RWSVG.renderSVG(rec, W, Hpx);
-      var svg = plotHostSide.querySelector("svg");
-      if (svg) window.RWSVG.attachZoomPan(svg);
     }
     _pierDraw = draw;
 
