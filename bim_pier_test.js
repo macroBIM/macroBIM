@@ -653,12 +653,14 @@
       var gap = (fbox.maxY - fbox.minY) * 0.5;
       var ox = fbox.maxX + gap - sbox.minX;
       mergeOffset(rec, sRec, ox);
-      var labY = Math.max(fbox.maxY, sbox.maxY) + gap * 0.6;
+      var vspan = Math.max(fbox.maxY, sbox.maxY) - Math.min(fbox.minY, sbox.minY);
+      var labY = Math.max(fbox.maxY, sbox.maxY) + vspan * 0.045;   // title sits just above the structure
       if (rec.addText) {
         rec.addText(0, (fbox.minX + fbox.maxX) / 2, labY, "FRONT");
         rec.addText(0, ox + (sbox.minX + sbox.maxX) / 2, labY, "SIDE");
       }
-      // ── plan views: coping plan (top) + footing plan (bottom), stacked to the right ──
+      // ── plan views: coping plan (top) + footing plan (bottom), stacked to the right,
+      //    both aligned on the pier centre line (model x=0) ──
       var cRec = new window.RWSVG.MockViewer();
       cRec.addLayer("c", "cyan", "solid", 1); cRec.addLayer("h", "gray", "hidden", 1);
       buildCopingPlan(cRec); var cbox = bboxOf(cRec);
@@ -667,14 +669,15 @@
       buildFoundationPlan(pRec); var pbox = bboxOf(pRec);
       var elb = bboxOf(rec);                       // FRONT + SIDE so far
       var pgap = (elb.maxY - elb.minY) * 0.10;
-      var oxP = elb.maxX + gap;                    // left edge of the plan stack
-      var oxC = oxP - cbox.minX, oyC = elb.maxY - cbox.maxY;                 // coping plan: top-aligned
-      mergeOffsetXY(rec, cRec, oxC, oyC);
-      var oxF = oxP - pbox.minX, oyF = (oyC + cbox.minY) - pgap * 2.4 - pbox.maxY;   // footing plan: below coping
-      mergeOffsetXY(rec, pRec, oxF, oyF);
+      // one shared X offset → model x=0 (pier centre) lands at the same screen x in both plans
+      var oxCommon = elb.maxX + gap - Math.min(cbox.minX, pbox.minX);
+      var oyC = elb.maxY - cbox.maxY;                                        // coping plan: top-aligned
+      mergeOffsetXY(rec, cRec, oxCommon, oyC);
+      var oyF = (oyC + cbox.minY) - pgap * 2.4 - pbox.maxY;                  // footing plan: below coping
+      mergeOffsetXY(rec, pRec, oxCommon, oyF);
       if (rec.addText) {
-        rec.addText(0, oxC + (cbox.minX + cbox.maxX) / 2, oyC + cbox.maxY + pgap * 0.6, "COPING PLAN");
-        rec.addText(0, oxF + (pbox.minX + pbox.maxX) / 2, oyF + pbox.maxY + pgap * 0.6, "FOOTING PLAN");
+        rec.addText(0, oxCommon, oyC + cbox.maxY + pgap * 0.6, "COPING PLAN");
+        rec.addText(0, oxCommon, oyF + pbox.maxY + pgap * 0.6, "FOOTING PLAN");
       }
       // fit to card width; height follows content so the card stays compact
       var full = bboxOf(rec), bw = Math.max(full.maxX - full.minX, 1), bh = Math.max(full.maxY - full.minY, 1);
