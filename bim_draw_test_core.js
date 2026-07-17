@@ -76,7 +76,7 @@
 
     var e = [];
     function line(x1, y1, x2, y2, col, w, dash) { e.push('<line x1="' + f(x1) + '" y1="' + f(y1) + '" x2="' + f(x2) + '" y2="' + f(y2) + '" stroke="' + col + '" stroke-width="' + w + '"' + (dash ? ' stroke-dasharray="' + dash + '"' : '') + '/>'); }
-    function poly(pts, col, w) { e.push('<polyline points="' + pts + '" fill="none" stroke="' + col + '" stroke-width="' + w + '"/>'); }
+    function poly(pts, col, w, dash) { e.push('<polyline points="' + pts + '" fill="none" stroke="' + col + '" stroke-width="' + w + '"' + (dash ? ' stroke-dasharray="' + dash + '"' : '') + '/>'); }
     function arrow(x, y, ux, uy, col) { var a = 7, bx = x - a * ux, by = y - a * uy, px = -uy * a * 0.34, py = ux * a * 0.34; e.push('<polygon points="' + f(x) + ',' + f(y) + ' ' + f(bx + px) + ',' + f(by + py) + ' ' + f(bx - px) + ',' + f(by - py) + '" fill="' + col + '"/>'); }
     function text(x, y, str, col, rot) { e.push('<text x="' + f(x) + '" y="' + f(y) + '" fill="' + col + '" font-size="11.5" font-family="ui-monospace,Menlo,Consolas,monospace" text-anchor="middle" dominant-baseline="middle"' + (rot ? ' transform="rotate(' + f(rot) + ' ' + f(x) + ' ' + f(y) + ')"' : '') + '>' + str + '</text>'); }
     function num(v) { return String(Math.round(v)); }
@@ -89,7 +89,9 @@
     rec.A.forEach(function (a) {
       var pts = [], a1 = a.a1, a2 = arcSpan(a), span = a2 - a1, n = Math.max(14, Math.ceil(span / 6));
       for (var i = 0; i <= n; i++) { var t = (a1 + (a2 - a1) * i / n) * Math.PI / 180; pts.push(f(SX(a.x + a.r * Math.cos(t))) + ',' + f(SY(a.y + a.r * Math.sin(t)))); }
-      poly(pts.join(' '), a.lay === 'hidden' ? HID : mapColor(a.col), 1.8);
+      if (a.lay === 'hidden') poly(pts.join(' '), HID, 1, '6 3');
+      else if (a.lay === 'faint') poly(pts.join(' '), FNT, 0.7);
+      else poly(pts.join(' '), mapColor(a.col), 1.8);
     });
     rec.DL.forEach(function (d) {
       var len = Math.hypot(d.x2 - d.x1, d.y2 - d.y1); if (len === 0) return;
