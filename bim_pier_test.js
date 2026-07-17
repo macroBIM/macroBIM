@@ -12,6 +12,7 @@
     already shipped as bim_rect/circle/track/octagon). Foundation is either one
     combined footing or individual footings per column.
     Pure vanilla JS + inline SVG (no deps). Styles scoped to .pr-root.
+    build: v25 (inner-haunch coping inputs IHLA/IHL/IHH/IHR/IHSR)
 */
 (function () {
   "use strict";
