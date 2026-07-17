@@ -22,11 +22,12 @@
   var SHAPES = [["rect", "Rectangle"], ["circle", "Circle"], ["track", "Track"], ["octagon", "Octagon"]];
   // section variables per shape (names match bim_xsect_test.js; column-scale defaults).
   // For non-circle: B = transverse width (front), H = longitudinal depth (side).
+  // [name, default, hollowOnly?] — hollowOnly vars only appear when Hollow is checked
   var SECT_VARS = {
-    circle: [["D", 2500], ["tw", 0]],
-    rect: [["B", 2500], ["H", 2500], ["twl", 0], ["twr", 0], ["tf1", 0], ["tf2", 0], ["ha", 0], ["hb", 0]],
-    track: [["B", 2500], ["H", 2500], ["R", 800], ["t", 0]],
-    octagon: [["B", 2500], ["H", 2500], ["a", 500], ["b", 500], ["t", 0]]
+    circle: [["D", 2500], ["tw", 250, 1]],
+    rect: [["B", 2500], ["H", 2500], ["twl", 300, 1], ["twr", 300, 1], ["tf1", 300, 1], ["tf2", 300, 1], ["ha", 0, 1], ["hb", 0, 1]],
+    track: [["B", 2500], ["H", 2500], ["R", 800], ["t", 250, 1]],
+    octagon: [["B", 2500], ["H", 2500], ["a", 500], ["b", 500], ["t", 250, 1]]
   };
   function sectDefaults(shape) { var o = {}; (SECT_VARS[shape] || []).forEach(function (v) { o[v[0]] = v[1]; }); return o; }
   // transverse width (front view) / longitudinal depth (side view) from the section,
@@ -63,8 +64,10 @@
       return { fx: [], fy: [], ix: ir ? [-ir, ir] : [], iy: ir ? [-ir, ir] : [] };
     }
     if (shape === "track") {
-      var t = +s.t || 0, iw = (hollow && t > 0 && t < B / 2) ? B / 2 - t : 0, ih = (hollow && t > 0 && t < H / 2) ? H / 2 - t : 0;
-      return { fx: [], fy: [], ix: iw ? [-iw, iw] : [], iy: ih ? [-ih, ih] : [] };
+      var t = +s.t || 0, R = +s.R || 0, bxr = B / 2 - R, hyr = H / 2 - R;   // straight/arc branch
+      var iw = (hollow && t > 0 && t < B / 2) ? B / 2 - t : 0, ih = (hollow && t > 0 && t < H / 2) ? H / 2 - t : 0;
+      return { fx: (R > 0 && bxr > 0) ? [-bxr, bxr] : [], fy: (R > 0 && hyr > 0) ? [-hyr, hyr] : [],
+        ix: iw ? [-iw, iw] : [], iy: ih ? [-ih, ih] : [] };
     }
     var outer, inner = null;
     if (shape === "octagon") {
@@ -110,6 +113,19 @@
     sc.onerror = function () { window._rwCoreLoading = false; window._rwCoreCbs = []; };
     document.head.appendChild(sc);
   }
+  // section-diagram module (bim_xsect_test.js — window.XSECT) for the Guide button
+  function ensureXsectMod(cb) {
+    ensureCore(function () {
+      if (window.XSECT && window.XSECT.draw) { cb(); return; }
+      if (window._pierXsLoading) { (window._pierXsCbs = window._pierXsCbs || []).push(cb); return; }
+      window._pierXsLoading = true; window._pierXsCbs = [cb];
+      var sc = document.createElement("script");
+      sc.src = "https://macrobim.github.io/macroBIM/bim_xsect_test.js?v=9";
+      sc.onload = function () { window._pierXsLoading = false; var q = window._pierXsCbs || []; window._pierXsCbs = []; q.forEach(function (f) { f(); }); };
+      sc.onerror = function () { window._pierXsLoading = false; window._pierXsCbs = []; };
+      document.head.appendChild(sc);
+    });
+  }
 
   var CSS =
     ".pr-root{--dim:#2563eb;--found:#6e7e8c;--foundfill:#eef2f6;--cope:#1f8e9e;--col:#b4813a;" +
@@ -139,6 +155,9 @@
     ".pr-fld > span{font-size:11px;font-weight:600;color:var(--dim);font-family:ui-monospace,Menlo,Consolas,monospace}" +
     ".pr-fld input{width:78px;text-align:right;padding:4px 7px;border:1px solid var(--line);border-radius:6px;background:var(--panel);color:var(--ink);font-size:12.5px;font-variant-numeric:tabular-nums}" +
     ".pr-fld input:focus{outline:2px solid var(--dim);outline-offset:1px;border-color:var(--dim)}" +
+    ".pr-gbtn{font:inherit;font-size:11px;font-weight:600;color:var(--dim);background:var(--panel);border:1px solid var(--line);border-radius:6px;padding:4px 9px;cursor:pointer}" +
+    ".pr-gbtn:hover{background:var(--chip)}" +
+    ".pr-guide{flex-basis:100%;width:100%;max-width:340px;margin:2px 0 6px;border:1px solid var(--hair);border-radius:8px;overflow:hidden;background:var(--panel)}" +
     ".pr-inrow{display:grid;grid-template-columns:1fr auto;align-items:center;gap:8px;padding:5px 0;border-bottom:1px dashed var(--hair)}" +
     ".pr-inrow:last-child{border-bottom:0}" +
     ".pr-inrow label{font-size:13px;display:flex;align-items:baseline;gap:8px}" +
@@ -427,7 +446,7 @@
         inp.addEventListener("change", function () { on(inp.checked); draw(); });
         w.appendChild(inp); return w;
       }
-      // one row per column: CH · CL · Ang · Section(shape + vars) · Hollow
+      // one row per column: CH · CL · Ang · Section(shape + vars) · Hollow · Guide
       p.cols.forEach(function (col, i) {
         col.sect = col.sect || sectDefaults(col.shape);
         var row = h("div", "pr-crow");
@@ -439,14 +458,26 @@
         SHAPES.forEach(function (s) { var o = h("option"); o.value = s[0]; o.textContent = s[1]; if (col.shape === s[0]) o.selected = true; sel.appendChild(o); });
         sel.addEventListener("change", function () { setColShape(col, sel.value); renderPerPier(); draw(); });
         row.appendChild(sel);
+        // section vars — hollow-only vars appear only when Hollow is checked
         (SECT_VARS[col.shape] || []).forEach(function (v) {
+          if (v[2] && !col.hollow) return;
           var name = v[0];
           row.appendChild(fld(name, (col.sect[name] != null ? col.sect[name] : v[1]), function (val) { col.sect[name] = val; }));
         });
-        row.appendChild(chk("Hollow", col.hollow, function (v) { col.hollow = v; }));
-        b.appendChild(row);
+        row.appendChild(chk("Hollow", col.hollow, function (v) { col.hollow = v; renderPerPier(); }));
+        var gbtn = h("button", "pr-gbtn", "&#9635; Guide");
+        var guide = h("div", "pr-guide"); guide.style.display = "none"; guide.id = "pr-guide-" + i;
+        gbtn.onclick = function () {
+          if (guide.style.display !== "none") { guide.style.display = "none"; return; }
+          guide.style.display = "block";
+          ensureXsectMod(function () {
+            if (window.XSECT && window.XSECT.draw) window.XSECT.draw(col.shape, guide.id, Object.assign({ hollow: !!col.hollow }, col.sect));
+          });
+        };
+        row.appendChild(gbtn);
+        b.appendChild(row); b.appendChild(guide);
       });
-      b.appendChild(h("p", "pr-cap", "CH — column height · CL — transverse position from the pier centre (left −, right +) · Ang — section placement angle (°) · then the selected section's variables (mm)."));
+      b.appendChild(h("p", "pr-cap", "CH — column height · CL — transverse position from the pier centre (left −, right +) · Ang — section placement angle (°) · Hollow toggles the wall variables · Guide shows the section diagram."));
       c.appendChild(b); return c;
     }
 
