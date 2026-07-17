@@ -112,8 +112,10 @@
     }
     if (shape === "circle") { var R = (+s.D || 2500) / 2, g = halfRound(R); return { front: g, side: g }; }
     if (shape === "track") {
-      var B = +s.B || 2500, H = +s.H || 2500, rr = H / 2, sx = Math.max(0, B / 2 - rr), fg = [];
-      for (var i = 1; i < N; i++) { var x = sx + rr * Math.cos(Math.PI / 2 * i / N); fg.push(x); fg.push(-x); }
+      var B = +s.B || 2500, H = +s.H || 2500, rr = H / 2, sx = Math.max(0, B / 2 - rr), fg = [], G = 1.6;
+      // edge-biased angle (G>1): the narrow cap is flat-ish head-on, so bias the
+      // surface lines to bunch harder toward the ±B/2 silhouette for a clear curve.
+      for (var i = 1; i < N; i++) { var x = sx + rr * Math.cos(Math.PI / 2 * Math.pow(i / N, G)); fg.push(x); fg.push(-x); }
       return { front: fg, side: halfRound(rr) };   // side: cap viewed end-on = round r=H/2
     }
     return { front: [], side: [] };
