@@ -43,6 +43,56 @@
     var w = +s.B || 2500, d = +s.H || w, a = (+col.ang || 0) * Math.PI / 180;
     return Math.abs(w * Math.sin(a)) + Math.abs(d * Math.cos(a));
   }
+  // chamfered-rectangle (octagon) vertices, centred at origin
+  function octPts(B, H, a, b) {
+    return [[-B / 2 + a, -H / 2], [B / 2 - a, -H / 2], [B / 2, -H / 2 + b], [B / 2, H / 2 - b],
+      [B / 2 - a, H / 2], [-B / 2 + a, H / 2], [-B / 2, H / 2 - b], [-B / 2, -H / 2 + b]];
+  }
+  function rotPts(pts, deg) {
+    var a = deg * Math.PI / 180, c = Math.cos(a), s = Math.sin(a);
+    return pts.map(function (p) { return [p[0] * c - p[1] * s, p[0] * s + p[1] * c]; });
+  }
+  function distinctLevels(vals) { var seen = {}; vals.forEach(function (v) { seen[Math.round(v * 100) / 100] = 1; }); return Object.keys(seen).map(Number); }
+  // section edge-lines projected for the elevation. Returns fold levels (visible outer
+  // corners) and inner levels (hollow/haunch, hidden), for transverse (x) and longitudinal (y).
+  function colFolds(col) {
+    var s = col.sect || {}, shape = col.shape, hollow = !!col.hollow, ang = col.ang || 0;
+    var B = +s.B || 2500, H = +s.H || 2500, D = +s.D || 2500;
+    if (shape === "circle") {
+      var R = D / 2, tw = +s.tw || 0, ir = (hollow && tw > 0 && tw < R) ? R - tw : 0;
+      return { fx: [], fy: [], ix: ir ? [-ir, ir] : [], iy: ir ? [-ir, ir] : [] };
+    }
+    if (shape === "track") {
+      var t = +s.t || 0, iw = (hollow && t > 0 && t < B / 2) ? B / 2 - t : 0, ih = (hollow && t > 0 && t < H / 2) ? H / 2 - t : 0;
+      return { fx: [], fy: [], ix: iw ? [-iw, iw] : [], iy: ih ? [-ih, ih] : [] };
+    }
+    var outer, inner = null;
+    if (shape === "octagon") {
+      var oa = +s.a || 0, ob = +s.b || 0, ot = +s.t || 0; outer = octPts(B, H, oa, ob);
+      if (hollow && ot > 0) { var B2 = B - 2 * ot, H2 = H - 2 * ot; if (B2 > 0 && H2 > 0) inner = octPts(B2, H2, Math.min(oa, B2 / 2), Math.min(ob, H2 / 2)); }
+    } else { // rect
+      outer = [[-B / 2, -H / 2], [B / 2, -H / 2], [B / 2, H / 2], [-B / 2, H / 2]];
+      if (hollow) {
+        var twl = +s.twl || 0, twr = +s.twr || 0, tf1 = +s.tf1 || 0, tf2 = +s.tf2 || 0, ha = +s.ha || 0, hb = +s.hb || 0;
+        var ix0 = -B / 2 + twl, ix1 = B / 2 - twr, iy0 = -H / 2 + tf2, iy1 = H / 2 - tf1;
+        if (ix1 > ix0 && iy1 > iy0) {
+          var cha = Math.min(ha, (ix1 - ix0) / 2), chb = Math.min(hb, (iy1 - iy0) / 2);
+          inner = (cha > 0 && chb > 0)
+            ? [[ix0 + cha, iy0], [ix1 - cha, iy0], [ix1, iy0 + chb], [ix1, iy1 - chb], [ix1 - cha, iy1], [ix0 + cha, iy1], [ix0, iy1 - chb], [ix0, iy0 + chb]]
+            : [[ix0, iy0], [ix1, iy0], [ix1, iy1], [ix0, iy1]];
+        }
+      }
+    }
+    var ro = rotPts(outer, ang), ri = inner ? rotPts(inner, ang) : null;
+    var hw = colW(col) / 2, hd = colDepth(col) / 2;
+    function inner_(levels, half) { return levels.filter(function (v) { return Math.abs(Math.abs(v) - half) > half * 0.02 + 1; }); }
+    return {
+      fx: inner_(distinctLevels(ro.map(function (p) { return p[0]; })), hw),
+      fy: inner_(distinctLevels(ro.map(function (p) { return p[1]; })), hd),
+      ix: ri ? distinctLevels(ri.map(function (p) { return p[0]; })) : [],
+      iy: ri ? distinctLevels(ri.map(function (p) { return p[1]; })) : []
+    };
+  }
 
   // latest instance's elevation draw() — for window resize redraw
   var _pierDraw = null, _pierRT = null;
@@ -488,11 +538,11 @@
       if (!plotHost || !plotHost.isConnected) return;
       if (typeof window.RWSVG === "undefined") { ensureCore(draw); return; }
       var rec = new window.RWSVG.MockViewer();
-      rec.addLayer("c", "cyan", "solid", 1);
+      rec.addLayer("c", "cyan", "solid", 1); rec.addLayer("h", "gray", "hidden", 1);
       buildFront(rec);
       var fbox = bboxOf(rec);
       var sRec = new window.RWSVG.MockViewer();
-      sRec.addLayer("c", "cyan", "solid", 1);
+      sRec.addLayer("c", "cyan", "solid", 1); sRec.addLayer("h", "gray", "hidden", 1);
       buildSide(sRec);
       var sbox = bboxOf(sRec);
       // place side to the right of front, uniform scale (both share this one drawing).
@@ -541,8 +591,14 @@
       } else {
         p.cols.forEach(function (col, i) { foot(cs[i] - colW(col) / 2 - f.BLF, cs[i] + colW(col) / 2 + f.BRF); });
       }
-      // columns
-      p.cols.forEach(function (col, i) { rect(cs[i] - colW(col) / 2, 0, cs[i] + colW(col) / 2, col.CH); });
+      // columns — silhouette + section edge-lines (chamfer/corner folds, hollow inner)
+      p.cols.forEach(function (col, i) {
+        var cx = cs[i], w = colW(col), cH = col.CH;
+        rect(cx - w / 2, 0, cx + w / 2, cH);
+        var fd = colFolds(col);
+        fd.fx.forEach(function (x) { rec.addLine(0, cx + x, 0, cx + x, cH, "c"); });
+        fd.ix.forEach(function (x) { rec.addLine(0, cx + x, 0, cx + x, cH, "h"); });
+      });
       // coping outline (seated on columns), as a closed polyline (arcs tessellated)
       var geo = copingGeometry(cp), A = geo.A;
       var op = geo.points.map(function (q) { return [q[0], q[1] + maxCH]; });
@@ -616,8 +672,13 @@
       rect(footL, -f.BH, footR, 0);
       var bl = (f.EFL > 0 || f.EH > 0);
       if (bl) rect(footL - f.EFL, -f.BH - f.EH, footR + f.EFL, -f.BH);
-      // columns superimpose to one shaft at the longitudinal centre
+      // columns superimpose to one shaft at the longitudinal centre; section edge-lines
+      // from the deepest column (longitudinal projection)
       rect(-colDep / 2, 0, colDep / 2, maxCH);
+      var rep = p.cols.reduce(function (a, c) { return colDepth(c) > colDepth(a) ? c : a; }, p.cols[0]);
+      var fdS = colFolds(rep);
+      fdS.fy.forEach(function (y) { rec.addLine(0, y, 0, y, maxCH, "c"); });
+      fdS.iy.forEach(function (y) { rec.addLine(0, y, 0, y, maxCH, "h"); });
       // coping: TB wide × copeH, seated on the columns, with the THU/THL split line
       rect(-TB / 2, maxCH, TB / 2, maxCH + copeH);
       if (THU > 0 && THL > 0) rec.addLine(0, -TB / 2, maxCH + THL, TB / 2, maxCH + THL, "c");   // lower THL / upper THU
