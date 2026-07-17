@@ -359,23 +359,37 @@
   }
 
   // ── DXF export (minimal ASCII DXF; model coords are already y-up) ──────────
-  function toDXF(shape, params) {
+  // Lays out multiple views: cross-section (front) + plan (top, W×L) + elevation
+  // (side, L×H), so the DXF matches the on-screen view set.
+  function toDXF(shape, params, L) {
     var g = geo(shape, params), e = ["0", "SECTION", "2", "ENTITIES"];
     function n(v) { return String(Math.round(v * 1000) / 1000); }
     function line(x1, y1, x2, y2) { e.push("0", "LINE", "8", "0", "10", n(x1), "20", n(y1), "30", "0", "11", n(x2), "21", n(y2), "31", "0"); }
     function arc(x, y, r, a1, a2) { e.push("0", "ARC", "8", "0", "10", n(x), "20", n(y), "30", "0", "40", n(r), "50", n(a1), "51", n(a2)); }
     function circle(x, y, r) { e.push("0", "CIRCLE", "8", "0", "10", n(x), "20", n(y), "30", "0", "40", n(r)); }
-    function emit(part) {
+    function rect(x0, y0, x1, y1) { line(x0, y0, x1, y0); line(x1, y0, x1, y1); line(x1, y1, x0, y1); line(x0, y1, x0, y0); }
+    function emit(part, dx, dy) {
       if (!part) return;
-      part.lines.forEach(function (l) { line(l.x1, l.y1, l.x2, l.y2); });
-      part.arcs.forEach(function (a) { if (a.a2 - a.a1 >= 360) circle(a.x, a.y, a.r); else arc(a.x, a.y, a.r, a.a1, a.a2); });
+      part.lines.forEach(function (l) { line(l.x1 + dx, l.y1 + dy, l.x2 + dx, l.y2 + dy); });
+      part.arcs.forEach(function (a) { if (a.a2 - a.a1 >= 360) circle(a.x + dx, a.y + dy, a.r); else arc(a.x + dx, a.y + dy, a.r, a.a1, a.a2); });
     }
-    emit(g.outer); emit(g.inner);
+    L = L > 0 ? L : Math.max(g.W, g.H);
+    var gap = Math.max(g.W, g.H, L) * 0.4, w = g.W / 2;
+    // 1) cross-section (front) at origin
+    emit(g.outer, 0, 0); emit(g.inner, 0, 0);
+    // 2) plan (top): width W across x, length L across y — placed above
+    var pOy = g.H + gap;
+    rect(-w, pOy, w, pOy + L);
+    if (g.iW > 0) { var iw = g.iW / 2; line(-iw, pOy, -iw, pOy + L); line(iw, pOy, iw, pOy + L); }
+    // 3) elevation (side): length L across x, height H across y — placed to the right
+    var sOx = w + gap;
+    rect(sOx, 0, sOx + L, g.H);
+    if (g.iH > 0) { var cy = g.H / 2, ih = g.iH / 2; line(sOx, cy - ih, sOx + L, cy - ih); line(sOx, cy + ih, sOx + L, cy + ih); }
     e.push("0", "ENDSEC", "0", "EOF");
     return e.join("\n");
   }
   function dxf(shape) {
-    var txt = toDXF(shape, readParams(shape));
+    var txt = toDXF(shape, readParams(shape), readL(shape));
     var name = shape.charAt(0).toUpperCase() + shape.slice(1) + ".dxf";
     var blob = new Blob([txt], { type: "application/dxf" });
     var url = URL.createObjectURL(blob), a = document.createElement("a");
