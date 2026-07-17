@@ -56,6 +56,10 @@
     ".pr-plot{display:block;width:100%;height:auto;cursor:grab;touch-action:none;-webkit-user-select:none;user-select:none;background:" +
     "linear-gradient(var(--hair) 1px,transparent 1px) 0 0/26px 26px,linear-gradient(90deg,var(--hair) 1px,transparent 1px) 0 0/26px 26px;background-color:var(--panel)}" +
     ".pr-plot:active{cursor:grabbing}" +
+    ".pr-elev{display:grid;grid-template-columns:1.55fr 1fr;gap:18px;align-items:start}" +
+    "@media(max-width:820px){.pr-elev{grid-template-columns:1fr}}" +
+    ".pr-elhd{font-size:10.5px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);padding:0 0 6px;text-align:center}" +
+    ".pr-ingrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:0 28px;align-items:start}" +
     ".pr-inrow{display:grid;grid-template-columns:1fr auto;align-items:center;gap:8px;padding:5px 0;border-bottom:1px dashed var(--hair)}" +
     ".pr-inrow:last-child{border-bottom:0}" +
     ".pr-inrow label{font-size:13px;display:flex;align-items:baseline;gap:8px}" +
@@ -278,7 +282,7 @@
       var p = P(), cp = p.coping;
       var c = h("div", "pr-card");
       c.appendChild(h("div", "pr-hd", "<span class='pr-ttl'>Coping <span class='pr-sub'>cap beam</span></span>"));
-      var b = h("div", "pr-body");
+      var b = h("div", "pr-body pr-ingrid");
       b.appendChild(numRow("TLL", "Cap half-length left (from centre)", cp.TLL, function (v) { cp.TLL = v; }));
       b.appendChild(numRow("TLR", "Cap half-length right (from centre)", cp.TLR, function (v) { cp.TLR = v; }));
       b.appendChild(numRow("TB", "Cap width (longitudinal)", cp.TB, function (v) { cp.TB = v; }));
@@ -347,7 +351,8 @@
       tbl.appendChild(tb); b.appendChild(tbl);
       b.appendChild(h("p", "pr-cap", "CL — transverse position from the pier centre (left −, right +)."));
 
-      // per-column section (shape / D / H) — needed for the drawing
+      // per-column section (shape / D / H) — needed for the drawing; flow full-width
+      var secGrid = h("div", "pr-ingrid");
       p.cols.forEach(function (col, i) {
         var cc = h("div", "pr-colcard");
         var ch = h("div", "pr-colhd");
@@ -360,8 +365,9 @@
         cc.appendChild(ch);
         cc.appendChild(numRow("D", col.shape === "circle" ? "Diameter" : "Width (transverse)", col.D, function (v) { col.D = v; }));
         if (col.shape !== "circle") cc.appendChild(numRow("H", "Width (longitudinal)", col.H, function (v) { col.H = v; }));
-        b.appendChild(cc);
+        secGrid.appendChild(cc);
       });
+      b.appendChild(secGrid);
       c.appendChild(b); return c;
     }
 
@@ -377,27 +383,35 @@
         modes.appendChild(btn);
       });
       b.appendChild(modes);
-      b.appendChild(numRow("BH", "Footing height", f.BH, function (v) { f.BH = v; }));
-      b.appendChild(numRow("BLF", "Edge to col, left (transv.)", f.BLF, function (v) { f.BLF = v; }));
-      b.appendChild(numRow("BRF", "Edge to col, right (transv.)", f.BRF, function (v) { f.BRF = v; }));
-      b.appendChild(numRow("FF", "Edge to col, left (longit.)", f.FF, function (v) { f.FF = v; }));
-      b.appendChild(numRow("FB", "Edge to col, right (longit.)", f.FB, function (v) { f.FB = v; }));
-      b.appendChild(numRow("EFL", "Blinding projection", f.EFL, function (v) { f.EFL = v; }));
-      b.appendChild(numRow("EH", "Blinding height", f.EH, function (v) { f.EH = v; }));
+      var ig = h("div", "pr-ingrid");
+      ig.appendChild(numRow("BH", "Footing height", f.BH, function (v) { f.BH = v; }));
+      ig.appendChild(numRow("BLF", "Edge to col, left (transv.)", f.BLF, function (v) { f.BLF = v; }));
+      ig.appendChild(numRow("BRF", "Edge to col, right (transv.)", f.BRF, function (v) { f.BRF = v; }));
+      ig.appendChild(numRow("FF", "Edge to col, left (longit.)", f.FF, function (v) { f.FF = v; }));
+      ig.appendChild(numRow("FB", "Edge to col, right (longit.)", f.FB, function (v) { f.FB = v; }));
+      ig.appendChild(numRow("EFL", "Blinding projection", f.EFL, function (v) { f.EFL = v; }));
+      ig.appendChild(numRow("EH", "Blinding height", f.EH, function (v) { f.EH = v; }));
+      b.appendChild(ig);
       c.appendChild(b); return c;
     }
 
     // ── live elevation preview (selected pier) ──
-    var plotHost = null, plotSub = null;
+    var plotHost = null, plotHostSide = null, plotSub = null;
     function cardPreview() {
       var c = h("div", "pr-card");
-      var hd = h("div", "pr-hd", "<span class='pr-ttl'>Elevation <span class='pr-sub' data-pr-sub>front elevation</span></span>" +
+      var hd = h("div", "pr-hd", "<span class='pr-ttl'>Elevation <span class='pr-sub' data-pr-sub>front + side</span></span>" +
         "<button type='button' class='pr-btn' data-pr-regen>&#8635; Regen</button>");
       c.appendChild(hd);
       plotSub = hd.querySelector("[data-pr-sub]");
       hd.querySelector("[data-pr-regen]").addEventListener("click", function () { draw(); });
-      plotHost = h("div"); plotHost.style.cssText = "width:100%;overflow:hidden";
-      c.appendChild(plotHost);
+      var body = h("div", "pr-body");
+      var elev = h("div", "pr-elev");
+      var frontW = h("div"); frontW.appendChild(h("div", "pr-elhd", "Front (정면도)"));
+      plotHost = h("div"); plotHost.style.cssText = "width:100%;overflow:hidden"; frontW.appendChild(plotHost);
+      var sideW = h("div"); sideW.appendChild(h("div", "pr-elhd", "Side (측면도)"));
+      plotHostSide = h("div"); plotHostSide.style.cssText = "width:100%;overflow:hidden"; sideW.appendChild(plotHostSide);
+      elev.appendChild(frontW); elev.appendChild(sideW);
+      body.appendChild(elev); c.appendChild(body);
       return c;
     }
 
@@ -421,7 +435,9 @@
     // Elevation preview, drawn through the shared core (window.RWSVG): geometry is
     // emitted as KonvaViewer-style primitives, so dims / fonts / zoom-pan match the
     // retaining-wall and section drawings exactly.
-    function draw() {
+    function draw() { drawFront(); drawSide(); }
+
+    function drawFront() {
       if (!plotHost || !plotHost.isConnected) return;
       if (typeof window.RWSVG === "undefined") { ensureCore(draw); return; }
       var p = P(), cp = p.coping, f = p.fdn;
@@ -514,6 +530,50 @@
       if (plotSub) plotSub.textContent = p.name +
         " · " + p.colCount + " col · " + (p.fdnMode === "combined" ? "combined ftg" : "individual ftg");
     }
+
+    // Side elevation (측면도) — longitudinal (교축방향) view: cap TB wide, columns
+    // superimposed at the longitudinal centre, footing spanning FF/FB about the columns.
+    function drawSide() {
+      if (!plotHostSide || !plotHostSide.isConnected) return;
+      if (typeof window.RWSVG === "undefined") return;
+      var p = P(), cp = p.coping, f = p.fdn;
+      var maxCH = Math.max.apply(null, p.cols.map(function (c) { return c.CH; }).concat([1000]));
+      var TB = +cp.TB || 4000;
+      var geo = copingGeometry(cp), copeH = geo.A.yTop;          // coping thickness at centre
+      var colDep = Math.max.apply(null, p.cols.map(function (c) { return c.shape === "circle" ? +c.D : (+c.H || +c.D); }).concat([500]));
+
+      var rec = new window.RWSVG.MockViewer();
+      rec.addLayer("c", "cyan", "solid", 1);
+      function rect(x1, y1, x2, y2) {
+        rec.addLine(0, x1, y1, x2, y1, "c"); rec.addLine(0, x2, y1, x2, y2, "c");
+        rec.addLine(0, x2, y2, x1, y2, "c"); rec.addLine(0, x1, y2, x1, y1, "c");
+      }
+      // footing (longitudinal): colDep + FF (front) + FB (back)
+      var footL = -(colDep / 2 + (+f.FF || 0)), footR = colDep / 2 + (+f.FB || 0);
+      rect(footL, -f.BH, footR, 0);
+      var bl = (f.EFL > 0 || f.EH > 0);
+      if (bl) rect(footL - f.EFL, -f.BH - f.EH, footR + f.EFL, -f.BH);
+      // columns superimpose to one shaft at the longitudinal centre
+      rect(-colDep / 2, 0, colDep / 2, maxCH);
+      // coping: TB wide × copeH, seated on the columns
+      rect(-TB / 2, maxCH, TB / 2, maxCH + copeH);
+
+      var footLo = bl ? footL - f.EFL : footL, footHi = bl ? footR + f.EFL : footR;
+      var bnd = { minX: Math.min(-TB / 2, footLo), maxX: Math.max(TB / 2, footHi), minY: -f.BH - (f.EH > 0 ? f.EH : 0), maxY: maxCH + copeH };
+      var dims = [
+        { side: "T", at: maxCH + copeH, lo: -TB / 2, hi: TB / 2, label: "TB" },
+        { side: "R", at: TB / 2, lo: maxCH, hi: maxCH + copeH, label: "TH" },
+        { side: "L", at: -colDep / 2, lo: 0, hi: maxCH, label: "CH" },
+        { side: "L", at: footL, lo: -f.BH, hi: 0, label: "BH" },
+        { side: "B", at: -f.BH, lo: footL, hi: footR, label: "FW" }
+      ];
+      layoutDims(dims, bnd).forEach(function (d) { rec.addDimLinear(0, d.x1, d.y1, d.x2, d.y2, d.gap, d.label, { la: d.la, lp: d.lp }); });
+
+      var W = plotHostSide.clientWidth || 380, Hpx = Math.max(360, Math.min(560, Math.round(W * 0.9)));
+      plotHostSide.innerHTML = window.RWSVG.renderSVG(rec, W, Hpx);
+      var svg = plotHostSide.querySelector("svg");
+      if (svg) window.RWSVG.attachZoomPan(svg);
+    }
     _pierDraw = draw;
 
     // ── render orchestration ──
@@ -526,12 +586,10 @@
     }
     function renderAll() {
       stack.innerHTML = "";
-      stack.appendChild(cardPiers());
-      var grid = h("div", "pr-grid");
-      var left = h("div", "pr-col"); left.appendChild(cardPreview());
-      grid.appendChild(left);
-      renderPerPier(); grid.appendChild(perWrap);
-      stack.appendChild(grid);
+      stack.appendChild(cardPiers());        // full-width
+      stack.appendChild(cardPreview());      // full-width Elevation (front + side)
+      renderPerPier();                       // Coping / Columns / Foundation
+      stack.appendChild(perWrap);            // each full-width, stacked
       draw();
     }
     renderAll();
