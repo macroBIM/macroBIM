@@ -163,6 +163,7 @@
       dims.push({ x1: -oB / 2, y1: oH, x2: oB / 2, y2: oH, gap: off * 1.8, t: "B" });   // top → up
       dims.push({ x1: oB / 2 - oa, y1: oH, x2: oB / 2, y2: oH, gap: off * 0.7, t: "a" });   // top → up
       dims.push({ x1: oB / 2, y1: oH - ob, x2: oB / 2, y2: oH, gap: -off * 0.7, t: "b" });  // right vertical → right
+      if (inner) dims.push({ x1: -oB / 2, y1: oH / 2, x2: -oB / 2 + num(p.t), y2: oH / 2, gap: -off * 0.7, t: "t" });  // wall thickness, left
       return { outer: outer, inner: inner, dims: dims, W: oB, H: oH };
     }
 
