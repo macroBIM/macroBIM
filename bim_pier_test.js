@@ -93,6 +93,32 @@
   function polyOn(rec, pts, cx, cy, lay) {
     for (var i = 0; i < pts.length; i++) { var a = pts[i], b = pts[(i + 1) % pts.length]; rec.addLine(0, cx + a[0], cy + a[1], cx + b[0], cy + b[1], lay); }
   }
+  // draw a column section outline at (cx,cy) using true primitives — circle → CIRCLE,
+  // (un-rotated) track → LINE+ARC, others → polyline — so exports keep real entities.
+  function sectionOn(rec, col, cx, cy, outerLay, innerLay) {
+    var s = col.sect || {}, shape = col.shape, hollow = !!col.hollow;
+    if (shape === "circle") {
+      var R = (+s.D || 2500) / 2, tw = +s.tw || 0;
+      rec.addCircle(0, cx, cy, R, outerLay);
+      if (hollow && tw > 0 && tw < R) rec.addCircle(0, cx, cy, R - tw, innerLay);
+      return;
+    }
+    if (shape === "track" && !(col.ang || 0)) {
+      var B = +s.B || 2500, H = +s.H || 2500, rr = H / 2, sx = Math.max(0, B / 2 - rr), t = +s.t || 0;
+      function ob(rad, lay) {
+        rec.addLine(0, cx - sx, cy - rad, cx + sx, cy - rad, lay);
+        rec.addLine(0, cx + sx, cy + rad, cx - sx, cy + rad, lay);
+        rec.addArc(0, cx + sx, cy, rad, -90, 90, lay);
+        rec.addArc(0, cx - sx, cy, rad, 90, 270, lay);
+      }
+      ob(rr, outerLay);
+      if (hollow && t > 0 && t < rr) ob(rr - t, innerLay);
+      return;
+    }
+    var sp = sectionPts(col);   // rect / octagon / rotated track
+    polyOn(rec, sp.outer, cx, cy, outerLay);
+    if (sp.inner) polyOn(rec, sp.inner, cx, cy, innerLay);
+  }
   // rounded-rectangle outline drawn on rec (lines + corner arcs), radius r on all corners
   function roundRectOn(rec, x0, x1, y0, y1, r, lay) {
     r = Math.max(0, Math.min(r, (x1 - x0) / 2, (y1 - y0) / 2));
@@ -950,7 +976,7 @@
       if (A.HER > 0) rec.addLine(0, A.xRe, -TB / 2, A.xRe, TB / 2, "h");
       rec.addLine(0, A.xLH, -TB / 2, A.xLH, TB / 2, "h");       // central head-block edges (coping soffit)
       rec.addLine(0, A.xRH, -TB / 2, A.xRH, TB / 2, "h");
-      p.cols.forEach(function (col, i) { var sp = sectionPts(col); polyOn(rec, sp.outer, cs[i], 0, "h"); if (sp.inner) polyOn(rec, sp.inner, cs[i], 0, "h"); });
+      p.cols.forEach(function (col, i) { sectionOn(rec, col, cs[i], 0, "h", "h"); });
       var b = { minX: A.xLtip, maxX: A.xRtip, minY: -TB / 2, maxY: TB / 2 };
       var dims = [
         { side: "R", at: A.xRtip, lo: -TB / 2, hi: TB / 2, label: "TB" },
@@ -979,7 +1005,7 @@
       } else {
         p.cols.forEach(function (col, i) { foot(cs[i] - colW(col) / 2 - (+f.BLF || 0), cs[i] + colW(col) / 2 + (+f.BRF || 0)); });
       }
-      p.cols.forEach(function (col, i) { var sp = sectionPts(col); polyOn(rec, sp.outer, cs[i], 0, "c"); if (sp.inner) polyOn(rec, sp.inner, cs[i], 0, "h"); });
+      p.cols.forEach(function (col, i) { sectionOn(rec, col, cs[i], 0, "c", "h"); });
       var yLo = bl ? yB - EFL : yB, yHi = bl ? yT + EFL : yT;
       var b = { minX: minX, maxX: maxX, minY: yLo, maxY: yHi };
       var dims = [
