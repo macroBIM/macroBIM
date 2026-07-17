@@ -356,6 +356,7 @@
     ".pr-radio{width:15px;height:15px;border-radius:50%;border:2px solid var(--line);background:var(--panel);cursor:pointer;padding:0;flex:0 0 auto}" +
     ".pr-radio.on{border-color:var(--dim);background:var(--dim);box-shadow:inset 0 0 0 2.5px var(--panel)}" +
     ".pr-btn{font:inherit;font-size:10.5px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:#fff;" +
+    "min-width:88px;text-align:center;display:inline-flex;align-items:center;justify-content:center;" +
     "background:var(--dim);border:1px solid var(--dim);border-radius:6px;padding:5px 12px;cursor:pointer;" +
     "box-shadow:0 1px 3px rgba(37,99,235,.35);transition:filter .12s,transform .06s}" +
     ".pr-btn:hover{filter:brightness(1.12)}.pr-btn:active{filter:brightness(.94);transform:translateY(1px)}";
@@ -667,15 +668,17 @@
     function cardPreview() {
       var c = h("div", "pr-card");
       var hd = h("div", "pr-hd", "<span class='pr-ttl'>Elevation <span class='pr-sub' data-pr-sub>front + side</span></span>" +
-        "<span style='display:inline-flex;gap:6px'>" +
+        "<span style='display:inline-flex;gap:6px;flex-wrap:wrap'>" +
         "<button type='button' class='pr-btn' data-pr-3d>3D</button>" +
         "<button type='button' class='pr-btn' data-pr-stl>&#8681; STL</button>" +
+        "<button type='button' class='pr-btn' data-pr-dxf>&#8681; DXF</button>" +
         "<button type='button' class='pr-btn' data-pr-regen>&#8635; Regen</button></span>");
       c.appendChild(hd);
       plotSub = hd.querySelector("[data-pr-sub]");
       hd.querySelector("[data-pr-regen]").addEventListener("click", function () { draw(); });
       hd.querySelector("[data-pr-3d]").addEventListener("click", function () { show3D(); });
       hd.querySelector("[data-pr-stl]").addEventListener("click", function () { downloadSTL(); });
+      hd.querySelector("[data-pr-dxf]").addEventListener("click", function () { downloadDXF(); });
       var body = h("div", "pr-body");
       plotHost = h("div"); plotHost.style.cssText = "width:100%;overflow:hidden";
       body.appendChild(plotHost); c.appendChild(body);
@@ -728,9 +731,9 @@
     // Elevation preview, drawn through the shared core (window.RWSVG): geometry is
     // emitted as KonvaViewer-style primitives, so dims / fonts / zoom-pan match the
     // retaining-wall and section drawings exactly.
-    function draw() {
-      if (!plotHost || !plotHost.isConnected) return;
-      if (typeof window.RWSVG === "undefined") { ensureCore(draw); return; }
+    // Compose the full drawing (FRONT + SIDE + coping/footing plans) for the SELECTED
+    // pier into one MockViewer. Returns { rec, box }. Reused by draw() and DXF export.
+    function composeRec() {
       var rec = new window.RWSVG.MockViewer();
       rec.addLayer("c", "cyan", "solid", 1); rec.addLayer("h", "gray", "hidden", 1); rec.addLayer("g", "#c2ccd8", "faint", 1);
       buildFront(rec);
@@ -739,43 +742,39 @@
       sRec.addLayer("c", "cyan", "solid", 1); sRec.addLayer("h", "gray", "hidden", 1); sRec.addLayer("g", "#c2ccd8", "faint", 1);
       buildSide(sRec);
       var sbox = bboxOf(sRec);
-      // place side to the right of front, uniform scale (both share this one drawing).
-      // gap keyed to structure height so the two views sit well apart (fills the
-      // horizontal room left when the drawing is height-fit).
       var gap = (fbox.maxY - fbox.minY) * 0.5;
       var ox = fbox.maxX + gap - sbox.minX;
       mergeOffset(rec, sRec, ox);
       var vspan = Math.max(fbox.maxY, sbox.maxY) - Math.min(fbox.minY, sbox.minY);
       var labY = Math.max(fbox.maxY, sbox.maxY) + vspan * 0.11;   // clear the raised coping-top dims (TLL/TLR, TB)
-      if (rec.addText) {
-        rec.addText(0, (fbox.minX + fbox.maxX) / 2, labY, "FRONT");
-        rec.addText(0, ox + (sbox.minX + sbox.maxX) / 2, labY, "SIDE");
-      }
-      // ── plan views: coping plan (top) + footing plan (bottom), stacked to the right,
-      //    both aligned on the pier centre line (model x=0) ──
+      rec.addText(0, (fbox.minX + fbox.maxX) / 2, labY, "FRONT");
+      rec.addText(0, ox + (sbox.minX + sbox.maxX) / 2, labY, "SIDE");
+      // plan views: coping plan (top) + footing plan (bottom), aligned on the pier centre line
       var cRec = new window.RWSVG.MockViewer();
       cRec.addLayer("c", "cyan", "solid", 1); cRec.addLayer("h", "gray", "hidden", 1);
       buildCopingPlan(cRec); var cbox = bboxOf(cRec);
       var pRec = new window.RWSVG.MockViewer();
       pRec.addLayer("c", "cyan", "solid", 1); pRec.addLayer("h", "gray", "hidden", 1);
       buildFoundationPlan(pRec); var pbox = bboxOf(pRec);
-      var elb = bboxOf(rec);                       // FRONT + SIDE so far
+      var elb = bboxOf(rec);
       var pgap = (elb.maxY - elb.minY) * 0.10;
-      // one shared X offset → model x=0 (pier centre) lands at the same screen x in both plans
       var oxCommon = elb.maxX + gap - Math.min(cbox.minX, pbox.minX);
-      var oyC = elb.maxY - cbox.maxY;                                        // coping plan: top-aligned
+      var oyC = elb.maxY - cbox.maxY;
       mergeOffsetXY(rec, cRec, oxCommon, oyC);
-      var oyF = (oyC + cbox.minY) - pgap * 2.4 - pbox.maxY;                  // footing plan: below coping
+      var oyF = (oyC + cbox.minY) - pgap * 2.4 - pbox.maxY;
       mergeOffsetXY(rec, pRec, oxCommon, oyF);
-      if (rec.addText) {
-        rec.addText(0, oxCommon, oyC + cbox.maxY + pgap * 0.6, "COPING PLAN");
-        rec.addText(0, oxCommon, oyF + pbox.maxY + pgap * 0.6, "FOOTING PLAN");
-      }
-      // fit to card width; height follows content so the card stays compact
-      var full = bboxOf(rec), bw = Math.max(full.maxX - full.minX, 1), bh = Math.max(full.maxY - full.minY, 1);
+      rec.addText(0, oxCommon, oyC + cbox.maxY + pgap * 0.6, "COPING PLAN");
+      rec.addText(0, oxCommon, oyF + pbox.maxY + pgap * 0.6, "FOOTING PLAN");
+      return { rec: rec, box: bboxOf(rec) };
+    }
+    function draw() {
+      if (!plotHost || !plotHost.isConnected) return;
+      if (typeof window.RWSVG === "undefined") { ensureCore(draw); return; }
+      var comp = composeRec(), full = comp.box;
+      var bw = Math.max(full.maxX - full.minX, 1), bh = Math.max(full.maxY - full.minY, 1);
       var W = plotHost.clientWidth || 1000, s = (W - 80) / bw;
       var Hpx = Math.max(260, Math.min(440, Math.round(bh * s) + 50));
-      plotHost.innerHTML = window.RWSVG.renderSVG(rec, W, Hpx);
+      plotHost.innerHTML = window.RWSVG.renderSVG(comp.rec, W, Hpx);
       var svg = plotHost.querySelector("svg");
       if (svg) window.RWSVG.attachZoomPan(svg);
       var pp = P();
@@ -1017,6 +1016,53 @@
       plotHost.appendChild(d3);
       window.RWSVG.render3d("pr-3d-host", "render_pier_3d", "https://macrobim.github.io/macroBIM/bim_pier_3d.js?v=1", [buildPierMesh()]);
       if (plotSub) plotSub.textContent = P().name + " · 3D solid (drag to orbit)";
+    }
+
+    // DXF of ALL piers laid out left→right in one drawing, spaced apart. Each pier's
+    // composed drawing (front + side + plans) is emitted with a per-pier x-offset.
+    function pierDXF() {
+      var e = ["0", "SECTION", "2", "ENTITIES"], TH = 220;
+      function num(v) { return String(Math.round(v * 1000) / 1000); }
+      function line(x1, y1, x2, y2, lay) { e.push("0", "LINE", "8", lay, "10", num(x1), "20", num(y1), "30", "0", "11", num(x2), "21", num(y2), "31", "0"); }
+      function arc(x, y, r, a1, a2, lay) { e.push("0", "ARC", "8", lay, "10", num(x), "20", num(y), "30", "0", "40", num(r), "50", num(a1), "51", num(a2)); }
+      function circ(x, y, r, lay) { e.push("0", "CIRCLE", "8", lay, "10", num(x), "20", num(y), "30", "0", "40", num(r)); }
+      function txt(x, y, s, hgt, rot, lay) { e.push("0", "TEXT", "8", lay, "10", num(x), "20", num(y), "30", "0", "40", num(hgt), "1", String(s), "50", num(rot || 0)); }
+      function emit(rec, dx, dy) {
+        (rec.L || []).forEach(function (l) { line(l.x1 + dx, l.y1 + dy, l.x2 + dx, l.y2 + dy, l.lay === "hidden" ? "HIDDEN" : (l.lay === "faint" ? "HATCH" : "PIER")); });
+        (rec.A || []).forEach(function (a) { var lay = a.lay === "hidden" ? "HIDDEN" : "PIER", a2 = a.a2 <= a.a1 ? a.a2 + 360 : a.a2; if (a2 - a.a1 >= 360) circ(a.x + dx, a.y + dy, a.r, lay); else arc(a.x + dx, a.y + dy, a.r, a.a1, a.a2, lay); });
+        (rec.TX || []).forEach(function (t) { txt(t.x + dx, t.y + dy, t.t, TH, t.rot, "TEXT"); });
+        (rec.DL || []).forEach(function (d) {
+          var len = Math.hypot(d.x2 - d.x1, d.y2 - d.y1); if (!len) return;
+          var nx = -(d.y2 - d.y1) / len, ny = (d.x2 - d.x1) / len;
+          var p1x = d.x1 + nx * d.gap, p1y = d.y1 + ny * d.gap, p2x = d.x2 + nx * d.gap, p2y = d.y2 + ny * d.gap;
+          line(p1x + dx, p1y + dy, p2x + dx, p2y + dy, "DIM");
+          line(d.x1 + dx, d.y1 + dy, p1x + dx, p1y + dy, "DIM"); line(d.x2 + dx, d.y2 + dy, p2x + dx, p2y + dy, "DIM");
+          var ang = Math.atan2(p2y - p1y, p2x - p1x) * 180 / Math.PI; if (ang > 90 || ang < -90) ang += 180;
+          txt((p1x + p2x) / 2 + dx, (p1y + p2y) / 2 + dy, (d.t ? d.t + "=" : "") + Math.round(len), TH * 0.9, ang, "DIM");
+        });
+        (rec.DR || []).forEach(function (d) {
+          var rx = d.x + d.r * Math.cos(d.ang * Math.PI / 180), ry = d.y + d.r * Math.sin(d.ang * Math.PI / 180);
+          line(d.x + dx, d.y + dy, rx + dx, ry + dy, "DIM");
+          txt((d.x + rx) / 2 + dx, (d.y + ry) / 2 + dy, (d.t || "R") + Math.round(d.r), TH * 0.9, 0, "DIM");
+        });
+      }
+      var saved = S.sel, ox = 0;
+      for (var i = 0; i < S.piers.length; i++) {
+        S.sel = i;
+        var comp = composeRec(), b = comp.box, w = b.maxX - b.minX, ht = b.maxY - b.minY;
+        emit(comp.rec, ox - b.minX, -b.minY);                              // left→ox, bottom→0
+        txt(ox + w / 2, -TH * 3, S.piers[i].name, TH * 1.4, 0, "TITLE");   // pier name below
+        ox += w + Math.max(6000, ht * 0.45);                              // gap between piers
+      }
+      S.sel = saved;
+      e.push("0", "ENDSEC", "0", "EOF");
+      return e.join("\n");
+    }
+    function downloadDXF() {
+      var blob = new Blob([pierDXF()], { type: "application/dxf" });
+      var url = URL.createObjectURL(blob), a = document.createElement("a");
+      a.href = url; a.download = "piers.dxf"; document.body.appendChild(a); a.click();
+      document.body.removeChild(a); setTimeout(function () { URL.revokeObjectURL(url); }, 1000);
     }
     _pierDraw = draw;
 
