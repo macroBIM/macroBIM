@@ -54,6 +54,45 @@
     return pts.map(function (p) { return [p[0] * c - p[1] * s, p[0] * s + p[1] * c]; });
   }
   function distinctLevels(vals) { var seen = {}; vals.forEach(function (v) { seen[Math.round(v * 100) / 100] = 1; }); return Object.keys(seen).map(Number); }
+  // ── plan-view section outline (x transverse, y longitudinal), centred, rotated by ang ──
+  function circPts(R, n) { var p = []; for (var i = 0; i < n; i++) { var a = 2 * Math.PI * i / n; p.push([R * Math.cos(a), R * Math.sin(a)]); } return p; }
+  function obroundPts2(sx, r, n) {   // horizontal obround: caps ±sx radius r, centred
+    var p = [], i, a;
+    for (i = 0; i <= n; i++) { a = (-90 + 180 * i / n) * Math.PI / 180; p.push([sx + r * Math.cos(a), r * Math.sin(a)]); }
+    for (i = 0; i <= n; i++) { a = (90 + 180 * i / n) * Math.PI / 180; p.push([-sx + r * Math.cos(a), r * Math.sin(a)]); }
+    return p;
+  }
+  function sectionPts(col) {
+    var s = col.sect || {}, shape = col.shape, ang = col.ang || 0, hollow = !!col.hollow;
+    var B = +s.B || 2500, H = +s.H || 2500, D = +s.D || 2500, outer, inner = null;
+    if (shape === "circle") {
+      var R = D / 2, tw = +s.tw || 0; outer = circPts(R, 48);
+      if (hollow && tw > 0 && tw < R) inner = circPts(R - tw, 48);
+    } else if (shape === "track") {
+      var rr = H / 2, sx = Math.max(0, B / 2 - rr), t = +s.t || 0; outer = obroundPts2(sx, rr, 12);
+      if (hollow && t > 0 && t < rr) inner = obroundPts2(sx, rr - t, 12);
+    } else if (shape === "octagon") {
+      var oa = +s.a || 0, ob = +s.b || 0, ot = +s.t || 0; outer = octPts(B, H, oa, ob);
+      if (hollow && ot > 0) { var B2 = B - 2 * ot, H2 = H - 2 * ot; if (B2 > 0 && H2 > 0) inner = octPts(B2, H2, Math.min(oa, B2 / 2), Math.min(ob, H2 / 2)); }
+    } else {   // rect
+      outer = [[-B / 2, -H / 2], [B / 2, -H / 2], [B / 2, H / 2], [-B / 2, H / 2]];
+      if (hollow) {
+        var twl = +s.twl || 0, twr = +s.twr || 0, tf1 = +s.tf1 || 0, tf2 = +s.tf2 || 0, ha = +s.ha || 0, hb = +s.hb || 0;
+        var ix0 = -B / 2 + twl, ix1 = B / 2 - twr, iy0 = -H / 2 + tf2, iy1 = H / 2 - tf1;
+        if (ix1 > ix0 && iy1 > iy0) {
+          var cha = Math.min(ha, (ix1 - ix0) / 2), chb = Math.min(hb, (iy1 - iy0) / 2);
+          inner = (cha > 0 && chb > 0)
+            ? [[ix0 + cha, iy0], [ix1 - cha, iy0], [ix1, iy0 + chb], [ix1, iy1 - chb], [ix1 - cha, iy1], [ix0 + cha, iy1], [ix0, iy1 - chb], [ix0, iy0 + chb]]
+            : [[ix0, iy0], [ix1, iy0], [ix1, iy1], [ix0, iy1]];
+        }
+      }
+    }
+    return { outer: rotPts(outer, ang), inner: inner ? rotPts(inner, ang) : null };
+  }
+  // draw a closed polyline (points relative to cx,cy) onto rec on the given layer
+  function polyOn(rec, pts, cx, cy, lay) {
+    for (var i = 0; i < pts.length; i++) { var a = pts[i], b = pts[(i + 1) % pts.length]; rec.addLine(0, cx + a[0], cy + a[1], cx + b[0], cy + b[1], lay); }
+  }
   // section edge-lines projected for the elevation. Returns fold levels (visible outer
   // corners) and inner levels (hollow/haunch, hidden), for transverse (x) and longitudinal (y).
   function colFolds(col) {
@@ -567,12 +606,14 @@
       return { minX: mnX, minY: mnY, maxX: mxX, maxY: mxY };
     }
     // append src's primitives into dst, shifted by (ox,0)
-    function mergeOffset(dst, src, ox) {
-      (src.L || []).forEach(function (l) { dst.L.push({ x1: l.x1 + ox, y1: l.y1, x2: l.x2 + ox, y2: l.y2, lay: l.lay, col: l.col }); });
-      (src.A || []).forEach(function (a) { dst.A.push({ x: a.x + ox, y: a.y, r: a.r, a1: a.a1, a2: a.a2, lay: a.lay, col: a.col }); });
-      (src.DL || []).forEach(function (d) { dst.DL.push({ x1: d.x1 + ox, y1: d.y1, x2: d.x2 + ox, y2: d.y2, gap: d.gap, t: d.t, la: d.la, lp: d.lp }); });
-      (src.DR || []).forEach(function (d) { dst.DR.push({ x: d.x + ox, y: d.y, r: d.r, ang: d.ang, t: d.t }); });
-      (src.TX || []).forEach(function (t) { dst.TX.push({ x: t.x + ox, y: t.y, t: t.t, rot: t.rot }); });
+    function mergeOffset(dst, src, ox) { mergeOffsetXY(dst, src, ox, 0); }
+    // append src's primitives into dst, shifted by (ox,oy)
+    function mergeOffsetXY(dst, src, ox, oy) {
+      (src.L || []).forEach(function (l) { dst.L.push({ x1: l.x1 + ox, y1: l.y1 + oy, x2: l.x2 + ox, y2: l.y2 + oy, lay: l.lay, col: l.col }); });
+      (src.A || []).forEach(function (a) { dst.A.push({ x: a.x + ox, y: a.y + oy, r: a.r, a1: a.a1, a2: a.a2, lay: a.lay, col: a.col }); });
+      (src.DL || []).forEach(function (d) { dst.DL.push({ x1: d.x1 + ox, y1: d.y1 + oy, x2: d.x2 + ox, y2: d.y2 + oy, gap: d.gap, t: d.t, la: d.la, lp: d.lp }); });
+      (src.DR || []).forEach(function (d) { dst.DR.push({ x: d.x + ox, y: d.y + oy, r: d.r, ang: d.ang, t: d.t }); });
+      (src.TX || []).forEach(function (t) { dst.TX.push({ x: t.x + ox, y: t.y + oy, t: t.t, rot: t.rot }); });
     }
 
     // Column transverse positions (교축직각방향), measured from the PIER CENTRE (x=0);
@@ -616,6 +657,24 @@
       if (rec.addText) {
         rec.addText(0, (fbox.minX + fbox.maxX) / 2, labY, "FRONT");
         rec.addText(0, ox + (sbox.minX + sbox.maxX) / 2, labY, "SIDE");
+      }
+      // ── plan views: coping plan (top) + footing plan (bottom), stacked to the right ──
+      var cRec = new window.RWSVG.MockViewer();
+      cRec.addLayer("c", "cyan", "solid", 1); cRec.addLayer("h", "gray", "hidden", 1);
+      buildCopingPlan(cRec); var cbox = bboxOf(cRec);
+      var pRec = new window.RWSVG.MockViewer();
+      pRec.addLayer("c", "cyan", "solid", 1); pRec.addLayer("h", "gray", "hidden", 1);
+      buildFoundationPlan(pRec); var pbox = bboxOf(pRec);
+      var elb = bboxOf(rec);                       // FRONT + SIDE so far
+      var pgap = (elb.maxY - elb.minY) * 0.10;
+      var oxP = elb.maxX + gap;                    // left edge of the plan stack
+      var oxC = oxP - cbox.minX, oyC = elb.maxY - cbox.maxY;                 // coping plan: top-aligned
+      mergeOffsetXY(rec, cRec, oxC, oyC);
+      var oxF = oxP - pbox.minX, oyF = (oyC + cbox.minY) - pgap * 2.4 - pbox.maxY;   // footing plan: below coping
+      mergeOffsetXY(rec, pRec, oxF, oyF);
+      if (rec.addText) {
+        rec.addText(0, oxC + (cbox.minX + cbox.maxX) / 2, oyC + cbox.maxY + pgap * 0.6, "COPING PLAN");
+        rec.addText(0, oxF + (pbox.minX + pbox.maxX) / 2, oyF + pbox.maxY + pgap * 0.6, "FOOTING PLAN");
       }
       // fit to card width; height follows content so the card stays compact
       var full = bboxOf(rec), bw = Math.max(full.maxX - full.minX, 1), bh = Math.max(full.maxY - full.minY, 1);
@@ -759,6 +818,49 @@
         { side: "B", at: -f.BH, lo: footL, hi: footR, label: "FW" }
       ];
       layoutDims(dims, bnd).forEach(function (d) { rec.addDimLinear(0, d.x1, d.y1, d.x2, d.y2, d.gap, d.label, { la: d.la, lp: d.lp }); });
+    }
+
+    // Plan @ coping (top-down): coping footprint (cap length × TB) + central head
+    // block edges (xLH..xRH) + column sections where the column tops seat.
+    function buildCopingPlan(rec) {
+      var p = P(), cp = p.coping, cs = colCenters(p);
+      var geo = copingGeometry(cp), A = geo.A, TB = +cp.TB || 4000;
+      function rect(x1, y1, x2, y2, lay) { rec.addLine(0, x1, y1, x2, y1, lay); rec.addLine(0, x2, y1, x2, y2, lay); rec.addLine(0, x2, y2, x1, y2, lay); rec.addLine(0, x1, y2, x1, y1, lay); }
+      rect(A.xLtip, -TB / 2, A.xRtip, TB / 2, "c");             // coping plan outline (top)
+      rec.addLine(0, A.xLH, -TB / 2, A.xLH, TB / 2, "c");       // central head-block edges (coping soffit)
+      rec.addLine(0, A.xRH, -TB / 2, A.xRH, TB / 2, "c");
+      p.cols.forEach(function (col, i) { var sp = sectionPts(col); polyOn(rec, sp.outer, cs[i], 0, "c"); if (sp.inner) polyOn(rec, sp.inner, cs[i], 0, "h"); });
+      var b = { minX: A.xLtip, maxX: A.xRtip, minY: -TB / 2, maxY: TB / 2 };
+      var dims = [
+        { side: "R", at: A.xRtip, lo: -TB / 2, hi: TB / 2, label: "TB" },
+        { side: "T", at: TB / 2, lo: A.xLtip, hi: A.xRtip, label: "L" }
+      ];
+      layoutDims(dims, b).forEach(function (d) { rec.addDimLinear(0, d.x1, d.y1, d.x2, d.y2, d.gap, d.label, { la: d.la, lp: d.lp }); });
+    }
+
+    // Plan @ footing (top-down): footing footprint (with the lower base slab, ±EFL)
+    // + column sections where the column bottoms seat.
+    function buildFoundationPlan(rec) {
+      var p = P(), f = p.fdn, cs = colCenters(p);
+      var colDep = Math.max.apply(null, p.cols.map(function (c) { return colDepth(c); }).concat([500]));
+      var yB = -(colDep / 2 + (+f.FF || 0)), yT = colDep / 2 + (+f.FB || 0);
+      var bl = (f.EFL > 0 || f.EH > 0), EFL = +f.EFL || 0;
+      function rect(x1, y1, x2, y2, lay) { rec.addLine(0, x1, y1, x2, y1, lay); rec.addLine(0, x2, y1, x2, y2, lay); rec.addLine(0, x2, y2, x1, y2, lay); rec.addLine(0, x1, y2, x1, y1, lay); }
+      var minX = 1e9, maxX = -1e9;
+      function foot(L, R) { rect(L, yB, R, yT, "c"); if (bl) rect(L - EFL, yB - EFL, R + EFL, yT + EFL, "c"); if (L - EFL < minX) minX = L - EFL; if (R + EFL > maxX) maxX = R + EFL; }
+      if (p.fdnMode === "combined") {
+        foot(cs[0] - colW(p.cols[0]) / 2 - (+f.BLF || 0), cs[cs.length - 1] + colW(p.cols[p.cols.length - 1]) / 2 + (+f.BRF || 0));
+      } else {
+        p.cols.forEach(function (col, i) { foot(cs[i] - colW(col) / 2 - (+f.BLF || 0), cs[i] + colW(col) / 2 + (+f.BRF || 0)); });
+      }
+      p.cols.forEach(function (col, i) { var sp = sectionPts(col); polyOn(rec, sp.outer, cs[i], 0, "c"); if (sp.inner) polyOn(rec, sp.inner, cs[i], 0, "h"); });
+      var yLo = bl ? yB - EFL : yB, yHi = bl ? yT + EFL : yT;
+      var b = { minX: minX, maxX: maxX, minY: yLo, maxY: yHi };
+      var dims = [
+        { side: "R", at: maxX, lo: yB, hi: yT, label: "FW" },
+        { side: "T", at: yHi, lo: minX, hi: maxX, label: "L" }
+      ];
+      layoutDims(dims, b).forEach(function (d) { rec.addDimLinear(0, d.x1, d.y1, d.x2, d.y2, d.gap, d.label, { la: d.la, lp: d.lp }); });
     }
     _pierDraw = draw;
 
