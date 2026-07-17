@@ -12,7 +12,7 @@
     already shipped as bim_rect/circle/track/octagon). Foundation is either one
     combined footing or individual footings per column.
     Pure vanilla JS + inline SVG (no deps). Styles scoped to .pr-root.
-    build: v25 (inner-haunch coping inputs IHLA/IHL/IHH/IHR/IHSR)
+    build: v26 (columns: per-column height+position table, CL from pier centre)
 */
 (function () {
   "use strict";
@@ -73,6 +73,15 @@
     ".pr-colcard:last-child{margin-bottom:0}" +
     ".pr-colhd{display:flex;align-items:center;gap:10px;margin-bottom:6px}" +
     ".pr-colhd .cnm{font-weight:700;font-size:12px;color:var(--col)}" +
+    ".pr-tbl{width:100%;border-collapse:collapse;font-size:13px;margin-bottom:8px}" +
+    ".pr-tbl th{font-size:11px;font-weight:600;color:var(--muted);text-align:right;padding:6px 8px;border-bottom:1px solid var(--line);white-space:nowrap}" +
+    ".pr-tbl th:first-child{text-align:left}" +
+    ".pr-tbl td{padding:4px 6px;border-bottom:1px dashed var(--hair)}" +
+    ".pr-tbl tr:last-child td{border-bottom:0}" +
+    ".pr-tbl .rlbl{font-weight:700;font-size:12px;color:var(--col);white-space:nowrap}" +
+    ".pr-tbl input{width:100%;text-align:right;padding:5px 8px;border:1px solid var(--line);border-radius:6px;background:var(--panel);color:var(--ink);font-size:13px;font-variant-numeric:tabular-nums}" +
+    ".pr-tbl input:focus{outline:2px solid var(--dim);outline-offset:1px;border-color:var(--dim)}" +
+    ".pr-cap{font-size:11px;color:var(--muted);margin:0 0 10px}" +
     ".pr-glyph{flex:0 0 auto}" +
     ".pr-modes{display:flex;gap:8px;margin-bottom:10px}" +
     ".pr-mode{flex:1;font:inherit;font-size:12px;font-weight:600;text-align:center;padding:8px;border:1px solid var(--line);border-radius:8px;background:var(--panel);color:var(--muted);cursor:pointer}" +
@@ -94,7 +103,7 @@
     ".pr-btn:hover{filter:brightness(1.12)}.pr-btn:active{filter:brightness(.94);transform:translateY(1px)}";
 
   // ── data model ──────────────────────────────────────────────────────────────
-  function newCol() { return { shape: "circle", D: 2500, H: 2500, CH: 8000 }; }
+  function newCol() { return { shape: "circle", D: 2500, H: 2500, CH: 8000, CL: 0 }; }
   function newPier(name) {
     return {
       name: name, type: "T",
@@ -304,7 +313,7 @@
         n = clamp(n | 0, 1, 8);
         while (p.cols.length < n) p.cols.push(newCol());
         if (p.cols.length > n) p.cols.length = n;
-        p.colCount = n; renderPerPier(); draw();
+        p.colCount = n; spaceCols(p); renderPerPier(); draw();
       }
       minus.onclick = function () { setCols(p.colCount - 1); };
       plus.onclick = function () { setCols(p.colCount + 1); };
@@ -313,6 +322,30 @@
       hd.appendChild(stp); c.appendChild(hd);
 
       var b = h("div", "pr-body");
+
+      // height + transverse-position table (one row per column). CL is measured
+      // from the pier centre (교각중심): left negative, right positive.
+      function tcell(val, on, step) {
+        var td = h("td"), inp = h("input");
+        inp.type = "number"; inp.step = step || "10"; inp.value = val; inp.className = "pr-mono";
+        inp.addEventListener("input", function () { var v = parseFloat(inp.value); if (!isNaN(v)) { on(v); draw(); } });
+        td.appendChild(inp); return td;
+      }
+      var tbl = h("table", "pr-tbl");
+      tbl.appendChild(h("thead", null,
+        "<tr><th>Column</th><th>CH · height (mm)</th><th>CL · position (mm)</th></tr>"));
+      var tb = h("tbody");
+      p.cols.forEach(function (col, i) {
+        var tr = h("tr");
+        tr.appendChild(h("td", "rlbl", "Column " + (i + 1)));
+        tr.appendChild(tcell(col.CH, function (v) { col.CH = v; }));
+        tr.appendChild(tcell(col.CL, function (v) { col.CL = v; }, "50"));
+        tb.appendChild(tr);
+      });
+      tbl.appendChild(tb); b.appendChild(tbl);
+      b.appendChild(h("p", "pr-cap", "CL — transverse position from the pier centre (left −, right +)."));
+
+      // per-column section (shape / D / H) — needed for the drawing
       p.cols.forEach(function (col, i) {
         var cc = h("div", "pr-colcard");
         var ch = h("div", "pr-colhd");
@@ -325,7 +358,6 @@
         cc.appendChild(ch);
         cc.appendChild(numRow("D", col.shape === "circle" ? "Diameter" : "Width (transverse)", col.D, function (v) { col.D = v; }));
         if (col.shape !== "circle") cc.appendChild(numRow("H", "Width (longitudinal)", col.H, function (v) { col.H = v; }));
-        cc.appendChild(numRow("CH", "Column height", col.CH, function (v) { col.CH = v; }));
         b.appendChild(cc);
       });
       c.appendChild(b); return c;
@@ -367,12 +399,21 @@
       return c;
     }
 
+    // Column transverse positions (교축직각방향), measured from the PIER CENTRE (x=0);
+    // left is negative, right positive. Values are the per-column CL inputs.
     function colCenters(p) {
-      var N = p.colCount, TL = p.coping.TL, cs = [];
-      if (N <= 1) return [0];
-      var margin = Math.min(TL * 0.2, 3000), span = TL - 2 * margin;
-      for (var i = 0; i < N; i++) cs.push(-span / 2 + span * i / (N - 1));
-      return cs;
+      return p.cols.map(function (c) { return +c.CL || 0; });
+    }
+    // Even-spaced default CLs about the centre; used when the column count changes.
+    function spaceCols(p) {
+      var N = p.colCount, TL = p.coping.TL, pos;
+      if (N <= 1) pos = [0];
+      else {
+        var margin = Math.min(TL * 0.2, 3000), span = TL - 2 * margin;
+        pos = [];
+        for (var i = 0; i < N; i++) pos.push(Math.round((-span / 2 + span * i / (N - 1)) * 10) / 10);
+      }
+      p.cols.forEach(function (c, i) { c.CL = pos[i]; });
     }
 
     // Elevation preview, drawn through the shared core (window.RWSVG): geometry is
