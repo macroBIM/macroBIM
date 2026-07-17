@@ -193,5 +193,22 @@
     if (svg) window.RWSVG.attachZoomPan(svg);
   }
 
-  window.XSECT = { shapes: SHAPES, geo: geo, draw: draw, offsetPoly: offsetPoly };
+  // ── DOM-driven entry (layout test) ───────────────────────────────────────
+  // Inputs by id  xs_<shape>_<var>  and checkbox  xs_<shape>_hollow;
+  // preview mounts into  xs_<shape>_plot.
+  function mount(shape) {
+    var cfg = SHAPES[shape]; if (!cfg) return;
+    var pfx = "xs_" + shape, params = {};
+    cfg.vars.forEach(function (v) {
+      var el = document.getElementById(pfx + "_" + v[0]);
+      var val = el ? parseFloat(el.value) : v[2];
+      params[v[0]] = isNaN(val) ? v[2] : val;
+    });
+    var hc = document.getElementById(pfx + "_hollow");
+    params.hollow = hc ? hc.checked : true;
+    draw(shape, pfx + "_plot", params);
+  }
+  function install(shape) { window["fdraw_" + shape] = function () { mount(shape); }; }
+
+  window.XSECT = { shapes: SHAPES, geo: geo, draw: draw, offsetPoly: offsetPoly, mount: mount, install: install };
 })();
