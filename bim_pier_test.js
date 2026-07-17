@@ -20,6 +20,18 @@
   var NS = "http://www.w3.org/2000/svg";
   var TYPES  = [["T", "T-type"], ["MC", "Multi-column"], ["WALL", "Wall"], ["COL", "Single-column"], ["PORTAL", "Portal"], ["TORCH", "Torch"]];
   var SHAPES = [["rect", "Rectangle"], ["circle", "Circle"], ["track", "Track"], ["octagon", "Octagon"]];
+  // section variables per shape (names match bim_xsect_test.js; column-scale defaults).
+  // For non-circle: B = transverse width (front), H = longitudinal depth (side).
+  var SECT_VARS = {
+    circle: [["D", 2500], ["tw", 0]],
+    rect: [["B", 2500], ["H", 2500], ["twl", 0], ["twr", 0], ["tf1", 0], ["tf2", 0], ["ha", 0], ["hb", 0]],
+    track: [["B", 2500], ["H", 2500], ["R", 800], ["t", 0]],
+    octagon: [["B", 2500], ["H", 2500], ["a", 500], ["b", 500], ["t", 0]]
+  };
+  function sectDefaults(shape) { var o = {}; (SECT_VARS[shape] || []).forEach(function (v) { o[v[0]] = v[1]; }); return o; }
+  // transverse width (front view) / longitudinal depth (side view) from the section
+  function colW(col) { var s = col.sect || {}; return +(col.shape === "circle" ? s.D : s.B) || 2500; }
+  function colDepth(col) { var s = col.sect || {}; return +(col.shape === "circle" ? s.D : s.H) || 2500; }
 
   // latest instance's elevation draw() — for window resize redraw
   var _pierDraw = null, _pierRT = null;
@@ -60,6 +72,12 @@
     "@media(max-width:820px){.pr-elev{grid-template-columns:1fr}}" +
     ".pr-elhd{font-size:10.5px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);padding:0 0 6px;text-align:center}" +
     ".pr-ingrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:0 28px;align-items:start}" +
+    ".pr-crow{display:flex;flex-wrap:wrap;align-items:center;gap:9px 14px;padding:10px 2px;border-bottom:1px dashed var(--hair)}" +
+    ".pr-crow .cnm{font-weight:700;font-size:12px;color:var(--col);min-width:78px}" +
+    ".pr-fld{display:inline-flex;align-items:center;gap:5px}" +
+    ".pr-fld > span{font-size:11px;font-weight:600;color:var(--dim);font-family:ui-monospace,Menlo,Consolas,monospace}" +
+    ".pr-fld input{width:78px;text-align:right;padding:4px 7px;border:1px solid var(--line);border-radius:6px;background:var(--panel);color:var(--ink);font-size:12.5px;font-variant-numeric:tabular-nums}" +
+    ".pr-fld input:focus{outline:2px solid var(--dim);outline-offset:1px;border-color:var(--dim)}" +
     ".pr-inrow{display:grid;grid-template-columns:1fr auto;align-items:center;gap:8px;padding:5px 0;border-bottom:1px dashed var(--hair)}" +
     ".pr-inrow:last-child{border-bottom:0}" +
     ".pr-inrow label{font-size:13px;display:flex;align-items:baseline;gap:8px}" +
@@ -107,7 +125,12 @@
     ".pr-btn:hover{filter:brightness(1.12)}.pr-btn:active{filter:brightness(.94);transform:translateY(1px)}";
 
   // ── data model ──────────────────────────────────────────────────────────────
-  function newCol() { return { shape: "circle", D: 2500, H: 2500, CH: 8000, CL: 0 }; }
+  function newCol() { return { shape: "circle", CH: 8000, CL: 0, sect: sectDefaults("circle") }; }
+  function setColShape(col, shape) {
+    var d = sectDefaults(shape);
+    if (col.sect) for (var k in d) { if (col.sect[k] != null) d[k] = col.sect[k]; }   // keep shared vars
+    col.shape = shape; col.sect = d;
+  }
   function newPier(name) {
     return {
       name: name, type: "T",
@@ -329,45 +352,31 @@
 
       var b = h("div", "pr-body");
 
-      // height + transverse-position table (one row per column). CL is measured
-      // from the pier centre (교각중심): left negative, right positive.
-      function tcell(val, on, step) {
-        var td = h("td"), inp = h("input");
-        inp.type = "number"; inp.step = step || "10"; inp.value = val; inp.className = "pr-mono";
+      // compact labelled field
+      function fld(label, val, on, step) {
+        var w = h("span", "pr-fld"); w.appendChild(h("span", null, label));
+        var inp = h("input"); inp.type = "number"; inp.step = step || "10"; inp.value = val; inp.className = "pr-mono";
         inp.addEventListener("input", function () { var v = parseFloat(inp.value); if (!isNaN(v)) { on(v); draw(); } });
-        td.appendChild(inp); return td;
+        w.appendChild(inp); return w;
       }
-      var tbl = h("table", "pr-tbl");
-      tbl.appendChild(h("thead", null,
-        "<tr><th>Column</th><th>CH · height (mm)</th><th>CL · position (mm)</th></tr>"));
-      var tb = h("tbody");
+      // one row per column: shape selector (up front) · CH · CL · the section's variables
       p.cols.forEach(function (col, i) {
-        var tr = h("tr");
-        tr.appendChild(h("td", "rlbl", "Column " + (i + 1)));
-        tr.appendChild(tcell(col.CH, function (v) { col.CH = v; }));
-        tr.appendChild(tcell(col.CL, function (v) { col.CL = v; }, "50"));
-        tb.appendChild(tr);
-      });
-      tbl.appendChild(tb); b.appendChild(tbl);
-      b.appendChild(h("p", "pr-cap", "CL — transverse position from the pier centre (left −, right +)."));
-
-      // per-column section (shape / D / H) — needed for the drawing; flow full-width
-      var secGrid = h("div", "pr-ingrid");
-      p.cols.forEach(function (col, i) {
-        var cc = h("div", "pr-colcard");
-        var ch = h("div", "pr-colhd");
-        ch.appendChild(glyph(col.shape));
-        ch.appendChild(h("span", "cnm", "Column " + (i + 1)));
+        col.sect = col.sect || sectDefaults(col.shape);
+        var row = h("div", "pr-crow");
+        row.appendChild(h("span", "cnm", "Column " + (i + 1)));
         var sel = h("select", "pr-sel");
         SHAPES.forEach(function (s) { var o = h("option"); o.value = s[0]; o.textContent = s[1]; if (col.shape === s[0]) o.selected = true; sel.appendChild(o); });
-        sel.addEventListener("change", function () { col.shape = sel.value; renderPerPier(); draw(); });
-        var selw = h("span"); selw.style.marginLeft = "auto"; selw.appendChild(sel); ch.appendChild(selw);
-        cc.appendChild(ch);
-        cc.appendChild(numRow("D", col.shape === "circle" ? "Diameter" : "Width (transverse)", col.D, function (v) { col.D = v; }));
-        if (col.shape !== "circle") cc.appendChild(numRow("H", "Width (longitudinal)", col.H, function (v) { col.H = v; }));
-        secGrid.appendChild(cc);
+        sel.addEventListener("change", function () { setColShape(col, sel.value); renderPerPier(); draw(); });
+        row.appendChild(sel);
+        row.appendChild(fld("CH", col.CH, function (v) { col.CH = v; }));
+        row.appendChild(fld("CL", col.CL, function (v) { col.CL = v; }, "50"));
+        (SECT_VARS[col.shape] || []).forEach(function (v) {
+          var name = v[0];
+          row.appendChild(fld(name, (col.sect[name] != null ? col.sect[name] : v[1]), function (val) { col.sect[name] = val; }));
+        });
+        b.appendChild(row);
       });
-      b.appendChild(secGrid);
+      b.appendChild(h("p", "pr-cap", "CH — column height · CL — transverse position from the pier centre (left −, right +) · then the selected section's variables (mm)."));
       c.appendChild(b); return c;
     }
 
@@ -507,20 +516,20 @@
 
       // foundation (combined single footing, or one per column)
       if (p.fdnMode === "combined") {
-        var L = cs[0] - p.cols[0].D / 2 - f.BLF, R = cs[cs.length - 1] + p.cols[p.cols.length - 1].D / 2 + f.BRF;
+        var L = cs[0] - colW(p.cols[0]) / 2 - f.BLF, R = cs[cs.length - 1] + colW(p.cols[p.cols.length - 1]) / 2 + f.BRF;
         foot(L, R);
       } else {
-        p.cols.forEach(function (col, i) { foot(cs[i] - col.D / 2 - f.BLF, cs[i] + col.D / 2 + f.BRF); });
+        p.cols.forEach(function (col, i) { foot(cs[i] - colW(col) / 2 - f.BLF, cs[i] + colW(col) / 2 + f.BRF); });
       }
       // columns
-      p.cols.forEach(function (col, i) { rect(cs[i] - col.D / 2, 0, cs[i] + col.D / 2, col.CH); });
+      p.cols.forEach(function (col, i) { rect(cs[i] - colW(col) / 2, 0, cs[i] + colW(col) / 2, col.CH); });
       // coping outline (seated on columns), as a closed polyline (arcs tessellated)
       var geo = copingGeometry(cp), A = geo.A;
       var op = geo.points.map(function (q) { return [q[0], q[1] + maxCH]; });
       for (var i = 0; i < op.length; i++) { var a = op[i], b = op[(i + 1) % op.length]; rec.addLine(0, a[0], a[1], b[0], b[1], "c"); }
 
       // ---- dimensions, aligned to shared gutters (L/R verticals, T/B horizontals) ----
-      var TLL = +cp.TLL || 0, TLR = +cp.TLR || 0, x0f = cs[0] - p.cols[0].D / 2, xFL = cs[0] - p.cols[0].D / 2 - f.BLF;
+      var TLL = +cp.TLL || 0, TLR = +cp.TLR || 0, x0f = cs[0] - colW(p.cols[0]) / 2, xFL = cs[0] - colW(p.cols[0]) / 2 - f.BLF;
       var bnd = {
         minX: Math.min(-TLL, footMinX), maxX: Math.max(TLR, footMaxX),
         minY: -f.BH - (f.EH > 0 ? f.EH : 0), maxY: maxCH + A.yTop
@@ -576,7 +585,7 @@
       var p = P(), cp = p.coping, f = p.fdn;
       var maxCH = Math.max.apply(null, p.cols.map(function (c) { return c.CH; }).concat([1000]));
       var TB = +cp.TB || 4000, THU = +cp.THU || 0, THL = +cp.THL || 0, copeH = THU + THL;   // upper + lower
-      var colDep = Math.max.apply(null, p.cols.map(function (c) { return c.shape === "circle" ? +c.D : (+c.H || +c.D); }).concat([500]));
+      var colDep = Math.max.apply(null, p.cols.map(function (c) { return colDepth(c); }).concat([500]));
 
       function rect(x1, y1, x2, y2) {
         rec.addLine(0, x1, y1, x2, y1, "c"); rec.addLine(0, x2, y1, x2, y2, "c");
