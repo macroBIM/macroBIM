@@ -212,6 +212,24 @@
   function mount(shape) { if (SHAPES[shape]) draw(shape, "xs_" + shape + "_plot", readParams(shape)); }
   function install(shape) { window["fdraw_" + shape] = function () { mount(shape); }; }
 
+  // Batch (CSV) → input fields, in variable order, optional trailing hollow flag.
+  function applyBatch(shape) {
+    var cfg = SHAPES[shape]; if (!cfg) return;
+    var ta = document.getElementById("xs_" + shape + "_batch"); if (!ta) return;
+    var vals = ta.value.split(/[,\s]+/).filter(function (s) { return s !== ""; });
+    var pfx = "xs_" + shape;
+    cfg.vars.forEach(function (v, i) {
+      if (i < vals.length && !isNaN(parseFloat(vals[i]))) {
+        var el = document.getElementById(pfx + "_" + v[0]); if (el) el.value = parseFloat(vals[i]);
+      }
+    });
+    if (vals.length > cfg.vars.length) {
+      var hc = document.getElementById(pfx + "_hollow"), f = vals[cfg.vars.length];
+      if (hc) hc.checked = !(f === "0" || f.toLowerCase() === "false" || f.toLowerCase() === "n");
+    }
+    mount(shape);
+  }
+
   // ── DXF export (minimal ASCII DXF; model coords are already y-up) ──────────
   function toDXF(shape, params) {
     var g = geo(shape, params), e = ["0", "SECTION", "2", "ENTITIES"];
@@ -237,5 +255,5 @@
     document.body.removeChild(a); setTimeout(function () { URL.revokeObjectURL(url); }, 1000);
   }
 
-  window.XSECT = { shapes: SHAPES, geo: geo, draw: draw, offsetPoly: offsetPoly, mount: mount, install: install, dxf: dxf, toDXF: toDXF };
+  window.XSECT = { shapes: SHAPES, geo: geo, draw: draw, offsetPoly: offsetPoly, mount: mount, install: install, dxf: dxf, toDXF: toDXF, applyBatch: applyBatch };
 })();
