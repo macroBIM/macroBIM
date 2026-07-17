@@ -29,9 +29,20 @@
     octagon: [["B", 2500], ["H", 2500], ["a", 500], ["b", 500], ["t", 0]]
   };
   function sectDefaults(shape) { var o = {}; (SECT_VARS[shape] || []).forEach(function (v) { o[v[0]] = v[1]; }); return o; }
-  // transverse width (front view) / longitudinal depth (side view) from the section
-  function colW(col) { var s = col.sect || {}; return +(col.shape === "circle" ? s.D : s.B) || 2500; }
-  function colDepth(col) { var s = col.sect || {}; return +(col.shape === "circle" ? s.D : s.H) || 2500; }
+  // transverse width (front view) / longitudinal depth (side view) from the section,
+  // accounting for the placement angle Ang (axis-aligned bounding box of the rotated section)
+  function colW(col) {
+    var s = col.sect || {};
+    if (col.shape === "circle") return +s.D || 2500;
+    var w = +s.B || 2500, d = +s.H || w, a = (+col.ang || 0) * Math.PI / 180;
+    return Math.abs(w * Math.cos(a)) + Math.abs(d * Math.sin(a));
+  }
+  function colDepth(col) {
+    var s = col.sect || {};
+    if (col.shape === "circle") return +s.D || 2500;
+    var w = +s.B || 2500, d = +s.H || w, a = (+col.ang || 0) * Math.PI / 180;
+    return Math.abs(w * Math.sin(a)) + Math.abs(d * Math.cos(a));
+  }
 
   // latest instance's elevation draw() — for window resize redraw
   var _pierDraw = null, _pierRT = null;
@@ -125,7 +136,7 @@
     ".pr-btn:hover{filter:brightness(1.12)}.pr-btn:active{filter:brightness(.94);transform:translateY(1px)}";
 
   // ── data model ──────────────────────────────────────────────────────────────
-  function newCol() { return { shape: "circle", CH: 8000, CL: 0, sect: sectDefaults("circle") }; }
+  function newCol() { return { shape: "circle", CH: 8000, CL: 0, ang: 0, hollow: false, sect: sectDefaults("circle") }; }
   function setColShape(col, shape) {
     var d = sectDefaults(shape);
     if (col.sect) for (var k in d) { if (col.sect[k] != null) d[k] = col.sect[k]; }   // keep shared vars
@@ -359,24 +370,33 @@
         inp.addEventListener("input", function () { var v = parseFloat(inp.value); if (!isNaN(v)) { on(v); draw(); } });
         w.appendChild(inp); return w;
       }
-      // one row per column: shape selector (up front) · CH · CL · the section's variables
+      function chk(label, val, on) {
+        var w = h("span", "pr-fld"); w.appendChild(h("span", null, label));
+        var inp = h("input"); inp.type = "checkbox"; inp.checked = !!val;
+        inp.style.cssText = "width:16px;height:16px;accent-color:var(--dim);cursor:pointer";
+        inp.addEventListener("change", function () { on(inp.checked); draw(); });
+        w.appendChild(inp); return w;
+      }
+      // one row per column: CH · CL · Ang · Section(shape + vars) · Hollow
       p.cols.forEach(function (col, i) {
         col.sect = col.sect || sectDefaults(col.shape);
         var row = h("div", "pr-crow");
         row.appendChild(h("span", "cnm", "Column " + (i + 1)));
+        row.appendChild(fld("CH", col.CH, function (v) { col.CH = v; }));
+        row.appendChild(fld("CL", col.CL, function (v) { col.CL = v; }, "50"));
+        row.appendChild(fld("Ang", col.ang || 0, function (v) { col.ang = v; }, "5"));
         var sel = h("select", "pr-sel");
         SHAPES.forEach(function (s) { var o = h("option"); o.value = s[0]; o.textContent = s[1]; if (col.shape === s[0]) o.selected = true; sel.appendChild(o); });
         sel.addEventListener("change", function () { setColShape(col, sel.value); renderPerPier(); draw(); });
         row.appendChild(sel);
-        row.appendChild(fld("CH", col.CH, function (v) { col.CH = v; }));
-        row.appendChild(fld("CL", col.CL, function (v) { col.CL = v; }, "50"));
         (SECT_VARS[col.shape] || []).forEach(function (v) {
           var name = v[0];
           row.appendChild(fld(name, (col.sect[name] != null ? col.sect[name] : v[1]), function (val) { col.sect[name] = val; }));
         });
+        row.appendChild(chk("Hollow", col.hollow, function (v) { col.hollow = v; }));
         b.appendChild(row);
       });
-      b.appendChild(h("p", "pr-cap", "CH — column height · CL — transverse position from the pier centre (left −, right +) · then the selected section's variables (mm)."));
+      b.appendChild(h("p", "pr-cap", "CH — column height · CL — transverse position from the pier centre (left −, right +) · Ang — section placement angle (°) · then the selected section's variables (mm)."));
       c.appendChild(b); return c;
     }
 
