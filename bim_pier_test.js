@@ -811,7 +811,7 @@
     function buildFront(rec) {
       var p = P(), cp = p.coping, f = p.fdn;
       var cs = colCenters(p);
-      var maxCH = Math.max.apply(null, p.cols.map(function (c) { return c.CH; }).concat([1000]));
+      var maxCH = Math.max.apply(null, p.cols.map(function (c) { return +c.CH || 0; }).concat([0]));
       function rect(x1, y1, x2, y2) {
         rec.addLine(0, x1, y1, x2, y1, "c"); rec.addLine(0, x2, y1, x2, y2, "c");
         rec.addLine(0, x2, y2, x1, y2, "c"); rec.addLine(0, x1, y2, x1, y1, "c");
@@ -832,14 +832,17 @@
       } else {
         p.cols.forEach(function (col, i) { foot(cs[i] - colW(col) / 2 - f.BLF, cs[i] + colW(col) / 2 + f.BRF); });
       }
-      // columns — silhouette + section edge-lines (chamfer/corner folds, hollow inner)
+      // columns — hung from the coping soffit (z=maxCH) DOWN by CH, so tops always
+      // meet the coping. CH<=0 → no column. Silhouette + section edge-lines.
       p.cols.forEach(function (col, i) {
-        var cx = cs[i], w = colW(col), cH = col.CH;
-        rect(cx - w / 2, 0, cx + w / 2, cH);
+        var cx = cs[i], w = colW(col), cH = +col.CH || 0;
+        if (cH <= 0) return;
+        var cB = maxCH - cH;
+        rect(cx - w / 2, cB, cx + w / 2, maxCH);
         var fd = colFolds(col);
-        curveGens(col).front.forEach(function (x) { rec.addLine(0, cx + x, 0, cx + x, cH, "g"); });
-        fd.fx.forEach(function (x) { rec.addLine(0, cx + x, 0, cx + x, cH, "c"); });
-        fd.ix.forEach(function (x) { rec.addLine(0, cx + x, 0, cx + x, cH, "h"); });
+        curveGens(col).front.forEach(function (x) { rec.addLine(0, cx + x, cB, cx + x, maxCH, "g"); });
+        fd.fx.forEach(function (x) { rec.addLine(0, cx + x, cB, cx + x, maxCH, "c"); });
+        fd.ix.forEach(function (x) { rec.addLine(0, cx + x, cB, cx + x, maxCH, "h"); });
       });
       // coping outline (seated on columns), as a closed polyline (arcs tessellated)
       var geo = copingGeometry(cp), A = geo.A;
@@ -910,7 +913,7 @@
     // superimposed at the longitudinal centre, footing spanning FF/FB about the columns.
     function buildSide(rec) {
       var p = P(), cp = p.coping, f = p.fdn;
-      var maxCH = Math.max.apply(null, p.cols.map(function (c) { return c.CH; }).concat([1000]));
+      var maxCH = Math.max.apply(null, p.cols.map(function (c) { return +c.CH || 0; }).concat([0]));
       var TB = +cp.TB || 4000, THU = +cp.THU || 0, THL = +cp.THL || 0, copeH = THU + THL;   // upper + lower
       var colDep = Math.max.apply(null, p.cols.map(function (c) { return colDepth(c); }).concat([500]));
 
@@ -925,12 +928,15 @@
       if (bl) rect(footL - f.EFL, -f.BH - f.EH, footR + f.EFL, -f.BH);
       // columns superimpose to one shaft at the longitudinal centre; section edge-lines
       // from the deepest column (longitudinal projection)
-      rect(-colDep / 2, 0, colDep / 2, maxCH);
-      var rep = p.cols.reduce(function (a, c) { return colDepth(c) > colDepth(a) ? c : a; }, p.cols[0]);
-      var fdS = colFolds(rep);
-      curveGens(rep).side.forEach(function (y) { rec.addLine(0, y, 0, y, maxCH, "g"); });
-      fdS.fy.forEach(function (y) { rec.addLine(0, y, 0, y, maxCH, "c"); });
-      fdS.iy.forEach(function (y) { rec.addLine(0, y, 0, y, maxCH, "h"); });
+      // columns superimpose to one shaft (foundation → coping soffit); skip if no column
+      if (maxCH > 0) {
+        rect(-colDep / 2, 0, colDep / 2, maxCH);
+        var rep = p.cols.reduce(function (a, c) { return colDepth(c) > colDepth(a) ? c : a; }, p.cols[0]);
+        var fdS = colFolds(rep);
+        curveGens(rep).side.forEach(function (y) { rec.addLine(0, y, 0, y, maxCH, "g"); });
+        fdS.fy.forEach(function (y) { rec.addLine(0, y, 0, y, maxCH, "c"); });
+        fdS.iy.forEach(function (y) { rec.addLine(0, y, 0, y, maxCH, "h"); });
+      }
       // coping: TB wide × copeH, seated on the columns, with the THU/THL split line
       rect(-TB / 2, maxCH, TB / 2, maxCH + copeH);
       if (THU > 0 && THL > 0) rec.addLine(0, -TB / 2, maxCH + THL, TB / 2, maxCH + THL, "c");   // lower THL / upper THU
@@ -976,7 +982,7 @@
       if (A.HER > 0) rec.addLine(0, A.xRe, -TB / 2, A.xRe, TB / 2, "h");
       rec.addLine(0, A.xLH, -TB / 2, A.xLH, TB / 2, "h");       // central head-block edges (coping soffit)
       rec.addLine(0, A.xRH, -TB / 2, A.xRH, TB / 2, "h");
-      p.cols.forEach(function (col, i) { sectionOn(rec, col, cs[i], 0, "h", "h"); });
+      p.cols.forEach(function (col, i) { if ((+col.CH || 0) > 0) sectionOn(rec, col, cs[i], 0, "h", "h"); });
       var b = { minX: A.xLtip, maxX: A.xRtip, minY: -TB / 2, maxY: TB / 2 };
       var dims = [
         { side: "R", at: A.xRtip, lo: -TB / 2, hi: TB / 2, label: "TB" },
@@ -1005,7 +1011,7 @@
       } else {
         p.cols.forEach(function (col, i) { foot(cs[i] - colW(col) / 2 - (+f.BLF || 0), cs[i] + colW(col) / 2 + (+f.BRF || 0)); });
       }
-      p.cols.forEach(function (col, i) { sectionOn(rec, col, cs[i], 0, "c", "h"); });
+      p.cols.forEach(function (col, i) { if ((+col.CH || 0) > 0) sectionOn(rec, col, cs[i], 0, "c", "h"); });
       var yLo = bl ? yB - EFL : yB, yHi = bl ? yT + EFL : yT;
       var b = { minX: minX, maxX: maxX, minY: yLo, maxY: yHi };
       var dims = [
@@ -1018,8 +1024,8 @@
     // Whole-pier 3D solid mesh (coping + columns + foundation), one triangle list.
     function buildPierMesh() {
       var p = P(), cp = p.coping, f = p.fdn, cs = colCenters(p), T = [];
-      var maxCH = Math.max.apply(null, p.cols.map(function (c) { return +c.CH || 0; }).concat([1000]));
-      p.cols.forEach(function (col, i) { var sp = sectionPts(col); _extrudeZ(T, sp.outer, cs[i], 0, 0, +col.CH || maxCH); });
+      var maxCH = Math.max.apply(null, p.cols.map(function (c) { return +c.CH || 0; }).concat([0]));
+      p.cols.forEach(function (col, i) { var cH = +col.CH || 0; if (cH <= 0) return; _extrudeZ(T, sectionPts(col).outer, cs[i], 0, maxCH - cH, maxCH); });
       _copingMesh(T, cp, maxCH);
       var colDep = Math.max.apply(null, p.cols.map(function (c) { return colDepth(c); }).concat([500]));
       var yB = -(colDep / 2 + (+f.FF || 0)), yT = colDep / 2 + (+f.FB || 0), EFL = +f.EFL || 0, EH = +f.EH || 0, BH = +f.BH || 0;
