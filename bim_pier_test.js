@@ -106,17 +106,23 @@
   // Returns transverse (front) and longitudinal (side) offsets where a round
   // surface projects, bunched toward the silhouette. Empty for flat sections.
   function curveGens(col) {
-    var s = col.sect || {}, shape = col.shape, N = 7;
-    function halfRound(R) {   // R*cos(θ), θ in (0,π) — dense near ±R
-      var a = []; for (var i = 1; i < N; i++) a.push(R * Math.cos(Math.PI * i / N)); return a;
+    var s = col.sect || {}, shape = col.shape, N = 7, G = 2.6;   // G>1: edge-bias strength (all curved surfaces)
+    // full round: lines across (−R..R), bunched toward BOTH ±R silhouettes
+    function bRound(R) {
+      var a = [];
+      for (var i = 1; i < N; i++) {
+        var u = i / N, w = 0.5 + 0.5 * Math.sign(u - 0.5) * Math.pow(Math.abs(2 * u - 1), 1 / G);
+        a.push(R * Math.cos(Math.PI * w));
+      }
+      return a;
     }
-    if (shape === "circle") { var R = (+s.D || 2500) / 2, g = halfRound(R); return { front: g, side: g }; }
+    if (shape === "circle") { var R = (+s.D || 2500) / 2, g = bRound(R); return { front: g, side: g }; }
     if (shape === "track") {
-      var B = +s.B || 2500, H = +s.H || 2500, rr = H / 2, sx = Math.max(0, B / 2 - rr), fg = [], G = 1.6;
-      // edge-biased angle (G>1): the narrow cap is flat-ish head-on, so bias the
-      // surface lines to bunch harder toward the ±B/2 silhouette for a clear curve.
+      // front: two end caps, angle edge-biased toward the ±B/2 silhouette.
+      // side: the caps seen end-on = a full round of radius H/2 (same bias).
+      var B = +s.B || 2500, H = +s.H || 2500, rr = H / 2, sx = Math.max(0, B / 2 - rr), fg = [];
       for (var i = 1; i < N; i++) { var x = sx + rr * Math.cos(Math.PI / 2 * Math.pow(i / N, G)); fg.push(x); fg.push(-x); }
-      return { front: fg, side: halfRound(rr) };   // side: cap viewed end-on = round r=H/2
+      return { front: fg, side: bRound(rr) };
     }
     return { front: [], side: [] };
   }
