@@ -108,7 +108,7 @@
     if (window._rwCoreLoading) { (window._rwCoreCbs = window._rwCoreCbs || []).push(cb); return; }
     window._rwCoreLoading = true; window._rwCoreCbs = [cb];
     var sc = document.createElement("script");
-    sc.src = "https://macrobim.github.io/macroBIM/bim_draw_test_core.js?v=3";
+    sc.src = "https://macrobim.github.io/macroBIM/bim_draw_test_core.js?v=4";
     sc.onload = function () { window._rwCoreLoading = false; var q = window._rwCoreCbs || []; window._rwCoreCbs = []; q.forEach(function (f) { f(); }); };
     sc.onerror = function () { window._rwCoreLoading = false; window._rwCoreCbs = []; };
     document.head.appendChild(sc);
