@@ -8,7 +8,7 @@
       rect    : H, B, twl, twr, tf1, tf2, ha, hb   (box; asymmetric walls, top/bottom
                                                     flanges, chamfered inner haunch ha/hb)
       circle  : D, tw                         (pipe)
-      track   : H, B, R, t                    (rounded rectangle, corner radius R)
+      track   : H, B, t                       (obround: L/R semicircular caps, r=H/2)
       octagon : H, B, a, b, t                 (chamfered rectangle; a horiz / b vert chamfer)
 
     Model coords: y-up, section sits on y=0 (bottom), centred on x=0.
@@ -28,7 +28,7 @@
       ["D", "Outer diameter", 800], ["tw", "Wall thickness", 120] ] },
     track: { label: "Track", vars: [
       ["H", "Outer height", 800], ["B", "Outer width", 1400],
-      ["R", "Corner radius", 400], ["t", "Wall thickness", 120] ] },
+      ["t", "Wall thickness", 120] ] },
     octagon: { label: "Octagon", vars: [
       ["H", "Outer height", 800], ["B", "Outer width", 1000],
       ["a", "Chamfer width (horiz)", 200], ["b", "Chamfer height (vert)", 200],
@@ -161,20 +161,37 @@
     }
 
     if (shape === "track") {
-      var tH = num(p.H), tB = num(p.B), tR = num(p.R), tt = num(p.t);
+      // true track / obround: semicircular caps on the LEFT & RIGHT ends
+      // (cap radius = H/2, auto), straight top & bottom edges. Bottom on y=0.
+      var tH = num(p.H), tB = num(p.B), tt = num(p.t);
+      var rr = tH / 2, cyy = rr, sx = Math.max(0, tB / 2 - rr);   // sx = half-length of straight edges
       off = Math.max(tH, tB) * 0.12;
-      var outer = roundRect(-tB / 2, tB / 2, 0, tH, tR);
-      var inner = (hollow && tt > 0 && tt < tH / 2 && tt < tB / 2)
-        ? roundRect(-tB / 2 + tt, tB / 2 - tt, tt, tH - tt, tR - tt) : null;
+      function obround(sxx, rad) {   // { lines, arcs } — straight top/bottom + L/R caps
+        return { lines: [
+            { x1: -sxx, y1: cyy - rad, x2: sxx, y2: cyy - rad },   // bottom straight
+            { x1: sxx, y1: cyy + rad, x2: -sxx, y2: cyy + rad }    // top straight
+          ], arcs: [
+            { x: sxx, y: cyy, r: rad, a1: -90, a2: 90 },           // right cap
+            { x: -sxx, y: cyy, r: rad, a1: 90, a2: 270 }           // left cap
+          ] };
+      }
+      function obroundPts(sxx, rad, na) {
+        var pp = [];
+        Array.prototype.push.apply(pp, arcPts(sxx, cyy, rad, -90, 90, na));
+        Array.prototype.push.apply(pp, arcPts(-sxx, cyy, rad, 90, 270, na));
+        return pp;
+      }
+      var outer = obround(sx, rr);
+      var inner = (hollow && tt > 0 && tt < rr) ? obround(sx, rr - tt) : null;
       dims.push({ x1: tB / 2, y1: 0, x2: tB / 2, y2: tH, gap: -off * 1.6, t: "H" });   // right vertical → right
       dims.push({ x1: -tB / 2, y1: tH, x2: tB / 2, y2: tH, gap: off * 1.6, t: "B" });   // top → up
-      dims.push({ radiusDim: true, x: tB / 2 - tR, y: tH - tR, r: tR, ang: 45 });        // TR arc: centre → arc (up-right)
-      if (inner) dims.push({ x1: -tB / 2, y1: tH / 2, x2: -tB / 2 + tt, y2: tH / 2, gap: -off * 0.7, t: "t" });
+      dims.push({ radiusDim: true, x: sx, y: cyy, r: rr, ang: 45 });                    // cap radius (= H/2)
+      if (inner) dims.push({ x1: -tB / 2, y1: cyy, x2: -tB / 2 + tt, y2: cyy, gap: -off * 0.7, t: "t" });
       return { outer: outer, inner: inner, dims: dims, W: tB, H: tH,
         iW: inner ? tB - 2 * tt : 0, iH: inner ? tH - 2 * tt : 0,
         innerBox: inner ? { x0: -(tB / 2 - tt), x1: tB / 2 - tt, y0: tt, y1: tH - tt } : null, curved: true,
-        outerOutline: roundRectPts(-tB / 2, tB / 2, 0, tH, tR, 6),
-        innerOutline: inner ? roundRectPts(-tB / 2 + tt, tB / 2 - tt, tt, tH - tt, tR - tt, 6) : [] };
+        outerOutline: obroundPts(sx, rr, 8),
+        innerOutline: inner ? obroundPts(sx, rr - tt, 8) : [] };
     }
 
     if (shape === "octagon") {
