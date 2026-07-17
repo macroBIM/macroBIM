@@ -829,9 +829,9 @@
       var p = P(), cp = p.coping, cs = colCenters(p);
       var geo = copingGeometry(cp), A = geo.A, TB = +cp.TB || 4000;
       function rect(x1, y1, x2, y2, lay) { rec.addLine(0, x1, y1, x2, y1, lay); rec.addLine(0, x2, y1, x2, y2, lay); rec.addLine(0, x2, y2, x1, y2, lay); rec.addLine(0, x1, y2, x1, y1, lay); }
-      // viewed from the coping top → everything below (soffit outline, head block,
-      // column tops) is concealed, so all geometry lines are hidden (dashed).
-      rect(A.xLtip, -TB / 2, A.xRtip, TB / 2, "h");             // coping plan outline
+      // outer outline is the visible top silhouette → solid; everything under it
+      // (head-block soffit edges, column tops) is concealed → hidden (dashed).
+      rect(A.xLtip, -TB / 2, A.xRtip, TB / 2, "c");             // coping plan outline (visible)
       rec.addLine(0, A.xLH, -TB / 2, A.xLH, TB / 2, "h");       // central head-block edges (coping soffit)
       rec.addLine(0, A.xRH, -TB / 2, A.xRH, TB / 2, "h");
       p.cols.forEach(function (col, i) { var sp = sectionPts(col); polyOn(rec, sp.outer, cs[i], 0, "h"); if (sp.inner) polyOn(rec, sp.inner, cs[i], 0, "h"); });
