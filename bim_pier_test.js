@@ -366,6 +366,16 @@
     ".pr-tbl input{width:100%;text-align:right;padding:5px 8px;border:1px solid var(--line);border-radius:6px;background:var(--panel);color:var(--ink);font-size:13px;font-variant-numeric:tabular-nums}" +
     ".pr-tbl input:focus{outline:2px solid var(--dim);outline-offset:1px;border-color:var(--dim)}" +
     ".pr-cap{font-size:11px;color:var(--muted);margin:0 0 10px}" +
+    ".pr-tbl{width:100%;border-collapse:collapse}" +
+    ".pr-tbl th{font-size:10px;font-weight:700;letter-spacing:.03em;color:var(--muted);text-transform:uppercase;padding:6px 8px;text-align:left;border-bottom:1px solid var(--line);white-space:nowrap}" +
+    ".pr-tbl td{padding:5px 8px;border-bottom:1px solid var(--hair);vertical-align:middle}" +
+    ".pr-tbl tr.on{background:#eff5ff}" +
+    ".pr-tin{width:100%;min-width:62px;padding:4px 6px;border:1px solid var(--line);border-radius:6px;background:var(--panel);color:var(--ink);font-size:12px;text-align:right}" +
+    ".pr-tin[type=text]{text-align:left;min-width:64px}" +
+    ".pr-tin:focus{outline:2px solid var(--dim);outline-offset:1px;border-color:var(--dim)}" +
+    ".pr-ch{font-family:ui-monospace,Menlo,Consolas,monospace;color:var(--muted);text-align:right;font-variant-numeric:tabular-nums;font-size:12px}" +
+    ".pr-tgl{font:inherit;font-size:11px;font-weight:700;color:var(--dim);background:var(--chip);border:1px solid var(--line);border-radius:6px;padding:5px 12px;cursor:pointer;white-space:nowrap;min-width:52px}" +
+    ".pr-del{font:inherit;font-size:15px;color:#b91c1c;background:none;border:none;cursor:pointer;padding:0 4px;line-height:1}" +
     ".pr-glyph{flex:0 0 auto}" +
     ".pr-modes{display:flex;gap:8px;margin-bottom:10px}" +
     ".pr-mode{flex:1;font:inherit;font-size:12px;font-weight:600;text-align:center;padding:8px;border:1px solid var(--line);border-radius:8px;background:var(--panel);color:var(--muted);cursor:pointer}" +
@@ -397,17 +407,25 @@
   function newPier(name) {
     return {
       name: name, type: "T",
+      // vertical datum by elevation (m): alignment centre / coping top / footing top.
+      // Column height is derived: CH = (topEL − copeH) − fdnEL.
+      el: { ctr: 100.000, top: 98.500, fdn: 88.000 },
       coping: {
         TLL: 10000, TLR: 10000, TB: 4000, THL: 1250, THU: 1250, HLL: 3250, HLR: 3250,
         HRL: 0, HRR: 0, HEL: 0, HER: 0, HLU: 0, HRU: 0, CR: 0, HD: 0, HW: 0, HS: 0,
         IHLA: 0, IHL: 0, IHH: 0, IHR: 0, IHSR: 0
       },
       colCount: 1, cols: [newCol()],
-      fdnMode: "combined",
+      fdnMode: "combined",   // combined | individual
+      fdnType: "spread",     // spread (직접) | pile (말뚝)
       fdn: { BH: 2000, BLF: 2750, BRF: 2750, FF: 2750, FB: 2750, EFL: 150, EH: 100 }
     };
   }
   function clamp(v, lo, hi) { return Math.max(lo, Math.min(hi, v)); }
+  // coping total height (mm) and derived column height (mm) from the elevation datum
+  function copeHmm(p) { return (+p.coping.THU || 0) + (+p.coping.THL || 0); }
+  function pierCH(p) { var e = p.el || {}; return Math.max(0, Math.round(((+e.top || 0) - (+e.fdn || 0)) * 1000 - copeHmm(p))); }
+  function syncCH(p) { var ch = pierCH(p); p.cols.forEach(function (c) { c.CH = ch; }); }
 
   // One cantilever haunch as a single circular arc whose CHORD is the straight
   // diagonal A→B (A = tip-flat end, B = haunch root, both fixed by HLL/HLR). Radius R
@@ -530,38 +548,43 @@
     // ── card builders ──
     function cardPiers() {
       var c = h("div", "pr-card");
-      var hd = h("div", "pr-hd", "<span class='pr-ttl'>Piers <span class='pr-sub'>count &amp; names</span></span>");
-      var stp = h("div", "pr-stepper");   // count stepper lives in the header (right)
-      var minus = h("button", "pr-step", "−"), cnt = h("input", "pr-cnt"), plus = h("button", "pr-step", "+");
-      cnt.type = "number"; cnt.value = S.piers.length; cnt.min = 1; cnt.max = 20;
-      function setCount(n) {
-        n = clamp(n | 0, 1, 20);
-        while (S.piers.length < n) S.piers.push(newPier("P" + (S.piers.length + 1)));
-        if (S.piers.length > n) S.piers.length = n;
-        if (S.sel >= n) S.sel = n - 1;
-        renderAll();
-      }
-      minus.onclick = function () { setCount(S.piers.length - 1); };
-      plus.onclick = function () { setCount(S.piers.length + 1); };
-      cnt.addEventListener("change", function () { setCount(parseInt(cnt.value, 10)); });
-      stp.appendChild(minus); stp.appendChild(cnt); stp.appendChild(plus);
-      hd.appendChild(stp); c.appendChild(hd);
+      var hd = h("div", "pr-hd", "<span class='pr-ttl'>Piers <span class='pr-sub'>schedule (EL in m)</span></span>");
+      var add = h("button", "pr-btn", "+ Add pier"); add.type = "button"; add.style.minWidth = "auto";
+      add.onclick = function () { if (S.piers.length >= 20) return; S.piers.push(newPier("P" + (S.piers.length + 1))); S.sel = S.piers.length - 1; renderAll(); };
+      hd.appendChild(add); c.appendChild(hd);
       var b = h("div", "pr-body");
-
-      // per-pier rows double as the active-pier selector (radio + highlight)
-      var names = h("div", "pr-names");
+      var tbl = h("table", "pr-tbl");
+      tbl.innerHTML = "<thead><tr><th></th><th>Pier</th><th>선형중심 EL</th><th>코핑상단 EL</th><th>기초상단 EL</th><th>CH(m)</th><th>기둥수</th><th>기초형식</th><th>기초종류</th><th></th></tr></thead>";
+      var tb = h("tbody");
       S.piers.forEach(function (p, i) {
-        var nm = h("div", "pr-name" + (i === S.sel ? " on" : ""));
-        var radio = h("button", "pr-radio" + (i === S.sel ? " on" : "")); radio.type = "button";
-        var inp = h("input"); inp.type = "text"; inp.value = p.name;
-        inp.addEventListener("input", function () { p.name = inp.value; draw(); });
-        nm.onclick = function (e) { if (e.target === inp || i === S.sel) return; S.sel = i; renderAll(); };
-        nm.appendChild(radio);
-        nm.appendChild(h("span", "pr-pieridx", (i + 1) + "."));
-        nm.appendChild(inp);
-        names.appendChild(nm);
+        var tr = h("tr", i === S.sel ? "on" : "");
+        var tdR = h("td"); var rb = h("button", "pr-radio" + (i === S.sel ? " on" : "")); rb.type = "button";
+        rb.onclick = function () { S.sel = i; renderAll(); }; tdR.appendChild(rb); tr.appendChild(tdR);
+        var tdN = h("td"); var nin = h("input", "pr-tin"); nin.type = "text"; nin.value = p.name;
+        nin.oninput = function () { p.name = nin.value; draw(); }; tdN.appendChild(nin); tr.appendChild(tdN);
+        var tdCH = h("td", "pr-ch"); tdCH.textContent = (pierCH(p) / 1000).toFixed(3);
+        function elCell(key) {
+          var td = h("td"); var inp = h("input", "pr-tin pr-mono"); inp.type = "number"; inp.step = "0.001"; inp.value = (+p.el[key]).toFixed(3);
+          inp.oninput = function () { var v = parseFloat(inp.value); if (!isNaN(v)) { p.el[key] = v; tdCH.textContent = (pierCH(p) / 1000).toFixed(3); draw(); } };
+          td.appendChild(inp); return td;
+        }
+        tr.appendChild(elCell("ctr")); tr.appendChild(elCell("top")); tr.appendChild(elCell("fdn"));
+        tr.appendChild(tdCH);
+        var tdC = h("td"); var cin = h("input", "pr-tin pr-mono"); cin.type = "number"; cin.min = 1; cin.max = 8; cin.value = p.colCount;
+        cin.onchange = function () { var n = clamp(parseInt(cin.value, 10) || 1, 1, 8); while (p.cols.length < n) p.cols.push(newCol()); if (p.cols.length > n) p.cols.length = n; p.colCount = n; spaceCols(p); renderAll(); };
+        tdC.appendChild(cin); tr.appendChild(tdC);
+        var tdF = h("td"); var fb = h("button", "pr-tgl"); fb.type = "button"; fb.textContent = p.fdnMode === "combined" ? "통합" : "개별";
+        fb.onclick = function () { p.fdnMode = p.fdnMode === "combined" ? "individual" : "combined"; fb.textContent = p.fdnMode === "combined" ? "통합" : "개별"; if (i === S.sel) renderPerPier(); draw(); };
+        tdF.appendChild(fb); tr.appendChild(tdF);
+        var tdT = h("td"); var tt = h("button", "pr-tgl"); tt.type = "button"; tt.textContent = p.fdnType === "pile" ? "말뚝" : "직접";
+        tt.onclick = function () { p.fdnType = p.fdnType === "pile" ? "spread" : "pile"; tt.textContent = p.fdnType === "pile" ? "말뚝" : "직접"; if (i === S.sel) renderPerPier(); draw(); };
+        tdT.appendChild(tt); tr.appendChild(tdT);
+        var tdX = h("td"); if (S.piers.length > 1) { var xb = h("button", "pr-del", "×"); xb.type = "button"; xb.onclick = function () { S.piers.splice(i, 1); if (S.sel >= S.piers.length) S.sel = S.piers.length - 1; renderAll(); }; tdX.appendChild(xb); } tr.appendChild(tdX);
+        tb.appendChild(tr);
       });
-      b.appendChild(names); c.appendChild(b); return c;
+      tbl.appendChild(tb); b.appendChild(tbl);
+      b.appendChild(h("p", "pr-cap", "CH(기둥높이) = 코핑상단 EL − 코핑높이(THU+THL) − 기초상단 EL 로 자동 산출 · 행 클릭으로 활성 교각 선택 · 기초형식/종류 토글."));
+      c.appendChild(b); return c;
     }
 
     function cardCoping() {
@@ -634,7 +657,6 @@
         col.sect = col.sect || sectDefaults(col.shape);
         var row = h("div", "pr-crow");
         row.appendChild(h("span", "cnm", "Column " + (i + 1)));
-        row.appendChild(fld("CH", col.CH, function (v) { col.CH = v; }));
         row.appendChild(fld("CL", col.CL, function (v) { col.CL = v; }, "50"));
         row.appendChild(fld("Ang", col.ang || 0, function (v) { col.ang = v; }, "5"));
         var sel = h("select", "pr-sel");
@@ -660,7 +682,7 @@
         row.appendChild(gbtn);
         b.appendChild(row); b.appendChild(guide);
       });
-      b.appendChild(h("p", "pr-cap", "CH — column height · CL — transverse position from the pier centre (left −, right +) · Ang — section placement angle (°) · Hollow toggles the wall variables · Guide shows the section diagram."));
+      b.appendChild(h("p", "pr-cap", "기둥높이(CH)는 상단 제원표의 EL로 자동 산출 · CL — transverse position from the pier centre (left −, right +) · Ang — section placement angle (°) · Hollow toggles the wall variables · Guide shows the section diagram."));
       c.appendChild(b); return c;
     }
 
@@ -676,6 +698,13 @@
         modes.appendChild(btn);
       });
       b.appendChild(modes);
+      var types = h("div", "pr-modes");
+      [["spread", "Spread (직접기초)"], ["pile", "Pile (말뚝기초)"]].forEach(function (m) {
+        var btn = h("button", "pr-mode" + (p.fdnType === m[0] ? " on" : ""), m[1]);
+        btn.onclick = function () { p.fdnType = m[0]; renderPerPier(); draw(); };
+        types.appendChild(btn);
+      });
+      b.appendChild(types);
       var ig = h("div", "pr-ingrid");
       ig.appendChild(numRow("BH", "Footing height", f.BH, function (v) { f.BH = v; }));
       ig.appendChild(numRow("BLF", "Edge to col, left (transv.)", f.BLF, function (v) { f.BLF = v; }));
@@ -760,6 +789,7 @@
     // Compose the full drawing (FRONT + SIDE + coping/footing plans) for the SELECTED
     // pier into one MockViewer. Returns { rec, box }. Reused by draw() and DXF export.
     function composeRec() {
+      syncCH(P());   // column heights follow the elevation datum
       var rec = new window.RWSVG.MockViewer();
       rec.addLayer("c", "cyan", "solid", 1); rec.addLayer("h", "gray", "hidden", 1); rec.addLayer("g", "#c2ccd8", "faint", 1);
       buildFront(rec);
@@ -804,7 +834,7 @@
       var svg = plotHost.querySelector("svg");
       if (svg) window.RWSVG.attachZoomPan(svg);
       var pp = P();
-      if (plotSub) plotSub.textContent = pp.name + " · " + pp.colCount + " col · " + (pp.fdnMode === "combined" ? "combined ftg" : "individual ftg");
+      if (plotSub) plotSub.textContent = pp.name + " · " + pp.colCount + " col · " + (pp.fdnMode === "combined" ? "combined" : "individual") + " · " + (pp.fdnType === "pile" ? "말뚝" : "직접") + " ftg · EL " + (+pp.el.top).toFixed(3) + "/" + (+pp.el.fdn).toFixed(3) + " (CH " + (pierCH(pp) / 1000).toFixed(3) + "m)";
     }
 
     var _copingGutY = 0;   // absolute Y of the coping-top dim gutter (set by buildFront, reused by buildSide)
@@ -1024,6 +1054,7 @@
     // Whole-pier 3D solid mesh (coping + columns + foundation), one triangle list.
     function buildPierMesh() {
       var p = P(), cp = p.coping, f = p.fdn, cs = colCenters(p), T = [];
+      syncCH(p);
       var maxCH = Math.max.apply(null, p.cols.map(function (c) { return +c.CH || 0; }).concat([0]));
       p.cols.forEach(function (col, i) { var cH = +col.CH || 0; if (cH <= 0) return; _extrudeZ(T, sectionPts(col).outer, cs[i], 0, maxCH - cH, maxCH); });
       _copingMesh(T, cp, maxCH);
