@@ -367,6 +367,13 @@
     ".pr-tbl input[type=text]{text-align:left}" +
     ".pr-tbl input:focus{outline:2px solid var(--dim);outline-offset:1px;border-color:var(--dim)}" +
     ".pr-cap{font-size:11px;color:var(--muted);margin:0 0 10px}" +
+    ".pr-subhd{font-size:11px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);margin:16px 0 10px;padding-bottom:5px;border-bottom:1px solid var(--hair)}" +
+    ".pr-subhd:first-child{margin-top:0}" +
+    ".pr-bapply{display:inline-flex;align-items:center;gap:7px;font-size:12.5px;font-weight:600;color:var(--ink);cursor:pointer;margin-bottom:6px}" +
+    ".pr-bhd{display:flex;align-items:center;justify-content:space-between;gap:10px;margin:12px 0 6px;font-size:11.5px;font-weight:600;color:var(--dim)}" +
+    ".pr-brows{display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:6px 18px}" +
+    ".pr-brow{display:flex;align-items:center;gap:12px;padding:3px 0}" +
+    ".pr-blbl{font-size:11px;font-weight:700;color:var(--muted);min-width:24px}" +
     ".pr-tbl{width:100%;border-collapse:collapse}" +
     ".pr-tbl th{font-size:10px;font-weight:700;letter-spacing:.03em;color:var(--muted);text-transform:uppercase;padding:6px 8px;text-align:left;border-bottom:1px solid var(--line);white-space:nowrap}" +
     ".pr-tbl td{padding:5px 8px;border-bottom:1px solid var(--hair);vertical-align:middle}" +
@@ -419,7 +426,16 @@
       colCount: 1, cols: [newCol()],
       fdnMode: "combined",   // combined | individual
       fdnType: "spread",     // spread (직접) | pile (말뚝)
-      fdn: { BH: 2000, BLF: 2750, BRF: 2750, FF: 2750, FB: 2750, EFL: 150, EH: 100 }
+      fdn: { BH: 2000, BLF: 2750, BRF: 2750, FF: 2750, FB: 2750, EFL: 150, EH: 100 },
+      // bearing steps on the cap top. Transverse (교축직각) segments measured from the
+      // LEFT cap end; each = [width, step] where step is the level drop/rise (+/−, mm)
+      // relative to the previous. Longitudinal (교축) segments run from the cap centre
+      // outward to the front & back. dh cumulates along each list.
+      bstep: {
+        on: false,
+        xs: [[2550, 0], [2300, -160], [2300, -160], [2300, -160]],   // transverse [width, step]
+        ys: [[2000, 0], [2000, 0]]                                   // longitudinal front/back
+      }
     };
   }
   function clamp(v, lo, hi) { return Math.max(lo, Math.min(hi, v)); }
@@ -592,7 +608,9 @@
       var p = P(), cp = p.coping;
       var c = h("div", "pr-card");
       c.appendChild(h("div", "pr-hd", "<span class='pr-ttl'>Coping <span class='pr-sub'>cap beam</span></span>"));
-      var b = h("div", "pr-body pr-ingrid");
+      var body = h("div", "pr-body");
+      body.appendChild(h("div", "pr-subhd", "Geometry"));
+      var b = h("div", "pr-ingrid");
       b.appendChild(numRow("TLL", "Cap half-length left (from centre)", cp.TLL, function (v) { cp.TLL = v; }));
       b.appendChild(numRow("TLR", "Cap half-length right (from centre)", cp.TLR, function (v) { cp.TLR = v; }));
       b.appendChild(numRow("TB", "Cap width (longitudinal)", cp.TB, function (v) { cp.TB = v; }));
@@ -615,7 +633,45 @@
       b.appendChild(numRow("IHH", "Inner haunch height", cp.IHH, function (v) { cp.IHH = v; }));
       b.appendChild(numRow("IHR", "Inner haunch radius R", cp.IHR, function (v) { cp.IHR = v; }));
       b.appendChild(numRow("IHSR", "Inner haunch corner R", cp.IHSR, function (v) { cp.IHSR = v; }));
-      c.appendChild(b); return c;
+      body.appendChild(b);
+
+      // ── Bearing step ──
+      body.appendChild(h("div", "pr-subhd", "Bearing step"));
+      var bs = p.bstep || (p.bstep = { on: false, xs: [[2000, 0]], ys: [[2000, 0]] });
+      var ap = h("label", "pr-bapply");
+      var ck = h("input"); ck.type = "checkbox"; ck.checked = !!bs.on; ck.style.cssText = "width:16px;height:16px;accent-color:var(--dim);cursor:pointer";
+      ck.addEventListener("change", function () { bs.on = ck.checked; renderPerPier(); draw(); });
+      ap.appendChild(ck); ap.appendChild(h("span", null, "Apply bearing step")); body.appendChild(ap);
+      if (bs.on) {
+        function fldB(label, val, on) {
+          var w = h("span", "pr-fld"); w.appendChild(h("span", null, label));
+          var inp = h("input"); inp.type = "number"; inp.step = "10"; inp.value = val; inp.className = "pr-mono";
+          inp.addEventListener("input", function () { var v = parseFloat(inp.value); if (!isNaN(v)) { on(v); draw(); } });
+          w.appendChild(inp); return w;
+        }
+        function stepTable(title, arr) {
+          var wrap = h("div", "pr-bstep");
+          var hdr = h("div", "pr-bhd"); hdr.appendChild(h("span", null, title));
+          var stp = h("div", "pr-stepper"); var mn = h("button", "pr-step", "−"), cn = h("input", "pr-cnt"), pl = h("button", "pr-step", "+");
+          cn.type = "number"; cn.value = arr.length; cn.min = 1; cn.max = 12;
+          function setN(n) { n = clamp(n | 0, 1, 12); while (arr.length < n) arr.push([2000, -160]); if (arr.length > n) arr.length = n; renderPerPier(); draw(); }
+          mn.onclick = function () { setN(arr.length - 1); }; pl.onclick = function () { setN(arr.length + 1); };
+          cn.addEventListener("change", function () { setN(parseInt(cn.value, 10)); });
+          stp.appendChild(mn); stp.appendChild(cn); stp.appendChild(pl); hdr.appendChild(stp); wrap.appendChild(hdr);
+          var rows = h("div", "pr-brows");
+          arr.forEach(function (s, i) {
+            var row = h("div", "pr-brow"); row.appendChild(h("span", "pr-blbl", "#" + (i + 1)));
+            row.appendChild(fldB("W", s[0], function (v) { s[0] = v; }));
+            row.appendChild(fldB("ΔH", s[1], function (v) { s[1] = v; }));
+            rows.appendChild(row);
+          });
+          wrap.appendChild(rows); return wrap;
+        }
+        body.appendChild(stepTable("Transverse — from LEFT cap end (교축직각)", bs.xs));
+        body.appendChild(stepTable("Longitudinal — centre → front/back (교축)", bs.ys));
+        body.appendChild(h("p", "pr-cap", "W: segment width (mm) · ΔH: step drop/rise from the previous segment (+ up / − down). Datum: left cap end (transverse) & cap centre (longitudinal)."));
+      }
+      c.appendChild(body); return c;
     }
 
     function cardColumns() {
@@ -767,6 +823,27 @@
       (src.TX || []).forEach(function (t) { dst.TX.push({ x: t.x + ox, y: t.y + oy, t: t.t, rot: t.rot }); });
     }
 
+    // Stepped bearing-seat shelf on the cap top. arr = [[width, ΔH], ...] laid from
+    // `origin` along `axisSign`; ΔH cumulates. Seats sit above `topZ` (auto base so the
+    // lowest clears the cap). symmetric → also mirror to the other side (front/back).
+    function drawSteps(rec, arr, origin, topZ, axisSign, symmetric) {
+      if (!arr || !arr.length) return;
+      var cums = [], cc = 0, i;
+      for (i = 0; i < arr.length; i++) { cc += (+arr[i][1] || 0); cums.push(cc); }
+      var base = 200 - Math.min.apply(null, cums.concat([0]));
+      function run(dir) {
+        var p0 = origin, prevZ = null;
+        for (var i = 0; i < arr.length; i++) {
+          var w = +arr[i][0] || 0, p1 = p0 + dir * w, z = topZ + base + cums[i];
+          rec.addLine(0, p0, prevZ == null ? topZ : prevZ, p0, z, "c");
+          rec.addLine(0, p0, z, p1, z, "c");
+          p0 = p1; prevZ = z;
+        }
+        rec.addLine(0, p0, prevZ, p0, topZ, "c");
+      }
+      run(axisSign);
+      if (symmetric) run(-axisSign);
+    }
     // Column transverse positions (교축직각방향), measured from the PIER CENTRE (x=0);
     // left is negative, right positive. Values are the per-column CL inputs.
     function colCenters(p) {
@@ -887,6 +964,9 @@
           rec.addLine(0, A.xRtip - o, maxCH + A.yTip, A.xRtip - o, maxCH + A.yTop, "g");
         });
       }
+      // bearing steps (교좌 단차) — transverse stepped seat shelf on the cap top,
+      // from the LEFT cap end; ΔH cumulates left→right.
+      drawSteps(rec, (p.bstep && p.bstep.on) ? p.bstep.xs : null, A.xLtip, maxCH + A.yTop, 1, false);
 
       // ---- dimensions, aligned to shared gutters (L/R verticals, T/B horizontals) ----
       var TLL = +cp.TLL || 0, TLR = +cp.TLR || 0, x0f = cs[0] - colW(p.cols[0]) / 2, xFL = cs[0] - colW(p.cols[0]) / 2 - f.BLF;
@@ -971,6 +1051,8 @@
       // coping: TB wide × copeH, seated on the columns, with the THU/THL split line
       rect(-TB / 2, maxCH, TB / 2, maxCH + copeH);
       if (THU > 0 && THL > 0) rec.addLine(0, -TB / 2, maxCH + THL, TB / 2, maxCH + THL, "c");   // lower THL / upper THU
+      // bearing steps — longitudinal stepped seats from the cap centre out front & back
+      drawSteps(rec, (p.bstep && p.bstep.on) ? p.bstep.ys : null, 0, maxCH + copeH, 1, true);
       // CR rounds the tip vertical edges → seen end-on here as curved-surface hatch
       // near the coping's ±TB/2 edges
       var CRs = Math.min(+cp.CR || 0, TB / 2);
