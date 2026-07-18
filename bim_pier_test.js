@@ -789,8 +789,8 @@
       mergeOffsetXY(rec, cRec, oxCommon, oyC);
       var oyF = (oyC + cbox.minY) - pgap * 2.4 - pbox.maxY;
       mergeOffsetXY(rec, pRec, oxCommon, oyF);
-      rec.addText(0, oxCommon, oyC + cbox.maxY + pgap * 0.6, "COPING PLAN");
-      rec.addText(0, oxCommon, oyF + pbox.maxY + pgap * 0.6, "FOOTING PLAN");
+      rec.addText(0, oxCommon, oyC + cbox.maxY + vspan * 0.11, "COPING PLAN");   // same title gap as FRONT/SIDE
+      rec.addText(0, oxCommon, oyF + pbox.maxY + vspan * 0.11, "FOOTING PLAN");
       return { rec: rec, box: bboxOf(rec) };
     }
     function draw() {
