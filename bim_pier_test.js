@@ -363,18 +363,19 @@
     ".pr-tbl td{padding:4px 6px;border-bottom:1px dashed var(--hair)}" +
     ".pr-tbl tr:last-child td{border-bottom:0}" +
     ".pr-tbl .rlbl{font-weight:700;font-size:12px;color:var(--col);white-space:nowrap}" +
-    ".pr-tbl input{width:100%;text-align:right;padding:5px 8px;border:1px solid var(--line);border-radius:6px;background:var(--panel);color:var(--ink);font-size:13px;font-variant-numeric:tabular-nums}" +
+    ".pr-tbl input{width:118px;text-align:right;padding:5px 8px;border:1px solid var(--line);border-radius:6px;background:var(--panel);color:var(--ink);font-size:13px;font-variant-numeric:tabular-nums}" +
+    ".pr-tbl input[type=text]{text-align:left}" +
     ".pr-tbl input:focus{outline:2px solid var(--dim);outline-offset:1px;border-color:var(--dim)}" +
     ".pr-cap{font-size:11px;color:var(--muted);margin:0 0 10px}" +
     ".pr-tbl{width:100%;border-collapse:collapse}" +
     ".pr-tbl th{font-size:10px;font-weight:700;letter-spacing:.03em;color:var(--muted);text-transform:uppercase;padding:6px 8px;text-align:left;border-bottom:1px solid var(--line);white-space:nowrap}" +
     ".pr-tbl td{padding:5px 8px;border-bottom:1px solid var(--hair);vertical-align:middle}" +
     ".pr-tbl tr.on{background:#eff5ff}" +
-    ".pr-tin{width:100%;min-width:62px;padding:4px 6px;border:1px solid var(--line);border-radius:6px;background:var(--panel);color:var(--ink);font-size:12px;text-align:right}" +
-    ".pr-tin[type=text]{text-align:left;min-width:64px}" +
+    ".pr-tin{width:118px;padding:5px 8px;border:1px solid var(--line);border-radius:6px;background:var(--panel);color:var(--ink);font-size:12px;text-align:right}" +
+    ".pr-tin[type=text]{text-align:left}" +
     ".pr-tin:focus{outline:2px solid var(--dim);outline-offset:1px;border-color:var(--dim)}" +
     ".pr-ch{font-family:ui-monospace,Menlo,Consolas,monospace;color:var(--muted);text-align:right;font-variant-numeric:tabular-nums;font-size:12px}" +
-    ".pr-tgl{font:inherit;font-size:11px;font-weight:700;color:var(--dim);background:var(--chip);border:1px solid var(--line);border-radius:6px;padding:5px 12px;cursor:pointer;white-space:nowrap;min-width:52px}" +
+    ".pr-tgl{width:118px;font:inherit;font-size:11px;font-weight:700;color:var(--dim);background:var(--chip);border:1px solid var(--line);border-radius:6px;padding:5px 8px;cursor:pointer;white-space:nowrap;text-align:center}" +
     ".pr-del{font:inherit;font-size:15px;color:#b91c1c;background:none;border:none;cursor:pointer;padding:0 4px;line-height:1}" +
     ".pr-glyph{flex:0 0 auto}" +
     ".pr-modes{display:flex;gap:8px;margin-bottom:10px}" +
@@ -554,7 +555,7 @@
       hd.appendChild(add); c.appendChild(hd);
       var b = h("div", "pr-body");
       var tbl = h("table", "pr-tbl");
-      tbl.innerHTML = "<thead><tr><th></th><th>Pier</th><th>선형중심 EL</th><th>코핑상단 EL</th><th>기초상단 EL</th><th>CH(m)</th><th>기둥수</th><th>기초형식</th><th>기초종류</th><th></th></tr></thead>";
+      tbl.innerHTML = "<thead><tr><th></th><th>Pier</th><th>Alignment EL</th><th>Cap Top EL</th><th>Footing EL</th><th>CH(m)</th><th>Cols</th><th>Footing</th><th>Type</th><th></th></tr></thead>";
       var tb = h("tbody");
       S.piers.forEach(function (p, i) {
         var tr = h("tr", i === S.sel ? "on" : "");
@@ -573,17 +574,17 @@
         var tdC = h("td"); var cin = h("input", "pr-tin pr-mono"); cin.type = "number"; cin.min = 1; cin.max = 8; cin.value = p.colCount;
         cin.onchange = function () { var n = clamp(parseInt(cin.value, 10) || 1, 1, 8); while (p.cols.length < n) p.cols.push(newCol()); if (p.cols.length > n) p.cols.length = n; p.colCount = n; spaceCols(p); renderAll(); };
         tdC.appendChild(cin); tr.appendChild(tdC);
-        var tdF = h("td"); var fb = h("button", "pr-tgl"); fb.type = "button"; fb.textContent = p.fdnMode === "combined" ? "통합" : "개별";
-        fb.onclick = function () { p.fdnMode = p.fdnMode === "combined" ? "individual" : "combined"; fb.textContent = p.fdnMode === "combined" ? "통합" : "개별"; if (i === S.sel) renderPerPier(); draw(); };
+        var tdF = h("td"); var fb = h("button", "pr-tgl"); fb.type = "button"; fb.textContent = p.fdnMode === "combined" ? "Combined" : "Individual";
+        fb.onclick = function () { p.fdnMode = p.fdnMode === "combined" ? "individual" : "combined"; fb.textContent = p.fdnMode === "combined" ? "Combined" : "Individual"; if (i === S.sel) renderPerPier(); draw(); };
         tdF.appendChild(fb); tr.appendChild(tdF);
-        var tdT = h("td"); var tt = h("button", "pr-tgl"); tt.type = "button"; tt.textContent = p.fdnType === "pile" ? "말뚝" : "직접";
-        tt.onclick = function () { p.fdnType = p.fdnType === "pile" ? "spread" : "pile"; tt.textContent = p.fdnType === "pile" ? "말뚝" : "직접"; if (i === S.sel) renderPerPier(); draw(); };
+        var tdT = h("td"); var tt = h("button", "pr-tgl"); tt.type = "button"; tt.textContent = p.fdnType === "pile" ? "Pile" : "Spread";
+        tt.onclick = function () { p.fdnType = p.fdnType === "pile" ? "spread" : "pile"; tt.textContent = p.fdnType === "pile" ? "Pile" : "Spread"; if (i === S.sel) renderPerPier(); draw(); };
         tdT.appendChild(tt); tr.appendChild(tdT);
         var tdX = h("td"); if (S.piers.length > 1) { var xb = h("button", "pr-del", "×"); xb.type = "button"; xb.onclick = function () { S.piers.splice(i, 1); if (S.sel >= S.piers.length) S.sel = S.piers.length - 1; renderAll(); }; tdX.appendChild(xb); } tr.appendChild(tdX);
         tb.appendChild(tr);
       });
       tbl.appendChild(tb); b.appendChild(tbl);
-      b.appendChild(h("p", "pr-cap", "CH(기둥높이) = 코핑상단 EL − 코핑높이(THU+THL) − 기초상단 EL 로 자동 산출 · 행 클릭으로 활성 교각 선택 · 기초형식/종류 토글."));
+      b.appendChild(h("p", "pr-cap", "CH (column height) = Cap Top EL − cap depth (THU+THL) − Footing EL, computed automatically. Click a row to select the active pier; toggle footing mode / foundation type."));
       c.appendChild(b); return c;
     }
 
@@ -682,7 +683,7 @@
         row.appendChild(gbtn);
         b.appendChild(row); b.appendChild(guide);
       });
-      b.appendChild(h("p", "pr-cap", "기둥높이(CH)는 상단 제원표의 EL로 자동 산출 · CL — transverse position from the pier centre (left −, right +) · Ang — section placement angle (°) · Hollow toggles the wall variables · Guide shows the section diagram."));
+      b.appendChild(h("p", "pr-cap", "Column height (CH) is auto-computed from the schedule EL · CL — transverse position from the pier centre (left −, right +) · Ang — section placement angle (°) · Hollow toggles the wall variables · Guide shows the section diagram."));
       c.appendChild(b); return c;
     }
 
@@ -699,7 +700,7 @@
       });
       b.appendChild(modes);
       var types = h("div", "pr-modes");
-      [["spread", "Spread (직접기초)"], ["pile", "Pile (말뚝기초)"]].forEach(function (m) {
+      [["spread", "Spread footing"], ["pile", "Pile foundation"]].forEach(function (m) {
         var btn = h("button", "pr-mode" + (p.fdnType === m[0] ? " on" : ""), m[1]);
         btn.onclick = function () { p.fdnType = m[0]; renderPerPier(); draw(); };
         types.appendChild(btn);
@@ -834,7 +835,7 @@
       var svg = plotHost.querySelector("svg");
       if (svg) window.RWSVG.attachZoomPan(svg);
       var pp = P();
-      if (plotSub) plotSub.textContent = pp.name + " · " + pp.colCount + " col · " + (pp.fdnMode === "combined" ? "combined" : "individual") + " · " + (pp.fdnType === "pile" ? "말뚝" : "직접") + " ftg · EL " + (+pp.el.top).toFixed(3) + "/" + (+pp.el.fdn).toFixed(3) + " (CH " + (pierCH(pp) / 1000).toFixed(3) + "m)";
+      if (plotSub) plotSub.textContent = pp.name + " · " + pp.colCount + " col · " + (pp.fdnMode === "combined" ? "combined" : "individual") + " · " + (pp.fdnType === "pile" ? "pile" : "spread") + " ftg · EL " + (+pp.el.top).toFixed(3) + "/" + (+pp.el.fdn).toFixed(3) + " (CH " + (pierCH(pp) / 1000).toFixed(3) + "m)";
     }
 
     var _copingGutY = 0;   // absolute Y of the coping-top dim gutter (set by buildFront, reused by buildSide)
