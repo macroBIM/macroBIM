@@ -157,66 +157,71 @@
     }
   }
   // coping solid: swept along x with y half-width w(x) (CR-rounded tips) and soffit zbot(x).
-  // Bearing steps (bstep) re-shape the top: transverse Δt cumulates from the LEFT cap end
-  // (stepped top + risers), longitudinal Δl steps the front (+y) half about the centreline,
-  // and uniform-THU drops the tip soffit with the top so the outer thickness stays constant.
+  // Bearing steps → the coping is built as ONE continuous base at the LOWEST step level,
+  // then rectangular step blocks are stacked on top for the higher steps (transverse Δt and
+  // per-step longitudinal Δl about the centreline). uniform-THU drops the tip soffit by the
+  // base drop so the outer thickness of the base stays constant.
   function _copingMesh(T, cp, maxCH, bstep) {
     var A = copingGeometry(cp).A, TB = +cp.TB || 4000, CR = Math.min(+cp.CR || 0, TB / 2);
-    var zTop0 = maxCH + A.yTop, zMid = maxCH + A.yMid;
+    var zTop0 = maxCH + A.yTop;
     var bstOn = !!(bstep && bstep.on && bstep.steps && bstep.steps.length);
-    var N = bstOn ? bstep.steps.length : 0, bw = N ? (A.xRtip - A.xLtip) / N : 0;
+    var N = bstOn ? bstep.steps.length : 0, bw = N ? (A.xRtip - A.xLtip) / N : 0, i, j;
     var uni = bstOn && bstep.uniformTHU;
-    function stepIdx(x) { return Math.max(0, Math.min(N - 1, Math.floor((x - A.xLtip) / bw + 1e-6))); }
-    function cumDt(x) { if (!bstOn) return 0; var i = stepIdx(x), c = 0, k; for (k = 0; k <= i; k++) c += (+bstep.steps[k][0] || 0); return c; }
-    function dlAt(x) { return bstOn ? (+bstep.steps[stepIdx(x)][1] || 0) : 0; }               // per-step longitudinal offset
-    function zTopAt(x) { return zTop0 + cumDt(x); }                                          // stepped top level (back half)
+    // per-step top levels (relative to zTop0): back = cumulative Δt, front = back + Δl
+    var backLev = [], frontLev = [], minLev = 0, cc = 0;
+    for (i = 0; i < N; i++) { cc += (+bstep.steps[i][0] || 0); var dl = +bstep.steps[i][1] || 0; backLev.push(cc); frontLev.push(cc + dl); minLev = Math.min(minLev, cc, cc + dl); }
+    var zBase = zTop0 + minLev;                                                              // flat base-coping top
     function wAt(x) {
       if (CR <= 0) return TB / 2;
       var dL = x - A.xLtip, dR = A.xRtip - x, d = Math.min(dL, dR);
       if (d < CR) return TB / 2 - CR + Math.sqrt(Math.max(0, CR * CR - (CR - d) * (CR - d)));
       return TB / 2;
     }
-    // soffit control points; uniform-THU drops the tip-level nodes with the stepped top
+    // soffit control points; uniform-THU drops the tip-level nodes by the base drop (minLev)
+    // so the base outer thickness (THU) stays = input; else the soffit is the plain geometry.
     var soff = [[A.xLtip, A.yTip], [A.xLe, A.yTip], [A.xLH, A.yMid], [A.xRH, A.yMid], [A.xRe, A.yTip], [A.xRtip, A.yTip]];
-    if (uni) soff = soff.map(function (q) { return Math.abs(q[1] - A.yTip) < 1 ? [q[0], q[1] + cumDt(q[0])] : q; });
+    if (uni) soff = soff.map(function (q) { return Math.abs(q[1] - A.yTip) < 1 ? [q[0], q[1] + minLev] : q; });
     function zbotAt(x) {
       x = Math.max(soff[0][0], Math.min(soff[soff.length - 1][0], x));
       for (var k = 0; k < soff.length - 1; k++) { var a = soff[k], b = soff[k + 1]; if (x <= b[0] + 1e-6) { var t = (b[0] - a[0]) ? (x - a[0]) / (b[0] - a[0]) : 0; return maxCH + a[1] + (b[1] - a[1]) * t; } }
       return maxCH + soff[soff.length - 1][1];
     }
-    var xs = [], i;
-    function addRange(a, b, n) { for (i = 0; i <= n; i++) xs.push(a + (b - a) * i / n); }
-    if (CR > 0) addRange(A.xLtip, A.xLtip + CR, 6); else xs.push(A.xLtip);
-    [A.xLe, A.xLH, A.xRH, A.xRe].forEach(function (x) { xs.push(x); });
-    for (i = 1; i < N; i++) xs.push(A.xLtip + i * bw);                                       // step boundaries
-    if (CR > 0) addRange(A.xRtip - CR, A.xRtip, 6); else xs.push(A.xRtip);
-    xs = xs.filter(function (x) { return x >= A.xLtip - 1 && x <= A.xRtip + 1; }).sort(function (a, b) { return a - b; });
-    var uq = []; xs.forEach(function (x) { if (!uq.length || x - uq[uq.length - 1] > 1) uq.push(x); }); xs = uq;
-    // one flat-topped slab per x-interval; top splits at y=0 into back / front (front += Δl)
-    function tops(x) { var z = zTopAt(x); return [z, z + dlAt(x)]; }                          // [-y half, +y half]
+    // x-stations inside [lo,hi]: endpoints + soffit control edges + CR tip sampling
+    function stationsIn(lo, hi) {
+      var s = [lo, hi], k;
+      [A.xLe, A.xLH, A.xRH, A.xRe].forEach(function (x) { if (x > lo + 1 && x < hi - 1) s.push(x); });
+      if (CR > 0) for (k = 0; k <= 6; k++) { var xl = A.xLtip + CR * k / 6, xr = A.xRtip - CR * k / 6; if (xl > lo + 1 && xl < hi - 1) s.push(xl); if (xr > lo + 1 && xr < hi - 1) s.push(xr); }
+      s = s.filter(function (x) { return x >= lo - 1 && x <= hi + 1; }).sort(function (a, b) { return a - b; });
+      var u = []; s.forEach(function (x) { if (!u.length || x - u[u.length - 1] > 1) u.push(x); }); return u;
+    }
+    // ── base coping: continuous solid, flat top at zBase ──
+    var xs = stationsIn(A.xLtip, A.xRtip);
     for (i = 0; i < xs.length - 1; i++) {
       var x0 = xs[i], x1 = xs[i + 1], w0 = wAt(x0), w1 = wAt(x1), b0 = zbotAt(x0), b1 = zbotAt(x1);
-      var tm = tops((x0 + x1) / 2), tb = tm[0], tf = tm[1];                                  // back / front top levels
-      _quad(T, [x0, -w0, tb], [x0, 0, tb], [x1, 0, tb], [x1, -w1, tb]);                      // top (back half)
-      _quad(T, [x0, 0, tf], [x0, w0, tf], [x1, w1, tf], [x1, 0, tf]);                        // top (front half)
-      if (Math.abs(tf - tb) > 1e-6) _quad(T, [x0, 0, tb], [x1, 0, tb], [x1, 0, tf], [x0, 0, tf]);   // longitudinal riser @ y=0
+      _quad(T, [x0, -w0, zBase], [x0, w0, zBase], [x1, w1, zBase], [x1, -w1, zBase]);        // top (flat)
       _quad(T, [x0, -w0, b0], [x1, -w1, b1], [x1, w1, b1], [x0, w0, b0]);                    // bottom
-      _quad(T, [x0, w0, b0], [x0, w0, tf], [x1, w1, tf], [x1, w1, b1]);                      // +y wall
-      _quad(T, [x0, -w0, b0], [x1, -w1, b1], [x1, -w1, tb], [x0, -w0, tb]);                  // -y wall
+      _quad(T, [x0, w0, b0], [x0, w0, zBase], [x1, w1, zBase], [x1, w1, b1]);                // +y wall
+      _quad(T, [x0, -w0, b0], [x1, -w1, b1], [x1, -w1, zBase], [x0, -w0, zBase]);            // -y wall
     }
-    // transverse risers at each step boundary (level change between adjacent slabs)
-    if (bstOn) for (i = 1; i < N; i++) {
-      var xr = A.xLtip + i * bw, wr = wAt(xr), zl = zTopAt(xr - bw * 0.5), zR = zTopAt(xr + bw * 0.5);
-      var dlL = dlAt(xr - bw * 0.5), dlR = dlAt(xr + bw * 0.5);
-      _quad(T, [xr, -wr, zl], [xr, 0, zl], [xr, 0, zR], [xr, -wr, zR]);                      // back-half riser
-      _quad(T, [xr, 0, zl + dlL], [xr, wr, zl + dlL], [xr, wr, zR + dlR], [xr, 0, zR + dlR]);// front-half riser (per-step Δl)
+    var xa = xs[0], wa = wAt(xa), ba = zbotAt(xa);
+    _quad(T, [xa, -wa, ba], [xa, -wa, zBase], [xa, wa, zBase], [xa, wa, ba]);                // left cap
+    var xe = xs[xs.length - 1], we = wAt(xe), be = zbotAt(xe);
+    _quad(T, [xe, -we, be], [xe, we, be], [xe, we, zBase], [xe, -we, zBase]);                // right cap
+    // ── step blocks: stacked on the base top, one per raised segment ──
+    if (bstOn) for (i = 0; i < N; i++) {
+      var bt = zTop0 + backLev[i], ft = zTop0 + frontLev[i], rb = bt > zBase + 1, rf = ft > zBase + 1;
+      if (!rb && !rf) continue;                                                              // segment sits at the base
+      var bx0 = A.xLtip + i * bw, bx1 = A.xLtip + (i + 1) * bw, bxs = stationsIn(bx0, bx1);
+      for (j = 0; j < bxs.length - 1; j++) {
+        var a = bxs[j], b = bxs[j + 1], wa2 = wAt(a), wb2 = wAt(b);
+        if (rb) { _quad(T, [a, -wa2, bt], [a, 0, bt], [b, 0, bt], [b, -wb2, bt]); _quad(T, [a, -wa2, zBase], [b, -wb2, zBase], [b, -wb2, bt], [a, -wa2, bt]); }   // back top + −y wall
+        if (rf) { _quad(T, [a, 0, ft], [a, wa2, ft], [b, wb2, ft], [b, 0, ft]); _quad(T, [a, wa2, zBase], [a, wa2, ft], [b, wb2, ft], [b, wb2, zBase]); }         // front top + +y wall
+        if (Math.abs(ft - bt) > 1e-6) _quad(T, [a, 0, bt], [b, 0, bt], [b, 0, ft], [a, 0, ft]);   // longitudinal riser @ y=0
+      }
+      var la = bxs[0], lw = wAt(la), ra = bxs[bxs.length - 1], rw = wAt(ra);                 // x-end faces (step risers / tips)
+      if (rb) { _quad(T, [la, -lw, zBase], [la, -lw, bt], [la, 0, bt], [la, 0, zBase]); _quad(T, [ra, -rw, zBase], [ra, 0, zBase], [ra, 0, bt], [ra, -rw, bt]); }
+      if (rf) { _quad(T, [la, 0, zBase], [la, 0, ft], [la, lw, ft], [la, lw, zBase]); _quad(T, [ra, 0, zBase], [ra, rw, zBase], [ra, rw, ft], [ra, 0, ft]); }
     }
-    var xa = xs[0], wa = wAt(xa), ba = zbotAt(xa), ta = tops(xa);
-    _quad(T, [xa, -wa, ba], [xa, -wa, ta[0]], [xa, 0, ta[0]], [xa, 0, ba]);                  // left cap (back)
-    _quad(T, [xa, 0, ba], [xa, 0, ta[1]], [xa, wa, ta[1]], [xa, wa, ba]);                    // left cap (front)
-    var xe = xs[xs.length - 1], we = wAt(xe), be = zbotAt(xe), te = tops(xe);
-    _quad(T, [xe, -we, be], [xe, 0, be], [xe, 0, te[0]], [xe, -we, te[0]]);                  // right cap (back)
-    _quad(T, [xe, 0, be], [xe, we, be], [xe, we, te[1]], [xe, 0, te[1]]);                    // right cap (front)
   }
   // triangle list → binary STL ArrayBuffer
   function _stl(T) {
