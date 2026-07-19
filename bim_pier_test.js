@@ -1149,10 +1149,15 @@
       if (A.HER > 0) rec.addLine(0, A.xRe, -TB / 2, A.xRe, TB / 2, "h");
       rec.addLine(0, A.xLH, -TB / 2, A.xLH, TB / 2, "h");       // central head-block edges (coping soffit)
       rec.addLine(0, A.xRH, -TB / 2, A.xRH, TB / 2, "h");
-      // bearing-step edges (visible top-surface risers) — one per step boundary, solid
-      if (p.bstep && p.bstep.on && p.bstep.steps && p.bstep.steps.length > 1) {
+      // bearing-step edges (visible top-surface risers) — solid
+      if (p.bstep && p.bstep.on && p.bstep.steps && p.bstep.steps.length) {
         var Nb = p.bstep.steps.length, bwb = (A.xRtip - A.xLtip) / Nb;
+        // transverse (Δt) step boundaries — interior vertical lines
         for (var si = 1; si < Nb; si++) { var xb = A.xLtip + si * bwb; rec.addLine(0, xb, -TB / 2, xb, TB / 2, "c"); }
+        // longitudinal (Δl) step riser — horizontal line at the centreline (y=0) over each stepped segment
+        for (var sj = 0; sj < Nb; sj++) {
+          if (Math.abs(+p.bstep.steps[sj][1] || 0) > 1) { var xa = A.xLtip + sj * bwb, xc = A.xLtip + (sj + 1) * bwb; rec.addLine(0, xa, 0, xc, 0, "c"); }
+        }
       }
       p.cols.forEach(function (col, i) { if ((+col.CH || 0) > 0) sectionOn(rec, col, cs[i], 0, "h", "h"); });
       var b = { minX: A.xLtip, maxX: A.xRtip, minY: -TB / 2, maxY: TB / 2 };
