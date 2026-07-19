@@ -167,9 +167,9 @@
     var bstOn = !!(bstep && bstep.on && bstep.steps && bstep.steps.length);
     var N = bstOn ? bstep.steps.length : 0, bw = N ? (A.xRtip - A.xLtip) / N : 0, i, j;
     var uni = bstOn && bstep.uniformTHU;
-    // per-step top levels (relative to zTop0): back = cumulative Δt, front = back + Δl
+    // per-step top levels (relative to zTop0): front = cumulative Δt, back = front + Δl (+Δl raises back)
     var backLev = [], frontLev = [], minLev = 0, cc = 0;
-    for (i = 0; i < N; i++) { cc += (+bstep.steps[i][0] || 0); var dl = +bstep.steps[i][1] || 0; backLev.push(cc); frontLev.push(cc + dl); minLev = Math.min(minLev, cc, cc + dl); }
+    for (i = 0; i < N; i++) { cc += (+bstep.steps[i][0] || 0); var dl = +bstep.steps[i][1] || 0; backLev.push(cc + dl); frontLev.push(cc); minLev = Math.min(minLev, cc, cc + dl); }   // +Δl raises the back (−y) half
     var zBase = zTop0 + minLev;                                                              // flat base-coping top
     function wAt(x) {
       if (CR <= 0) return TB / 2;
@@ -975,18 +975,19 @@
       // untouched, so the cap itself is re-shaped — no separate block is stuck on top.
       var geo = copingGeometry(cp), A = geo.A;
       var bstOn = p.bstep && p.bstep.on && p.bstep.steps && p.bstep.steps.length, outline = geo.points;
-      var frontDl = [];   // Δl front/back top edges: the outline follows the higher of the two,
-                          // the other shows as an interior edge (solid if near/front, dashed if far/back)
+      var frontDl = [];   // Δl front/back top edges. +Δl raises the BACK (far) half. The outline
+                          // follows the higher edge; the lower edge shows as an interior line — solid
+                          // when it's the near/front face (+Δl), dashed when the hidden back (−Δl).
       if (bstOn) {
         var N = p.bstep.steps.length, bw = ((+cp.TLL || 0) + (+cp.TLR || 0)) / N, cum = 0, top = [], bi;
         var cumDt = function (x) { var i = Math.max(0, Math.min(N - 1, Math.floor((x - A.xLtip) / bw + 1e-6))), c = 0, k; for (k = 0; k <= i; k++) c += (+p.bstep.steps[k][0] || 0); return c; };
         for (bi = 0; bi < N; bi++) {
           cum += (+p.bstep.steps[bi][0] || 0);
-          var lb = A.yTop + cum, dl = +p.bstep.steps[bi][1] || 0;         // back-top level / longitudinal offset
+          var lb = A.yTop + cum, dl = +p.bstep.steps[bi][1] || 0;         // front-top (reference) / longitudinal offset (back = lb+Δl)
           var he = lb + Math.max(0, dl), lo = lb + Math.min(0, dl);       // envelope (outline) / other edge
           var x0 = A.xLtip + bi * bw, x1 = A.xLtip + (bi + 1) * bw;
           top.push([x0, he], [x1, he]);
-          if (Math.abs(dl) > 1) frontDl.push({ x0: x0, x1: x1, z: lo, lay: dl > 0 ? "h" : "c" });   // +Δl: back hidden; −Δl: front visible
+          if (Math.abs(dl) > 1) frontDl.push({ x0: x0, x1: x1, z: lo, lay: dl > 0 ? "c" : "h" });   // +Δl: back higher → near/front edge is visible (solid); −Δl: back lower → hidden (dashed)
         }
         var lastTop = 0; for (bi = 0; bi < geo.points.length; bi++) { if (Math.abs(geo.points[bi][1] - A.yTop) < 1) lastTop = bi; }
         var bloop = geo.points.slice(lastTop + 1);
@@ -1096,7 +1097,7 @@
       function _uniq(a) { var r = []; a.forEach(function (v) { if (!r.some(function (u) { return Math.abs(u - v) < 1; })) r.push(v); }); return r.sort(function (x, y) { return x - y; }); }
       if (bstS) {
         var cumT = 0, backL = [], frontL = [], hasDl = false;
-        for (var si = 0; si < bstS.length; si++) { cumT += (+bstS[si][0] || 0); var lb = base + cumT, dl = +bstS[si][1] || 0; backL.push(lb); frontL.push(lb + dl); if (Math.abs(dl) > 1) hasDl = true; }
+        for (var si = 0; si < bstS.length; si++) { cumT += (+bstS[si][0] || 0); var lb = base + cumT, dl = +bstS[si][1] || 0; backL.push(lb + dl); frontL.push(lb); if (Math.abs(dl) > 1) hasDl = true; }   // +Δl raises the back (−y) half
         backL = _uniq(backL); frontL = _uniq(frontL);
         var maxB = backL[backL.length - 1], maxF = frontL[frontL.length - 1];
         var minTop = Math.min(backL[0], frontL[0]); topMax = Math.max(maxB, maxF);
