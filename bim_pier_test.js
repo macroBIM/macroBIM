@@ -823,27 +823,6 @@
       (src.TX || []).forEach(function (t) { dst.TX.push({ x: t.x + ox, y: t.y + oy, t: t.t, rot: t.rot }); });
     }
 
-    // Stepped bearing-seat shelf on the cap top. arr = [[width, ΔH], ...] laid from
-    // `origin` along `axisSign`; ΔH cumulates. Seats sit above `topZ` (auto base so the
-    // lowest clears the cap). symmetric → also mirror to the other side (front/back).
-    function drawSteps(rec, arr, origin, topZ, axisSign, symmetric) {
-      if (!arr || !arr.length) return;
-      var cums = [], cc = 0, i;
-      for (i = 0; i < arr.length; i++) { cc += (+arr[i][1] || 0); cums.push(cc); }
-      var base = 200 - Math.min.apply(null, cums.concat([0]));
-      function run(dir) {
-        var p0 = origin, prevZ = null;
-        for (var i = 0; i < arr.length; i++) {
-          var w = +arr[i][0] || 0, p1 = p0 + dir * w, z = topZ + base + cums[i];
-          rec.addLine(0, p0, prevZ == null ? topZ : prevZ, p0, z, "c");
-          rec.addLine(0, p0, z, p1, z, "c");
-          p0 = p1; prevZ = z;
-        }
-        rec.addLine(0, p0, prevZ, p0, topZ, "c");
-      }
-      run(axisSign);
-      if (symmetric) run(-axisSign);
-    }
     // Column transverse positions (교축직각방향), measured from the PIER CENTRE (x=0);
     // left is negative, right positive. Values are the per-column CL inputs.
     function colCenters(p) {
@@ -952,9 +931,19 @@
         fd.fx.forEach(function (x) { rec.addLine(0, cx + x, cB, cx + x, maxCH, "c"); });
         fd.ix.forEach(function (x) { rec.addLine(0, cx + x, cB, cx + x, maxCH, "h"); });
       });
-      // coping outline (seated on columns), as a closed polyline (arcs tessellated)
+      // coping outline. Built from geometry first; if bearing steps are on, the FLAT
+      // top edge is replaced by the stepped top (Δt cumulates from the LEFT cap end,
+      // so a run of − / + steps lowers / raises the right end). The soffit/tips are
+      // untouched, so the cap itself is re-shaped — no separate block is stuck on top.
       var geo = copingGeometry(cp), A = geo.A;
-      var op = geo.points.map(function (q) { return [q[0], q[1] + maxCH]; });
+      var bstOn = p.bstep && p.bstep.on && p.bstep.steps && p.bstep.steps.length, outline = geo.points;
+      if (bstOn) {
+        var N = p.bstep.steps.length, bw = ((+cp.TLL || 0) + (+cp.TLR || 0)) / N, cum = 0, top = [], bi;
+        for (bi = 0; bi < N; bi++) { cum += (+p.bstep.steps[bi][0] || 0); var z = A.yTop + cum, x0 = A.xLtip + bi * bw, x1 = A.xLtip + (bi + 1) * bw; top.push([x0, z], [x1, z]); }
+        var lastTop = 0; for (bi = 0; bi < geo.points.length; bi++) { if (Math.abs(geo.points[bi][1] - A.yTop) < 1) lastTop = bi; }
+        outline = top.concat(geo.points.slice(lastTop + 1));   // stepped top + geometry soffit/tips
+      }
+      var op = outline.map(function (q) { return [q[0], q[1] + maxCH]; });
       for (var i = 0; i < op.length; i++) { var a = op[i], b = op[(i + 1) % op.length]; rec.addLine(0, a[0], a[1], b[0], b[1], "c"); }
       // CR rounds the tip vertical edges → curved-surface hatch on the tip end faces
       var CRf = Math.min(+cp.CR || 0, (+cp.TB || 4000) / 2);
@@ -963,12 +952,6 @@
           rec.addLine(0, A.xLtip + o, maxCH + A.yTip, A.xLtip + o, maxCH + A.yTop, "g");
           rec.addLine(0, A.xRtip - o, maxCH + A.yTip, A.xRtip - o, maxCH + A.yTop, "g");
         });
-      }
-      // bearing steps (교좌 단차) — transverse stepped seat shelf on the cap top, from
-      // the LEFT end; segment width = (TLL+TLR)/count, Δt cumulates left→right.
-      if (p.bstep && p.bstep.on && p.bstep.steps && p.bstep.steps.length) {
-        var _bw = ((+cp.TLL || 0) + (+cp.TLR || 0)) / p.bstep.steps.length;
-        drawSteps(rec, p.bstep.steps.map(function (s) { return [_bw, +s[0] || 0]; }), A.xLtip, maxCH + A.yTop, 1, false);
       }
 
       // ---- dimensions, aligned to shared gutters (L/R verticals, T/B horizontals) ----
@@ -1051,14 +1034,17 @@
         fdS.fy.forEach(function (y) { rec.addLine(0, y, 0, y, maxCH, "c"); });
         fdS.iy.forEach(function (y) { rec.addLine(0, y, 0, y, maxCH, "h"); });
       }
-      // coping: TB wide × copeH, seated on the columns, with the THU/THL split line
-      rect(-TB / 2, maxCH, TB / 2, maxCH + copeH);
-      if (THU > 0 && THL > 0) rec.addLine(0, -TB / 2, maxCH + THL, TB / 2, maxCH + THL, "c");   // lower THL / upper THU
-      // bearing steps — longitudinal front/back step (교축방향, Δl) on the cap top
-      if (p.bstep && p.bstep.on && p.bstep.steps && p.bstep.steps.length) {
-        var _dl = 0; p.bstep.steps.forEach(function (s) { if (Math.abs(+s[1] || 0) > Math.abs(_dl)) _dl = +s[1] || 0; });
-        if (_dl !== 0) drawSteps(rec, [[TB / 2, 0], [TB / 2, _dl]], -TB / 2, maxCH + copeH, 1, false);
-      }
+      // coping: TB wide × copeH. A longitudinal Δl re-shapes the cap top into a
+      // front/back step about the centre (no block added on top).
+      var _dl = 0;
+      if (p.bstep && p.bstep.on && p.bstep.steps) p.bstep.steps.forEach(function (s) { if (Math.abs(+s[1] || 0) > Math.abs(_dl)) _dl = +s[1] || 0; });
+      var topB = maxCH + copeH, topF = topB + _dl;
+      rec.addLine(0, -TB / 2, maxCH, -TB / 2, topB, "c");                                    // back wall
+      if (_dl) { rec.addLine(0, -TB / 2, topB, 0, topB, "c"); rec.addLine(0, 0, topB, 0, topF, "c"); rec.addLine(0, 0, topF, TB / 2, topF, "c"); }
+      else rec.addLine(0, -TB / 2, topB, TB / 2, topB, "c");                                 // flat top
+      rec.addLine(0, TB / 2, topF, TB / 2, maxCH, "c");                                      // front wall
+      rec.addLine(0, TB / 2, maxCH, -TB / 2, maxCH, "c");                                    // bottom
+      if (THU > 0 && THL > 0) rec.addLine(0, -TB / 2, maxCH + THL, TB / 2, maxCH + THL, "c");   // THU/THL split
       // CR rounds the tip vertical edges → seen end-on here as curved-surface hatch
       // near the coping's ±TB/2 edges
       var CRs = Math.min(+cp.CR || 0, TB / 2);
