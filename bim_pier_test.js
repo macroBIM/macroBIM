@@ -156,41 +156,66 @@
       _tri(T, [gx, gy, z0], [b[0], b[1], z0], [a[0], a[1], z0]);                          // bottom cap
     }
   }
-  // coping solid: swept along x with y half-width w(x) (CR-rounded tips) and soffit zbot(x)
-  function _copingMesh(T, cp, maxCH) {
+  // coping solid: swept along x with y half-width w(x) (CR-rounded tips) and soffit zbot(x).
+  // Bearing steps (bstep) re-shape the top: transverse Δt cumulates from the LEFT cap end
+  // (stepped top + risers), longitudinal Δl steps the front (+y) half about the centreline,
+  // and uniform-THU drops the tip soffit with the top so the outer thickness stays constant.
+  function _copingMesh(T, cp, maxCH, bstep) {
     var A = copingGeometry(cp).A, TB = +cp.TB || 4000, CR = Math.min(+cp.CR || 0, TB / 2);
-    var zTop = maxCH + A.yTop, zTip = maxCH + A.yTip, zMid = maxCH + A.yMid;
+    var zTop0 = maxCH + A.yTop, zMid = maxCH + A.yMid;
+    var bstOn = !!(bstep && bstep.on && bstep.steps && bstep.steps.length);
+    var N = bstOn ? bstep.steps.length : 0, bw = N ? (A.xRtip - A.xLtip) / N : 0;
+    var uni = bstOn && bstep.uniformTHU, _dl = 0;
+    if (bstOn) bstep.steps.forEach(function (s) { if (Math.abs(+s[1] || 0) > Math.abs(_dl)) _dl = +s[1] || 0; });
+    function stepIdx(x) { return Math.max(0, Math.min(N - 1, Math.floor((x - A.xLtip) / bw + 1e-6))); }
+    function cumDt(x) { if (!bstOn) return 0; var i = stepIdx(x), c = 0, k; for (k = 0; k <= i; k++) c += (+bstep.steps[k][0] || 0); return c; }
+    function zTopAt(x) { return zTop0 + cumDt(x); }                                          // stepped top level
     function wAt(x) {
       if (CR <= 0) return TB / 2;
       var dL = x - A.xLtip, dR = A.xRtip - x, d = Math.min(dL, dR);
       if (d < CR) return TB / 2 - CR + Math.sqrt(Math.max(0, CR * CR - (CR - d) * (CR - d)));
       return TB / 2;
     }
+    // soffit control points; uniform-THU drops the tip-level nodes with the stepped top
+    var soff = [[A.xLtip, A.yTip], [A.xLe, A.yTip], [A.xLH, A.yMid], [A.xRH, A.yMid], [A.xRe, A.yTip], [A.xRtip, A.yTip]];
+    if (uni) soff = soff.map(function (q) { return Math.abs(q[1] - A.yTip) < 1 ? [q[0], q[1] + cumDt(q[0])] : q; });
     function zbotAt(x) {
-      if (x <= A.xLe) return zTip;
-      if (x < A.xLH) return zTip + (zMid - zTip) * (x - A.xLe) / ((A.xLH - A.xLe) || 1);
-      if (x <= A.xRH) return zMid;
-      if (x < A.xRe) return zMid + (zTip - zMid) * (x - A.xRH) / ((A.xRe - A.xRH) || 1);
-      return zTip;
+      x = Math.max(soff[0][0], Math.min(soff[soff.length - 1][0], x));
+      for (var k = 0; k < soff.length - 1; k++) { var a = soff[k], b = soff[k + 1]; if (x <= b[0] + 1e-6) { var t = (b[0] - a[0]) ? (x - a[0]) / (b[0] - a[0]) : 0; return maxCH + a[1] + (b[1] - a[1]) * t; } }
+      return maxCH + soff[soff.length - 1][1];
     }
     var xs = [], i;
     function addRange(a, b, n) { for (i = 0; i <= n; i++) xs.push(a + (b - a) * i / n); }
     if (CR > 0) addRange(A.xLtip, A.xLtip + CR, 6); else xs.push(A.xLtip);
     [A.xLe, A.xLH, A.xRH, A.xRe].forEach(function (x) { xs.push(x); });
+    for (i = 1; i < N; i++) xs.push(A.xLtip + i * bw);                                       // step boundaries
     if (CR > 0) addRange(A.xRtip - CR, A.xRtip, 6); else xs.push(A.xRtip);
     xs = xs.filter(function (x) { return x >= A.xLtip - 1 && x <= A.xRtip + 1; }).sort(function (a, b) { return a - b; });
     var uq = []; xs.forEach(function (x) { if (!uq.length || x - uq[uq.length - 1] > 1) uq.push(x); }); xs = uq;
+    // one flat-topped slab per x-interval (top level from the interval midpoint's step)
+    function tops(x) { var z = zTopAt(x); return [z, z + _dl]; }                             // [-y half, +y half]
     for (i = 0; i < xs.length - 1; i++) {
       var x0 = xs[i], x1 = xs[i + 1], w0 = wAt(x0), w1 = wAt(x1), b0 = zbotAt(x0), b1 = zbotAt(x1);
-      _quad(T, [x0, -w0, zTop], [x0, w0, zTop], [x1, w1, zTop], [x1, -w1, zTop]);          // top
-      _quad(T, [x0, -w0, b0], [x1, -w1, b1], [x1, w1, b1], [x0, w0, b0]);                   // bottom
-      _quad(T, [x0, w0, b0], [x0, w0, zTop], [x1, w1, zTop], [x1, w1, b1]);                 // +y wall
-      _quad(T, [x0, -w0, b0], [x1, -w1, b1], [x1, -w1, zTop], [x0, -w0, zTop]);             // -y wall
+      var tm = tops((x0 + x1) / 2), tb = tm[0], tf = tm[1];                                  // back / front top levels
+      _quad(T, [x0, -w0, tb], [x0, 0, tb], [x1, 0, tb], [x1, -w1, tb]);                      // top (back half)
+      _quad(T, [x0, 0, tf], [x0, w0, tf], [x1, w1, tf], [x1, 0, tf]);                        // top (front half)
+      if (_dl) _quad(T, [x0, 0, tb], [x1, 0, tb], [x1, 0, tf], [x0, 0, tf]);                 // longitudinal riser @ y=0
+      _quad(T, [x0, -w0, b0], [x1, -w1, b1], [x1, w1, b1], [x0, w0, b0]);                    // bottom
+      _quad(T, [x0, w0, b0], [x0, w0, tf], [x1, w1, tf], [x1, w1, b1]);                      // +y wall
+      _quad(T, [x0, -w0, b0], [x1, -w1, b1], [x1, -w1, tb], [x0, -w0, tb]);                  // -y wall
     }
-    var xa = xs[0], wa = wAt(xa), ba = zbotAt(xa);
-    _quad(T, [xa, -wa, ba], [xa, -wa, zTop], [xa, wa, zTop], [xa, wa, ba]);                 // left cap
-    var xb = xs[xs.length - 1], wb = wAt(xb), bb = zbotAt(xb);
-    _quad(T, [xb, -wb, bb], [xb, wb, bb], [xb, wb, zTop], [xb, -wb, zTop]);                 // right cap
+    // transverse risers at each step boundary (level change between adjacent slabs)
+    if (bstOn) for (i = 1; i < N; i++) {
+      var xr = A.xLtip + i * bw, wr = wAt(xr), zl = zTopAt(xr - bw * 0.5), zR = zTopAt(xr + bw * 0.5);
+      _quad(T, [xr, -wr, zl], [xr, 0, zl], [xr, 0, zR], [xr, -wr, zR]);                      // back-half riser
+      _quad(T, [xr, 0, zl + _dl], [xr, wr, zl + _dl], [xr, wr, zR + _dl], [xr, 0, zR + _dl]);// front-half riser
+    }
+    var xa = xs[0], wa = wAt(xa), ba = zbotAt(xa), ta = tops(xa);
+    _quad(T, [xa, -wa, ba], [xa, -wa, ta[0]], [xa, 0, ta[0]], [xa, 0, ba]);                  // left cap (back)
+    _quad(T, [xa, 0, ba], [xa, 0, ta[1]], [xa, wa, ta[1]], [xa, wa, ba]);                    // left cap (front)
+    var xe = xs[xs.length - 1], we = wAt(xe), be = zbotAt(xe), te = tops(xe);
+    _quad(T, [xe, -we, be], [xe, 0, be], [xe, 0, te[0]], [xe, -we, te[0]]);                  // right cap (back)
+    _quad(T, [xe, 0, be], [xe, we, be], [xe, we, te[1]], [xe, 0, te[1]]);                    // right cap (front)
   }
   // triangle list → binary STL ArrayBuffer
   function _stl(T) {
@@ -647,6 +672,10 @@
       ck.addEventListener("change", function () { bs.on = ck.checked; renderPerPier(); draw(); });
       ap.appendChild(ck); ap.appendChild(h("span", null, "Apply bearing step")); body.appendChild(ap);
       if (bs.on) {
+        var ap2 = h("label", "pr-bapply"); ap2.style.marginLeft = "18px";
+        var ck2 = h("input"); ck2.type = "checkbox"; ck2.checked = !!bs.uniformTHU; ck2.style.cssText = "width:16px;height:16px;accent-color:var(--dim);cursor:pointer";
+        ck2.addEventListener("change", function () { bs.uniformTHU = ck2.checked; draw(); });
+        ap2.appendChild(ck2); ap2.appendChild(h("span", null, "Uniform outer thickness (THU fixed → THL adjusts)")); body.appendChild(ap2);
         var wSeg = Math.round(((+cp.TLL || 0) + (+cp.TLR || 0)) / Math.max(1, bs.steps.length));
         var hdr = h("div", "pr-bhd"); hdr.appendChild(h("span", null, "Steps (transverse, from left cap end)"));
         var stp = h("div", "pr-stepper"); var mn = h("button", "pr-step", "−"), cn = h("input", "pr-cnt"), pl = h("button", "pr-step", "+");
@@ -939,9 +968,15 @@
       var bstOn = p.bstep && p.bstep.on && p.bstep.steps && p.bstep.steps.length, outline = geo.points;
       if (bstOn) {
         var N = p.bstep.steps.length, bw = ((+cp.TLL || 0) + (+cp.TLR || 0)) / N, cum = 0, top = [], bi;
+        var cumDt = function (x) { var i = Math.max(0, Math.min(N - 1, Math.floor((x - A.xLtip) / bw + 1e-6))), c = 0, k; for (k = 0; k <= i; k++) c += (+p.bstep.steps[k][0] || 0); return c; };
         for (bi = 0; bi < N; bi++) { cum += (+p.bstep.steps[bi][0] || 0); var z = A.yTop + cum, x0 = A.xLtip + bi * bw, x1 = A.xLtip + (bi + 1) * bw; top.push([x0, z], [x1, z]); }
         var lastTop = 0; for (bi = 0; bi < geo.points.length; bi++) { if (Math.abs(geo.points[bi][1] - A.yTop) < 1) lastTop = bi; }
-        outline = top.concat(geo.points.slice(lastTop + 1));   // stepped top + geometry soffit/tips
+        var bloop = geo.points.slice(lastTop + 1);
+        // uniform-THU: keep the tip thickness constant by dropping the tip-soffit (yTip
+        // level) by the same step as the top; the haunch to the fixed central block
+        // absorbs it (THL varies). Off → soffit stays, THU varies.
+        if (p.bstep.uniformTHU) bloop = bloop.map(function (q) { return Math.abs(q[1] - A.yTip) < 1 ? [q[0], q[1] + cumDt(q[0])] : q; });
+        outline = top.concat(bloop);
       }
       var op = outline.map(function (q) { return [q[0], q[1] + maxCH]; });
       for (var i = 0; i < op.length; i++) { var a = op[i], b = op[(i + 1) % op.length]; rec.addLine(0, a[0], a[1], b[0], b[1], "c"); }
@@ -1087,6 +1122,11 @@
       if (A.HER > 0) rec.addLine(0, A.xRe, -TB / 2, A.xRe, TB / 2, "h");
       rec.addLine(0, A.xLH, -TB / 2, A.xLH, TB / 2, "h");       // central head-block edges (coping soffit)
       rec.addLine(0, A.xRH, -TB / 2, A.xRH, TB / 2, "h");
+      // bearing-step edges (visible top-surface risers) — one per step boundary, solid
+      if (p.bstep && p.bstep.on && p.bstep.steps && p.bstep.steps.length > 1) {
+        var Nb = p.bstep.steps.length, bwb = (A.xRtip - A.xLtip) / Nb;
+        for (var si = 1; si < Nb; si++) { var xb = A.xLtip + si * bwb; rec.addLine(0, xb, -TB / 2, xb, TB / 2, "c"); }
+      }
       p.cols.forEach(function (col, i) { if ((+col.CH || 0) > 0) sectionOn(rec, col, cs[i], 0, "h", "h"); });
       var b = { minX: A.xLtip, maxX: A.xRtip, minY: -TB / 2, maxY: TB / 2 };
       var dims = [
@@ -1132,7 +1172,7 @@
       syncCH(p);
       var maxCH = Math.max.apply(null, p.cols.map(function (c) { return +c.CH || 0; }).concat([0]));
       p.cols.forEach(function (col, i) { var cH = +col.CH || 0; if (cH <= 0) return; _extrudeZ(T, sectionPts(col).outer, cs[i], 0, maxCH - cH, maxCH); });
-      _copingMesh(T, cp, maxCH);
+      _copingMesh(T, cp, maxCH, p.bstep);
       var colDep = Math.max.apply(null, p.cols.map(function (c) { return colDepth(c); }).concat([500]));
       var yB = -(colDep / 2 + (+f.FF || 0)), yT = colDep / 2 + (+f.FB || 0), EFL = +f.EFL || 0, EH = +f.EH || 0, BH = +f.BH || 0;
       function foot(Lx, Rx) { _box(T, Lx, Rx, yB, yT, -BH, 0); if (EFL > 0 || EH > 0) _box(T, Lx - EFL, Rx + EFL, yB - EFL, yT + EFL, -BH - EH, -BH); }
