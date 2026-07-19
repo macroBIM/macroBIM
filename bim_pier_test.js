@@ -370,10 +370,14 @@
     ".pr-subhd{font-size:11px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);margin:16px 0 10px;padding-bottom:5px;border-bottom:1px solid var(--hair)}" +
     ".pr-subhd:first-child{margin-top:0}" +
     ".pr-bapply{display:inline-flex;align-items:center;gap:7px;font-size:12.5px;font-weight:600;color:var(--ink);cursor:pointer;margin-bottom:6px}" +
-    ".pr-bhd{display:flex;align-items:center;justify-content:space-between;gap:10px;margin:12px 0 6px;font-size:11.5px;font-weight:600;color:var(--dim)}" +
-    ".pr-brows{display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:6px 18px}" +
-    ".pr-brow{display:flex;align-items:center;gap:12px;padding:3px 0}" +
-    ".pr-blbl{font-size:11px;font-weight:700;color:var(--muted);min-width:24px}" +
+    ".pr-bhd{display:flex;align-items:center;justify-content:space-between;gap:10px;margin:12px 0 8px;font-size:11.5px;font-weight:600;color:var(--dim)}" +
+    ".pr-btbl{border-collapse:collapse;margin:2px 0 4px}" +
+    ".pr-btbl th{font-size:11px;font-weight:700;color:var(--muted);padding:4px 10px 4px 0;text-align:center}" +
+    ".pr-btbl tr>th:first-child{text-align:right;color:var(--dim);min-width:30px}" +
+    ".pr-btbl td{padding:3px 5px}" +
+    ".pr-btbl input{width:82px;padding:4px 6px;border:1px solid var(--line);border-radius:6px;background:var(--panel);color:var(--ink);font-size:12px;text-align:right;font-variant-numeric:tabular-nums;font-family:ui-monospace,Menlo,Consolas,monospace}" +
+    ".pr-btbl input:focus{outline:2px solid var(--dim);outline-offset:1px;border-color:var(--dim)}" +
+    ".pr-wcell{display:inline-block;width:82px;text-align:right;padding:4px 6px;color:var(--muted);font-size:12px;font-family:ui-monospace,Menlo,Consolas,monospace;font-variant-numeric:tabular-nums}" +
     ".pr-tbl{width:100%;border-collapse:collapse}" +
     ".pr-tbl th{font-size:10px;font-weight:700;letter-spacing:.03em;color:var(--muted);text-transform:uppercase;padding:6px 8px;text-align:left;border-bottom:1px solid var(--line);white-space:nowrap}" +
     ".pr-tbl td{padding:5px 8px;border-bottom:1px solid var(--hair);vertical-align:middle}" +
@@ -427,14 +431,13 @@
       fdnMode: "combined",   // combined | individual
       fdnType: "spread",     // spread (직접) | pile (말뚝)
       fdn: { BH: 2000, BLF: 2750, BRF: 2750, FF: 2750, FB: 2750, EFL: 150, EH: 100 },
-      // bearing steps on the cap top. Transverse (교축직각) segments measured from the
-      // LEFT cap end; each = [width, step] where step is the level drop/rise (+/−, mm)
-      // relative to the previous. Longitudinal (교축) segments run from the cap centre
-      // outward to the front & back. dh cumulates along each list.
+      // bearing steps on the cap top. One column per step (default 4), laid from the
+      // LEFT cap end. Each = [dt, dl]: dt = transverse level step (교축직각, Δt),
+      // dl = longitudinal step (교축방향, Δl, front/back). Segment width w is derived
+      // = (TLL+TLR)/count (equal division). dt cumulates left→right.
       bstep: {
         on: false,
-        xs: [[2550, 0], [2300, -160], [2300, -160], [2300, -160]],   // transverse [width, step]
-        ys: [[2000, 0], [2000, 0]]                                   // longitudinal front/back
+        steps: [[0, 0], [-160, 0], [-160, 0], [-160, 0]]
       }
     };
   }
@@ -637,39 +640,36 @@
 
       // ── Bearing step ──
       body.appendChild(h("div", "pr-subhd", "Bearing step"));
-      var bs = p.bstep || (p.bstep = { on: false, xs: [[2000, 0]], ys: [[2000, 0]] });
+      var bs = p.bstep || (p.bstep = { on: false, steps: [[0, 0]] });
+      if (!bs.steps) bs.steps = [[0, 0], [-160, 0], [-160, 0], [-160, 0]];
       var ap = h("label", "pr-bapply");
       var ck = h("input"); ck.type = "checkbox"; ck.checked = !!bs.on; ck.style.cssText = "width:16px;height:16px;accent-color:var(--dim);cursor:pointer";
       ck.addEventListener("change", function () { bs.on = ck.checked; renderPerPier(); draw(); });
       ap.appendChild(ck); ap.appendChild(h("span", null, "Apply bearing step")); body.appendChild(ap);
       if (bs.on) {
-        function fldB(label, val, on) {
-          var w = h("span", "pr-fld"); w.appendChild(h("span", null, label));
-          var inp = h("input"); inp.type = "number"; inp.step = "10"; inp.value = val; inp.className = "pr-mono";
-          inp.addEventListener("input", function () { var v = parseFloat(inp.value); if (!isNaN(v)) { on(v); draw(); } });
-          w.appendChild(inp); return w;
-        }
-        function stepTable(title, arr) {
-          var wrap = h("div", "pr-bstep");
-          var hdr = h("div", "pr-bhd"); hdr.appendChild(h("span", null, title));
-          var stp = h("div", "pr-stepper"); var mn = h("button", "pr-step", "−"), cn = h("input", "pr-cnt"), pl = h("button", "pr-step", "+");
-          cn.type = "number"; cn.value = arr.length; cn.min = 1; cn.max = 12;
-          function setN(n) { n = clamp(n | 0, 1, 12); while (arr.length < n) arr.push([2000, -160]); if (arr.length > n) arr.length = n; renderPerPier(); draw(); }
-          mn.onclick = function () { setN(arr.length - 1); }; pl.onclick = function () { setN(arr.length + 1); };
-          cn.addEventListener("change", function () { setN(parseInt(cn.value, 10)); });
-          stp.appendChild(mn); stp.appendChild(cn); stp.appendChild(pl); hdr.appendChild(stp); wrap.appendChild(hdr);
-          var rows = h("div", "pr-brows");
-          arr.forEach(function (s, i) {
-            var row = h("div", "pr-brow"); row.appendChild(h("span", "pr-blbl", "#" + (i + 1)));
-            row.appendChild(fldB("W", s[0], function (v) { s[0] = v; }));
-            row.appendChild(fldB("ΔH", s[1], function (v) { s[1] = v; }));
-            rows.appendChild(row);
+        var wSeg = Math.round(((+cp.TLL || 0) + (+cp.TLR || 0)) / Math.max(1, bs.steps.length));
+        var hdr = h("div", "pr-bhd"); hdr.appendChild(h("span", null, "Steps (transverse, from left cap end)"));
+        var stp = h("div", "pr-stepper"); var mn = h("button", "pr-step", "−"), cn = h("input", "pr-cnt"), pl = h("button", "pr-step", "+");
+        cn.type = "number"; cn.value = bs.steps.length; cn.min = 1; cn.max = 12;
+        function setN(n) { n = clamp(n | 0, 1, 12); while (bs.steps.length < n) bs.steps.push([-160, 0]); if (bs.steps.length > n) bs.steps.length = n; renderPerPier(); draw(); }
+        mn.onclick = function () { setN(bs.steps.length - 1); }; pl.onclick = function () { setN(bs.steps.length + 1); };
+        cn.addEventListener("change", function () { setN(parseInt(cn.value, 10)); });
+        stp.appendChild(mn); stp.appendChild(cn); stp.appendChild(pl); hdr.appendChild(stp); body.appendChild(hdr);
+        var tbl = h("table", "pr-btbl");
+        var hr = h("tr"); hr.appendChild(h("th", null, "")); bs.steps.forEach(function (_, i) { hr.appendChild(h("th", null, String(i + 1))); }); tbl.appendChild(hr);
+        // w row (derived, read-only) = (TLL+TLR)/count
+        var wr = h("tr"); wr.appendChild(h("th", null, "w")); bs.steps.forEach(function () { var td = h("td"); var s = h("span", "pr-wcell", String(wSeg)); td.appendChild(s); wr.appendChild(td); }); tbl.appendChild(wr);
+        [["Δt", 0], ["Δl", 1]].forEach(function (rd) {
+          var tr = h("tr"); tr.appendChild(h("th", null, rd[0]));
+          bs.steps.forEach(function (s, i) {
+            var td = h("td"); var inp = h("input"); inp.type = "number"; inp.step = "10"; inp.value = s[rd[1]];
+            inp.oninput = function () { var v = parseFloat(inp.value); if (!isNaN(v)) { s[rd[1]] = v; draw(); } };
+            td.appendChild(inp); tr.appendChild(td);
           });
-          wrap.appendChild(rows); return wrap;
-        }
-        body.appendChild(stepTable("Transverse — from LEFT cap end (교축직각)", bs.xs));
-        body.appendChild(stepTable("Longitudinal — centre → front/back (교축)", bs.ys));
-        body.appendChild(h("p", "pr-cap", "W: segment width (mm) · ΔH: step drop/rise from the previous segment (+ up / − down). Datum: left cap end (transverse) & cap centre (longitudinal)."));
+          tbl.appendChild(tr);
+        });
+        body.appendChild(tbl);
+        body.appendChild(h("p", "pr-cap", "w: segment width = (TLL+TLR)/steps (auto) · Δt: transverse level step (교축직각) · Δl: longitudinal step (교축방향, front/back). Δt cumulates from the left cap end; + up / − down."));
       }
       c.appendChild(body); return c;
     }
@@ -964,9 +964,12 @@
           rec.addLine(0, A.xRtip - o, maxCH + A.yTip, A.xRtip - o, maxCH + A.yTop, "g");
         });
       }
-      // bearing steps (교좌 단차) — transverse stepped seat shelf on the cap top,
-      // from the LEFT cap end; ΔH cumulates left→right.
-      drawSteps(rec, (p.bstep && p.bstep.on) ? p.bstep.xs : null, A.xLtip, maxCH + A.yTop, 1, false);
+      // bearing steps (교좌 단차) — transverse stepped seat shelf on the cap top, from
+      // the LEFT end; segment width = (TLL+TLR)/count, Δt cumulates left→right.
+      if (p.bstep && p.bstep.on && p.bstep.steps && p.bstep.steps.length) {
+        var _bw = ((+cp.TLL || 0) + (+cp.TLR || 0)) / p.bstep.steps.length;
+        drawSteps(rec, p.bstep.steps.map(function (s) { return [_bw, +s[0] || 0]; }), A.xLtip, maxCH + A.yTop, 1, false);
+      }
 
       // ---- dimensions, aligned to shared gutters (L/R verticals, T/B horizontals) ----
       var TLL = +cp.TLL || 0, TLR = +cp.TLR || 0, x0f = cs[0] - colW(p.cols[0]) / 2, xFL = cs[0] - colW(p.cols[0]) / 2 - f.BLF;
@@ -1051,8 +1054,11 @@
       // coping: TB wide × copeH, seated on the columns, with the THU/THL split line
       rect(-TB / 2, maxCH, TB / 2, maxCH + copeH);
       if (THU > 0 && THL > 0) rec.addLine(0, -TB / 2, maxCH + THL, TB / 2, maxCH + THL, "c");   // lower THL / upper THU
-      // bearing steps — longitudinal stepped seats from the cap centre out front & back
-      drawSteps(rec, (p.bstep && p.bstep.on) ? p.bstep.ys : null, 0, maxCH + copeH, 1, true);
+      // bearing steps — longitudinal front/back step (교축방향, Δl) on the cap top
+      if (p.bstep && p.bstep.on && p.bstep.steps && p.bstep.steps.length) {
+        var _dl = 0; p.bstep.steps.forEach(function (s) { if (Math.abs(+s[1] || 0) > Math.abs(_dl)) _dl = +s[1] || 0; });
+        if (_dl !== 0) drawSteps(rec, [[TB / 2, 0], [TB / 2, _dl]], -TB / 2, maxCH + copeH, 1, false);
+      }
       // CR rounds the tip vertical edges → seen end-on here as curved-surface hatch
       // near the coping's ±TB/2 edges
       var CRs = Math.min(+cp.CR || 0, TB / 2);
