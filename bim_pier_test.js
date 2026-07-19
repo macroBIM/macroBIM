@@ -669,21 +669,20 @@
       b.appendChild(numRow("IHSR", "Inner haunch corner R", cp.IHSR, function (v) { cp.IHSR = v; }));
       body.appendChild(b);
 
-      // ── Bearing step ──
-      body.appendChild(h("div", "pr-subhd", "Bearing step"));
+      // ── Bearing step ── (checkbox sits in front of the section title)
       var bs = p.bstep || (p.bstep = { on: false, steps: [[0, 0]] });
       if (!bs.steps) bs.steps = [[0, 0], [-160, 0], [-160, 0], [-160, 0]];
-      var ap = h("label", "pr-bapply");
-      var ck = h("input"); ck.type = "checkbox"; ck.checked = !!bs.on; ck.style.cssText = "width:16px;height:16px;accent-color:var(--dim);cursor:pointer";
+      var subhd = h("label", "pr-subhd"); subhd.style.cssText = "display:flex;align-items:center;gap:8px;cursor:pointer";
+      var ck = h("input"); ck.type = "checkbox"; ck.checked = !!bs.on; ck.style.cssText = "width:15px;height:15px;accent-color:var(--dim);cursor:pointer";
       ck.addEventListener("change", function () { bs.on = ck.checked; renderPerPier(); draw(); });
-      ap.appendChild(ck); ap.appendChild(h("span", null, "Apply bearing step")); body.appendChild(ap);
+      subhd.appendChild(ck); subhd.appendChild(h("span", null, "Bearing step")); body.appendChild(subhd);
       if (bs.on) {
         var ap2 = h("label", "pr-bapply"); ap2.style.marginLeft = "18px";
         var ck2 = h("input"); ck2.type = "checkbox"; ck2.checked = !!bs.uniformTHU; ck2.style.cssText = "width:16px;height:16px;accent-color:var(--dim);cursor:pointer";
         ck2.addEventListener("change", function () { bs.uniformTHU = ck2.checked; draw(); });
         ap2.appendChild(ck2); ap2.appendChild(h("span", null, "Uniform outer thickness (THU fixed → THL adjusts)")); body.appendChild(ap2);
         var wSeg = Math.round(((+cp.TLL || 0) + (+cp.TLR || 0)) / Math.max(1, bs.steps.length));
-        var hdr = h("div", "pr-bhd"); hdr.appendChild(h("span", null, "Steps (transverse, from left cap end)"));
+        var hdr = h("div", "pr-bhd"); hdr.appendChild(h("span", null, ""));   // (label removed; empty span keeps the stepper right-aligned)
         var stp = h("div", "pr-stepper"); var mn = h("button", "pr-step", "−"), cn = h("input", "pr-cnt"), pl = h("button", "pr-step", "+");
         cn.type = "number"; cn.value = bs.steps.length; cn.min = 1; cn.max = 12;
         function setN(n) { n = clamp(n | 0, 1, 12); while (bs.steps.length < n) bs.steps.push([-160, 0]); if (bs.steps.length > n) bs.steps.length = n; renderPerPier(); draw(); }
@@ -707,7 +706,7 @@
           tbl.appendChild(tr);
         });
         body.appendChild(tbl);
-        body.appendChild(h("p", "pr-cap", "w: segment width = (TLL+TLR)/steps (auto) · Δt: transverse level step (교축직각, step 1 is the reference = 0) · Δl: longitudinal step (교축방향, front/back). Δt cumulates from the left cap end; + up / − down."));
+        body.appendChild(h("p", "pr-cap", "w: segment width = (TLL+TLR)/steps (auto) · Δt: transverse level step (step 1 is the reference = 0) · Δl: longitudinal step (front/back, +Δl raises the back). Δt cumulates from the left cap end; + up / − down."));
       }
       c.appendChild(body); return c;
     }
