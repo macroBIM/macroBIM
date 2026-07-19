@@ -165,11 +165,11 @@
     var zTop0 = maxCH + A.yTop, zMid = maxCH + A.yMid;
     var bstOn = !!(bstep && bstep.on && bstep.steps && bstep.steps.length);
     var N = bstOn ? bstep.steps.length : 0, bw = N ? (A.xRtip - A.xLtip) / N : 0;
-    var uni = bstOn && bstep.uniformTHU, _dl = 0;
-    if (bstOn) bstep.steps.forEach(function (s) { if (Math.abs(+s[1] || 0) > Math.abs(_dl)) _dl = +s[1] || 0; });
+    var uni = bstOn && bstep.uniformTHU;
     function stepIdx(x) { return Math.max(0, Math.min(N - 1, Math.floor((x - A.xLtip) / bw + 1e-6))); }
     function cumDt(x) { if (!bstOn) return 0; var i = stepIdx(x), c = 0, k; for (k = 0; k <= i; k++) c += (+bstep.steps[k][0] || 0); return c; }
-    function zTopAt(x) { return zTop0 + cumDt(x); }                                          // stepped top level
+    function dlAt(x) { return bstOn ? (+bstep.steps[stepIdx(x)][1] || 0) : 0; }               // per-step longitudinal offset
+    function zTopAt(x) { return zTop0 + cumDt(x); }                                          // stepped top level (back half)
     function wAt(x) {
       if (CR <= 0) return TB / 2;
       var dL = x - A.xLtip, dR = A.xRtip - x, d = Math.min(dL, dR);
@@ -192,14 +192,14 @@
     if (CR > 0) addRange(A.xRtip - CR, A.xRtip, 6); else xs.push(A.xRtip);
     xs = xs.filter(function (x) { return x >= A.xLtip - 1 && x <= A.xRtip + 1; }).sort(function (a, b) { return a - b; });
     var uq = []; xs.forEach(function (x) { if (!uq.length || x - uq[uq.length - 1] > 1) uq.push(x); }); xs = uq;
-    // one flat-topped slab per x-interval (top level from the interval midpoint's step)
-    function tops(x) { var z = zTopAt(x); return [z, z + _dl]; }                             // [-y half, +y half]
+    // one flat-topped slab per x-interval; top splits at y=0 into back / front (front += Δl)
+    function tops(x) { var z = zTopAt(x); return [z, z + dlAt(x)]; }                          // [-y half, +y half]
     for (i = 0; i < xs.length - 1; i++) {
       var x0 = xs[i], x1 = xs[i + 1], w0 = wAt(x0), w1 = wAt(x1), b0 = zbotAt(x0), b1 = zbotAt(x1);
       var tm = tops((x0 + x1) / 2), tb = tm[0], tf = tm[1];                                  // back / front top levels
       _quad(T, [x0, -w0, tb], [x0, 0, tb], [x1, 0, tb], [x1, -w1, tb]);                      // top (back half)
       _quad(T, [x0, 0, tf], [x0, w0, tf], [x1, w1, tf], [x1, 0, tf]);                        // top (front half)
-      if (_dl) _quad(T, [x0, 0, tb], [x1, 0, tb], [x1, 0, tf], [x0, 0, tf]);                 // longitudinal riser @ y=0
+      if (Math.abs(tf - tb) > 1e-6) _quad(T, [x0, 0, tb], [x1, 0, tb], [x1, 0, tf], [x0, 0, tf]);   // longitudinal riser @ y=0
       _quad(T, [x0, -w0, b0], [x1, -w1, b1], [x1, w1, b1], [x0, w0, b0]);                    // bottom
       _quad(T, [x0, w0, b0], [x0, w0, tf], [x1, w1, tf], [x1, w1, b1]);                      // +y wall
       _quad(T, [x0, -w0, b0], [x1, -w1, b1], [x1, -w1, tb], [x0, -w0, tb]);                  // -y wall
@@ -207,8 +207,9 @@
     // transverse risers at each step boundary (level change between adjacent slabs)
     if (bstOn) for (i = 1; i < N; i++) {
       var xr = A.xLtip + i * bw, wr = wAt(xr), zl = zTopAt(xr - bw * 0.5), zR = zTopAt(xr + bw * 0.5);
+      var dlL = dlAt(xr - bw * 0.5), dlR = dlAt(xr + bw * 0.5);
       _quad(T, [xr, -wr, zl], [xr, 0, zl], [xr, 0, zR], [xr, -wr, zR]);                      // back-half riser
-      _quad(T, [xr, 0, zl + _dl], [xr, wr, zl + _dl], [xr, wr, zR + _dl], [xr, 0, zR + _dl]);// front-half riser
+      _quad(T, [xr, 0, zl + dlL], [xr, wr, zl + dlL], [xr, wr, zR + dlR], [xr, 0, zR + dlR]);// front-half riser (per-step Δl)
     }
     var xa = xs[0], wa = wAt(xa), ba = zbotAt(xa), ta = tops(xa);
     _quad(T, [xa, -wa, ba], [xa, -wa, ta[0]], [xa, 0, ta[0]], [xa, 0, ba]);                  // left cap (back)
@@ -688,17 +689,20 @@
         var hr = h("tr"); hr.appendChild(h("th", null, "")); bs.steps.forEach(function (_, i) { hr.appendChild(h("th", null, String(i + 1))); }); tbl.appendChild(hr);
         // w row (derived, read-only) = (TLL+TLR)/count
         var wr = h("tr"); wr.appendChild(h("th", null, "w")); bs.steps.forEach(function () { var td = h("td"); var s = h("span", "pr-wcell", String(wSeg)); td.appendChild(s); wr.appendChild(td); }); tbl.appendChild(wr);
+        bs.steps[0][0] = 0;   // first step is the reference level — Δt fixed at 0 (no input)
         [["Δt", 0], ["Δl", 1]].forEach(function (rd) {
           var tr = h("tr"); tr.appendChild(h("th", null, rd[0]));
           bs.steps.forEach(function (s, i) {
-            var td = h("td"); var inp = h("input"); inp.type = "number"; inp.step = "10"; inp.value = s[rd[1]];
+            var td = h("td");
+            if (rd[1] === 0 && i === 0) { td.appendChild(h("span", "pr-wcell", "0")); tr.appendChild(td); return; }   // reference Δt, read-only
+            var inp = h("input"); inp.type = "number"; inp.step = "10"; inp.value = s[rd[1]];
             inp.oninput = function () { var v = parseFloat(inp.value); if (!isNaN(v)) { s[rd[1]] = v; draw(); } };
             td.appendChild(inp); tr.appendChild(td);
           });
           tbl.appendChild(tr);
         });
         body.appendChild(tbl);
-        body.appendChild(h("p", "pr-cap", "w: segment width = (TLL+TLR)/steps (auto) · Δt: transverse level step (교축직각) · Δl: longitudinal step (교축방향, front/back). Δt cumulates from the left cap end; + up / − down."));
+        body.appendChild(h("p", "pr-cap", "w: segment width = (TLL+TLR)/steps (auto) · Δt: transverse level step (교축직각, step 1 is the reference = 0) · Δl: longitudinal step (교축방향, front/back). Δt cumulates from the left cap end; + up / − down."));
       }
       c.appendChild(body); return c;
     }
@@ -966,10 +970,19 @@
       // untouched, so the cap itself is re-shaped — no separate block is stuck on top.
       var geo = copingGeometry(cp), A = geo.A;
       var bstOn = p.bstep && p.bstep.on && p.bstep.steps && p.bstep.steps.length, outline = geo.points;
+      var frontDl = [];   // Δl front/back top edges: the outline follows the higher of the two,
+                          // the other shows as an interior edge (solid if near/front, dashed if far/back)
       if (bstOn) {
         var N = p.bstep.steps.length, bw = ((+cp.TLL || 0) + (+cp.TLR || 0)) / N, cum = 0, top = [], bi;
         var cumDt = function (x) { var i = Math.max(0, Math.min(N - 1, Math.floor((x - A.xLtip) / bw + 1e-6))), c = 0, k; for (k = 0; k <= i; k++) c += (+p.bstep.steps[k][0] || 0); return c; };
-        for (bi = 0; bi < N; bi++) { cum += (+p.bstep.steps[bi][0] || 0); var z = A.yTop + cum, x0 = A.xLtip + bi * bw, x1 = A.xLtip + (bi + 1) * bw; top.push([x0, z], [x1, z]); }
+        for (bi = 0; bi < N; bi++) {
+          cum += (+p.bstep.steps[bi][0] || 0);
+          var lb = A.yTop + cum, dl = +p.bstep.steps[bi][1] || 0;         // back-top level / longitudinal offset
+          var he = lb + Math.max(0, dl), lo = lb + Math.min(0, dl);       // envelope (outline) / other edge
+          var x0 = A.xLtip + bi * bw, x1 = A.xLtip + (bi + 1) * bw;
+          top.push([x0, he], [x1, he]);
+          if (Math.abs(dl) > 1) frontDl.push({ x0: x0, x1: x1, z: lo, lay: dl > 0 ? "h" : "c" });   // +Δl: back hidden; −Δl: front visible
+        }
         var lastTop = 0; for (bi = 0; bi < geo.points.length; bi++) { if (Math.abs(geo.points[bi][1] - A.yTop) < 1) lastTop = bi; }
         var bloop = geo.points.slice(lastTop + 1);
         // uniform-THU: keep the tip thickness constant by dropping the tip-soffit (yTip
@@ -980,6 +993,7 @@
       }
       var op = outline.map(function (q) { return [q[0], q[1] + maxCH]; });
       for (var i = 0; i < op.length; i++) { var a = op[i], b = op[(i + 1) % op.length]; rec.addLine(0, a[0], a[1], b[0], b[1], "c"); }
+      frontDl.forEach(function (e) { rec.addLine(0, e.x0, e.z + maxCH, e.x1, e.z + maxCH, e.lay); });   // Δl front/back edge
       // CR rounds the tip vertical edges → curved-surface hatch on the tip end faces
       var CRf = Math.min(+cp.CR || 0, (+cp.TB || 4000) / 2);
       if (CRf > 0) {
@@ -1069,15 +1083,28 @@
         fdS.fy.forEach(function (y) { rec.addLine(0, y, 0, y, maxCH, "c"); });
         fdS.iy.forEach(function (y) { rec.addLine(0, y, 0, y, maxCH, "h"); });
       }
-      // coping: TB wide × copeH. A longitudinal Δl re-shapes the cap top into a
-      // front/back step about the centre (no block added on top).
-      var _dl = 0;
-      if (p.bstep && p.bstep.on && p.bstep.steps) p.bstep.steps.forEach(function (s) { if (Math.abs(+s[1] || 0) > Math.abs(_dl)) _dl = +s[1] || 0; });
-      var topB = maxCH + copeH, topF = topB + _dl;
-      rec.addLine(0, -TB / 2, maxCH, -TB / 2, topB, "c");                                    // back wall
-      if (_dl) { rec.addLine(0, -TB / 2, topB, 0, topB, "c"); rec.addLine(0, 0, topB, 0, topF, "c"); rec.addLine(0, 0, topF, TB / 2, topF, "c"); }
-      else rec.addLine(0, -TB / 2, topB, TB / 2, topB, "c");                                 // flat top
-      rec.addLine(0, TB / 2, topF, TB / 2, maxCH, "c");                                      // front wall
+      // coping: TB wide × copeH. Each transverse step projects here as a horizontal
+      // top line at its own level (back half from cumulative Δt, front half += Δl), so
+      // the side view reads every step height. No steps → a single flat top.
+      var base = maxCH + copeH, topMax = base;
+      var bstS = (p.bstep && p.bstep.on && p.bstep.steps && p.bstep.steps.length) ? p.bstep.steps : null;
+      function _uniq(a) { var r = []; a.forEach(function (v) { if (!r.some(function (u) { return Math.abs(u - v) < 1; })) r.push(v); }); return r.sort(function (x, y) { return x - y; }); }
+      if (bstS) {
+        var cumT = 0, backL = [], frontL = [], hasDl = false;
+        for (var si = 0; si < bstS.length; si++) { cumT += (+bstS[si][0] || 0); var lb = base + cumT, dl = +bstS[si][1] || 0; backL.push(lb); frontL.push(lb + dl); if (Math.abs(dl) > 1) hasDl = true; }
+        backL = _uniq(backL); frontL = _uniq(frontL);
+        var maxB = backL[backL.length - 1], maxF = frontL[frontL.length - 1];
+        var minTop = Math.min(backL[0], frontL[0]); topMax = Math.max(maxB, maxF);
+        rec.addLine(0, -TB / 2, maxCH, -TB / 2, maxB, "c");                                  // back wall
+        rec.addLine(0, TB / 2, maxCH, TB / 2, maxF, "c");                                    // front wall
+        backL.forEach(function (z) { rec.addLine(0, -TB / 2, z, 0, z, "c"); });              // back-half step tops
+        frontL.forEach(function (z) { rec.addLine(0, 0, z, TB / 2, z, "c"); });              // front-half step tops (+Δl)
+        if (hasDl) rec.addLine(0, 0, minTop, 0, topMax, "c");                                // longitudinal riser @ centre
+      } else {
+        rec.addLine(0, -TB / 2, maxCH, -TB / 2, base, "c");                                  // back wall
+        rec.addLine(0, -TB / 2, base, TB / 2, base, "c");                                    // flat top
+        rec.addLine(0, TB / 2, base, TB / 2, maxCH, "c");                                    // front wall
+      }
       rec.addLine(0, TB / 2, maxCH, -TB / 2, maxCH, "c");                                    // bottom
       if (THU > 0 && THL > 0) rec.addLine(0, -TB / 2, maxCH + THL, TB / 2, maxCH + THL, "c");   // THU/THL split
       // CR rounds the tip vertical edges → seen end-on here as curved-surface hatch
@@ -1091,7 +1118,7 @@
       }
 
       var footLo = bl ? footL - f.EFL : footL, footHi = bl ? footR + f.EFL : footR;
-      var bnd = { minX: Math.min(-TB / 2, footLo), maxX: Math.max(TB / 2, footHi), minY: -f.BH - (f.EH > 0 ? f.EH : 0), maxY: maxCH + copeH };
+      var bnd = { minX: Math.min(-TB / 2, footLo), maxX: Math.max(TB / 2, footHi), minY: -f.BH - (f.EH > 0 ? f.EH : 0), maxY: Math.max(maxCH + copeH, topMax) };
       // all vertical dims share one left anchor → same-length witness lines, stacked on the left
       var xAnc = bnd.minX;
       var dims = [
