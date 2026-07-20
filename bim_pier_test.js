@@ -7,7 +7,7 @@
       1. Piers      — total pier count + per-pier name (P1, P2 …)
       2. Active pier selector (tabs)
       3. Live elevation preview (selected pier) | stacked input cards:
-           Type · Coping(두부보) · Columns(기둥) · Foundation(기초)
+           Coping(두부보) · Columns(기둥) · Foundation(기초)
     Columns pick a section shape (Rectangle / Circle / Track / Octagon — the shapes
     already shipped as bim_rect/circle/track/octagon). Foundation is either one
     combined footing or individual footings per column.
@@ -18,7 +18,6 @@
   "use strict";
 
   var NS = "http://www.w3.org/2000/svg";
-  var TYPES  = [["T", "T-type"], ["MC", "Multi-column"], ["WALL", "Wall"], ["COL", "Single-column"], ["PORTAL", "Portal"], ["TORCH", "Torch"]];
   var SHAPES = [["rect", "Rectangle"], ["circle", "Circle"], ["track", "Track"], ["octagon", "Octagon"]];
   // section variables per shape (names match bim_xsect_test.js; column-scale defaults).
   // For non-circle: B = transverse width (front), H = longitudinal depth (side).
@@ -449,7 +448,7 @@
   }
   function newPier(name) {
     return {
-      name: name, type: "T",
+      name: name,
       // vertical datum by elevation (m): alignment centre / coping top / footing top.
       // Column height is derived: CH = (topEL − copeH) − fdnEL.
       el: { ctr: 100.000, top: 98.500, fdn: 88.000 },
@@ -605,7 +604,7 @@
       hd.appendChild(add); c.appendChild(hd);
       var b = h("div", "pr-body");
       var tbl = h("table", "pr-tbl");
-      tbl.innerHTML = "<thead><tr><th></th><th>Pier</th><th>Alignment EL</th><th>Cap Top EL</th><th>Footing EL</th><th>CH(m)</th><th>Cols</th><th>Footing</th><th>Type</th><th></th></tr></thead>";
+      tbl.innerHTML = "<thead><tr><th></th><th>Pier</th><th>Alignment EL</th><th>Cap Top EL</th><th>Footing EL</th><th>CH(m)</th><th>Cols</th><th>Footing</th><th></th></tr></thead>";
       var tb = h("tbody");
       S.piers.forEach(function (p, i) {
         var tr = h("tr", i === S.sel ? "on" : "");
@@ -627,14 +626,11 @@
         var tdF = h("td"); var fb = h("button", "pr-tgl"); fb.type = "button"; fb.textContent = p.fdnMode === "combined" ? "Combined" : "Individual";
         fb.onclick = function () { p.fdnMode = p.fdnMode === "combined" ? "individual" : "combined"; fb.textContent = p.fdnMode === "combined" ? "Combined" : "Individual"; if (i === S.sel) renderPerPier(); draw(); };
         tdF.appendChild(fb); tr.appendChild(tdF);
-        var tdT = h("td"); var tt = h("button", "pr-tgl"); tt.type = "button"; tt.textContent = p.fdnType === "pile" ? "Pile" : "Spread";
-        tt.onclick = function () { p.fdnType = p.fdnType === "pile" ? "spread" : "pile"; tt.textContent = p.fdnType === "pile" ? "Pile" : "Spread"; if (i === S.sel) renderPerPier(); draw(); };
-        tdT.appendChild(tt); tr.appendChild(tdT);
         var tdX = h("td"); if (S.piers.length > 1) { var xb = h("button", "pr-del", "×"); xb.type = "button"; xb.onclick = function () { S.piers.splice(i, 1); if (S.sel >= S.piers.length) S.sel = S.piers.length - 1; renderAll(); }; tdX.appendChild(xb); } tr.appendChild(tdX);
         tb.appendChild(tr);
       });
       tbl.appendChild(tb); b.appendChild(tbl);
-      b.appendChild(h("p", "pr-cap", "CH (column height) = Cap Top EL − cap depth (THU+THL) − Footing EL, computed automatically. Click a row to select the active pier; toggle footing mode / foundation type."));
+      b.appendChild(h("p", "pr-cap", "CH (column height) = Cap Top EL − cap depth (THU+THL) − Footing EL, computed automatically. Click a row to select the active pier; toggle footing mode. Foundation type (spread / pile) is set in the Foundation card."));
       c.appendChild(b); return c;
     }
 
