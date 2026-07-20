@@ -630,7 +630,7 @@
         tb.appendChild(tr);
       });
       tbl.appendChild(tb); b.appendChild(tbl);
-      b.appendChild(h("p", "pr-cap", "CH (column height) = Cap Top EL − cap depth (THU+THL) − Footing EL, computed automatically. Click a row to select the active pier; toggle footing mode. Foundation type (spread / pile) is set in the Foundation card."));
+      b.appendChild(h("p", "pr-cap", "CH (column height) = Cap Top EL − cap depth (THU+THL) − Footing EL, computed automatically. Click a row to select the active pier; toggle footing mode (combined / individual)."));
       c.appendChild(b); return c;
     }
 
@@ -781,20 +781,7 @@
       var c = h("div", "pr-card");
       c.appendChild(h("div", "pr-hd", "<span class='pr-ttl'>Foundation <span class='pr-sub'>footing</span></span>"));
       var b = h("div", "pr-body");
-      var modes = h("div", "pr-modes");
-      [["combined", "Combined (single)"], ["individual", "Individual (per column)"]].forEach(function (m) {
-        var btn = h("button", "pr-mode" + (p.fdnMode === m[0] ? " on" : ""), m[1]);
-        btn.onclick = function () { p.fdnMode = m[0]; renderPerPier(); draw(); };
-        modes.appendChild(btn);
-      });
-      b.appendChild(modes);
-      var types = h("div", "pr-modes");
-      [["spread", "Spread footing"], ["pile", "Pile foundation"]].forEach(function (m) {
-        var btn = h("button", "pr-mode" + (p.fdnType === m[0] ? " on" : ""), m[1]);
-        btn.onclick = function () { p.fdnType = m[0]; renderPerPier(); draw(); };
-        types.appendChild(btn);
-      });
-      b.appendChild(types);
+      p.fdnType = "spread";   // only spread (direct) footing is supported; combined/individual is set in the pier schedule
       var ig = h("div", "pr-ingrid");
       ig.appendChild(numRow("BH", "Footing height", f.BH, function (v) { f.BH = v; }));
       ig.appendChild(numRow("BLF", "Edge to col, left (transv.)", f.BLF, function (v) { f.BLF = v; }));
