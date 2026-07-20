@@ -1038,6 +1038,9 @@
           rec.addText(0, cp.HW / 2 + cp.HD * cp.HS / 2 + spx * sOff, gT - cp.HD / 2 + spy * sOff, "1:" + cp.HS, srot);
         }
       }
+      // blinding concrete (버림 콘크리트): EH thickness on the left gutter (below BH); EFL projection at the base
+      if (f.EH > 0) dims.push({ side: "L", at: A.xLtip, lo: -f.BH - f.EH, hi: -f.BH, label: "EH", lp: -22 });
+      if (f.EFL > 0) dims.push({ side: "B", at: -f.BH - f.EH, lo: footMaxX - f.EFL, hi: footMaxX, label: "EFL", lp: 14 });
       layoutDims(dims, bnd).forEach(function (d) { rec.addDimLinear(0, d.x1, d.y1, d.x2, d.y2, d.gap, d.label, { la: d.la, lp: d.lp }); });
       // curved-soffit radius dims (HRL outer / HRR inner) when set
       geo.radiusDims.forEach(function (rd) { rec.addDimRadius(0, rd.c[0], rd.c[1] + maxCH, rd.r, rd.ang, rd.label); });
@@ -1117,6 +1120,9 @@
         { side: "L", at: xAnc, lo: -f.BH, hi: 0, label: "BH" },
         { side: "B", at: -f.BH, lo: footL, hi: footR, label: "FW" }
       ];
+      // blinding concrete (버림 콘크리트): EH thickness (left gutter, below BH); EFL projection at the base
+      if (f.EH > 0) dims.push({ side: "L", at: xAnc, lo: -f.BH - f.EH, hi: -f.BH, label: "EH", lp: -22 });
+      if (f.EFL > 0) dims.push({ side: "B", at: -f.BH - f.EH, lo: footHi - f.EFL, hi: footHi, label: "EFL", lp: 14 });
       layoutDims(dims, bnd).forEach(function (d) { rec.addDimLinear(0, d.x1, d.y1, d.x2, d.y2, d.gap, d.label, { la: d.la, lp: d.lp }); });
     }
 
@@ -1183,6 +1189,8 @@
         { side: "R", at: maxX, lo: yB, hi: yT, label: "FW" },
         { side: "T", at: yHi, lo: minX, hi: maxX, label: "L" }
       ];
+      // blinding concrete (버림 콘크리트) projection: footing edge → blinding edge, stacked above FW on the right
+      if (EFL > 0) dims.push({ side: "R", at: maxX, lo: yT, hi: yT + EFL, label: "EFL" });
       layoutDims(dims, b).forEach(function (d) { rec.addDimLinear(0, d.x1, d.y1, d.x2, d.y2, d.gap, d.label, { la: d.la, lp: d.lp }); });
     }
 
