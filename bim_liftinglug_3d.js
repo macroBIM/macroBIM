@@ -26,19 +26,24 @@ function render_liftinglug_3d(containerId, geo) {
 
     const { lugW, lugH, baseH, outerR, innerR, padeyeR, lugT, padeyeT } = geo.aparam;
     const { Rcx, Rcy, Tlx, Tly, Trx, Try, arc_angb, arc_ange } = geo;
+    const sideH = geo.sideH || baseH;                 // straight-side height (with lower-body extension)
+    const opt = geo.opt || {};
+    const pads = opt.padOn !== false;                 // side pad/cheek plates
+    const hasBase = opt.bpOn === 'plate';
+    const bpW = geo.aparam.bpW || lugW * 1.6, bpT = geo.aparam.bpT || 20, bpL = geo.aparam.bpL || padeyeT * 2.2;
 
     // === Build the front outline as a THREE.Shape ===
     // (base rectangle + tangent lines + top arc, with a circular hole for innerR)
     const shape = new THREE.Shape();
     shape.moveTo(-lugW / 2, 0);
     shape.lineTo(lugW / 2, 0);
-    shape.lineTo(lugW / 2, baseH);
+    shape.lineTo(lugW / 2, sideH);
     shape.lineTo(Trx, Try);
     // arc from Trx,Try around (Rcx, Rcy) to Tlx, Tly
     const angb = arc_angb * Math.PI / 180;
     const ange = arc_ange * Math.PI / 180;
     shape.absarc(Rcx, Rcy, outerR, angb, ange, false);
-    shape.lineTo(-lugW / 2, baseH);
+    shape.lineTo(-lugW / 2, sideH);
     shape.lineTo(-lugW / 2, 0);
 
     // Hole
@@ -76,6 +81,17 @@ function render_liftinglug_3d(containerId, geo) {
     });
     peGeoLeft.translate(0, 0, -lugT / 2 - peDepth);
 
+    // === Base (supporting) plate — sits just below the lug base (y = 0) ===
+    let baseMesh = null;
+    if (hasBase) {
+        const baseGeo = new THREE.BoxGeometry(bpW, bpT, bpL);
+        baseGeo.translate(0, -bpT / 2, 0);
+        const baseMat = new THREE.MeshPhongMaterial({
+            color: 0xf59e0b, side: THREE.DoubleSide, transparent: true, opacity: 0.72
+        });
+        baseMesh = new THREE.Mesh(baseGeo, baseMat);
+    }
+
     // === Materials & meshes ===
     const lugMat = new THREE.MeshPhongMaterial({
         color: 0x4488aa, side: THREE.DoubleSide, transparent: true, opacity: 0.75
@@ -91,22 +107,25 @@ function render_liftinglug_3d(containerId, geo) {
     // Edge lines
     const edgeMat = new THREE.LineBasicMaterial({ color: 0x00ffff });
     const peEdgeMat = new THREE.LineBasicMaterial({ color: 0x00ff88 });
+    const baseEdgeMat = new THREE.LineBasicMaterial({ color: 0xffcc66 });
     const edgeGroup = new THREE.Group();
     edgeGroup.add(new THREE.LineSegments(new THREE.EdgesGeometry(lugGeo, 30), edgeMat));
-    if (peDepth > 0) {
+    if (pads && peDepth > 0) {
         edgeGroup.add(new THREE.LineSegments(new THREE.EdgesGeometry(peGeoRight, 30), peEdgeMat));
         edgeGroup.add(new THREE.LineSegments(new THREE.EdgesGeometry(peGeoLeft, 30), peEdgeMat));
     }
+    if (baseMesh) edgeGroup.add(new THREE.LineSegments(new THREE.EdgesGeometry(baseMesh.geometry, 30), baseEdgeMat));
 
     // === Scene ===
     const scene = new THREE.Scene();
     scene.background = new THREE.Color(0x1a1a2e);
 
     scene.add(lugMesh);
-    if (peDepth > 0) {
+    if (pads && peDepth > 0) {
         scene.add(peRightMesh);
         scene.add(peLeftMesh);
     }
+    if (baseMesh) scene.add(baseMesh);
     scene.add(edgeGroup);
 
     scene.add(new THREE.AmbientLight(0xffffff, 0.5));
@@ -127,10 +146,11 @@ function render_liftinglug_3d(containerId, geo) {
 
     const bbox = new THREE.Box3();
     bbox.expandByObject(lugMesh);
-    if (peDepth > 0) {
+    if (pads && peDepth > 0) {
         bbox.expandByObject(peRightMesh);
         bbox.expandByObject(peLeftMesh);
     }
+    if (baseMesh) bbox.expandByObject(baseMesh);
     const center = new THREE.Vector3(); bbox.getCenter(center);
     const bsize = new THREE.Vector3(); bbox.getSize(bsize);
     const maxDim = Math.max(bsize.x, bsize.y, bsize.z);

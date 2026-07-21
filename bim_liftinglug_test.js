@@ -41,14 +41,16 @@
   function readLugTestParams() {
     function num(id) { var e = document.getElementById(id); return e ? Number(e.value) : 0; }
     function sel(id, def) { var e = document.getElementById(id); return (e && e.value) ? e.value : def; }
+    function chk(id, def) { var e = document.getElementById(id); return e ? !!e.checked : def; }
     var aparam = {};
     NUMKEYS.forEach(function (k) { aparam[k] = num(k); });
+    // each joint: weld only reflected when its checkbox is ticked (type='none' skips it)
     var weld = {
-      pad:  { type: sel('weldPadType',  'fillet'), size: aparam.weldPadSize },
-      lug:  { type: sel('weldLugType',  'fillet'), size: aparam.weldLugSize },
-      base: { type: sel('weldBaseType', 'fillet'), size: aparam.weldBaseSize }
+      pad:  { type: chk('weldPadOn',  true) ? sel('weldPadType',  'fillet') : 'none', size: aparam.weldPadSize },
+      lug:  { type: chk('weldLugOn',  true) ? sel('weldLugType',  'fillet') : 'none', size: aparam.weldLugSize },
+      base: { type: chk('weldBaseOn', true) ? sel('weldBaseType', 'fillet') : 'none', size: aparam.weldBaseSize }
     };
-    var opt = { bpOn: sel('bpOn', 'none'), bpMode: sel('bpMode', 'infinite') };
+    var opt = { bpOn: sel('bpOn', 'none'), bpMode: sel('bpMode', 'infinite'), padOn: chk('padOn', true) };
     return { aparam: aparam, weld: weld, opt: opt, combText: NUMKEYS.map(function (k) { return aparam[k]; }).join(',') };
   }
 
@@ -170,6 +172,8 @@
     var g = Math.max(15, Math.max(lugW, lugH) * 0.05);
     var bpOn = opt && opt.bpOn === 'plate';
     var bpInf = opt && opt.bpMode === 'infinite';
+    var pads = !opt || opt.padOn !== false;           // side pad/cheek plates (both sides)
+    var half = pads ? padeyeT / 2 : lugT / 2;         // outer half-thickness for side/top
     var bpW = aparam.bpW || lugW * 1.6, bpT = aparam.bpT || 20, bpL = aparam.bpL || padeyeT * 2.2;
     weld = weld || { pad: {}, lug: {}, base: {} };
 
@@ -182,7 +186,7 @@
       rec.addLine(viewName, lugW / 2, sideH, Trx, Try, A.lug);
       rec.addArc(viewName, Rcx, Rcy, outerR, arc_angb, arc_ange, A.lug);
       rec.addCircle(viewName, Rcx, Rcy, innerR, A.lug);
-      rec.addCircle(viewName, Rcx, Rcy, padeyeR, A.peye);
+      if (pads) rec.addCircle(viewName, Rcx, Rcy, padeyeR, A.peye);
       // vertical centre line through the hole
       rec.addLine(viewName, Rcx, (bpOn ? -bpT - g : 0), Rcx, lugH + g * 0.6, A.cent);
 
@@ -192,7 +196,7 @@
       // dims
       rec.addDimRadius(viewName, Rcx, Rcy, outerR, 135, 'R');
       rec.addDimRadius(viewName, Rcx, Rcy, innerR, 225, 'd');
-      rec.addDimRadius(viewName, Rcx, Rcy, padeyeR, 305, 'Rp');
+      if (pads) rec.addDimRadius(viewName, Rcx, Rcy, padeyeR, 305, 'Rp');
       rec.addDimLinear(viewName, -lugW / 2, 0, -lugW / 2, lugH, g, 'H');
       rec.addDimLinear(viewName, lugW / 2, 0, lugW / 2, sideH, -g, 'sH');
       rec.addDimLinear(viewName, -lugW / 2, 0, lugW / 2, 0, -g * 2.2, 'W');
@@ -200,74 +204,88 @@
       if (bpOn) rec.addDimLinear(viewName, -bpW / 2, -bpT, bpW / 2, -bpT, -g * 1.6, bpInf ? 'B(∞)' : 'B');
 
       // welds — pad→lug (at pad-eye edge), lug→base (bottom corner), base→shell
-      weldSymbol(rec, viewName, Rcx + padeyeR * 0.7, Rcy + padeyeR * 0.7, Rcx + outerR + g * 1.5, Rcy + outerR, +1,
+      if (pads) weldSymbol(rec, viewName, Rcx + padeyeR * 0.7, Rcy + padeyeR * 0.7, Rcx + outerR + g * 1.5, Rcy + outerR, +1,
                  weld.pad.type, weld.pad.size, g, A.weld);
-      var byTop = bpOn ? 0 : 0;
-      weldSymbol(rec, viewName, -lugW / 2, byTop, -lugW / 2 - g * 2.2, -g * 1.4, -1,
+      weldSymbol(rec, viewName, -lugW / 2, 0, -lugW / 2 - g * 2.2, -g * 1.4, -1,
                  weld.lug.type, weld.lug.size, g, A.weld);
       if (bpOn) weldSymbol(rec, viewName, bpW / 2 * 0.5, -bpT, bpW / 2 + g * 1.2, -bpT - g * 1.6, +1,
                            weld.base.type, weld.base.size, g, A.weld);
 
     } else if (viewName === 'left' || viewName === 'center' || viewName === 'right') {
-      // side elevation (edge-on): lug plate + pad plates
+      // side elevation (edge-on): centre lug plate + optional side pad plates
       rec.addLine(viewName, -lugT / 2, lugH, lugT / 2, lugH, A.lug);
       rec.addLine(viewName, -lugT / 2, 0, lugT / 2, 0, A.lug);
       rec.addLine(viewName, -lugT / 2, 0, -lugT / 2, lugH, A.lug);
       rec.addLine(viewName, lugT / 2, 0, lugT / 2, lugH, A.lug);
       rec.addLine(viewName, -lugT / 2, sideH, lugT / 2, sideH, A.lug);
-      // pad plates
-      rec.addLine(viewName, -padeyeT / 2, Rcy + padeyeR, -lugT / 2, Rcy + padeyeR, A.peye);
-      rec.addLine(viewName, lugT / 2, Rcy + padeyeR, padeyeT / 2, Rcy + padeyeR, A.peye);
-      rec.addLine(viewName, -padeyeT / 2, Rcy - padeyeR, -lugT / 2, Rcy - padeyeR, A.peye);
-      rec.addLine(viewName, lugT / 2, Rcy - padeyeR, padeyeT / 2, Rcy - padeyeR, A.peye);
-      rec.addLine(viewName, -padeyeT / 2, Rcy - padeyeR, -padeyeT / 2, Rcy + padeyeR, A.peye);
-      rec.addLine(viewName, padeyeT / 2, Rcy - padeyeR, padeyeT / 2, Rcy + padeyeR, A.peye);
-      // hidden hole edges
-      rec.addLine(viewName, -padeyeT / 2, Rcy + innerR, -lugT / 2, Rcy + innerR, A.hpeye);
+      if (pads) {
+        // side pad/cheek plates, both sides
+        rec.addLine(viewName, -padeyeT / 2, Rcy + padeyeR, -lugT / 2, Rcy + padeyeR, A.peye);
+        rec.addLine(viewName, lugT / 2, Rcy + padeyeR, padeyeT / 2, Rcy + padeyeR, A.peye);
+        rec.addLine(viewName, -padeyeT / 2, Rcy - padeyeR, -lugT / 2, Rcy - padeyeR, A.peye);
+        rec.addLine(viewName, lugT / 2, Rcy - padeyeR, padeyeT / 2, Rcy - padeyeR, A.peye);
+        rec.addLine(viewName, -padeyeT / 2, Rcy - padeyeR, -padeyeT / 2, Rcy + padeyeR, A.peye);
+        rec.addLine(viewName, padeyeT / 2, Rcy - padeyeR, padeyeT / 2, Rcy + padeyeR, A.peye);
+      }
+      // hidden hole edges (lug always; pad segments only with pads)
       rec.addLine(viewName, -lugT / 2, Rcy + innerR, lugT / 2, Rcy + innerR, A.hlug);
-      rec.addLine(viewName, lugT / 2, Rcy + innerR, padeyeT / 2, Rcy + innerR, A.hpeye);
-      rec.addLine(viewName, -padeyeT / 2, Rcy - innerR, -lugT / 2, Rcy - innerR, A.hpeye);
       rec.addLine(viewName, -lugT / 2, Rcy - innerR, lugT / 2, Rcy - innerR, A.hlug);
-      rec.addLine(viewName, lugT / 2, Rcy - innerR, padeyeT / 2, Rcy - innerR, A.hpeye);
+      if (pads) {
+        rec.addLine(viewName, -padeyeT / 2, Rcy + innerR, -lugT / 2, Rcy + innerR, A.hpeye);
+        rec.addLine(viewName, lugT / 2, Rcy + innerR, padeyeT / 2, Rcy + innerR, A.hpeye);
+        rec.addLine(viewName, -padeyeT / 2, Rcy - innerR, -lugT / 2, Rcy - innerR, A.hpeye);
+        rec.addLine(viewName, lugT / 2, Rcy - innerR, padeyeT / 2, Rcy - innerR, A.hpeye);
+      }
 
       if (bpOn) drawBasePlateSide(rec, viewName, A, padeyeT, bpL, bpT, g, bpInf);
 
-      rec.addDimLinear(viewName, -padeyeT / 2, 0, -padeyeT / 2, lugH, g * 2, 'H');
-      rec.addDimLinear(viewName, padeyeT / 2, 0, padeyeT / 2, sideH, -g * 2, 'sH');
-      rec.addDimLinear(viewName, -padeyeT / 2, Rcy - padeyeR, -padeyeT / 2, Rcy + padeyeR, g, 'Dp');
-      rec.addDimLinear(viewName, padeyeT / 2, Rcy - innerR, padeyeT / 2, Rcy + innerR, -g);
+      rec.addDimLinear(viewName, -half, 0, -half, lugH, g * 2, 'H');
+      rec.addDimLinear(viewName, half, 0, half, sideH, -g * 2, 'sH');
+      if (pads) rec.addDimLinear(viewName, -half, Rcy - padeyeR, -half, Rcy + padeyeR, g, 'Dp');
+      rec.addDimLinear(viewName, half, Rcy - innerR, half, Rcy + innerR, -g);
       rec.addDimLinear(viewName, -lugT / 2, lugH, lugT / 2, lugH, g * 1.2, 't');
-      rec.addDimLinear(viewName, -padeyeT / 2, Rcy + padeyeR, padeyeT / 2, Rcy + padeyeR, g * 1.6, 'tp');
+      if (pads) rec.addDimLinear(viewName, -padeyeT / 2, Rcy + padeyeR, padeyeT / 2, Rcy + padeyeR, g * 1.6, 'tp');
       if (bpOn) rec.addDimLinear(viewName, -bpL / 2, -bpT, bpL / 2, -bpT, -g * 1.6, bpInf ? 'C(∞)' : 'C');
 
-      // welds — pad→lug (pad-plate edge to lug face), lug→base, base→shell
-      weldSymbol(rec, viewName, lugT / 2, Rcy + padeyeR, padeyeT / 2 + g * 1.4, Rcy + padeyeR + g, +1,
+      // welds — pad→lug (only with pads), lug→base, base→shell
+      if (pads) weldSymbol(rec, viewName, lugT / 2, Rcy + padeyeR, half + g * 1.4, Rcy + padeyeR + g, +1,
                  weld.pad.type, weld.pad.size, g, A.weld);
-      weldSymbol(rec, viewName, lugT / 2, 0, padeyeT / 2 + g * 1.6, -g * 1.2, +1,
+      weldSymbol(rec, viewName, lugT / 2, 0, half + g * 1.6, -g * 1.2, +1,
                  weld.lug.type, weld.lug.size, g, A.weld);
       if (bpOn) weldSymbol(rec, viewName, bpL / 2 * 0.5, -bpT, bpL / 2 + g * 1.2, -bpT - g * 1.6, +1,
                            weld.base.type, weld.base.size, g, A.weld);
 
     } else if (viewName === 'top' || viewName === 'bottom') {
-      rec.addLine(viewName, -lugW / 2, -lugT / 2, lugW / 2, -lugT / 2, A.lug);
-      rec.addLine(viewName, -lugW / 2, lugT / 2, lugW / 2, lugT / 2, A.lug);
-      rec.addLine(viewName, -lugW / 2, -lugT / 2, -lugW / 2, lugT / 2, A.lug);
-      rec.addLine(viewName, lugW / 2, -lugT / 2, lugW / 2, lugT / 2, A.lug);
-      rec.addLine(viewName, Rcx - padeyeR, -padeyeT / 2, Rcx + padeyeR, -padeyeT / 2, A.peye);
-      rec.addLine(viewName, Rcx - padeyeR, padeyeT / 2, Rcx + padeyeR, padeyeT / 2, A.peye);
-      rec.addLine(viewName, Rcx - padeyeR, -padeyeT / 2, Rcx - padeyeR, -lugT / 2, A.peye);
-      rec.addLine(viewName, Rcx - padeyeR, lugT / 2, Rcx - padeyeR, padeyeT / 2, A.peye);
-      rec.addLine(viewName, Rcx + padeyeR, -padeyeT / 2, Rcx + padeyeR, -lugT / 2, A.peye);
-      rec.addLine(viewName, Rcx + padeyeR, lugT / 2, Rcx + padeyeR, padeyeT / 2, A.peye);
-      rec.addLine(viewName, Rcx - innerR, -padeyeT / 2, Rcx - innerR, padeyeT / 2, A.hlug);
-      rec.addLine(viewName, Rcx + innerR, -padeyeT / 2, Rcx + innerR, padeyeT / 2, A.hlug);
+      // plan looking down (top, solid) or up (bottom, occluded structure dashed)
+      var hidden = (viewName === 'bottom');
+      var Ll = hidden ? A.hlug : A.lug, Lp = hidden ? A.hpeye : A.peye;
+      // supporting (base) plate footprint — drawn first, underneath
+      if (bpOn) drawBasePlatePlan(rec, viewName, A, bpW, bpL, g, bpInf);
+      // centre lug plate (lugW × lugT)
+      rec.addLine(viewName, -lugW / 2, -lugT / 2, lugW / 2, -lugT / 2, Ll);
+      rec.addLine(viewName, -lugW / 2, lugT / 2, lugW / 2, lugT / 2, Ll);
+      rec.addLine(viewName, -lugW / 2, -lugT / 2, -lugW / 2, lugT / 2, Ll);
+      rec.addLine(viewName, lugW / 2, -lugT / 2, lugW / 2, lugT / 2, Ll);
+      if (pads) {
+        rec.addLine(viewName, Rcx - padeyeR, -padeyeT / 2, Rcx + padeyeR, -padeyeT / 2, Lp);
+        rec.addLine(viewName, Rcx - padeyeR, padeyeT / 2, Rcx + padeyeR, padeyeT / 2, Lp);
+        rec.addLine(viewName, Rcx - padeyeR, -padeyeT / 2, Rcx - padeyeR, -lugT / 2, Lp);
+        rec.addLine(viewName, Rcx - padeyeR, lugT / 2, Rcx - padeyeR, padeyeT / 2, Lp);
+        rec.addLine(viewName, Rcx + padeyeR, -padeyeT / 2, Rcx + padeyeR, -lugT / 2, Lp);
+        rec.addLine(viewName, Rcx + padeyeR, lugT / 2, Rcx + padeyeR, padeyeT / 2, Lp);
+      }
+      // hole projection (always hidden)
+      rec.addLine(viewName, Rcx - innerR, -half, Rcx - innerR, half, A.hlug);
+      rec.addLine(viewName, Rcx + innerR, -half, Rcx + innerR, half, A.hlug);
 
-      rec.addDimLinear(viewName, -lugW / 2, -padeyeT / 2, lugW / 2, -padeyeT / 2, -g * 2, 'W');
-      rec.addDimLinear(viewName, Rcx - padeyeR, -padeyeT / 2, Rcx + padeyeR, -padeyeT / 2, -g, 'Rp2');
-      rec.addDimLinear(viewName, Rcx - innerR, padeyeT / 2, Rcx + innerR, padeyeT / 2, g, 'd');
-      rec.addDimLinear(viewName, -lugW / 2, -padeyeT / 2, -lugW / 2, padeyeT / 2, g, 'tp');
+      rec.addDimLinear(viewName, -lugW / 2, -half, lugW / 2, -half, -g * 2, 'W');
+      if (pads) rec.addDimLinear(viewName, Rcx - padeyeR, -half, Rcx + padeyeR, -half, -g, 'Rp2');
+      rec.addDimLinear(viewName, Rcx - innerR, half, Rcx + innerR, half, g, 'd');
+      if (pads) rec.addDimLinear(viewName, -lugW / 2, -padeyeT / 2, -lugW / 2, padeyeT / 2, g, 'tp');
       rec.addDimLinear(viewName, lugW / 2, -lugT / 2, lugW / 2, lugT / 2, -g, 't');
-      if (Math.abs(aparam.ecc) > 1e-6) rec.addDimLinear(viewName, 0, padeyeT / 2, Rcx, padeyeT / 2, g * 1.8, 'off');
+      if (bpOn) rec.addDimLinear(viewName, -bpW / 2, bpL / 2, bpW / 2, bpL / 2, g * 1.8, bpInf ? 'B(∞)' : 'B');
+      if (bpOn) rec.addDimLinear(viewName, bpW / 2, -bpL / 2, bpW / 2, bpL / 2, -g * 1.4, bpInf ? 'C(∞)' : 'C');
+      if (Math.abs(aparam.ecc) > 1e-6) rec.addDimLinear(viewName, 0, half, Rcx, half, g * 1.8, 'off');
     }
   }
 
@@ -296,6 +314,23 @@
     } else {
       rec.addLine(v, -hx, 0, -hx, -bpT, A.base);
       rec.addLine(v, hx, 0, hx, -bpT, A.base);
+    }
+  }
+
+  // base plate — PLAN view (bpW along lugW × bpL along thickness); infinite
+  // supporting plate shown as a broken-out region (zig-zag on all four edges).
+  function drawBasePlatePlan(rec, v, A, bpW, bpL, g, inf) {
+    var hx = bpW / 2, hy = bpL / 2, amp = Math.min(bpW, bpL) * 0.03, k = 5;
+    if (inf) {
+      zigzag(rec, v, -hx, -hy, hx, -hy, k, amp, A.base);
+      zigzag(rec, v, hx, -hy, hx, hy, k, amp, A.base);
+      zigzag(rec, v, hx, hy, -hx, hy, k, amp, A.base);
+      zigzag(rec, v, -hx, hy, -hx, -hy, k, amp, A.base);
+    } else {
+      rec.addLine(v, -hx, -hy, hx, -hy, A.base);
+      rec.addLine(v, hx, -hy, hx, hy, A.base);
+      rec.addLine(v, hx, hy, -hx, hy, A.base);
+      rec.addLine(v, -hx, hy, -hx, -hy, A.base);
     }
   }
 
@@ -333,6 +368,7 @@
     if (aparam.lugH < minH) { aparam.lugH = minH; var e2 = document.getElementById('lugH'); if (e2) e2.value = aparam.lugH; }
 
     var geo = geoLugTest(aparam);
+    geo.opt = u.opt;   // carry base-plate / pad toggle into the 3D renderer
 
     var odxf = G('odxf_lug');
     if (odxf) {
