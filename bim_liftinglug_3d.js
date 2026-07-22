@@ -31,8 +31,8 @@ function render_liftinglug_3d(containerId, geo) {
     const pads = opt.padOn !== false;                 // padeye ring / cheek plates
     const hasBase = opt.bpOn === 'plate';
     const bpW = geo.aparam.bpW || lugW * 1.6, bpT = geo.aparam.bpT || 20, bpL = geo.aparam.bpL || padeyeT * 2.2;
-    const spOn = opt.spOn === true;                   // rectangular side plates (both faces)
-    const spT = geo.aparam.spT || 0, spH = geo.aparam.spH || 0, spW = geo.aparam.spW || 0;
+    const spOn = opt.spOn === true;                   // side plates on both L/R edges, wrapping both faces
+    const spT = geo.aparam.spT || 0, spH = geo.aparam.spH || 0, spW = geo.aparam.spW || 0, spIn = geo.aparam.spInset || 0;
 
     // === Build the front outline as a THREE.Shape ===
     // (base rectangle + tangent lines + top arc, with a circular hole for innerR)
@@ -100,10 +100,13 @@ function render_liftinglug_3d(containerId, geo) {
         const spMat = new THREE.MeshPhongMaterial({
             color: 0xa855f7, side: THREE.DoubleSide, transparent: true, opacity: 0.7
         });
-        [lugT / 2 + spT / 2, -(lugT / 2 + spT / 2)].forEach(function (z) {
-            const gsp = new THREE.BoxGeometry(spW, spH, spT);
-            gsp.translate(Rcx, Rcy, z);
-            spMeshes.push(new THREE.Mesh(gsp, spMat));
+        const bandCx = (lugW / 2 - spIn) - spW / 2;   // right band centre (left = −)
+        [bandCx, -bandCx].forEach(function (cx) {
+            [lugT / 2 + spT / 2, -(lugT / 2 + spT / 2)].forEach(function (z) {
+                const gsp = new THREE.BoxGeometry(spW, spH, spT);
+                gsp.translate(cx, Rcy, z);
+                spMeshes.push(new THREE.Mesh(gsp, spMat));
+            });
         });
     }
 
