@@ -35,7 +35,8 @@
 
   // numeric input ids, in batch-CSV order
   var NUMKEYS = ['lugW', 'lugH', 'baseH', 'outerR', 'innerR', 'padeyeR', 'lugT', 'padeyeT',
-                 'ecc', 'bodyExt', 'bpW', 'bpT', 'bpL', 'weldLugSize', 'weldPadSize', 'weldBaseSize'];
+                 'ecc', 'bodyExt', 'bpW', 'bpT', 'bpL', 'weldLugSize', 'weldPadSize', 'weldBaseSize',
+                 'spT', 'spH', 'spW'];
 
   // ── params ────────────────────────────────────────────────────────────────
   function readLugTestParams() {
@@ -50,7 +51,8 @@
       lug:  { type: chk('weldLugOn',  true) ? sel('weldLugType',  'fillet') : 'none', size: aparam.weldLugSize },
       base: { type: chk('weldBaseOn', true) ? sel('weldBaseType', 'fillet') : 'none', size: aparam.weldBaseSize }
     };
-    var opt = { bpOn: sel('bpOn', 'none'), bpMode: sel('bpMode', 'infinite'), padOn: chk('padOn', true) };
+    var opt = { bpOn: sel('bpOn', 'none'), bpMode: sel('bpMode', 'infinite'),
+                padOn: chk('padOn', true), spOn: chk('spOn', false) };
     return { aparam: aparam, weld: weld, opt: opt, combText: NUMKEYS.map(function (k) { return aparam[k]; }).join(',') };
   }
 
@@ -108,6 +110,8 @@
     rec.addLayer('cent', 'red', 'solid');
     rec.addLayer('base', '#f59e0b', 'solid');   // base plate (amber)
     rec.addLayer('weld', '#dc2626', 'solid');   // weld symbols (red-orange)
+    rec.addLayer('sp', '#a855f7', 'solid');     // side plates (purple)
+    rec.addLayer('hsp', '#a855f7', 'hidden');
   }
 
   // ── drawing helpers ─────────────────────────────────────────────────────────
@@ -164,7 +168,7 @@
   // ── per-view drawing ──────────────────────────────────────────────────────
   function drawLug(viewName, rec, geo, aparam, weld, opt) {
     layers(rec);
-    var A = { lug: 'lug', hlug: 'hlug', peye: 'peye', hpeye: 'hpeye', cent: 'cent', base: 'base', weld: 'weld' };
+    var A = { lug: 'lug', hlug: 'hlug', peye: 'peye', hpeye: 'hpeye', cent: 'cent', base: 'base', weld: 'weld', sp: 'sp', hsp: 'hsp' };
     var lugW = aparam.lugW, lugH = aparam.lugH, baseH = aparam.baseH, outerR = aparam.outerR,
         innerR = aparam.innerR, padeyeR = aparam.padeyeR, lugT = aparam.lugT, padeyeT = aparam.padeyeT;
     var Rcx = geo.Rcx, Rcy = geo.Rcy, Tlx = geo.Tlx, Tly = geo.Tly, Trx = geo.Trx, Try = geo.Try,
@@ -172,8 +176,11 @@
     var g = Math.max(15, Math.max(lugW, lugH) * 0.05);
     var bpOn = opt && opt.bpOn === 'plate';
     var bpInf = opt && opt.bpMode === 'infinite';
-    var pads = !opt || opt.padOn !== false;           // side pad/cheek plates (both sides)
-    var half = pads ? padeyeT / 2 : lugT / 2;         // outer half-thickness for side/top
+    var pads = !opt || opt.padOn !== false;           // padeye ring / cheek plates
+    var spOn = opt && opt.spOn === true;              // rectangular side plates (both faces)
+    var spT = aparam.spT || 0, spH = aparam.spH || 0, spW = aparam.spW || 0;
+    var spHalf = spOn ? (lugT / 2 + spT) : 0;         // outer face of the side plates
+    var half = Math.max(pads ? padeyeT / 2 : lugT / 2, spHalf);   // outer half-thickness for side/top
     var bpW = aparam.bpW || lugW * 1.6, bpT = aparam.bpT || 20, bpL = aparam.bpL || padeyeT * 2.2;
     weld = weld || { pad: {}, lug: {}, base: {} };
 
@@ -190,6 +197,17 @@
       if (pads && padeyeR > innerR) rec.addCircle(viewName, Rcx, Rcy, padeyeR, A.peye);
       // vertical centre line through the hole
       rec.addLine(viewName, Rcx, (bpOn ? -bpT - g : 0), Rcx, lugH + g * 0.6, A.cent);
+
+      // rectangular side plates (both faces) — appear as a rectangle on the face
+      if (spOn && spW > 0 && spH > 0) {
+        var fx0 = Rcx - spW / 2, fx1 = Rcx + spW / 2, fy0 = Rcy - spH / 2, fy1 = Rcy + spH / 2;
+        rec.addLine(viewName, fx0, fy0, fx1, fy0, A.sp);
+        rec.addLine(viewName, fx1, fy0, fx1, fy1, A.sp);
+        rec.addLine(viewName, fx1, fy1, fx0, fy1, A.sp);
+        rec.addLine(viewName, fx0, fy1, fx0, fy0, A.sp);
+        rec.addDimLinear(viewName, fx0, fy1, fx1, fy1, g * 1.2, 'spW');
+        rec.addDimLinear(viewName, fx1, fy0, fx1, fy1, g * 1.2, 'spH');
+      }
 
       // base plate
       if (bpOn) drawBasePlateFront(rec, viewName, A, lugW, bpW, bpT, g, bpInf);
@@ -238,6 +256,18 @@
         rec.addLine(viewName, lugT / 2, Rcy - innerR, padeyeT / 2, Rcy - innerR, A.hpeye);
       }
 
+      // rectangular side plates flanking the lug (left = −Z, right = +Z)
+      if (spOn && spT > 0 && spH > 0) {
+        var syl = Rcy - spH / 2, syh = Rcy + spH / 2;
+        [[-lugT / 2 - spT, -lugT / 2], [lugT / 2, lugT / 2 + spT]].forEach(function (xr) {
+          rec.addLine(viewName, xr[0], syl, xr[1], syl, A.sp);
+          rec.addLine(viewName, xr[0], syh, xr[1], syh, A.sp);
+          rec.addLine(viewName, xr[0], syl, xr[0], syh, A.sp);
+          rec.addLine(viewName, xr[1], syl, xr[1], syh, A.sp);
+        });
+        rec.addDimLinear(viewName, lugT / 2, syh, lugT / 2 + spT, syh, g * 1.8, 'spT');
+      }
+
       if (bpOn) drawBasePlateSide(rec, viewName, A, padeyeT, bpL, bpT, g, bpInf);
 
       rec.addDimLinear(viewName, -half, 0, -half, lugH, g * 2, 'H');
@@ -274,6 +304,16 @@
         rec.addLine(viewName, Rcx - padeyeR, lugT / 2, Rcx - padeyeR, padeyeT / 2, Lp);
         rec.addLine(viewName, Rcx + padeyeR, -padeyeT / 2, Rcx + padeyeR, -lugT / 2, Lp);
         rec.addLine(viewName, Rcx + padeyeR, lugT / 2, Rcx + padeyeR, padeyeT / 2, Lp);
+      }
+      // rectangular side plates footprint (spW along lugW, spT depth each face)
+      if (spOn && spW > 0 && spT > 0) {
+        var Lsp = hidden ? A.hsp : A.sp, sxa = Rcx - spW / 2, sxb = Rcx + spW / 2;
+        [[lugT / 2, lugT / 2 + spT], [-lugT / 2 - spT, -lugT / 2]].forEach(function (yr) {
+          rec.addLine(viewName, sxa, yr[0], sxb, yr[0], Lsp);
+          rec.addLine(viewName, sxa, yr[1], sxb, yr[1], Lsp);
+          rec.addLine(viewName, sxa, yr[0], sxa, yr[1], Lsp);
+          rec.addLine(viewName, sxb, yr[0], sxb, yr[1], Lsp);
+        });
       }
       // hole projection (always hidden)
       rec.addLine(viewName, Rcx - innerR, -half, Rcx - innerR, half, A.hlug);
@@ -360,6 +400,11 @@
     ['row_padeyeR', 'row_padeyeT'].forEach(function (id) {
       var r = document.getElementById(id);
       if (r) r.style.display = u.opt.padOn ? '' : 'none';
+    });
+    // show/hide the side-plate input rows to match the side-plate checkbox
+    ['row_spT', 'row_spH', 'row_spW'].forEach(function (id) {
+      var r = document.getElementById(id);
+      if (r) r.style.display = u.opt.spOn ? '' : 'none';
     });
 
     // sanity — core dims must be positive (weld/plate/ecc/ext may be 0)

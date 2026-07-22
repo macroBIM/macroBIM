@@ -28,9 +28,11 @@ function render_liftinglug_3d(containerId, geo) {
     const { Rcx, Rcy, Tlx, Tly, Trx, Try, arc_angb, arc_ange } = geo;
     const sideH = geo.sideH || baseH;                 // straight-side height (with lower-body extension)
     const opt = geo.opt || {};
-    const pads = opt.padOn !== false;                 // side pad/cheek plates
+    const pads = opt.padOn !== false;                 // padeye ring / cheek plates
     const hasBase = opt.bpOn === 'plate';
     const bpW = geo.aparam.bpW || lugW * 1.6, bpT = geo.aparam.bpT || 20, bpL = geo.aparam.bpL || padeyeT * 2.2;
+    const spOn = opt.spOn === true;                   // rectangular side plates (both faces)
+    const spT = geo.aparam.spT || 0, spH = geo.aparam.spH || 0, spW = geo.aparam.spW || 0;
 
     // === Build the front outline as a THREE.Shape ===
     // (base rectangle + tangent lines + top arc, with a circular hole for innerR)
@@ -92,6 +94,19 @@ function render_liftinglug_3d(containerId, geo) {
         baseMesh = new THREE.Mesh(baseGeo, baseMat);
     }
 
+    // === Rectangular side plates on both faces (centered on the pin) ===
+    const spMeshes = [];
+    if (spOn && spT > 0 && spH > 0 && spW > 0) {
+        const spMat = new THREE.MeshPhongMaterial({
+            color: 0xa855f7, side: THREE.DoubleSide, transparent: true, opacity: 0.7
+        });
+        [lugT / 2 + spT / 2, -(lugT / 2 + spT / 2)].forEach(function (z) {
+            const gsp = new THREE.BoxGeometry(spW, spH, spT);
+            gsp.translate(Rcx, Rcy, z);
+            spMeshes.push(new THREE.Mesh(gsp, spMat));
+        });
+    }
+
     // === Materials & meshes ===
     const lugMat = new THREE.MeshPhongMaterial({
         color: 0x4488aa, side: THREE.DoubleSide, transparent: true, opacity: 0.75
@@ -115,6 +130,8 @@ function render_liftinglug_3d(containerId, geo) {
         edgeGroup.add(new THREE.LineSegments(new THREE.EdgesGeometry(peGeoLeft, 30), peEdgeMat));
     }
     if (baseMesh) edgeGroup.add(new THREE.LineSegments(new THREE.EdgesGeometry(baseMesh.geometry, 30), baseEdgeMat));
+    const spEdgeMat = new THREE.LineBasicMaterial({ color: 0xc084fc });
+    spMeshes.forEach(function (m) { edgeGroup.add(new THREE.LineSegments(new THREE.EdgesGeometry(m.geometry, 30), spEdgeMat)); });
 
     // === Scene ===
     const scene = new THREE.Scene();
@@ -126,6 +143,7 @@ function render_liftinglug_3d(containerId, geo) {
         scene.add(peLeftMesh);
     }
     if (baseMesh) scene.add(baseMesh);
+    spMeshes.forEach(function (m) { scene.add(m); });
     scene.add(edgeGroup);
 
     scene.add(new THREE.AmbientLight(0xffffff, 0.5));
@@ -151,6 +169,7 @@ function render_liftinglug_3d(containerId, geo) {
         bbox.expandByObject(peLeftMesh);
     }
     if (baseMesh) bbox.expandByObject(baseMesh);
+    spMeshes.forEach(function (m) { bbox.expandByObject(m); });
     const center = new THREE.Vector3(); bbox.getCenter(center);
     const bsize = new THREE.Vector3(); bbox.getSize(bsize);
     const maxDim = Math.max(bsize.x, bsize.y, bsize.z);
