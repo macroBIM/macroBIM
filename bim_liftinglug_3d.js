@@ -33,8 +33,8 @@ function render_liftinglug_3d(containerId, geo) {
     const bpW = geo.aparam.bpW || lugW * 1.6, bpT = geo.aparam.bpT || 20, bpL = geo.aparam.bpL || padeyeT * 2.2;
     const spOn = opt.spOn === true;                   // independent left / right side plates
     const a = geo.aparam;
-    const spL = { bot: a.spBotL || 0, top: a.spTopL || 0, h: a.spHL || 0, w: a.spWL || 0, inset: a.spInsetL || 0 };
-    const spR = { bot: a.spBotR || 0, top: a.spTopR || 0, h: a.spHR || 0, w: a.spWR || 0, inset: a.spInsetR || 0 };
+    const spL = { bot: a.spBotL || 0, top: a.spTopL || 0, h: a.spHL || 0, w: a.spWL || 0, inset: a.spInsetL || 0, on: opt.spOnL !== false };
+    const spR = { bot: a.spBotR || 0, top: a.spTopR || 0, h: a.spHR || 0, w: a.spWR || 0, inset: a.spInsetR || 0, on: opt.spOnR !== false };
 
     // === Build the front outline as a THREE.Shape ===
     // (base rectangle + tangent lines + top arc, with a circular hole for innerR)
@@ -106,7 +106,7 @@ function render_liftinglug_3d(containerId, geo) {
         spR.in = lugW / 2 + spR.inset; spR.out = spR.in + spR.w;
         spL.in = -(lugW / 2 + spL.inset); spL.out = spL.in - spL.w;
         [spR, spL].forEach(function (s) {
-            if (!((s.bot > 0 || s.top > 0) && s.h > 0 && s.w > 0)) return;
+            if (!s.on || !((s.bot > 0 || s.top > 0) && s.h > 0 && s.w > 0)) return;
             const zbo = s.bot / 2, zto = s.top / 2;
             const trap = new THREE.Shape();
             trap.moveTo(-zbo, 0); trap.lineTo(zbo, 0); trap.lineTo(zto, s.h); trap.lineTo(-zto, s.h); trap.closePath();
