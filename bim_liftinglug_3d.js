@@ -100,7 +100,7 @@ function render_liftinglug_3d(containerId, geo) {
         const spMat = new THREE.MeshPhongMaterial({
             color: 0xa855f7, side: THREE.DoubleSide, transparent: true, opacity: 0.7
         });
-        const bandCx = (lugW / 2 + spIn) - spW / 2;   // right band centre (left = −)
+        const bandCx = (lugW / 2 + spIn) + spW / 2;   // right band centre (inner at edge+spIn, extends out)
         [bandCx, -bandCx].forEach(function (cx) {
             [lugT / 2 + spT / 2, -(lugT / 2 + spT / 2)].forEach(function (z) {
                 const gsp = new THREE.BoxGeometry(spW, spH, spT);

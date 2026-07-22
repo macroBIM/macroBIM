@@ -179,10 +179,10 @@
     var pads = !opt || opt.padOn !== false;           // padeye ring / cheek plates
     var spOn = opt && opt.spOn === true;              // side plates on both L/R edges, wrapping both faces
     var spT = aparam.spT || 0, spH = aparam.spH || 0, spW = aparam.spW || 0, spIn = aparam.spInset || 0;
-    // two plates starting at the L/R lug edges: outer edge = lug edge + spIn
-    // (spIn = 0 → at the edge, spIn < 0 → into the lug, spIn > 0 → protruding out), width spW
-    var spRo = lugW / 2 + spIn, spRi = spRo - spW;    // right band [spRi, spRo]
-    var spLo = -(lugW / 2 + spIn), spLi = spLo + spW; // left band  [spLo, spLi]
+    // two plates starting at the L/R lug edges and extending OUTWARD by spW.
+    // inner edge = lug edge + spIn (spIn = 0 → at the edge, spIn < 0 → into the lug, spIn > 0 → shifted out)
+    var spRi = lugW / 2 + spIn, spRo = spRi + spW;    // right band [spRi, spRo] (spRi inner, spRo outer)
+    var spLi = -(lugW / 2 + spIn), spLo = spLi - spW; // left band  [spLo, spLi] (spLi inner, spLo outer)
     var spYlo = 0, spYhi = spH;                       // side plates stand on the base plate (y=0), up to spH
     var spHalf = spOn ? (lugT / 2 + spT) : 0;         // outer face of the wrapping plates (±Z)
     var half = Math.max(pads ? padeyeT / 2 : lugT / 2, spHalf);   // outer half-thickness for side/top
@@ -213,7 +213,7 @@
         });
         rec.addDimLinear(viewName, spRi, spYlo, spRo, spYlo, -g * 1.2, 'spW');
         rec.addDimLinear(viewName, spRo, spYlo, spRo, spYhi, g * 1.2, 'spH');
-        if (Math.abs(spIn) > 1e-6) rec.addDimLinear(viewName, lugW / 2, spYhi, spRo, spYhi, g * 2.4, 'in');
+        if (Math.abs(spIn) > 1e-6) rec.addDimLinear(viewName, lugW / 2, spYhi, spRi, spYhi, g * 2.4, 'in');
       }
 
       // base plate
