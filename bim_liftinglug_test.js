@@ -36,7 +36,7 @@
   // numeric input ids, in batch-CSV order
   var NUMKEYS = ['lugW', 'lugH', 'baseH', 'outerR', 'innerR', 'padeyeR', 'lugT', 'padeyeT',
                  'ecc', 'bodyExt', 'bpW', 'bpT', 'bpL', 'weldLugSize', 'weldPadSize', 'weldBaseSize',
-                 'spT', 'spH', 'spW', 'spInset'];
+                 'spBot', 'spTop', 'spH', 'spW', 'spInset'];
 
   // ── params ────────────────────────────────────────────────────────────────
   function readLugTestParams() {
@@ -178,13 +178,14 @@
     var bpInf = opt && opt.bpMode === 'infinite';
     var pads = !opt || opt.padOn !== false;           // padeye ring / cheek plates
     var spOn = opt && opt.spOn === true;              // side plates on both L/R edges, wrapping both faces
-    var spT = aparam.spT || 0, spH = aparam.spH || 0, spW = aparam.spW || 0, spIn = aparam.spInset || 0;
+    var spBot = aparam.spBot || 0, spTop = aparam.spTop || 0, spH = aparam.spH || 0,
+        spW = aparam.spW || 0, spIn = aparam.spInset || 0;
     // two plates starting at the L/R lug edges and extending OUTWARD by spW.
     // inner edge = lug edge + spIn (spIn = 0 → at the edge, spIn < 0 → into the lug, spIn > 0 → shifted out)
     var spRi = lugW / 2 + spIn, spRo = spRi + spW;    // right band [spRi, spRo] (spRi inner, spRo outer)
     var spLi = -(lugW / 2 + spIn), spLo = spLi - spW; // left band  [spLo, spLi] (spLi inner, spLo outer)
     var spYlo = 0, spYhi = spH;                       // side plates stand on the base plate (y=0), up to spH
-    var spHalf = spOn ? (lugT / 2 + spT) : 0;         // outer face of the wrapping plates (±Z)
+    var spHalf = spOn ? (lugT / 2 + Math.max(spBot, spTop)) : 0;   // widest outer face (±Z)
     var half = Math.max(pads ? padeyeT / 2 : lugT / 2, spHalf);   // outer half-thickness for side/top
     var bpW = aparam.bpW || lugW * 1.6, bpT = aparam.bpT || 20, bpL = aparam.bpL || padeyeT * 2.2;
     weld = weld || { pad: {}, lug: {}, base: {} };
@@ -263,16 +264,22 @@
         rec.addLine(viewName, lugT / 2, Rcy - innerR, padeyeT / 2, Rcy - innerR, A.hpeye);
       }
 
-      // rectangular side plates flanking the lug (left = −Z, right = +Z)
-      if (spOn && spT > 0 && spH > 0) {
-        var syl = spYlo, syh = spYhi;
-        [[-lugT / 2 - spT, -lugT / 2], [lugT / 2, lugT / 2 + spT]].forEach(function (xr) {
-          rec.addLine(viewName, xr[0], syl, xr[1], syl, A.sp);
-          rec.addLine(viewName, xr[0], syh, xr[1], syh, A.sp);
-          rec.addLine(viewName, xr[0], syl, xr[0], syh, A.sp);
-          rec.addLine(viewName, xr[1], syl, xr[1], syh, A.sp);
-        });
-        rec.addDimLinear(viewName, lugT / 2, syh, lugT / 2 + spT, syh, g * 1.8, 'spT');
+      // trapezoidal side plates flanking the lug (inner edge on the lug face,
+      // outer edge slopes from spBot at the base to spTop at the top; equal → rectangle)
+      if (spOn && (spBot > 0 || spTop > 0) && spH > 0) {
+        var ri = lugT / 2, li = -lugT / 2;
+        // right flank (+Z)
+        rec.addLine(viewName, ri, spYlo, ri + spBot, spYlo, A.sp);          // bottom edge
+        rec.addLine(viewName, ri + spBot, spYlo, ri + spTop, spYhi, A.sp);  // sloped outer edge
+        rec.addLine(viewName, ri + spTop, spYhi, ri, spYhi, A.sp);          // top edge
+        rec.addLine(viewName, ri, spYhi, ri, spYlo, A.sp);                  // inner edge (lug face)
+        // left flank (−Z)
+        rec.addLine(viewName, li, spYlo, li - spBot, spYlo, A.sp);
+        rec.addLine(viewName, li - spBot, spYlo, li - spTop, spYhi, A.sp);
+        rec.addLine(viewName, li - spTop, spYhi, li, spYhi, A.sp);
+        rec.addLine(viewName, li, spYhi, li, spYlo, A.sp);
+        rec.addDimLinear(viewName, ri, spYlo, ri + spBot, spYlo, -g * 1.4, 'spBot');
+        rec.addDimLinear(viewName, ri, spYhi, ri + spTop, spYhi, g * 1.4, 'spTop');
       }
 
       if (bpOn) drawBasePlateSide(rec, viewName, A, padeyeT, bpL, bpT, g, bpInf);
@@ -312,11 +319,11 @@
         rec.addLine(viewName, Rcx + padeyeR, -padeyeT / 2, Rcx + padeyeR, -lugT / 2, Lp);
         rec.addLine(viewName, Rcx + padeyeR, lugT / 2, Rcx + padeyeR, padeyeT / 2, Lp);
       }
-      // side plates footprint — two L/R bands, each wrapping both faces (spT depth)
-      if (spOn && spW > 0 && spT > 0) {
+      // side plates footprint — two L/R bands, each wrapping both faces (base depth spBot)
+      if (spOn && spW > 0 && spBot > 0) {
         var Lsp = hidden ? A.hsp : A.sp;
         [[spRi, spRo], [spLo, spLi]].forEach(function (b) {
-          [[lugT / 2, lugT / 2 + spT], [-lugT / 2 - spT, -lugT / 2]].forEach(function (yr) {
+          [[lugT / 2, lugT / 2 + spBot], [-lugT / 2 - spBot, -lugT / 2]].forEach(function (yr) {
             rec.addLine(viewName, b[0], yr[0], b[1], yr[0], Lsp);
             rec.addLine(viewName, b[1], yr[0], b[1], yr[1], Lsp);
             rec.addLine(viewName, b[1], yr[1], b[0], yr[1], Lsp);
@@ -411,7 +418,7 @@
       if (r) r.style.display = u.opt.padOn ? '' : 'none';
     });
     // show/hide the side-plate input rows to match the side-plate checkbox
-    ['row_spT', 'row_spH', 'row_spW', 'row_spInset'].forEach(function (id) {
+    ['row_spBot', 'row_spTop', 'row_spH', 'row_spW', 'row_spInset'].forEach(function (id) {
       var r = document.getElementById(id);
       if (r) r.style.display = u.opt.spOn ? '' : 'none';
     });
