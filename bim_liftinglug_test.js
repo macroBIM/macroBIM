@@ -319,16 +319,14 @@
         rec.addLine(viewName, Rcx + padeyeR, -padeyeT / 2, Rcx + padeyeR, -lugT / 2, Lp);
         rec.addLine(viewName, Rcx + padeyeR, lugT / 2, Rcx + padeyeR, padeyeT / 2, Lp);
       }
-      // side plates footprint — two L/R bands, each wrapping both faces (base depth spBot)
+      // side plates footprint — one plate per L/R band, full depth (lug passes through)
       if (spOn && spW > 0 && spBot > 0) {
-        var Lsp = hidden ? A.hsp : A.sp;
+        var Lsp = hidden ? A.hsp : A.sp, zo = lugT / 2 + spBot;
         [[spRi, spRo], [spLo, spLi]].forEach(function (b) {
-          [[lugT / 2, lugT / 2 + spBot], [-lugT / 2 - spBot, -lugT / 2]].forEach(function (yr) {
-            rec.addLine(viewName, b[0], yr[0], b[1], yr[0], Lsp);
-            rec.addLine(viewName, b[1], yr[0], b[1], yr[1], Lsp);
-            rec.addLine(viewName, b[1], yr[1], b[0], yr[1], Lsp);
-            rec.addLine(viewName, b[0], yr[1], b[0], yr[0], Lsp);
-          });
+          rec.addLine(viewName, b[0], -zo, b[1], -zo, Lsp);
+          rec.addLine(viewName, b[1], -zo, b[1], zo, Lsp);
+          rec.addLine(viewName, b[1], zo, b[0], zo, Lsp);
+          rec.addLine(viewName, b[0], zo, b[0], -zo, Lsp);
         });
       }
       // hole projection (always hidden)

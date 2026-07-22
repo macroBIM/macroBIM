@@ -101,20 +101,17 @@ function render_liftinglug_3d(containerId, geo) {
         const spMat = new THREE.MeshPhongMaterial({
             color: 0xa855f7, side: THREE.DoubleSide, transparent: true, opacity: 0.7
         });
-        // trapezoid cross-section in (depth d from lug face, height y), stood on the base (y=0)
+        // one plate per band, full depth (lug passes through the slot); trapezoid
+        // cross-section in (Z, height y) centred on Z = 0, stood on the base (y = 0)
+        const zbo = lugT / 2 + spBot, zto = lugT / 2 + spTop;
         const trap = new THREE.Shape();
-        trap.moveTo(0, 0); trap.lineTo(spBot, 0); trap.lineTo(spTop, spH); trap.lineTo(0, spH); trap.closePath();
+        trap.moveTo(-zbo, 0); trap.lineTo(zbo, 0); trap.lineTo(zto, spH); trap.lineTo(-zto, spH); trap.closePath();
         const spRi = lugW / 2 + spIn, spRo = spRi + spW;   // right band [spRi, spRo]
         const spLi = -(lugW / 2 + spIn), spLo = spLi - spW; // left band  [spLo, spLi]
         [[spRi, spRo], [spLo, spLi]].forEach(function (band) {
-            // +Z flank: local x(depth)→+Z, extrude(width)→X ending at band[1]
-            const gp = new THREE.ExtrudeGeometry(trap, { depth: spW, bevelEnabled: false });
-            gp.rotateY(-Math.PI / 2); gp.translate(band[1], 0, lugT / 2);
-            spMeshes.push(new THREE.Mesh(gp, spMat));
-            // −Z flank
-            const gm = new THREE.ExtrudeGeometry(trap, { depth: spW, bevelEnabled: false });
-            gm.rotateY(Math.PI / 2); gm.translate(band[0], 0, -lugT / 2);
-            spMeshes.push(new THREE.Mesh(gm, spMat));
+            const gsp = new THREE.ExtrudeGeometry(trap, { depth: spW, bevelEnabled: false });
+            gsp.rotateY(-Math.PI / 2); gsp.translate(band[1], 0, 0);  // local x→Z, extrude→X ending at band[1]
+            spMeshes.push(new THREE.Mesh(gsp, spMat));
         });
     }
 
