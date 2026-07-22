@@ -31,9 +31,10 @@ function render_liftinglug_3d(containerId, geo) {
     const pads = opt.padOn !== false;                 // padeye ring / cheek plates
     const hasBase = opt.bpOn === 'plate';
     const bpW = geo.aparam.bpW || lugW * 1.6, bpT = geo.aparam.bpT || 20, bpL = geo.aparam.bpL || padeyeT * 2.2;
-    const spOn = opt.spOn === true;                   // side plates on both L/R edges, wrapping both faces
-    const spBot = geo.aparam.spBot || 0, spTop = geo.aparam.spTop || 0, spH = geo.aparam.spH || 0,
-          spW = geo.aparam.spW || 0, spIn = geo.aparam.spInset || 0;
+    const spOn = opt.spOn === true;                   // independent left / right side plates
+    const a = geo.aparam;
+    const spL = { bot: a.spBotL || 0, top: a.spTopL || 0, h: a.spHL || 0, w: a.spWL || 0, inset: a.spInsetL || 0 };
+    const spR = { bot: a.spBotR || 0, top: a.spTopR || 0, h: a.spHR || 0, w: a.spWR || 0, inset: a.spInsetR || 0 };
 
     // === Build the front outline as a THREE.Shape ===
     // (base rectangle + tangent lines + top arc, with a circular hole for innerR)
@@ -95,22 +96,23 @@ function render_liftinglug_3d(containerId, geo) {
         baseMesh = new THREE.Mesh(baseGeo, baseMat);
     }
 
-    // === Trapezoidal side plates: two L/R bands, each wrapping both faces ===
+    // === Trapezoidal side plates: independent left / right, straddling the lug ===
     const spMeshes = [];
-    if (spOn && (spBot > 0 || spTop > 0) && spH > 0 && spW > 0) {
+    if (spOn) {
         const spMat = new THREE.MeshPhongMaterial({
             color: 0xa855f7, side: THREE.DoubleSide, transparent: true, opacity: 0.7
         });
-        // one plate per band, full depth (lug passes through the slot); trapezoid
-        // cross-section in (Z, height y) centred on Z = 0, stood on the base (y = 0)
-        const zbo = spBot / 2, zto = spTop / 2;   // spBot/spTop are full widths, centred on the lug
-        const trap = new THREE.Shape();
-        trap.moveTo(-zbo, 0); trap.lineTo(zbo, 0); trap.lineTo(zto, spH); trap.lineTo(-zto, spH); trap.closePath();
-        const spRi = lugW / 2 + spIn, spRo = spRi + spW;   // right band [spRi, spRo]
-        const spLi = -(lugW / 2 + spIn), spLo = spLi - spW; // left band  [spLo, spLi]
-        [[spRi, spRo], [spLo, spLi]].forEach(function (band) {
-            const gsp = new THREE.ExtrudeGeometry(trap, { depth: spW, bevelEnabled: false });
-            gsp.rotateY(-Math.PI / 2); gsp.translate(band[1], 0, 0);  // local x→Z, extrude→X ending at band[1]
+        // right band [in, out]; left band mirrored
+        spR.in = lugW / 2 + spR.inset; spR.out = spR.in + spR.w;
+        spL.in = -(lugW / 2 + spL.inset); spL.out = spL.in - spL.w;
+        [spR, spL].forEach(function (s) {
+            if (!((s.bot > 0 || s.top > 0) && s.h > 0 && s.w > 0)) return;
+            const zbo = s.bot / 2, zto = s.top / 2;
+            const trap = new THREE.Shape();
+            trap.moveTo(-zbo, 0); trap.lineTo(zbo, 0); trap.lineTo(zto, s.h); trap.lineTo(-zto, s.h); trap.closePath();
+            const gsp = new THREE.ExtrudeGeometry(trap, { depth: s.w, bevelEnabled: false });
+            gsp.rotateY(-Math.PI / 2);                       // local x→Z, extrude→−X
+            gsp.translate(Math.max(s.in, s.out), 0, 0);      // outer/upper X end of the band
             spMeshes.push(new THREE.Mesh(gsp, spMat));
         });
     }
