@@ -215,25 +215,33 @@
           rec.addLine(viewName, xb, s.h, xa, s.h, A.sp);
           rec.addLine(viewName, xa, s.h, xa, 0, A.sp);
         });
-        if (spR.on && spR.w > 0 && spR.h > 0) {
-          rec.addDimLinear(viewName, spR.in, 0, spR.out, 0, -g * 1.2, 'spW');
-          rec.addDimLinear(viewName, spR.out, 0, spR.out, spR.h, g * 1.2, 'spH');
-        }
-        if (spL.on && spL.w > 0 && spL.h > 0) rec.addDimLinear(viewName, spL.out, 0, spL.in, 0, -g * 1.2, 'spW');
       }
 
       // base plate
       if (bpOn) drawBasePlateFront(rec, viewName, A, lugW, bpW, bpT, g, bpInf);
 
-      // dims
-      rec.addDimRadius(viewName, Rcx, Rcy, outerR, 135, 'R');
-      rec.addDimRadius(viewName, Rcx, Rcy, innerR, 225, 'd');
-      if (pads && padeyeR > innerR) rec.addDimRadius(viewName, Rcx, Rcy, padeyeR, 305, 'Rp');
-      rec.addDimLinear(viewName, -lugW / 2, 0, -lugW / 2, lugH, g, 'H');
-      rec.addDimLinear(viewName, lugW / 2, 0, lugW / 2, sideH, -g, 'sH');
-      rec.addDimLinear(viewName, -lugW / 2, 0, lugW / 2, 0, -g * 2.2, 'W');
-      if (Math.abs(aparam.ecc) > 1e-6) rec.addDimLinear(viewName, 0, lugH, Rcx, lugH, g * 1.8, 'off');
-      if (bpOn) rec.addDimLinear(viewName, -bpW / 2, -bpT, bpW / 2, -bpT, -g * 1.6, bpInf ? 'B(∞)' : 'B');
+      // ── dimensions: verticals stacked on L/R, horizontals stacked at bottom ──
+      var dg = g * 1.7;                                     // spacing between stacked dim lines
+      var spLon = spOn && spL.on && spL.w > 0, spRon = spOn && spR.on && spR.w > 0;
+      var featL = Math.min(-lugW / 2, spLon ? spL.out : 0); // leftmost lug/plate feature
+      var featR = Math.max(lugW / 2, spRon ? spR.out : 0);  // rightmost lug/plate feature
+      var yBot = bpOn ? -bpT : 0;                           // bottom of part
+      // radii — leader callouts spread around the hole
+      rec.addDimRadius(viewName, Rcx, Rcy, outerR, 150, 'R');
+      rec.addDimRadius(viewName, Rcx, Rcy, innerR, 250, 'd');
+      if (pads && padeyeR > innerR) rec.addDimRadius(viewName, Rcx, Rcy, padeyeR, 325, 'Rp');
+      // left column (vertical): H
+      rec.addDimLinear(viewName, -lugW / 2, 0, -lugW / 2, lugH, (-lugW / 2) - (featL - dg), 'H');
+      // right column (vertical): sH, then spH (outer)
+      rec.addDimLinear(viewName, lugW / 2, 0, lugW / 2, sideH, (lugW / 2) - (featR + dg), 'sH');
+      if (spRon && spR.h > 0) rec.addDimLinear(viewName, lugW / 2, 0, lugW / 2, spR.h, (lugW / 2) - (featR + dg * 2.3), 'spH');
+      // bottom rows (horizontal): spW / W chain, then B (outer)
+      if (spLon) rec.addDimLinear(viewName, spL.out, 0, spL.in, 0, yBot - dg, 'spW');
+      rec.addDimLinear(viewName, -lugW / 2, 0, lugW / 2, 0, yBot - dg, 'W');
+      if (spRon) rec.addDimLinear(viewName, spR.in, 0, spR.out, 0, yBot - dg, 'spW');
+      if (bpOn) rec.addDimLinear(viewName, -bpW / 2, -bpT, bpW / 2, -bpT, -dg * 2.3, bpInf ? 'B(∞)' : 'B');
+      // eccentricity at the top
+      if (Math.abs(aparam.ecc) > 1e-6) rec.addDimLinear(viewName, 0, lugH, Rcx, lugH, dg, 'off');
 
       // welds — pad→lug (at pad-eye edge), lug→base (bottom corner), base→shell
       if (pads) weldSymbol(rec, viewName, Rcx + padeyeR * 0.7, Rcy + padeyeR * 0.7, Rcx + outerR + g * 1.5, Rcy + outerR, +1,
