@@ -186,9 +186,8 @@
       rec.addLine(viewName, lugW / 2, sideH, Trx, Try, A.lug);
       rec.addArc(viewName, Rcx, Rcy, outerR, arc_angb, arc_ange, A.lug);
       rec.addCircle(viewName, Rcx, Rcy, innerR, A.lug);
-      // padeye ring is intrinsic to the lug — shown whenever padeyeR > hole,
-      // independent of the side-plate (pads) toggle
-      if (padeyeR > innerR) rec.addCircle(viewName, Rcx, Rcy, padeyeR, A.peye);
+      // padeye ring — shown when the padeye is enabled and larger than the hole
+      if (pads && padeyeR > innerR) rec.addCircle(viewName, Rcx, Rcy, padeyeR, A.peye);
       // vertical centre line through the hole
       rec.addLine(viewName, Rcx, (bpOn ? -bpT - g : 0), Rcx, lugH + g * 0.6, A.cent);
 
@@ -198,7 +197,7 @@
       // dims
       rec.addDimRadius(viewName, Rcx, Rcy, outerR, 135, 'R');
       rec.addDimRadius(viewName, Rcx, Rcy, innerR, 225, 'd');
-      if (padeyeR > innerR) rec.addDimRadius(viewName, Rcx, Rcy, padeyeR, 305, 'Rp');
+      if (pads && padeyeR > innerR) rec.addDimRadius(viewName, Rcx, Rcy, padeyeR, 305, 'Rp');
       rec.addDimLinear(viewName, -lugW / 2, 0, -lugW / 2, lugH, g, 'H');
       rec.addDimLinear(viewName, lugW / 2, 0, lugW / 2, sideH, -g, 'sH');
       rec.addDimLinear(viewName, -lugW / 2, 0, lugW / 2, 0, -g * 2.2, 'W');
@@ -356,6 +355,12 @@
     var aparam = u.aparam;
     var ta = document.getElementById('sUserText');
     if (ta) ta.value = u.combText;
+
+    // show/hide the padeye input rows to match the padeye checkbox
+    ['row_padeyeR', 'row_padeyeT'].forEach(function (id) {
+      var r = document.getElementById(id);
+      if (r) r.style.display = u.opt.padOn ? '' : 'none';
+    });
 
     // sanity — core dims must be positive (weld/plate/ecc/ext may be 0)
     var core = ['lugW', 'lugH', 'baseH', 'outerR', 'innerR', 'padeyeR', 'lugT', 'padeyeT'];
