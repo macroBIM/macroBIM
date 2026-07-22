@@ -182,7 +182,7 @@
     // two plates near the L/R lug edges: outer edge inset spIn from ±lugW/2, width spW
     var spRo = lugW / 2 - spIn, spRi = spRo - spW;    // right band [spRi, spRo]
     var spLo = -(lugW / 2 - spIn), spLi = spLo + spW; // left band  [spLo, spLi]
-    var spYlo = Rcy - spH / 2, spYhi = Rcy + spH / 2; // height band (centred on the pin)
+    var spYlo = 0, spYhi = spH;                       // side plates stand on the base plate (y=0), up to spH
     var spHalf = spOn ? (lugT / 2 + spT) : 0;         // outer face of the wrapping plates (±Z)
     var half = Math.max(pads ? padeyeT / 2 : lugT / 2, spHalf);   // outer half-thickness for side/top
     var bpW = aparam.bpW || lugW * 1.6, bpT = aparam.bpT || 20, bpL = aparam.bpL || padeyeT * 2.2;
@@ -264,7 +264,7 @@
 
       // rectangular side plates flanking the lug (left = −Z, right = +Z)
       if (spOn && spT > 0 && spH > 0) {
-        var syl = Rcy - spH / 2, syh = Rcy + spH / 2;
+        var syl = spYlo, syh = spYhi;
         [[-lugT / 2 - spT, -lugT / 2], [lugT / 2, lugT / 2 + spT]].forEach(function (xr) {
           rec.addLine(viewName, xr[0], syl, xr[1], syl, A.sp);
           rec.addLine(viewName, xr[0], syh, xr[1], syh, A.sp);

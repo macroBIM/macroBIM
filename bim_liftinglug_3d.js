@@ -104,7 +104,7 @@ function render_liftinglug_3d(containerId, geo) {
         [bandCx, -bandCx].forEach(function (cx) {
             [lugT / 2 + spT / 2, -(lugT / 2 + spT / 2)].forEach(function (z) {
                 const gsp = new THREE.BoxGeometry(spW, spH, spT);
-                gsp.translate(cx, Rcy, z);
+                gsp.translate(cx, spH / 2, z);   // stand on the base plate (y=0)
                 spMeshes.push(new THREE.Mesh(gsp, spMat));
             });
         });
