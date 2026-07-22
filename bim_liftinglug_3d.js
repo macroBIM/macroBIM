@@ -103,7 +103,7 @@ function render_liftinglug_3d(containerId, geo) {
         });
         // one plate per band, full depth (lug passes through the slot); trapezoid
         // cross-section in (Z, height y) centred on Z = 0, stood on the base (y = 0)
-        const zbo = lugT / 2 + spBot, zto = lugT / 2 + spTop;
+        const zbo = spBot / 2, zto = spTop / 2;   // spBot/spTop are full widths, centred on the lug
         const trap = new THREE.Shape();
         trap.moveTo(-zbo, 0); trap.lineTo(zbo, 0); trap.lineTo(zto, spH); trap.lineTo(-zto, spH); trap.closePath();
         const spRi = lugW / 2 + spIn, spRo = spRi + spW;   // right band [spRi, spRo]

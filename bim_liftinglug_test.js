@@ -185,7 +185,7 @@
     var spRi = lugW / 2 + spIn, spRo = spRi + spW;    // right band [spRi, spRo] (spRi inner, spRo outer)
     var spLi = -(lugW / 2 + spIn), spLo = spLi - spW; // left band  [spLo, spLi] (spLi inner, spLo outer)
     var spYlo = 0, spYhi = spH;                       // side plates stand on the base plate (y=0), up to spH
-    var spHalf = spOn ? (lugT / 2 + Math.max(spBot, spTop)) : 0;   // widest outer face (±Z)
+    var spHalf = spOn ? Math.max(spBot, spTop) / 2 : 0;   // widest half-width (±Z), spBot/spTop are full widths
     var half = Math.max(pads ? padeyeT / 2 : lugT / 2, spHalf);   // outer half-thickness for side/top
     var bpW = aparam.bpW || lugW * 1.6, bpT = aparam.bpT || 20, bpL = aparam.bpL || padeyeT * 2.2;
     weld = weld || { pad: {}, lug: {}, base: {} };
@@ -264,22 +264,16 @@
         rec.addLine(viewName, lugT / 2, Rcy - innerR, padeyeT / 2, Rcy - innerR, A.hpeye);
       }
 
-      // trapezoidal side plates flanking the lug (inner edge on the lug face,
-      // outer edge slopes from spBot at the base to spTop at the top; equal → rectangle)
+      // one trapezoidal side plate straddling the lug (bottom edge spBot wide,
+      // top edge spTop wide, both centred on the lug; equal → rectangle)
       if (spOn && (spBot > 0 || spTop > 0) && spH > 0) {
-        var ri = lugT / 2, li = -lugT / 2;
-        // right flank (+Z)
-        rec.addLine(viewName, ri, spYlo, ri + spBot, spYlo, A.sp);          // bottom edge
-        rec.addLine(viewName, ri + spBot, spYlo, ri + spTop, spYhi, A.sp);  // sloped outer edge
-        rec.addLine(viewName, ri + spTop, spYhi, ri, spYhi, A.sp);          // top edge
-        rec.addLine(viewName, ri, spYhi, ri, spYlo, A.sp);                  // inner edge (lug face)
-        // left flank (−Z)
-        rec.addLine(viewName, li, spYlo, li - spBot, spYlo, A.sp);
-        rec.addLine(viewName, li - spBot, spYlo, li - spTop, spYhi, A.sp);
-        rec.addLine(viewName, li - spTop, spYhi, li, spYhi, A.sp);
-        rec.addLine(viewName, li, spYhi, li, spYlo, A.sp);
-        rec.addDimLinear(viewName, ri, spYlo, ri + spBot, spYlo, -g * 1.4, 'spBot');
-        rec.addDimLinear(viewName, ri, spYhi, ri + spTop, spYhi, g * 1.4, 'spTop');
+        var zbo = spBot / 2, zto = spTop / 2;
+        rec.addLine(viewName, -zbo, spYlo, zbo, spYlo, A.sp);   // bottom edge (spBot)
+        rec.addLine(viewName, zbo, spYlo, zto, spYhi, A.sp);    // right slope
+        rec.addLine(viewName, zto, spYhi, -zto, spYhi, A.sp);   // top edge (spTop)
+        rec.addLine(viewName, -zto, spYhi, -zbo, spYlo, A.sp);  // left slope
+        rec.addDimLinear(viewName, -zbo, spYlo, zbo, spYlo, -g * 1.4, 'spBot');
+        rec.addDimLinear(viewName, -zto, spYhi, zto, spYhi, g * 1.4, 'spTop');
       }
 
       if (bpOn) drawBasePlateSide(rec, viewName, A, padeyeT, bpL, bpT, g, bpInf);
@@ -319,14 +313,19 @@
         rec.addLine(viewName, Rcx + padeyeR, -padeyeT / 2, Rcx + padeyeR, -lugT / 2, Lp);
         rec.addLine(viewName, Rcx + padeyeR, lugT / 2, Rcx + padeyeR, padeyeT / 2, Lp);
       }
-      // side plates footprint — one plate per L/R band, full depth (lug passes through)
+      // side plates footprint — one plate per L/R band; show both the bottom
+      // (spBot) and top (spTop) widths so the taper reads in plan
       if (spOn && spW > 0 && spBot > 0) {
-        var Lsp = hidden ? A.hsp : A.sp, zo = lugT / 2 + spBot;
+        var Lsp = hidden ? A.hsp : A.sp, zbo = spBot / 2, zto = spTop / 2;
         [[spRi, spRo], [spLo, spLi]].forEach(function (b) {
-          rec.addLine(viewName, b[0], -zo, b[1], -zo, Lsp);
-          rec.addLine(viewName, b[1], -zo, b[1], zo, Lsp);
-          rec.addLine(viewName, b[1], zo, b[0], zo, Lsp);
-          rec.addLine(viewName, b[0], zo, b[0], -zo, Lsp);
+          // bottom-width rectangle
+          rec.addLine(viewName, b[0], -zbo, b[1], -zbo, Lsp);
+          rec.addLine(viewName, b[1], -zbo, b[1], zbo, Lsp);
+          rec.addLine(viewName, b[1], zbo, b[0], zbo, Lsp);
+          rec.addLine(viewName, b[0], zbo, b[0], -zbo, Lsp);
+          // top-width edges (2 lines)
+          rec.addLine(viewName, b[0], -zto, b[1], -zto, Lsp);
+          rec.addLine(viewName, b[0], zto, b[1], zto, Lsp);
         });
       }
       // hole projection (always hidden)
