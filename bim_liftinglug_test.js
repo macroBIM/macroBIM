@@ -51,8 +51,8 @@
       lug:  { type: chk('weldLugOn',  true) ? sel('weldLugType',  'fillet') : 'none', size: aparam.weldLugSize },
       base: { type: chk('weldBaseOn', true) ? sel('weldBaseType', 'fillet') : 'none', size: aparam.weldBaseSize }
     };
-    var opt = { bpOn: sel('bpOn', 'none'), bpMode: sel('bpMode', 'infinite'),
-                padOn: chk('padOn', true), spOn: chk('spOn', false) };
+    var opt = { bpOn: chk('bpOn', true) ? 'plate' : 'none', bpMode: sel('bpMode', 'infinite'),
+                padOn: chk('padOn', true), spOn: chk('spOn', false), eccOn: chk('eccOn', false) };
     return { aparam: aparam, weld: weld, opt: opt, combText: NUMKEYS.map(function (k) { return aparam[k]; }).join(',') };
   }
 
@@ -409,16 +409,16 @@
     var ta = document.getElementById('sUserText');
     if (ta) ta.value = u.combText;
 
-    // show/hide the padeye input rows to match the padeye checkbox
-    ['row_padeyeR', 'row_padeyeT'].forEach(function (id) {
-      var r = document.getElementById(id);
-      if (r) r.style.display = u.opt.padOn ? '' : 'none';
-    });
-    // show/hide the side-plate input rows to match the side-plate checkbox
-    ['row_spBot', 'row_spTop', 'row_spH', 'row_spW', 'row_spInset'].forEach(function (id) {
-      var r = document.getElementById(id);
-      if (r) r.style.display = u.opt.spOn ? '' : 'none';
-    });
+    // show/hide each section's input rows to match its header checkbox
+    function toggleRows(ids, on) {
+      ids.forEach(function (id) { var r = document.getElementById(id); if (r) r.style.display = on ? '' : 'none'; });
+    }
+    toggleRows(['row_padeyeR', 'row_padeyeT'], u.opt.padOn);
+    toggleRows(['row_spBot', 'row_spTop', 'row_spH', 'row_spW', 'row_spInset'], u.opt.spOn);
+    toggleRows(['row_ecc', 'row_bodyExt'], u.opt.eccOn);
+    toggleRows(['row_bpMode', 'row_bpW', 'row_bpT', 'row_bpL'], u.opt.bpOn === 'plate');
+    // eccentricity / extension only apply when their section is enabled
+    if (!u.opt.eccOn) { aparam.ecc = 0; aparam.bodyExt = 0; }
 
     // sanity — core dims must be positive (weld/plate/ecc/ext may be 0)
     var core = ['lugW', 'lugH', 'baseH', 'outerR', 'innerR', 'padeyeR', 'lugT', 'padeyeT'];
