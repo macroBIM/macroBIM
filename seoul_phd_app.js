@@ -7,7 +7,7 @@
     · Toggle Normals: 벽면 중앙에 콘크리트 안쪽 법선 벡터 표시
 */
 (function () {
-  var BRANCH = 'claude/rebar-solver-v5-t3wst2';
+  var BRANCH = 'claude/phd-rectangle-section-vars-bnwtzp';
   var RAW = 'https://raw.githubusercontent.com/macroBIM/macroBIM/' + BRANCH + '/';
   var PAGES = 'https://macrobim.github.io/macroBIM/';
 
@@ -993,6 +993,77 @@
         return _oA.call(this, v, x, y, r, a0, a1, l);
       };
     }
+
+    /* ─ Rectangle: 내부 헌치(챔퍼) 단면 override ─
+       메인 앱(design/layout_body_test.js → bim_xsect_test.js, window.XSECT)의 rect
+       지오메트리와 동일: 외곽 사각형 + 내부 보이드(twl/twr 좌/우 벽두께, tf1/tf2
+       상/하 플랜지, ha/hb 안쪽 모서리 헌치). Pages 의 구버전 bim_rect.js(H/B/h/b)를
+       대체하여, redraw('rect') 캡처 경로가 헌치 외곽선을 그대로 벽체로 변환한다. */
+    (function () {
+      function _rv(id, d) { var e = document.getElementById(id); var n = e ? parseFloat(e.value) : NaN; return isNaN(n) ? d : n; }
+      function rectParams() {
+        var hc = document.getElementById('drect_hollow');
+        return {
+          H: _rv('drect_H_s', 800), B: _rv('drect_B_s', 600),
+          twl: _rv('drect_twl_s', 120), twr: _rv('drect_twr_s', 120),
+          tf1: _rv('drect_tf1_s', 120), tf2: _rv('drect_tf2_s', 120),
+          ha: _rv('drect_ha_s', 150), hb: _rv('drect_hb_s', 150),
+          hollow: hc ? hc.checked : true
+        };
+      }
+      // 외곽(CCW) + 내부 보이드(챔퍼 8각) → 각 loop = 닫힌 [x1,y1,x2,y2] 배열
+      // (bim_xsect_test.js 의 XSECT.geo('rect', …) 공식과 동일)
+      function rectLoops(p) {
+        var H = +p.H || 0, B = +p.B || 0, twl = +p.twl || 0, twr = +p.twr || 0,
+            tf1 = +p.tf1 || 0, tf2 = +p.tf2 || 0, ha = +p.ha || 0, hb = +p.hb || 0;
+        function edges(V) { var L = []; for (var i = 0; i < V.length; i++) { var a = V[i], b = V[(i + 1) % V.length]; L.push([a[0], a[1], b[0], b[1]]); } return L; }
+        var xo0 = -B / 2, xo1 = B / 2;
+        var loops = [edges([[xo0, 0], [xo1, 0], [xo1, H], [xo0, H]])];
+        if (p.hollow !== false) {
+          var ix0 = xo0 + twl, ix1 = xo1 - twr, iy0 = tf2, iy1 = H - tf1;
+          if (ix1 > ix0 && iy1 > iy0) {
+            var cha = Math.max(0, Math.min(ha, (ix1 - ix0) / 2)), chb = Math.max(0, Math.min(hb, (iy1 - iy0) / 2));
+            var IV = (cha > 0 && chb > 0)
+              ? [[ix0 + cha, iy0], [ix1 - cha, iy0], [ix1, iy0 + chb], [ix1, iy1 - chb], [ix1 - cha, iy1], [ix0 + cha, iy1], [ix0, iy1 - chb], [ix0, iy0 + chb]]
+              : [[ix0, iy0], [ix1, iy0], [ix1, iy1], [ix0, iy1]];
+            loops.push(edges(IV));
+          }
+        }
+        return loops;
+      }
+      // fdraw_rect_2d('front') 를 대체 — KonvaViewer 로 그려 캡처 훅(_lines)에 실린다
+      window.fdraw_rect_2d = function () {
+        var plot = document.getElementById('rectplot');
+        var host = document.getElementById('rect_2dview');
+        if (!host && plot) {
+          host = document.createElement('div'); host.id = 'rect_2dview';
+          host.style.cssText = 'width:100%;height:526px;background:#000;';
+          plot.innerHTML = ''; plot.appendChild(host);
+        }
+        if (!host || typeof KonvaViewer === 'undefined') return;
+        var ocvs = new KonvaViewer('rect_2dview', { gridCols: 1, layout: [{ views: ['front'], span: 1 }] });
+        ocvs.addLayer('rect_solid', 'cyan', 'solid', 1.5);
+        rectLoops(rectParams()).forEach(function (loop) {
+          loop.forEach(function (s) { ocvs.addLine('front', s[0], s[1], s[2], s[3], 'rect_solid'); });
+        });
+        ocvs.render();
+      };
+      window.fdraw_rect = function () { try { window.fdraw_rect_2d('front'); } catch (e) { console.error('[SeoulPhD] fdraw_rect 오류:', e); } };
+      // DXF: 외곽+내부 폴리라인 (모델좌표 y-up). form 의 DXF 버튼이 호출.
+      SeoulPhD.rectDxf = function (name) {
+        try {
+          var e = ['0', 'SECTION', '2', 'ENTITIES'];
+          function nn(v) { return String(Math.round(v * 1000) / 1000); }
+          rectLoops(rectParams()).forEach(function (loop) {
+            loop.forEach(function (s) { e.push('0', 'LINE', '8', '0', '10', nn(s[0]), '20', nn(s[1]), '30', '0', '11', nn(s[2]), '21', nn(s[3]), '31', '0'); });
+          });
+          e.push('0', 'ENDSEC', '0', 'EOF');
+          var blob = new Blob([e.join('\n')], { type: 'application/dxf' }), url = URL.createObjectURL(blob), a = document.createElement('a');
+          a.href = url; a.download = name || 'Rect.dxf'; document.body.appendChild(a); a.click(); document.body.removeChild(a);
+          setTimeout(function () { URL.revokeObjectURL(url); }, 1000);
+        } catch (err) { console.error('[SeoulPhD] rect DXF 오류:', err); }
+      };
+    })();
 
     /* ─ style / form (raw 브랜치) 로드 후 실행 (캐시 무효화 ?v=) ─ */
     /* (excel_reader.js 는 ENGINE 목록에서 Pages 로 이미 로드됨) */
