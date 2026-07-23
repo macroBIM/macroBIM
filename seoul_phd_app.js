@@ -527,18 +527,32 @@
       },
 
       // 안착 완료 감시 → 완료되면 애니메이션 정지 후 trebar 를 굴짐 아크로 대체
+      //  · (구버전 버그) 12초(ticks>80) 하드 타임아웃이 느린 안착 도중 fillet 패스를 폐기 →
+      //    철근 수가 많아 총 안착이 12초를 넘으면(예: WT_L_1 추가) 형상은 잡혀도 fillet 미적용.
+      //  · 개선: 시간이 아니라 "큐 진행"으로 판정. 진행되는 한 계속 대기하고, 완료되면 전체 fillet.
+      //    특정 바에서 진짜 멈추면(진행 정지 지속) 그때만 FORMED 된 것들에 부분 fillet + 정지지점 로그.
       _watchSettle: function () {
         var self = this;
         if (this._settleTimer) { clearInterval(this._settleTimer); this._settleTimer = null; }
         if (typeof Domain === 'undefined' || !Domain.queue || Domain.queue.length === 0) return;
-        var ticks = 0;
+        var lastIndex = -1, stallTicks = 0, totalTicks = 0;
+        var STALL_LIMIT = 100;    // 큐가 진행 없이 정지 상태로 유지되는 한계 (약 15초) → 부분 적용
+        var HARD_LIMIT = 4000;    // 타이머 영구화 방지용 안전 상한 (약 10분)
         this._settleTimer = setInterval(function () {
-          ticks++;
-          var done = Domain.activeQueueIndex >= Domain.queue.length;
+          totalTicks++;
+          var idx = Domain.activeQueueIndex;
+          if (idx !== lastIndex) { lastIndex = idx; stallTicks = 0; }   // 진행 중엔 스톨 카운터 리셋 → 계속 대기
+          else stallTicks++;
+          var done = idx >= Domain.queue.length;
           var allFormed = Domain.trebarList.every(function (t) { return t.state === 'FORMED'; });
-          if ((done && allFormed) || ticks > 80) {
+          if (done && allFormed) {                                     // 정상: 전부 안착 → 전체 fillet
             clearInterval(self._settleTimer); self._settleTimer = null;
-            if (done && allFormed) self._finalizeArcs();
+            self._finalizeArcs();
+          } else if (stallTicks > STALL_LIMIT || totalTicks > HARD_LIMIT) {   // 진짜 정지 → 부분 fillet
+            clearInterval(self._settleTimer); self._settleTimer = null;
+            var it = Domain.queue[idx], stuck = (it && it.obj && it.obj.id) ? it.obj.id : ('#' + idx);
+            console.warn('[SeoulPhD] 안착이 진행되지 않아 fillet 을 부분 적용합니다. 정지 지점: ' + stuck);
+            self._finalizeArcs();     // FORMED 된 것만 아크, 미안착은 직선 유지 (사라지지 않게)
           }
         }, 150);
       },
@@ -550,10 +564,24 @@
         if (UI.anim && UI.anim.stop) UI.anim.stop();      // 정지 → 굴짐 아크가 직선으로 덮이지 않음
         if (!UI.trebarGroup) return;
         UI.trebarGroup.destroyChildren();
-        var self = this;
-        Domain.trebarList.forEach(function (t) { if (t.state === 'FORMED') self._drawFilletedTrebar(t, UI.trebarGroup); });
+        var self = this, formed = 0;
+        Domain.trebarList.forEach(function (t) {
+          if (t.state === 'FORMED') { self._drawFilletedTrebar(t, UI.trebarGroup); formed++; }
+          else self._drawStraightTrebar(t, UI.trebarGroup);   // 미안착 바는 직선으로 남겨 사라지지 않게
+        });
         if (UI.mainLayer) UI.mainLayer.draw();
-        console.log('[SeoulPhD] 굴짐 아크 적용 (안착 완료) — T:' + Domain.trebarList.length);
+        console.log('[SeoulPhD] 굴짐 아크 적용 — FORMED ' + formed + '/' + Domain.trebarList.length);
+      },
+
+      // 미안착(부분 적용 시) trebar 를 직선으로 그림 — updateVisuals 와 동일 좌표 규칙
+      _drawStraightTrebar: function (t, group) {
+        var segs = t.segments || [], dia = t.dia || 13;
+        segs.forEach(function (s) {
+          var pts = (s.state === 'SETTLED')
+            ? [s.p1.x, s.p1.y, s.p2.x, s.p2.y]
+            : [s.nodes[0].x, s.nodes[0].y, s.nodes[1].x, s.nodes[1].y];
+          group.add(new Konva.Line({ points: pts, stroke: '#8A2BE2', strokeWidth: (dia > 0 ? dia : 5), lineCap: 'round', strokeScaleEnabled: true }));
+        });
       },
 
       // ── DXF 출력: 단면(SECTION) + trebar(굴짐 line+arc) + lrebar(원) ──
