@@ -527,18 +527,32 @@
       },
 
       // 안착 완료 감시 → 완료되면 애니메이션 정지 후 trebar 를 굴짐 아크로 대체
+      //  · (구버전 버그) 12초(ticks>80) 하드 타임아웃이 느린 안착 도중 fillet 패스를 폐기 →
+      //    철근 수가 많아 총 안착이 12초를 넘으면(예: WT_L_1 추가) 형상은 잡혀도 fillet 미적용.
+      //  · 개선: 시간이 아니라 "큐 진행"으로 판정. 진행되는 한 계속 대기하고, 완료되면 전체 fillet.
+      //    특정 바에서 진짜 멈추면(진행 정지 지속) 그때만 FORMED 된 것들에 부분 fillet + 정지지점 로그.
       _watchSettle: function () {
         var self = this;
         if (this._settleTimer) { clearInterval(this._settleTimer); this._settleTimer = null; }
         if (typeof Domain === 'undefined' || !Domain.queue || Domain.queue.length === 0) return;
-        var ticks = 0;
+        var lastIndex = -1, stallTicks = 0, totalTicks = 0;
+        var STALL_LIMIT = 100;    // 큐가 진행 없이 정지 상태로 유지되는 한계 (약 15초) → 부분 적용
+        var HARD_LIMIT = 4000;    // 타이머 영구화 방지용 안전 상한 (약 10분)
         this._settleTimer = setInterval(function () {
-          ticks++;
-          var done = Domain.activeQueueIndex >= Domain.queue.length;
+          totalTicks++;
+          var idx = Domain.activeQueueIndex;
+          if (idx !== lastIndex) { lastIndex = idx; stallTicks = 0; }   // 진행 중엔 스톨 카운터 리셋 → 계속 대기
+          else stallTicks++;
+          var done = idx >= Domain.queue.length;
           var allFormed = Domain.trebarList.every(function (t) { return t.state === 'FORMED'; });
-          if ((done && allFormed) || ticks > 80) {
+          if (done && allFormed) {                                     // 정상: 전부 안착 → 전체 fillet
             clearInterval(self._settleTimer); self._settleTimer = null;
-            if (done && allFormed) self._finalizeArcs();
+            self._finalizeArcs();
+          } else if (stallTicks > STALL_LIMIT || totalTicks > HARD_LIMIT) {   // 진짜 정지 → 부분 fillet
+            clearInterval(self._settleTimer); self._settleTimer = null;
+            var it = Domain.queue[idx], stuck = (it && it.obj && it.obj.id) ? it.obj.id : ('#' + idx);
+            console.warn('[SeoulPhD] 안착이 진행되지 않아 fillet 을 부분 적용합니다. 정지 지점: ' + stuck);
+            self._finalizeArcs();     // FORMED 된 것만 아크, 미안착은 직선 유지 (사라지지 않게)
           }
         }, 150);
       },
@@ -550,10 +564,24 @@
         if (UI.anim && UI.anim.stop) UI.anim.stop();      // 정지 → 굴짐 아크가 직선으로 덮이지 않음
         if (!UI.trebarGroup) return;
         UI.trebarGroup.destroyChildren();
-        var self = this;
-        Domain.trebarList.forEach(function (t) { if (t.state === 'FORMED') self._drawFilletedTrebar(t, UI.trebarGroup); });
+        var self = this, formed = 0;
+        Domain.trebarList.forEach(function (t) {
+          if (t.state === 'FORMED') { self._drawFilletedTrebar(t, UI.trebarGroup); formed++; }
+          else self._drawStraightTrebar(t, UI.trebarGroup);   // 미안착 바는 직선으로 남겨 사라지지 않게
+        });
         if (UI.mainLayer) UI.mainLayer.draw();
-        console.log('[SeoulPhD] 굴짐 아크 적용 (안착 완료) — T:' + Domain.trebarList.length);
+        console.log('[SeoulPhD] 굴짐 아크 적용 — FORMED ' + formed + '/' + Domain.trebarList.length);
+      },
+
+      // 미안착(부분 적용 시) trebar 를 직선으로 그림 — updateVisuals 와 동일 좌표 규칙
+      _drawStraightTrebar: function (t, group) {
+        var segs = t.segments || [], dia = t.dia || 13;
+        segs.forEach(function (s) {
+          var pts = (s.state === 'SETTLED')
+            ? [s.p1.x, s.p1.y, s.p2.x, s.p2.y]
+            : [s.nodes[0].x, s.nodes[0].y, s.nodes[1].x, s.nodes[1].y];
+          group.add(new Konva.Line({ points: pts, stroke: '#8A2BE2', strokeWidth: (dia > 0 ? dia : 5), lineCap: 'round', strokeScaleEnabled: true }));
+        });
       },
 
       // ── DXF 출력: 단면(SECTION) + trebar(굴짐 line+arc) + lrebar(원) ──
@@ -993,6 +1021,77 @@
         return _oA.call(this, v, x, y, r, a0, a1, l);
       };
     }
+
+    /* ─ Rectangle: 내부 헌치(챔퍼) 단면 override ─
+       메인 앱(design/layout_body_test.js → bim_xsect_test.js, window.XSECT)의 rect
+       지오메트리와 동일: 외곽 사각형 + 내부 보이드(twl/twr 좌/우 벽두께, tf1/tf2
+       상/하 플랜지, ha/hb 안쪽 모서리 헌치). Pages 의 구버전 bim_rect.js(H/B/h/b)를
+       대체하여, redraw('rect') 캡처 경로가 헌치 외곽선을 그대로 벽체로 변환한다. */
+    (function () {
+      function _rv(id, d) { var e = document.getElementById(id); var n = e ? parseFloat(e.value) : NaN; return isNaN(n) ? d : n; }
+      function rectParams() {
+        var hc = document.getElementById('drect_hollow');
+        return {
+          H: _rv('drect_H_s', 800), B: _rv('drect_B_s', 600),
+          twl: _rv('drect_twl_s', 120), twr: _rv('drect_twr_s', 120),
+          tf1: _rv('drect_tf1_s', 120), tf2: _rv('drect_tf2_s', 120),
+          ha: _rv('drect_ha_s', 150), hb: _rv('drect_hb_s', 150),
+          hollow: hc ? hc.checked : true
+        };
+      }
+      // 외곽(CCW) + 내부 보이드(챔퍼 8각) → 각 loop = 닫힌 [x1,y1,x2,y2] 배열
+      // (bim_xsect_test.js 의 XSECT.geo('rect', …) 공식과 동일)
+      function rectLoops(p) {
+        var H = +p.H || 0, B = +p.B || 0, twl = +p.twl || 0, twr = +p.twr || 0,
+            tf1 = +p.tf1 || 0, tf2 = +p.tf2 || 0, ha = +p.ha || 0, hb = +p.hb || 0;
+        function edges(V) { var L = []; for (var i = 0; i < V.length; i++) { var a = V[i], b = V[(i + 1) % V.length]; L.push([a[0], a[1], b[0], b[1]]); } return L; }
+        var xo0 = -B / 2, xo1 = B / 2;
+        var loops = [edges([[xo0, 0], [xo1, 0], [xo1, H], [xo0, H]])];
+        if (p.hollow !== false) {
+          var ix0 = xo0 + twl, ix1 = xo1 - twr, iy0 = tf2, iy1 = H - tf1;
+          if (ix1 > ix0 && iy1 > iy0) {
+            var cha = Math.max(0, Math.min(ha, (ix1 - ix0) / 2)), chb = Math.max(0, Math.min(hb, (iy1 - iy0) / 2));
+            var IV = (cha > 0 && chb > 0)
+              ? [[ix0 + cha, iy0], [ix1 - cha, iy0], [ix1, iy0 + chb], [ix1, iy1 - chb], [ix1 - cha, iy1], [ix0 + cha, iy1], [ix0, iy1 - chb], [ix0, iy0 + chb]]
+              : [[ix0, iy0], [ix1, iy0], [ix1, iy1], [ix0, iy1]];
+            loops.push(edges(IV));
+          }
+        }
+        return loops;
+      }
+      // fdraw_rect_2d('front') 를 대체 — KonvaViewer 로 그려 캡처 훅(_lines)에 실린다
+      window.fdraw_rect_2d = function () {
+        var plot = document.getElementById('rectplot');
+        var host = document.getElementById('rect_2dview');
+        if (!host && plot) {
+          host = document.createElement('div'); host.id = 'rect_2dview';
+          host.style.cssText = 'width:100%;height:526px;background:#000;';
+          plot.innerHTML = ''; plot.appendChild(host);
+        }
+        if (!host || typeof KonvaViewer === 'undefined') return;
+        var ocvs = new KonvaViewer('rect_2dview', { gridCols: 1, layout: [{ views: ['front'], span: 1 }] });
+        ocvs.addLayer('rect_solid', 'cyan', 'solid', 1.5);
+        rectLoops(rectParams()).forEach(function (loop) {
+          loop.forEach(function (s) { ocvs.addLine('front', s[0], s[1], s[2], s[3], 'rect_solid'); });
+        });
+        ocvs.render();
+      };
+      window.fdraw_rect = function () { try { window.fdraw_rect_2d('front'); } catch (e) { console.error('[SeoulPhD] fdraw_rect 오류:', e); } };
+      // DXF: 외곽+내부 폴리라인 (모델좌표 y-up). form 의 DXF 버튼이 호출.
+      SeoulPhD.rectDxf = function (name) {
+        try {
+          var e = ['0', 'SECTION', '2', 'ENTITIES'];
+          function nn(v) { return String(Math.round(v * 1000) / 1000); }
+          rectLoops(rectParams()).forEach(function (loop) {
+            loop.forEach(function (s) { e.push('0', 'LINE', '8', '0', '10', nn(s[0]), '20', nn(s[1]), '30', '0', '11', nn(s[2]), '21', nn(s[3]), '31', '0'); });
+          });
+          e.push('0', 'ENDSEC', '0', 'EOF');
+          var blob = new Blob([e.join('\n')], { type: 'application/dxf' }), url = URL.createObjectURL(blob), a = document.createElement('a');
+          a.href = url; a.download = name || 'Rect.dxf'; document.body.appendChild(a); a.click(); document.body.removeChild(a);
+          setTimeout(function () { URL.revokeObjectURL(url); }, 1000);
+        } catch (err) { console.error('[SeoulPhD] rect DXF 오류:', err); }
+      };
+    })();
 
     /* ─ style / form (raw 브랜치) 로드 후 실행 (캐시 무효화 ?v=) ─ */
     /* (excel_reader.js 는 ENGINE 목록에서 Pages 로 이미 로드됨) */
