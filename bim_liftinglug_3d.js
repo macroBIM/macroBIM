@@ -107,13 +107,26 @@ function render_liftinglug_3d(containerId, geo) {
         spL.in = -(lugW / 2 + spL.inset); spL.out = spL.in - spL.w;
         [spR, spL].forEach(function (s) {
             if (!s.on || !((s.bot > 0 || s.top > 0) && s.h > 0 && s.w > 0)) return;
-            const zbo = s.bot / 2, zto = s.top / 2;
-            const trap = new THREE.Shape();
-            trap.moveTo(-zbo, 0); trap.lineTo(zbo, 0); trap.lineTo(zto, s.h); trap.lineTo(-zto, s.h); trap.closePath();
-            const gsp = new THREE.ExtrudeGeometry(trap, { depth: s.w, bevelEnabled: false });
-            gsp.rotateY(-Math.PI / 2);                       // local x→Z, extrude→−X
-            gsp.translate(Math.max(s.in, s.out), 0, 0);      // outer/upper X end of the band
-            spMeshes.push(new THREE.Mesh(gsp, spMat));
+            const zbo = s.bot / 2, zto = s.top / 2, xEnd = Math.max(s.in, s.out);
+            const shapes = [];
+            if (s.inset < 0 && zbo > lugT / 2) {
+                // inside the lug → two flank wedges straddling the lug
+                [1, -1].forEach(function (sgn) {
+                    const sh = new THREE.Shape();
+                    sh.moveTo(sgn * lugT / 2, 0); sh.lineTo(sgn * zbo, 0); sh.lineTo(sgn * zto, s.h); sh.lineTo(sgn * lugT / 2, s.h); sh.closePath();
+                    shapes.push(sh);
+                });
+            } else {
+                const sh = new THREE.Shape();
+                sh.moveTo(-zbo, 0); sh.lineTo(zbo, 0); sh.lineTo(zto, s.h); sh.lineTo(-zto, s.h); sh.closePath();
+                shapes.push(sh);
+            }
+            shapes.forEach(function (sh) {
+                const gsp = new THREE.ExtrudeGeometry(sh, { depth: s.w, bevelEnabled: false });
+                gsp.rotateY(-Math.PI / 2);                   // local x→Z, extrude→−X
+                gsp.translate(xEnd, 0, 0);
+                spMeshes.push(new THREE.Mesh(gsp, spMat));
+            });
         });
     }
 

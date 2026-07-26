@@ -284,10 +284,21 @@
           .filter(function (s) { return s.on && (s.bot > 0 || s.top > 0) && s.h > 0; });
         spSides.forEach(function (s) {
           var zbo = s.bot / 2, zto = s.top / 2;
-          rec.addLine(viewName, -zbo, 0, zbo, 0, A.sp);       // bottom edge (spBot)
-          rec.addLine(viewName, zbo, 0, zto, s.h, A.sp);      // right slope
-          rec.addLine(viewName, zto, s.h, -zto, s.h, A.sp);   // top edge (spTop)
-          rec.addLine(viewName, -zto, s.h, -zbo, 0, A.sp);    // left slope
+          if (s.inset < 0 && zbo > lugT / 2) {
+            // inset < 0 → the plate sits inside the lug, so the lug splits it into
+            // two flanks (one on each face); inner edge on the lug face
+            [1, -1].forEach(function (sgn) {
+              rec.addLine(viewName, sgn * lugT / 2, 0, sgn * zbo, 0, A.sp);
+              rec.addLine(viewName, sgn * zbo, 0, sgn * zto, s.h, A.sp);
+              rec.addLine(viewName, sgn * zto, s.h, sgn * lugT / 2, s.h, A.sp);
+              rec.addLine(viewName, sgn * lugT / 2, s.h, sgn * lugT / 2, 0, A.sp);
+            });
+          } else {
+            rec.addLine(viewName, -zbo, 0, zbo, 0, A.sp);       // bottom edge (spBot)
+            rec.addLine(viewName, zbo, 0, zto, s.h, A.sp);      // right slope
+            rec.addLine(viewName, zto, s.h, -zto, s.h, A.sp);   // top edge (spTop)
+            rec.addLine(viewName, -zto, s.h, -zbo, 0, A.sp);    // left slope
+          }
         });
         var sd = spSides[0];
         if (sd) {
@@ -340,12 +351,24 @@
         [spR, spL].forEach(function (s) {
           if (!s.on || !(s.w > 0) || !(s.bot > 0)) return;
           var xa = Math.min(s.in, s.out), xb = Math.max(s.in, s.out), zbo = s.bot / 2, zto = s.top / 2;
-          rec.addLine(viewName, xa, -zbo, xb, -zbo, Lsp);
-          rec.addLine(viewName, xb, -zbo, xb, zbo, Lsp);
-          rec.addLine(viewName, xb, zbo, xa, zbo, Lsp);
-          rec.addLine(viewName, xa, zbo, xa, -zbo, Lsp);
-          rec.addLine(viewName, xa, -zto, xb, -zto, Lsp);
-          rec.addLine(viewName, xa, zto, xb, zto, Lsp);
+          if (s.inset < 0 && zbo > lugT / 2) {
+            // inside the lug → two flank footprints (lug body between them)
+            [1, -1].forEach(function (sgn) {
+              var zi = sgn * lugT / 2, zb = sgn * zbo, zt = sgn * zto;
+              rec.addLine(viewName, xa, zi, xb, zi, Lsp);
+              rec.addLine(viewName, xb, zi, xb, zb, Lsp);
+              rec.addLine(viewName, xb, zb, xa, zb, Lsp);
+              rec.addLine(viewName, xa, zb, xa, zi, Lsp);
+              rec.addLine(viewName, xa, zt, xb, zt, Lsp);   // top-width edge
+            });
+          } else {
+            rec.addLine(viewName, xa, -zbo, xb, -zbo, Lsp);
+            rec.addLine(viewName, xb, -zbo, xb, zbo, Lsp);
+            rec.addLine(viewName, xb, zbo, xa, zbo, Lsp);
+            rec.addLine(viewName, xa, zbo, xa, -zbo, Lsp);
+            rec.addLine(viewName, xa, -zto, xb, -zto, Lsp);
+            rec.addLine(viewName, xa, zto, xb, zto, Lsp);
+          }
         });
       }
       // hole projection (always hidden)
