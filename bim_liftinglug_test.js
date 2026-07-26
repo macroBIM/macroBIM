@@ -186,6 +186,18 @@
     // X bands: inner edge = lug edge + inset, extending outward by w
     spL.in = -(lugW / 2 + spL.inset); spL.out = spL.in - spL.w;   // left band  [out(≤), in]
     spR.in = lugW / 2 + spR.inset;    spR.out = spR.in + spR.w;   // right band [in, out(≥)]
+    // slot height: a plate inside the lug is split around the lug body only up
+    // to the lug outline; above that the two flanks merge into one solid piece
+    function lugTopAt(x) {
+      if (Math.abs(x) > lugW / 2) return 0;
+      var dx = x - Rcx, t = sideH;
+      if (Math.abs(dx) < outerR) t = Math.max(t, Rcy + Math.sqrt(outerR * outerR - dx * dx));
+      return t;
+    }
+    [spL, spR].forEach(function (s) {
+      var lo = Math.min(s.in, s.out), hi = Math.max(s.in, s.out);
+      s.splitH = Math.min(s.h, lugTopAt(Math.max(lo, Math.min(hi, Rcx))));
+    });
     var spHalf = spOn ? Math.max(spL.on ? Math.max(spL.bot, spL.top) : 0, spR.on ? Math.max(spR.bot, spR.top) : 0) / 2 : 0;
     var half = Math.max(pads ? padeyeT / 2 : lugT / 2, spHalf);   // outer half-thickness for side/top
     var bpW = aparam.bpW || lugW * 1.6, bpT = aparam.bpT || 20, bpL = aparam.bpL || padeyeT * 2.2;
@@ -283,16 +295,22 @@
         var spSides = ((viewName === 'left') ? [spL] : (viewName === 'right') ? [spR] : [spR, spL])
           .filter(function (s) { return s.on && (s.bot > 0 || s.top > 0) && s.h > 0; });
         spSides.forEach(function (s) {
-          var zbo = s.bot / 2, zto = s.top / 2;
-          if (s.inset < 0 && zbo > lugT / 2) {
-            // inset < 0 → the plate sits inside the lug, so the lug splits it into
-            // two flanks (one on each face); inner edge on the lug face
-            [1, -1].forEach(function (sgn) {
-              rec.addLine(viewName, sgn * lugT / 2, 0, sgn * zbo, 0, A.sp);
-              rec.addLine(viewName, sgn * zbo, 0, sgn * zto, s.h, A.sp);
-              rec.addLine(viewName, sgn * zto, s.h, sgn * lugT / 2, s.h, A.sp);
-              rec.addLine(viewName, sgn * lugT / 2, s.h, sgn * lugT / 2, 0, A.sp);
-            });
+          var zbo = s.bot / 2, zto = s.top / 2, sh = s.splitH;
+          if (s.inset < 0 && zbo > lugT / 2 && sh > 0.01) {
+            if (sh >= s.h - 0.01) {
+              // fully inside the lug → two separate flanks
+              [1, -1].forEach(function (sgn) {
+                rec.addLine(viewName, sgn * lugT / 2, 0, sgn * zbo, 0, A.sp);
+                rec.addLine(viewName, sgn * zbo, 0, sgn * zto, s.h, A.sp);
+                rec.addLine(viewName, sgn * zto, s.h, sgn * lugT / 2, s.h, A.sp);
+                rec.addLine(viewName, sgn * lugT / 2, s.h, sgn * lugT / 2, 0, A.sp);
+              });
+            } else {
+              // slotted around the lug up to sh, solid above → one notched outline
+              var pts = [[-zbo, 0], [-lugT / 2, 0], [-lugT / 2, sh], [lugT / 2, sh], [lugT / 2, 0],
+                         [zbo, 0], [zto, s.h], [-zto, s.h], [-zbo, 0]];
+              for (var i = 0; i < pts.length - 1; i++) rec.addLine(viewName, pts[i][0], pts[i][1], pts[i + 1][0], pts[i + 1][1], A.sp);
+            }
           } else {
             rec.addLine(viewName, -zbo, 0, zbo, 0, A.sp);       // bottom edge (spBot)
             rec.addLine(viewName, zbo, 0, zto, s.h, A.sp);      // right slope
@@ -351,8 +369,8 @@
         [spR, spL].forEach(function (s) {
           if (!s.on || !(s.w > 0) || !(s.bot > 0)) return;
           var xa = Math.min(s.in, s.out), xb = Math.max(s.in, s.out), zbo = s.bot / 2, zto = s.top / 2;
-          if (s.inset < 0 && zbo > lugT / 2) {
-            // inside the lug → two flank footprints (lug body between them)
+          if (s.inset < 0 && zbo > lugT / 2 && s.splitH >= s.h - 0.01) {
+            // fully inside the lug (no solid top) → two flank footprints
             [1, -1].forEach(function (sgn) {
               var zi = sgn * lugT / 2, zb = sgn * zbo, zt = sgn * zto;
               rec.addLine(viewName, xa, zi, xb, zi, Lsp);

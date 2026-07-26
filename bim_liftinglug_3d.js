@@ -105,17 +105,32 @@ function render_liftinglug_3d(containerId, geo) {
         // right band [in, out]; left band mirrored
         spR.in = lugW / 2 + spR.inset; spR.out = spR.in + spR.w;
         spL.in = -(lugW / 2 + spL.inset); spL.out = spL.in - spL.w;
+        const lugTopAt = function (x) {
+            if (Math.abs(x) > lugW / 2) return 0;
+            const dx = x - Rcx; let t = sideH;
+            if (Math.abs(dx) < outerR) t = Math.max(t, Rcy + Math.sqrt(outerR * outerR - dx * dx));
+            return t;
+        };
         [spR, spL].forEach(function (s) {
             if (!s.on || !((s.bot > 0 || s.top > 0) && s.h > 0 && s.w > 0)) return;
             const zbo = s.bot / 2, zto = s.top / 2, xEnd = Math.max(s.in, s.out);
+            const lo = Math.min(s.in, s.out), hi = Math.max(s.in, s.out);
+            const splitH = Math.min(s.h, lugTopAt(Math.max(lo, Math.min(hi, Rcx))));
             const shapes = [];
-            if (s.inset < 0 && zbo > lugT / 2) {
-                // inside the lug → two flank wedges straddling the lug
+            if (s.inset < 0 && zbo > lugT / 2 && splitH > 0.01) {
+                const zSp = zbo + (zto - zbo) * (Math.min(splitH, s.h) / s.h);   // outer z at splitH
+                // two flanks up to splitH
                 [1, -1].forEach(function (sgn) {
                     const sh = new THREE.Shape();
-                    sh.moveTo(sgn * lugT / 2, 0); sh.lineTo(sgn * zbo, 0); sh.lineTo(sgn * zto, s.h); sh.lineTo(sgn * lugT / 2, s.h); sh.closePath();
+                    sh.moveTo(sgn * lugT / 2, 0); sh.lineTo(sgn * zbo, 0); sh.lineTo(sgn * zSp, splitH); sh.lineTo(sgn * lugT / 2, splitH); sh.closePath();
                     shapes.push(sh);
                 });
+                // solid piece above splitH (merged)
+                if (splitH < s.h - 0.01) {
+                    const sh = new THREE.Shape();
+                    sh.moveTo(-zSp, splitH); sh.lineTo(zSp, splitH); sh.lineTo(zto, s.h); sh.lineTo(-zto, s.h); sh.closePath();
+                    shapes.push(sh);
+                }
             } else {
                 const sh = new THREE.Shape();
                 sh.moveTo(-zbo, 0); sh.lineTo(zbo, 0); sh.lineTo(zto, s.h); sh.lineTo(-zto, s.h); sh.closePath();
