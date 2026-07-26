@@ -527,32 +527,40 @@
       },
 
       // 안착 완료 감시 → 완료되면 애니메이션 정지 후 trebar 를 굴짐 아크로 대체
-      //  · (구버전 버그) 12초(ticks>80) 하드 타임아웃이 느린 안착 도중 fillet 패스를 폐기 →
-      //    철근 수가 많아 총 안착이 12초를 넘으면(예: WT_L_1 추가) 형상은 잡혀도 fillet 미적용.
-      //  · 개선: 시간이 아니라 "큐 진행"으로 판정. 진행되는 한 계속 대기하고, 완료되면 전체 fillet.
-      //    특정 바에서 진짜 멈추면(진행 정지 지속) 그때만 FORMED 된 것들에 부분 fillet + 정지지점 로그.
+      //  · 시간이 아니라 "큐 진행"으로 판정: 진행되는 한 계속 대기(느린 안착에도 fillet 유지).
+      //  · 한 철근이 안착 못해 큐가 정체되면 그 철근을 강제 스킵하고 다음으로 → 불량 입력 1개가
+      //    전체를 멈추지 않게. 스킵된 id 는 로그+알림.
       _watchSettle: function () {
         var self = this;
         if (this._settleTimer) { clearInterval(this._settleTimer); this._settleTimer = null; }
         if (typeof Domain === 'undefined' || !Domain.queue || Domain.queue.length === 0) return;
-        var lastIndex = -1, stallTicks = 0, totalTicks = 0;
-        var STALL_LIMIT = 100;    // 큐가 진행 없이 정지 상태로 유지되는 한계 (약 15초) → 부분 적용
-        var HARD_LIMIT = 4000;    // 타이머 영구화 방지용 안전 상한 (약 10분)
+        var lastIndex = -1, stallTicks = 0, totalTicks = 0, stuck = [];
+        var STALL_LIMIT = 60;     // 진행 없이 정체(약 9초) → 현재 철근 강제 스킵 (느린 정상 안착은 통과)
+        var HARD_LIMIT = 4000;    // 타이머 영구화 방지 안전 상한 (약 10분)
         this._settleTimer = setInterval(function () {
           totalTicks++;
           var idx = Domain.activeQueueIndex;
-          if (idx !== lastIndex) { lastIndex = idx; stallTicks = 0; }   // 진행 중엔 스톨 카운터 리셋 → 계속 대기
+          if (idx !== lastIndex) { lastIndex = idx; stallTicks = 0; }   // 진행 중이면 계속 대기
           else stallTicks++;
-          var done = idx >= Domain.queue.length;
+          // 정체 지속 → 현재 철근 강제 안착 처리 후 다음으로 (전체 정지 방지)
+          if (stallTicks > STALL_LIMIT && idx < Domain.queue.length) {
+            var it = Domain.queue[idx], id = (it && it.obj && it.obj.id) || ('#' + idx), kind = it && it.kind;
+            console.warn('[SeoulPhD] 철근 안착 실패 → 스킵:', id, '(' + kind + ') — num 미입력/0, init·range NaN, 또는 path 벽 id 불일치 확인');
+            stuck.push(id + '(' + kind + ')');
+            if (it && it.obj) it.obj.state = (kind === 'trebar') ? 'FORMED' : 'SETTLED';
+            Domain.activeQueueIndex++; stallTicks = 0; lastIndex = Domain.activeQueueIndex;
+            return;
+          }
+          var done = Domain.activeQueueIndex >= Domain.queue.length;
           var allFormed = Domain.trebarList.every(function (t) { return t.state === 'FORMED'; });
-          if (done && allFormed) {                                     // 정상: 전부 안착 → 전체 fillet
+          if ((done && allFormed) || totalTicks > HARD_LIMIT) {
             clearInterval(self._settleTimer); self._settleTimer = null;
-            self._finalizeArcs();
-          } else if (stallTicks > STALL_LIMIT || totalTicks > HARD_LIMIT) {   // 진짜 정지 → 부분 fillet
-            clearInterval(self._settleTimer); self._settleTimer = null;
-            var it = Domain.queue[idx], stuck = (it && it.obj && it.obj.id) ? it.obj.id : ('#' + idx);
-            console.warn('[SeoulPhD] 안착이 진행되지 않아 fillet 을 부분 적용합니다. 정지 지점: ' + stuck);
-            self._finalizeArcs();     // FORMED 된 것만 아크, 미안착은 직선 유지 (사라지지 않게)
+            self._finalizeArcs();     // FORMED 된 것만 아크, 미안착은 직선 유지
+            if (stuck.length) {
+              var msg = '철근 ' + stuck.length + '개가 안착 실패로 건너뛰어졌습니다: ' + stuck.join(', ') +
+                '\n\n확인: 해당 행의 num(개수)이 비었거나 0인지, init/range 값이 올바른지, path 벽 id 가 단면에 있는지(Toggle Nodes). 콘솔(F12)에 상세 로그가 있습니다.';
+              if (self._lastStuckMsg !== msg) { self._lastStuckMsg = msg; try { alert(msg); } catch (e) {} }
+            }
           }
         }, 150);
       },
