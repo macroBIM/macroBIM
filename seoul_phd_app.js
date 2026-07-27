@@ -584,63 +584,63 @@
         console.log('[SeoulPhD] 굴짐 아크 적용 — FORMED ' + formed + '/' + Domain.trebarList.length);
       },
 
-      // 통합 겹침 해소 — 모든 철근을 z-order 별로 묶어 "중심간 거리 반발"의 합력으로 이동.
-      //  · 같은 z 끼리만 반발(다른 z=다른 층 → 무시). 겹침(중심거리 < 반경합 + GAP)일 때만 힘 발생.
-      //  · trebar 는 강체 → 세그먼트 전체를 합력으로 평행이동(회전 없음, mob 낮게). lrebar 는 점(mob 1).
-      //  · anchor 복원력(약)으로 cage 흐트러짐 방지. GAP=0 → 딱 접(tangent). z 는 입력 미입력 시 0.
+      // 통합 정렬 — 벽 방향 "인력"으로 당겨 붙이고, 겹치면 "반발"로 밀어냄 (z-order 게이팅).
+      //  · trebar = 엔진이 이미 벽에 밀착시킨 고정 cage(장애물). lrebar = 인력으로 cage/벽에 붙임.
+      //  · 같은 z 끼리만 상호작용(다른 z = 다른 층 → 무시, 2D상 겹쳐 지나감).
+      //  · PBD: 매 스텝 인력으로 당긴 뒤 겹침을 tangent 까지 완전 복원 → gap 없이 딱 접. 벽(cover)로 관통 방지.
+      //  · z 는 입력 미입력 시 0. (trebar-trebar 강체 반발은 별도 — 엔진 적층이 이미 분리)
       _relaxRebar: function () {
         if (typeof Domain === 'undefined') return;
-        var GAP = 0, ATT = 0.02, RELAX = 0.30, ITERS = 260;
+        var GSTEP = 2.0, ITERS = 320, MAXMOVE = 250;   // GSTEP: 벽방향 인력 스텝(mm/iter), MAXMOVE: 안전 이동 상한
         var zmap = {};
         (this._rebarData || []).forEach(function (d) { if (d && d.id != null) zmap[d.id] = Number(d.z) || 0; });
         function zOf(o) { return (o && o.id != null && zmap[o.id] != null) ? zmap[o.id] : 0; }
-        // 두 2D 선분(캡슐 중심선) 최근접점
-        function segClosest(a, b) {
-          var p1x = a[0], p1y = a[1], p2x = b[0], p2y = b[1];
-          var d1x = a[2] - p1x, d1y = a[3] - p1y, d2x = b[2] - p2x, d2y = b[3] - p2y, rx = p1x - p2x, ry = p1y - p2y;
-          var A = d1x * d1x + d1y * d1y, E = d2x * d2x + d2y * d2y, F = d2x * rx + d2y * ry, s, t;
-          if (A <= 1e-9 && E <= 1e-9) { s = 0; t = 0; }
-          else if (A <= 1e-9) { s = 0; t = Math.max(0, Math.min(1, F / E)); }
-          else { var C = d1x * rx + d1y * ry;
-            if (E <= 1e-9) { t = 0; s = Math.max(0, Math.min(1, -C / A)); }
-            else { var B = d1x * d2x + d1y * d2y, den = A * E - B * B;
-              s = den > 1e-9 ? Math.max(0, Math.min(1, (B * F - C * E) / den)) : 0;
-              t = (B * s + F) / E;
-              if (t < 0) { t = 0; s = Math.max(0, Math.min(1, -C / A)); }
-              else if (t > 1) { t = 1; s = Math.max(0, Math.min(1, (B - C) / A)); } } }
-          return { ax: p1x + d1x * s, ay: p1y + d1y * s, bx: p2x + d2x * t, by: p2y + d2y * t };
+        var sec = Domain.currentSection, walls = (sec && sec.walls) || [], covers = (sec && sec.covers) || {};
+        function coverOf(w) { var c = (w && w.tag) ? String(w.tag).toLowerCase() : 'outer'; return covers[c] || 50; }
+        function distSeg(px, py, ax, ay, bx, by) {
+          var dx = bx - ax, dy = by - ay, L2 = dx * dx + dy * dy;
+          var t = L2 ? ((px - ax) * dx + (py - ay) * dy) / L2 : 0; t = t < 0 ? 0 : (t > 1 ? 1 : t);
+          var cx = ax + t * dx, cy = ay + t * dy; return { cx: cx, cy: cy, d: Math.hypot(px - cx, py - cy) };
         }
-        var bodies = [];
+        // 고정 장애물: FORMED trebar 세그먼트 (z 태그)
+        var tsegs = [];
         (Domain.trebarList || []).forEach(function (t) {
           if (t.state !== 'FORMED' || !t.segments) return;
-          bodies.push({ z: zOf(t), r: (t.dia || 0) / 2, mob: 0.15, dx: 0, dy: 0, _segs: null,
-            segs: function () { return t.segments.map(function (s) { return [s.p1.x, s.p1.y, s.p2.x, s.p2.y]; }); },
-            move: function (fx, fy) { t.segments.forEach(function (s) { s.p1.x += fx; s.p1.y += fy; s.p2.x += fx; s.p2.y += fy; if (s.nodes) s.nodes.forEach(function (n) { n.x += fx; n.y += fy; }); }); this.dx += fx; this.dy += fy; } });
+          var z = zOf(t), r = (t.dia || 0) / 2;
+          t.segments.forEach(function (s) { tsegs.push({ z: z, r: r, ax: s.p1.x, ay: s.p1.y, bx: s.p2.x, by: s.p2.y }); });
         });
+        // 이동 대상: lrebar 파티클 (z, 벽방향 인력 gd, 배리어 벽, anchor)
+        var parts = [];
         (Domain.lrebarList || []).forEach(function (g) {
           if (!g || !g.particles) return;
-          var r = (g.dia || 13) / 2, gz = zOf(g);
-          g.particles.forEach(function (p) {
-            bodies.push({ z: gz, r: r, mob: 1.0, dx: 0, dy: 0, _segs: null,
-              segs: function () { return [[p.x, p.y, p.x, p.y]]; },
-              move: function (fx, fy) { p.x += fx; p.y += fy; this.dx += fx; this.dy += fy; } });
-          });
+          var r = (g.dia || 13) / 2, z = zOf(g), gd = g.gravDir || { x: 0, y: 0 };
+          var pw = walls.filter(function (w) { return g.path && g.path.indexOf(w.id) >= 0; });
+          g.particles.forEach(function (p) { parts.push({ p: p, r: r, z: z, gd: gd, walls: pw, ax: p.x, ay: p.y }); });
         });
-        if (bodies.length < 2) return;
+        if (!parts.length) return;
         for (var it = 0; it < ITERS; it++) {
-          for (var b0 = 0; b0 < bodies.length; b0++) { bodies[b0].fx = 0; bodies[b0].fy = 0; bodies[b0]._segs = bodies[b0].segs(); }
-          for (var i = 0; i < bodies.length; i++) for (var j = i + 1; j < bodies.length; j++) {
-            var A = bodies[i], B = bodies[j];
-            if (A.z !== B.z) continue;                          // 다른 z(층) → 반발 무시
-            var sa = A._segs, sb = B._segs, need = A.r + B.r + GAP;
-            for (var m = 0; m < sa.length; m++) for (var n = 0; n < sb.length; n++) {
-              var c = segClosest(sa[m], sb[n]), dx = c.ax - c.bx, dy = c.ay - c.by, d = Math.hypot(dx, dy) || 1e-6;
-              if (d < need) { var pen = need - d, nx = dx / d, ny = dy / d; A.fx += nx * pen; A.fy += ny * pen; B.fx -= nx * pen; B.fy -= ny * pen; }
+          for (var i = 0; i < parts.length; i++) {
+            var a = parts[i], P = a.p;
+            P.x += a.gd.x * GSTEP; P.y += a.gd.y * GSTEP;                       // 1) 벽 방향 인력
+            for (var k = 0; k < tsegs.length; k++) {                            // 2) 같은 z trebar 겹침 → tangent 복원
+              var s = tsegs[k]; if (s.z !== a.z) continue;
+              var q = distSeg(P.x, P.y, s.ax, s.ay, s.bx, s.by), need = s.r + a.r;
+              if (q.d < need && q.d > 1e-6) { var cf = (need - q.d) / q.d; P.x += (P.x - q.cx) * cf; P.y += (P.y - q.cy) * cf; }
             }
+            for (var wi = 0; wi < a.walls.length; wi++) {                       // 3) 벽(cover) 배리어 → 관통 방지
+              var w = a.walls[wi], q2 = distSeg(P.x, P.y, w.x1, w.y1, w.x2, w.y2), need2 = coverOf(w) + a.r;
+              if (q2.d < need2 && q2.d > 1e-6) { var cf2 = (need2 - q2.d) / q2.d; P.x += (P.x - q2.cx) * cf2; P.y += (P.y - q2.cy) * cf2; }
+            }
+            for (var j = 0; j < parts.length; j++) {                           // 4) 같은 z lrebar 끼리 반발
+              if (j === i) continue; var b = parts[j]; if (b.z !== a.z) continue;
+              var ex = P.x - b.p.x, ey = P.y - b.p.y, d = Math.hypot(ex, ey) || 1e-6, need3 = a.r + b.r;
+              if (d < need3) { var cf3 = (need3 - d) / d * 0.5; P.x += ex * cf3; P.y += ey * cf3; b.p.x -= ex * cf3; b.p.y -= ey * cf3; }
+            }
+            var mmx = P.x - a.ax, mmy = P.y - a.ay, mm = Math.hypot(mmx, mmy);  // 5) 안전 이동 상한
+            if (mm > MAXMOVE) { P.x = a.ax + mmx / mm * MAXMOVE; P.y = a.ay + mmy / mm * MAXMOVE; }
           }
-          for (var k = 0; k < bodies.length; k++) { var b = bodies[k]; b.move((b.fx - b.dx * ATT) * RELAX * b.mob, (b.fy - b.dy * ATT) * RELAX * b.mob); }
         }
-        console.log('[SeoulPhD] 철근 겹침 해소(z-order) — 바디 ' + bodies.length);
+        console.log('[SeoulPhD] 철근 인력+반발 정렬(z-order) — lrebar ' + parts.length + ', trebar seg ' + tsegs.length);
       },
 
       // lrebar 를 실제 반경(dia/2)으로 그림 — 엔진 drawLrebar 은 박스에서 반경을 최소 30(model)으로 과대하게 그려
