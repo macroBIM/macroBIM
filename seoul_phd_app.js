@@ -228,24 +228,17 @@
         if (this._engNormGroup) { this._engNormGroup.destroy(); this._engNormGroup = null; }
         var walls = (typeof Domain !== 'undefined' && Domain.currentSection && Domain.currentSection.walls) || [];
         if (!this._showEngNormals || !walls.length) { UI.mainLayer.draw(); return; }
-        var self = this, diag = this._sectionDiag(walls);
-        var baseL = diag * 0.05, minGap = diag * 0.09, dotR = diag * 0.006, floorL = diag * 0.008;
-        var thin = walls.length > 40;   // 곡선 등 조밀 단면(테셀레이션 세그 수십 개)만 솎기; 박스 등 벽 적은 단면은 전부 표시
+        var diag = this._sectionDiag(walls);
+        var arrowL = diag * 0.02, minGap = diag * 0.09, dotR = diag * 0.006;   // 화살표 길이 고정(모든 벽 동일) + 축소
+        var thin = walls.length > 40;   // 곡선 등 조밀 단면만 솎기; 박스 등 벽 적은 단면은 전부 표시
         var g = new Konva.Group({ name: 'eng_normals' });
         var lastx = null, lasty = null;
-        walls.forEach(function (w, wi) {
+        walls.forEach(function (w) {
           var mx = (w.x1 + w.x2) / 2, my = (w.y1 + w.y2) / 2;
           if (thin && lastx !== null && Math.hypot(mx - lastx, my - lasty) < minGap) return;   // 조밀 단면만 간격 솎기
           lastx = mx; lasty = my;
-          var nearest = Infinity;
-          for (var j = 0; j < walls.length; j++) {
-            if (j === wi) continue;
-            var t = self._rayHit(mx, my, w.nx, w.ny, walls[j].x1, walls[j].y1, walls[j].x2, walls[j].y2);
-            if (t > 0 && t < nearest) nearest = t;
-          }
-          var L = isFinite(nearest) ? Math.min(baseL, nearest * 0.42) : baseL;
-          if (L < floorL) L = floorL;
-          g.add(new Konva.Arrow({ points: [mx, my, mx + w.nx * L, my + w.ny * L], stroke: '#FFC107', fill: '#FFC107', strokeWidth: 2, pointerLength: L * 0.32, pointerWidth: L * 0.28, strokeScaleEnabled: false }));
+          var L = arrowL;   // 반대편 벽 거리로 깎지 않고 고정 길이 → 일정한 크기
+          g.add(new Konva.Arrow({ points: [mx, my, mx + w.nx * L, my + w.ny * L], stroke: '#FFC107', fill: '#FFC107', strokeWidth: 2, pointerLength: L * 0.34, pointerWidth: L * 0.3, strokeScaleEnabled: false }));
           g.add(new Konva.Circle({ x: mx, y: my, radius: dotR, fill: '#FF5722', strokeScaleEnabled: false }));
         });
         UI.mainLayer.add(g); this._engNormGroup = g; UI.mainLayer.draw();
@@ -258,7 +251,7 @@
         var walls = (typeof Domain !== 'undefined' && Domain.currentSection && Domain.currentSection.walls) || [];
         if (!this._showEngNodes || !walls.length) { UI.mainLayer.draw(); return; }
         var diag = this._sectionDiag(walls);
-        var fs = diag * 0.014, dotR = diag * 0.006, minGap = diag * 0.09;
+        var fs = diag * 0.009, dotR = diag * 0.006, minGap = diag * 0.09;   // 요소번호 글씨 축소
         var thin = walls.length > 40;   // 곡선 등 조밀 단면만 라벨 솎기; 박스 등 벽 적은 단면은 모든 벽 id 표시
         var g = new Konva.Group({ name: 'eng_nodes' });
         var lastx = null, lasty = null;
