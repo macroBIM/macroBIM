@@ -110,8 +110,8 @@
 
         // 2줄 표제목 = trebar / lrebar 입력체계
         var SCHEMA = [
-          ['trebar', 'id', 'code', 'dia', 'init (x, y, rot)', 'set', 'segs (len)', 'angs', 'nors', 'barStart', 'barEnd', 'radius'],
-          ['lrebar', 'id', 'dia', 'num', 'init', 'nors', 'range', 'path', 'ctc', 'ctcmax', 'ctcmin', '']
+          ['trebar', 'id', 'code', 'dia', 'init (x, y, rot)', 'set', 'segs (len)', 'angs', 'nors', 'barStart', 'barEnd', 'radius', 'z'],
+          ['lrebar', 'id', 'dia', 'num', 'init', 'nors', 'range', 'path', 'ctc', 'ctcmax', 'ctcmin', '', 'z']
         ];
         var ncol = SCHEMA[0].length;
 
@@ -322,6 +322,7 @@
         if (bs) be.start = bs; if (bee) be.end = bee;
         if (Object.keys(be).length) o.barEnds = be;
         if (this._rbHas(row[11])) o.radius = Number(row[11]);   // 굴짐반경(선택) — 없으면 dia 기본값
+        o.z = this._rbHas(row[12]) ? Number(row[12]) : 0;       // z-order(층) — 미입력=0. 같은 z 끼리만 반발
         return o;
       },
       _parseLrebarRow: function (row) {
@@ -337,6 +338,7 @@
         var range = this._rbRange(row[6]); if (range) o.range = range;
         var path = this._rbList(row[7]).map(function (s) { return s.toUpperCase(); });
         if (path.length) o.path = path;
+        o.z = this._rbHas(row[12]) ? Number(row[12]) : 0;       // z-order(층) — 미입력=0
         return o;
       },
       _rbStr: function (v) { return String(v == null ? '' : v).trim(); },
@@ -571,59 +573,74 @@
         if (UI.anim && UI.anim.stop) UI.anim.stop();      // 정지 → 굴짐 아크가 직선으로 덮이지 않음
         if (!UI.trebarGroup) return;
         UI.trebarGroup.destroyChildren();
+        this._relaxRebar();                                                        // 통합 z-order 겹침 해소 (trebar 강체 + lrebar 점) — 그리기 전에
         var self = this, formed = 0;
-        Domain.trebarList.forEach(function (t) {
+        Domain.trebarList.forEach(function (t) {                                   // 이동된 위치로 작도
           if (t.state === 'FORMED') { self._drawFilletedTrebar(t, UI.trebarGroup); formed++; }
           else self._drawStraightTrebar(t, UI.trebarGroup);   // 미안착 바는 직선으로 남겨 사라지지 않게
         });
-        this._relaxLrebar();                                                       // lrebar 겹침 해소 (합력 완화)
-        this._drawLrebarTrue();                                                    // 실제 반경으로 재작도 → 완화결과와 화면 일치
+        this._drawLrebarTrue();                                                    // lrebar 실제 반경으로 재작도
         if (UI.mainLayer) UI.mainLayer.draw();
         console.log('[SeoulPhD] 굴짐 아크 적용 — FORMED ' + formed + '/' + Domain.trebarList.length);
       },
 
-      // 종방향 철근(lrebar) 겹침 해소 — 이미 설치된 trebar·다른 lrebar 와의 "반발 벡터 합력"으로 이동.
-      //  · 안착 후처리(엔진 무변경). trebar 세그먼트(선분+반경)·lrebar 파티클을 캡슐로 보고,
-      //    표면간 여유가 GAP 미만이면 밀어냄. anchor 복원력으로 제자리 유지, 합력×RELAX 를 반복 적분.
-      //  · 붐비면 lrebar 끼리 반발로 2차열이 자연 발생 → 일부가 trebar 바깥으로 밀려남.
-      _relaxLrebar: function () {
-        if (typeof Domain === 'undefined' || !Domain.lrebarList || !Domain.lrebarList.length) return;
-        var GAP = 0, ATT = 0, RELAX = 0.30, ITERS = 260;   // GAP=0: trebar 에 딱 접(tangent). 겹침만 밀어내고 여유는 안 둠. (여유 원하면 GAP↑)
-        var obst = [];
+      // 통합 겹침 해소 — 모든 철근을 z-order 별로 묶어 "중심간 거리 반발"의 합력으로 이동.
+      //  · 같은 z 끼리만 반발(다른 z=다른 층 → 무시). 겹침(중심거리 < 반경합 + GAP)일 때만 힘 발생.
+      //  · trebar 는 강체 → 세그먼트 전체를 합력으로 평행이동(회전 없음, mob 낮게). lrebar 는 점(mob 1).
+      //  · anchor 복원력(약)으로 cage 흐트러짐 방지. GAP=0 → 딱 접(tangent). z 는 입력 미입력 시 0.
+      _relaxRebar: function () {
+        if (typeof Domain === 'undefined') return;
+        var GAP = 0, ATT = 0.02, RELAX = 0.30, ITERS = 260;
+        var zmap = {};
+        (this._rebarData || []).forEach(function (d) { if (d && d.id != null) zmap[d.id] = Number(d.z) || 0; });
+        function zOf(o) { return (o && o.id != null && zmap[o.id] != null) ? zmap[o.id] : 0; }
+        // 두 2D 선분(캡슐 중심선) 최근접점
+        function segClosest(a, b) {
+          var p1x = a[0], p1y = a[1], p2x = b[0], p2y = b[1];
+          var d1x = a[2] - p1x, d1y = a[3] - p1y, d2x = b[2] - p2x, d2y = b[3] - p2y, rx = p1x - p2x, ry = p1y - p2y;
+          var A = d1x * d1x + d1y * d1y, E = d2x * d2x + d2y * d2y, F = d2x * rx + d2y * ry, s, t;
+          if (A <= 1e-9 && E <= 1e-9) { s = 0; t = 0; }
+          else if (A <= 1e-9) { s = 0; t = Math.max(0, Math.min(1, F / E)); }
+          else { var C = d1x * rx + d1y * ry;
+            if (E <= 1e-9) { t = 0; s = Math.max(0, Math.min(1, -C / A)); }
+            else { var B = d1x * d2x + d1y * d2y, den = A * E - B * B;
+              s = den > 1e-9 ? Math.max(0, Math.min(1, (B * F - C * E) / den)) : 0;
+              t = (B * s + F) / E;
+              if (t < 0) { t = 0; s = Math.max(0, Math.min(1, -C / A)); }
+              else if (t > 1) { t = 1; s = Math.max(0, Math.min(1, (B - C) / A)); } } }
+          return { ax: p1x + d1x * s, ay: p1y + d1y * s, bx: p2x + d2x * t, by: p2y + d2y * t };
+        }
+        var bodies = [];
         (Domain.trebarList || []).forEach(function (t) {
           if (t.state !== 'FORMED' || !t.segments) return;
-          var r = (t.dia || 0) / 2;
-          t.segments.forEach(function (s) { obst.push({ x1: s.p1.x, y1: s.p1.y, x2: s.p2.x, y2: s.p2.y, r: r }); });
+          bodies.push({ z: zOf(t), r: (t.dia || 0) / 2, mob: 0.15, dx: 0, dy: 0, _segs: null,
+            segs: function () { return t.segments.map(function (s) { return [s.p1.x, s.p1.y, s.p2.x, s.p2.y]; }); },
+            move: function (fx, fy) { t.segments.forEach(function (s) { s.p1.x += fx; s.p1.y += fy; s.p2.x += fx; s.p2.y += fy; if (s.nodes) s.nodes.forEach(function (n) { n.x += fx; n.y += fy; }); }); this.dx += fx; this.dy += fy; } });
         });
-        var parts = [];
-        Domain.lrebarList.forEach(function (g) {
+        (Domain.lrebarList || []).forEach(function (g) {
           if (!g || !g.particles) return;
-          var r = (g.dia || 13) / 2;
-          g.particles.forEach(function (p) { parts.push({ p: p, r: r, ax: p.x, ay: p.y }); });
+          var r = (g.dia || 13) / 2, gz = zOf(g);
+          g.particles.forEach(function (p) {
+            bodies.push({ z: gz, r: r, mob: 1.0, dx: 0, dy: 0, _segs: null,
+              segs: function () { return [[p.x, p.y, p.x, p.y]]; },
+              move: function (fx, fy) { p.x += fx; p.y += fy; this.dx += fx; this.dy += fy; } });
+          });
         });
-        if (!parts.length) return;
-        function closest(px, py, o) {
-          var dx = o.x2 - o.x1, dy = o.y2 - o.y1, L2 = dx * dx + dy * dy;
-          var t = L2 ? ((px - o.x1) * dx + (py - o.y1) * dy) / L2 : 0; t = t < 0 ? 0 : (t > 1 ? 1 : t);
-          return { x: o.x1 + t * dx, y: o.y1 + t * dy };
-        }
+        if (bodies.length < 2) return;
         for (var it = 0; it < ITERS; it++) {
-          for (var i = 0; i < parts.length; i++) {
-            var a = parts[i], P = a.p, fx = (a.ax - P.x) * ATT, fy = (a.ay - P.y) * ATT;
-            for (var k = 0; k < obst.length; k++) {
-              var o = obst[k], c = closest(P.x, P.y, o);
-              var dx = P.x - c.x, dy = P.y - c.y, d = Math.hypot(dx, dy) || 1e-6, need = o.r + a.r + GAP;
-              if (d < need) { fx += (dx / d) * (need - d); fy += (dy / d) * (need - d); }
+          for (var b0 = 0; b0 < bodies.length; b0++) { bodies[b0].fx = 0; bodies[b0].fy = 0; bodies[b0]._segs = bodies[b0].segs(); }
+          for (var i = 0; i < bodies.length; i++) for (var j = i + 1; j < bodies.length; j++) {
+            var A = bodies[i], B = bodies[j];
+            if (A.z !== B.z) continue;                          // 다른 z(층) → 반발 무시
+            var sa = A._segs, sb = B._segs, need = A.r + B.r + GAP;
+            for (var m = 0; m < sa.length; m++) for (var n = 0; n < sb.length; n++) {
+              var c = segClosest(sa[m], sb[n]), dx = c.ax - c.bx, dy = c.ay - c.by, d = Math.hypot(dx, dy) || 1e-6;
+              if (d < need) { var pen = need - d, nx = dx / d, ny = dy / d; A.fx += nx * pen; A.fy += ny * pen; B.fx -= nx * pen; B.fy -= ny * pen; }
             }
-            for (var j = 0; j < parts.length; j++) {
-              if (j === i) continue;
-              var b = parts[j], ex = P.x - b.p.x, ey = P.y - b.p.y, d2 = Math.hypot(ex, ey) || 1e-6, need2 = a.r + b.r + GAP;
-              if (d2 < need2) { fx += (ex / d2) * (need2 - d2) * 0.5; fy += (ey / d2) * (need2 - d2) * 0.5; }
-            }
-            P.x += fx * RELAX; P.y += fy * RELAX;
           }
+          for (var k = 0; k < bodies.length; k++) { var b = bodies[k]; b.move((b.fx - b.dx * ATT) * RELAX * b.mob, (b.fy - b.dy * ATT) * RELAX * b.mob); }
         }
-        console.log('[SeoulPhD] lrebar 겹침 완화 — 파티클 ' + parts.length + ', trebar seg ' + obst.length);
+        console.log('[SeoulPhD] 철근 겹침 해소(z-order) — 바디 ' + bodies.length);
       },
 
       // lrebar 를 실제 반경(dia/2)으로 그림 — 엔진 drawLrebar 은 박스에서 반경을 최소 30(model)으로 과대하게 그려
