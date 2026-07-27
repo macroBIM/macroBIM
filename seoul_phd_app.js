@@ -577,7 +577,7 @@
           else self._drawStraightTrebar(t, UI.trebarGroup);   // 미안착 바는 직선으로 남겨 사라지지 않게
         });
         this._relaxLrebar();                                                       // lrebar 겹침 해소 (합력 완화)
-        if (typeof UI.drawLrebar === 'function') { try { UI.drawLrebar(); } catch (e) {} }   // 새 위치로 재작도
+        this._drawLrebarTrue();                                                    // 실제 반경으로 재작도 → 완화결과와 화면 일치
         if (UI.mainLayer) UI.mainLayer.draw();
         console.log('[SeoulPhD] 굴짐 아크 적용 — FORMED ' + formed + '/' + Domain.trebarList.length);
       },
@@ -624,6 +624,20 @@
           }
         }
         console.log('[SeoulPhD] lrebar 겹침 완화 — 파티클 ' + parts.length + ', trebar seg ' + obst.length);
+      },
+
+      // lrebar 를 실제 반경(dia/2)으로 그림 — 엔진 drawLrebar 은 박스에서 반경을 최소 30(model)으로 과대하게 그려
+      //  물리적으로 이격돼도 화면상 trebar 와 겹쳐 보인다. 완화 후 실제 크기로 재작도해 계산과 표현을 일치시킨다.
+      _drawLrebarTrue: function () {
+        if (typeof UI === 'undefined' || !UI.lrebarGroup || typeof Konva === 'undefined') return;
+        UI.lrebarGroup.destroyChildren();
+        (Domain.lrebarList || []).forEach(function (g) {
+          if (!g || !g.particles) return;
+          var r = (g.dia || 13) / 2;
+          g.particles.forEach(function (p) {
+            UI.lrebarGroup.add(new Konva.Circle({ x: p.x, y: p.y, radius: r, fill: '#FFD700', stroke: '#B8860B', strokeWidth: Math.max(r * 0.18, 0.8), strokeScaleEnabled: true }));
+          });
+        });
       },
 
       // 미안착(부분 적용 시) trebar 를 직선으로 그림 — updateVisuals 와 동일 좌표 규칙
