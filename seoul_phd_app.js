@@ -334,7 +334,9 @@
         if (this._rbHas(row[8])) o.bar.ctc = Number(row[8]);
         if (this._rbHas(row[9])) o.bar.max = Number(row[9]);
         if (this._rbHas(row[10])) o.bar.min = Number(row[10]);
-        var init = this._rbInit(row[4], ['x', 'y', 'rot', 'grav']); if (init) o.init = init;
+        var init = this._rbInit(row[4], ['x', 'y', 'rot']); if (init) o.init = init;   // init 은 x,y,rot 만 (grav 분리)
+        // nors(row[5]) = 종방향 철근 중력방향(-1/+1). init 에 섞지 않고 별도 칸에서 읽어 엔진이 쓰는 init.grav 로 전달
+        if (this._rbHas(row[5])) { if (!o.init) o.init = {}; o.init.grav = Number(row[5]); }
         var range = this._rbRange(row[6]); if (range) o.range = range;
         var path = this._rbList(row[7]).map(function (s) { return s.toUpperCase(); });
         if (path.length) o.path = path;
