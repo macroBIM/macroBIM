@@ -229,7 +229,8 @@
         var walls = (typeof Domain !== 'undefined' && Domain.currentSection && Domain.currentSection.walls) || [];
         if (!this._showEngNormals || !walls.length) { UI.mainLayer.draw(); return; }
         var diag = this._sectionDiag(walls);
-        var arrowL = diag * 0.02, minGap = diag * 0.09, dotR = diag * 0.006;   // 화살표 길이 고정(모든 벽 동일) + 축소
+        var scale = (UI.stage && UI.stage.scaleX && UI.stage.scaleX()) || 1;   // 스테이지 줌 배율(annotation scale)
+        var arrowL = 26 / scale, minGap = diag * 0.09, dotR = 6 / scale;   // 화면 픽셀 기준 고정 → 도형 크기 무관하게 일정
         var thin = walls.length > 40;   // 곡선 등 조밀 단면만 솎기; 박스 등 벽 적은 단면은 전부 표시
         var g = new Konva.Group({ name: 'eng_normals' });
         var lastx = null, lasty = null;
@@ -251,7 +252,8 @@
         var walls = (typeof Domain !== 'undefined' && Domain.currentSection && Domain.currentSection.walls) || [];
         if (!this._showEngNodes || !walls.length) { UI.mainLayer.draw(); return; }
         var diag = this._sectionDiag(walls);
-        var fs = diag * 0.009, dotR = diag * 0.006, minGap = diag * 0.09;   // 요소번호 글씨 축소
+        var scale = (UI.stage && UI.stage.scaleX && UI.stage.scaleX()) || 1;   // 스테이지 줌 배율(annotation scale)
+        var fs = 13 / scale, dotR = 6 / scale, minGap = diag * 0.09;   // 화면 픽셀 기준 고정 → 도형 크기 무관하게 일정
         var thin = walls.length > 40;   // 곡선 등 조밀 단면만 라벨 솎기; 박스 등 벽 적은 단면은 모든 벽 id 표시
         var g = new Konva.Group({ name: 'eng_nodes' });
         var lastx = null, lasty = null;
