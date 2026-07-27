@@ -588,7 +588,7 @@
       //  · 붐비면 lrebar 끼리 반발로 2차열이 자연 발생 → 일부가 trebar 바깥으로 밀려남.
       _relaxLrebar: function () {
         if (typeof Domain === 'undefined' || !Domain.lrebarList || !Domain.lrebarList.length) return;
-        var GAP = 10, ATT = 0.10, RELAX = 0.30, ITERS = 220;   // GAP: 철근 표면간 최소여유(mm, 튜닝 가능)
+        var GAP = 0, ATT = 0, RELAX = 0.30, ITERS = 260;   // GAP=0: trebar 에 딱 접(tangent). 겹침만 밀어내고 여유는 안 둠. (여유 원하면 GAP↑)
         var obst = [];
         (Domain.trebarList || []).forEach(function (t) {
           if (t.state !== 'FORMED' || !t.segments) return;
