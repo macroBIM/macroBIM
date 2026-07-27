@@ -576,8 +576,54 @@
           if (t.state === 'FORMED') { self._drawFilletedTrebar(t, UI.trebarGroup); formed++; }
           else self._drawStraightTrebar(t, UI.trebarGroup);   // 미안착 바는 직선으로 남겨 사라지지 않게
         });
+        this._relaxLrebar();                                                       // lrebar 겹침 해소 (합력 완화)
+        if (typeof UI.drawLrebar === 'function') { try { UI.drawLrebar(); } catch (e) {} }   // 새 위치로 재작도
         if (UI.mainLayer) UI.mainLayer.draw();
         console.log('[SeoulPhD] 굴짐 아크 적용 — FORMED ' + formed + '/' + Domain.trebarList.length);
+      },
+
+      // 종방향 철근(lrebar) 겹침 해소 — 이미 설치된 trebar·다른 lrebar 와의 "반발 벡터 합력"으로 이동.
+      //  · 안착 후처리(엔진 무변경). trebar 세그먼트(선분+반경)·lrebar 파티클을 캡슐로 보고,
+      //    표면간 여유가 GAP 미만이면 밀어냄. anchor 복원력으로 제자리 유지, 합력×RELAX 를 반복 적분.
+      //  · 붐비면 lrebar 끼리 반발로 2차열이 자연 발생 → 일부가 trebar 바깥으로 밀려남.
+      _relaxLrebar: function () {
+        if (typeof Domain === 'undefined' || !Domain.lrebarList || !Domain.lrebarList.length) return;
+        var GAP = 10, ATT = 0.10, RELAX = 0.30, ITERS = 220;   // GAP: 철근 표면간 최소여유(mm, 튜닝 가능)
+        var obst = [];
+        (Domain.trebarList || []).forEach(function (t) {
+          if (t.state !== 'FORMED' || !t.segments) return;
+          var r = (t.dia || 0) / 2;
+          t.segments.forEach(function (s) { obst.push({ x1: s.p1.x, y1: s.p1.y, x2: s.p2.x, y2: s.p2.y, r: r }); });
+        });
+        var parts = [];
+        Domain.lrebarList.forEach(function (g) {
+          if (!g || !g.particles) return;
+          var r = (g.dia || 13) / 2;
+          g.particles.forEach(function (p) { parts.push({ p: p, r: r, ax: p.x, ay: p.y }); });
+        });
+        if (!parts.length) return;
+        function closest(px, py, o) {
+          var dx = o.x2 - o.x1, dy = o.y2 - o.y1, L2 = dx * dx + dy * dy;
+          var t = L2 ? ((px - o.x1) * dx + (py - o.y1) * dy) / L2 : 0; t = t < 0 ? 0 : (t > 1 ? 1 : t);
+          return { x: o.x1 + t * dx, y: o.y1 + t * dy };
+        }
+        for (var it = 0; it < ITERS; it++) {
+          for (var i = 0; i < parts.length; i++) {
+            var a = parts[i], P = a.p, fx = (a.ax - P.x) * ATT, fy = (a.ay - P.y) * ATT;
+            for (var k = 0; k < obst.length; k++) {
+              var o = obst[k], c = closest(P.x, P.y, o);
+              var dx = P.x - c.x, dy = P.y - c.y, d = Math.hypot(dx, dy) || 1e-6, need = o.r + a.r + GAP;
+              if (d < need) { fx += (dx / d) * (need - d); fy += (dy / d) * (need - d); }
+            }
+            for (var j = 0; j < parts.length; j++) {
+              if (j === i) continue;
+              var b = parts[j], ex = P.x - b.p.x, ey = P.y - b.p.y, d2 = Math.hypot(ex, ey) || 1e-6, need2 = a.r + b.r + GAP;
+              if (d2 < need2) { fx += (ex / d2) * (need2 - d2) * 0.5; fy += (ey / d2) * (need2 - d2) * 0.5; }
+            }
+            P.x += fx * RELAX; P.y += fy * RELAX;
+          }
+        }
+        console.log('[SeoulPhD] lrebar 겹침 완화 — 파티클 ' + parts.length + ', trebar seg ' + obst.length);
       },
 
       // 미안착(부분 적용 시) trebar 를 직선으로 그림 — updateVisuals 와 동일 좌표 규칙
