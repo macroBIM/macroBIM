@@ -230,11 +230,12 @@
         if (!this._showEngNormals || !walls.length) { UI.mainLayer.draw(); return; }
         var self = this, diag = this._sectionDiag(walls);
         var baseL = diag * 0.05, minGap = diag * 0.09, dotR = diag * 0.006, floorL = diag * 0.008;
+        var thin = walls.length > 40;   // 곡선 등 조밀 단면(테셀레이션 세그 수십 개)만 솎기; 박스 등 벽 적은 단면은 전부 표시
         var g = new Konva.Group({ name: 'eng_normals' });
         var lastx = null, lasty = null;
         walls.forEach(function (w, wi) {
           var mx = (w.x1 + w.x2) / 2, my = (w.y1 + w.y2) / 2;
-          if (lastx !== null && Math.hypot(mx - lastx, my - lasty) < minGap) return;   // 간격만 유지(필렛엔 1개 정도)
+          if (thin && lastx !== null && Math.hypot(mx - lastx, my - lasty) < minGap) return;   // 조밀 단면만 간격 솎기
           lastx = mx; lasty = my;
           var nearest = Infinity;
           for (var j = 0; j < walls.length; j++) {
@@ -258,11 +259,12 @@
         if (!this._showEngNodes || !walls.length) { UI.mainLayer.draw(); return; }
         var diag = this._sectionDiag(walls);
         var fs = diag * 0.014, dotR = diag * 0.006, minGap = diag * 0.09;
+        var thin = walls.length > 40;   // 곡선 등 조밀 단면만 라벨 솎기; 박스 등 벽 적은 단면은 모든 벽 id 표시
         var g = new Konva.Group({ name: 'eng_nodes' });
         var lastx = null, lasty = null;
         walls.forEach(function (w) {
           var mx = (w.x1 + w.x2) / 2, my = (w.y1 + w.y2) / 2;
-          if (lastx !== null && Math.hypot(mx - lastx, my - lasty) < minGap) return;   // 간격만 유지
+          if (thin && lastx !== null && Math.hypot(mx - lastx, my - lasty) < minGap) return;   // 조밀 단면만 라벨 솎기
           lastx = mx; lasty = my;
           g.add(new Konva.Circle({ x: mx, y: my, radius: dotR, fill: '#FF5722', strokeScaleEnabled: false }));
           var lbl = new Konva.Label({ x: mx + w.nx * fs * 0.6, y: my + w.ny * fs * 0.6, scaleY: -1 });   // 라벨은 안쪽으로 약간
