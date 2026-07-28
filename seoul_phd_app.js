@@ -120,6 +120,7 @@
         if (this._excelData && typeof window.extractBlockFromData === 'function') {
           var block = window.extractBlockFromData(this._excelData, 'type');
           if (block && block.length > 1) dataRows = block.slice(1);
+          dataRows = dataRows.filter(function (r) { var t = String((r && r[0]) == null ? '' : r[0]).trim(); return t && t.charAt(0) !== '#'; });   // # 주석 행 제외
         }
 
         function esc(v) { return String(v == null ? '' : v).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;'); }
@@ -305,7 +306,7 @@
         var out = [], self = this;
         for (var r = 1; r < block.length; r++) {
           var row = block[r], type = self._rbStr(row[0]).toLowerCase();
-          if (!type) continue;
+          if (!type || type.charAt(0) === '#') continue;   // 첫 셀이 # 로 시작하면 주석 → 건너뜀
           out.push(type === 'lrebar' ? self._parseLrebarRow(row) : self._parseTrebarRow(row));
         }
         return out;
