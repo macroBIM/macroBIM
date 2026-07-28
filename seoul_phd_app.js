@@ -363,11 +363,12 @@
         var aWTL = Math.abs(WTL), aWTR = Math.abs(WTR), aWBL = Math.abs(WBL), aWBR = Math.abs(WBR);
         var g = function (k) { var v = num(k); return (v == null || isNaN(v)) ? 0 : v; };
         var bcan = g('bcan'), bcanh = g('bcanh'), t1 = g('t1'), t2 = g('t2'), t3 = g('t3'), t4 = g('t4'),
-            btsh = g('btsh'), bh = g('bh'), vh1 = g('vh1'), vh2 = g('vh2');
+            btsh = g('btsh'), bh = g('bh'), vh1 = g('vh1'), vh2 = g('vh2'), tb = g('tb');
+        var aWB = Math.abs(WB);
         var wpL = -aWTL + bcan + bcanh, wpR = aWTR - bcan - bcanh;
         var cs = '0,' + t3 + ',' + bcanh + ',' + t4;
         var ts = '0,' + t2 + ',' + btsh + ',' + t1;
-        var bs = '0,' + vh1 + ',' + bh + ',' + vh2;
+        var bs = '0,' + (tb + vh1) + ',' + bh + ',' + (tb + vh2);
         return '{PSCBOX,1'
           + ',{BOX,' + HT + ',' + aWTL + ',' + aWTR + ',' + aWBL + ',' + aWBR + ',' + SLL + ',' + SLR + '}'
           + ',{WP,' + wpL + ',' + wpR + '}'
@@ -375,7 +376,7 @@
           + ',{CS,R,' + cs + '}'
           + ',{TS,{1,{' + ts + '},{' + ts + '}}}'
           + ',{BS,{1,{' + bs + '},{' + bs + '}}}'
-          + ',{WB,' + WB + ',' + WB + '}'
+          + ',{WB,' + (-aWB) + ',' + aWB + '}'   // 좌측 웹 두께 = -WB
           + ',{COVER,50,50,40}}';
       },
 
