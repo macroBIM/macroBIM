@@ -115,13 +115,8 @@
         ];
         var ncol = SCHEMA[0].length;
 
-        // 엑셀 로드됐으면 'type' 블록의 데이터 행 추출 (엑셀 자체 헤더 행은 제외)
-        var dataRows = [];
-        if (this._excelData && typeof window.extractBlockFromData === 'function') {
-          var block = window.extractBlockFromData(this._excelData, 'type');
-          if (block && block.length > 1) dataRows = block.slice(1);
-          dataRows = dataRows.filter(function (r) { var t = String((r && r[0]) == null ? '' : r[0]).trim(); return t && t.charAt(0) !== '#'; });   // # 주석 행 제외
-        }
+        // 엑셀 데이터 행 추출: 첫 셀이 trebar/lrebar 인 행(= 데이터). #trebar/#lrebar(헤더)·빈 행 무시
+        var dataRows = this._excelData ? this._extractRebarDataRows(this._excelData) : [];
 
         function esc(v) { return String(v == null ? '' : v).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;'); }
 
@@ -306,46 +301,38 @@
         bh: 'dbbh_s', vh1: 'dbh1_s', vh2: 'dbh2_s', rwt: 'drwt_s', rwtin: 'drwtin_s', rb: 'drb_s',
         sl_tl: 'dsltl_s', sl_tr: 'dsltr_s', sl_b: 'dslb_s'
       },
+      //   엑셀 레이아웃(철근 블록과 동일 규약):
+      //     #box1cell  h   bt   bb  ...  ← 변수명 헤더 행 (# 접두)
+      //      box1cell 7000 12700 ...     ← 값 데이터 행 (# 없음)
+      //   → box1cell 값 행을 찾고, 같은 열의 #box1cell 이름 행으로 매핑.
       _loadBox1cellFromExcel: function (fullData) {
         if (!Array.isArray(fullData)) return;
-        // 헤더/키워드 정규화: 공백 제거 + 소문자화 ('#' 는 떼지 않음 → #box1cell 은 주석)
         var norm = function (v) {
           return String(v == null ? '' : v).trim().replace(/\s+/g, '').toLowerCase();
         };
-        // 첫 셀이 #로 시작하는 행 = 주석 → 통째로 무시
-        var isComment = function (rowArr) {
-          var f = rowArr && rowArr[0];
-          return f != null && String(f).trim().charAt(0) === '#';
-        };
-        // 1) 'box1cell' 키워드 셀 탐색 (주석 행은 건너뜀)
-        var hr = -1, hc = -1;
-        for (var r = 0; r < fullData.length && hr < 0; r++) {
-          var rowr = fullData[r] || [];
-          if (isComment(rowr)) continue;
-          for (var c = 0; c < rowr.length; c++) {
-            if (norm(rowr[c]) === 'box1cell') { hr = r; hc = c; break; }
+        // 1) 값 행 탐색: 셀 값이 정확히 'box1cell' (# 없음)
+        var dr = -1, dc = -1;
+        for (var r = 0; r < fullData.length && dr < 0; r++) {
+          var row = fullData[r] || [];
+          for (var c = 0; c < row.length; c++) {
+            if (norm(row[c]) === 'box1cell') { dr = r; dc = c; break; }
           }
         }
-        if (hr < 0) { console.warn('[SeoulPhD] box1cell 블록을 엑셀에서 찾지 못했습니다. (키워드 셀 필요: box1cell, #box1cell 은 주석)'); return; }
-        var header = fullData[hr] || [];
-        // 2) 헤더 아래로 첫 유효(숫자 포함) 데이터 행 탐색 (주석 행은 건너뜀)
-        var dataRow = null;
-        for (var rr = hr + 1; rr < fullData.length; rr++) {
-          var cand = fullData[rr] || [];
-          if (isComment(cand)) continue;   // 주석 행 → 무시하고 계속
-          var hasNum = false, allEmpty = true;
-          for (var cc = hc + 1; cc < header.length; cc++) {
-            var vv = cand[cc];
-            if (vv !== null && vv !== undefined && vv !== '') { allEmpty = false; if (!isNaN(Number(vv))) hasNum = true; }
-          }
-          if (hasNum) { dataRow = cand; break; }
-          if (allEmpty) break;   // 빈 행 만나면 블록 종료
+        if (dr < 0) { console.warn('[SeoulPhD] box1cell 값 행을 엑셀에서 찾지 못했습니다. (셀 값 = box1cell)'); return; }
+        var dataRow = fullData[dr];
+        // 2) 이름 행 탐색: 같은 열(dc)에 '#box1cell' 이 있는 행, 없으면 바로 위 행
+        var nameRow = null;
+        for (var rr = 0; rr < fullData.length; rr++) {
+          var nrow = fullData[rr] || [];
+          if (norm(nrow[dc]) === '#box1cell') { nameRow = nrow; break; }
         }
-        if (!dataRow) { console.warn('[SeoulPhD] box1cell 데이터 행(숫자)을 찾지 못했습니다.'); return; }
-        // 3) 헤더 이름 → 폼 input id 매핑 후 값 설정
+        if (!nameRow && dr > 0) nameRow = fullData[dr - 1];
+        if (!nameRow) { console.warn('[SeoulPhD] box1cell 이름 행(#box1cell)을 찾지 못했습니다.'); return; }
+        // 3) 이름 → 폼 input id 매핑 후 값 설정
         var map = this._box1cellMap, n = 0, applied = [];
-        for (var k = hc + 1; k < header.length; k++) {
-          var name = norm(header[k]);
+        var maxk = Math.max(nameRow.length, dataRow.length);
+        for (var k = dc + 1; k < maxk; k++) {
+          var name = norm(nameRow[k]);
           var id = map[name];
           if (!id) continue;
           var val = dataRow[k];
@@ -358,20 +345,37 @@
       },
 
       // ─────────────────────────────────────────────────────────
-      //  엑셀 'type' 블록 → trebar/lrebar 객체 배열 (rebar_excel.js 이식)
-      //  trebar: type|id|code|dia|init(x,y,rot)|set|segs(len)|angs|nors|barStart|barEnd
-      //  lrebar: type|id|dia |num|init         |nors|range   |path|ctc|ctcmax  |ctcmin
+      //  엑셀 → trebar/lrebar 객체 배열
+      //  · 데이터 행: 첫 셀 = trebar/lrebar (#trebar/#lrebar 은 헤더/주석)
+      //  trebar: type|id|code|dia|init(x,y,rot)|set|segs(len)|angs|nors|barStart|barEnd|radius|z
+      //  lrebar: type|id|dia |num|init         |nors|range   |path|ctc|ctcmax  |ctcmin|      |z
       // ─────────────────────────────────────────────────────────
-      _parseRebar: function (fullData) {
-        if (typeof window.extractBlockFromData !== 'function') return [];
-        var block = window.extractBlockFromData(fullData, 'type');
-        if (!block || block.length < 2) return [];
-        var out = [], self = this;
-        for (var r = 1; r < block.length; r++) {
-          var row = block[r], type = self._rbStr(row[0]).toLowerCase();
-          if (!type || type.charAt(0) === '#') continue;   // 첫 셀이 # 로 시작하면 주석 → 건너뜀
-          out.push(type === 'lrebar' ? self._parseLrebarRow(row) : self._parseTrebarRow(row));
+      // 엑셀 전체에서 철근 데이터 행만 골라 '타입 칸' 기준으로 리베이스해 반환.
+      //   · 데이터 행 = 어떤 셀이든 값이 정확히 trebar/lrebar 인 행 (좌측 빈 칸/열 위치 무관)
+      //   · #trebar/#lrebar (헤더·주석)·빈 행은 자동 제외 ('#trebar' !== 'trebar')
+      //   · 빈 행으로 블록이 나뉘어도 모두 수집 (extractBlockFromData 처럼 중간에서 끊기지 않음)
+      //   · 반환 행: [type, id, ...] 로 리베이스되어 기존 _parseTrebarRow/_parseLrebarRow 인덱스와 일치
+      _extractRebarDataRows: function (fullData) {
+        if (!Array.isArray(fullData)) return [];
+        var out = [];
+        for (var r = 0; r < fullData.length; r++) {
+          var row = fullData[r];
+          if (!Array.isArray(row)) continue;
+          var hc = -1;
+          for (var c = 0; c < row.length; c++) {
+            var t = String(row[c] == null ? '' : row[c]).trim().toLowerCase();
+            if (t === 'trebar' || t === 'lrebar') { hc = c; break; }
+          }
+          if (hc >= 0) out.push(row.slice(hc));   // [type, id, code, ...]
         }
+        return out;
+      },
+      _parseRebar: function (fullData) {
+        var rows = this._extractRebarDataRows(fullData), out = [], self = this;
+        rows.forEach(function (row) {
+          var type = self._rbStr(row[0]).toLowerCase();
+          out.push(type === 'lrebar' ? self._parseLrebarRow(row) : self._parseTrebarRow(row));
+        });
         return out;
       },
       _parseTrebarRow: function (row) {
