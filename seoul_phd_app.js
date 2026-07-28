@@ -328,20 +328,55 @@
         }
         if (!nameRow && dr > 0) nameRow = fullData[dr - 1];
         if (!nameRow) { console.warn('[SeoulPhD] box1cell 이름 행(#box1cell)을 찾지 못했습니다.'); return; }
-        // 3) 이름 → 폼 input id 매핑 후 값 설정
-        var map = this._box1cellMap, n = 0, applied = [];
+        // 3) 이름 → (a) 폼 input 채우기  (b) 전체 값 dict 수집(PSCBOX 변환용)
+        var map = this._box1cellMap, n = 0, applied = [], dict = {};
         var maxk = Math.max(nameRow.length, dataRow.length);
         for (var k = dc + 1; k < maxk; k++) {
           var name = norm(nameRow[k]);
-          var id = map[name];
-          if (!id) continue;
+          if (!name) continue;
           var val = dataRow[k];
           if (val == null || val === '') continue;
-          var el = document.getElementById(id);
-          if (el) { el.value = val; n++; applied.push(name + '=' + val); }
+          dict[name] = val;                       // 원본 값 dict (HT/WTL/... 및 세부변수 모두)
+          var id = map[name];
+          if (id) { var el = document.getElementById(id); if (el) { el.value = val; n++; applied.push(name + '=' + val); } }
         }
-        console.log('[SeoulPhD] box1cell 단면 로드: ' + n + '개 변수 적용 → ' + applied.join(', '));
-        if (n > 0 && this._cur === 'box1cell') this.redraw('box1cell');
+        // 4) box1cell 값 → PSCBOX 문자열(물리 박스). 필요한 키 있으면 생성, 없으면 기본 박스 유지
+        this._box1cellPscBox = this._buildBox1cellPscBox(dict);
+        console.log('[SeoulPhD] box1cell 단면 로드: 폼 ' + n + '개 · PSCBOX ' + (this._box1cellPscBox ? '생성' : '미생성(키 누락)'));
+        if (this._cur === 'box1cell') this.redraw('box1cell');
+      },
+
+      // box1cell 값 dict → PSCBOX 문자열 (사용자 매핑)
+      //   BOX = {HT, WTL, WTR, WBL, WBR, SLL, SLR}         ← 엑셀 헤더 직접값
+      //   WP  = [-|WTL|+bcan+bcanh, |WTR|-bcan-bcanh]       ← 좌/우 웹 중심 x
+      //   WB  = [WB, WB]                                    ← 웹 두께(1셀=웹 2개)
+      //   CS,L = CS,R = [0, t3, bcanh, t4]
+      //   TS   = [0, t2, btsh, t1]  (좌·우 동일)
+      //   BS   = [0, vh1, bh, vh2]  (좌·우 동일)
+      //   COVER = 50,50,40  (box1cell 에 피복 없음 → 기본값)
+      _buildBox1cellPscBox: function (d) {
+        var num = function (k) { var v = d[k]; return (v == null || v === '') ? null : Number(v); };
+        var HT = num('ht'), WTL = num('wtl'), WTR = num('wtr'), WBL = num('wbl'), WBR = num('wbr'),
+            SLL = num('sll'), SLR = num('slr'), WB = num('wb');
+        var req = [HT, WTL, WTR, WBL, WBR, SLL, SLR, WB];
+        for (var i = 0; i < req.length; i++) { if (req[i] == null || isNaN(req[i])) return null; }
+        var aWTL = Math.abs(WTL), aWTR = Math.abs(WTR), aWBL = Math.abs(WBL), aWBR = Math.abs(WBR);
+        var g = function (k) { var v = num(k); return (v == null || isNaN(v)) ? 0 : v; };
+        var bcan = g('bcan'), bcanh = g('bcanh'), t1 = g('t1'), t2 = g('t2'), t3 = g('t3'), t4 = g('t4'),
+            btsh = g('btsh'), bh = g('bh'), vh1 = g('vh1'), vh2 = g('vh2');
+        var wpL = -aWTL + bcan + bcanh, wpR = aWTR - bcan - bcanh;
+        var cs = '0,' + t3 + ',' + bcanh + ',' + t4;
+        var ts = '0,' + t2 + ',' + btsh + ',' + t1;
+        var bs = '0,' + vh1 + ',' + bh + ',' + vh2;
+        return '{PSCBOX,1'
+          + ',{BOX,' + HT + ',' + aWTL + ',' + aWTR + ',' + aWBL + ',' + aWBR + ',' + SLL + ',' + SLR + '}'
+          + ',{WP,' + wpL + ',' + wpR + '}'
+          + ',{CS,L,' + cs + '}'
+          + ',{CS,R,' + cs + '}'
+          + ',{TS,{1,{' + ts + '},{' + ts + '}}}'
+          + ',{BS,{1,{' + bs + '},{' + bs + '}}}'
+          + ',{WB,' + WB + ',' + WB + '}'
+          + ',{COVER,50,50,40}}';
       },
 
       // ─────────────────────────────────────────────────────────
@@ -797,7 +832,7 @@
         var sel = null, prev = null;
         try {
           if (isBox) {
-            Domain.USER_BOX_DATA = REBAR_BOX_DATA;
+            Domain.USER_BOX_DATA = this._box1cellPscBox || REBAR_BOX_DATA;   // 엑셀 로드값→PSCBOX 있으면 사용
             Domain.USER_REBAR_DATA = this._rebarData || [];
             Domain.USER_TREBAR_DATA = null; Domain.USER_LREBAR_DATA = null;
             // buildModel 은 sectionSelect.value==="BOXGIRDER" 일 때만 큐를 만든다 → 빌드 순간만 주입 후 복원
