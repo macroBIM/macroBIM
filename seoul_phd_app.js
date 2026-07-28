@@ -308,24 +308,31 @@
       },
       _loadBox1cellFromExcel: function (fullData) {
         if (!Array.isArray(fullData)) return;
-        // 헤더/키워드 정규화: 앞의 #, 공백 제거 + 소문자화 (예: '#box1cell', 'Box1Cell' 모두 허용)
+        // 헤더/키워드 정규화: 공백 제거 + 소문자화 ('#' 는 떼지 않음 → #box1cell 은 주석)
         var norm = function (v) {
-          return String(v == null ? '' : v).trim().replace(/^#+/, '').replace(/\s+/g, '').toLowerCase();
+          return String(v == null ? '' : v).trim().replace(/\s+/g, '').toLowerCase();
         };
-        // 1) 'box1cell' 키워드 셀 탐색
+        // 첫 셀이 #로 시작하는 행 = 주석 → 통째로 무시
+        var isComment = function (rowArr) {
+          var f = rowArr && rowArr[0];
+          return f != null && String(f).trim().charAt(0) === '#';
+        };
+        // 1) 'box1cell' 키워드 셀 탐색 (주석 행은 건너뜀)
         var hr = -1, hc = -1;
         for (var r = 0; r < fullData.length && hr < 0; r++) {
           var rowr = fullData[r] || [];
+          if (isComment(rowr)) continue;
           for (var c = 0; c < rowr.length; c++) {
             if (norm(rowr[c]) === 'box1cell') { hr = r; hc = c; break; }
           }
         }
-        if (hr < 0) { console.warn('[SeoulPhD] box1cell 블록을 엑셀에서 찾지 못했습니다. (키워드 셀 필요: box1cell)'); return; }
+        if (hr < 0) { console.warn('[SeoulPhD] box1cell 블록을 엑셀에서 찾지 못했습니다. (키워드 셀 필요: box1cell, #box1cell 은 주석)'); return; }
         var header = fullData[hr] || [];
-        // 2) 헤더 아래로 첫 유효(숫자 포함) 데이터 행 탐색
+        // 2) 헤더 아래로 첫 유효(숫자 포함) 데이터 행 탐색 (주석 행은 건너뜀)
         var dataRow = null;
         for (var rr = hr + 1; rr < fullData.length; rr++) {
           var cand = fullData[rr] || [];
+          if (isComment(cand)) continue;   // 주석 행 → 무시하고 계속
           var hasNum = false, allEmpty = true;
           for (var cc = hc + 1; cc < header.length; cc++) {
             var vv = cand[cc];
