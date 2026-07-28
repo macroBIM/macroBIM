@@ -307,23 +307,46 @@
         sl_tl: 'dsltl_s', sl_tr: 'dsltr_s', sl_b: 'dslb_s'
       },
       _loadBox1cellFromExcel: function (fullData) {
-        if (typeof window.extractBlockFromData !== 'function') return;
-        var block = window.extractBlockFromData(fullData, 'box1cell');
-        if (!block || block.length < 2) return;   // 헤더 + 데이터 최소 1행 필요
-        var header = block[0];      // ['box1cell', 'h', 'bt', ...]
-        var row = block[1];         // ['<id>', 6600, 12000, ...]
-        var map = this._box1cellMap;
-        var n = 0;
-        for (var c = 1; c < header.length; c++) {
-          var name = String(header[c] == null ? '' : header[c]).trim();
+        if (!Array.isArray(fullData)) return;
+        // 헤더/키워드 정규화: 앞의 #, 공백 제거 + 소문자화 (예: '#box1cell', 'Box1Cell' 모두 허용)
+        var norm = function (v) {
+          return String(v == null ? '' : v).trim().replace(/^#+/, '').replace(/\s+/g, '').toLowerCase();
+        };
+        // 1) 'box1cell' 키워드 셀 탐색
+        var hr = -1, hc = -1;
+        for (var r = 0; r < fullData.length && hr < 0; r++) {
+          var rowr = fullData[r] || [];
+          for (var c = 0; c < rowr.length; c++) {
+            if (norm(rowr[c]) === 'box1cell') { hr = r; hc = c; break; }
+          }
+        }
+        if (hr < 0) { console.warn('[SeoulPhD] box1cell 블록을 엑셀에서 찾지 못했습니다. (키워드 셀 필요: box1cell)'); return; }
+        var header = fullData[hr] || [];
+        // 2) 헤더 아래로 첫 유효(숫자 포함) 데이터 행 탐색
+        var dataRow = null;
+        for (var rr = hr + 1; rr < fullData.length; rr++) {
+          var cand = fullData[rr] || [];
+          var hasNum = false, allEmpty = true;
+          for (var cc = hc + 1; cc < header.length; cc++) {
+            var vv = cand[cc];
+            if (vv !== null && vv !== undefined && vv !== '') { allEmpty = false; if (!isNaN(Number(vv))) hasNum = true; }
+          }
+          if (hasNum) { dataRow = cand; break; }
+          if (allEmpty) break;   // 빈 행 만나면 블록 종료
+        }
+        if (!dataRow) { console.warn('[SeoulPhD] box1cell 데이터 행(숫자)을 찾지 못했습니다.'); return; }
+        // 3) 헤더 이름 → 폼 input id 매핑 후 값 설정
+        var map = this._box1cellMap, n = 0, applied = [];
+        for (var k = hc + 1; k < header.length; k++) {
+          var name = norm(header[k]);
           var id = map[name];
           if (!id) continue;
-          var v = row[c];
-          if (v == null || v === '') continue;
+          var val = dataRow[k];
+          if (val == null || val === '') continue;
           var el = document.getElementById(id);
-          if (el) { el.value = v; n++; }
+          if (el) { el.value = val; n++; applied.push(name + '=' + val); }
         }
-        console.log('[SeoulPhD] box1cell 단면 로드: ' + n + '개 변수 적용');
+        console.log('[SeoulPhD] box1cell 단면 로드: ' + n + '개 변수 적용 → ' + applied.join(', '));
         if (n > 0 && this._cur === 'box1cell') this.redraw('box1cell');
       },
 
