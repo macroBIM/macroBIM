@@ -627,9 +627,10 @@
               var q = distSeg(P.x, P.y, s.ax, s.ay, s.bx, s.by), need = s.r + a.r;
               if (q.d < need && q.d > 1e-6) { var cf = (need - q.d) / q.d; P.x += (P.x - q.cx) * cf; P.y += (P.y - q.cy) * cf; }
             }
-            for (var wi = 0; wi < a.walls.length; wi++) {                       // 3) 벽(cover) 배리어 → 관통 방지
-              var w = a.walls[wi], q2 = distSeg(P.x, P.y, w.x1, w.y1, w.x2, w.y2), need2 = coverOf(w) + a.r;
-              if (q2.d < need2 && q2.d > 1e-6) { var cf2 = (need2 - q2.d) / q2.d; P.x += (P.x - q2.cx) * cf2; P.y += (P.y - q2.cy) * cf2; }
+            for (var wi = 0; wi < a.walls.length; wi++) {                       // 3) 벽 배리어 — 콘크리트 안쪽(법선) 반공간: 박스 밖으로 못 나감
+              var w = a.walls[wi], q2 = distSeg(P.x, P.y, w.x1, w.y1, w.x2, w.y2);
+              var sd = (P.x - q2.cx) * w.nx + (P.y - q2.cy) * w.ny, need2 = coverOf(w) + a.r;   // 안쪽 법선 기준 부호거리(안쪽 +)
+              if (sd < need2) { var push = need2 - sd; P.x += w.nx * push; P.y += w.ny * push; }   // 항상 콘크리트 안쪽으로만 복원
             }
             for (var j = 0; j < parts.length; j++) {                           // 4) 같은 z lrebar 끼리 반발
               if (j === i) continue; var b = parts[j]; if (b.z !== a.z) continue;
