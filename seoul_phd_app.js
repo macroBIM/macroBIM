@@ -357,16 +357,24 @@
       //   · 반환 행: [type, id, ...] 로 리베이스되어 기존 _parseTrebarRow/_parseLrebarRow 인덱스와 일치
       _extractRebarDataRows: function (fullData) {
         if (!Array.isArray(fullData)) return [];
-        var out = [];
+        var out = [], started = false;
         for (var r = 0; r < fullData.length; r++) {
           var row = fullData[r];
-          if (!Array.isArray(row)) continue;
+          // 행 전체가 비었는지 판정
+          var blank = true;
+          if (Array.isArray(row)) {
+            for (var b = 0; b < row.length; b++) {
+              if (row[b] != null && String(row[b]).trim() !== '') { blank = false; break; }
+            }
+          }
+          // 데이터가 시작된 뒤 빈 행을 만나면 그 이하는 전부 무시(종료)
+          if (blank) { if (started) break; else continue; }
           var hc = -1;
           for (var c = 0; c < row.length; c++) {
             var t = String(row[c] == null ? '' : row[c]).trim().toLowerCase();
             if (t === 'trebar' || t === 'lrebar') { hc = c; break; }
           }
-          if (hc >= 0) out.push(row.slice(hc));   // [type, id, code, ...]
+          if (hc >= 0) { out.push(row.slice(hc)); started = true; }   // [type, id, code, ...]
         }
         return out;
       },
