@@ -78,7 +78,6 @@
         <div class="col-label">t3</div><input class="form-input" type="number" id="dt3_s" value="600" onchange="SeoulPhD.redraw('box1cell')">
         <div class="col-label">t4</div><input class="form-input" type="number" id="dt4_s" value="600" onchange="SeoulPhD.redraw('box1cell')">
         <div class="col-label">t5</div><input class="form-input" type="number" id="dt5_s" value="300" onchange="SeoulPhD.redraw('box1cell')">
-        <div class="col-label">t6</div><input class="form-input" type="number" id="dt6_s" value="300" onchange="SeoulPhD.redraw('box1cell')">
         <div class="col-label">tb</div><input class="form-input" type="number" id="dtb_s" value="840" onchange="SeoulPhD.redraw('box1cell')">
         <div class="col-label">tw</div><input class="form-input" type="number" id="dtw_s" value="500" onchange="SeoulPhD.redraw('box1cell')">
         <div class="col-label">bh</div><input class="form-input" type="number" id="dbbh_s" value="200" onchange="SeoulPhD.redraw('box1cell')">
@@ -90,8 +89,10 @@
         <div class="col-label">sl_tl (%)</div><input class="form-input" type="number" id="dsltl_s" value="-2" onchange="SeoulPhD.redraw('box1cell')">
         <div class="col-label">sl_tr (%)</div><input class="form-input" type="number" id="dsltr_s" value="5" onchange="SeoulPhD.redraw('box1cell')">
         <div class="col-label">sl_b (%)</div><input class="form-input" type="number" id="dslb_s" value="3" onchange="SeoulPhD.redraw('box1cell')">
-        <div class="col-label">Seg Len</div><input class="form-input" type="number" id="dseg_leng" value="5000" onchange="SeoulPhD.redraw('box1cell')">
       </div>
+      <!-- t6 / Seg Len : 화면 입력칸에서 제거(변수 폐기). Drawing View 엔진(bim_box1cell.js) 호환용 hidden 기본값만 유지 -->
+      <input type="hidden" id="dt6_s" value="0">
+      <input type="hidden" id="dseg_leng" value="5000">
       <div style="display:flex;justify-content:flex-end;margin-top:14px;">
         <button class="btn-generate" onclick="odxf_box1cell.download('Box1Cell.dxf')" style="margin:0;"><i class="bi bi-download"></i> DXF DOWNLOAD</button>
       </div>

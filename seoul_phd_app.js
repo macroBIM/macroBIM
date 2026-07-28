@@ -285,6 +285,7 @@
           window.loadSheetData(file, sheet).then(function (data) {
             self._excelData = data;
             console.log('[SeoulPhD] 엑셀 로드 완료:', sheet, data.length + '행', data);
+            self._loadBox1cellFromExcel(data);   // 'box1cell' 블록 추출 → 단면 입력칸 채우고 재작도
             self._renderRebarTables();      // 'type' 블록 추출 → REBAR 카드에 표 출력
             self._rebarData = self._parseRebar(data);   // 표 → trebar/lrebar 객체 배열
             console.log('[SeoulPhD] 철근 파싱:', self._rebarData);
@@ -292,6 +293,38 @@
           }).catch(function (e) { alert('엑셀 로드 오류: ' + e.message); });
         };
         fi.click();
+      },
+
+      // ─────────────────────────────────────────────────────────
+      //  엑셀 'box1cell' 블록 → box1cell 단면 입력칸 채우기 + 재작도
+      //    헤더 이름(h,bt,bb,...)을 폼 input id 로 매핑해 value 설정.
+      //    데이터 행은 헤더 바로 아래 첫 행을 사용.
+      // ─────────────────────────────────────────────────────────
+      _box1cellMap: {
+        h: 'dh_s', bt: 'dbt_s', bb: 'dbb_s', btsh: 'dbth_s', bcanh: 'dbch_s', bcan: 'dbc_s',
+        t1: 'dt1_s', t2: 'dt2_s', t3: 'dt3_s', t4: 'dt4_s', t5: 'dt5_s', tb: 'dtb_s', tw: 'dtw_s',
+        bh: 'dbbh_s', vh1: 'dbh1_s', vh2: 'dbh2_s', rwt: 'drwt_s', rwtin: 'drwtin_s', rb: 'drb_s',
+        sl_tl: 'dsltl_s', sl_tr: 'dsltr_s', sl_b: 'dslb_s'
+      },
+      _loadBox1cellFromExcel: function (fullData) {
+        if (typeof window.extractBlockFromData !== 'function') return;
+        var block = window.extractBlockFromData(fullData, 'box1cell');
+        if (!block || block.length < 2) return;   // 헤더 + 데이터 최소 1행 필요
+        var header = block[0];      // ['box1cell', 'h', 'bt', ...]
+        var row = block[1];         // ['<id>', 6600, 12000, ...]
+        var map = this._box1cellMap;
+        var n = 0;
+        for (var c = 1; c < header.length; c++) {
+          var name = String(header[c] == null ? '' : header[c]).trim();
+          var id = map[name];
+          if (!id) continue;
+          var v = row[c];
+          if (v == null || v === '') continue;
+          var el = document.getElementById(id);
+          if (el) { el.value = v; n++; }
+        }
+        console.log('[SeoulPhD] box1cell 단면 로드: ' + n + '개 변수 적용');
+        if (n > 0 && this._cur === 'box1cell') this.redraw('box1cell');
       },
 
       // ─────────────────────────────────────────────────────────
