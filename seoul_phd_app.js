@@ -343,6 +343,7 @@
         // 4) box1cell 값 → PSCBOX 문자열(물리 박스). 필요한 키 있으면 생성, 없으면 기본 박스 유지
         this._box1cellPscBox = this._buildBox1cellPscBox(dict);
         console.log('[SeoulPhD] box1cell 단면 로드: 폼 ' + n + '개 · PSCBOX ' + (this._box1cellPscBox ? '생성' : '미생성(키 누락)'));
+        if (this._box1cellPscBox) console.log('[SeoulPhD] PSCBOX =', this._box1cellPscBox);
         if (this._cur === 'box1cell') this.redraw('box1cell');
       },
 
@@ -858,6 +859,16 @@
           var rc = document.getElementById('renderContainer');
           if (rc && this._rebarData && this._rebarData.length) rc.scrollIntoView({ behavior: 'smooth', block: 'center' });
           console.log('[SeoulPhD] 철근 렌더 — ' + this._cur + ' | T:' + Domain.trebarList.length + ' / L:' + Domain.lrebarList.length + ' | walls:' + (Domain.currentSection ? Domain.currentSection.walls.length : 0));
+          // 진단: 박스 세로범위 vs 철근 세로범위 (철근이 위로 몰리는지 확인용)
+          try {
+            var ws = (Domain.currentSection && Domain.currentSection.walls) || [];
+            var wy = []; ws.forEach(function (w) { wy.push(w.y1, w.y2); });
+            var ry = [];
+            (Domain.trebarList || []).forEach(function (t) { (t.nodes || t.points || []).forEach(function (p) { if (p && typeof p.y === 'number') ry.push(p.y); }); });
+            (Domain.lrebarList || []).forEach(function (g) { (g.particles || []).forEach(function (p) { ry.push(p.y); }); });
+            if (wy.length) console.log('[SeoulPhD] 박스 y: ' + Math.min.apply(0, wy).toFixed(0) + ' ~ ' + Math.max.apply(0, wy).toFixed(0));
+            if (ry.length) console.log('[SeoulPhD] 철근 y: ' + Math.min.apply(0, ry).toFixed(0) + ' ~ ' + Math.max.apply(0, ry).toFixed(0));
+          } catch (ee) {}
         } catch (e) { console.error('[SeoulPhD] 렌더 오류:', e); }
         finally { if (sel && prev != null) sel.value = prev; }
       },
