@@ -281,6 +281,7 @@
           window.loadSheetData(file, sheet).then(function (data) {
             self._excelData = data;
             console.log('[SeoulPhD] 엑셀 로드 완료:', sheet, data.length + '행', data);
+            self._loadVariablesFromExcel(data);  // 'variable' 블록 → Variables 카드 (Dimension 수식 참조용, box1cell 보다 먼저)
             self._loadBox1cellFromExcel(data);   // 'box1cell' 블록 추출 → 단면 입력칸 채우고 재작도
             self._renderRebarTables();      // 'type' 블록 추출 → REBAR 카드에 표 출력
             self._rebarData = self._parseRebar(data);   // 표 → trebar/lrebar 객체 배열
@@ -289,6 +290,36 @@
           }).catch(function (e) { alert('엑셀 로드 오류: ' + e.message); });
         };
         fi.click();
+      },
+
+      // ─────────────────────────────────────────────────────────
+      //  엑셀 'variable' 블록 → Variables 카드(this._vars) 채우기
+      //    데이터 행: 첫 셀 = variable  (헤더는 #variable)
+      //      variable | 이름 | 값·수식      → [{name, expr}]
+      //    빈 행을 만나면 블록 종료(그 이하 variable 행 무시).
+      // ─────────────────────────────────────────────────────────
+      _loadVariablesFromExcel: function (fullData) {
+        if (!Array.isArray(fullData)) return;
+        var vars = [], started = false;
+        for (var r = 0; r < fullData.length; r++) {
+          var row = fullData[r];
+          var blank = true;
+          if (Array.isArray(row)) { for (var b = 0; b < row.length; b++) { if (row[b] != null && String(row[b]).trim() !== '') { blank = false; break; } } }
+          if (blank) { if (started) break; else continue; }
+          var hc = -1;
+          for (var c = 0; c < row.length; c++) { if (String(row[c] == null ? '' : row[c]).trim().toLowerCase() === 'variable') { hc = c; break; } }
+          if (hc < 0) continue;                 // #variable(헤더)·타 블록 행은 무시
+          started = true;
+          var name = String(row[hc + 1] == null ? '' : row[hc + 1]).trim();
+          if (!name) continue;
+          var expr = row[hc + 2];
+          expr = (expr == null) ? '' : String(expr).trim();
+          vars.push({ name: name, expr: expr });
+        }
+        if (!vars.length) return;
+        this._vars = vars;
+        this._renderVarRows();                  // Variables 카드 입력창 갱신
+        console.log('[SeoulPhD] variable 로드: ' + vars.length + '개 → ' + vars.map(function (v) { return v.name + '=' + v.expr; }).join(', '));
       },
 
       // ─────────────────────────────────────────────────────────
