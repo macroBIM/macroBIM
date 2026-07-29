@@ -300,16 +300,14 @@
       // ─────────────────────────────────────────────────────────
       _loadVariablesFromExcel: function (fullData) {
         if (!Array.isArray(fullData)) return;
-        var vars = [], started = false;
+        var vars = [];
         for (var r = 0; r < fullData.length; r++) {
           var row = fullData[r];
-          var blank = true;
-          if (Array.isArray(row)) { for (var b = 0; b < row.length; b++) { if (row[b] != null && String(row[b]).trim() !== '') { blank = false; break; } } }
-          if (blank) { if (started) break; else continue; }
+          if (this._rowIsEnd(row)) break;          // end → 종료
+          if (this._rowIsComment(row)) continue;   // #variable/! 주석 무시
           var hc = -1;
-          for (var c = 0; c < row.length; c++) { if (String(row[c] == null ? '' : row[c]).trim().toLowerCase() === 'variable') { hc = c; break; } }
-          if (hc < 0) continue;                 // #variable(헤더)·타 블록 행은 무시
-          started = true;
+          for (var c = 0; c < (row ? row.length : 0); c++) { if (String(row[c] == null ? '' : row[c]).trim().toLowerCase() === 'variable') { hc = c; break; } }
+          if (hc < 0) continue;                 // 타 블록·빈 행은 무시(빈 줄이어도 계속)
           var name = String(row[hc + 1] == null ? '' : row[hc + 1]).trim();
           if (!name) continue;
           var expr = row[hc + 2];
@@ -352,11 +350,12 @@
         }
         if (dr < 0) { console.warn('[SeoulPhD] box1cell 값 행을 엑셀에서 찾지 못했습니다. (셀 값 = box1cell)'); return; }
         var dataRow = fullData[dr];
-        // 2) 이름 행 탐색: 같은 열(dc)에 '#box1cell' 이 있는 행, 없으면 바로 위 행
+        // 2) 이름 행 탐색: 같은 열(dc)에 '#box1cell' 또는 '!box1cell' 이 있는 행, 없으면 바로 위 행
         var nameRow = null;
         for (var rr = 0; rr < fullData.length; rr++) {
           var nrow = fullData[rr] || [];
-          if (norm(nrow[dc]) === '#box1cell') { nameRow = nrow; break; }
+          var nv = norm(nrow[dc]);
+          if (nv === '#box1cell' || nv === '!box1cell') { nameRow = nrow; break; }
         }
         if (!nameRow && dr > 0) nameRow = fullData[dr - 1];
         if (!nameRow) { console.warn('[SeoulPhD] box1cell 이름 행(#box1cell)을 찾지 못했습니다.'); return; }
@@ -419,31 +418,35 @@
       //  trebar: type|id|code|dia|init(x,y,rot)|set|segs(len)|angs|nors|barStart|barEnd|radius|z
       //  lrebar: type|id|dia |num|init         |nors|range   |path|ctc|ctcmax  |ctcmin|      |z
       // ─────────────────────────────────────────────────────────
+      // 행의 첫 유효(비어있지 않은) 셀 값(trim) 반환 — 빈 행이면 ''
+      _rowFirstToken: function (row) {
+        if (!Array.isArray(row)) return '';
+        for (var c = 0; c < row.length; c++) { var v = String(row[c] == null ? '' : row[c]).trim(); if (v !== '') return v; }
+        return '';
+      },
+      // 종료행: 첫 유효 셀이 'end'
+      _rowIsEnd: function (row) { return this._rowFirstToken(row).toLowerCase() === 'end'; },
+      // 주석행: 첫 유효 셀이 # 또는 ! 로 시작
+      _rowIsComment: function (row) { var f = this._rowFirstToken(row); var ch = f.charAt(0); return ch === '#' || ch === '!'; },
+
       // 엑셀 전체에서 철근 데이터 행만 골라 '타입 칸' 기준으로 리베이스해 반환.
       //   · 데이터 행 = 어떤 셀이든 값이 정확히 trebar/lrebar 인 행 (좌측 빈 칸/열 위치 무관)
-      //   · #trebar/#lrebar (헤더·주석)·빈 행은 자동 제외 ('#trebar' !== 'trebar')
-      //   · 빈 행으로 블록이 나뉘어도 모두 수집 (extractBlockFromData 처럼 중간에서 끊기지 않음)
+      //   · 주석 행(# 또는 ! 시작)·빈 행은 건너뜀 → 빈 줄이 있어도 계속 수집
+      //   · 'end' 행을 만나면 그 이하는 전부 무시(종료)
       //   · 반환 행: [type, id, ...] 로 리베이스되어 기존 _parseTrebarRow/_parseLrebarRow 인덱스와 일치
       _extractRebarDataRows: function (fullData) {
         if (!Array.isArray(fullData)) return [];
-        var out = [], started = false;
+        var out = [];
         for (var r = 0; r < fullData.length; r++) {
           var row = fullData[r];
-          // 행 전체가 비었는지 판정
-          var blank = true;
-          if (Array.isArray(row)) {
-            for (var b = 0; b < row.length; b++) {
-              if (row[b] != null && String(row[b]).trim() !== '') { blank = false; break; }
-            }
-          }
-          // 데이터가 시작된 뒤 빈 행을 만나면 그 이하는 전부 무시(종료)
-          if (blank) { if (started) break; else continue; }
+          if (this._rowIsEnd(row)) break;          // end → 종료
+          if (this._rowIsComment(row)) continue;   // 주석 행 무시
           var hc = -1;
-          for (var c = 0; c < row.length; c++) {
+          for (var c = 0; c < (row ? row.length : 0); c++) {
             var t = String(row[c] == null ? '' : row[c]).trim().toLowerCase();
             if (t === 'trebar' || t === 'lrebar') { hc = c; break; }
           }
-          if (hc >= 0) { out.push(row.slice(hc)); started = true; }   // [type, id, code, ...]
+          if (hc >= 0) out.push(row.slice(hc));    // [type, id, code, ...] (빈 행은 자연히 스킵)
         }
         return out;
       },
