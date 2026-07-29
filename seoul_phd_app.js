@@ -84,6 +84,7 @@
         var tpl = document.getElementById('tpl-' + kind);
         if (tpl) mount.appendChild(tpl.content.cloneNode(true));
         this._insertRebarCards(mount);          // Dimension 과 Drawing View 사이에 TRebar/LRebar 삽입
+        this._ensureVarCard();                  // Variables 카드를 제목 아래·Dimension 위에 재배치
         var sel = document.getElementById('sectionSelect');
         if (sel && sel.value !== kind) sel.value = kind;
         this.redraw(kind);          // redraw 가 끝에서 _drawRebar 로 엔진 뷰까지 그린다
@@ -1140,20 +1141,28 @@
       // ─────────────────────────────────────────────────────────
       //  VAR 카드 — 상수·수식 변수를 정의(순차 참조) → Dimension 에서 사용
       // ─────────────────────────────────────────────────────────
+      // Variables 카드: 섹션 제목/브레드크럼 다음, 첫 Dimension 카드 바로 앞(mount 안)에 배치.
+      //   mount 은 섹션 전환마다 재생성되므로 select() 에서 매번 재배치한다.
       _ensureVarCard: function () {
-        if (document.getElementById('varCard')) return;
-        var stage = document.getElementById('stage'), mount = document.getElementById('mount');
-        if (!stage || !mount) return;
-        var card = document.createElement('div');
-        card.className = 'draw-card'; card.id = 'varCard';
-        card.innerHTML =
-          '<div class="draw-card-header">' +
-            '<div><div class="draw-card-title">Variables <span style="font-weight:400;color:#94a3b8;font-size:12px;">(상수·수식 정의 — 아래 Dimension 에서 참조. 예: W=12000, H=W/2, t=sqrt(W))</span></div></div>' +
-            '<button type="button" class="engine-btn" onclick="SeoulPhD.addVarRow()"><i class="bi bi-plus-lg"></i> Add</button>' +
-          '</div>' +
-          '<div class="draw-card-body"><div id="varBody" class="var-grid"></div></div>';
-        stage.insertBefore(card, mount);
-        if (!this._vars) this._vars = [{ name: '', expr: '' }];
+        var mount = document.getElementById('mount');
+        if (!mount) return;
+        var card = this._varCardEl || document.getElementById('varCard');
+        if (!card) {
+          card = document.createElement('div');
+          card.className = 'draw-card'; card.id = 'varCard';
+          card.innerHTML =
+            '<div class="draw-card-header">' +
+              '<div><div class="draw-card-title">Variables <span style="font-weight:400;color:#94a3b8;font-size:12px;">(상수·수식 정의 — 아래 Dimension 에서 참조. 예: W=12000, H=W/2, t=sqrt(W))</span></div></div>' +
+              '<button type="button" class="engine-btn" onclick="SeoulPhD.addVarRow()"><i class="bi bi-plus-lg"></i> Add</button>' +
+            '</div>' +
+            '<div class="draw-card-body"><div id="varBody" class="var-grid"></div></div>';
+          this._varCardEl = card;
+          if (!this._vars) this._vars = [{ name: '', expr: '' }];
+        }
+        // 제목·브레드크럼 다음 = 첫 Dimension 카드(varCard 제외) 바로 앞에 삽입
+        var firstDrawCard = mount.querySelector('.draw-card:not(#varCard)');
+        if (firstDrawCard) mount.insertBefore(card, firstDrawCard);
+        else mount.appendChild(card);
         this._renderVarRows();
       },
 
