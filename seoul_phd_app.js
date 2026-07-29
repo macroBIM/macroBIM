@@ -740,10 +740,17 @@
               var q = distSeg(P.x, P.y, s.ax, s.ay, s.bx, s.by), need = s.r + a.r;
               if (q.d < need && q.d > 1e-6) { var cf = (need - q.d) / q.d; P.x += (P.x - q.cx) * cf; P.y += (P.y - q.cy) * cf; }
             }
-            for (var wi = 0; wi < a.walls.length; wi++) {                       // 3) 벽 배리어 — 콘크리트 안쪽(법선) 반공간: 박스 밖으로 못 나감
-              var w = a.walls[wi], q2 = distSeg(P.x, P.y, w.x1, w.y1, w.x2, w.y2);
-              var sd = (P.x - q2.cx) * w.nx + (P.y - q2.cy) * w.ny, need2 = coverOf(w) + a.r;   // 안쪽 법선 기준 부호거리(안쪽 +)
-              if (sd < need2) { var push = need2 - sd; P.x += w.nx * push; P.y += w.ny * push; }   // 항상 콘크리트 안쪽으로만 복원
+            // 3) 벽 배리어 — 가장 가까운 path 벽 1개에만 적용(콘크리트 안쪽 반공간).
+            //    오목한 내측면(헌치)에서 여러 벽을 동시에 반공간 투영하면 코너 래칫으로 철근이 밀려나므로
+            //    최근접 벽 하나로만 억제한다.
+            var nw = null, nq = null, nd = 1e18;
+            for (var wi = 0; wi < a.walls.length; wi++) {
+              var q2 = distSeg(P.x, P.y, a.walls[wi].x1, a.walls[wi].y1, a.walls[wi].x2, a.walls[wi].y2);
+              if (q2.d < nd) { nd = q2.d; nw = a.walls[wi]; nq = q2; }
+            }
+            if (nw) {
+              var sd = (P.x - nq.cx) * nw.nx + (P.y - nq.cy) * nw.ny, need2 = coverOf(nw) + a.r;   // 안쪽 법선 부호거리
+              if (sd < need2) { var push = need2 - sd; P.x += nw.nx * push; P.y += nw.ny * push; }   // 콘크리트 안쪽으로만 복원
             }
             for (var j = 0; j < parts.length; j++) {                           // 4) 같은 z lrebar 끼리 반발
               if (j === i) continue; var b = parts[j]; if (b.z !== a.z) continue;
