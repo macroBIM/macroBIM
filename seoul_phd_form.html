@@ -54,41 +54,44 @@
   <h1 class="page-heading">BOX 1-Cell Drawing</h1>
   <div class="breadcrumb"><span>Section</span> / BOX1CELL</div>
   <div class="draw-card">
-    <div class="draw-card-header" style="display:flex;justify-content:space-between;align-items:center;">
+    <div class="draw-card-header">
       <div><div class="draw-card-title">Dimension (mm)</div><div class="draw-card-desc">Input 1-Cell Box section parameters</div></div>
-      <button class="btn-generate" onclick="var g=document.getElementById('box1cell_guide_img');g.style.display=g.style.display==='none'?'block':'none'" style="margin:0;font-size:12px;padding:6px 14px;"><i class="bi bi-image"></i> VIEW GUIDE</button>
     </div>
-    <div id="box1cell_guide_img" style="display:none;padding:10px;background:#f8f9fa;border-bottom:1px solid #e2e8f0;text-align:center;"><img src="https://macrobim.github.io/macroBIM/box1cell_vars.png" style="max-width:100%;height:auto;border:1px solid #ddd;border-radius:4px;"></div>
     <div class="draw-card-body">
-      <div class="form-grid-8col" style="margin-bottom:12px;">
-        <div class="col-header var-header">Variable</div><div class="col-header">Value</div>
-        <div class="col-header var-header">Variable</div><div class="col-header">Value</div>
-        <div class="col-header var-header">Variable</div><div class="col-header">Value</div>
-        <div class="col-header var-header">Variable</div><div class="col-header">Value</div>
-      </div>
-      <div class="form-grid-8col">
-        <div class="col-label">h</div><input class="form-input" type="number" id="dh_s" value="6600" onchange="SeoulPhD.redraw('box1cell')">
-        <div class="col-label">bt</div><input class="form-input" type="number" id="dbt_s" value="12000" onchange="SeoulPhD.redraw('box1cell')">
-        <div class="col-label">bb</div><input class="form-input" type="number" id="dbb_s" value="6000" onchange="SeoulPhD.redraw('box1cell')">
-        <div class="col-label">btsh</div><input class="form-input" type="number" id="dbth_s" value="1500" onchange="SeoulPhD.redraw('box1cell')">
-        <div class="col-label">bcanh</div><input class="form-input" type="number" id="dbch_s" value="1500" onchange="SeoulPhD.redraw('box1cell')">
-        <div class="col-label">bcan</div><input class="form-input" type="number" id="dbc_s" value="1500" onchange="SeoulPhD.redraw('box1cell')">
-        <div class="col-label">t1</div><input class="form-input" type="number" id="dt1_s" value="300" onchange="SeoulPhD.redraw('box1cell')">
-        <div class="col-label">t2</div><input class="form-input" type="number" id="dt2_s" value="300" onchange="SeoulPhD.redraw('box1cell')">
-        <div class="col-label">t3</div><input class="form-input" type="number" id="dt3_s" value="600" onchange="SeoulPhD.redraw('box1cell')">
-        <div class="col-label">t4</div><input class="form-input" type="number" id="dt4_s" value="600" onchange="SeoulPhD.redraw('box1cell')">
-        <div class="col-label">t5</div><input class="form-input" type="number" id="dt5_s" value="300" onchange="SeoulPhD.redraw('box1cell')">
-        <div class="col-label">tb</div><input class="form-input" type="number" id="dtb_s" value="840" onchange="SeoulPhD.redraw('box1cell')">
-        <div class="col-label">tw</div><input class="form-input" type="number" id="dtw_s" value="500" onchange="SeoulPhD.redraw('box1cell')">
-        <div class="col-label">bh</div><input class="form-input" type="number" id="dbbh_s" value="200" onchange="SeoulPhD.redraw('box1cell')">
-        <div class="col-label">vh1</div><input class="form-input" type="number" id="dbh1_s" value="200" onchange="SeoulPhD.redraw('box1cell')">
-        <div class="col-label">vh2</div><input class="form-input" type="number" id="dbh2_s" value="100" onchange="SeoulPhD.redraw('box1cell')">
-        <div class="col-label">rwt <span style="color:#94a3b8;font-size:10px;">(0=X)</span></div><input class="form-input" type="number" id="drwt_s" value="300" onchange="SeoulPhD.redraw('box1cell')">
-        <div class="col-label">rwtin <span style="color:#94a3b8;font-size:10px;">(0=X)</span></div><input class="form-input" type="number" id="drwtin_s" value="200" onchange="SeoulPhD.redraw('box1cell')">
-        <div class="col-label">rb <span style="color:#94a3b8;font-size:10px;">(0=X)</span></div><input class="form-input" type="number" id="drb_s" value="400" onchange="SeoulPhD.redraw('box1cell')">
-        <div class="col-label">sl_tl (%)</div><input class="form-input" type="number" id="dsltl_s" value="-2" onchange="SeoulPhD.redraw('box1cell')">
-        <div class="col-label">sl_tr (%)</div><input class="form-input" type="number" id="dsltr_s" value="5" onchange="SeoulPhD.redraw('box1cell')">
-        <div class="col-label">sl_b (%)</div><input class="form-input" type="number" id="dslb_s" value="3" onchange="SeoulPhD.redraw('box1cell')">
+      <div class="dim-split">
+        <!-- 좌: 입력변수 상세 가이드 그림 -->
+        <div class="dim-guide"><img src="https://macrobim.github.io/macroBIM/box1cell_vars.png" alt="box1cell variables guide"></div>
+        <!-- 우: 입력값 (Variable/Value × 2) -->
+        <div class="dim-inputs">
+          <div class="form-grid-4col" style="margin-bottom:12px;">
+            <div class="col-header var-header">Variable</div><div class="col-header">Value</div>
+            <div class="col-header var-header">Variable</div><div class="col-header">Value</div>
+          </div>
+          <div class="form-grid-4col">
+            <div class="col-label">h</div><input class="form-input" type="number" id="dh_s" value="6600" onchange="SeoulPhD.redraw('box1cell')">
+            <div class="col-label">bt</div><input class="form-input" type="number" id="dbt_s" value="12000" onchange="SeoulPhD.redraw('box1cell')">
+            <div class="col-label">bb</div><input class="form-input" type="number" id="dbb_s" value="6000" onchange="SeoulPhD.redraw('box1cell')">
+            <div class="col-label">btsh</div><input class="form-input" type="number" id="dbth_s" value="1500" onchange="SeoulPhD.redraw('box1cell')">
+            <div class="col-label">bcanh</div><input class="form-input" type="number" id="dbch_s" value="1500" onchange="SeoulPhD.redraw('box1cell')">
+            <div class="col-label">bcan</div><input class="form-input" type="number" id="dbc_s" value="1500" onchange="SeoulPhD.redraw('box1cell')">
+            <div class="col-label">t1</div><input class="form-input" type="number" id="dt1_s" value="300" onchange="SeoulPhD.redraw('box1cell')">
+            <div class="col-label">t2</div><input class="form-input" type="number" id="dt2_s" value="300" onchange="SeoulPhD.redraw('box1cell')">
+            <div class="col-label">t3</div><input class="form-input" type="number" id="dt3_s" value="600" onchange="SeoulPhD.redraw('box1cell')">
+            <div class="col-label">t4</div><input class="form-input" type="number" id="dt4_s" value="600" onchange="SeoulPhD.redraw('box1cell')">
+            <div class="col-label">t5</div><input class="form-input" type="number" id="dt5_s" value="300" onchange="SeoulPhD.redraw('box1cell')">
+            <div class="col-label">tb</div><input class="form-input" type="number" id="dtb_s" value="840" onchange="SeoulPhD.redraw('box1cell')">
+            <div class="col-label">tw</div><input class="form-input" type="number" id="dtw_s" value="500" onchange="SeoulPhD.redraw('box1cell')">
+            <div class="col-label">bh</div><input class="form-input" type="number" id="dbbh_s" value="200" onchange="SeoulPhD.redraw('box1cell')">
+            <div class="col-label">vh1</div><input class="form-input" type="number" id="dbh1_s" value="200" onchange="SeoulPhD.redraw('box1cell')">
+            <div class="col-label">vh2</div><input class="form-input" type="number" id="dbh2_s" value="100" onchange="SeoulPhD.redraw('box1cell')">
+            <div class="col-label">rwt <span style="color:#94a3b8;font-size:10px;">(0=X)</span></div><input class="form-input" type="number" id="drwt_s" value="300" onchange="SeoulPhD.redraw('box1cell')">
+            <div class="col-label">rwtin <span style="color:#94a3b8;font-size:10px;">(0=X)</span></div><input class="form-input" type="number" id="drwtin_s" value="200" onchange="SeoulPhD.redraw('box1cell')">
+            <div class="col-label">rb <span style="color:#94a3b8;font-size:10px;">(0=X)</span></div><input class="form-input" type="number" id="drb_s" value="400" onchange="SeoulPhD.redraw('box1cell')">
+            <div class="col-label">sl_tl (%)</div><input class="form-input" type="number" id="dsltl_s" value="-2" onchange="SeoulPhD.redraw('box1cell')">
+            <div class="col-label">sl_tr (%)</div><input class="form-input" type="number" id="dsltr_s" value="5" onchange="SeoulPhD.redraw('box1cell')">
+            <div class="col-label">sl_b (%)</div><input class="form-input" type="number" id="dslb_s" value="3" onchange="SeoulPhD.redraw('box1cell')">
+          </div>
+        </div>
       </div>
       <!-- t6 / Seg Len : 화면 입력칸에서 제거(변수 폐기). Drawing View 엔진(bim_box1cell.js) 호환용 hidden 기본값만 유지 -->
       <input type="hidden" id="dt6_s" value="0">

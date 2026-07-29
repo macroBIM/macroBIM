@@ -102,6 +102,19 @@ body{
 .form-grid-8col .col-header{font-size:11px;font-weight:700;color:#2563eb;text-align:left;padding-bottom:4px;border-bottom:1px solid #e2e8f0;}
 .form-grid-8col .form-input{padding:8px 10px;font-size:12.5px;width:100%;min-width:0;}
 
+/* ── 4-COLUMN GRID (Variable / Value × 2 — Dimension 우측 입력용) ── */
+.form-grid-4col{display:grid;grid-template-columns:90px 1fr 90px 1fr;gap:8px 14px;align-items:center;}
+.form-grid-4col .col-label{font-size:12px;font-weight:600;color:#0f172a;}
+.form-grid-4col .col-header{font-size:11px;font-weight:700;color:#2563eb;text-align:left;padding-bottom:4px;border-bottom:1px solid #e2e8f0;}
+.form-grid-4col .form-input{padding:8px 10px;font-size:12.5px;width:100%;min-width:0;}
+
+/* ── Dimension 카드: 좌 가이드 이미지 / 우 입력 2단 배치 ── */
+.dim-split{display:flex;gap:20px;align-items:flex-start;flex-wrap:wrap;}
+.dim-split .dim-guide{flex:1 1 400px;min-width:320px;max-width:52%;}
+.dim-split .dim-guide img{width:100%;height:auto;border:1px solid #e2e8f0;border-radius:6px;background:#fff;}
+.dim-split .dim-inputs{flex:1 1 400px;min-width:320px;}
+@media (max-width:900px){ .dim-split .dim-guide{max-width:100%;} }
+
 /* ── REBAR 데이터 표 (표제목 2줄 = trebar/lrebar 입력체계 + 데이터) ── */
 .rebar-table-wrap{overflow-x:auto;}
 .rebar-table{width:100%;border-collapse:collapse;font-size:12px;margin:2px 0;}
