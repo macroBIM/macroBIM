@@ -53,8 +53,8 @@ const adefs_box12cell = [
 	['TWEBC',   350],
 	['TWEBR',   450],
 	// 하부
-	['WBL',     4800],
-	['WBR',     4800],
+	['WBL',     3800],
+	['WBR',     3800],
 	['TBEL',    600],
 	['TBER',    600],
 	['TBS',     300],
