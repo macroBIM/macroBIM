@@ -1644,8 +1644,11 @@ function draw_box12cell_guide( sdivid, ap ){
 	});
 
 	// ── 슬로프 표기 (파랑 텍스트) ──
-	rec.addText(0, -ap.WL * 0.5, ytop + S*0.028, 'SLL=' + ap.SLL + '% \u2192');
-	rec.addText(0,  ap.WR * 0.5, ytop + S*0.028, 'SLR=' + ap.SLR + '% \u2192');
+	// SLL/SLR 는 상부 치수 위트니스가 밀집한 곳을 피해 각 셀 중앙(슬래브 하면 아래)에 표기
+	var xcl = (P.PTHL3.x + P.PTHCL3.x) / 2;
+	rec.addText(0, xcl, ytopf(xcl) - ap.TTS - S*0.022, 'SLL=' + ap.SLL + '% \u2192');
+	var xcr = (P.PTHCR3.x + P.PTHR3.x) / 2;
+	rec.addText(0, xcr, ytopf(xcr) - ap.TTS - S*0.022, 'SLR=' + ap.SLR + '% \u2192');
 	rec.addText(0, 0, ybot - S*0.085, 'SLB=' + ap.SLB + '% \u2192');
 
 	// ── 렌더 + 줌/팬 ──
