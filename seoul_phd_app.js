@@ -1052,10 +1052,33 @@
         UI.trebarGroup.destroyChildren();
         UI.lrebarGroup.destroyChildren();
         UI.debugGroup.destroyChildren();
-        sec.displayPaths.forEach(function (path) {
-          var flat = []; path.forEach(function (p) { flat.push(p.x, p.y); });
-          UI.sectionGroup.add(new Konva.Line({ points: flat, stroke: '#ffffff', strokeWidth: 2, closed: true, lineJoin: 'round', strokeScaleEnabled: false }));
-        });
+        // 표시용 외곽선 — 물리 벽(walls)은 직선 분할을 유지하되, 그래픽은 캡처된
+        // bim 원시도형(직선+아크+원)을 그대로 그린다 → 필렛이 폴리라인이 아닌 실제 아크로 렌더링
+        var _ln = this._lines || [], _ar = this._arcs || [], _ci = this._circs || [];
+        if (_ln.length || _ar.length || _ci.length) {
+          _ln.forEach(function (s) {
+            UI.sectionGroup.add(new Konva.Line({ points: [s[0], s[1], s[2], s[3]], stroke: '#ffffff', strokeWidth: 2, lineCap: 'round', strokeScaleEnabled: false }));
+          });
+          _ar.forEach(function (c) {
+            var a0 = c[3], a1 = c[4]; if (a1 <= a0) a1 += 360;
+            UI.sectionGroup.add(new Konva.Shape({
+              sceneFunc: function (ctx, shape) {
+                ctx.beginPath();
+                ctx.arc(c[0], c[1], c[2], a0 * Math.PI / 180, a1 * Math.PI / 180, false);
+                ctx.fillStrokeShape(shape);
+              },
+              stroke: '#ffffff', strokeWidth: 2, strokeScaleEnabled: false
+            }));
+          });
+          _ci.forEach(function (c) {
+            UI.sectionGroup.add(new Konva.Circle({ x: c[0], y: c[1], radius: c[2], stroke: '#ffffff', strokeWidth: 2, strokeScaleEnabled: false }));
+          });
+        } else {
+          sec.displayPaths.forEach(function (path) {   // 캡처 데이터가 없을 때의 예비 경로
+            var flat = []; path.forEach(function (p) { flat.push(p.x, p.y); });
+            UI.sectionGroup.add(new Konva.Line({ points: flat, stroke: '#ffffff', strokeWidth: 2, closed: true, lineJoin: 'round', strokeScaleEnabled: false }));
+          });
+        }
         if (typeof UI.drawGrid === 'function') UI.drawGrid();
         if (typeof UI.drawNormals === 'function') UI.drawNormals();
         if (typeof UI.drawDebugNodes === 'function') UI.drawDebugNodes();
