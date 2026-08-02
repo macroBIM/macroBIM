@@ -239,14 +239,20 @@
         if (!this._showEngNormals || !walls.length) { UI.mainLayer.draw(); return; }
         var diag = this._sectionDiag(walls);
         var scale = (UI.stage && UI.stage.scaleX && UI.stage.scaleX()) || 1;   // 스테이지 줌 배율(annotation scale)
-        var arrowL = 26 / scale, minGap = diag * 0.09, dotR = 6 / scale;   // 화면 픽셀 기준 고정 → 도형 크기 무관하게 일정
-        var thin = walls.length > 40;   // 곡선 등 조밀 단면만 솎기; 박스 등 벽 적은 단면은 전부 표시
+        var arrowL = 26 / scale, dotR = 6 / scale;   // 화면 픽셀 기준 고정 → 도형 크기 무관하게 일정
         var g = new Konva.Group({ name: 'eng_normals' });
-        var lastx = null, lasty = null;
-        walls.forEach(function (w) {
+        // 직선 벽은 전부, 아크(필렛·원) 테셀레이션 구간은 중앙 1개만 화살표 표시
+        var picks = [], ni = 0;
+        while (ni < walls.length) {
+          var n0 = walls[ni];
+          if (!n0.src) { picks.push(n0); ni++; continue; }
+          var nj = ni;
+          while (nj + 1 < walls.length && walls[nj + 1].src === n0.src) nj++;
+          picks.push(walls[(ni + nj) >> 1]);
+          ni = nj + 1;
+        }
+        picks.forEach(function (w) {
           var mx = (w.x1 + w.x2) / 2, my = (w.y1 + w.y2) / 2;
-          if (thin && lastx !== null && Math.hypot(mx - lastx, my - lasty) < minGap) return;   // 조밀 단면만 간격 솎기
-          lastx = mx; lasty = my;
           var L = arrowL;   // 반대편 벽 거리로 깎지 않고 고정 길이 → 일정한 크기
           g.add(new Konva.Arrow({ points: [mx, my, mx + w.nx * L, my + w.ny * L], stroke: '#FFC107', fill: '#FFC107', strokeWidth: 2, pointerLength: L * 0.34, pointerWidth: L * 0.3, strokeScaleEnabled: false }));
           g.add(new Konva.Circle({ x: mx, y: my, radius: dotR, fill: '#FF5722', strokeScaleEnabled: false }));
@@ -262,18 +268,26 @@
         if (!this._showEngNodes || !walls.length) { UI.mainLayer.draw(); return; }
         var diag = this._sectionDiag(walls);
         var scale = (UI.stage && UI.stage.scaleX && UI.stage.scaleX()) || 1;   // 스테이지 줌 배율(annotation scale)
-        var fs = 13 / scale, dotR = 6 / scale, minGap = diag * 0.09;   // 화면 픽셀 기준 고정 → 도형 크기 무관하게 일정
-        var thin = walls.length > 40;   // 곡선 등 조밀 단면만 라벨 솎기; 박스 등 벽 적은 단면은 모든 벽 id 표시
+        var fs = 13 / scale, dotR = 6 / scale;   // 화면 픽셀 기준 고정 → 도형 크기 무관하게 일정
         var g = new Konva.Group({ name: 'eng_nodes' });
-        var lastx = null, lasty = null;
-        walls.forEach(function (w) {
-          var mx = (w.x1 + w.x2) / 2, my = (w.y1 + w.y2) / 2;
-          if (thin && lastx !== null && Math.hypot(mx - lastx, my - lasty) < minGap) return;   // 조밀 단면만 라벨 솎기
-          lastx = mx; lasty = my;
+        // 라벨 선정: 직선 벽은 전부 표시(헌치·캔틸레버 끝단 누락 방지),
+        // 아크(필렛·원) 테셀레이션 구간은 중앙 1개에 범위(Ea~Eb)로 표기
+        var items = [], wi = 0;
+        while (wi < walls.length) {
+          var w0 = walls[wi];
+          if (!w0.src) { items.push({ w: w0, text: String(w0.id || '') }); wi++; continue; }
+          var wj = wi;
+          while (wj + 1 < walls.length && walls[wj + 1].src === w0.src) wj++;
+          var wm = walls[(wi + wj) >> 1];
+          items.push({ w: wm, text: (wi === wj) ? String(wm.id || '') : String(w0.id || '') + '~' + String(walls[wj].id || '') });
+          wi = wj + 1;
+        }
+        items.forEach(function (it) {
+          var w = it.w, mx = (w.x1 + w.x2) / 2, my = (w.y1 + w.y2) / 2;
           g.add(new Konva.Circle({ x: mx, y: my, radius: dotR, fill: '#FF5722', strokeScaleEnabled: false }));
           var lbl = new Konva.Label({ x: mx + w.nx * fs * 0.6, y: my + w.ny * fs * 0.6, scaleY: -1 });   // 라벨은 안쪽으로 약간
           lbl.add(new Konva.Tag({ fill: 'rgba(0,0,0,0.78)', cornerRadius: fs * 0.2 }));
-          lbl.add(new Konva.Text({ text: String(w.id || ''), fontSize: fs, fontStyle: 'bold', fontFamily: 'Arial', fill: '#00E5FF', padding: fs * 0.18 }));
+          lbl.add(new Konva.Text({ text: it.text, fontSize: fs, fontStyle: 'bold', fontFamily: 'Arial', fill: '#00E5FF', padding: fs * 0.18 }));
           lbl.offsetX(lbl.width() / 2); lbl.offsetY(lbl.height() / 2);
           g.add(lbl);
         });
@@ -936,11 +950,11 @@
       _buildSectionFromBim: function () {
         var lines = this._lines || [], arcs = this._arcs || [], circs = this._circs || [];
         var raw = [];
-        lines.forEach(function (s) { raw.push([s[0], s[1], s[2], s[3]]); });
-        arcs.forEach(function (c) {
+        lines.forEach(function (s) { raw.push([s[0], s[1], s[2], s[3], null]); });
+        arcs.forEach(function (c, ai) {
           var x = c[0], y = c[1], r = c[2], sp = c[4] - c[3]; if (sp <= 0) sp += 360;
           var n = Math.max(2, Math.ceil(sp / 10)), ppx, ppy;
-          for (var i = 0; i <= n; i++) { var a = (c[3] + sp * i / n) * Math.PI / 180, px = x + r * Math.cos(a), py = y + r * Math.sin(a); if (i > 0) raw.push([ppx, ppy, px, py]); ppx = px; ppy = py; }
+          for (var i = 0; i <= n; i++) { var a = (c[3] + sp * i / n) * Math.PI / 180, px = x + r * Math.cos(a), py = y + r * Math.sin(a); if (i > 0) raw.push([ppx, ppy, px, py, 'arc' + ai]); ppx = px; ppy = py; }
         });
         if (raw.length === 0 && circs.length === 0) return null;
 
@@ -962,13 +976,13 @@
         function near(ax, ay, bx, by) { return Math.hypot(ax - bx, ay - by) <= tol; }
 
         // 직선/아크 세그먼트를 끝점 이어 닫힌 loop 로 체이닝
-        var segs = raw.map(function (s) { return { x1: s[0], y1: s[1], x2: s[2], y2: s[3], used: false }; });
+        var segs = raw.map(function (s) { return { x1: s[0], y1: s[1], x2: s[2], y2: s[3], src: s[4] || null, used: false }; });
         var loops = [];
         for (var s0 = 0; s0 < segs.length; s0++) {
           if (segs[s0].used) continue;
           segs[s0].used = true;
           var sx = segs[s0].x1, sy = segs[s0].y1, ex = segs[s0].x2, ey = segs[s0].y2;
-          var loop = [{ x1: sx, y1: sy, x2: ex, y2: ey }], guard = 0;
+          var loop = [{ x1: sx, y1: sy, x2: ex, y2: ey, src: segs[s0].src }], guard = 0;
           while (guard++ < segs.length + 2) {
             if (near(ex, ey, sx, sy)) break;
             var found = null, rev = false;
@@ -980,16 +994,16 @@
             if (!found) break;
             found.used = true;
             var nX = rev ? found.x1 : found.x2, nY = rev ? found.y1 : found.y2;
-            loop.push({ x1: ex, y1: ey, x2: nX, y2: nY });
+            loop.push({ x1: ex, y1: ey, x2: nX, y2: nY, src: found.src });
             ex = nX; ey = nY;
           }
           if (near(ex, ey, sx, sy)) { loop[loop.length - 1].x2 = sx; loop[loop.length - 1].y2 = sy; }
           loops.push(loop);
         }
         // 원은 각각 독립 loop
-        circs.forEach(function (c) {
+        circs.forEach(function (c, ci) {
           var N = 48, loop = [], ppx, ppy;
-          for (var i = 0; i <= N; i++) { var a = i / N * 2 * Math.PI, px = c[0] + c[2] * Math.cos(a), py = c[1] + c[2] * Math.sin(a); if (i > 0) loop.push({ x1: ppx, y1: ppy, x2: px, y2: py }); ppx = px; ppy = py; }
+          for (var i = 0; i <= N; i++) { var a = i / N * 2 * Math.PI, px = c[0] + c[2] * Math.cos(a), py = c[1] + c[2] * Math.sin(a); if (i > 0) loop.push({ x1: ppx, y1: ppy, x2: px, y2: py, src: 'circ' + ci }); ppx = px; ppy = py; }
           if (loop.length) { loop[loop.length - 1].x2 = loop[0].x1; loop[loop.length - 1].y2 = loop[0].y1; loops.push(loop); }
         });
 
@@ -1006,7 +1020,7 @@
               else { var vx = cx - mx, vy = cy - my, vl = Math.hypot(vx, vy) || 1; nx = vx / vl; ny = vy / vl; }
             }
             eid++;
-            walls.push({ id: 'E' + eid, tag: 'outer', nx: nx, ny: ny, x1: seg.x1, y1: seg.y1, x2: seg.x2, y2: seg.y2 });
+            walls.push({ id: 'E' + eid, tag: 'outer', nx: nx, ny: ny, x1: seg.x1, y1: seg.y1, x2: seg.x2, y2: seg.y2, src: seg.src || null });
             pts.push({ x: seg.x2, y: seg.y2 });
           });
           displayPaths.push(pts);
