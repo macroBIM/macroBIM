@@ -1496,182 +1496,147 @@ function geo_box12cell( {
 }
 
 /*
-	변수 설명 가이드 SVG
-	· 이미지 파일 대신, 현재 입력값(aparam)으로 단면 + 치수선 + "변수=값" 라벨을 그래픽으로 생성
-	· fdraw_box12cell() 에서 매 재작도마다 호출되어 값 변경이 즉시 반영됨
+	변수 설명 가이드 — 공용 드로잉 코어(window.RWSVG, bim_draw_test_core.js) 사용
+	· bim_pier_test.js 의 ELEVATION 과 동일한 룩 : 흰 그리드 배경, 잉크 외곽선,
+	  파란 치수선("이름=값" 자동 표기), 줌(휠)/팬(드래그)
+	· fdraw_box12cell() 에서 매 재작도마다 호출되어 현재 입력값이 즉시 반영됨
 */
 function draw_box12cell_guide( sdivid, ap ){
 
 	var odiv = document.getElementById(sdivid);
 	if (!odiv) return;
 
+	// 공용 코어가 아직 없으면 로드 후 재시도 (단독 사용 대비)
+	if (typeof window.RWSVG === 'undefined') {
+		if (!draw_box12cell_guide._loading) {
+			draw_box12cell_guide._loading = true;
+			var sc = document.createElement('script');
+			sc.src = 'https://macrobim.github.io/macroBIM/bim_draw_test_core.js';
+			sc.onload = function(){ draw_box12cell_guide(sdivid, ap); };
+			document.head.appendChild(sc);
+		}
+		return;
+	}
+
 	var o = geo_box12cell(ap);
 	var P = {};
 	o.points.forEach(function(op){ P[op.name] = op[op.name]; });
 
-	var xmin = Math.min(P.PTL.x, P.PBL.x);
-	var xmax = Math.max(P.PTR.x, P.PBR.x);
+	var xmin = Math.min(P.PTL.x, P.PBL.x), xmax = Math.max(P.PTR.x, P.PBR.x);
 	var ytop = Math.max(P.PTL.y, P.PTC.y, P.PTR.y);
 	var ybot = Math.min(P.PBL.y, P.PBC.y, P.PBR.y);
-	var W  = xmax - xmin;
-	var g  = W * 0.030;			// 치수행 간격
-	var fs = W * 0.0115;		// 라벨 글자 크기
-	var fs2 = fs * 0.85;		// 회전(두께) 라벨 글자 크기
-	var thin = fs * 0.06;		// 선 두께
-	var sy = function(y){ return -y; };
-	var num = function(v){ return String(Math.round(v * 100) / 100); };
+	var S = Math.max(xmax - xmin, ytop - ybot);
 
-	var C_SEC = '#1e293b', C_DIM = '#dc2626', C_EXT = '#94a3b8', C_SL = '#2563eb';
+	var rec = new window.RWSVG.MockViewer();
+	rec.addLayer('c', 'cyan', 'solid', 1);
+	rec.addLayer('h', 'gray', 'hidden', 1);
 
-	var s = [];
+	// ── 단면 외곽 (직선 + 실제 아크) ──
+	o.lines.forEach(function(l){ rec.addLine(0, l.x1, l.y1, l.x2, l.y2, 'c'); });
+	o.arcs.forEach(function(a){ rec.addArc(0, a.x, a.y, a.r, a.angb, a.ange, 'c'); });
 
-	// ── 프리미티브 ──
-	function dimH(x1, x2, y, label, yat1, yat2, lift){
-		if (x2 < x1){ var t = x1; x1 = x2; x2 = t; t = yat1; yat1 = yat2; yat2 = t; }
-		var Y = sy(y);
-		if (yat1 !== null && yat1 !== undefined) s.push('<line x1="'+x1+'" y1="'+sy(yat1)+'" x2="'+x1+'" y2="'+Y+'" stroke="'+C_EXT+'" stroke-width="'+thin*0.6+'"/>');
-		if (yat2 !== null && yat2 !== undefined) s.push('<line x1="'+x2+'" y1="'+sy(yat2)+'" x2="'+x2+'" y2="'+Y+'" stroke="'+C_EXT+'" stroke-width="'+thin*0.6+'"/>');
-		if ((x2 - x1) < fs * 3.2){		// 좁은 구간 : 화살표를 바깥에서 안쪽으로
-			s.push('<line x1="'+(x1 - fs*1.6)+'" y1="'+Y+'" x2="'+x1+'" y2="'+Y+'" stroke="'+C_DIM+'" stroke-width="'+thin+'" marker-end="url(#gAr)"/>');
-			s.push('<line x1="'+(x2 + fs*1.6)+'" y1="'+Y+'" x2="'+x2+'" y2="'+Y+'" stroke="'+C_DIM+'" stroke-width="'+thin+'" marker-end="url(#gAr)"/>');
-			s.push('<line x1="'+x1+'" y1="'+Y+'" x2="'+x2+'" y2="'+Y+'" stroke="'+C_DIM+'" stroke-width="'+thin+'"/>');
-		}else{
-			s.push('<line x1="'+x1+'" y1="'+Y+'" x2="'+x2+'" y2="'+Y+'" stroke="'+C_DIM+'" stroke-width="'+thin+'" marker-start="url(#gAr)" marker-end="url(#gAr)"/>');
-		}
-		s.push('<text x="'+((x1+x2)/2)+'" y="'+(Y - fs*(0.4 + (lift||0)*1.15))+'" font-size="'+fs+'" fill="'+C_DIM+'" text-anchor="middle">'+label+'</text>');
-	}
-
-	function dimV(x, ya, yb, label, side, xat1, xat2){
-		var Y1 = sy(Math.max(ya, yb)), Y2 = sy(Math.min(ya, yb));	// Y1 위, Y2 아래 (svg)
-		if (xat1 !== null && xat1 !== undefined) s.push('<line x1="'+xat1+'" y1="'+Y1+'" x2="'+x+'" y2="'+Y1+'" stroke="'+C_EXT+'" stroke-width="'+thin*0.6+'"/>');
-		if (xat2 !== null && xat2 !== undefined) s.push('<line x1="'+xat2+'" y1="'+Y2+'" x2="'+x+'" y2="'+Y2+'" stroke="'+C_EXT+'" stroke-width="'+thin*0.6+'"/>');
-		if ((Y2 - Y1) < fs * 3.2){		// 좁은 구간 : 화살표를 바깥에서 안쪽으로
-			s.push('<line x1="'+x+'" y1="'+(Y1 - fs*1.6)+'" x2="'+x+'" y2="'+Y1+'" stroke="'+C_DIM+'" stroke-width="'+thin+'" marker-end="url(#gAr)"/>');
-			s.push('<line x1="'+x+'" y1="'+(Y2 + fs*1.6)+'" x2="'+x+'" y2="'+Y2+'" stroke="'+C_DIM+'" stroke-width="'+thin+'" marker-end="url(#gAr)"/>');
-			s.push('<line x1="'+x+'" y1="'+Y1+'" x2="'+x+'" y2="'+Y2+'" stroke="'+C_DIM+'" stroke-width="'+thin+'"/>');
-		}else{
-			s.push('<line x1="'+x+'" y1="'+Y1+'" x2="'+x+'" y2="'+Y2+'" stroke="'+C_DIM+'" stroke-width="'+thin+'" marker-start="url(#gAr)" marker-end="url(#gAr)"/>');
-		}
-		s.push('<text transform="translate('+(x + (side||-1) * fs*0.45)+','+((Y1+Y2)/2)+') rotate(-90)" font-size="'+fs2+'" fill="'+C_DIM+'" text-anchor="middle">'+label+'</text>');
-	}
-
-	function leader(lx, ly, px, py, label, anchor){
-		s.push('<line x1="'+lx+'" y1="'+sy(ly)+'" x2="'+px+'" y2="'+sy(py)+'" stroke="'+C_DIM+'" stroke-width="'+thin+'" marker-end="url(#gAr)"/>');
-		var dx = (anchor === 'end') ? -fs*0.3 : fs*0.3;
-		s.push('<text x="'+(lx + dx)+'" y="'+(sy(ly) + fs*0.35)+'" font-size="'+fs+'" fill="'+C_DIM+'" text-anchor="'+(anchor||'start')+'">'+label+'</text>');
-	}
-
-	function slope(x1, x2, y, label){
-		s.push('<line x1="'+x1+'" y1="'+sy(y)+'" x2="'+x2+'" y2="'+sy(y)+'" stroke="'+C_SL+'" stroke-width="'+thin+'" marker-end="url(#gAb)"/>');
-		s.push('<text x="'+((x1+x2)/2)+'" y="'+(sy(y) - fs*0.4)+'" font-size="'+fs+'" fill="'+C_SL+'" text-anchor="middle">'+label+'</text>');
-	}
-
-	// ── 단면 외곽선 (직선 + 아크) ──
-	o.lines.forEach(function(l){
-		s.push('<line x1="'+l.x1+'" y1="'+sy(l.y1)+'" x2="'+l.x2+'" y2="'+sy(l.y2)+'" stroke="'+C_SEC+'" stroke-width="'+thin*1.5+'" stroke-linecap="round"/>');
-	});
-	o.arcs.forEach(function(a){
-		var a0 = a.angb, a1 = a.ange; if (a1 <= a0) a1 += 360;
-		var x1 = a.x + a.r*Math.cos(a0*Math.PI/180), y1 = a.y + a.r*Math.sin(a0*Math.PI/180);
-		var x2 = a.x + a.r*Math.cos(a1*Math.PI/180), y2 = a.y + a.r*Math.sin(a1*Math.PI/180);
-		var large = (a1 - a0) > 180 ? 1 : 0;
-		s.push('<path d="M '+x1+' '+sy(y1)+' A '+a.r+' '+a.r+' 0 '+large+' 1 '+x2+' '+sy(y2)+'" fill="none" stroke="'+C_SEC+'" stroke-width="'+thin*1.5+'"/>');
-	});
-
-	// ── 상부면/하부면 y ──
+	// ── 헬퍼 ──
 	function ytopf(x){ return x * (x <= 0 ? ap.SLL : ap.SLR) / 100; }
 	function ybotf(x){ return -ap.TH + x * ap.SLB / 100; }
+	function dimH(x1, x2, yat, gut, label, lp){
+		if (x2 < x1){ var t = x1; x1 = x2; x2 = t; }
+		rec.addDimLinear(0, x1, yat, x2, yat, gut - yat, label, { lp: lp || 0 });
+	}
+	function dimV(x, ya, yb, gut, label, lp){
+		rec.addDimLinear(0, x, Math.min(ya, yb), x, Math.max(ya, yb), x - gut, label, { lp: lp || 0 });
+	}
+	// 두께 치수 : 해당 점 x 에서 표면선~점 사이를 gap 0 으로 직접 표기 (라벨은 선에 나란히 회전)
+	function thk(x, ya, yb, label){
+		rec.addDimLinear(0, x, Math.min(ya, yb), x, Math.max(ya, yb), 0, label);
+	}
 
-	// ── 상부 치수행 ──
-	var yr1 = ytop + g*1.6, yr2 = ytop + g*3.1, yr3 = ytop + g*4.6;
+	// ── 상부 치수행 (안쪽부터 헌치폭 → 캔틸레버/복부폭 → 전폭) ──
+	var g1 = ytop + S*0.05, g2 = ytop + S*0.10, g3 = ytop + S*0.15;
 
-	dimH(P.PTL.x, 0,       yr3, 'WL='+num(ap.WL), P.PTL.y, P.PTC.y);
-	dimH(0,       P.PTR.x, yr3, 'WR='+num(ap.WR), P.PTC.y, P.PTR.y);
+	dimH(P.PTHL1.x,  P.PTHL2.x,  ytop, g1, 'WTHUL1');
+	dimH(P.PTHL2.x,  P.PTHL3.x,  ytop, g1, 'WTHUL2', 14);
+	dimH(P.PTHCL3.x, P.PTHCL2.x, ytop, g1, 'WTCHUL2', 14);
+	dimH(P.PTHCL2.x, P.PTHCL1.x, ytop, g1, 'WTCHUL1');
+	dimH(P.PTHCR1.x, P.PTHCR2.x, ytop, g1, 'WTCHUR1', 28);
+	dimH(P.PTHCR2.x, P.PTHCR3.x, ytop, g1, 'WTCHUR2', 14);
+	dimH(P.PTHR3.x,  P.PTHR2.x,  ytop, g1, 'WTHUR2', 14);
+	dimH(P.PTHR2.x,  P.PTHR1.x,  ytop, g1, 'WTHUR1');
 
-	dimH(P.PTCL3.x, P.PTCL2.x, yr2, 'WCAL2='+num(ap.WCAL2), P.PTCL3.y, null, 1);
-	dimH(P.PTCL2.x, P.PTCL1.x, yr2, 'WCAL1='+num(ap.WCAL1), P.PTCL2.y, null, 0);
-	dimH(P.PTCL1.x, 0,         yr2, 'WTL='+num(ap.WTL),     P.PTCL1.y, P.PTC.y, 0);
-	dimH(0,         P.PTCR1.x, yr2, 'WTR='+num(ap.WTR),     P.PTC.y,   P.PTCR1.y, 0);
-	dimH(P.PTCR1.x, P.PTCR2.x, yr2, 'WCAR1='+num(ap.WCAR1), null, P.PTCR2.y, 0);
-	dimH(P.PTCR2.x, P.PTCR3.x, yr2, 'WCAR2='+num(ap.WCAR2), null, P.PTCR3.y, 1);
+	dimH(P.PTCL3.x, P.PTCL2.x, ytop, g2, 'WCAL2', 14);
+	dimH(P.PTCL2.x, P.PTCL1.x, ytop, g2, 'WCAL1');
+	dimH(P.PTCL1.x, 0,         ytop, g2, 'WTL');
+	dimH(0,         P.PTCR1.x, ytop, g2, 'WTR');
+	dimH(P.PTCR1.x, P.PTCR2.x, ytop, g2, 'WCAR1');
+	dimH(P.PTCR2.x, P.PTCR3.x, ytop, g2, 'WCAR2', 14);
 
-	dimH(P.PTHL1.x,  P.PTHL2.x,  yr1, 'WTHUL1='+num(ap.WTHUL1),   P.PTHL1.y,  null, 0);
-	dimH(P.PTHL2.x,  P.PTHL3.x,  yr1, 'WTHUL2='+num(ap.WTHUL2),   P.PTHL2.y,  P.PTHL3.y, 1);
-	dimH(P.PTHCL3.x, P.PTHCL2.x, yr1, 'WTCHUL2='+num(ap.WTCHUL2), P.PTHCL3.y, null, 1);
-	dimH(P.PTHCL2.x, P.PTHCL1.x, yr1, 'WTCHUL1='+num(ap.WTCHUL1), P.PTHCL2.y, P.PTHCL1.y, 0);
-	dimH(P.PTHCR1.x, P.PTHCR2.x, yr1, 'WTCHUR1='+num(ap.WTCHUR1), P.PTHCR1.y, P.PTHCR2.y, 2);
-	dimH(P.PTHCR2.x, P.PTHCR3.x, yr1, 'WTCHUR2='+num(ap.WTCHUR2), null, P.PTHCR3.y, 1);
-	dimH(P.PTHR3.x,  P.PTHR2.x,  yr1, 'WTHUR2='+num(ap.WTHUR2),   P.PTHR3.y,  P.PTHR2.y, 1);
-	dimH(P.PTHR2.x,  P.PTHR1.x,  yr1, 'WTHUR1='+num(ap.WTHUR1),   null, P.PTHR1.y, 0);
+	dimH(P.PTL.x, 0,       ytop, g3, 'WL');
+	dimH(0,       P.PTR.x, ytop, g3, 'WR');
 
-	// 슬로프 (파랑)
-	slope(-ap.WL*0.62, -ap.WL*0.42, ytop + g*0.7, 'SLL='+num(ap.SLL)+'%');
-	slope( ap.WR*0.42,  ap.WR*0.62, ytop + g*0.7, 'SLR='+num(ap.SLR)+'%');
-	slope(-W*0.05, W*0.05, ybot - g*2.8, 'SLB='+num(ap.SLB)+'%');
-
-	// ── 하부 치수행 ──
-	var yb1 = ybot - g*1.6;
-	dimH(P.PBL.x, 0,       yb1, 'WBL='+num(ap.WBL), P.PBL.y, P.PBC.y);
-	dimH(0,       P.PBR.x, yb1, 'WBR='+num(ap.WBR), P.PBC.y, P.PBR.y);
+	// ── 하부 폭 ──
+	var gb = ybot - S*0.05;
+	dimH(P.PBL.x, 0,       ybot, gb, 'WBL');
+	dimH(0,       P.PBR.x, ybot, gb, 'WBR');
 
 	// ── 전체 높이 / 단부 두께 ──
-	dimV(xmax + g*2.4, ytop, ybot, 'TH='+num(ap.TH), 1, P.PTR.x, P.PBR.x);
-	dimV(P.PTL.x - g*0.9, P.PTL.y,  P.PTCL.y, 'TCAL='+num(ap.TCAL), -1, P.PTL.x, P.PTCL.x);
-	dimV(P.PTR.x + g*0.9, P.PTR.y,  P.PTCR.y, 'TCAR='+num(ap.TCAR),  1, P.PTR.x, P.PTCR.x);
-	dimV(P.PBL.x - g*0.9, P.PBEL.y, P.PBL.y,  'TBEL='+num(ap.TBEL), -1, P.PBEL.x, P.PBL.x);
-	dimV(P.PBR.x + g*0.9, P.PBER.y, P.PBR.y,  'TBER='+num(ap.TBER),  1, P.PBER.x, P.PBR.x);
+	dimV(xmax,    0,        -ap.TH,   xmax + S*0.085, 'TH');
+	dimV(P.PTL.x, P.PTL.y,  P.PTCL.y, xmin - S*0.04,  'TCAL');
+	dimV(P.PTR.x, P.PTR.y,  P.PTCR.y, xmax + S*0.04,  'TCAR');
+	dimV(P.PBL.x, P.PBEL.y, P.PBL.y,  P.PBL.x - S*0.035, 'TBEL');
+	dimV(P.PBR.x, P.PBER.y, P.PBR.y,  P.PBR.x + S*0.035, 'TBER');
 
 	// ── 상부 두께 (상부면 → 각 점) ──
 	[
-		[P.PTCL1,  'TCAL1',  ap.TCAL1 ], [P.PTCL2,  'TCAL2',  ap.TCAL2 ],
-		[P.PTHL1,  'TTHL1',  ap.TTHL1 ], [P.PTHL2,  'TTHL2',  ap.TTHL2 ], [P.PTHL3,  'TTS', ap.TTS],
-		[P.PTHCL2, 'TTHCL2', ap.TTHCL2], [P.PTHCL1, 'TTHCL1', ap.TTHCL1], [P.PTHCL3, 'TTS', ap.TTS],
-		[P.PTHCR2, 'TTHCR2', ap.TTHCR2], [P.PTHCR1, 'TTHCR1', ap.TTHCR1], [P.PTHCR3, 'TTS', ap.TTS],
-		[P.PTHR1,  'TTHR1',  ap.TTHR1 ], [P.PTHR2,  'TTHR2',  ap.TTHR2 ], [P.PTHR3,  'TTS', ap.TTS],
-		[P.PTCR1,  'TCAR1',  ap.TCAR1 ], [P.PTCR2,  'TCAR2',  ap.TCAR2 ]
-	].forEach(function(d){
-		dimV(d[0].x, ytopf(d[0].x), d[0].y, d[1]+'='+num(d[2]), -1);
-	});
+		[P.PTCL1, 'TCAL1'], [P.PTCL2, 'TCAL2'],
+		[P.PTHL1, 'TTHL1'], [P.PTHL2, 'TTHL2'], [P.PTHL3, 'TTS'],
+		[P.PTHCL2, 'TTHCL2'], [P.PTHCL1, 'TTHCL1'], [P.PTHCL3, 'TTS'],
+		[P.PTHCR2, 'TTHCR2'], [P.PTHCR1, 'TTHCR1'], [P.PTHCR3, 'TTS'],
+		[P.PTHR1, 'TTHR1'], [P.PTHR2, 'TTHR2'], [P.PTHR3, 'TTS'],
+		[P.PTCR1, 'TCAR1'], [P.PTCR2, 'TCAR2']
+	].forEach(function(d){ thk(d[0].x, ytopf(d[0].x), d[0].y, d[1]); });
 
 	// ── 하부 두께 (하부면 → 각 점) ──
 	[
-		[P.PBHL1,  'TBHL1',  ap.TBHL1 ], [P.PBHL2,  'TBHL2',  ap.TBHL2 ], [P.PBHL3,  'TBS', ap.TBS],
-		[P.PBHCL2, 'TBHCL2', ap.TBHCL2], [P.PBHCL1, 'TBHCL1', ap.TBHCL1], [P.PBHCL3, 'TBS', ap.TBS],
-		[P.PBHCR2, 'TBHCR2', ap.TBHCR2], [P.PBHCR1, 'TBHCR1', ap.TBHCR1], [P.PBHCR3, 'TBS', ap.TBS],
-		[P.PBHR1,  'TBHR1',  ap.TBHR1 ], [P.PBHR2,  'TBHR2',  ap.TBHR2 ], [P.PBHR3,  'TBS', ap.TBS]
-	].forEach(function(d){
-		dimV(d[0].x, d[0].y, ybotf(d[0].x), d[1]+'='+num(d[2]), -1);
+		[P.PBHL1, 'TBHL1'], [P.PBHL2, 'TBHL2'], [P.PBHL3, 'TBS'],
+		[P.PBHCL2, 'TBHCL2'], [P.PBHCL1, 'TBHCL1'], [P.PBHCL3, 'TBS'],
+		[P.PBHCR2, 'TBHCR2'], [P.PBHCR1, 'TBHCR1'], [P.PBHCR3, 'TBS'],
+		[P.PBHR1, 'TBHR1'], [P.PBHR2, 'TBHR2'], [P.PBHR3, 'TBS']
+	].forEach(function(d){ thk(d[0].x, d[0].y, ybotf(d[0].x), d[1]); });
+
+	// ── 복부 두께 : 경사복부는 내측선 중앙점에서 외측선으로의 수선 → 측정값이 정확히 TWEBL/TWEBR ──
+	function webDim(O1, O2, I1, I2, label){
+		var dx = O2.x - O1.x, dy = O2.y - O1.y, dl = Math.hypot(dx, dy) || 1;
+		var nx = -dy / dl, ny = dx / dl;					// 외측선의 단위 법선
+		var pm = { x: (I1.x + I2.x) / 2, y: (I1.y + I2.y) / 2 };	// 내측선 중앙점
+		var dist = (pm.x - O1.x) * nx + (pm.y - O1.y) * ny;	// 수직 거리 = 복부 두께
+		var q = { x: pm.x - nx * dist, y: pm.y - ny * dist };	// 외측선 위 수선의 발
+		rec.addDimLinear(0, q.x, q.y, pm.x, pm.y, 0, label);
+	}
+	webDim(P.PTCL1, P.PBEL, P.PTHL1, P.PBHL1, 'TWEBL');
+	webDim(P.PTCR1, P.PBER, P.PTHR1, P.PBHR1, 'TWEBR');
+	var ymC = (P.PTHCL1.y + P.PBHCL1.y) / 2;
+	rec.addDimLinear(0, -ap.TWEBC/2, ymC, ap.TWEBC/2, ymC, 0, 'TWEBC');
+
+	// ── 필렛 반경 (geo 의 arcs 순서 = R_WTL, R_WTR, R_WBL, R_WBR, R_WTIL, R_WTIR 중 0 이 아닌 것) ──
+	var frad = [
+		['R_WTL', ap.R_WTL], ['R_WTR', ap.R_WTR], ['R_WBL', ap.R_WBL],
+		['R_WBR', ap.R_WBR], ['R_WTIL', ap.R_WTIL], ['R_WTIR', ap.R_WTIR]
+	].filter(function(d){ return d[1] !== 0; });
+	o.arcs.forEach(function(a, i){
+		if (i >= frad.length) return;
+		var a2 = a.ange; if (a2 <= a.angb) a2 += 360;
+		rec.addDimRadius(0, a.x, a.y, a.r, (a.angb + a2) / 2, frad[i][0] + '=');
 	});
 
-	// ── 복부 두께 (중간 높이 수평 화살표) ──
-	function xAt(p1, p2, ym){ return p1.x + (p2.x - p1.x) * (ym - p1.y) / ((p2.y - p1.y) || 1e-9); }
-	var ymL = (P.PTHL1.y + P.PBHL1.y) / 2;
-	dimH(xAt(P.PTCL1, P.PBEL, ymL), xAt(P.PTHL1, P.PBHL1, ymL), ymL, 'TWEBL='+num(ap.TWEBL));
-	var ymR = (P.PTHR1.y + P.PBHR1.y) / 2;
-	dimH(xAt(P.PTHR1, P.PBHR1, ymR), xAt(P.PTCR1, P.PBER, ymR), ymR, 'TWEBR='+num(ap.TWEBR));
-	var ymC = (P.PTHCL1.y + P.PBHCL1.y) / 2;
-	dimH(-ap.TWEBC/2, ap.TWEBC/2, ymC, 'TWEBC='+num(ap.TWEBC));
+	// ── 슬로프 표기 (파랑 텍스트) ──
+	rec.addText(0, -ap.WL * 0.5, ytop + S*0.028, 'SLL=' + ap.SLL + '% \u2192');
+	rec.addText(0,  ap.WR * 0.5, ytop + S*0.028, 'SLR=' + ap.SLR + '% \u2192');
+	rec.addText(0, 0, ybot - S*0.085, 'SLB=' + ap.SLB + '% \u2192');
 
-	// ── 필렛 지시선 ──
-	leader(P.PTCL1.x - g*1.3, P.PTCL1.y - g*2.0, P.PTCL1.x - fs*0.4, P.PTCL1.y - fs*0.4, 'R_WTL='+num(ap.R_WTL), 'end');
-	leader(P.PTCR1.x + g*1.3, P.PTCR1.y - g*2.0, P.PTCR1.x + fs*0.4, P.PTCR1.y - fs*0.4, 'R_WTR='+num(ap.R_WTR), 'start');
-	leader(P.PTHL1.x + g*2.6, P.PTHL1.y - g*2.2, P.PTHL1.x + fs*0.4, P.PTHL1.y - fs*0.4, 'R_WTIL='+num(ap.R_WTIL), 'start');
-	leader(P.PTHR1.x - g*2.6, P.PTHR1.y - g*2.2, P.PTHR1.x - fs*0.4, P.PTHR1.y - fs*0.4, 'R_WTIR='+num(ap.R_WTIR), 'end');
-	leader(P.PBEL.x - g*2.2, P.PBEL.y - g*0.6, P.PBEL.x - fs*0.4, P.PBEL.y - fs*0.2, 'R_WBL='+num(ap.R_WBL), 'end');
-	leader(P.PBER.x + g*2.2, P.PBER.y - g*0.6, P.PBER.x + fs*0.4, P.PBER.y - fs*0.2, 'R_WBR='+num(ap.R_WBR), 'start');
-
-	// ── SVG 조립 ──
-	var vx = xmin - g*4.2;
-	var vw = (xmax + g*4.6) - vx;
-	var vy = sy(yr3) - fs*2.0;
-	var vh = sy(ybot - g*3.9) - vy;
-
-	odiv.innerHTML =
-		'<svg xmlns="http://www.w3.org/2000/svg" viewBox="'+vx+' '+vy+' '+vw+' '+vh+'" font-family="Segoe UI, sans-serif">' +
-		'<defs>' +
-		'<marker id="gAr" viewBox="0 0 10 10" refX="9.5" refY="5" markerWidth="'+fs*1.1+'" markerHeight="'+fs*1.1+'" markerUnits="userSpaceOnUse" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="'+C_DIM+'"/></marker>' +
-		'<marker id="gAb" viewBox="0 0 10 10" refX="9.5" refY="5" markerWidth="'+fs*1.1+'" markerHeight="'+fs*1.1+'" markerUnits="userSpaceOnUse" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="'+C_SL+'"/></marker>' +
-		'</defs>' +
-		s.join('') +
-		'</svg>';
+	// ── 렌더 + 줌/팬 ──
+	var W = odiv.clientWidth || 900;
+	var bw = (xmax - xmin) + S*0.30, bh = (ytop - ybot) + S*0.34;
+	var Hpx = Math.max(320, Math.min(680, Math.round(W * bh / bw) + 20));
+	odiv.innerHTML = window.RWSVG.renderSVG(rec, W, Hpx);
+	var svg = odiv.querySelector('svg');
+	if (svg) window.RWSVG.attachZoomPan(svg);
 }

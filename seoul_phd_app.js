@@ -49,7 +49,7 @@
     return inside + dia / 2;                            // 중심선 반경
   }
   // gh-pages 에 아직 배포되지 않은 브랜치 모듈 — raw 는 <script src> 로드 불가(nosniff) → fetch 주입
-  var BRANCH_MODULES = ['bim_box12cell.js'];
+  var BRANCH_MODULES = ['bim_draw_test_core.js', 'bim_box12cell.js'];
   function loadBranchModules(done) {
     (function next(i) {
       if (i >= BRANCH_MODULES.length) { done(); return; }
