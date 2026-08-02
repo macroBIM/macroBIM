@@ -1,0 +1,401 @@
+<!--
+    seoul_phd_form.html — <body> 내부 태그(폼 구성)를 텍스트로 저장
+    GitHub(macroBIM)에서 관리. seoul_phd.html 이 fetch 하여 #app-root 의 innerHTML 로 주입.
+    변수 입력: Front/Back 구분 없이 "Variable / Value" 단일 값, 한 줄에 4쌍(값칸 폭 축소).
+    (내부적으로 begin=end 로 미러링되어 등단면(front) 으로 작도됨 — SeoulPhD.redraw 참조)
+    단면 선택: box1cell / box12cell / ibeam / rect / circle / octagon / track
+-->
+
+<!-- ══ TOP BAR ══ -->
+<div id="topbar">
+  <div class="brand">Seoul PhD <span class="tag">macroBIM</span></div>
+  <div class="selector">
+    <label for="sectionSelect">Section</label>
+    <select id="sectionSelect" onchange="SeoulPhD.select(this.value)">
+      <option value="box1cell">1-Cell Box Girder (박스거더)</option>
+      <option value="box12cell">2-Cell Box Girder (2셀 박스거더)</option>
+      <option value="ibeam">I-Beam (I형강)</option>
+      <option value="rect">Rectangle (사각형)</option>
+      <option value="circle">Circle (원형)</option>
+      <option value="octagon">Octagon (팔각형)</option>
+      <option value="track">Track (트랙형)</option>
+    </select>
+    <button id="btnToggleNormals" class="btn-normal" onclick="SeoulPhD.toggleNormals()"><i class="bi bi-arrows-angle-expand"></i> Toggle Normals</button>
+    <button id="btnToggleNodes" class="btn-normal" onclick="SeoulPhD.toggleNodes()"><i class="bi bi-123"></i> Toggle Nodes (#)</button>
+    <span class="tb-sep"></span>
+    <label for="sheetName" class="tb-label">시트명</label>
+    <input id="sheetName" class="sheet-input" type="text" value="input" placeholder="대소문자 무관" />
+    <button id="btnLoadExcel" class="btn-normal" onclick="SeoulPhD.loadExcel()"><i class="bi bi-file-earmark-excel"></i> 엑셀불러오기</button>
+    <input id="excelFileInput" type="file" accept=".xlsx" style="display:none" />
+  </div>
+</div>
+
+<!-- ══ STAGE (활성 단면 폼이 클론되는 곳) ══ -->
+<div id="stage">
+  <div id="mount"><div class="load-msg">Loading section…</div></div>
+</div>
+
+<!-- ══ rebar 카드 템플릿 (Dimension 과 Drawing View 사이에 삽입됨) ══ -->
+<template id="tpl-rebar">
+  <div class="draw-card">
+    <div class="draw-card-header">
+      <div><div class="draw-card-title">REBAR</div></div>
+    </div>
+    <div class="draw-card-body">
+      <!-- 입력데이터 표 (2줄 표제목 = trebar/lrebar 입력체계) — app.js 가 렌더 -->
+      <div id="rebarBody"></div>
+    </div>
+  </div>
+</template>
+
+<!-- ══════════════════ SECTION TEMPLATES (Variable / Value × 4) ══════════════════ -->
+
+<!-- ── BOX1CELL ── -->
+<template id="tpl-box1cell">
+  <h1 class="page-heading">BOX 1-Cell Drawing</h1>
+  <div class="breadcrumb"><span>Section</span> / BOX1CELL</div>
+  <div class="draw-card">
+    <div class="draw-card-header">
+      <div><div class="draw-card-title">Dimension (mm)</div><div class="draw-card-desc">Input 1-Cell Box section parameters</div></div>
+    </div>
+    <div class="draw-card-body">
+      <div class="dim-split">
+        <!-- 좌: 입력변수 상세 가이드 그림 -->
+        <div class="dim-guide"><img src="https://macrobim.github.io/macroBIM/box1cell_vars.png" alt="box1cell variables guide"></div>
+        <!-- 우: 입력값 (Variable/Value × 2) -->
+        <div class="dim-inputs">
+          <div class="form-grid-4col" style="margin-bottom:12px;">
+            <div class="col-header var-header">Variable</div><div class="col-header">Value</div>
+            <div class="col-header var-header">Variable</div><div class="col-header">Value</div>
+          </div>
+          <div class="form-grid-4col">
+            <div class="col-label">h</div><input class="form-input" type="number" id="dh_s" value="6600" onchange="SeoulPhD.redraw('box1cell')">
+            <div class="col-label">bt</div><input class="form-input" type="number" id="dbt_s" value="12000" onchange="SeoulPhD.redraw('box1cell')">
+            <div class="col-label">bb</div><input class="form-input" type="number" id="dbb_s" value="6000" onchange="SeoulPhD.redraw('box1cell')">
+            <div class="col-label">btsh</div><input class="form-input" type="number" id="dbth_s" value="1500" onchange="SeoulPhD.redraw('box1cell')">
+            <div class="col-label">bcanh</div><input class="form-input" type="number" id="dbch_s" value="1500" onchange="SeoulPhD.redraw('box1cell')">
+            <div class="col-label">bcan</div><input class="form-input" type="number" id="dbc_s" value="1500" onchange="SeoulPhD.redraw('box1cell')">
+            <div class="col-label">t1</div><input class="form-input" type="number" id="dt1_s" value="300" onchange="SeoulPhD.redraw('box1cell')">
+            <div class="col-label">t2</div><input class="form-input" type="number" id="dt2_s" value="300" onchange="SeoulPhD.redraw('box1cell')">
+            <div class="col-label">t3</div><input class="form-input" type="number" id="dt3_s" value="600" onchange="SeoulPhD.redraw('box1cell')">
+            <div class="col-label">t4</div><input class="form-input" type="number" id="dt4_s" value="600" onchange="SeoulPhD.redraw('box1cell')">
+            <div class="col-label">t5</div><input class="form-input" type="number" id="dt5_s" value="300" onchange="SeoulPhD.redraw('box1cell')">
+            <div class="col-label">tb</div><input class="form-input" type="number" id="dtb_s" value="840" onchange="SeoulPhD.redraw('box1cell')">
+            <div class="col-label">tw</div><input class="form-input" type="number" id="dtw_s" value="500" onchange="SeoulPhD.redraw('box1cell')">
+            <div class="col-label">bh</div><input class="form-input" type="number" id="dbbh_s" value="200" onchange="SeoulPhD.redraw('box1cell')">
+            <div class="col-label">vh1</div><input class="form-input" type="number" id="dbh1_s" value="200" onchange="SeoulPhD.redraw('box1cell')">
+            <div class="col-label">vh2</div><input class="form-input" type="number" id="dbh2_s" value="100" onchange="SeoulPhD.redraw('box1cell')">
+            <div class="col-label">rwt <span style="color:#94a3b8;font-size:10px;">(0=X)</span></div><input class="form-input" type="number" id="drwt_s" value="300" onchange="SeoulPhD.redraw('box1cell')">
+            <div class="col-label">rwtin <span style="color:#94a3b8;font-size:10px;">(0=X)</span></div><input class="form-input" type="number" id="drwtin_s" value="200" onchange="SeoulPhD.redraw('box1cell')">
+            <div class="col-label">rb <span style="color:#94a3b8;font-size:10px;">(0=X)</span></div><input class="form-input" type="number" id="drb_s" value="400" onchange="SeoulPhD.redraw('box1cell')">
+            <div class="col-label">sl_tl (%)</div><input class="form-input" type="number" id="dsltl_s" value="-2" onchange="SeoulPhD.redraw('box1cell')">
+            <div class="col-label">sl_tr (%)</div><input class="form-input" type="number" id="dsltr_s" value="5" onchange="SeoulPhD.redraw('box1cell')">
+            <div class="col-label">sl_b (%)</div><input class="form-input" type="number" id="dslb_s" value="3" onchange="SeoulPhD.redraw('box1cell')">
+          </div>
+        </div>
+      </div>
+      <!-- t6 / Seg Len : 화면 입력칸에서 제거(변수 폐기). Drawing View 엔진(bim_box1cell.js) 호환용 hidden 기본값만 유지 -->
+      <input type="hidden" id="dt6_s" value="0">
+      <input type="hidden" id="dseg_leng" value="5000">
+      <div style="display:flex;justify-content:flex-end;margin-top:14px;">
+        <button class="btn-generate" onclick="odxf_box1cell.download('Box1Cell.dxf')" style="margin:0;"><i class="bi bi-download"></i> DXF DOWNLOAD</button>
+      </div>
+    </div>
+  </div>
+  <div class="draw-card">
+    <div class="draw-card-header"><div class="draw-card-title">Drawing View <span style="font-weight:400;color:#94a3b8;font-size:12px;">(Front section)</span></div>
+      <button class="btn-generate" onclick="SeoulPhD.redraw('box1cell')" style="margin-top:0;"><i class="bi bi-arrow-repeat"></i> REGEN</button></div>
+    <div class="drawing-viewport"><div id="box1cellplot"></div></div>
+  </div>
+</template>
+
+<!-- ── BOX12CELL (2-Cell) ── -->
+<template id="tpl-box12cell">
+  <h1 class="page-heading">BOX 2-Cell Drawing</h1>
+  <div class="breadcrumb"><span>Section</span> / BOX12CELL</div>
+  <div class="draw-card">
+    <div class="draw-card-header">
+      <div><div class="draw-card-title">Dimension (mm)</div><div class="draw-card-desc">Input 2-Cell Box section parameters</div></div>
+    </div>
+    <div class="draw-card-body">
+      <div class="dim-split">
+        <!-- 좌: 입력변수 상세 가이드 그림 (box12cell_vars.png 커밋 전까지는 자동 숨김) -->
+        <div class="dim-guide"><img src="https://raw.githubusercontent.com/macroBIM/macroBIM/claude/bim-box12cell-variables-k9f9oo/box12cell_vars.png" alt="box12cell variables guide" onerror="this.parentElement.style.display='none'"></div>
+        <!-- 우: 입력값 (Variable/Value × 2) -->
+        <div class="dim-inputs">
+          <div class="form-grid-4col" style="margin-bottom:12px;">
+            <div class="col-header var-header">Variable</div><div class="col-header">Value</div>
+            <div class="col-header var-header">Variable</div><div class="col-header">Value</div>
+          </div>
+          <div class="form-grid-4col">
+            <div class="col-label">TH</div><input class="form-input" type="number" id="TH_s" value="3000" onchange="SeoulPhD.redraw('box12cell')">
+            <div class="col-label">SLL (%)</div><input class="form-input" type="number" id="SLL_s" value="2" onchange="SeoulPhD.redraw('box12cell')">
+            <div class="col-label">SLR (%)</div><input class="form-input" type="number" id="SLR_s" value="-2" onchange="SeoulPhD.redraw('box12cell')">
+            <div class="col-label">SLB (%)</div><input class="form-input" type="number" id="SLB_s" value="0" onchange="SeoulPhD.redraw('box12cell')">
+            <div class="col-label">WL</div><input class="form-input" type="number" id="WL_s" value="6800" onchange="SeoulPhD.redraw('box12cell')">
+            <div class="col-label">WTL</div><input class="form-input" type="number" id="WTL_s" value="4500" onchange="SeoulPhD.redraw('box12cell')">
+            <div class="col-label">WCAL1</div><input class="form-input" type="number" id="WCAL1_s" value="1000" onchange="SeoulPhD.redraw('box12cell')">
+            <div class="col-label">WCAL2</div><input class="form-input" type="number" id="WCAL2_s" value="1000" onchange="SeoulPhD.redraw('box12cell')">
+            <div class="col-label">WR</div><input class="form-input" type="number" id="WR_s" value="6800" onchange="SeoulPhD.redraw('box12cell')">
+            <div class="col-label">WTR</div><input class="form-input" type="number" id="WTR_s" value="4500" onchange="SeoulPhD.redraw('box12cell')">
+            <div class="col-label">WCAR1</div><input class="form-input" type="number" id="WCAR1_s" value="1000" onchange="SeoulPhD.redraw('box12cell')">
+            <div class="col-label">WCAR2</div><input class="form-input" type="number" id="WCAR2_s" value="1000" onchange="SeoulPhD.redraw('box12cell')">
+            <div class="col-label">TCAL</div><input class="form-input" type="number" id="TCAL_s" value="250" onchange="SeoulPhD.redraw('box12cell')">
+            <div class="col-label">TCAL1</div><input class="form-input" type="number" id="TCAL1_s" value="600" onchange="SeoulPhD.redraw('box12cell')">
+            <div class="col-label">TCAL2</div><input class="form-input" type="number" id="TCAL2_s" value="350" onchange="SeoulPhD.redraw('box12cell')">
+            <div class="col-label">TCAR</div><input class="form-input" type="number" id="TCAR_s" value="250" onchange="SeoulPhD.redraw('box12cell')">
+            <div class="col-label">TCAR1</div><input class="form-input" type="number" id="TCAR1_s" value="600" onchange="SeoulPhD.redraw('box12cell')">
+            <div class="col-label">TCAR2</div><input class="form-input" type="number" id="TCAR2_s" value="350" onchange="SeoulPhD.redraw('box12cell')">
+            <div class="col-label">TTS</div><input class="form-input" type="number" id="TTS_s" value="280" onchange="SeoulPhD.redraw('box12cell')">
+            <div class="col-label">WTHUL1</div><input class="form-input" type="number" id="WTHUL1_s" value="600" onchange="SeoulPhD.redraw('box12cell')">
+            <div class="col-label">WTHUL2</div><input class="form-input" type="number" id="WTHUL2_s" value="600" onchange="SeoulPhD.redraw('box12cell')">
+            <div class="col-label">TTHL1</div><input class="form-input" type="number" id="TTHL1_s" value="800" onchange="SeoulPhD.redraw('box12cell')">
+            <div class="col-label">TTHL2</div><input class="form-input" type="number" id="TTHL2_s" value="480" onchange="SeoulPhD.redraw('box12cell')">
+            <div class="col-label">WTCHUL1</div><input class="form-input" type="number" id="WTCHUL1_s" value="500" onchange="SeoulPhD.redraw('box12cell')">
+            <div class="col-label">WTCHUL2</div><input class="form-input" type="number" id="WTCHUL2_s" value="500" onchange="SeoulPhD.redraw('box12cell')">
+            <div class="col-label">TTHCL1</div><input class="form-input" type="number" id="TTHCL1_s" value="700" onchange="SeoulPhD.redraw('box12cell')">
+            <div class="col-label">TTHCL2</div><input class="form-input" type="number" id="TTHCL2_s" value="450" onchange="SeoulPhD.redraw('box12cell')">
+            <div class="col-label">WTCHUR1</div><input class="form-input" type="number" id="WTCHUR1_s" value="500" onchange="SeoulPhD.redraw('box12cell')">
+            <div class="col-label">WTCHUR2</div><input class="form-input" type="number" id="WTCHUR2_s" value="500" onchange="SeoulPhD.redraw('box12cell')">
+            <div class="col-label">TTHCR1</div><input class="form-input" type="number" id="TTHCR1_s" value="700" onchange="SeoulPhD.redraw('box12cell')">
+            <div class="col-label">TTHCR2</div><input class="form-input" type="number" id="TTHCR2_s" value="450" onchange="SeoulPhD.redraw('box12cell')">
+            <div class="col-label">WTHUR1</div><input class="form-input" type="number" id="WTHUR1_s" value="600" onchange="SeoulPhD.redraw('box12cell')">
+            <div class="col-label">WTHUR2</div><input class="form-input" type="number" id="WTHUR2_s" value="600" onchange="SeoulPhD.redraw('box12cell')">
+            <div class="col-label">TTHR1</div><input class="form-input" type="number" id="TTHR1_s" value="800" onchange="SeoulPhD.redraw('box12cell')">
+            <div class="col-label">TTHR2</div><input class="form-input" type="number" id="TTHR2_s" value="480" onchange="SeoulPhD.redraw('box12cell')">
+            <div class="col-label">TWEBL</div><input class="form-input" type="number" id="TWEBL_s" value="450" onchange="SeoulPhD.redraw('box12cell')">
+            <div class="col-label">TWEBC</div><input class="form-input" type="number" id="TWEBC_s" value="350" onchange="SeoulPhD.redraw('box12cell')">
+            <div class="col-label">TWEBR</div><input class="form-input" type="number" id="TWEBR_s" value="450" onchange="SeoulPhD.redraw('box12cell')">
+            <div class="col-label">WBL</div><input class="form-input" type="number" id="WBL_s" value="4800" onchange="SeoulPhD.redraw('box12cell')">
+            <div class="col-label">WBR</div><input class="form-input" type="number" id="WBR_s" value="4800" onchange="SeoulPhD.redraw('box12cell')">
+            <div class="col-label">TBEL</div><input class="form-input" type="number" id="TBEL_s" value="600" onchange="SeoulPhD.redraw('box12cell')">
+            <div class="col-label">TBER</div><input class="form-input" type="number" id="TBER_s" value="600" onchange="SeoulPhD.redraw('box12cell')">
+            <div class="col-label">TBS</div><input class="form-input" type="number" id="TBS_s" value="300" onchange="SeoulPhD.redraw('box12cell')">
+            <div class="col-label">WBHL1</div><input class="form-input" type="number" id="WBHL1_s" value="500" onchange="SeoulPhD.redraw('box12cell')">
+            <div class="col-label">WBHL2</div><input class="form-input" type="number" id="WBHL2_s" value="500" onchange="SeoulPhD.redraw('box12cell')">
+            <div class="col-label">TBHL1</div><input class="form-input" type="number" id="TBHL1_s" value="750" onchange="SeoulPhD.redraw('box12cell')">
+            <div class="col-label">TBHL2</div><input class="form-input" type="number" id="TBHL2_s" value="450" onchange="SeoulPhD.redraw('box12cell')">
+            <div class="col-label">WBHCL1</div><input class="form-input" type="number" id="WBHCL1_s" value="400" onchange="SeoulPhD.redraw('box12cell')">
+            <div class="col-label">WBHCL2</div><input class="form-input" type="number" id="WBHCL2_s" value="400" onchange="SeoulPhD.redraw('box12cell')">
+            <div class="col-label">TBHCL1</div><input class="form-input" type="number" id="TBHCL1_s" value="650" onchange="SeoulPhD.redraw('box12cell')">
+            <div class="col-label">TBHCL2</div><input class="form-input" type="number" id="TBHCL2_s" value="420" onchange="SeoulPhD.redraw('box12cell')">
+            <div class="col-label">WBHCR1</div><input class="form-input" type="number" id="WBHCR1_s" value="400" onchange="SeoulPhD.redraw('box12cell')">
+            <div class="col-label">WBHCR2</div><input class="form-input" type="number" id="WBHCR2_s" value="400" onchange="SeoulPhD.redraw('box12cell')">
+            <div class="col-label">TBHCR1</div><input class="form-input" type="number" id="TBHCR1_s" value="650" onchange="SeoulPhD.redraw('box12cell')">
+            <div class="col-label">TBHCR2</div><input class="form-input" type="number" id="TBHCR2_s" value="420" onchange="SeoulPhD.redraw('box12cell')">
+            <div class="col-label">WBHR1</div><input class="form-input" type="number" id="WBHR1_s" value="500" onchange="SeoulPhD.redraw('box12cell')">
+            <div class="col-label">WBHR2</div><input class="form-input" type="number" id="WBHR2_s" value="500" onchange="SeoulPhD.redraw('box12cell')">
+            <div class="col-label">TBHR1</div><input class="form-input" type="number" id="TBHR1_s" value="750" onchange="SeoulPhD.redraw('box12cell')">
+            <div class="col-label">TBHR2</div><input class="form-input" type="number" id="TBHR2_s" value="450" onchange="SeoulPhD.redraw('box12cell')">
+            <div class="col-label">R_WTL <span style="color:#94a3b8;font-size:10px;">(0=X)</span></div><input class="form-input" type="number" id="R_WTL_s" value="300" onchange="SeoulPhD.redraw('box12cell')">
+            <div class="col-label">R_WTR <span style="color:#94a3b8;font-size:10px;">(0=X)</span></div><input class="form-input" type="number" id="R_WTR_s" value="300" onchange="SeoulPhD.redraw('box12cell')">
+            <div class="col-label">R_WTIL <span style="color:#94a3b8;font-size:10px;">(0=X)</span></div><input class="form-input" type="number" id="R_WTIL_s" value="300" onchange="SeoulPhD.redraw('box12cell')">
+            <div class="col-label">R_WTIR <span style="color:#94a3b8;font-size:10px;">(0=X)</span></div><input class="form-input" type="number" id="R_WTIR_s" value="300" onchange="SeoulPhD.redraw('box12cell')">
+            <div class="col-label">R_WBL <span style="color:#94a3b8;font-size:10px;">(0=X)</span></div><input class="form-input" type="number" id="R_WBL_s" value="300" onchange="SeoulPhD.redraw('box12cell')">
+            <div class="col-label">R_WBR <span style="color:#94a3b8;font-size:10px;">(0=X)</span></div><input class="form-input" type="number" id="R_WBR_s" value="300" onchange="SeoulPhD.redraw('box12cell')">
+          </div>
+        </div>
+      </div>
+      <!-- Seg Len : Drawing View 엔진(bim_box12cell.js) 호환용 hidden 기본값 -->
+      <input type="hidden" id="dseg_leng" value="5000">
+      <div style="display:flex;justify-content:flex-end;margin-top:14px;">
+        <button class="btn-generate" onclick="odxf_box12cell.download('Box12Cell.dxf')" style="margin:0;"><i class="bi bi-download"></i> DXF DOWNLOAD</button>
+      </div>
+    </div>
+  </div>
+  <div class="draw-card">
+    <div class="draw-card-header"><div class="draw-card-title">Drawing View <span style="font-weight:400;color:#94a3b8;font-size:12px;">(Front section)</span></div>
+      <button class="btn-generate" onclick="SeoulPhD.redraw('box12cell')" style="margin-top:0;"><i class="bi bi-arrow-repeat"></i> REGEN</button></div>
+    <div class="drawing-viewport"><div id="box12cellplot"></div></div>
+  </div>
+</template>
+
+<!-- ── IBEAM ── -->
+<template id="tpl-ibeam">
+  <h1 class="page-heading">I Beam Drawing</h1>
+  <div class="breadcrumb"><span>Section</span> / I Beam</div>
+  <div class="draw-card">
+    <div class="draw-card-header" style="display:flex;justify-content:space-between;align-items:center;">
+      <div><div class="draw-card-title">Dimension (mm)</div><div class="draw-card-desc">Input I-beam (plate girder) cross-section parameters</div></div>
+      <button class="btn-generate" onclick="var g=document.getElementById('ibeam_guide_img');g.style.display=g.style.display==='none'?'block':'none'" style="margin:0;font-size:12px;padding:6px 14px;"><i class="bi bi-image"></i> VIEW GUIDE</button>
+    </div>
+    <div id="ibeam_guide_img" style="display:none;padding:10px;background:#f8f9fa;border-bottom:1px solid #e2e8f0;text-align:center;"><img src="https://macrobim.github.io/macroBIM/ibeam_vars.png" style="max-width:100%;height:auto;border:1px solid #ddd;border-radius:4px;"></div>
+    <div class="draw-card-body">
+      <div class="form-grid-8col" style="margin-bottom:12px;">
+        <div class="col-header var-header">Variable</div><div class="col-header">Value</div>
+        <div class="col-header var-header">Variable</div><div class="col-header">Value</div>
+        <div class="col-header var-header">Variable</div><div class="col-header">Value</div>
+        <div class="col-header var-header">Variable</div><div class="col-header">Value</div>
+      </div>
+      <div class="form-grid-8col">
+        <div class="col-label">h</div><input class="form-input" type="number" id="dh_s" value="1500" onchange="SeoulPhD.redraw('ibeam')">
+        <div class="col-label">bt</div><input class="form-input" type="number" id="dbt_s" value="1235" onchange="SeoulPhD.redraw('ibeam')">
+        <div class="col-label">bb</div><input class="form-input" type="number" id="dbb_s" value="985" onchange="SeoulPhD.redraw('ibeam')">
+        <div class="col-label">ttf</div><input class="form-input" type="number" id="dttf_s" value="85" onchange="SeoulPhD.redraw('ibeam')">
+        <div class="col-label">ttf1</div><input class="form-input" type="number" id="dttf1_s" value="45" onchange="SeoulPhD.redraw('ibeam')">
+        <div class="col-label">tbf</div><input class="form-input" type="number" id="dtbf_s" value="135" onchange="SeoulPhD.redraw('ibeam')">
+        <div class="col-label">tbf1</div><input class="form-input" type="number" id="dtbf1_s" value="140" onchange="SeoulPhD.redraw('ibeam')">
+        <div class="col-label">tw</div><input class="form-input" type="number" id="dtw_s" value="160" onchange="SeoulPhD.redraw('ibeam')">
+        <div class="col-label">rtf <span style="color:#94a3b8;font-size:10px;">(0=X)</span></div><input class="form-input" type="number" id="drtf_s" value="50" onchange="SeoulPhD.redraw('ibeam')">
+        <div class="col-label">rwt <span style="color:#94a3b8;font-size:10px;">(0=X)</span></div><input class="form-input" type="number" id="drwt_s" value="200" onchange="SeoulPhD.redraw('ibeam')">
+        <div class="col-label">rwb <span style="color:#94a3b8;font-size:10px;">(0=X)</span></div><input class="form-input" type="number" id="drwb_s" value="100" onchange="SeoulPhD.redraw('ibeam')">
+        <div class="col-label">rbf <span style="color:#94a3b8;font-size:10px;">(0=X)</span></div><input class="form-input" type="number" id="drbf_s" value="50" onchange="SeoulPhD.redraw('ibeam')">
+        <div class="col-label">chb <span style="color:#94a3b8;font-size:10px;">(0=X)</span></div><input class="form-input" type="number" id="dchb_s" value="20" onchange="SeoulPhD.redraw('ibeam')">
+        <div class="col-label">Beam Len</div><input class="form-input" type="number" id="dseg_leng" value="500" onchange="SeoulPhD.redraw('ibeam')">
+      </div>
+      <div style="display:flex;justify-content:flex-end;margin-top:14px;">
+        <button class="btn-generate" onclick="odxf_ibeam.download('IBeam.dxf')" style="margin:0;"><i class="bi bi-download"></i> DXF DOWNLOAD</button>
+      </div>
+    </div>
+  </div>
+  <div class="draw-card">
+    <div class="draw-card-header"><div class="draw-card-title">Drawing View <span style="font-weight:400;color:#94a3b8;font-size:12px;">(Front section)</span></div>
+      <button class="btn-generate" onclick="SeoulPhD.redraw('ibeam')" style="margin-top:0;"><i class="bi bi-arrow-repeat"></i> REGEN</button></div>
+    <div class="drawing-viewport"><div id="ibeamplot"></div></div>
+  </div>
+</template>
+
+<!-- ── RECT ── -->
+<template id="tpl-rect">
+  <h1 class="page-heading">Rect Section Drawing</h1>
+  <div class="breadcrumb"><span>Section</span> / Rectangle</div>
+  <div class="draw-card">
+    <div class="draw-card-header" style="display:flex;justify-content:space-between;align-items:center;">
+      <div><div class="draw-card-title">Dimension (mm)</div><div class="draw-card-desc">Input rectangular cross-section parameters</div></div>
+    </div>
+    <div class="draw-card-body">
+      <div class="form-grid-8col" style="margin-bottom:12px;">
+        <div class="col-header var-header">Variable</div><div class="col-header">Value</div>
+        <div class="col-header var-header">Variable</div><div class="col-header">Value</div>
+        <div class="col-header var-header">Variable</div><div class="col-header">Value</div>
+        <div class="col-header var-header">Variable</div><div class="col-header">Value</div>
+      </div>
+      <div class="form-grid-8col">
+        <div class="col-label">H <span style="color:#94a3b8;font-size:10px;">(outer h)</span></div><input class="form-input" type="number" id="drect_H_s" value="800" onchange="SeoulPhD.redraw('rect')">
+        <div class="col-label">B <span style="color:#94a3b8;font-size:10px;">(outer w)</span></div><input class="form-input" type="number" id="drect_B_s" value="600" onchange="SeoulPhD.redraw('rect')">
+        <div class="col-label">twl <span style="color:#94a3b8;font-size:10px;">(wall L)</span></div><input class="form-input" type="number" id="drect_twl_s" value="120" onchange="SeoulPhD.redraw('rect')">
+        <div class="col-label">twr <span style="color:#94a3b8;font-size:10px;">(wall R)</span></div><input class="form-input" type="number" id="drect_twr_s" value="120" onchange="SeoulPhD.redraw('rect')">
+        <div class="col-label">tf1 <span style="color:#94a3b8;font-size:10px;">(top fl)</span></div><input class="form-input" type="number" id="drect_tf1_s" value="120" onchange="SeoulPhD.redraw('rect')">
+        <div class="col-label">tf2 <span style="color:#94a3b8;font-size:10px;">(bot fl)</span></div><input class="form-input" type="number" id="drect_tf2_s" value="120" onchange="SeoulPhD.redraw('rect')">
+        <div class="col-label">ha <span style="color:#94a3b8;font-size:10px;">(haunch ↔)</span></div><input class="form-input" type="number" id="drect_ha_s" value="150" onchange="SeoulPhD.redraw('rect')">
+        <div class="col-label">hb <span style="color:#94a3b8;font-size:10px;">(haunch ↕)</span></div><input class="form-input" type="number" id="drect_hb_s" value="150" onchange="SeoulPhD.redraw('rect')">
+        <div class="col-label">Seg Len</div><input class="form-input" type="number" id="dseg_leng" value="3000" onchange="SeoulPhD.redraw('rect')">
+        <div class="col-label">Hollow</div><div style="display:flex;align-items:center;"><input type="checkbox" id="drect_hollow" checked onchange="SeoulPhD.redraw('rect')" style="width:16px;height:16px;accent-color:#2563eb;"></div>
+      </div>
+      <div style="display:flex;justify-content:flex-end;margin-top:14px;">
+        <button class="btn-generate" onclick="SeoulPhD.rectDxf('Rect.dxf')" style="margin:0;"><i class="bi bi-download"></i> DXF DOWNLOAD</button>
+      </div>
+    </div>
+  </div>
+  <div class="draw-card">
+    <div class="draw-card-header"><div class="draw-card-title">Drawing View <span style="font-weight:400;color:#94a3b8;font-size:12px;">(Front section)</span></div>
+      <button class="btn-generate" onclick="SeoulPhD.redraw('rect')" style="margin-top:0;"><i class="bi bi-arrow-repeat"></i> REGEN</button></div>
+    <div class="drawing-viewport"><div id="rectplot"></div></div>
+  </div>
+</template>
+
+<!-- ── CIRCLE ── -->
+<template id="tpl-circle">
+  <h1 class="page-heading">Circle Section Drawing</h1>
+  <div class="breadcrumb"><span>Section</span> / Circle</div>
+  <div class="draw-card">
+    <div class="draw-card-header" style="display:flex;justify-content:space-between;align-items:center;">
+      <div><div class="draw-card-title">Dimension (mm)</div><div class="draw-card-desc">Input circular cross-section parameters</div></div>
+    </div>
+    <div class="draw-card-body">
+      <div class="form-grid-8col" style="margin-bottom:12px;">
+        <div class="col-header var-header">Variable</div><div class="col-header">Value</div>
+        <div class="col-header var-header">Variable</div><div class="col-header">Value</div>
+        <div class="col-header var-header">Variable</div><div class="col-header">Value</div>
+        <div class="col-header var-header">Variable</div><div class="col-header">Value</div>
+      </div>
+      <div class="form-grid-8col">
+        <div class="col-label">D (outer)</div><input class="form-input" type="number" id="dcircle_D_s" value="500" onchange="SeoulPhD.redraw('circle')">
+        <div class="col-label">d (inner)</div><input class="form-input" type="number" id="dcircle_d_s" value="400" onchange="SeoulPhD.redraw('circle')">
+        <div class="col-label">Seg Len</div><input class="form-input" type="number" id="dseg_leng" value="1000" onchange="SeoulPhD.redraw('circle')">
+        <div class="col-label">Hollow</div><div style="display:flex;align-items:center;"><input type="checkbox" id="dcircle_hollow" checked onchange="SeoulPhD.redraw('circle')" style="width:16px;height:16px;accent-color:#2563eb;"></div>
+      </div>
+      <div style="display:flex;justify-content:flex-end;margin-top:14px;">
+        <button class="btn-generate" onclick="odxf_circle.download('Circle.dxf')" style="margin:0;"><i class="bi bi-download"></i> DXF DOWNLOAD</button>
+      </div>
+    </div>
+  </div>
+  <div class="draw-card">
+    <div class="draw-card-header"><div class="draw-card-title">Drawing View <span style="font-weight:400;color:#94a3b8;font-size:12px;">(Front section)</span></div>
+      <button class="btn-generate" onclick="SeoulPhD.redraw('circle')" style="margin-top:0;"><i class="bi bi-arrow-repeat"></i> REGEN</button></div>
+    <div class="drawing-viewport"><div id="circleplot"></div></div>
+  </div>
+</template>
+
+<!-- ── OCTAGON ── -->
+<template id="tpl-octagon">
+  <h1 class="page-heading">Octagon Section Drawing</h1>
+  <div class="breadcrumb"><span>Section</span> / Octagon</div>
+  <div class="draw-card">
+    <div class="draw-card-header" style="display:flex;justify-content:space-between;align-items:center;">
+      <div><div class="draw-card-title">Dimension (mm)</div><div class="draw-card-desc">Input octagon cross-section parameters</div></div>
+    </div>
+    <div class="draw-card-body">
+      <div class="form-grid-8col" style="margin-bottom:12px;">
+        <div class="col-header var-header">Variable</div><div class="col-header">Value</div>
+        <div class="col-header var-header">Variable</div><div class="col-header">Value</div>
+        <div class="col-header var-header">Variable</div><div class="col-header">Value</div>
+        <div class="col-header var-header">Variable</div><div class="col-header">Value</div>
+      </div>
+      <div class="form-grid-8col">
+        <div class="col-label">H1 (mid h)</div><input class="form-input" type="number" id="doct_H1_s" value="300" onchange="SeoulPhD.redraw('octagon')">
+        <div class="col-label">H2 (ch h)</div><input class="form-input" type="number" id="doct_H2_s" value="100" onchange="SeoulPhD.redraw('octagon')">
+        <div class="col-label">B1 (mid w)</div><input class="form-input" type="number" id="doct_B1_s" value="400" onchange="SeoulPhD.redraw('octagon')">
+        <div class="col-label">B2 (ch w)</div><input class="form-input" type="number" id="doct_B2_s" value="100" onchange="SeoulPhD.redraw('octagon')">
+        <div class="col-label">h1 (in mid)</div><input class="form-input" type="number" id="doct_h1_s" value="200" onchange="SeoulPhD.redraw('octagon')">
+        <div class="col-label">h2 (in ch)</div><input class="form-input" type="number" id="doct_h2_s" value="60" onchange="SeoulPhD.redraw('octagon')">
+        <div class="col-label">b1 (in mid)</div><input class="form-input" type="number" id="doct_b1_s" value="300" onchange="SeoulPhD.redraw('octagon')">
+        <div class="col-label">b2 (in ch)</div><input class="form-input" type="number" id="doct_b2_s" value="60" onchange="SeoulPhD.redraw('octagon')">
+        <div class="col-label">Seg Len</div><input class="form-input" type="number" id="dseg_leng" value="1000" onchange="SeoulPhD.redraw('octagon')">
+        <div class="col-label">Hollow</div><div style="display:flex;align-items:center;"><input type="checkbox" id="doct_hollow" checked onchange="SeoulPhD.redraw('octagon')" style="width:16px;height:16px;accent-color:#2563eb;"></div>
+      </div>
+      <div style="display:flex;justify-content:flex-end;margin-top:14px;">
+        <button class="btn-generate" onclick="odxf_octagon.download('Octagon.dxf')" style="margin:0;"><i class="bi bi-download"></i> DXF DOWNLOAD</button>
+      </div>
+    </div>
+  </div>
+  <div class="draw-card">
+    <div class="draw-card-header"><div class="draw-card-title">Drawing View <span style="font-weight:400;color:#94a3b8;font-size:12px;">(Front section)</span></div>
+      <button class="btn-generate" onclick="SeoulPhD.redraw('octagon')" style="margin-top:0;"><i class="bi bi-arrow-repeat"></i> REGEN</button></div>
+    <div class="drawing-viewport"><div id="octagonplot"></div></div>
+  </div>
+</template>
+
+<!-- ── TRACK ── -->
+<template id="tpl-track">
+  <h1 class="page-heading">Track Section Drawing</h1>
+  <div class="breadcrumb"><span>Section</span> / Track</div>
+  <div class="draw-card">
+    <div class="draw-card-header" style="display:flex;justify-content:space-between;align-items:center;">
+      <div><div class="draw-card-title">Dimension (mm)</div><div class="draw-card-desc">Input track (stadium) cross-section parameters</div></div>
+    </div>
+    <div class="draw-card-body">
+      <div class="form-grid-8col" style="margin-bottom:12px;">
+        <div class="col-header var-header">Variable</div><div class="col-header">Value</div>
+        <div class="col-header var-header">Variable</div><div class="col-header">Value</div>
+        <div class="col-header var-header">Variable</div><div class="col-header">Value</div>
+        <div class="col-header var-header">Variable</div><div class="col-header">Value</div>
+      </div>
+      <div class="form-grid-8col">
+        <div class="col-label">B (width)</div><input class="form-input" type="number" id="dtrack_B_s" value="600" onchange="SeoulPhD.redraw('track')">
+        <div class="col-label">D (height)</div><input class="form-input" type="number" id="dtrack_D_s" value="400" onchange="SeoulPhD.redraw('track')">
+        <div class="col-label">d (inner h)</div><input class="form-input" type="number" id="dtrack_d_s" value="300" onchange="SeoulPhD.redraw('track')">
+        <div class="col-label">Seg Len</div><input class="form-input" type="number" id="dseg_leng" value="1000" onchange="SeoulPhD.redraw('track')">
+        <div class="col-label">Hollow</div><div style="display:flex;align-items:center;"><input type="checkbox" id="dtrack_hollow" checked onchange="SeoulPhD.redraw('track')" style="width:16px;height:16px;accent-color:#2563eb;"></div>
+      </div>
+      <div style="display:flex;justify-content:flex-end;margin-top:14px;">
+        <button class="btn-generate" onclick="odxf_track.download('Track.dxf')" style="margin:0;"><i class="bi bi-download"></i> DXF DOWNLOAD</button>
+      </div>
+    </div>
+  </div>
+  <div class="draw-card">
+    <div class="draw-card-header"><div class="draw-card-title">Drawing View <span style="font-weight:400;color:#94a3b8;font-size:12px;">(Front section)</span></div>
+      <button class="btn-generate" onclick="SeoulPhD.redraw('track')" style="margin-top:0;"><i class="bi bi-arrow-repeat"></i> REGEN</button></div>
+    <div class="drawing-viewport"><div id="trackplot"></div></div>
+  </div>
+</template>
