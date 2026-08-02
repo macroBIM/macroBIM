@@ -1375,8 +1375,15 @@ function geo_box12cell( {
 	let PFWBLB,  PFWBLE,  PFWBRB,  PFWBRE;		// 외측복부 하단 (R_WBL, R_WBR)
 	let PFWTILB, PFWTILE, PFWTIRB, PFWTIRE;		// 복부 내측 상단 (R_WTIL, R_WTIR)
 
-	if( R_WTL !== 0 ){
-		let filwtl = geo_fillet( PTCL2, PTCL1, PBEL, R_WTL );
+	// 인접점이 겹치는 퇴화 형상(TBEL=0 등)에서는 필렛을 생략해 NaN 을 방지
+	function fillet_safe(p1, p2, p3, r){
+		if( r === 0 ) return null;
+		if( geo_length(p1, p2) < 1e-9 || geo_length(p3, p2) < 1e-9 ) return null;
+		return geo_fillet(p1, p2, p3, r);
+	}
+
+	let filwtl = fillet_safe( PTCL2, PTCL1, PBEL, R_WTL );
+	if( filwtl ){
 		oarcs.push({ x:filwtl.ox, y:filwtl.oy, r:filwtl.r, angb:filwtl.angb, ange:filwtl.ange });
 		PFWTLB = {x: filwtl.xb, y: filwtl.yb };
 		PFWTLE = {x: filwtl.xe, y: filwtl.ye };
@@ -1385,8 +1392,8 @@ function geo_box12cell( {
 		PFWTLE = {x: PTCL1.x, y: PTCL1.y };
 	}
 
-	if( R_WTR !== 0 ){
-		let filwtr = geo_fillet( PTCR2, PTCR1, PBER, R_WTR );
+	let filwtr = fillet_safe( PTCR2, PTCR1, PBER, R_WTR );
+	if( filwtr ){
 		oarcs.push({ x:filwtr.ox, y:filwtr.oy, r:filwtr.r, angb:filwtr.angb, ange:filwtr.ange });
 		PFWTRB = {x: filwtr.xb, y: filwtr.yb };
 		PFWTRE = {x: filwtr.xe, y: filwtr.ye };
@@ -1395,8 +1402,9 @@ function geo_box12cell( {
 		PFWTRE = {x: PTCR1.x, y: PTCR1.y };
 	}
 
-	if( R_WBL !== 0 ){
-		let filwbl = geo_fillet( PTCL1, PBEL, PBL, R_WBL );
+	// TBEL=0 이면 PBEL==PBL 이므로 하부 모서리 필렛의 세 번째 점은 하부면(PBC) 방향으로 잡는다
+	let filwbl = fillet_safe( PTCL1, PBEL, (TBEL > 0 ? PBL : PBC), R_WBL );
+	if( filwbl ){
 		oarcs.push({ x:filwbl.ox, y:filwbl.oy, r:filwbl.r, angb:filwbl.angb, ange:filwbl.ange });
 		PFWBLB = {x: filwbl.xb, y: filwbl.yb };
 		PFWBLE = {x: filwbl.xe, y: filwbl.ye };
@@ -1405,8 +1413,8 @@ function geo_box12cell( {
 		PFWBLE = {x: PBEL.x, y: PBEL.y };
 	}
 
-	if( R_WBR !== 0 ){
-		let filwbr = geo_fillet( PTCR1, PBER, PBR, R_WBR );
+	let filwbr = fillet_safe( PTCR1, PBER, (TBER > 0 ? PBR : PBC), R_WBR );
+	if( filwbr ){
 		oarcs.push({ x:filwbr.ox, y:filwbr.oy, r:filwbr.r, angb:filwbr.angb, ange:filwbr.ange });
 		PFWBRB = {x: filwbr.xb, y: filwbr.yb };
 		PFWBRE = {x: filwbr.xe, y: filwbr.ye };
@@ -1415,8 +1423,8 @@ function geo_box12cell( {
 		PFWBRE = {x: PBER.x, y: PBER.y };
 	}
 
-	if( R_WTIL !== 0 ){
-		let filwtil = geo_fillet( PTHL2, PTHL1, PBHL1, R_WTIL );
+	let filwtil = fillet_safe( PTHL2, PTHL1, PBHL1, R_WTIL );
+	if( filwtil ){
 		oarcs.push({ x:filwtil.ox, y:filwtil.oy, r:filwtil.r, angb:filwtil.angb, ange:filwtil.ange });
 		PFWTILB = {x: filwtil.xb, y: filwtil.yb };
 		PFWTILE = {x: filwtil.xe, y: filwtil.ye };
@@ -1425,8 +1433,8 @@ function geo_box12cell( {
 		PFWTILE = {x: PTHL1.x, y: PTHL1.y };
 	}
 
-	if( R_WTIR !== 0 ){
-		let filwtir = geo_fillet( PTHR2, PTHR1, PBHR1, R_WTIR );
+	let filwtir = fillet_safe( PTHR2, PTHR1, PBHR1, R_WTIR );
+	if( filwtir ){
 		oarcs.push({ x:filwtir.ox, y:filwtir.oy, r:filwtir.r, angb:filwtir.angb, ange:filwtir.ange });
 		PFWTIRB = {x: filwtir.xb, y: filwtir.yb };
 		PFWTIRE = {x: filwtir.xe, y: filwtir.ye };
@@ -1445,10 +1453,18 @@ function geo_box12cell( {
 	olines.push({ x1: PTCL3.x,  y1: PTCL3.y,  x2: PTCL2.x,  y2: PTCL2.y  });
 	olines.push({ x1: PTCL2.x,  y1: PTCL2.y,  x2: PFWTLB.x, y2: PFWTLB.y });
 	olines.push({ x1: PFWTLE.x, y1: PFWTLE.y, x2: PFWBLB.x, y2: PFWBLB.y });	// 좌측복부 외측면
-	olines.push({ x1: PFWBLE.x, y1: PFWBLE.y, x2: PBL.x,    y2: PBL.y    });	// 좌측 하부 연직단
-	olines.push({ x1: PBL.x,    y1: PBL.y,    x2: PBC.x,    y2: PBC.y    });	// 하부면 좌
-	olines.push({ x1: PBC.x,    y1: PBC.y,    x2: PBR.x,    y2: PBR.y    });	// 하부면 우
-	olines.push({ x1: PBR.x,    y1: PBR.y,    x2: PFWBRE.x, y2: PFWBRE.y });	// 우측 하부 연직단
+	if( TBEL > 0 ){
+		olines.push({ x1: PFWBLE.x, y1: PFWBLE.y, x2: PBL.x, y2: PBL.y });		// 좌측 하부 연직단
+		olines.push({ x1: PBL.x, y1: PBL.y, x2: PBC.x, y2: PBC.y });			// 하부면 좌
+	}else{
+		olines.push({ x1: PFWBLE.x, y1: PFWBLE.y, x2: PBC.x, y2: PBC.y });		// 하부면 좌 (연직단 없음)
+	}
+	if( TBER > 0 ){
+		olines.push({ x1: PBC.x, y1: PBC.y, x2: PBR.x, y2: PBR.y });			// 하부면 우
+		olines.push({ x1: PBR.x, y1: PBR.y, x2: PFWBRE.x, y2: PFWBRE.y });		// 우측 하부 연직단
+	}else{
+		olines.push({ x1: PBC.x, y1: PBC.y, x2: PFWBRE.x, y2: PFWBRE.y });		// 하부면 우 (연직단 없음)
+	}
 	olines.push({ x1: PFWBRB.x, y1: PFWBRB.y, x2: PFWTRE.x, y2: PFWTRE.y });	// 우측복부 외측면
 	olines.push({ x1: PFWTRB.x, y1: PFWTRB.y, x2: PTCR2.x,  y2: PTCR2.y  });	// 우측 캔틸레버 하면
 	olines.push({ x1: PTCR2.x,  y1: PTCR2.y,  x2: PTCR3.x,  y2: PTCR3.y  });
@@ -1636,7 +1652,15 @@ function draw_box12cell_guide( sdivid, ap ){
 	var W = odiv.clientWidth || 900;
 	var bw = (xmax - xmin) + S*0.30, bh = (ytop - ybot) + S*0.34;
 	var Hpx = Math.max(320, Math.min(680, Math.round(W * bh / bw) + 20));
-	odiv.innerHTML = window.RWSVG.renderSVG(rec, W, Hpx);
+	odiv.style.position = 'relative';
+	odiv.innerHTML = window.RWSVG.renderSVG(rec, W, Hpx) +
+		'<button type="button" data-guide-regen title="Reset zoom/pan (더블클릭도 가능)" ' +
+		'style="position:absolute;top:8px;right:8px;padding:3px 10px;font-size:10.5px;font-weight:700;letter-spacing:.06em;' +
+		'color:#fff;background:#2563eb;border:1px solid #2563eb;border-radius:6px;cursor:pointer;">&#8635; REGEN</button>';
 	var svg = odiv.querySelector('svg');
 	if (svg) window.RWSVG.attachZoomPan(svg);
+	var oregen = function(){ draw_box12cell_guide(sdivid, ap); };	// 재렌더 = 뷰 초기화
+	var obtn = odiv.querySelector('[data-guide-regen]');
+	if (obtn) obtn.onclick = oregen;
+	if (svg) svg.addEventListener('dblclick', oregen);
 }
