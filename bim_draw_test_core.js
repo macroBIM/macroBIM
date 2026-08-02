@@ -44,7 +44,7 @@
   MockViewer.prototype.addCircle = function (v, x, y, r, name) { var l = this._c(name); this.A.push({ x: x, y: y, r: r, a1: 0, a2: 360, lay: (l.type === 'hidden' ? 'hidden' : 'solid'), col: l.color }); };
   MockViewer.prototype.addArc = function (v, x, y, r, a1, a2, name) { var l = this._c(name); this.A.push({ x: x, y: y, r: r, a1: a1, a2: a2, lay: (l.type === 'hidden' ? 'hidden' : 'solid'), col: l.color }); };
   MockViewer.prototype.addDimLinear = function (v, x1, y1, x2, y2, gap, label, opts) { this.DL.push({ x1: x1, y1: y1, x2: x2, y2: y2, gap: gap, t: label || '', la: (opts && opts.la) || 0, lp: (opts && opts.lp) || 0 }); };
-  MockViewer.prototype.addDimRadius = function (v, x, y, r, ang, label) { this.DR.push({ x: x, y: y, r: r, ang: ang, t: label || '' }); };
+  MockViewer.prototype.addDimRadius = function (v, x, y, r, ang, label, opts) { this.DR.push({ x: x, y: y, r: r, ang: ang, t: label || '', lt: (opts && opts.lt != null) ? opts.lt : 0.5 }); };
   MockViewer.prototype.addText = function (v, x, y, str, rot) { this.TX.push({ x: x, y: y, t: str || '', rot: rot || 0 }); };
   MockViewer.prototype.render = function () { /* no-op: rendered externally via renderSVG */ };
 
@@ -112,10 +112,13 @@
     rec.DR.forEach(function (d) {
       var rr = d.ang * Math.PI / 180, tx = SX(d.x), ty = SY(d.y), px = SX(d.x + d.r * Math.cos(rr)), py = SY(d.y + d.r * Math.sin(rr));
       var dl = Math.hypot(px - tx, py - ty) || 1;
-      line(tx, ty, px, py, DIM, 0.9, '4 3');
+      // lt: label position along centre->arc (0=centre, 0.5=midpoint(default), 1=arc point;
+      //     <0 = beyond the centre, >1 = beyond the arc). Leader stretches to reach the label.
+      var lt = (d.lt != null) ? d.lt : 0.5, t0 = Math.min(0, lt), t1 = Math.max(1, lt);
+      line(tx + (px - tx) * t0, ty + (py - ty) * t0, tx + (px - tx) * t1, ty + (py - ty) * t1, DIM, 0.9, '4 3');
       arrow(px, py, (px - tx) / dl, (py - ty) / dl, DIM);
       var ang = Math.atan2(py - ty, px - tx) * 180 / Math.PI; if (ang > 90 || ang < -90) ang += 180;
-      text((tx + px) / 2, (ty + py) / 2 - 7, (d.t ? d.t : 'R') + num(d.r), DIM, ang);
+      text(tx + (px - tx) * lt, ty + (py - ty) * lt - 7, (d.t ? d.t : 'R') + num(d.r), DIM, ang);
     });
     (rec.TX || []).forEach(function (t) { text(SX(t.x), SY(t.y), t.t, DIM, t.rot); });
 

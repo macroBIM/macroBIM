@@ -1640,7 +1640,10 @@ function draw_box12cell_guide( sdivid, ap ){
 	o.arcs.forEach(function(a, i){
 		if (i >= frad.length) return;
 		var a2 = a.ange; if (a2 <= a.angb) a2 += 360;
-		rec.addDimRadius(0, a.x, a.y, a.r, (a.angb + a2) / 2, frad[i][0] + '=');
+		// 라벨이 두께 치수와 겹치지 않도록 지시선을 연장 : 외측 필렛은 단면 바깥쪽(lt>1),
+		// 내측 필렛(R_WTIL/R_WTIR)은 중심 너머 셀 안쪽(lt<0)으로 보낸다
+		var inner = (frad[i][0] === 'R_WTIL' || frad[i][0] === 'R_WTIR');
+		rec.addDimRadius(0, a.x, a.y, a.r, (a.angb + a2) / 2, frad[i][0] + '=', { lt: inner ? -1.5 : 3.2 });
 	});
 
 	// ── 슬로프 표기 (파랑 텍스트) ──
