@@ -127,8 +127,12 @@ body{
 .rebar-table tbody tr:hover td{background:#eff6ff;}
 
 /* ── VARIABLES 카드 (상수·수식 정의) ── */
-.var-grid{display:flex;flex-direction:column;gap:8px;}
-.var-row{display:grid;grid-template-columns:180px 1fr 120px 34px;gap:10px;align-items:center;}
+.var-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:8px 20px;}
+@media(max-width:1500px){.var-grid{grid-template-columns:repeat(3,1fr);}}
+@media(max-width:1100px){.var-grid{grid-template-columns:repeat(2,1fr);}}
+@media(max-width:680px){.var-grid{grid-template-columns:1fr;}}
+.var-row{display:grid;grid-template-columns:minmax(70px,auto) 1fr minmax(52px,auto) 22px;gap:6px;align-items:center;}
+.var-row .var-del{padding:2px 6px;}
 .var-row .var-name{font-weight:600;}
 .var-row .var-expr{font-family:ui-monospace,Menlo,Consolas,monospace;}
 .var-val{font-size:12.5px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}

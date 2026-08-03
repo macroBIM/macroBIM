@@ -1259,8 +1259,8 @@
         var self = this, h = '';
         this._vars.forEach(function (v, i) {
           h += '<div class="var-row">' +
-            '<input class="form-input var-name" placeholder="이름 (예: W)" value="' + self._esc(v.name) + '" oninput="SeoulPhD.onVarInput(' + i + ',\'name\',this.value)" onchange="SeoulPhD.onVarChange()">' +
-            '<input class="form-input var-expr" placeholder="값 또는 수식 (예: 12000, W/2, sqrt(W)*2)" value="' + self._esc(v.expr) + '" oninput="SeoulPhD.onVarInput(' + i + ',\'expr\',this.value)" onchange="SeoulPhD.onVarChange()">' +
+            '<input class="form-input var-name" placeholder="이름" value="' + self._esc(v.name) + '" oninput="SeoulPhD.onVarInput(' + i + ',\'name\',this.value)" onchange="SeoulPhD.onVarChange()">' +
+            '<input class="form-input var-expr" placeholder="값 / 수식" value="' + self._esc(v.expr) + '" oninput="SeoulPhD.onVarInput(' + i + ',\'expr\',this.value)" onchange="SeoulPhD.onVarChange()">' +
             '<span class="var-val" id="varval-' + i + '"></span>' +
             '<button type="button" class="var-del" title="행 삭제" onclick="SeoulPhD.removeVarRow(' + i + ')">×</button>' +
           '</div>';
