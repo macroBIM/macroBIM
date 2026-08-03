@@ -1777,12 +1777,14 @@ function draw_box12cell_guide( sdivid, ap ){
 		// 외측 필렛 : geo_fillet 중심이 단면 바깥이므로 중심 너머(lt<0)로 연장 → 바깥 빈 공간
 		// 내측 필렛(R_WTIL/R_WTIR) : 셀 내부의 넓은 빈 공간에 수평 라벨 + 지시선(lx/ly)
 		var inner = (frad[i][0] === 'R_WTIL' || frad[i][0] === 'R_WTIR');
+		var bottom = (frad[i][0] === 'R_WBL' || frad[i][0] === 'R_WBR');
 		if (inner){
 			var toCell = (frad[i][0] === 'R_WTIL') ? 1 : -1;		// 셀 안쪽 방향
 			rec.addDimRadius(0, a.x, a.y, a.r, (a.angb + a2) / 2, frad[i][0] + '=',
-				{ lx: a.x + toCell * S * 0.09, ly: a.y - S * 0.06 });
+				{ lx: a.x + toCell * S * 0.045, ly: a.y - S * 0.018 });
 		}else{
-			rec.addDimRadius(0, a.x, a.y, a.r, (a.angb + a2) / 2, frad[i][0] + '=', { lt: -2.5 });
+			// 하부 외측(R_WBL/R_WBR)은 지시선을 두 배 길게 빼서 라벨을 여유 공간에
+			rec.addDimRadius(0, a.x, a.y, a.r, (a.angb + a2) / 2, frad[i][0] + '=', { lt: bottom ? -5.0 : -2.5 });
 		}
 	});
 
