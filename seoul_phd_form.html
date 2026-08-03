@@ -118,6 +118,16 @@
       <div><div class="draw-card-title">Dimension (mm)</div><div class="draw-card-desc">Input 2-Cell Box section parameters</div></div>
     </div>
     <div class="draw-card-body">
+      <!-- Section Type : 1 Cell(중앙복부 없음) / 2 Cell -->
+      <div style="display:flex;gap:18px;align-items:center;margin:0 0 12px 2px;font-size:13px;color:#334155;">
+        <span style="font-weight:600;">Section Type :</span>
+        <label style="display:flex;gap:6px;align-items:center;cursor:pointer;margin:0;">
+          <input type="radio" name="box12cell_ncell" value="1" onchange="SeoulPhD.redraw('box12cell')"> 1 Cell
+        </label>
+        <label style="display:flex;gap:6px;align-items:center;cursor:pointer;margin:0;">
+          <input type="radio" name="box12cell_ncell" value="2" checked onchange="SeoulPhD.redraw('box12cell')"> 2 Cell
+        </label>
+      </div>
       <div class="dim-split">
         <!-- 좌: 입력변수 가이드 — 이미지 파일 대신 현재 입력값으로 SVG 생성 (draw_box12cell_guide) -->
         <div class="dim-guide" id="box12cell_guide"></div>

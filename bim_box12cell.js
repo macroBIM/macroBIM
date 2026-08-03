@@ -295,7 +295,14 @@ function box12cell_click() {
 			...Object.values(aparam_e)
 		].join(',');
 
-		// 3. 결과 반환
+		// 3. Section Type 라디오 (1 Cell / 2 Cell) — 라디오가 없으면 2셀
+		let dncell = 2;
+		const oncell = document.querySelector('input[name="box12cell_ncell"]:checked');
+		if (oncell) dncell = Number(oncell.value) || 2;
+		aparam_b.NCELL = dncell;
+		aparam_e.NCELL = dncell;
+
+		// 4. 결과 반환
 		return { aparam_b, aparam_e, dseg_leng, combText_b, combText_e };
 	}
 
@@ -445,6 +452,10 @@ function fdraw_box12cell(){
             }
             return {x: 0, y: 0};
         }
+        // 1 cell 모드 등에서 존재하지 않는 점(중앙복부 관련) 라인을 건너뛰기 위한 헬퍼
+        function hasPointByName(points, name) {
+            return points.some(p => p.name === name);
+        }
 
 	// 전체 폭 (뷰 배치 간격 계산용)
 	var dwidth_max = Math.max( aparam_b.WL + aparam_b.WR, aparam_e.WL + aparam_e.WR );
@@ -495,6 +506,7 @@ function fdraw_box12cell(){
 
         // 실선 : 종방향 (중앙 및 좌우 단부)
         ["PTC", "PTL", "PTR"].forEach( (sname) => {
+			if (!hasPointByName(obox12cell_b.points, sname) || !hasPointByName(obox12cell_e.points, sname)) return;
 			p1 = getPointByName(obox12cell_b.points, sname);
 			p1.y = dseg_leng / 2 * -1;
 			p2 = getPointByName(obox12cell_e.points, sname);
@@ -520,6 +532,7 @@ function fdraw_box12cell(){
 
         // 히든 : 복부 관련 종방향
         ["PTCL1", "PTHL1", "PTHCL1", "PTHCR1", "PTHR1", "PTCR1"].forEach( (sname) => {
+			if (!hasPointByName(obox12cell_b.points, sname) || !hasPointByName(obox12cell_e.points, sname)) return;
 			p1 = getPointByName(obox12cell_b.points, sname);
 			p1.y = dseg_leng / 2 * -1;
 			p2 = getPointByName(obox12cell_e.points, sname);
@@ -540,6 +553,7 @@ function fdraw_box12cell(){
 
         // 실선 : 종방향 (좌우 단부)
         ["PBL", "PBR"].forEach( (sname) => {
+			if (!hasPointByName(obox12cell_b.points, sname) || !hasPointByName(obox12cell_e.points, sname)) return;
 			p1 = getPointByName(obox12cell_b.points, sname);
 			p1.y = dseg_leng / 2 * -1;
 			p2 = getPointByName(obox12cell_e.points, sname);
@@ -565,6 +579,7 @@ function fdraw_box12cell(){
 
         // 히든 : 복부 관련 종방향
         ["PBHL1", "PBHCL1", "PBHCR1", "PBHR1"].forEach( (sname) => {
+			if (!hasPointByName(obox12cell_b.points, sname) || !hasPointByName(obox12cell_e.points, sname)) return;
 			p1 = getPointByName(obox12cell_b.points, sname);
 			p1.y = dseg_leng / 2 * -1;
 			p2 = getPointByName(obox12cell_e.points, sname);
@@ -610,6 +625,17 @@ function fdraw_box12cell(){
         p2.x = dseg_leng / 2 * 1;
         ocvs.addLine(sview, p1.x, p1.y, p2.x, p2.y, alayer[0] );
 		odxf_box12cell.line( p1.x + dOx_side, p1.y + dOy_side, p2.x + dOx_side, p2.y + dOy_side, alayer[0] );
+
+        // 1 cell : 슬래브 내측선 (2셀에서는 해당 점이 없어 건너뜀)
+        ["PTSC", "PBSC"].forEach( (sname) => {
+			if (!hasPointByName(obox12cell_b.points, sname) || !hasPointByName(obox12cell_e.points, sname)) return;
+			p1 = getPointByName(obox12cell_b.points, sname);
+			p1.x = dseg_leng / 2 * -1;
+			p2 = getPointByName(obox12cell_e.points, sname);
+			p2.x = dseg_leng / 2 * 1;
+			ocvs.addLine(sview, p1.x, p1.y, p2.x, p2.y, alayer[0] );
+			odxf_box12cell.line( p1.x + dOx_side, p1.y + dOy_side, p2.x + dOx_side, p2.y + dOy_side, alayer[0] );
+		});
 
         // 좌측 left view
         dOx = dseg_leng * -1.5;
@@ -665,6 +691,7 @@ function fdraw_box12cell(){
 
         // 실선 : 외곽 실루엣 종방향
         ["PTL", "PTCL", "PTCL2", "PTCL1", "PBEL", "PBL"].forEach( (sname) => {
+			if (!hasPointByName(obox12cell_b.points, sname) || !hasPointByName(obox12cell_e.points, sname)) return;
 			p1 = getPointByName(obox12cell_b.points, sname);
 			p1.x = dOx + dseg_leng / 2 * -1;
 			p2 = getPointByName(obox12cell_e.points, sname);
@@ -675,6 +702,7 @@ function fdraw_box12cell(){
 
         // 히든 : 좌측 셀 내부 종방향
         ["PTHL1", "PTHL3", "PTHCL1", "PBHL1", "PBHL3", "PBHCL1"].forEach( (sname) => {
+			if (!hasPointByName(obox12cell_b.points, sname) || !hasPointByName(obox12cell_e.points, sname)) return;
 			p1 = getPointByName(obox12cell_b.points, sname);
 			p1.x = dOx + dseg_leng / 2 * -1;
 			p2 = getPointByName(obox12cell_e.points, sname);
@@ -738,6 +766,7 @@ function fdraw_box12cell(){
 
         // 실선 : 외곽 실루엣 종방향
         ["PTR", "PTCR", "PTCR2", "PTCR1", "PBER", "PBR"].forEach( (sname) => {
+			if (!hasPointByName(obox12cell_b.points, sname) || !hasPointByName(obox12cell_e.points, sname)) return;
 			p1 = getPointByName(obox12cell_b.points, sname);
 			p1.x = dOx + dseg_leng / 2 * -1;
 			p2 = getPointByName(obox12cell_e.points, sname);
@@ -748,6 +777,7 @@ function fdraw_box12cell(){
 
         // 히든 : 우측 셀 내부 종방향
         ["PTHR1", "PTHR3", "PTHCR1", "PBHR1", "PBHR3", "PBHCR1"].forEach( (sname) => {
+			if (!hasPointByName(obox12cell_b.points, sname) || !hasPointByName(obox12cell_e.points, sname)) return;
 			p1 = getPointByName(obox12cell_b.points, sname);
 			p1.x = dOx + dseg_leng / 2 * -1;
 			p2 = getPointByName(obox12cell_e.points, sname);
@@ -919,6 +949,7 @@ function fdraw_box12cell_2d(viewName) {
 		// hidden lines
 		var hiddenNames = ["PTCL1","PTHL1","PTHCL1","PTHCR1","PTHR1","PTCR1"];
 		hiddenNames.forEach(function(n) {
+			if (!pts_b.some(function(q){return q.name===n;}) || !pts_e.some(function(q){return q.name===n;})) return;
 			p1 = gp(pts_b, n); p1.y = -half;
 			p2 = gp(pts_e, n); p2.y = half;
 			ocvs.addLine(viewName, p1.x, p1.y, p2.x, p2.y, alayer[1]);
@@ -952,6 +983,7 @@ function fdraw_box12cell_2d(viewName) {
 
 		var hiddenNames = ["PBHL1","PBHCL1","PBHCR1","PBHR1"];
 		hiddenNames.forEach(function(n) {
+			if (!pts_b.some(function(q){return q.name===n;}) || !pts_e.some(function(q){return q.name===n;})) return;
 			p1 = gp(pts_b, n); p1.y = -half;
 			p2 = gp(pts_e, n); p2.y = half;
 			ocvs.addLine(viewName, p1.x, p1.y, p2.x, p2.y, alayer[1]);
@@ -985,6 +1017,14 @@ function fdraw_box12cell_2d(viewName) {
 		p1 = gp(pts_e, "PTC"); p1.x = half;
 		p2 = gp(pts_e, "PBC"); p2.x = half;
 		ocvs.addLine(viewName, p1.x, p1.y, p2.x, p2.y, alayer[0]);
+
+		// 1 cell : 슬래브 내측선 (2셀에서는 해당 점이 없어 건너뜀)
+		["PTSC", "PBSC"].forEach(function(n) {
+			if (!pts_b.some(function(q){return q.name===n;}) || !pts_e.some(function(q){return q.name===n;})) return;
+			p1 = gp(pts_b, n); p1.x = -half;
+			p2 = gp(pts_e, n); p2.x = half;
+			ocvs.addLine(viewName, p1.x, p1.y, p2.x, p2.y, alayer[0]);
+		});
 
 		// === Center view dimensions ===
 		var PTC_b = gp(pts_b, "PTC"), PBC_b = gp(pts_b, "PBC");
@@ -1044,6 +1084,7 @@ function fdraw_box12cell_2d(viewName) {
 
 		var hiddenNames = ["PTHL1","PTHL3","PTHCL1","PBHL1","PBHL3","PBHCL1"];
 		hiddenNames.forEach(function(n) {
+			if (!pts_b.some(function(q){return q.name===n;}) || !pts_e.some(function(q){return q.name===n;})) return;
 			p1 = gp(pts_b, n); p1.x = -half;
 			p2 = gp(pts_e, n); p2.x = half;
 			ocvs.addLine(viewName, p1.x, p1.y, p2.x, p2.y, alayer[1]);
@@ -1106,6 +1147,7 @@ function fdraw_box12cell_2d(viewName) {
 
 		var hiddenNames = ["PTHR1","PTHR3","PTHCR1","PBHR1","PBHR3","PBHCR1"];
 		hiddenNames.forEach(function(n) {
+			if (!pts_b.some(function(q){return q.name===n;}) || !pts_e.some(function(q){return q.name===n;})) return;
 			p1 = gp(pts_b, n); p1.x = -half;
 			p2 = gp(pts_e, n); p2.x = half;
 			ocvs.addLine(viewName, p1.x, p1.y, p2.x, p2.y, alayer[1]);
@@ -1156,7 +1198,9 @@ function geo_box12cell( {
 	WBHCR1, WBHCR2, TBHCR1, TBHCR2,			// 중앙복부 우측 하부헌치
 	WBHR1,  WBHR2,  TBHR1,  TBHR2,			// 우측복부 하부헌치
 	// 필렛 (0 = 미적용)
-	R_WTL, R_WTR, R_WTIL, R_WTIR, R_WBL, R_WBR
+	R_WTL, R_WTR, R_WTIL, R_WTIR, R_WBL, R_WBR,
+	// 셀 수 (1 = 중앙복부 없는 단일 셀, 생략/2 = 2셀)
+	NCELL
 } ){
 
 	let dx, dy;
@@ -1172,10 +1216,21 @@ function geo_box12cell( {
 	/*
 		기준점
 	*/
+	// 1 cell 모드 : 중앙 복부/헌치를 생략하고 슬래브 내측선이 중앙점에서 꺾인다
+	let bTwoCell = (NCELL === undefined || Number(NCELL) !== 1);
+
 	let PTC = {x: 0, y: 0};
 		opts.push({PTC, name:"PTC"});
 	let PBC = {x: 0, y: -TH};
 		opts.push({PBC, name:"PBC"});
+
+	// 1 cell : 슬래브 내측 중앙점
+	let PTSC = {x: 0, y: -TTS};
+	let PBSC = {x: 0, y: -TH + TBS};
+	if( !bTwoCell ){
+		opts.push({PTSC, name:"PTSC"});
+		opts.push({PBSC, name:"PBSC"});
+	}
 
 	/*
 		좌측 캔틸레버
@@ -1269,26 +1324,26 @@ function geo_box12cell( {
 	*/
 	dx = -TWEBC / 2;
 	let PTHCL1 = {x: dx, y: dx * SLL / 100 - TTHCL1 };
-		opts.push({PTHCL1, name:"PTHCL1"});
+		if (bTwoCell) opts.push({PTHCL1, name:"PTHCL1"});
 	dx = PTHCL1.x - WTCHUL1;
 	let PTHCL2 = {x: dx, y: dx * SLL / 100 - TTHCL2 };
-		opts.push({PTHCL2, name:"PTHCL2"});
+		if (bTwoCell) opts.push({PTHCL2, name:"PTHCL2"});
 	dx = PTHCL2.x - WTCHUL2;
 	let PTHCL3 = {x: dx, y: dx * SLL / 100 - TTS };
-		opts.push({PTHCL3, name:"PTHCL3"});
+		if (bTwoCell) opts.push({PTHCL3, name:"PTHCL3"});
 
 	/*
 		우측 셀 - 상부 헌치 (중앙복부측, 중앙복부 우측면 x = +TWEBC/2)
 	*/
 	dx = TWEBC / 2;
 	let PTHCR1 = {x: dx, y: dx * SLR / 100 - TTHCR1 };
-		opts.push({PTHCR1, name:"PTHCR1"});
+		if (bTwoCell) opts.push({PTHCR1, name:"PTHCR1"});
 	dx = PTHCR1.x + WTCHUR1;
 	let PTHCR2 = {x: dx, y: dx * SLR / 100 - TTHCR2 };
-		opts.push({PTHCR2, name:"PTHCR2"});
+		if (bTwoCell) opts.push({PTHCR2, name:"PTHCR2"});
 	dx = PTHCR2.x + WTCHUR2;
 	let PTHCR3 = {x: dx, y: dx * SLR / 100 - TTS };
-		opts.push({PTHCR3, name:"PTHCR3"});
+		if (bTwoCell) opts.push({PTHCR3, name:"PTHCR3"});
 
 	/*
 		우측 셀 - 상부 헌치 (우측복부측)
@@ -1330,26 +1385,26 @@ function geo_box12cell( {
 	*/
 	dx = -TWEBC / 2;
 	let PBHCL1 = {x: dx, y: -TH + dx * SLB / 100 + TBHCL1 };
-		opts.push({PBHCL1, name:"PBHCL1"});
+		if (bTwoCell) opts.push({PBHCL1, name:"PBHCL1"});
 	dx = PBHCL1.x - WBHCL1;
 	let PBHCL2 = {x: dx, y: -TH + dx * SLB / 100 + TBHCL2 };
-		opts.push({PBHCL2, name:"PBHCL2"});
+		if (bTwoCell) opts.push({PBHCL2, name:"PBHCL2"});
 	dx = PBHCL2.x - WBHCL2;
 	let PBHCL3 = {x: dx, y: -TH + dx * SLB / 100 + TBS };
-		opts.push({PBHCL3, name:"PBHCL3"});
+		if (bTwoCell) opts.push({PBHCL3, name:"PBHCL3"});
 
 	/*
 		우측 셀 - 하부 헌치 (중앙복부측)
 	*/
 	dx = TWEBC / 2;
 	let PBHCR1 = {x: dx, y: -TH + dx * SLB / 100 + TBHCR1 };
-		opts.push({PBHCR1, name:"PBHCR1"});
+		if (bTwoCell) opts.push({PBHCR1, name:"PBHCR1"});
 	dx = PBHCR1.x + WBHCR1;
 	let PBHCR2 = {x: dx, y: -TH + dx * SLB / 100 + TBHCR2 };
-		opts.push({PBHCR2, name:"PBHCR2"});
+		if (bTwoCell) opts.push({PBHCR2, name:"PBHCR2"});
 	dx = PBHCR2.x + WBHCR2;
 	let PBHCR3 = {x: dx, y: -TH + dx * SLB / 100 + TBS };
-		opts.push({PBHCR3, name:"PBHCR3"});
+		if (bTwoCell) opts.push({PBHCR3, name:"PBHCR3"});
 
 	/*
 		우측 셀 - 하부 헌치 (우측복부측)
@@ -1471,6 +1526,27 @@ function geo_box12cell( {
 	olines.push({ x1: PTCR3.x,  y1: PTCR3.y,  x2: PTCR.x,   y2: PTCR.y   });
 	olines.push({ x1: PTCR.x,   y1: PTCR.y,   x2: PTR.x,    y2: PTR.y    });	// 우측 단부
 
+	if( !bTwoCell ){
+	/*
+		단일 셀 내측선 (중앙 복부/헌치 없음)
+	*/
+	olines.push({ x1: PTSC.x,    y1: PTSC.y,    x2: PTHL3.x,   y2: PTHL3.y   });	// 상부슬래브 하면 좌
+	olines.push({ x1: PTHL3.x,   y1: PTHL3.y,   x2: PTHL2.x,   y2: PTHL2.y   });
+	olines.push({ x1: PTHL2.x,   y1: PTHL2.y,   x2: PFWTILB.x, y2: PFWTILB.y });
+	olines.push({ x1: PFWTILE.x, y1: PFWTILE.y, x2: PBHL1.x,   y2: PBHL1.y   });	// 좌측복부 내측면
+	olines.push({ x1: PBHL1.x,   y1: PBHL1.y,   x2: PBHL2.x,   y2: PBHL2.y   });
+	olines.push({ x1: PBHL2.x,   y1: PBHL2.y,   x2: PBHL3.x,   y2: PBHL3.y   });
+	olines.push({ x1: PBHL3.x,   y1: PBHL3.y,   x2: PBSC.x,    y2: PBSC.y    });	// 하부슬래브 상면 좌
+	olines.push({ x1: PBSC.x,    y1: PBSC.y,    x2: PBHR3.x,   y2: PBHR3.y   });	// 하부슬래브 상면 우
+	olines.push({ x1: PBHR3.x,   y1: PBHR3.y,   x2: PBHR2.x,   y2: PBHR2.y   });
+	olines.push({ x1: PBHR2.x,   y1: PBHR2.y,   x2: PBHR1.x,   y2: PBHR1.y   });
+	olines.push({ x1: PBHR1.x,   y1: PBHR1.y,   x2: PFWTIRE.x, y2: PFWTIRE.y });	// 우측복부 내측면
+	olines.push({ x1: PFWTIRB.x, y1: PFWTIRB.y, x2: PTHR2.x,   y2: PTHR2.y   });
+	olines.push({ x1: PTHR2.x,   y1: PTHR2.y,   x2: PTHR3.x,   y2: PTHR3.y   });
+	olines.push({ x1: PTHR3.x,   y1: PTHR3.y,   x2: PTSC.x,    y2: PTSC.y    });	// 상부슬래브 하면 우
+
+	}else{
+
 	/*
 		좌측 셀 내측선
 	*/
@@ -1502,6 +1578,8 @@ function geo_box12cell( {
 	olines.push({ x1: PBHCR1.x,  y1: PBHCR1.y,  x2: PTHCR1.x,  y2: PTHCR1.y  });	// 중앙복부 우측면
 	olines.push({ x1: PTHCR1.x,  y1: PTHCR1.y,  x2: PTHCR2.x,  y2: PTHCR2.y  });
 	olines.push({ x1: PTHCR2.x,  y1: PTHCR2.y,  x2: PTHCR3.x,  y2: PTHCR3.y  });
+
+	}
 
 	return {
 		points: opts,
@@ -1569,12 +1647,16 @@ function draw_box12cell_guide( sdivid, ap ){
 	// ── 상부 치수행 (안쪽부터 헌치폭 → 캔틸레버/복부폭 → 전폭) ──
 	var g1 = ytop + S*0.05, g2 = ytop + S*0.10, g3 = ytop + S*0.15;
 
+	var two = !!P.PTHCL1;		// 1 cell 모드에서는 중앙복부 관련 점이 등록되지 않음
+
 	dimH(P.PTHL1.x,  P.PTHL2.x,  ytop, g1, 'WTHUL1');
 	dimH(P.PTHL2.x,  P.PTHL3.x,  ytop, g1, 'WTHUL2', 14);
-	dimH(P.PTHCL3.x, P.PTHCL2.x, ytop, g1, 'WTCHUL2', 14);
-	dimH(P.PTHCL2.x, P.PTHCL1.x, ytop, g1, 'WTCHUL1');
-	dimH(P.PTHCR1.x, P.PTHCR2.x, ytop, g1, 'WTCHUR1', 28);
-	dimH(P.PTHCR2.x, P.PTHCR3.x, ytop, g1, 'WTCHUR2', 14);
+	if (two){
+		dimH(P.PTHCL3.x, P.PTHCL2.x, ytop, g1, 'WTCHUL2', 14);
+		dimH(P.PTHCL2.x, P.PTHCL1.x, ytop, g1, 'WTCHUL1');
+		dimH(P.PTHCR1.x, P.PTHCR2.x, ytop, g1, 'WTCHUR1', 28);
+		dimH(P.PTHCR2.x, P.PTHCR3.x, ytop, g1, 'WTCHUR2', 14);
+	}
 	dimH(P.PTHR3.x,  P.PTHR2.x,  ytop, g1, 'WTHUR2', 14);
 	dimH(P.PTHR2.x,  P.PTHR1.x,  ytop, g1, 'WTHUR1');
 
@@ -1608,7 +1690,8 @@ function draw_box12cell_guide( sdivid, ap ){
 		[P.PTHCR2, 'TTHCR2'], [P.PTHCR1, 'TTHCR1'], [P.PTHCR3, 'TTS'],
 		[P.PTHR1, 'TTHR1'], [P.PTHR2, 'TTHR2'], [P.PTHR3, 'TTS'],
 		[P.PTCR1, 'TCAR1'], [P.PTCR2, 'TCAR2']
-	].forEach(function(d){ thk(d[0].x, ytopf(d[0].x), d[0].y, d[1]); });
+	].forEach(function(d){ if (!d[0]) return; thk(d[0].x, ytopf(d[0].x), d[0].y, d[1]); });
+	if (P.PTSC) thk(0, 0, P.PTSC.y, 'TTS');		// 1 cell : 슬래브 중앙 두께
 
 	// ── 하부 두께 (하부면 → 각 점) ──
 	[
@@ -1616,7 +1699,8 @@ function draw_box12cell_guide( sdivid, ap ){
 		[P.PBHCL2, 'TBHCL2'], [P.PBHCL1, 'TBHCL1'], [P.PBHCL3, 'TBS'],
 		[P.PBHCR2, 'TBHCR2'], [P.PBHCR1, 'TBHCR1'], [P.PBHCR3, 'TBS'],
 		[P.PBHR1, 'TBHR1'], [P.PBHR2, 'TBHR2'], [P.PBHR3, 'TBS']
-	].forEach(function(d){ thk(d[0].x, d[0].y, ybotf(d[0].x), d[1]); });
+	].forEach(function(d){ if (!d[0]) return; thk(d[0].x, d[0].y, ybotf(d[0].x), d[1]); });
+	if (P.PBSC) thk(0, P.PBSC.y, ybotf(0), 'TBS');	// 1 cell : 하부슬래브 중앙 두께
 
 	// ── 복부 두께 : 경사복부는 내측선 중앙점에서 외측선으로의 수선 → 측정값이 정확히 TWEBL/TWEBR ──
 	function webDim(O1, O2, I1, I2, label){
@@ -1629,8 +1713,10 @@ function draw_box12cell_guide( sdivid, ap ){
 	}
 	webDim(P.PTCL1, P.PBEL, P.PTHL1, P.PBHL1, 'TWEBL');
 	webDim(P.PTCR1, P.PBER, P.PTHR1, P.PBHR1, 'TWEBR');
-	var ymC = (P.PTHCL1.y + P.PBHCL1.y) / 2;
-	rec.addDimLinear(0, -ap.TWEBC/2, ymC, ap.TWEBC/2, ymC, 0, 'TWEBC');
+	if (two){
+		var ymC = (P.PTHCL1.y + P.PBHCL1.y) / 2;
+		rec.addDimLinear(0, -ap.TWEBC/2, ymC, ap.TWEBC/2, ymC, 0, 'TWEBC');
+	}
 
 	// ── 필렛 반경 (geo 의 arcs 순서 = R_WTL, R_WTR, R_WBL, R_WBR, R_WTIL, R_WTIR 중 0 이 아닌 것) ──
 	var frad = [
@@ -1655,9 +1741,9 @@ function draw_box12cell_guide( sdivid, ap ){
 		rec.addText(0, x, y, label);
 		rec.addArrowLine(0, x - L/2, y - S*0.016, x + L/2, y - S*0.016);
 	}
-	var xcl = (P.PTHL3.x + P.PTHCL3.x) / 2;
+	var xcl = (P.PTHL3.x + (two ? P.PTHCL3.x : 0)) / 2;		// 1 cell : 중앙점(0) 기준
 	slopeNote(xcl, ytopf(xcl) - ap.TTS - S*0.022, 'SLL=' + ap.SLL + '%');
-	var xcr = (P.PTHCR3.x + P.PTHR3.x) / 2;
+	var xcr = ((two ? P.PTHCR3.x : 0) + P.PTHR3.x) / 2;
 	slopeNote(xcr, ytopf(xcr) - ap.TTS - S*0.022, 'SLR=' + ap.SLR + '%');
 	slopeNote(0, ybot - S*0.085, 'SLB=' + ap.SLB + '%');
 
