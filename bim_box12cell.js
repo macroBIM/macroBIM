@@ -1363,6 +1363,23 @@ function geo_box12cell( {
 		opts.push({PTHR3, name:"PTHR3"});
 
 	/*
+		1 cell : 상부슬래브 하면은 중앙(PTSC)에서 꺾이지 않는 한 직선이어야 한다
+		· 크라운(SLR <= SLL) : PTHL3-PTHR3 를 직선 연결 → 중앙 두께가 TTS 보다 커짐
+		· 밸리(SLR > SLL)   : |슬로프|가 작은 쪽 상부면에 평행한 하면선(두께 TTS)으로 통일
+		                      → 완만한 쪽·중앙 두께 = TTS, 가파른 쪽 두께는 커짐
+	*/
+	if( !bTwoCell ){
+		if( SLR * 1 > SLL * 1 ){
+			let dslf = (Math.abs(SLL) <= Math.abs(SLR)) ? SLL : SLR;
+			PTHL3.y = PTHL3.x * dslf / 100 - TTS;
+			PTHR3.y = PTHR3.x * dslf / 100 - TTS;
+			PTSC.y  = -TTS;
+		}else{
+			PTSC.y = PTHL3.y + (PTHR3.y - PTHL3.y) * (0 - PTHL3.x) / ((PTHR3.x - PTHL3.x) || 1e-9);
+		}
+	}
+
+	/*
 		좌측 셀 - 하부 헌치 (좌측복부측)
 		PBHL1 : 복부내측선과 (하부면 + TBHL1) 평행선의 교점
 	*/
@@ -1643,6 +1660,10 @@ function draw_box12cell_guide( sdivid, ap ){
 	function thk(x, ya, yb, label){
 		rec.addDimLinear(0, x, Math.min(ya, yb), x, Math.max(ya, yb), 0, label);
 	}
+	// 슬래브 하면 점의 두께가 TTS 와 같을 때만 'TTS' 라벨 (1 cell 하면 보정으로 커진 곳은 값만)
+	function ttsLbl(pt){
+		return (Math.abs((ytopf(pt.x) - pt.y) - ap.TTS) < 0.5) ? 'TTS' : '';
+	}
 
 	// ── 상부 치수행 (안쪽부터 헌치폭 → 캔틸레버/복부폭 → 전폭) ──
 	var g1 = ytop + S*0.05, g2 = ytop + S*0.10, g3 = ytop + S*0.15;
@@ -1685,13 +1706,13 @@ function draw_box12cell_guide( sdivid, ap ){
 	// ── 상부 두께 (상부면 → 각 점) ──
 	[
 		[P.PTCL1, 'TCAL1'], [P.PTCL2, 'TCAL2'],
-		[P.PTHL1, 'TTHL1'], [P.PTHL2, 'TTHL2'], [P.PTHL3, 'TTS'],
+		[P.PTHL1, 'TTHL1'], [P.PTHL2, 'TTHL2'], [P.PTHL3, ttsLbl(P.PTHL3)],
 		[P.PTHCL2, 'TTHCL2'], [P.PTHCL1, 'TTHCL1'], [P.PTHCL3, 'TTS'],
 		[P.PTHCR2, 'TTHCR2'], [P.PTHCR1, 'TTHCR1'], [P.PTHCR3, 'TTS'],
-		[P.PTHR1, 'TTHR1'], [P.PTHR2, 'TTHR2'], [P.PTHR3, 'TTS'],
+		[P.PTHR1, 'TTHR1'], [P.PTHR2, 'TTHR2'], [P.PTHR3, ttsLbl(P.PTHR3)],
 		[P.PTCR1, 'TCAR1'], [P.PTCR2, 'TCAR2']
 	].forEach(function(d){ if (!d[0]) return; thk(d[0].x, ytopf(d[0].x), d[0].y, d[1]); });
-	if (P.PTSC) thk(0, 0, P.PTSC.y, 'TTS');		// 1 cell : 슬래브 중앙 두께
+	if (P.PTSC) thk(0, 0, P.PTSC.y, (Math.abs(-P.PTSC.y - ap.TTS) < 0.5) ? 'TTS' : '');	// 1 cell : 슬래브 중앙 두께 (TTS 초과시 값만)
 
 	// ── 하부 두께 (하부면 → 각 점) ──
 	[
