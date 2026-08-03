@@ -1236,7 +1236,7 @@
           card.className = 'draw-card'; card.id = 'varCard';
           card.innerHTML =
             '<div class="draw-card-header">' +
-              '<div><div class="draw-card-title">Variables <span style="font-weight:400;color:#94a3b8;font-size:12px;">(상수·수식 정의 — 아래 Dimension 에서 참조. 예: W=12000, H=W/2, t=sqrt(W))</span></div></div>' +
+              '<div><div class="draw-card-title">Variables <span style="font-weight:400;color:#94a3b8;font-size:12px;">(constants &amp; formulas — referenced by Dimension below. e.g. W=12000, H=W/2, t=sqrt(W))</span></div></div>' +
               '<button type="button" class="engine-btn" onclick="SeoulPhD.addVarRow()"><i class="bi bi-plus-lg"></i> Add</button>' +
             '</div>' +
             '<div class="draw-card-body"><div id="varBody" class="var-grid"></div></div>';
@@ -1259,10 +1259,10 @@
         var self = this, h = '';
         this._vars.forEach(function (v, i) {
           h += '<div class="var-row">' +
-            '<input class="form-input var-name" placeholder="이름" value="' + self._esc(v.name) + '" oninput="SeoulPhD.onVarInput(' + i + ',\'name\',this.value)" onchange="SeoulPhD.onVarChange()">' +
-            '<input class="form-input var-expr" placeholder="값 / 수식" value="' + self._esc(v.expr) + '" oninput="SeoulPhD.onVarInput(' + i + ',\'expr\',this.value)" onchange="SeoulPhD.onVarChange()">' +
+            '<input class="form-input var-name" placeholder="Name" value="' + self._esc(v.name) + '" oninput="SeoulPhD.onVarInput(' + i + ',\'name\',this.value)" onchange="SeoulPhD.onVarChange()">' +
+            '<input class="form-input var-expr" placeholder="Value / Formula" value="' + self._esc(v.expr) + '" oninput="SeoulPhD.onVarInput(' + i + ',\'expr\',this.value)" onchange="SeoulPhD.onVarChange()">' +
             '<span class="var-val" id="varval-' + i + '"></span>' +
-            '<button type="button" class="var-del" title="행 삭제" onclick="SeoulPhD.removeVarRow(' + i + ')">×</button>' +
+            '<button type="button" class="var-del" title="Delete row" onclick="SeoulPhD.removeVarRow(' + i + ')">×</button>' +
           '</div>';
         });
         body.innerHTML = h;
@@ -1309,7 +1309,7 @@
           if (!span) return;
           var nm = String(v.name || '').trim();
           if (!nm) { span.textContent = ''; span.className = 'var-val'; return; }
-          if (errMap[nm] || !(nm in scope) || !isFinite(scope[nm])) { span.textContent = '⚠ ' + (errMap[nm] || '오류'); span.className = 'var-val err'; }
+          if (errMap[nm] || !(nm in scope) || !isFinite(scope[nm])) { span.textContent = '⚠ ' + (errMap[nm] || 'error'); span.className = 'var-val err'; }
           else { span.textContent = '= ' + (Math.round(scope[nm] * 1000) / 1000); span.className = 'var-val ok'; }
         });
         return scope;

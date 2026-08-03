@@ -1808,7 +1808,7 @@ function draw_box12cell_guide( sdivid, ap ){
 	var Hpx = Math.max(320, Math.min(680, Math.round(W * bh / bw) + 20));
 	odiv.style.position = 'relative';
 	odiv.innerHTML = window.RWSVG.renderSVG(rec, W, Hpx) +
-		'<button type="button" data-guide-regen title="Reset zoom/pan (더블클릭도 가능)" ' +
+		'<button type="button" data-guide-regen title="Reset zoom/pan (double-click also works)" ' +
 		'style="position:absolute;top:8px;right:8px;padding:3px 10px;font-size:10.5px;font-weight:700;letter-spacing:.06em;' +
 		'color:#fff;background:#2563eb;border:1px solid #2563eb;border-radius:6px;cursor:pointer;">&#8635; REGEN</button>';
 	var svg = odiv.querySelector('svg');
