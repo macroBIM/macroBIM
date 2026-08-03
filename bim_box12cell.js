@@ -83,6 +83,29 @@ const adefs_box12cell = [
 	['R_WBR',   300, 'R_WBR (0, if not necessary)']
 ];
 
+/*
+	1 cell 모드에서 해당사항이 없는 변수 (중앙복부/중앙헌치 관련)
+*/
+const acentervars_box12cell = [
+	'WTCHUL1', 'WTCHUL2', 'TTHCL1', 'TTHCL2',
+	'WTCHUR1', 'WTCHUR2', 'TTHCR1', 'TTHCR2',
+	'TWEBC',
+	'WBHCL1', 'WBHCL2', 'TBHCL1', 'TBHCL2',
+	'WBHCR1', 'WBHCR2', 'TBHCR1', 'TBHCR2'
+];
+
+// Section Type 에 따라 입력칸 표시/숨김 (라벨 div 가 input 바로 앞에 있는 폼 구조 기준)
+function toggleCenterVars_box12cell(ncell){
+	const show = Number(ncell) !== 1;
+	acentervars_box12cell.forEach( (skey) => {
+		const inp = document.getElementById(skey + '_s');
+		if (!inp) return;
+		const lbl = inp.previousElementSibling;
+		inp.style.display = show ? '' : 'none';
+		if (lbl && lbl.classList && lbl.classList.contains('col-label')) lbl.style.display = show ? '' : 'none';
+	});
+}
+
 function box12cell_click() {
 
     // 1. 사이드바(nav) 및 메인 콘텐츠(main) 레이아웃 조정
@@ -423,6 +446,9 @@ function fdraw_box12cell(){
     if (ouserTextArea) {
         ouserTextArea.value = auserdata.combText_b + "\n" + auserdata.combText_e  + "\n" + dseg_leng;
     }
+
+	// Section Type 에 따라 중앙 관련 입력칸 표시/숨김
+	if (typeof toggleCenterVars_box12cell === 'function') toggleCenterVars_box12cell(aparam_b.NCELL);
 
 	// calculate box 2 cell
 	let obox12cell_b = geo_box12cell( aparam_b );
