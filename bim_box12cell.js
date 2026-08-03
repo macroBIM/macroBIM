@@ -1773,11 +1773,17 @@ function draw_box12cell_guide( sdivid, ap ){
 	o.arcs.forEach(function(a, i){
 		if (i >= frad.length) return;
 		var a2 = a.ange; if (a2 <= a.angb) a2 += 360;
-		// 라벨이 두께 치수와 겹치지 않도록 지시선을 연장.
-		// geo_fillet 의 중심은 외측 필렛에서는 단면 바깥, 내측 필렛에서는 콘크리트 쪽이므로
-		// 외측은 중심 너머(lt<0, 바깥 공간), 내측(R_WTIL/R_WTIR)은 아크 너머(lt>1, 셀 안쪽)로 보낸다
+		// 라벨이 두께 치수와 겹치지 않도록 배치.
+		// 외측 필렛 : geo_fillet 중심이 단면 바깥이므로 중심 너머(lt<0)로 연장 → 바깥 빈 공간
+		// 내측 필렛(R_WTIL/R_WTIR) : 셀 내부의 넓은 빈 공간에 수평 라벨 + 지시선(lx/ly)
 		var inner = (frad[i][0] === 'R_WTIL' || frad[i][0] === 'R_WTIR');
-		rec.addDimRadius(0, a.x, a.y, a.r, (a.angb + a2) / 2, frad[i][0] + '=', { lt: inner ? 2.8 : -2.5 });
+		if (inner){
+			var toCell = (frad[i][0] === 'R_WTIL') ? 1 : -1;		// 셀 안쪽 방향
+			rec.addDimRadius(0, a.x, a.y, a.r, (a.angb + a2) / 2, frad[i][0] + '=',
+				{ lx: a.x + toCell * S * 0.09, ly: a.y - S * 0.06 });
+		}else{
+			rec.addDimRadius(0, a.x, a.y, a.r, (a.angb + a2) / 2, frad[i][0] + '=', { lt: -2.5 });
+		}
 	});
 
 	// ── 슬로프 표기 (파랑 텍스트) ──

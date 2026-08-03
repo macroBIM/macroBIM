@@ -44,7 +44,7 @@
   MockViewer.prototype.addCircle = function (v, x, y, r, name) { var l = this._c(name); this.A.push({ x: x, y: y, r: r, a1: 0, a2: 360, lay: (l.type === 'hidden' ? 'hidden' : 'solid'), col: l.color }); };
   MockViewer.prototype.addArc = function (v, x, y, r, a1, a2, name) { var l = this._c(name); this.A.push({ x: x, y: y, r: r, a1: a1, a2: a2, lay: (l.type === 'hidden' ? 'hidden' : 'solid'), col: l.color }); };
   MockViewer.prototype.addDimLinear = function (v, x1, y1, x2, y2, gap, label, opts) { this.DL.push({ x1: x1, y1: y1, x2: x2, y2: y2, gap: gap, t: label || '', la: (opts && opts.la) || 0, lp: (opts && opts.lp) || 0 }); };
-  MockViewer.prototype.addDimRadius = function (v, x, y, r, ang, label, opts) { this.DR.push({ x: x, y: y, r: r, ang: ang, t: label || '', lt: (opts && opts.lt != null) ? opts.lt : 0.5 }); };
+  MockViewer.prototype.addDimRadius = function (v, x, y, r, ang, label, opts) { this.DR.push({ x: x, y: y, r: r, ang: ang, t: label || '', lt: (opts && opts.lt != null) ? opts.lt : 0.5, lx: (opts && opts.lx != null) ? opts.lx : null, ly: (opts && opts.ly != null) ? opts.ly : null }); };
   MockViewer.prototype.addText = function (v, x, y, str, rot) { this.TX.push({ x: x, y: y, t: str || '', rot: rot || 0 }); };
   MockViewer.prototype.addArrowLine = function (v, x1, y1, x2, y2) { this.AR = this.AR || []; this.AR.push({ x1: x1, y1: y1, x2: x2, y2: y2 }); };
   MockViewer.prototype.render = function () { /* no-op: rendered externally via renderSVG */ };
@@ -114,6 +114,15 @@
     rec.DR.forEach(function (d) {
       var rr = d.ang * Math.PI / 180, tx = SX(d.x), ty = SY(d.y), px = SX(d.x + d.r * Math.cos(rr)), py = SY(d.y + d.r * Math.sin(rr));
       var dl = Math.hypot(px - tx, py - ty) || 1;
+      // lx/ly: 라벨을 임의의 빈 공간(모델좌표)에 두고 아크 접점까지 지시선을 끗는 모드
+      if (d.lx != null && d.ly != null) {
+        var qx = SX(d.lx), qy = SY(d.ly);
+        var ql = Math.hypot(px - qx, py - qy) || 1;
+        line(qx, qy, px, py, DIM, 0.9, '4 3');
+        arrow(px, py, (px - qx) / ql, (py - qy) / ql, DIM);
+        text(qx, qy - 9, (d.t ? d.t : 'R') + num(d.r), DIM, 0);
+        return;
+      }
       // lt: label position along centre->arc (0=centre, 0.5=midpoint(default), 1=arc point;
       //     <0 = beyond the centre, >1 = beyond the arc). Leader stretches to reach the label.
       var lt = (d.lt != null) ? d.lt : 0.5, t0 = Math.min(0, lt), t1 = Math.max(1, lt);
