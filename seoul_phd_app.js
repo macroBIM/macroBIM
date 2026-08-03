@@ -97,7 +97,9 @@
         if (tpl) mount.appendChild(tpl.content.cloneNode(true));
         this._insertRebarCards(mount);          // Dimension 과 Drawing View 사이에 TRebar/LRebar 삽입
         this._ensureVarCard();                  // Variables 카드를 제목 아래·Dimension 위에 재배치
-        if (kind === 'box12cell') this._seedBox12cellVars();   // 단면 변수(이름=기본값) → Variables 카드 등록
+        this._vars = [{ name: '', expr: '' }];                 // 단면 변경 시 Variables 카드 초기화
+        if (kind === 'box12cell') this._seedBox12cellVars();   // box12cell : 단면 변수(이름=기본값) 자동 등록
+        else this._renderVarRows();
         var sel = document.getElementById('sectionSelect');
         if (sel && sel.value !== kind) sel.value = kind;
         this.redraw(kind);          // redraw 가 끝에서 _drawRebar 로 엔진 뷰까지 그린다
@@ -175,8 +177,144 @@
         } else {
           console.warn('[SeoulPhD] fdraw_' + kind + ' 미로드');
         }
+        if (kind !== 'box12cell') {                              // box12cell 은 fdraw 내부에서 자체 가이드 렌더
+          try { this._drawGuide(kind); } catch (e) { console.error('[SeoulPhD] guide ' + kind + ' 오류:', e); }
+        }
         restores.forEach(function (p) { p[0].value = p[1]; });   // 화면 입력엔 원래 수식 복원
         this._drawRebar();   // 형상 변경(치수·중공 등)마다 엔진 뷰도 재작도 (bim 캡처 반영)
+      },
+
+      // ── 단면별 디멘젼 설명 가이드 (RWSVG · box12cell 과 동일 룩, 줌/팬) ──
+      _drawGuide: function (kind) {
+        var host = document.getElementById(kind + '_guide');
+        if (!host || typeof window.RWSVG === 'undefined') return;
+        var build = this._guideBuilders[kind];
+        if (!build) return;
+        var self = this;
+        var rec = new window.RWSVG.MockViewer();
+        rec.addLayer('c', 'cyan', 'solid', 1); rec.addLayer('h', 'gray', 'hidden', 1);
+        function nv(id) { var e = document.getElementById(id); var x = parseFloat(e && e.value); return isNaN(x) ? 0 : x; }
+        function ck(id) { var e = document.getElementById(id); return !!(e && e.checked); }
+        var box = build(rec, nv, ck);
+        if (!box) return;
+        var W = host.clientWidth || 700;
+        var Hpx = Math.max(260, Math.min(560, Math.round(W * box.bh / box.bw) + 20));
+        host.style.position = 'relative';
+        host.innerHTML = window.RWSVG.renderSVG(rec, W, Hpx) +
+          '<button type="button" data-guide-regen title="Reset zoom/pan (double-click also works)" ' +
+          'style="position:absolute;top:8px;right:8px;padding:3px 10px;font-size:10.5px;font-weight:700;letter-spacing:.06em;' +
+          'color:#fff;background:#2563eb;border:1px solid #2563eb;border-radius:6px;cursor:pointer;">&#8635; REGEN</button>';
+        var svg = host.querySelector('svg');
+        if (svg) window.RWSVG.attachZoomPan(svg);
+        var oregen = function () { self._drawGuide(kind); };
+        var obtn = host.querySelector('[data-guide-regen]');
+        if (obtn) obtn.onclick = oregen;
+        if (svg) svg.addEventListener('dblclick', oregen);
+      },
+
+      _guideBuilders: {
+        ibeam: function (rec, nv) {
+          if (typeof geo_ibeam !== 'function') return null;
+          var p = { dh: nv('dh_s'), dbt: nv('dbt_s'), dbb: nv('dbb_s'), dttf: nv('dttf_s'), dttf1: nv('dttf1_s'),
+                    dtbf: nv('dtbf_s'), dtbf1: nv('dtbf1_s'), dtw: nv('dtw_s'),
+                    drtf: nv('drtf_s'), drwt: nv('drwt_s'), drwb: nv('drwb_s'), drbf: nv('drbf_s'), dchb: nv('dchb_s') };
+          var g = geo_ibeam(p);
+          g.lines.forEach(function (l) { rec.addLine(0, l.x1, l.y1, l.x2, l.y2, 'c'); });
+          g.arcs.forEach(function (a) { rec.addArc(0, a.x, a.y, a.r, a.angb, a.ange, 'c'); });
+          var W2 = Math.max(p.dbt, p.dbb) / 2, S = Math.max(p.dh, W2 * 2), G = S * 0.08;
+          rec.addDimLinear(0, -p.dbt / 2, p.dh, p.dbt / 2, p.dh, G, 'bt');
+          rec.addDimLinear(0, -p.dbb / 2, 0, p.dbb / 2, 0, -G, 'bb');
+          rec.addDimLinear(0, -W2, 0, -W2, p.dh, G * 0.9, 'h');
+          rec.addDimLinear(0, W2, p.dh - p.dttf, W2, p.dh, -G * 0.7, 'ttf');
+          rec.addDimLinear(0, W2, p.dh - p.dttf - p.dttf1, W2, p.dh - p.dttf, -G * 0.7, 'ttf1', { lp: -24 });
+          rec.addDimLinear(0, W2, p.dtbf, W2, p.dtbf + p.dtbf1, -G * 0.7, 'tbf1', { lp: -24 });
+          rec.addDimLinear(0, W2, 0, W2, p.dtbf, -G * 0.7, 'tbf');
+          rec.addDimLinear(0, -p.dtw / 2, p.dh * 0.55, p.dtw / 2, p.dh * 0.55, 0, 'tw');
+          var rn = [['rtf', p.drtf], ['rwt', p.drwt], ['rwb', p.drwb], ['rbf', p.drbf]];
+          g.arcs.forEach(function (a) {
+            var m = null;
+            for (var i = 0; i < rn.length; i++) if (Math.abs(rn[i][1] - a.r) < 0.5) { m = rn[i][0]; break; }
+            var a2 = a.ange; if (a2 <= a.angb) a2 += 360;
+            rec.addDimRadius(0, a.x, a.y, a.r, (a.angb + a2) / 2, (m || 'R') + '=', { lt: 2.4 });
+          });
+          return { bw: W2 * 2 + G * 4, bh: p.dh + G * 4 };
+        },
+
+        rect: function (rec, nv, ck) {
+          if (!SeoulPhD._rectLoops || !SeoulPhD._rectParams) return null;
+          var p = SeoulPhD._rectParams();
+          SeoulPhD._rectLoops(p).forEach(function (loop) { loop.forEach(function (s) { rec.addLine(0, s[0], s[1], s[2], s[3], 'c'); }); });
+          var S = Math.max(p.H, p.B), G = S * 0.09;
+          rec.addDimLinear(0, -p.B / 2, p.H, p.B / 2, p.H, G, 'B');
+          rec.addDimLinear(0, -p.B / 2, 0, -p.B / 2, p.H, G, 'H');
+          if (p.hollow !== false) {
+            var ix0 = -p.B / 2 + p.twl, ix1 = p.B / 2 - p.twr, iy0 = p.tf2, iy1 = p.H - p.tf1;
+            if (ix1 > ix0 && iy1 > iy0) {
+              var ym = (iy0 + iy1) / 2, xm = (ix0 + ix1) / 2;
+              rec.addDimLinear(0, -p.B / 2, ym, ix0, ym, 0, 'twl');
+              rec.addDimLinear(0, ix1, ym, p.B / 2, ym, 0, 'twr');
+              rec.addDimLinear(0, xm, iy1, xm, p.H, 0, 'tf1');
+              rec.addDimLinear(0, xm, 0, xm, iy0, 0, 'tf2');
+              var ca = Math.max(0, Math.min(p.ha, (ix1 - ix0) / 2)), cb = Math.max(0, Math.min(p.hb, (iy1 - iy0) / 2));
+              if (ca > 0 && cb > 0) {
+                rec.addDimLinear(0, ix0, iy1, ix0 + ca, iy1, 0, 'ha');
+                rec.addDimLinear(0, ix0, iy1 - cb, ix0, iy1, 0, 'hb');
+              }
+            }
+          }
+          return { bw: p.B + G * 4, bh: p.H + G * 3.5 };
+        },
+
+        circle: function (rec, nv, ck) {
+          if (typeof geo_circle !== 'function') return null;
+          var D = nv('dcircle_D_s'), d = nv('dcircle_d_s'), hol = ck('dcircle_hollow');
+          var g = geo_circle({ dcircle_D: D, dcircle_d: d, hollow: hol });
+          g.arcs.forEach(function (a) { rec.addArc(0, a.x, a.y, a.r, a.angb, a.ange, 'c'); });
+          var G = D * 0.13;
+          rec.addDimLinear(0, D / 2, 0, D / 2, D, -G, 'D');
+          if (hol && d > 0 && d < D) rec.addDimLinear(0, -d / 2, D / 2, d / 2, D / 2, 0, 'd');
+          return { bw: D + G * 4, bh: D + G * 2.5 };
+        },
+
+        octagon: function (rec, nv, ck) {
+          if (typeof geo_octagon !== 'function') return null;
+          var p = { H1: nv('doct_H1_s'), H2: nv('doct_H2_s'), B1: nv('doct_B1_s'), B2: nv('doct_B2_s'),
+                    h1: nv('doct_h1_s'), h2: nv('doct_h2_s'), b1: nv('doct_b1_s'), b2: nv('doct_b2_s') };
+          var hol = ck('doct_hollow');
+          var g = geo_octagon({ doct_H1: p.H1, doct_H2: p.H2, doct_B1: p.B1, doct_B2: p.B2,
+                                doct_h1: p.h1, doct_h2: p.h2, doct_b1: p.b1, doct_b2: p.b2, hollow: hol });
+          g.lines.forEach(function (l) { rec.addLine(0, l.x1, l.y1, l.x2, l.y2, 'c'); });
+          var W = p.B1 + 2 * p.B2, TH = p.H1 + 2 * p.H2, S = Math.max(W, TH), G = S * 0.09;
+          rec.addDimLinear(0, -p.B1 / 2, TH, p.B1 / 2, TH, G, 'B1');
+          rec.addDimLinear(0, -W / 2, TH, -p.B1 / 2, TH, G, 'B2');
+          rec.addDimLinear(0, W / 2, 0, W / 2, p.H2, -G, 'H2');
+          rec.addDimLinear(0, W / 2, p.H2, W / 2, p.H2 + p.H1, -G, 'H1');
+          rec.addDimLinear(0, -W / 2, 0, -W / 2, TH, G, '');
+          if (hol) {
+            var iW = p.b1 + 2 * p.b2, iTH = p.h1 + 2 * p.h2, cy = TH / 2;
+            if (p.h1 > 0 && p.b1 > 0 && iTH < TH && iW < W) {
+              var y0 = cy - iTH / 2, y1 = y0 + p.h2, y2 = y1 + p.h1, yt = cy + iTH / 2;
+              rec.addDimLinear(0, -p.b1 / 2, yt, p.b1 / 2, yt, 0, 'b1');
+              rec.addDimLinear(0, -iW / 2, yt, -p.b1 / 2, yt, 0, 'b2');
+              rec.addDimLinear(0, iW / 2, y1, iW / 2, y2, 0, 'h1');
+              rec.addDimLinear(0, iW / 2, y0, iW / 2, y1, 0, 'h2');
+            }
+          }
+          return { bw: W + G * 4, bh: TH + G * 3.5 };
+        },
+
+        track: function (rec, nv, ck) {
+          if (typeof geo_track !== 'function') return null;
+          var B = nv('dtrack_B_s'), D = nv('dtrack_D_s'), d = nv('dtrack_d_s'), hol = ck('dtrack_hollow');
+          var g = geo_track({ dtrack_B: B, dtrack_D: D, dtrack_d: d, hollow: hol });
+          g.lines.forEach(function (l) { rec.addLine(0, l.x1, l.y1, l.x2, l.y2, 'c'); });
+          g.arcs.forEach(function (a) { rec.addArc(0, a.x, a.y, a.r, a.angb, a.ange, 'c'); });
+          var G = Math.max(B, D) * 0.09;
+          rec.addDimLinear(0, -B / 2, D, B / 2, D, G, 'B');
+          rec.addDimLinear(0, B / 2, 0, B / 2, D, -G, 'D');
+          if (hol && d > 0 && d < D) { var wt = (D - d) / 2; rec.addDimLinear(0, 0, wt, 0, wt + d, 0, 'd'); }
+          return { bw: B + G * 4, bh: D + G * 3.5 };
+        }
       },
 
       // 3D 패널·뷰 탭 제거 후 front 2D 를 전폭 재작도 (+ 법선)
@@ -1400,6 +1538,8 @@
         ocvs.render();
       };
       window.fdraw_rect = function () { try { window.fdraw_rect_2d('front'); } catch (e) { console.error('[SeoulPhD] fdraw_rect 오류:', e); } };
+      SeoulPhD._rectParams = rectParams;   // 디멘젼 가이드에서 재사용
+      SeoulPhD._rectLoops = rectLoops;
       // DXF: 외곽+내부 폴리라인 (모델좌표 y-up). form 의 DXF 버튼이 호출.
       SeoulPhD.rectDxf = function (name) {
         try {

@@ -224,10 +224,13 @@
   <div class="draw-card">
     <div class="draw-card-header" style="display:flex;justify-content:space-between;align-items:center;">
       <div><div class="draw-card-title">Dimension (mm)</div><div class="draw-card-desc">Input I-beam (plate girder) cross-section parameters</div></div>
-      <button class="btn-generate" onclick="var g=document.getElementById('ibeam_guide_img');g.style.display=g.style.display==='none'?'block':'none'" style="margin:0;font-size:12px;padding:6px 14px;"><i class="bi bi-image"></i> VIEW GUIDE</button>
     </div>
-    <div id="ibeam_guide_img" style="display:none;padding:10px;background:#f8f9fa;border-bottom:1px solid #e2e8f0;text-align:center;"><img src="https://macrobim.github.io/macroBIM/ibeam_vars.png" style="max-width:100%;height:auto;border:1px solid #ddd;border-radius:4px;"></div>
     <div class="draw-card-body">
+      <div class="dim-split">
+        <!-- Left: live dimension guide (RWSVG, zoom/pan) -->
+        <div class="dim-guide" id="ibeam_guide"></div>
+        <!-- Right: variables & values -->
+        <div class="dim-inputs">
       <div class="form-grid-8col" style="margin-bottom:12px;">
         <div class="col-header var-header">Variable</div><div class="col-header">Value</div>
         <div class="col-header var-header">Variable</div><div class="col-header">Value</div>
@@ -250,6 +253,8 @@
         <div class="col-label">chb <span style="color:#94a3b8;font-size:10px;">(0=X)</span></div><input class="form-input" type="number" id="dchb_s" value="20" onchange="SeoulPhD.redraw('ibeam')">
         <div class="col-label">Beam Len</div><input class="form-input" type="number" id="dseg_leng" value="500" onchange="SeoulPhD.redraw('ibeam')">
       </div>
+        </div>
+      </div>
       <div style="display:flex;justify-content:flex-end;margin-top:14px;">
         <button class="btn-generate" onclick="odxf_ibeam.download('IBeam.dxf')" style="margin:0;"><i class="bi bi-download"></i> DXF DOWNLOAD</button>
       </div>
@@ -271,6 +276,11 @@
       <div><div class="draw-card-title">Dimension (mm)</div><div class="draw-card-desc">Input rectangular cross-section parameters</div></div>
     </div>
     <div class="draw-card-body">
+      <div class="dim-split">
+        <!-- Left: live dimension guide (RWSVG, zoom/pan) -->
+        <div class="dim-guide" id="rect_guide"></div>
+        <!-- Right: variables & values -->
+        <div class="dim-inputs">
       <div class="form-grid-8col" style="margin-bottom:12px;">
         <div class="col-header var-header">Variable</div><div class="col-header">Value</div>
         <div class="col-header var-header">Variable</div><div class="col-header">Value</div>
@@ -288,6 +298,8 @@
         <div class="col-label">hb <span style="color:#94a3b8;font-size:10px;">(haunch ↕)</span></div><input class="form-input" type="number" id="drect_hb_s" value="150" onchange="SeoulPhD.redraw('rect')">
         <div class="col-label">Seg Len</div><input class="form-input" type="number" id="dseg_leng" value="3000" onchange="SeoulPhD.redraw('rect')">
         <div class="col-label">Hollow</div><div style="display:flex;align-items:center;"><input type="checkbox" id="drect_hollow" checked onchange="SeoulPhD.redraw('rect')" style="width:16px;height:16px;accent-color:#2563eb;"></div>
+      </div>
+        </div>
       </div>
       <div style="display:flex;justify-content:flex-end;margin-top:14px;">
         <button class="btn-generate" onclick="SeoulPhD.rectDxf('Rect.dxf')" style="margin:0;"><i class="bi bi-download"></i> DXF DOWNLOAD</button>
@@ -310,6 +322,11 @@
       <div><div class="draw-card-title">Dimension (mm)</div><div class="draw-card-desc">Input circular cross-section parameters</div></div>
     </div>
     <div class="draw-card-body">
+      <div class="dim-split">
+        <!-- Left: live dimension guide (RWSVG, zoom/pan) -->
+        <div class="dim-guide" id="circle_guide"></div>
+        <!-- Right: variables & values -->
+        <div class="dim-inputs">
       <div class="form-grid-8col" style="margin-bottom:12px;">
         <div class="col-header var-header">Variable</div><div class="col-header">Value</div>
         <div class="col-header var-header">Variable</div><div class="col-header">Value</div>
@@ -321,6 +338,8 @@
         <div class="col-label">d (inner)</div><input class="form-input" type="number" id="dcircle_d_s" value="400" onchange="SeoulPhD.redraw('circle')">
         <div class="col-label">Seg Len</div><input class="form-input" type="number" id="dseg_leng" value="1000" onchange="SeoulPhD.redraw('circle')">
         <div class="col-label">Hollow</div><div style="display:flex;align-items:center;"><input type="checkbox" id="dcircle_hollow" checked onchange="SeoulPhD.redraw('circle')" style="width:16px;height:16px;accent-color:#2563eb;"></div>
+      </div>
+        </div>
       </div>
       <div style="display:flex;justify-content:flex-end;margin-top:14px;">
         <button class="btn-generate" onclick="odxf_circle.download('Circle.dxf')" style="margin:0;"><i class="bi bi-download"></i> DXF DOWNLOAD</button>
@@ -343,6 +362,11 @@
       <div><div class="draw-card-title">Dimension (mm)</div><div class="draw-card-desc">Input octagon cross-section parameters</div></div>
     </div>
     <div class="draw-card-body">
+      <div class="dim-split">
+        <!-- Left: live dimension guide (RWSVG, zoom/pan) -->
+        <div class="dim-guide" id="octagon_guide"></div>
+        <!-- Right: variables & values -->
+        <div class="dim-inputs">
       <div class="form-grid-8col" style="margin-bottom:12px;">
         <div class="col-header var-header">Variable</div><div class="col-header">Value</div>
         <div class="col-header var-header">Variable</div><div class="col-header">Value</div>
@@ -360,6 +384,8 @@
         <div class="col-label">b2 (in ch)</div><input class="form-input" type="number" id="doct_b2_s" value="60" onchange="SeoulPhD.redraw('octagon')">
         <div class="col-label">Seg Len</div><input class="form-input" type="number" id="dseg_leng" value="1000" onchange="SeoulPhD.redraw('octagon')">
         <div class="col-label">Hollow</div><div style="display:flex;align-items:center;"><input type="checkbox" id="doct_hollow" checked onchange="SeoulPhD.redraw('octagon')" style="width:16px;height:16px;accent-color:#2563eb;"></div>
+      </div>
+        </div>
       </div>
       <div style="display:flex;justify-content:flex-end;margin-top:14px;">
         <button class="btn-generate" onclick="odxf_octagon.download('Octagon.dxf')" style="margin:0;"><i class="bi bi-download"></i> DXF DOWNLOAD</button>
@@ -382,6 +408,11 @@
       <div><div class="draw-card-title">Dimension (mm)</div><div class="draw-card-desc">Input track (stadium) cross-section parameters</div></div>
     </div>
     <div class="draw-card-body">
+      <div class="dim-split">
+        <!-- Left: live dimension guide (RWSVG, zoom/pan) -->
+        <div class="dim-guide" id="track_guide"></div>
+        <!-- Right: variables & values -->
+        <div class="dim-inputs">
       <div class="form-grid-8col" style="margin-bottom:12px;">
         <div class="col-header var-header">Variable</div><div class="col-header">Value</div>
         <div class="col-header var-header">Variable</div><div class="col-header">Value</div>
@@ -394,6 +425,8 @@
         <div class="col-label">d (inner h)</div><input class="form-input" type="number" id="dtrack_d_s" value="300" onchange="SeoulPhD.redraw('track')">
         <div class="col-label">Seg Len</div><input class="form-input" type="number" id="dseg_leng" value="1000" onchange="SeoulPhD.redraw('track')">
         <div class="col-label">Hollow</div><div style="display:flex;align-items:center;"><input type="checkbox" id="dtrack_hollow" checked onchange="SeoulPhD.redraw('track')" style="width:16px;height:16px;accent-color:#2563eb;"></div>
+      </div>
+        </div>
       </div>
       <div style="display:flex;justify-content:flex-end;margin-top:14px;">
         <button class="btn-generate" onclick="odxf_track.download('Track.dxf')" style="margin:0;"><i class="bi bi-download"></i> DXF DOWNLOAD</button>
