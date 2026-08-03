@@ -97,6 +97,7 @@
         if (tpl) mount.appendChild(tpl.content.cloneNode(true));
         this._insertRebarCards(mount);          // Dimension 과 Drawing View 사이에 TRebar/LRebar 삽입
         this._ensureVarCard();                  // Variables 카드를 제목 아래·Dimension 위에 재배치
+        if (kind === 'box12cell') this._seedBox12cellVars();   // 단면 변수(이름=기본값) → Variables 카드 등록
         var sel = document.getElementById('sectionSelect');
         if (sel && sel.value !== kind) sel.value = kind;
         this.redraw(kind);          // redraw 가 끝에서 _drawRebar 로 엔진 뷰까지 그린다
@@ -1275,6 +1276,21 @@
       },
       onVarChange: function () { if (this._cur) this.redraw(this._cur); },
       addVarRow: function () { if (!this._vars) this._vars = []; this._vars.push({ name: '', expr: '' }); this._renderVarRows(); },
+
+      // box12cell 파라메트릭화 : adefs_box12cell 의 모든 변수(이름, 기본값)를 Variables 카드에 등록.
+      // 이미 같은 이름이 있으면 사용자 값을 보존한다. Dimension 카드의 입력칸에는 변수명 수식이
+      // 들어 있어 redraw 시 Variables 값으로 평가된다.
+      _seedBox12cellVars: function () {
+        if (typeof adefs_box12cell === 'undefined') return;
+        var vars = (this._vars || []).filter(function (v) {
+          return v && (String(v.name || '').trim() !== '' || String(v.expr || '').trim() !== '');
+        });
+        var have = {};
+        vars.forEach(function (v) { have[String(v.name).trim()] = true; });
+        adefs_box12cell.forEach(function (d) { if (!have[d[0]]) vars.push({ name: d[0], expr: String(d[1]) }); });
+        this._vars = vars;
+        this._renderVarRows();
+      },
       removeVarRow: function (i) {
         if (!this._vars) return;
         this._vars.splice(i, 1);
