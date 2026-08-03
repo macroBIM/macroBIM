@@ -1781,7 +1781,7 @@ function draw_box12cell_guide( sdivid, ap ){
 		if (inner){
 			var toCell = (frad[i][0] === 'R_WTIL') ? 1 : -1;		// 셀 안쪽 방향
 			rec.addDimRadius(0, a.x, a.y, a.r, (a.angb + a2) / 2, frad[i][0] + '=',
-				{ lx: a.x + toCell * S * 0.045, ly: a.y - S * 0.018 });
+				{ lx: a.x + toCell * S * 0.0675, ly: a.y - S * 0.027 });
 		}else{
 			// 하부 외측(R_WBL/R_WBR)은 지시선을 두 배 길게 빼서 라벨을 여유 공간에
 			rec.addDimRadius(0, a.x, a.y, a.r, (a.angb + a2) / 2, frad[i][0] + '=', { lt: bottom ? -5.0 : -2.5 });

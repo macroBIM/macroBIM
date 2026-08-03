@@ -120,7 +120,10 @@
         var ql = Math.hypot(px - qx, py - qy) || 1;
         line(qx, qy, px, py, DIM, 0.9, '4 3');
         arrow(px, py, (px - qx) / ql, (py - qy) / ql, DIM);
-        text(qx, qy - 9, (d.t ? d.t : 'R') + num(d.r), DIM, 0);
+        var la = Math.atan2(py - qy, px - qx) * 180 / Math.PI; if (la > 90 || la < -90) la += 180;
+        var pxn = -(py - qy) / ql, pyn = (px - qx) / ql;      // 지시선 수직 방향
+        if (pyn > 0) { pxn = -pxn; pyn = -pyn; }               // 라벨은 선 위쪽으로
+        text(qx + pxn * 9, qy + pyn * 9, (d.t ? d.t : 'R') + num(d.r), DIM, la);
         return;
       }
       // lt: label position along centre->arc (0=centre, 0.5=midpoint(default), 1=arc point;
