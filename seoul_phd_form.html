@@ -128,15 +128,12 @@
           <input type="radio" name="box12cell_ncell" value="2" checked onchange="SeoulPhD.redraw('box12cell')"> 2 Cell
         </label>
       </div>
-      <div class="dim-split">
-        <!-- 좌: 입력변수 가이드 — 이미지 파일 대신 현재 입력값으로 SVG 생성 (draw_box12cell_guide) -->
-        <div class="dim-guide" id="box12cell_guide"></div>
-        <!-- 우: 입력값 (Variable/Value × 2) -->
-        <div class="dim-inputs">
-          <div class="form-grid-4col" style="margin-bottom:12px;">
-            <div class="col-header var-header">Variable</div><div class="col-header">Value</div>
-            <div class="col-header var-header">Variable</div><div class="col-header">Value</div>
-          </div>
+      <!-- 가이드: 카드 전폭 SVG (현재 Variables 값으로 실시간 생성, 줌/팬/REGEN) -->
+      <div class="dim-guide dim-guide-full" id="box12cell_guide"></div>
+      <!-- 변수 매핑 (기본 접힘): 각 치수가 참조하는 수식. 실제 값 편집은 위 Variables 카드에서 -->
+      <details class="dim-adv">
+        <summary>변수 매핑 (Dimension &harr; Variables) &mdash; 값 수정은 위 Variables 카드에서</summary>
+        <div class="dim-adv-body">
           <div class="form-grid-4col">
             <div class="col-label">TH</div><input class="form-input" type="text" spellcheck="false" id="TH_s" value="TH" onchange="SeoulPhD.redraw('box12cell')">
             <div class="col-label">SLL (%)</div><input class="form-input" type="text" spellcheck="false" id="SLL_s" value="SLL" onchange="SeoulPhD.redraw('box12cell')">
@@ -205,7 +202,7 @@
             <div class="col-label">R_WBR <span style="color:#94a3b8;font-size:10px;">(0=X)</span></div><input class="form-input" type="text" spellcheck="false" id="R_WBR_s" value="R_WBR" onchange="SeoulPhD.redraw('box12cell')">
           </div>
         </div>
-      </div>
+      </details>
       <!-- Seg Len : Drawing View 엔진(bim_box12cell.js) 호환용 hidden 기본값 -->
       <input type="hidden" id="dseg_leng" value="5000">
       <div style="display:flex;justify-content:flex-end;margin-top:14px;">

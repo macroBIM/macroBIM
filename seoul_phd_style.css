@@ -116,6 +116,16 @@ body{
 .dim-split .dim-inputs{flex:1 1 400px;min-width:320px;}
 @media (max-width:900px){ .dim-split .dim-guide{max-width:100%;} }
 
+/* 전폭 가이드 (box12cell) + 접이식 변수 매핑 */
+.dim-guide-full{width:100%;max-width:100%;}
+.dim-guide-full svg{width:100%;height:auto;border:1px solid #e2e8f0;border-radius:6px;background:#fff;}
+.dim-adv{margin-top:14px;border:1px solid #e2e8f0;border-radius:8px;background:#f8fafc;}
+.dim-adv summary{cursor:pointer;padding:10px 14px;font-size:13px;font-weight:600;color:#475569;user-select:none;}
+.dim-adv[open] summary{border-bottom:1px solid #e2e8f0;}
+.dim-adv-body{padding:12px 14px;}
+.dim-adv .form-grid-4col{grid-template-columns:repeat(8,minmax(0,1fr));}
+@media (max-width:1200px){ .dim-adv .form-grid-4col{grid-template-columns:repeat(4,minmax(0,1fr));} }
+
 /* ── REBAR 데이터 표 (표제목 2줄 = trebar/lrebar 입력체계 + 데이터) ── */
 .rebar-table-wrap{overflow-x:auto;}
 .rebar-table{width:100%;border-collapse:collapse;font-size:12px;margin:2px 0;}
