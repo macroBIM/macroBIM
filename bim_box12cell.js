@@ -1648,12 +1648,18 @@ function draw_box12cell_guide( sdivid, ap ){
 	});
 
 	// ── 슬로프 표기 (파랑 텍스트) ──
-	// SLL/SLR 는 상부 치수 위트니스가 밀집한 곳을 피해 각 셀 중앙(슬래브 하면 아래)에 표기
+	// 슬로프 표기 : 변수 텍스트 아래에 라벨 전체를 감싸는 길이의 화살표 선
+	// (SLL/SLR 는 상부 치수 위트니스가 밀집한 곳을 피해 각 셀 중앙(슬래브 하면 아래)에 표기)
+	function slopeNote(x, y, label){
+		var L = (label.length + 1.5) * S * 0.008;		// 라벨 글자수 기준 화살표 길이
+		rec.addText(0, x, y, label);
+		rec.addArrowLine(0, x - L/2, y - S*0.016, x + L/2, y - S*0.016);
+	}
 	var xcl = (P.PTHL3.x + P.PTHCL3.x) / 2;
-	rec.addText(0, xcl, ytopf(xcl) - ap.TTS - S*0.022, 'SLL=' + ap.SLL + '% \u2192');
+	slopeNote(xcl, ytopf(xcl) - ap.TTS - S*0.022, 'SLL=' + ap.SLL + '%');
 	var xcr = (P.PTHCR3.x + P.PTHR3.x) / 2;
-	rec.addText(0, xcr, ytopf(xcr) - ap.TTS - S*0.022, 'SLR=' + ap.SLR + '% \u2192');
-	rec.addText(0, 0, ybot - S*0.085, 'SLB=' + ap.SLB + '% \u2192');
+	slopeNote(xcr, ytopf(xcr) - ap.TTS - S*0.022, 'SLR=' + ap.SLR + '%');
+	slopeNote(0, ybot - S*0.085, 'SLB=' + ap.SLB + '%');
 
 	// ── 렌더 + 줌/팬 ──
 	var W = odiv.clientWidth || 900;

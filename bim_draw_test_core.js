@@ -46,6 +46,7 @@
   MockViewer.prototype.addDimLinear = function (v, x1, y1, x2, y2, gap, label, opts) { this.DL.push({ x1: x1, y1: y1, x2: x2, y2: y2, gap: gap, t: label || '', la: (opts && opts.la) || 0, lp: (opts && opts.lp) || 0 }); };
   MockViewer.prototype.addDimRadius = function (v, x, y, r, ang, label, opts) { this.DR.push({ x: x, y: y, r: r, ang: ang, t: label || '', lt: (opts && opts.lt != null) ? opts.lt : 0.5 }); };
   MockViewer.prototype.addText = function (v, x, y, str, rot) { this.TX.push({ x: x, y: y, t: str || '', rot: rot || 0 }); };
+  MockViewer.prototype.addArrowLine = function (v, x1, y1, x2, y2) { this.AR = this.AR || []; this.AR.push({ x1: x1, y1: y1, x2: x2, y2: y2 }); };
   MockViewer.prototype.render = function () { /* no-op: rendered externally via renderSVG */ };
 
   // ---- SVG rendering (retaining-wall look) ----
@@ -62,6 +63,7 @@
     });
     rec.DR.forEach(function (d) { acc(d.x, d.y); var rr = d.ang * Math.PI / 180; acc(d.x + d.r * Math.cos(rr), d.y + d.r * Math.sin(rr)); });
     (rec.TX || []).forEach(function (t) { acc(t.x, t.y); });
+    (rec.AR || []).forEach(function (a) { acc(a.x1, a.y1); acc(a.x2, a.y2); });
     if (!isFinite(minX)) { minX = 0; maxX = 1; minY = 0; maxY = 1; }
 
     var padL = 46, padR = 30, padT = 30, padB = 30;
@@ -121,6 +123,12 @@
       text(tx + (px - tx) * lt, ty + (py - ty) * lt - 7, (d.t ? d.t : 'R') + num(d.r), DIM, ang);
     });
     (rec.TX || []).forEach(function (t) { text(SX(t.x), SY(t.y), t.t, DIM, t.rot); });
+    (rec.AR || []).forEach(function (a) {
+      var x1 = SX(a.x1), y1 = SY(a.y1), x2 = SX(a.x2), y2 = SY(a.y2);
+      var dl = Math.hypot(x2 - x1, y2 - y1) || 1;
+      line(x1, y1, x2, y2, DIM, 1.6);
+      arrow(x2, y2, (x2 - x1) / dl, (y2 - y1) / dl, DIM);
+    });
 
     var bg = 'background:linear-gradient(#e2e8f0 1px,transparent 1px) 0 0/26px 26px,linear-gradient(90deg,#e2e8f0 1px,transparent 1px) 0 0/26px 26px,#fff;';
     return '<svg width="' + cW + '" height="' + cH + '" viewBox="0 0 ' + cW + ' ' + cH + '" style="display:block;' + bg + '">' + e.join('') + '</svg>';
