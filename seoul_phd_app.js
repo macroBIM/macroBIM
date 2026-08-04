@@ -710,13 +710,13 @@
       _rebarHostHTML:
         '<div class="draw-card" id="rebarRenderCard">' +
           '<div class="draw-card-header">' +
-            '<div class="draw-card-title">Rebar Physics <span style="color:#8A2BE2;">(engine)</span></div>' +
+            '<div class="draw-card-title">Rebar Physics</div>' +
             '<div class="engine-ctrls">' +
               '<button type="button" class="engine-btn" onclick="SeoulPhD.rebarRespawn()"><i class="bi bi-arrow-counterclockwise"></i> Respawn</button>' +
               '<button type="button" class="engine-btn" id="btnPause" onclick="SeoulPhD.rebarPause()"><i class="bi bi-pause-fill"></i> Pause</button>' +
               '<button type="button" class="engine-btn" onclick="SeoulPhD.exportDXF()"><i class="bi bi-download"></i> Export DXF</button>' +
             '</div>' +
-            '<div class="draw-card-desc" id="stat-grid">철근이 설계 위치를 찾아갑니다…</div>' +
+            '<div class="draw-card-desc" id="stat-grid"></div>' +
           '</div>' +
           '<div class="draw-card-body" style="padding:0;">' +
             '<div id="renderContainer" style="width:100%;height:600px;background:#41699b;border-radius:0 0 10px 10px;overflow:hidden;cursor:grab;"></div>' +
