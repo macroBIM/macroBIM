@@ -58,20 +58,20 @@ const adefs_box12cell = [
 	['TBEL',    600],
 	['TBER',    600],
 	['TBS',     300],
-	['WBHL1',   500],
-	['WBHL2',   500],
+	['WBHUL1',   500],
+	['WBHUL2',   500],
 	['TBHL1',   750],
 	['TBHL2',   450],
-	['WBHCL1',  400],
-	['WBHCL2',  400],
+	['WBCHUL1',  400],
+	['WBCHUL2',  400],
 	['TBHCL1',  650],
 	['TBHCL2',  420],
-	['WBHCR1',  400],
-	['WBHCR2',  400],
+	['WBCHUR1',  400],
+	['WBCHUR2',  400],
 	['TBHCR1',  650],
 	['TBHCR2',  420],
-	['WBHR1',   500],
-	['WBHR2',   500],
+	['WBHUR1',   500],
+	['WBHUR2',   500],
 	['TBHR1',   750],
 	['TBHR2',   450],
 	// 필렛
@@ -90,8 +90,8 @@ const acentervars_box12cell = [
 	'WTCHUL1', 'WTCHUL2', 'TTHCL1', 'TTHCL2',
 	'WTCHUR1', 'WTCHUR2', 'TTHCR1', 'TTHCR2',
 	'TWEBC',
-	'WBHCL1', 'WBHCL2', 'TBHCL1', 'TBHCL2',
-	'WBHCR1', 'WBHCR2', 'TBHCR1', 'TBHCR2'
+	'WBCHUL1', 'WBCHUL2', 'TBHCL1', 'TBHCL2',
+	'WBCHUR1', 'WBCHUR2', 'TBHCR1', 'TBHCR2'
 ];
 
 // Section Type 에 따라 입력칸 표시/숨김 (라벨 div 가 input 바로 앞에 있는 폼 구조 기준)
@@ -1219,10 +1219,10 @@ function geo_box12cell( {
 	TWEBL, TWEBC, TWEBR,
 	// 하부
 	WBL, WBR, TBEL, TBER, TBS,
-	WBHL1,  WBHL2,  TBHL1,  TBHL2,			// 좌측복부 하부헌치
-	WBHCL1, WBHCL2, TBHCL1, TBHCL2,			// 중앙복부 좌측 하부헌치
-	WBHCR1, WBHCR2, TBHCR1, TBHCR2,			// 중앙복부 우측 하부헌치
-	WBHR1,  WBHR2,  TBHR1,  TBHR2,			// 우측복부 하부헌치
+	WBHUL1,  WBHUL2,  TBHL1,  TBHL2,			// 좌측복부 하부헌치
+	WBCHUL1, WBCHUL2, TBHCL1, TBHCL2,			// 중앙복부 좌측 하부헌치
+	WBCHUR1, WBCHUR2, TBHCR1, TBHCR2,			// 중앙복부 우측 하부헌치
+	WBHUR1,  WBHUR2,  TBHR1,  TBHR2,			// 우측복부 하부헌치
 	// 필렛 (0 = 미적용)
 	R_WTL, R_WTR, R_WTIL, R_WTIR, R_WBL, R_WBR,
 	// 셀 수 (1 = 중앙복부 없는 단일 셀, 생략/2 = 2셀)
@@ -1416,10 +1416,10 @@ function geo_box12cell( {
 	let PBHL1 = geo_intersect( p1, p2, p3, p4 );
 		opts.push({PBHL1, name:"PBHL1"});
 
-	dx = PBHL1.x + WBHL1;
+	dx = PBHL1.x + WBHUL1;
 	let PBHL2 = {x: dx, y: -TH + dx * SLB / 100 + TBHL2 };
 		opts.push({PBHL2, name:"PBHL2"});
-	dx = PBHL2.x + WBHL2;
+	dx = PBHL2.x + WBHUL2;
 	let PBHL3 = {x: dx, y: -TH + dx * SLB / 100 + TBS };
 		opts.push({PBHL3, name:"PBHL3"});
 
@@ -1429,10 +1429,10 @@ function geo_box12cell( {
 	dx = -TWEBC / 2;
 	let PBHCL1 = {x: dx, y: -TH + dx * SLB / 100 + TBHCL1 };
 		if (bTwoCell) opts.push({PBHCL1, name:"PBHCL1"});
-	dx = PBHCL1.x - WBHCL1;
+	dx = PBHCL1.x - WBCHUL1;
 	let PBHCL2 = {x: dx, y: -TH + dx * SLB / 100 + TBHCL2 };
 		if (bTwoCell) opts.push({PBHCL2, name:"PBHCL2"});
-	dx = PBHCL2.x - WBHCL2;
+	dx = PBHCL2.x - WBCHUL2;
 	let PBHCL3 = {x: dx, y: -TH + dx * SLB / 100 + TBS };
 		if (bTwoCell) opts.push({PBHCL3, name:"PBHCL3"});
 
@@ -1442,10 +1442,10 @@ function geo_box12cell( {
 	dx = TWEBC / 2;
 	let PBHCR1 = {x: dx, y: -TH + dx * SLB / 100 + TBHCR1 };
 		if (bTwoCell) opts.push({PBHCR1, name:"PBHCR1"});
-	dx = PBHCR1.x + WBHCR1;
+	dx = PBHCR1.x + WBCHUR1;
 	let PBHCR2 = {x: dx, y: -TH + dx * SLB / 100 + TBHCR2 };
 		if (bTwoCell) opts.push({PBHCR2, name:"PBHCR2"});
-	dx = PBHCR2.x + WBHCR2;
+	dx = PBHCR2.x + WBCHUR2;
 	let PBHCR3 = {x: dx, y: -TH + dx * SLB / 100 + TBS };
 		if (bTwoCell) opts.push({PBHCR3, name:"PBHCR3"});
 
@@ -1459,10 +1459,10 @@ function geo_box12cell( {
 	let PBHR1 = geo_intersect( p1, p2, p3, p4 );
 		opts.push({PBHR1, name:"PBHR1"});
 
-	dx = PBHR1.x - WBHR1;
+	dx = PBHR1.x - WBHUR1;
 	let PBHR2 = {x: dx, y: -TH + dx * SLB / 100 + TBHR2 };
 		opts.push({PBHR2, name:"PBHR2"});
-	dx = PBHR2.x - WBHR2;
+	dx = PBHR2.x - WBHUR2;
 	let PBHR3 = {x: dx, y: -TH + dx * SLB / 100 + TBS };
 		opts.push({PBHR3, name:"PBHR3"});
 
@@ -1717,8 +1717,21 @@ function draw_box12cell_guide( sdivid, ap ){
 	dimH(P.PTL.x, 0,       ytop, g3, 'WL');
 	dimH(0,       P.PTR.x, ytop, g3, 'WR');
 
+	// ── 하부 헌치 폭 (상부 헌치와 동일한 체계) ──
+	var gb1 = ybot - S*0.02;
+	dimH(P.PBHL1.x,  P.PBHL2.x,  ybot, gb1, 'WBHUL1');
+	dimH(P.PBHL2.x,  P.PBHL3.x,  ybot, gb1, 'WBHUL2', 14);
+	if (two){
+		dimH(P.PBHCL3.x, P.PBHCL2.x, ybot, gb1, 'WBCHUL2', 14);
+		dimH(P.PBHCL2.x, P.PBHCL1.x, ybot, gb1, 'WBCHUL1');
+		dimH(P.PBHCR1.x, P.PBHCR2.x, ybot, gb1, 'WBCHUR1', 28);
+		dimH(P.PBHCR2.x, P.PBHCR3.x, ybot, gb1, 'WBCHUR2', 14);
+	}
+	dimH(P.PBHR3.x,  P.PBHR2.x,  ybot, gb1, 'WBHUR2', 14);
+	dimH(P.PBHR2.x,  P.PBHR1.x,  ybot, gb1, 'WBHUR1');
+
 	// ── 하부 폭 ──
-	var gb = ybot - S*0.05;
+	var gb = ybot - S*0.065;
 	dimH(P.PBL.x, 0,       ybot, gb, 'WBL');
 	dimH(0,       P.PBR.x, ybot, gb, 'WBR');
 
@@ -1800,11 +1813,11 @@ function draw_box12cell_guide( sdivid, ap ){
 	slopeNote(xcl, ytopf(xcl) - ap.TTS - S*0.022, 'SLL=' + ap.SLL + '%');
 	var xcr = ((two ? P.PTHCR3.x : 0) + P.PTHR3.x) / 2;
 	slopeNote(xcr, ytopf(xcr) - ap.TTS - S*0.022, 'SLR=' + ap.SLR + '%');
-	slopeNote(0, ybot - S*0.085, 'SLB=' + ap.SLB + '%');
+	slopeNote(0, ybot - S*0.10, 'SLB=' + ap.SLB + '%');
 
 	// ── 렌더 + 줌/팬 ──
 	var W = odiv.clientWidth || 900;
-	var bw = (xmax - xmin) + S*0.30, bh = (ytop - ybot) + S*0.34;
+	var bw = (xmax - xmin) + S*0.30, bh = (ytop - ybot) + S*0.38;
 	var Hpx = Math.max(320, Math.min(680, Math.round(W * bh / bw) + 20));
 	odiv.style.position = 'relative';
 	odiv.innerHTML = window.RWSVG.renderSVG(rec, W, Hpx) +
