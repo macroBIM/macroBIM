@@ -100,6 +100,8 @@ function toggleCenterVars_box12cell(ncell){
 	acentervars_box12cell.forEach( (skey) => {
 		const inp = document.getElementById(skey + '_s');
 		if (!inp) return;
+		const otr = inp.closest ? inp.closest('tr') : null;		// 표 레이아웃 : 행 단위 숨김
+		if (otr) { otr.style.display = show ? '' : 'none'; return; }
 		const lbl = inp.previousElementSibling;
 		inp.style.display = show ? '' : 'none';
 		if (lbl && lbl.classList && lbl.classList.contains('col-label')) lbl.style.display = show ? '' : 'none';
@@ -1830,4 +1832,11 @@ function draw_box12cell_guide( sdivid, ap ){
 	var obtn = odiv.querySelector('[data-guide-regen]');
 	if (obtn) obtn.onclick = oregen;
 	if (svg) svg.addEventListener('dblclick', oregen);
+
+	// 우측 변수표 높이를 가이드 그림과 동일하게 동기화 (스크롤 표)
+	var otbl = document.getElementById('box12cell_vartable');
+	if (otbl && svg) {
+		var dh = svg.getBoundingClientRect().height || Hpx;
+		if (dh > 100) otbl.style.height = Math.round(dh) + 'px';
+	}
 }
