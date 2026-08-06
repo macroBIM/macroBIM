@@ -965,7 +965,7 @@
         '      <div class="px-split">' +
         '        <div class="px-guide" id="box12cell_guide"></div>' +
         '        <div class="px-tblwrap" id="box12cell_vartable">' +
-        '          <table class="px-tbl"><thead><tr><th>Variable</th><th>Value / Formula</th></tr></thead>' +
+        '          <table class="px-tbl"><thead><tr><th>Dimension</th><th>Value / Formula</th></tr></thead>' +
         '          <tbody>' + rows + '</tbody></table>' +
         '        </div>' +
         '      </div>' +
