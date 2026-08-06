@@ -889,15 +889,36 @@
 
         '  <div class="draw-card">' +
         '    <div class="draw-card-header"><div><span class="draw-card-title">REBAR</span> <span class="draw-card-desc">trebar / lrebar input data</span></div>' +
-        '      <span style="display:inline-flex;gap:6px;align-items:center;">' +
-        '        <input type="text" id="sheetName" class="form-input" value="input" style="width:90px;" title="Excel sheet name">' +
-        '        <button type="button" class="px-btn" onclick="PXBOX.loadExcel()">&#8682; Load Excel</button>' +
-        '        <input type="file" id="excelFileInput" accept=".xlsx,.xls" style="display:none;">' +
-        '      </span></div>' +
+        '      <span id="pxRebarTools" style="display:inline-flex;gap:6px;align-items:center;"></span></div>' +
         '    <div class="draw-card-body"><div id="rebarBody"></div></div>' +
         '  </div>' +
 
         '</div>';
+
+      // Excel controls (sheet name + Load Excel) live on the page headline; fall back to the REBAR header when no headline exists.
+      var toolsHTML =
+        '<input type="text" id="sheetName" class="form-input" value="input" style="width:90px;" title="Excel sheet name">' +
+        '<button type="button" class="px-btn" onclick="PXBOX.loadExcel()">&#8682; Load Excel</button>' +
+        '<input type="file" id="excelFileInput" accept=".xlsx,.xls" style="display:none;">';
+      var headTools = document.getElementById('pxHeadTools');
+      if (!headTools) {
+        var pageView = root.closest ? root.closest('.page-view') : null;
+        var heading = pageView ? pageView.querySelector('.page-heading') : null;
+        if (heading) {
+          heading.style.display = 'flex';
+          heading.style.alignItems = 'center';
+          heading.style.justifyContent = 'space-between';
+          heading.style.flexWrap = 'wrap';
+          headTools = document.createElement('span');
+          headTools.id = 'pxHeadTools';
+          headTools.className = 'px-root';
+          headTools.style.cssText = 'display:inline-flex;gap:6px;align-items:center;font-size:12px;font-weight:400;letter-spacing:normal;text-transform:none;';
+          headTools.innerHTML = toolsHTML;
+          heading.appendChild(headTools);
+        } else {
+          document.getElementById('pxRebarTools').innerHTML = toolsHTML;
+        }
+      }
 
       // ui.js 가 참조하는 숨김 DOM (sectionSelect / toggle 버튼)
       if (!document.getElementById('sectionSelect')) {
