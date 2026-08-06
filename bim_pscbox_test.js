@@ -72,13 +72,17 @@
     '.px-radio{display:flex;gap:18px;align-items:center;margin:0 0 12px 2px;font-size:13px;color:#334155;}' +
     '.px-radio label{display:flex;gap:6px;align-items:center;cursor:pointer;margin:0;}' +
     '.px-split{display:flex;gap:16px;align-items:flex-start;}' +
-    '.px-guide{flex:1.6 1 0;min-width:0;}' +
+    '.px-guide{flex:1 1 0;min-width:0;}' +
     '.px-guide svg{width:100%;height:auto;border:1px solid var(--hair);border-radius:6px;background:#fff;}' +
-    '.px-tblwrap{flex:1 1 0;min-width:260px;overflow-y:auto;border:1px solid var(--hair);border-radius:8px;background:#fff;}' +
+    '.px-tblwrap{flex:1 1 0;min-width:0;overflow-y:auto;border:1px solid var(--hair);border-radius:8px;background:#fff;}' +
     '.px-tbl{width:100%;border-collapse:collapse;font-size:12.5px;}' +
     '.px-tbl th{position:sticky;top:0;background:#f1f5f9;color:#334155;text-align:left;padding:6px 10px;font-size:12px;z-index:1;border-bottom:1px solid var(--hair);}' +
     '.px-tbl td{padding:3px 10px;border-bottom:1px solid #f1f5f9;}' +
-    '.px-tbl td:first-child{font-weight:600;color:#334155;white-space:nowrap;}' +
+    '.px-tbl td.px-dim{font-weight:600;color:#334155;white-space:nowrap;}' +
+    '.px-tbl th.px-symh,.px-tbl td.px-symc{width:26px;text-align:center;padding-left:4px;padding-right:4px;}' +
+    '.px-tbl td.px-symc input[type=checkbox]{width:auto;cursor:pointer;}' +
+    '.px-tbl input:disabled{background:#f8fafc;color:#94a3b8;}' +
+    '.px-tbl tr.px-2cell-hdr td{background:#eef2ff;color:#4338ca;font-weight:700;font-size:11px;letter-spacing:.08em;text-transform:uppercase;text-align:center;padding:5px 10px;}' +
     '.px-tbl small{color:#94a3b8;font-size:10px;font-weight:400;}' +
     '.px-tbl input{width:100%;font-family:ui-monospace,Menlo,Consolas,monospace;}' +
     '@media(max-width:1000px){.px-split{flex-direction:column;}.px-tblwrap{max-height:320px;width:100%;height:auto !important;}}' +
@@ -867,6 +871,25 @@
       this._renderVarRows();
     },
 
+    // 대칭 미러 : 좌측 입력 시 (비대칭 체크가 없으면) 우측 입력칸에 같은 값 복사
+    onSymLeft: function (lk, rk) {
+      var cb = document.getElementById('asym_' + rk);
+      if (cb && cb.checked) return;
+      var li = document.getElementById(lk + '_s'), ri = document.getElementById(rk + '_s');
+      if (li && ri) ri.value = li.value;
+    },
+
+    // 비대칭 체크박스 : 체크 → 우측 독립 입력, 해제 → 좌측값으로 되돌려 미러 재개
+    onAsymToggle: function (lk, rk, on) {
+      var ri = document.getElementById(rk + '_s');
+      if (ri) ri.disabled = !on;
+      if (!on) {
+        var li = document.getElementById(lk + '_s');
+        if (li && ri) ri.value = li.value;
+        this.redraw();
+      }
+    },
+
     // 파라메트릭 재작도 : Variables scope → 매핑 수식 평가 → 가이드 + 물리 뷰
     redraw: function () {
       if (typeof adefs_box12cell === 'undefined') return;
@@ -881,6 +904,8 @@
       ap.NCELL = oncell ? (Number(oncell.value) || 2) : 2;
       this._lastAp = ap;
       if (typeof toggleCenterVars_box12cell === 'function') toggleCenterVars_box12cell(ap.NCELL);
+      var ghdr = document.querySelector('#box12cell_vartable .px-2cell-hdr');
+      if (ghdr) ghdr.style.display = (ap.NCELL === 1) ? 'none' : '';
       try { draw_box12cell_guide('box12cell_guide', ap); }
       catch (e) { console.error('[PSCBOX] guide:', e); }
       // 물리 뷰용 외곽 캡처 (geo 출력을 직접 사용)
@@ -936,12 +961,64 @@
         return;
       }
 
-      var rows = adefs_box12cell.map(function (adef) {
-        var key = adef[0];
-        var label = (adef.length > 2) ? adef[2] : key;
-        label = label.replace('(0, if not necessary)', '<small>(0=X)</small>');
-        return '<tr><td>' + label + '</td><td><input type="text" spellcheck="false" class="form-input" id="' + key + '_s" value="' + key + '" ' +
-               'onchange="PXBOX.redraw()"></td></tr>';
+      // 좌/우 대칭 쌍 레이아웃 — sym: 우측은 좌측을 미러(체크박스로 비대칭 입력), free: 좌우 독립(부호가 다른 슬로프), single: 단독
+      var lblMap = {};
+      adefs_box12cell.forEach(function (d) { lblMap[d[0]] = ((d.length > 2) ? d[2] : d[0]).replace('(0, if not necessary)', '<small>(0=X)</small>'); });
+      var layout = [
+        { t: 'single', l: 'TH' },
+        { t: 'free',   l: 'SLL',     r: 'SLR' },
+        { t: 'single', l: 'SLB' },
+        { t: 'single', l: 'TTS' },
+        { t: 'single', l: 'TBS' },
+        { t: 'sym', l: 'WL',      r: 'WR' },
+        { t: 'sym', l: 'WTL',     r: 'WTR' },
+        { t: 'sym', l: 'WBL',     r: 'WBR' },
+        { t: 'sym', l: 'WCAL1',   r: 'WCAR1' },
+        { t: 'sym', l: 'WCAL2',   r: 'WCAR2' },
+        { t: 'sym', l: 'WTHUL1',  r: 'WTHUR1' },
+        { t: 'sym', l: 'WTHUL2',  r: 'WTHUR2' },
+        { t: 'sym', l: 'TCAL',    r: 'TCAR' },
+        { t: 'sym', l: 'TCAL1',   r: 'TCAR1' },
+        { t: 'sym', l: 'TCAL2',   r: 'TCAR2' },
+        { t: 'sym', l: 'TTHL1',   r: 'TTHR1' },
+        { t: 'sym', l: 'TTHL2',   r: 'TTHR2' },
+        { t: 'sym', l: 'TBHL1',   r: 'TBHR1' },
+        { t: 'sym', l: 'TBHL2',   r: 'TBHR2' },
+        { t: 'sym', l: 'WBHUL1',  r: 'WBHUR1' },
+        { t: 'sym', l: 'WBHUL2',  r: 'WBHUR2' },
+        { t: 'sym', l: 'TBEL',    r: 'TBER' },
+        { t: 'sym', l: 'TWEBL',   r: 'TWEBR' },
+        { t: 'sym', l: 'R_WTL',   r: 'R_WTR' },
+        { t: 'sym', l: 'R_WTIL',  r: 'R_WTIR' },
+        { t: 'sym', l: 'R_WBL',   r: 'R_WBR' },
+        { t: 'group', label: '2 Cell only' },
+        { t: 'sym', l: 'WTCHUL1', r: 'WTCHUR1' },
+        { t: 'sym', l: 'WTCHUL2', r: 'WTCHUR2' },
+        { t: 'sym', l: 'WBCHUL1', r: 'WBCHUR1' },
+        { t: 'sym', l: 'WBCHUL2', r: 'WBCHUR2' },
+        { t: 'sym', l: 'TTHCL1',  r: 'TTHCR1' },
+        { t: 'sym', l: 'TTHCL2',  r: 'TTHCR2' },
+        { t: 'sym', l: 'TBHCL1',  r: 'TBHCR1' },
+        { t: 'sym', l: 'TBHCL2',  r: 'TBHCR2' },
+        { t: 'single', l: 'TWEBC' }
+      ];
+      function dimInput(key, extra) {
+        return '<input type="text" spellcheck="false" class="form-input" id="' + key + '_s" value="' + key + '" onchange="PXBOX.redraw()"' + (extra || '') + '>';
+      }
+      var rows = layout.map(function (it) {
+        if (it.t === 'group') return '<tr class="px-2cell-hdr"><td colspan="5">' + it.label + '</td></tr>';
+        if (it.t === 'single') return '<tr><td class="px-dim">' + lblMap[it.l] + '</td><td>' + dimInput(it.l) + '</td><td class="px-symc"></td><td class="px-dim"></td><td></td></tr>';
+        if (it.t === 'free')   return '<tr><td class="px-dim">' + lblMap[it.l] + '</td><td>' + dimInput(it.l) + '</td><td class="px-symc"></td>' +
+                                      '<td class="px-dim">' + lblMap[it.r] + '</td><td>' + dimInput(it.r) + '</td></tr>';
+        // sym : 좌측 입력 → 우측 미러. 체크박스 체크 시 우측 독립 입력(비대칭).
+        return '<tr><td class="px-dim">' + lblMap[it.l] + '</td>' +
+               '<td><input type="text" spellcheck="false" class="form-input" id="' + it.l + '_s" value="' + it.l + '" ' +
+                   'oninput="PXBOX.onSymLeft(\'' + it.l + '\',\'' + it.r + '\')" onchange="PXBOX.redraw()"></td>' +
+               '<td class="px-symc"><input type="checkbox" id="asym_' + it.r + '" title="Check to enter the right side independently (asymmetric)" ' +
+                   'onchange="PXBOX.onAsymToggle(\'' + it.l + '\',\'' + it.r + '\',this.checked)"></td>' +
+               '<td class="px-dim">' + lblMap[it.r] + '</td>' +
+               '<td><input type="text" spellcheck="false" class="form-input" id="' + it.r + '_s" value="' + it.l + '" disabled ' +
+                   'onchange="PXBOX.redraw()"></td></tr>';
       }).join('');
 
       root.innerHTML =
@@ -965,7 +1042,7 @@
         '      <div class="px-split">' +
         '        <div class="px-guide" id="box12cell_guide"></div>' +
         '        <div class="px-tblwrap" id="box12cell_vartable">' +
-        '          <table class="px-tbl"><thead><tr><th>Dimension</th><th>Value / Formula</th></tr></thead>' +
+        '          <table class="px-tbl"><thead><tr><th>Dimension</th><th>Value / Formula</th><th class="px-symh" title="Check to enter the right side independently">&#8646;</th><th>Dimension</th><th>Value / Formula</th></tr></thead>' +
         '          <tbody>' + rows + '</tbody></table>' +
         '        </div>' +
         '      </div>' +
