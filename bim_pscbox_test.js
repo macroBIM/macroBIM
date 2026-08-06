@@ -82,13 +82,15 @@
     '.px-tbl small{color:#94a3b8;font-size:10px;font-weight:400;}' +
     '.px-tbl input{width:100%;font-family:ui-monospace,Menlo,Consolas,monospace;}' +
     '@media(max-width:1000px){.px-split{flex-direction:column;}.px-tblwrap{max-height:320px;width:100%;height:auto !important;}}' +
-    '.var-row{display:grid;grid-template-columns:minmax(70px,auto) 1fr minmax(52px,auto) 22px;gap:6px;align-items:center;}.var-row .var-del{padding:2px 6px;}.var-row .var-name{font-weight:600;}.var-row .var-expr{font-family:ui-monospace,Menlo,Consolas,monospace;}.var-val{font-size:12.5px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}.var-val.ok{color:#059669;}.var-val.err{color:#dc2626;font-weight:500;}.rebar-table-wrap{overflow-x:auto;}.rebar-table{width:100%;border-collapse:collapse;font-size:12px;margin:2px 0;}.rebar-table th{background:#1e293b;color:#fff;font-weight:600;padding:6px 9px;text-align:left;white-space:nowrap;border:1px solid #334155;}.rebar-table th.rs-type{color:#FFC107;background:#0f172a;text-align:center;font-weight:700;}.rebar-table td{padding:5px 9px;border:1px solid #e2e8f0;color:#334155;white-space:nowrap;}.rebar-table td:first-child,.rebar-table th:first-child{text-align:center;}.rebar-table tbody tr:nth-child(even) td{background:#f8fafc;}.rebar-table tbody tr:hover td{background:#eff6ff;}.engine-btn{display:inline-flex;align-items:center;gap:6px;padding:5px 12px;border:1px solid #2563eb;border-radius:6px;background:#2563eb;color:#fff;font-weight:700;font-size:10.5px;letter-spacing:.06em;text-transform:uppercase;font-family:inherit;cursor:pointer;}.engine-btn:hover{background:#1d4ed8;}.engine-ctrls{display:flex;align-items:center;gap:8px;}.var-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:8px 20px;}@media(max-width:1500px){.var-grid{grid-template-columns:repeat(3,1fr);}}@media(max-width:1100px){.var-grid{grid-template-columns:repeat(2,1fr);}}@media(max-width:680px){.var-grid{grid-template-columns:1fr;}}';
+    '.var-row{display:grid;grid-template-columns:minmax(70px,auto) 1fr minmax(52px,auto) 22px;gap:6px;align-items:center;}.var-row .var-del{padding:2px 6px;}.var-row .var-name{font-weight:600;}.var-row .var-expr{font-family:ui-monospace,Menlo,Consolas,monospace;}.var-val{font-size:12.5px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}.var-val.ok{color:#059669;}.var-val.err{color:#dc2626;font-weight:500;}.rebar-table-wrap{overflow-x:auto;}.rebar-table{width:100%;border-collapse:collapse;font-size:12px;margin:2px 0;}.rebar-table th{background:#1e293b;color:#fff;font-weight:600;padding:6px 9px;text-align:left;white-space:nowrap;border:1px solid #334155;}.rebar-table th.rs-type{color:#FFC107;background:#0f172a;text-align:center;font-weight:700;}.rebar-table td{padding:5px 9px;border:1px solid #e2e8f0;color:#334155;white-space:nowrap;}.rebar-table td:first-child,.rebar-table th:first-child{text-align:center;}.rebar-table tbody tr:nth-child(even) td{background:#f8fafc;}.rebar-table tbody tr:hover td{background:#eff6ff;}.engine-btn{display:inline-flex;align-items:center;gap:6px;padding:5px 12px;border:1px solid #2563eb;border-radius:6px;background:#2563eb;color:#fff;font-weight:700;font-size:10.5px;letter-spacing:.06em;text-transform:uppercase;font-family:inherit;cursor:pointer;}.engine-btn:hover{background:#1d4ed8;}.engine-ctrls{display:flex;align-items:center;gap:8px;}.var-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:8px 20px;}@media(max-width:1500px){.var-grid{grid-template-columns:repeat(3,1fr);}}@media(max-width:1100px){.var-grid{grid-template-columns:repeat(2,1fr);}}@media(max-width:680px){.var-grid{grid-template-columns:1fr;}}' +
+    '.engine-btn-lite{background:#fff;border-color:#cbd5e1;color:#334155;}.engine-btn-lite:hover{background:#f1f5f9;}.engine-btn-lite.active{background:#2563eb;border-color:#2563eb;color:#fff;}';
 
   var PXBOX = {
     _mountId: 'mount-draw-pscbox',
     _vars: null, _excelData: null, _rebarData: null,
     _lines: [], _arcs: [], _circs: [],
     _uiInited: false, _settleTimer: null, _rebarSettled: false, _lastAp: null, _lastStuckMsg: null,
+    _showEngNormals: false, _showEngNodes: false, _engNormGroup: null, _engNodeGroup: null,
 
       _renderRebarTables: function () {
         var body = document.getElementById('rebarBody');
@@ -284,6 +286,8 @@
               '<button type="button" class="engine-btn" onclick="PXBOX.rebarRespawn()"><i class="bi bi-arrow-counterclockwise"></i> Respawn</button>' +
               '<button type="button" class="engine-btn" id="btnPause" onclick="PXBOX.rebarPause()"><i class="bi bi-pause-fill"></i> Pause</button>' +
               '<button type="button" class="engine-btn" onclick="PXBOX.exportDXF()"><i class="bi bi-download"></i> Export DXF</button>' +
+              '<button type="button" class="engine-btn engine-btn-lite" id="btnToggleNormals" onclick="PXBOX.toggleNormals()"><i class="bi bi-arrows-angle-expand"></i> Toggle Normals</button>' +
+              '<button type="button" class="engine-btn engine-btn-lite" id="btnToggleNodes" onclick="PXBOX.toggleNodes()"><i class="bi bi-123"></i> Toggle Nodes (#)</button>' +
             '</div>' +
             '<div class="draw-card-desc" id="stat-grid"></div>' +
           '</div>' +
@@ -336,6 +340,85 @@
 
       rebarPause: function () {
         if (typeof Domain !== 'undefined' && typeof Domain.togglePause === 'function') Domain.togglePause();
+      },
+
+      toggleNormals: function () {
+        this._showEngNormals = !this._showEngNormals;
+        var b = document.getElementById('btnToggleNormals');
+        if (b) b.classList.toggle('active', this._showEngNormals);
+        this._drawEngineNormals();
+      },
+      toggleNodes: function () {
+        this._showEngNodes = !this._showEngNodes;
+        var b = document.getElementById('btnToggleNodes');
+        if (b) b.classList.toggle('active', this._showEngNodes);
+        this._drawEngineNodes();
+      },
+
+      // Domain.currentSection.walls 의 bbox → 대각선 길이 (스케일 기준)
+      _sectionDiag: function (walls) {
+        var minx = 1e18, miny = 1e18, maxx = -1e18, maxy = -1e18;
+        walls.forEach(function (w) { minx = Math.min(minx, w.x1, w.x2); maxx = Math.max(maxx, w.x1, w.x2); miny = Math.min(miny, w.y1, w.y2); maxy = Math.max(maxy, w.y1, w.y2); });
+        return Math.hypot(maxx - minx, maxy - miny) || 1000;
+      },
+
+      // 안쪽 법선 화살표 — 화면 픽셀 기준 고정 크기 (스테이지 줌 배율 보정)
+      _drawEngineNormals: function () {
+        if (typeof UI === 'undefined' || !UI.mainLayer) return;
+        if (this._engNormGroup) { this._engNormGroup.destroy(); this._engNormGroup = null; }
+        var walls = (typeof Domain !== 'undefined' && Domain.currentSection && Domain.currentSection.walls) || [];
+        if (!this._showEngNormals || !walls.length) { UI.mainLayer.draw(); return; }
+        var scale = (UI.stage && UI.stage.scaleX && UI.stage.scaleX()) || 1;
+        var arrowL = 26 / scale, dotR = 6 / scale;
+        var g = new Konva.Group({ name: 'eng_normals' });
+        // 직선 벽은 전부, 아크(필렛·원) 테셀레이션 구간은 중앙 1개만 화살표 표시
+        var picks = [], ni = 0;
+        while (ni < walls.length) {
+          var n0 = walls[ni];
+          if (!n0.src) { picks.push(n0); ni++; continue; }
+          var nj = ni;
+          while (nj + 1 < walls.length && walls[nj + 1].src === n0.src) nj++;
+          picks.push(walls[(ni + nj) >> 1]);
+          ni = nj + 1;
+        }
+        picks.forEach(function (w) {
+          var mx = (w.x1 + w.x2) / 2, my = (w.y1 + w.y2) / 2;
+          var L = arrowL;
+          g.add(new Konva.Arrow({ points: [mx, my, mx + w.nx * L, my + w.ny * L], stroke: '#FFC107', fill: '#FFC107', strokeWidth: 2, pointerLength: L * 0.34, pointerWidth: L * 0.3, strokeScaleEnabled: false }));
+          g.add(new Konva.Circle({ x: mx, y: my, radius: dotR, fill: '#FF5722', strokeScaleEnabled: false }));
+        });
+        UI.mainLayer.add(g); this._engNormGroup = g; UI.mainLayer.draw();
+      },
+
+      // 벽 id(E1,E2…) 라벨 + 끝점 — 아크 테셀레이션 구간은 중앙 1개에 범위(Ea~Eb)로 표기
+      _drawEngineNodes: function () {
+        if (typeof UI === 'undefined' || !UI.mainLayer) return;
+        if (this._engNodeGroup) { this._engNodeGroup.destroy(); this._engNodeGroup = null; }
+        var walls = (typeof Domain !== 'undefined' && Domain.currentSection && Domain.currentSection.walls) || [];
+        if (!this._showEngNodes || !walls.length) { UI.mainLayer.draw(); return; }
+        var scale = (UI.stage && UI.stage.scaleX && UI.stage.scaleX()) || 1;
+        var fs = 13 / scale, dotR = 6 / scale;
+        var g = new Konva.Group({ name: 'eng_nodes' });
+        var items = [], wi = 0;
+        while (wi < walls.length) {
+          var w0 = walls[wi];
+          if (!w0.src) { items.push({ w: w0, text: String(w0.id || '') }); wi++; continue; }
+          var wj = wi;
+          while (wj + 1 < walls.length && walls[wj + 1].src === w0.src) wj++;
+          var wm = walls[(wi + wj) >> 1];
+          items.push({ w: wm, text: (wi === wj) ? String(wm.id || '') : String(w0.id || '') + '~' + String(walls[wj].id || '') });
+          wi = wj + 1;
+        }
+        items.forEach(function (it) {
+          var w = it.w, mx = (w.x1 + w.x2) / 2, my = (w.y1 + w.y2) / 2;
+          g.add(new Konva.Circle({ x: mx, y: my, radius: dotR, fill: '#FF5722', strokeScaleEnabled: false }));
+          var lbl = new Konva.Label({ x: mx + w.nx * fs * 0.6, y: my + w.ny * fs * 0.6, scaleY: -1 });
+          lbl.add(new Konva.Tag({ fill: 'rgba(0,0,0,0.78)', cornerRadius: fs * 0.2 }));
+          lbl.add(new Konva.Text({ text: it.text, fontSize: fs, fontStyle: 'bold', fontFamily: 'Arial', fill: '#00E5FF', padding: fs * 0.18 }));
+          lbl.offsetX(lbl.width() / 2); lbl.offsetY(lbl.height() / 2);
+          g.add(lbl);
+        });
+        UI.mainLayer.add(g); this._engNodeGroup = g; UI.mainLayer.draw();
       },
 
       _trebarPrimitives: function (t) {
@@ -696,6 +779,8 @@
         if (typeof UI.drawNormals === 'function') UI.drawNormals();
         if (typeof UI.drawDebugNodes === 'function') UI.drawDebugNodes();
         UI.mainLayer.draw();
+        this._drawEngineNormals();   // 토글 상태 유지 — 새 단면에 맞춰 재작도(꺼져 있으면 지움)
+        this._drawEngineNodes();
       },
 
       _renderVarRows: function () {
@@ -897,6 +982,7 @@
 
       // Excel controls (sheet name + Load Excel) live on the page headline; fall back to the REBAR header when no headline exists.
       var toolsHTML =
+        '<span style="font-size:12.5px;font-weight:600;color:#475569;white-space:nowrap;">Sheet Name :</span>' +
         '<input type="text" id="sheetName" class="form-input" value="input" style="width:90px;" title="Excel sheet name">' +
         '<button type="button" class="px-btn" onclick="PXBOX.loadExcel()">&#8682; Load Excel</button>' +
         '<input type="file" id="excelFileInput" accept=".xlsx,.xls" style="display:none;">';
@@ -924,8 +1010,7 @@
       if (!document.getElementById('sectionSelect')) {
         var hid = document.createElement('div');
         hid.style.display = 'none';
-        hid.innerHTML = '<select id="sectionSelect"><option value="PSCBOX" selected>PSCBOX</option></select>' +
-                        '<button id="btnToggleNormals"></button><button id="btnToggleNodes"></button>';
+        hid.innerHTML = '<select id="sectionSelect"><option value="PSCBOX" selected>PSCBOX</option></select>';
         root.appendChild(hid);
       }
 
