@@ -201,13 +201,7 @@
           vars.push({ name: name, expr: expr });
         }
         if (!vars.length) return;
-        // 기본 변수(adefs 시드) 위에 엑셀 변수를 병합 — 같은 이름은 교체, 새 이름은 추가
-        var base = this._vars || [], idx = {};
-        base.forEach(function (v, i) { idx[v.name] = i; });
-        vars.forEach(function (v) {
-          if (v.name in idx) base[idx[v.name]] = v; else { idx[v.name] = base.length; base.push(v); }
-        });
-        this._vars = base;
+        this._vars = vars;                      // 엑셀 variable 블록으로 교체 (로딩 전 초기화됨)
         this._renderVarRows();                  // Variables 카드 입력창 갱신
         console.log('[SeoulPhD] variable 로드: ' + vars.length + '개 → ' + vars.map(function (v) { return v.name + '=' + v.expr; }).join(', '));
       },
@@ -896,10 +890,10 @@
           var sheet = String((document.getElementById('sheetName') || {}).value || 'input').trim();
           if (typeof window.loadSheetData !== 'function') { alert('엑셀 리더 로딩 중입니다. 잠시 후 다시 시도해주세요.'); return; }
           window.loadSheetData(file, sheet).then(function (data) {
-            self._excelData = data;
             console.log('[PSCBOX] 엑셀 로드 완료:', sheet, data.length + '행', data);
-            self._resetInputs();                 // ① 기존 웹 입력값 전체 초기화
-            self._loadVariablesFromExcel(data);  // ② 'variable' 블록 → Variables 카드 (기본값 위에 병합)
+            self._resetInputs();                 // ① 기존 웹 입력값 전체 초기화 (Variables/Dimension/철근)
+            self._excelData = data;
+            self._loadVariablesFromExcel(data);  // ② 'variable' 블록 → Variables 카드 (교체)
             self._loadTypeFromExcel(data);       // ③ 'type' 블록 → Section Type (1c/2c)
             self._loadDimsFromExcel(data);       // ④ 'dim' 블록 → Dimension 표 (대칭/비대칭 자동)
             self._renderRebarTables();           // ⑤ 'trebar/lrebar' 블록 → REBAR 표
@@ -921,14 +915,25 @@
       this._renderVarRows();
     },
 
-    // 웹페이지 입력값 전체 초기화 — 엑셀 로딩 직전에 호출 (Variables 기본값,
-    // Dimension 기본값, 대칭 체크박스 해제, Section Type 1 Cell)
+    // 웹페이지 입력값 전체 초기화 — 엑셀 로딩 직전에 호출.
+    //   Variables 카드 완전 비움(엑셀 variable 블록만 남게), Dimension 은 숫자
+    //   기본값으로(변수 참조가 남아 깨지지 않도록), 대칭 체크박스 해제,
+    //   Section Type 1 Cell, trebar/lrebar 데이터 비움.
     _resetInputs: function () {
-      this._seedVars();
+      this._vars = [{ name: '', expr: '' }];
+      this._renderVarRows();
+      this._excelData = null;
+      this._rebarData = null;
+      if (typeof Domain !== 'undefined') {
+        Domain.trebarList = []; Domain.lrebarList = []; Domain.queue = [];
+        Domain.USER_REBAR_DATA = []; Domain.USER_TREBAR_DATA = null; Domain.USER_LREBAR_DATA = null;
+      }
+      var defByKey = {};
+      adefs_box12cell.forEach(function (d) { defByKey[d[0]] = String(d[1]); });
       DIM_LAYOUT.forEach(function (it) {
         if (it.t === 'group') return;
         var li = document.getElementById(it.l + '_s');
-        if (li) li.value = it.l;
+        if (li) li.value = defByKey[it.l];
         if (!it.r) return;
         var ri = document.getElementById(it.r + '_s');
         if (!ri) return;
@@ -936,9 +941,9 @@
           var cb = document.getElementById('asym_' + it.r);
           if (cb) cb.checked = false;
           ri.disabled = true;
-          ri.value = it.l;                       // 우측은 좌측 미러 기본값
-        } else {                                 // free (SLL/SLR)
-          ri.value = it.r;
+          ri.value = defByKey[it.l];             // 우측은 좌측 미러 기본값
+        } else {                                 // free (SLL/SLR) — 각자 기본값
+          ri.value = defByKey[it.r];
         }
       });
       var r1 = document.querySelector('input[name="box12cell_ncell"][value="1"]');
