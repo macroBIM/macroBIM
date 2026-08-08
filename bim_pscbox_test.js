@@ -1000,15 +1000,14 @@
         if ((it.l in map) && li) li.value = map[it.l];
         if (it.t === 'sym' && ri) {
           var cb = document.getElementById('asym_' + it.r);
-          var lv = li ? li.value : '';
-          if ((it.r in map) && String(map[it.r]) !== String(lv)) {
+          if (it.r in map) {                     // 우측 변수가 엑셀에 명시됨 → 비대칭 체크 + 그 값 입력
             if (cb) cb.checked = true;
             ri.disabled = false;
             ri.value = map[it.r];
-          } else {
+          } else {                               // 좌측만 주어짐 → 대칭 미러
             if (cb) cb.checked = false;
             ri.disabled = true;
-            ri.value = lv;
+            ri.value = li ? li.value : '';
           }
         } else if (it.t === 'free' && ri && (it.r in map)) {
           ri.value = map[it.r];
