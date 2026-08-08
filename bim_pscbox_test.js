@@ -128,7 +128,11 @@
     '.px-tbl input{width:100%;font-family:inherit;}' +
     '@media(max-width:1000px){.px-split{flex-direction:column;}.px-tblwrap{max-height:320px;width:100%;height:auto !important;}}' +
     '.var-row{display:grid;grid-template-columns:minmax(70px,auto) 1fr minmax(52px,auto) 22px;gap:6px;align-items:center;}.var-row .var-del{padding:2px 6px;}.var-row .var-name{font-weight:600;}.var-row .var-expr{font-family:inherit;}.var-val{font-size:12.5px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}.var-val.ok{color:#059669;}.var-val.err{color:#dc2626;font-weight:500;}.rebar-table-wrap{overflow-x:auto;}.rebar-table{width:100%;border-collapse:collapse;font-size:12px;margin:2px 0;}.rebar-table th{background:#1e293b;color:#fff;font-weight:600;padding:6px 9px;text-align:left;white-space:nowrap;border:1px solid #334155;}.rebar-table th.rs-type{color:#FFC107;background:#0f172a;text-align:center;font-weight:700;}.rebar-table td{padding:5px 9px;border:1px solid #e2e8f0;color:#334155;white-space:nowrap;}.rebar-table td:first-child,.rebar-table th:first-child{text-align:center;}.rebar-table tbody tr:nth-child(even) td{background:#f8fafc;}.rebar-table tbody tr:hover td{background:#eff6ff;}.engine-btn{display:inline-flex;align-items:center;gap:6px;padding:5px 12px;border:1px solid #2563eb;border-radius:6px;background:#2563eb;color:#fff;font-weight:700;font-size:10.5px;letter-spacing:.06em;text-transform:uppercase;font-family:inherit;cursor:pointer;}.engine-btn:hover{background:#1d4ed8;}.engine-ctrls{display:flex;align-items:center;gap:8px;}.var-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:8px 20px;}@media(max-width:1500px){.var-grid{grid-template-columns:repeat(3,1fr);}}@media(max-width:1100px){.var-grid{grid-template-columns:repeat(2,1fr);}}@media(max-width:680px){.var-grid{grid-template-columns:1fr;}}' +
-    '.engine-btn-lite{background:#fff;border-color:#cbd5e1;color:#334155;}.engine-btn-lite:hover{background:#f1f5f9;}.engine-btn-lite.active{background:#2563eb;border-color:#2563eb;color:#fff;}';
+    '.engine-btn-lite{background:#fff;border-color:#cbd5e1;color:#334155;}.engine-btn-lite:hover{background:#f1f5f9;}.engine-btn-lite.active{background:#2563eb;border-color:#2563eb;color:#fff;}' +
+    '.px-toast{position:fixed;top:18px;left:50%;transform:translateX(-50%);z-index:9999;display:flex;align-items:center;gap:9px;padding:10px 18px;border-radius:8px;font-size:13px;font-weight:600;box-shadow:0 4px 14px rgba(0,0,0,.18);color:#fff;font-family:"Inter",system-ui,sans-serif;}' +
+    '.px-toast.loading{background:#2563eb;}.px-toast.ok{background:#059669;}.px-toast.err{background:#dc2626;}' +
+    '.px-toast .px-spin{width:14px;height:14px;border:2px solid rgba(255,255,255,.4);border-top-color:#fff;border-radius:50%;animation:pxspin .8s linear infinite;flex-shrink:0;}' +
+    '@keyframes pxspin{to{transform:rotate(360deg)}}';
 
   var PXBOX = {
     _mountId: 'mount-draw-pscbox',
@@ -200,10 +204,11 @@
           expr = (expr == null) ? '' : String(expr).trim();
           vars.push({ name: name, expr: expr });
         }
-        if (!vars.length) return;
+        if (!vars.length) return 0;
         this._vars = vars;                      // 엑셀 variable 블록으로 교체 (로딩 전 초기화됨)
         this._renderVarRows();                  // Variables 카드 입력창 갱신
-        console.log('[SeoulPhD] variable 로드: ' + vars.length + '개 → ' + vars.map(function (v) { return v.name + '=' + v.expr; }).join(', '));
+        console.log('[PSCBOX] variable 로드: ' + vars.length + '개 → ' + vars.map(function (v) { return v.name + '=' + v.expr; }).join(', '));
+        return vars.length;
       },
 
       _extractRebarDataRows: function (fullData) {
@@ -880,6 +885,19 @@
 
       _esc: function (v) { return String(v == null ? '' : v).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;'); },
 
+      // 상단 중앙 토스트 — kind: 'loading'(스피너, 유지) / 'ok'(2.5s 후 자동 숨김) / 'err'(6s)
+      _toast: function (msg, kind) {
+        var t = document.getElementById('pxToast');
+        if (!t) { t = document.createElement('div'); t.id = 'pxToast'; document.body.appendChild(t); }
+        t.className = 'px-toast ' + kind;
+        t.innerHTML = (kind === 'loading' ? '<span class="px-spin"></span>' : (kind === 'ok' ? '&#10003;' : '&#9888;')) + '<span>' + this._esc(msg) + '</span>';
+        t.style.display = 'flex';
+        if (this._toastTimer) { clearTimeout(this._toastTimer); this._toastTimer = null; }
+        if (kind !== 'loading') {
+          this._toastTimer = setTimeout(function () { t.style.display = 'none'; }, kind === 'ok' ? 2500 : 6000);
+        }
+      },
+
       loadExcel: function () {
         var fi = document.getElementById('excelFileInput');
         if (!fi) return;
@@ -888,19 +906,21 @@
         fi.onchange = function () {
           var file = fi.files[0]; if (!file) return;
           var sheet = String((document.getElementById('sheetName') || {}).value || 'input').trim();
-          if (typeof window.loadSheetData !== 'function') { alert('엑셀 리더 로딩 중입니다. 잠시 후 다시 시도해주세요.'); return; }
+          if (typeof window.loadSheetData !== 'function') { self._toast('Excel reader is still loading. Please try again.', 'err'); return; }
+          self._toast('Loading Excel\u2026', 'loading');
           window.loadSheetData(file, sheet).then(function (data) {
             console.log('[PSCBOX] 엑셀 로드 완료:', sheet, data.length + '행', data);
             self._resetInputs();                 // ① 기존 웹 입력값 전체 초기화 (Variables/Dimension/철근)
             self._excelData = data;
-            self._loadVariablesFromExcel(data);  // ② 'variable' 블록 → Variables 카드 (교체)
+            var nv = self._loadVariablesFromExcel(data);  // ② 'variable' 블록 → Variables 카드 (교체)
             self._loadTypeFromExcel(data);       // ③ 'type' 블록 → Section Type (1c/2c)
-            self._loadDimsFromExcel(data);       // ④ 'dim' 블록 → Dimension 표 (대칭/비대칭 자동)
+            var nd = self._loadDimsFromExcel(data);       // ④ 'dim' 블록 → Dimension 표 (대칭/비대칭 자동)
             self._renderRebarTables();           // ⑤ 'trebar/lrebar' 블록 → REBAR 표
             self._rebarData = self._parseRebar(data);
             console.log('[PSCBOX] 철근 파싱:', self._rebarData);
             self.redraw();              // 재작도 (physics 포함)
-          }).catch(function (e) { alert('엑셀 로드 오류: ' + e.message); });
+            self._toast('Excel loaded \u2014 variables ' + (nv || 0) + ', dims ' + (nd || 0) + ', rebar ' + (self._rebarData ? self._rebarData.length : 0), 'ok');
+          }).catch(function (e) { self._toast('Excel load failed: ' + e.message, 'err'); console.error('[PSCBOX] 엑셀 로드 오류:', e); });
         };
         fi.click();
       },
@@ -992,7 +1012,7 @@
         if (raw === '' || raw === '-' || raw === '\u2013' || raw === '\u2014') raw = '0';
         map[key] = raw; count++;
       }
-      if (!count) return;
+      if (!count) return 0;
       DIM_LAYOUT.forEach(function (it) {
         if (it.t === 'group') return;
         var li = document.getElementById(it.l + '_s');
@@ -1014,6 +1034,7 @@
         }
       });
       console.log('[PSCBOX] dim 로드: ' + count + '개');
+      return count;
     },
 
     // 대칭 미러 : 좌측 입력 시 (비대칭 체크가 없으면) 우측 입력칸에 같은 값 복사
