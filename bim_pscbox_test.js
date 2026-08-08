@@ -19,6 +19,46 @@
 (function () {
   "use strict";
 
+  // 좌/우 대칭 쌍 레이아웃 — mount() 표 생성과 엑셀 dim 로더가 공용으로 사용
+  var DIM_LAYOUT = [
+        { t: 'single', l: 'TH' },
+        { t: 'free',   l: 'SLL',     r: 'SLR' },
+        { t: 'single', l: 'SLB' },
+        { t: 'single', l: 'TTS' },
+        { t: 'single', l: 'TBS' },
+        { t: 'sym', l: 'WL',      r: 'WR' },
+        { t: 'sym', l: 'WTL',     r: 'WTR' },
+        { t: 'sym', l: 'WBL',     r: 'WBR' },
+        { t: 'sym', l: 'WCAL1',   r: 'WCAR1' },
+        { t: 'sym', l: 'WCAL2',   r: 'WCAR2' },
+        { t: 'sym', l: 'WTHUL1',  r: 'WTHUR1' },
+        { t: 'sym', l: 'WTHUL2',  r: 'WTHUR2' },
+        { t: 'sym', l: 'TCAL',    r: 'TCAR' },
+        { t: 'sym', l: 'TCAL1',   r: 'TCAR1' },
+        { t: 'sym', l: 'TCAL2',   r: 'TCAR2' },
+        { t: 'sym', l: 'TTHL1',   r: 'TTHR1' },
+        { t: 'sym', l: 'TTHL2',   r: 'TTHR2' },
+        { t: 'sym', l: 'TBHL1',   r: 'TBHR1' },
+        { t: 'sym', l: 'TBHL2',   r: 'TBHR2' },
+        { t: 'sym', l: 'WBHUL1',  r: 'WBHUR1' },
+        { t: 'sym', l: 'WBHUL2',  r: 'WBHUR2' },
+        { t: 'sym', l: 'TBEL',    r: 'TBER' },
+        { t: 'sym', l: 'TWEBL',   r: 'TWEBR' },
+        { t: 'sym', l: 'R_WTL',   r: 'R_WTR' },
+        { t: 'sym', l: 'R_WTIL',  r: 'R_WTIR' },
+        { t: 'sym', l: 'R_WBL',   r: 'R_WBR' },
+        { t: 'group', label: '2 Cell only' },
+        { t: 'sym', l: 'WTCHUL1', r: 'WTCHUR1' },
+        { t: 'sym', l: 'WTCHUL2', r: 'WTCHUR2' },
+        { t: 'sym', l: 'WBCHUL1', r: 'WBCHUR1' },
+        { t: 'sym', l: 'WBCHUL2', r: 'WBCHUR2' },
+        { t: 'sym', l: 'TTHCL1',  r: 'TTHCR1' },
+        { t: 'sym', l: 'TTHCL2',  r: 'TTHCR2' },
+        { t: 'sym', l: 'TBHCL1',  r: 'TBHCR1' },
+        { t: 'sym', l: 'TBHCL2',  r: 'TBHCR2' },
+        { t: 'single', l: 'TWEBC' }
+  ];
+
   var PAGES = 'https://macrobim.github.io/macroBIM/';
 
   // const/class 로 선언된 전역도 감지 (window 프로퍼티가 아니므로 bare typeof 필요)
@@ -161,7 +201,13 @@
           vars.push({ name: name, expr: expr });
         }
         if (!vars.length) return;
-        this._vars = vars;
+        // 기본 변수(adefs 시드) 위에 엑셀 변수를 병합 — 같은 이름은 교체, 새 이름은 추가
+        var base = this._vars || [], idx = {};
+        base.forEach(function (v, i) { idx[v.name] = i; });
+        vars.forEach(function (v) {
+          if (v.name in idx) base[idx[v.name]] = v; else { idx[v.name] = base.length; base.push(v); }
+        });
+        this._vars = base;
         this._renderVarRows();                  // Variables 카드 입력창 갱신
         console.log('[SeoulPhD] variable 로드: ' + vars.length + '개 → ' + vars.map(function (v) { return v.name + '=' + v.expr; }).join(', '));
       },
@@ -851,11 +897,14 @@
           if (typeof window.loadSheetData !== 'function') { alert('엑셀 리더 로딩 중입니다. 잠시 후 다시 시도해주세요.'); return; }
           window.loadSheetData(file, sheet).then(function (data) {
             self._excelData = data;
-            console.log('[SeoulPhD] 엑셀 로드 완료:', sheet, data.length + '행', data);
-            self._loadVariablesFromExcel(data);  // 'variable' 블록 → Variables 카드 (Dimension 수식 참조용, box1cell 보다 먼저)
-            self._renderRebarTables();      // 'type' 블록 추출 → REBAR 카드에 표 출력
-            self._rebarData = self._parseRebar(data);   // 표 → trebar/lrebar 객체 배열
-            console.log('[SeoulPhD] 철근 파싱:', self._rebarData);
+            console.log('[PSCBOX] 엑셀 로드 완료:', sheet, data.length + '행', data);
+            self._resetInputs();                 // ① 기존 웹 입력값 전체 초기화
+            self._loadVariablesFromExcel(data);  // ② 'variable' 블록 → Variables 카드 (기본값 위에 병합)
+            self._loadTypeFromExcel(data);       // ③ 'type' 블록 → Section Type (1c/2c)
+            self._loadDimsFromExcel(data);       // ④ 'dim' 블록 → Dimension 표 (대칭/비대칭 자동)
+            self._renderRebarTables();           // ⑤ 'trebar/lrebar' 블록 → REBAR 표
+            self._rebarData = self._parseRebar(data);
+            console.log('[PSCBOX] 철근 파싱:', self._rebarData);
             self.redraw();              // 재작도 (physics 포함)
           }).catch(function (e) { alert('엑셀 로드 오류: ' + e.message); });
         };
@@ -870,6 +919,97 @@
       adefs_box12cell.forEach(function (d) { vars.push({ name: d[0], expr: String(d[1]) }); });
       this._vars = vars;
       this._renderVarRows();
+    },
+
+    // 웹페이지 입력값 전체 초기화 — 엑셀 로딩 직전에 호출 (Variables 기본값,
+    // Dimension 기본값, 대칭 체크박스 해제, Section Type 1 Cell)
+    _resetInputs: function () {
+      this._seedVars();
+      DIM_LAYOUT.forEach(function (it) {
+        if (it.t === 'group') return;
+        var li = document.getElementById(it.l + '_s');
+        if (li) li.value = it.l;
+        if (!it.r) return;
+        var ri = document.getElementById(it.r + '_s');
+        if (!ri) return;
+        if (it.t === 'sym') {
+          var cb = document.getElementById('asym_' + it.r);
+          if (cb) cb.checked = false;
+          ri.disabled = true;
+          ri.value = it.l;                       // 우측은 좌측 미러 기본값
+        } else {                                 // free (SLL/SLR)
+          ri.value = it.r;
+        }
+      });
+      var r1 = document.querySelector('input[name="box12cell_ncell"][value="1"]');
+      if (r1) r1.checked = true;
+    },
+
+    // 'type' 블록 : type | 1c/2c → Section Type 라디오
+    _loadTypeFromExcel: function (fullData) {
+      if (!Array.isArray(fullData)) return;
+      for (var r = 0; r < fullData.length; r++) {
+        var row = fullData[r];
+        if (this._rowIsEnd(row)) break;
+        if (this._rowIsComment(row)) continue;
+        for (var c = 0; c < (row ? row.length : 0); c++) {
+          if (String(row[c] == null ? '' : row[c]).trim().toLowerCase() !== 'type') continue;
+          var v = String(row[c + 1] == null ? '' : row[c + 1]).trim().toLowerCase();
+          var n = (v === '2c' || v === '2') ? 2 : ((v === '1c' || v === '1') ? 1 : 0);
+          if (!n) { console.warn('[PSCBOX] type 값을 해석할 수 없음: ' + v); return; }
+          var rb = document.querySelector('input[name="box12cell_ncell"][value="' + n + '"]');
+          if (rb) rb.checked = true;
+          console.log('[PSCBOX] type 로드: ' + v + ' → ' + n + ' cell');
+          return;
+        }
+      }
+    },
+
+    // 'dim' 블록 : dim | 이름 | 값 → Dimension 입력칸.
+    //   좌측 변수만 주어지면 우측은 대칭 미러, 우측이 좌측과 다른 값으로 주어지면
+    //   비대칭 체크박스를 켜고 독립 입력. '-'(회계서식 0 표시)·빈 값은 0으로 처리.
+    _loadDimsFromExcel: function (fullData) {
+      if (!Array.isArray(fullData)) return;
+      var map = {}, count = 0, keyByLower = {};
+      adefs_box12cell.forEach(function (d) { keyByLower[d[0].toLowerCase()] = d[0]; });
+      for (var r = 0; r < fullData.length; r++) {
+        var row = fullData[r];
+        if (this._rowIsEnd(row)) break;
+        if (this._rowIsComment(row)) continue;
+        var hc = -1;
+        for (var c = 0; c < (row ? row.length : 0); c++) { if (String(row[c] == null ? '' : row[c]).trim().toLowerCase() === 'dim') { hc = c; break; } }
+        if (hc < 0) continue;
+        var name = String(row[hc + 1] == null ? '' : row[hc + 1]).trim();
+        var key = keyByLower[name.toLowerCase()];
+        if (!key) { if (name) console.warn('[PSCBOX] 알 수 없는 dim 이름: ' + name); continue; }
+        var raw = row[hc + 2];
+        raw = (raw == null) ? '' : String(raw).trim();
+        if (raw === '' || raw === '-' || raw === '\u2013' || raw === '\u2014') raw = '0';
+        map[key] = raw; count++;
+      }
+      if (!count) return;
+      DIM_LAYOUT.forEach(function (it) {
+        if (it.t === 'group') return;
+        var li = document.getElementById(it.l + '_s');
+        var ri = it.r ? document.getElementById(it.r + '_s') : null;
+        if ((it.l in map) && li) li.value = map[it.l];
+        if (it.t === 'sym' && ri) {
+          var cb = document.getElementById('asym_' + it.r);
+          var lv = li ? li.value : '';
+          if ((it.r in map) && String(map[it.r]) !== String(lv)) {
+            if (cb) cb.checked = true;
+            ri.disabled = false;
+            ri.value = map[it.r];
+          } else {
+            if (cb) cb.checked = false;
+            ri.disabled = true;
+            ri.value = lv;
+          }
+        } else if (it.t === 'free' && ri && (it.r in map)) {
+          ri.value = map[it.r];
+        }
+      });
+      console.log('[PSCBOX] dim 로드: ' + count + '개');
     },
 
     // 대칭 미러 : 좌측 입력 시 (비대칭 체크가 없으면) 우측 입력칸에 같은 값 복사
@@ -965,44 +1105,7 @@
       // 좌/우 대칭 쌍 레이아웃 — sym: 우측은 좌측을 미러(체크박스로 비대칭 입력), free: 좌우 독립(부호가 다른 슬로프), single: 단독
       var lblMap = {};
       adefs_box12cell.forEach(function (d) { lblMap[d[0]] = ((d.length > 2) ? d[2] : d[0]).replace('(0, if not necessary)', '<small>(0=X)</small>'); });
-      var layout = [
-        { t: 'single', l: 'TH' },
-        { t: 'free',   l: 'SLL',     r: 'SLR' },
-        { t: 'single', l: 'SLB' },
-        { t: 'single', l: 'TTS' },
-        { t: 'single', l: 'TBS' },
-        { t: 'sym', l: 'WL',      r: 'WR' },
-        { t: 'sym', l: 'WTL',     r: 'WTR' },
-        { t: 'sym', l: 'WBL',     r: 'WBR' },
-        { t: 'sym', l: 'WCAL1',   r: 'WCAR1' },
-        { t: 'sym', l: 'WCAL2',   r: 'WCAR2' },
-        { t: 'sym', l: 'WTHUL1',  r: 'WTHUR1' },
-        { t: 'sym', l: 'WTHUL2',  r: 'WTHUR2' },
-        { t: 'sym', l: 'TCAL',    r: 'TCAR' },
-        { t: 'sym', l: 'TCAL1',   r: 'TCAR1' },
-        { t: 'sym', l: 'TCAL2',   r: 'TCAR2' },
-        { t: 'sym', l: 'TTHL1',   r: 'TTHR1' },
-        { t: 'sym', l: 'TTHL2',   r: 'TTHR2' },
-        { t: 'sym', l: 'TBHL1',   r: 'TBHR1' },
-        { t: 'sym', l: 'TBHL2',   r: 'TBHR2' },
-        { t: 'sym', l: 'WBHUL1',  r: 'WBHUR1' },
-        { t: 'sym', l: 'WBHUL2',  r: 'WBHUR2' },
-        { t: 'sym', l: 'TBEL',    r: 'TBER' },
-        { t: 'sym', l: 'TWEBL',   r: 'TWEBR' },
-        { t: 'sym', l: 'R_WTL',   r: 'R_WTR' },
-        { t: 'sym', l: 'R_WTIL',  r: 'R_WTIR' },
-        { t: 'sym', l: 'R_WBL',   r: 'R_WBR' },
-        { t: 'group', label: '2 Cell only' },
-        { t: 'sym', l: 'WTCHUL1', r: 'WTCHUR1' },
-        { t: 'sym', l: 'WTCHUL2', r: 'WTCHUR2' },
-        { t: 'sym', l: 'WBCHUL1', r: 'WBCHUR1' },
-        { t: 'sym', l: 'WBCHUL2', r: 'WBCHUR2' },
-        { t: 'sym', l: 'TTHCL1',  r: 'TTHCR1' },
-        { t: 'sym', l: 'TTHCL2',  r: 'TTHCR2' },
-        { t: 'sym', l: 'TBHCL1',  r: 'TBHCR1' },
-        { t: 'sym', l: 'TBHCL2',  r: 'TBHCR2' },
-        { t: 'single', l: 'TWEBC' }
-      ];
+      var layout = DIM_LAYOUT;
       function dimInput(key, extra) {
         return '<input type="text" spellcheck="false" class="form-input" id="' + key + '_s" value="' + key + '" onchange="PXBOX.redraw()"' + (extra || '') + '>';
       }
