@@ -350,74 +350,31 @@ const Physics = {
             return Physics.getCoverWallByOrigWall(wall, walls, coverWallMap);
         };
 
-        // FIT: 안착한 벽(피복선)의 "전체 면"을 바 축에 투영해 결정적으로 산출.
-        //  · 벽 양 끝점을 바 축 파라미터 t(작다=start 쪽, 크다=end 쪽)로 정렬 → start=min(t), end=max(t)
-        //  · 도로 크라운(경사 꺾임)처럼 한 면이 완만한 각도로 여러 벽에 분할된 경우,
-        //    안착 벽과 방향 차가 FIT_MERGE_ANG(기본 6°) 이내인 "이웃 벽"을 같은 면으로 병합.
-        //    → 크라운(≈4°)은 한 면으로 이어지고, 헌치·웹(큰 꺾임)은 병합되지 않음.
-        //  · val 은 면 끝단을 넘는 추가 연장량(0=끝단까지).
-        const FIT_MERGE_ANG = (CONFIG.PHYSICS && CONFIG.PHYSICS.FIT_MERGE_ANG != null) ? CONFIG.PHYSICS.FIT_MERGE_ANG : 6;
-        const mergeCos = Math.cos(FIT_MERGE_ANG * Math.PI / 180);
-
-        //  · 끝단별 기준 벽 = "그 끝에 가까운 노드가 안착한 벽" (seg.nodeWalls, p1쪽→p2쪽 순).
-        //    예) 크라운 분할 하면에서 좌노드=E15, 우노드=E28 → start 는 E15 의 시점부,
-        //        end 는 E28 의 종점부로 각각 확장. (set 앵커 등 노드 정보 없으면 fitWall 폴백)
+        // FIT: 끝단별로 "그 끝단 위치에서 법선 방향으로 안착하는 벽"을 기준 벽으로 삼고,
+        //      그 벽(피복선, 이웃 트림 완료)의 해당 방향 끝단까지 확장. (각도 병합 없음)
+        //  · start = p1 위치 아래 벽의 시점부(min t), end = p2 위치 아래 벽의 종점부(max t)
+        //    예) 크라운 분할 하면: p1 쪽은 E15 → E15 시점부, p2 쪽은 E28 → E28 종점부.
+        //  · 폴백: 끝단 광선 실패 → 그 쪽 노드의 안착 벽(nodeWalls) → 다수결 fitWall
+        //  · val 은 벽 끝단을 넘는 추가 연장량(0=끝단까지).
         const getFitSpan = (seg, side) => {
-            let fitWall = null;
-            if (seg.nodeWalls && seg.nodeWalls.length) {
-                fitWall = (side === 'start') ? seg.nodeWalls[0] : seg.nodeWalls[seg.nodeWalls.length - 1];
+            let endPt = (side === 'start') ? seg.p1 : seg.p2;
+            let refWall = null;
+            let tgt = Physics.getGravityTarget(endPt.x, endPt.y, seg.normal, walls, wallStack, dia);
+            if (tgt && tgt.wall) refWall = tgt.wall;
+            if (!refWall && seg.nodeWalls && seg.nodeWalls.length) {
+                refWall = (side === 'start') ? seg.nodeWalls[0] : seg.nodeWalls[seg.nodeWalls.length - 1];
             }
-            if (!fitWall) fitWall = Physics.getSegmentFitWall(seg);
-            if (!fitWall) return null;
-            let fitKey = fitWall.id || `${fitWall.x1},${fitWall.y1},${fitWall.x2},${fitWall.y2}`;
-
-            // 안착 벽이 속한 루프의 피복선(트림 완료)을 순서대로 확보
-            let loops = Physics.splitWallLoops(walls || []);
-            let coverLoop = null, idxInLoop = -1;
-            for (let li = 0; li < loops.length && !coverLoop; li++) {
-                let trimmed = Physics.trimShiftedLoop(loops[li], wallStack, dia);
-                for (let wi = 0; wi < trimmed.length; wi++) {
-                    let k = trimmed[wi].id || `${trimmed[wi].origWall.x1},${trimmed[wi].origWall.y1},${trimmed[wi].origWall.x2},${trimmed[wi].origWall.y2}`;
-                    if (k === fitKey) { coverLoop = trimmed; idxInLoop = wi; break; }
-                }
-            }
-            if (!coverLoop) {
-                let cw = getCoverWallForSeg(seg);
-                if (!cw) return null;
-                coverLoop = [cw]; idxInLoop = 0;
-            }
-
-            const dirOf = (w) => {
-                let dx = w.x2 - w.x1, dy = w.y2 - w.y1, l = MathUtils.hypot(dx, dy);
-                return l > 1e-9 ? { x: dx / l, y: dy / l } : { x: 1, y: 0 };
-            };
-            let baseDir = dirOf(coverLoop[idxInLoop]);
-            let n = coverLoop.length;
-            let merged = [coverLoop[idxInLoop]];
-            let ids = [coverLoop[idxInLoop].id || '?'];
-            // 양방향으로 이웃 벽 병합 (안착 벽 방향 기준 각도 → 곡선에서 누적 이탈 제한)
-            for (let dirStep = -1; dirStep <= 1; dirStep += 2) {
-                for (let s = 1; s < n; s++) {
-                    let j = ((idxInLoop + dirStep * s) % n + n) % n;
-                    if (j === idxInLoop) break;
-                    let d = dirOf(coverLoop[j]);
-                    if (d.x * baseDir.x + d.y * baseDir.y < mergeCos) break;
-                    merged.push(coverLoop[j]);
-                    if (dirStep < 0) ids.unshift(coverLoop[j].id || '?'); else ids.push(coverLoop[j].id || '?');
-                }
-            }
+            if (!refWall) refWall = Physics.getSegmentFitWall(seg);
+            if (!refWall) return null;
+            let cw = Physics.getCoverWallByOrigWall(refWall, walls, coverWallMap);
+            if (!cw) return null;
 
             let o = seg.p1, u = seg.uDir;
-            let lo = Infinity, hi = -Infinity;
-            merged.forEach((w) => {
-                [[w.x1, w.y1], [w.x2, w.y2]].forEach((p) => {
-                    let t = (p[0] - o.x) * u.x + (p[1] - o.y) * u.y;
-                    if (t < lo) lo = t;
-                    if (t > hi) hi = t;
-                });
-            });
+            let t1 = (cw.x1 - o.x) * u.x + (cw.y1 - o.y) * u.y;
+            let t2 = (cw.x2 - o.x) * u.x + (cw.y2 - o.y) * u.y;
+            let lo = Math.min(t1, t2), hi = Math.max(t1, t2);
             return {
-                wallId: ids.join('+'),
+                wallId: cw.id || (cw.origWall && cw.origWall.id) || '?',
                 lo: { x: o.x + u.x * lo, y: o.y + u.y * lo },
                 hi: { x: o.x + u.x * hi, y: o.y + u.y * hi }
             };
