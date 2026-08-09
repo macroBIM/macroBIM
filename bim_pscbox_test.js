@@ -76,7 +76,7 @@
     if (!hasGlobal('EquationParser')) need.push(PAGES + 'equation.js?v=2');
     if (!hasGlobal('TrebarFactory')) need.push(PAGES + 'trebar.js?v=2');
     if (!hasGlobal('LRebarEngine')) need.push(PAGES + 'lrebar.js?v=2');
-    if (!hasGlobal('Physics')) need.push(PAGES + 'physics.js?v=5');
+    if (!hasGlobal('Physics')) need.push(PAGES + 'physics.js?v=6');
     if (!hasGlobal('SectionBase')) need.push(PAGES + 'section.js?v=2');
     if (!hasGlobal('Domain')) need.push(PAGES + 'domain.js?v=2');
     if (!hasGlobal('UI')) need.push(PAGES + 'ui.js?v=2');
