@@ -138,44 +138,51 @@ const Physics = {
     },
 
     getGravityTarget: (px, py, segNormal, walls, wallStack = {}, currentDia = 0) => {
-        let minDist = Infinity;
-        let target = null;
         const OPPOSITE_THRESHOLD = -0.6;
         let coverWalls = Physics.buildCoverWalls(walls, wallStack, currentDia);
 
-        coverWalls.forEach(w => {
-            let dot = w.nx * segNormal.x + w.ny * segNormal.y;
-            if (dot > OPPOSITE_THRESHOLD) return;
+        // dir 방향 광선으로 대향 벽 탐색 (전방 우선, 없으면 후방 폴백에 재사용)
+        const scan = (dir) => {
+            let minDist = Infinity;
+            let target = null;
+            coverWalls.forEach(w => {
+                let dot = w.nx * segNormal.x + w.ny * segNormal.y;
+                if (dot > OPPOSITE_THRESHOLD) return;
 
-            let dx = w.x2 - w.x1;
-            let dy = w.y2 - w.y1;
-            let len = Math.sqrt(dx * dx + dy * dy);
-            let p1 = { x: w.x1, y: w.y1 };
-            let p2 = { x: w.x2, y: w.y2 };
+                let dx = w.x2 - w.x1;
+                let dy = w.y2 - w.y1;
+                let len = Math.sqrt(dx * dx + dy * dy);
+                let p1 = { x: w.x1, y: w.y1 };
+                let p2 = { x: w.x2, y: w.y2 };
 
-            if (len > 0 && len < 500) {
-                let midX = (p1.x + p2.x) / 2;
-                let midY = (p1.y + p2.y) / 2;
-                let ux = dx / len;
-                let uy = dy / len;
-                let halfLen = 250;
-                p1 = { x: midX - ux * halfLen, y: midY - uy * halfLen };
-                p2 = { x: midX + ux * halfLen, y: midY + uy * halfLen };
-            }
+                if (len > 0 && len < 500) {
+                    let midX = (p1.x + p2.x) / 2;
+                    let midY = (p1.y + p2.y) / 2;
+                    let ux = dx / len;
+                    let uy = dy / len;
+                    let halfLen = 250;
+                    p1 = { x: midX - ux * halfLen, y: midY - uy * halfLen };
+                    p2 = { x: midX + ux * halfLen, y: midY + uy * halfLen };
+                }
 
-            let hit = MathUtils.rayLineIntersect({ x: px, y: py }, segNormal, p1, p2);
-            if (hit && hit.dist < minDist) {
-                minDist = hit.dist;
-                target = {
-                    x: hit.x,
-                    y: hit.y,
-                    wall: w.origWall || w,
-                    coverWall: w
-                };
-            }
-        });
+                let hit = MathUtils.rayLineIntersect({ x: px, y: py }, dir, p1, p2);
+                if (hit && hit.dist < minDist) {
+                    minDist = hit.dist;
+                    target = {
+                        x: hit.x,
+                        y: hit.y,
+                        wall: w.origWall || w,
+                        coverWall: w
+                    };
+                }
+            });
+            return target;
+        };
 
-        return target;
+        // 전방(법선 방향) 우선. 실패 시 후방 폴백:
+        // 노드가 피복선을 지나쳐(벽보다 안쪽에) 스폰되면 전방 광선이 벽을 영영 못 잡아
+        // 안착 불가 → barEnds(fit) 도 실행되지 않음. 뒤로 끌어올려 벽에 되붙인다.
+        return scan(segNormal) || scan({ x: -segNormal.x, y: -segNormal.y });
     },
 
     updatePhysics: (trebar, walls, wallStack = {}) => {
@@ -342,15 +349,22 @@ const Physics = {
             return Physics.getCoverWallByOrigWall(wall, walls, coverWallMap);
         };
 
-        const getFarthestWallPoint = (seg, coverWall, anchorPoint) => {
-            let wp1 = { x: coverWall.x1, y: coverWall.y1 };
-            let wp2 = { x: coverWall.x2, y: coverWall.y2 };
-
-            let d1 = (wp1.x - anchorPoint.x) ** 2 + (wp1.y - anchorPoint.y) ** 2;
-            let d2 = (wp2.x - anchorPoint.x) ** 2 + (wp2.y - anchorPoint.y) ** 2;
-
-            let targetP = (d1 > d2) ? wp1 : wp2;
-            return Physics.projectPointToLine(targetP, seg.p1, seg.uDir);
+        // FIT: 안착한 벽(피복선)의 "전체 구간"을 바 축에 투영해 결정적으로 산출.
+        //  · 벽 양 끝점을 바 축 파라미터 t(작다=start 쪽, 크다=end 쪽)로 정렬 → start=min(t), end=max(t)
+        //  · 이전 방식(반대 끝점에서 먼 쪽 하나씩 선택)은 적용 순서·안착 위상에 따라
+        //    한쪽만 확장되거나 치우칠 수 있어 제거. val 은 벽 끝단을 넘는 추가 연장량(0=끝단까지).
+        const getFitSpan = (seg) => {
+            let coverWall = getCoverWallForSeg(seg);
+            if (!coverWall) return null;
+            let o = seg.p1, u = seg.uDir;
+            let t1 = (coverWall.x1 - o.x) * u.x + (coverWall.y1 - o.y) * u.y;
+            let t2 = (coverWall.x2 - o.x) * u.x + (coverWall.y2 - o.y) * u.y;
+            let lo = Math.min(t1, t2), hi = Math.max(t1, t2);
+            return {
+                wallId: coverWall.id || (coverWall.origWall && coverWall.origWall.id) || '?',
+                lo: { x: o.x + u.x * lo, y: o.y + u.y * lo },
+                hi: { x: o.x + u.x * hi, y: o.y + u.y * hi }
+            };
         };
 
         const updateSegLen = (seg) => {
@@ -360,16 +374,23 @@ const Physics = {
         const startRule = parseEndRule(barEnds.start || barEnds.B);
         const endRule = parseEndRule(barEnds.end || barEnds.E);
 
+        // FIT 스팬은 p1/p2 를 바꾸기 전에 미리 계산 (start 적용이 end 계산에 영향 주지 않도록)
+        const firstSeg = trebar.segments[0];
+        const lastSeg = trebar.segments[trebar.segments.length - 1];
+        const startSpan = (startRule && startRule.type === "FIT") ? getFitSpan(firstSeg) : null;
+        const endSpan = (endRule && endRule.type === "FIT") ? getFitSpan(lastSeg) : null;
+        if (startSpan || endSpan) {
+            console.log(`[FIT] ${trebar.id || ''} → 벽 ${(startSpan || endSpan).wallId} 전 구간으로 확장`);
+        }
+
         if (startRule) {
-            let seg = trebar.segments[0];
+            let seg = firstSeg;
 
             if (startRule.type === "FIT") {
-                let coverWall = getCoverWallForSeg(seg);
-                if (coverWall) {
-                    let projected = getFarthestWallPoint(seg, coverWall, seg.p2);
+                if (startSpan) {
                     seg.p1 = {
-                        x: projected.x + seg.uDir.x * startRule.val,
-                        y: projected.y + seg.uDir.y * startRule.val
+                        x: startSpan.lo.x - seg.uDir.x * startRule.val,
+                        y: startSpan.lo.y - seg.uDir.y * startRule.val
                     };
                     updateSegLen(seg);
                 }
@@ -391,15 +412,13 @@ const Physics = {
         }
 
         if (endRule) {
-            let seg = trebar.segments[trebar.segments.length - 1];
+            let seg = lastSeg;
 
             if (endRule.type === "FIT") {
-                let coverWall = getCoverWallForSeg(seg);
-                if (coverWall) {
-                    let projected = getFarthestWallPoint(seg, coverWall, seg.p1);
+                if (endSpan) {
                     seg.p2 = {
-                        x: projected.x + seg.uDir.x * endRule.val,
-                        y: projected.y + seg.uDir.y * endRule.val
+                        x: endSpan.hi.x + seg.uDir.x * endRule.val,
+                        y: endSpan.hi.y + seg.uDir.y * endRule.val
                     };
                     updateSegLen(seg);
                 }

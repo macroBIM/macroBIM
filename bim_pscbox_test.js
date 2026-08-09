@@ -76,7 +76,7 @@
     if (!hasGlobal('EquationParser')) need.push(PAGES + 'equation.js?v=2');
     if (!hasGlobal('TrebarFactory')) need.push(PAGES + 'trebar.js?v=2');
     if (!hasGlobal('LRebarEngine')) need.push(PAGES + 'lrebar.js?v=2');
-    if (!hasGlobal('Physics')) need.push(PAGES + 'physics.js?v=2');
+    if (!hasGlobal('Physics')) need.push(PAGES + 'physics.js?v=3');
     if (!hasGlobal('SectionBase')) need.push(PAGES + 'section.js?v=2');
     if (!hasGlobal('Domain')) need.push(PAGES + 'domain.js?v=2');
     if (!hasGlobal('UI')) need.push(PAGES + 'ui.js?v=2');
@@ -548,7 +548,18 @@
             var it = Domain.queue[idx], id = (it && it.obj && it.obj.id) || ('#' + idx), kind = it && it.kind;
             console.warn('[SeoulPhD] 철근 안착 실패 → 스킵:', id, '(' + kind + ') — num 미입력/0, init·range NaN, 또는 path 벽 id 불일치 확인');
             stuck.push(id + '(' + kind + ')');
-            if (it && it.obj) it.obj.state = (kind === 'trebar') ? 'FORMED' : 'SETTLED';
+            if (it && it.obj) {
+              if (kind === 'trebar') {
+                // 강제 스킵이라도 barEnds(fit/ray)는 적용 — 안 하면 기본길이 바가 그대로 남음
+                try {
+                  if (it.obj.finalize) it.obj.finalize();
+                  Physics.applyTrebarEnds(it.obj, Domain.currentSection.walls, Domain.wallStack);
+                } catch (e) { console.warn('[SeoulPhD] 스킵 바 barEnds 적용 실패:', e); }
+                it.obj.state = 'FORMED';
+              } else {
+                it.obj.state = 'SETTLED';
+              }
+            }
             Domain.activeQueueIndex++; stallTicks = 0; lastIndex = Domain.activeQueueIndex;
             return;
           }
