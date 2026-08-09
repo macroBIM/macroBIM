@@ -127,7 +127,7 @@
     '.px-tbl small{color:#94a3b8;font-size:10px;font-weight:400;}' +
     '.px-tbl input{width:100%;font-family:inherit;}' +
     '@media(max-width:1000px){.px-split{flex-direction:column;}.px-tblwrap{max-height:320px;width:100%;height:auto !important;}}' +
-    '.var-row{display:grid;grid-template-columns:minmax(70px,auto) 1fr minmax(52px,auto) 22px;gap:6px;align-items:center;}.var-row .var-del{padding:2px 6px;}.var-row .var-name{font-weight:600;}.var-row .var-expr{font-family:inherit;}.var-val{font-size:12.5px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}.var-val.ok{color:#059669;}.var-val.err{color:#dc2626;font-weight:500;}.rebar-table-wrap{overflow-x:auto;}.rebar-table{width:100%;border-collapse:collapse;font-size:12px;margin:2px 0;}.rebar-table th{background:#1e293b;color:#fff;font-weight:600;padding:6px 9px;text-align:left;white-space:nowrap;border:1px solid #334155;}.rebar-table th.rs-type{color:#FFC107;background:#0f172a;text-align:center;font-weight:700;}.rebar-table td{padding:5px 9px;border:1px solid #e2e8f0;color:#334155;white-space:nowrap;}.rebar-table td:first-child,.rebar-table th:first-child{text-align:center;}.rebar-table tbody tr:nth-child(even) td{background:#f8fafc;}.rebar-table tbody tr:hover td{background:#eff6ff;}.engine-btn{display:inline-flex;align-items:center;gap:6px;padding:5px 12px;border:1px solid #2563eb;border-radius:6px;background:#2563eb;color:#fff;font-weight:700;font-size:10.5px;letter-spacing:.06em;text-transform:uppercase;font-family:inherit;cursor:pointer;}.engine-btn:hover{background:#1d4ed8;}.engine-ctrls{display:flex;align-items:center;gap:8px;}.var-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:8px 20px;}@media(max-width:1500px){.var-grid{grid-template-columns:repeat(3,1fr);}}@media(max-width:1100px){.var-grid{grid-template-columns:repeat(2,1fr);}}@media(max-width:680px){.var-grid{grid-template-columns:1fr;}}' +
+    '.var-tblwrap{height:224px;overflow-y:auto;border:1px solid #e2e8f0;border-radius:8px;background:#fff;}.var-tbl .var-c-name{width:12%;}.var-tbl .var-c-val{width:8%;white-space:nowrap;}.var-tbl th.var-c-del,.var-tbl td.var-c-del{width:30px;padding-left:2px;padding-right:6px;}.var-del{padding:2px 6px;}.var-name{font-weight:600;}.var-expr{font-family:inherit;}.var-val{font-size:12.5px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}.var-val.ok{color:#059669;}.var-val.err{color:#dc2626;font-weight:500;}.rebar-table-wrap{overflow-x:auto;}.rebar-table{width:100%;border-collapse:collapse;font-size:12px;margin:2px 0;}.rebar-table th{background:#1e293b;color:#fff;font-weight:600;padding:6px 9px;text-align:left;white-space:nowrap;border:1px solid #334155;}.rebar-table th.rs-type{color:#FFC107;background:#0f172a;text-align:center;font-weight:700;}.rebar-table td{padding:5px 9px;border:1px solid #e2e8f0;color:#334155;white-space:nowrap;}.rebar-table td:first-child,.rebar-table th:first-child{text-align:center;}.rebar-table tbody tr:nth-child(even) td{background:#f8fafc;}.rebar-table tbody tr:hover td{background:#eff6ff;}.engine-btn{display:inline-flex;align-items:center;gap:6px;padding:5px 12px;border:1px solid #2563eb;border-radius:6px;background:#2563eb;color:#fff;font-weight:700;font-size:10.5px;letter-spacing:.06em;text-transform:uppercase;font-family:inherit;cursor:pointer;}.engine-btn:hover{background:#1d4ed8;}.engine-ctrls{display:flex;align-items:center;gap:8px;}.var-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:8px 20px;}@media(max-width:1500px){.var-grid{grid-template-columns:repeat(3,1fr);}}@media(max-width:1100px){.var-grid{grid-template-columns:repeat(2,1fr);}}@media(max-width:680px){.var-grid{grid-template-columns:1fr;}}' +
     '.engine-btn-lite{background:#fff;border-color:#cbd5e1;color:#334155;}.engine-btn-lite:hover{background:#f1f5f9;}.engine-btn-lite.active{background:#2563eb;border-color:#2563eb;color:#fff;}' +
     '.px-toast{position:fixed;top:18px;left:50%;transform:translateX(-50%);z-index:9999;display:flex;align-items:center;gap:9px;padding:10px 18px;border-radius:8px;font-size:13px;font-weight:600;box-shadow:0 4px 14px rgba(0,0,0,.18);color:#fff;font-family:"Inter",system-ui,sans-serif;}' +
     '.px-toast.loading{background:#2563eb;}.px-toast.ok{background:#059669;}.px-toast.err{background:#dc2626;}' +
@@ -849,14 +849,15 @@
         if (!body) return;
         if (!this._vars || !this._vars.length) this._vars = [{ name: '', expr: '' }];
         var self = this, h = '';
-        this._vars.forEach(function (v, i) {
-          h += '<div class="var-row">' +
-            '<input class="form-input var-name" placeholder="Name" value="' + self._esc(v.name) + '" oninput="PXBOX.onVarInput(' + i + ',\'name\',this.value)" onchange="PXBOX.onVarChange()">' +
-            '<input class="form-input var-expr" placeholder="Value / Formula" value="' + self._esc(v.expr) + '" oninput="PXBOX.onVarInput(' + i + ',\'expr\',this.value)" onchange="PXBOX.onVarChange()">' +
-            '<span class="var-val" id="varval-' + i + '"></span>' +
-            '<button type="button" class="var-del" title="Delete row" onclick="PXBOX.removeVarRow(' + i + ')">×</button>' +
-          '</div>';
-        });
+        function half(i) {
+          var v = self._vars[i];
+          if (!v) return '<td class="var-c-name"></td><td></td><td class="var-c-val"></td><td class="var-c-del"></td>';
+          return '<td class="var-c-name"><input class="form-input var-name" placeholder="Name" value="' + self._esc(v.name) + '" oninput="PXBOX.onVarInput(' + i + ',\'name\',this.value)" onchange="PXBOX.onVarChange()"></td>' +
+                 '<td><input class="form-input var-expr" placeholder="Value / Formula" value="' + self._esc(v.expr) + '" oninput="PXBOX.onVarInput(' + i + ',\'expr\',this.value)" onchange="PXBOX.onVarChange()"></td>' +
+                 '<td class="var-c-val"><span class="var-val" id="varval-' + i + '"></span></td>' +
+                 '<td class="var-c-del"><button type="button" class="var-del" title="Delete row" onclick="PXBOX.removeVarRow(' + i + ')">×</button></td>';
+        }
+        for (var i = 0; i < this._vars.length; i += 2) h += '<tr>' + half(i) + half(i + 1) + '</tr>';
         body.innerHTML = h;
         this._evalScope();   // 미리보기 갱신
       },
@@ -1168,7 +1169,12 @@
         '  <div class="draw-card">' +
         '    <div class="draw-card-header"><div><span class="draw-card-title">Variables</span> <span class="draw-card-desc">(constants &amp; formulas &mdash; referenced by Dimension below. e.g. WL=6800, WR=WL/2)</span></div>' +
         '      <button type="button" class="px-btn" onclick="PXBOX.addVarRow()">+ Add</button></div>' +
-        '    <div class="draw-card-body"><div class="var-grid" id="varBody"></div></div>' +
+        '    <div class="draw-card-body"><div class="var-tblwrap">' +
+        '      <table class="px-tbl var-tbl"><thead><tr>' +
+        '        <th>Variable</th><th>Value / Formula</th><th></th><th class="var-c-del"></th>' +
+        '        <th>Variable</th><th>Value / Formula</th><th></th><th class="var-c-del"></th>' +
+        '      </tr></thead><tbody id="varBody"></tbody></table>' +
+        '    </div></div>' +
         '  </div>' +
 
         '  <div class="draw-card">' +
