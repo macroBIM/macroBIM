@@ -9,7 +9,6 @@
 (function () {
   var BRANCH = 'claude/rebar-solver-v5-t3wst2';
   var RAW = 'https://raw.githubusercontent.com/macroBIM/macroBIM/' + BRANCH + '/';
-  var PAGES = 'https://macrobim.github.io/macroBIM/';
 
   // ── 폰트 / 아이콘 ──
   ['https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap',
@@ -17,17 +16,22 @@
   ].forEach(function (href) { var l = document.createElement('link'); l.rel = 'stylesheet'; l.href = href; document.head.appendChild(l); });
 
   // ── 엔진 스크립트 (3D 모듈은 로드하지 않음) ──
+  // CDN 라이브러리만 <script src> 로드
   var ENGINE = [
     'https://unpkg.com/konva@9/konva.min.js',
-    'https://cdnjs.cloudflare.com/ajax/libs/exceljs/4.3.0/exceljs.min.js',   // 엑셀 읽기용 (excel_reader 보다 먼저)
-    PAGES + 'excel_reader.js',                                                // 엑셀 리더 (main/Pages)
-    PAGES + 'konvaviewer.js', PAGES + 'bim_plotly_geo.js', PAGES + 'bim_dxf.js', PAGES + 'geomath.js',
-    PAGES + 'bim_box1cell.js', PAGES + 'bim_ibeam.js', PAGES + 'bim_rect.js',
-    PAGES + 'bim_circle.js', PAGES + 'bim_octagon.js', PAGES + 'bim_track.js',
-    // ── 철근 물리 엔진 + 렌더러 (원본 그대로 재사용) ──
-    //    equation → trebar → lrebar → physics → section → domain → ui
-    PAGES + 'equation.js', PAGES + 'trebar.js', PAGES + 'lrebar.js',
-    PAGES + 'physics.js', PAGES + 'section.js', PAGES + 'domain.js', PAGES + 'ui.js'
+    'https://cdnjs.cloudflare.com/ajax/libs/exceljs/4.3.0/exceljs.min.js'    // 엑셀 읽기용 (excel_reader 보다 먼저)
+  ];
+  // 리포 파일은 전부 현재 브랜치(RAW)에서 fetch+주입 — Pages(main) 배포본과의 버전 어긋남 방지.
+  //  (Pages 로드 시절엔 브랜치에 푸시한 엔진 수정이 브라우저에 반영되지 않았음)
+  //  raw 는 nosniff 라 <script src> 불가 → 텍스트 fetch 후 인라인 스크립트로 순서 보장 주입.
+  var REPO_ENGINE = [
+    'excel_reader.js',
+    'konvaviewer.js', 'bim_plotly_geo.js', 'bim_dxf.js', 'geomath.js',
+    'bim_box1cell.js', 'bim_ibeam.js', 'bim_rect.js',
+    'bim_circle.js', 'bim_octagon.js', 'bim_track.js',
+    // ── 철근 물리 엔진 + 렌더러: equation → trebar → lrebar → physics → section → domain → ui ──
+    'equation.js', 'trebar.js', 'lrebar.js',
+    'physics.js', 'section.js', 'domain.js', 'ui.js'
   ];
 
   // 철근 데이터가 겨냥해 만들어진 단면(엔진 BoxGirder) — 원본과 동일 결과를 위해 그대로 전달
@@ -49,13 +53,34 @@
     return inside + dia / 2;                            // 중심선 반경
   }
   (function load(i) {
-    if (i >= ENGINE.length) { start(); return; }
+    if (i >= ENGINE.length) { loadRepoEngine(); return; }
     var s = document.createElement('script');
     s.src = ENGINE[i];
     s.onload = function () { load(i + 1); };
     s.onerror = function () { console.error('[SeoulPhD] 엔진 로드 실패:', ENGINE[i]); load(i + 1); };
     document.head.appendChild(s);
   })(0);
+
+  // 리포 엔진 파일: 병렬 fetch → 목록 순서대로 인라인 주입 (의존 순서 보장)
+  function loadRepoEngine() {
+    var bust = '?v=' + Date.now();
+    Promise.all(REPO_ENGINE.map(function (name) {
+      return fetch(RAW + name + bust).then(function (r) {
+        if (!r.ok) throw new Error(name + ' HTTP ' + r.status);
+        return r.text();
+      }).then(function (code) { return { name: name, code: code }; })
+        .catch(function (e) { console.error('[SeoulPhD] 엔진 로드 실패:', name, e); return { name: name, code: '' }; });
+    })).then(function (files) {
+      files.forEach(function (f) {
+        if (!f.code) return;
+        var s = document.createElement('script');
+        s.textContent = f.code + '\n//# sourceURL=' + RAW + f.name;   // 디버거에 파일명 표시
+        document.head.appendChild(s);
+      });
+      console.log('[SeoulPhD] 엔진 ' + files.filter(function (f) { return f.code; }).length + '/' + REPO_ENGINE.length + ' 개를 브랜치(' + BRANCH + ')에서 로드');
+      start();
+    });
+  }
 
   function start() {
     /* ─ 3D·치수선 무력화 + 외곽선 캡처 ─ */
