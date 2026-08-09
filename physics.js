@@ -238,6 +238,7 @@ const Physics = {
                 if (validTargets === seg.nodes.length && segEnergy < CONVERGE && maxPosError < 1.0) {
                     seg.state = "SETTLED";
                     seg.fitWall = Physics.resolveSegmentFitWall(seg, hitInfos);
+                    seg.nodeWalls = hitInfos.map(h => h.wall);   // 노드별 안착 벽 (p1쪽 → p2쪽 순) — FIT 이 끝단별로 사용
                     Physics.restoreSegmentLine(seg);
                 }
             }
@@ -358,8 +359,15 @@ const Physics = {
         const FIT_MERGE_ANG = (CONFIG.PHYSICS && CONFIG.PHYSICS.FIT_MERGE_ANG != null) ? CONFIG.PHYSICS.FIT_MERGE_ANG : 6;
         const mergeCos = Math.cos(FIT_MERGE_ANG * Math.PI / 180);
 
-        const getFitSpan = (seg) => {
-            let fitWall = Physics.getSegmentFitWall(seg);
+        //  · 끝단별 기준 벽 = "그 끝에 가까운 노드가 안착한 벽" (seg.nodeWalls, p1쪽→p2쪽 순).
+        //    예) 크라운 분할 하면에서 좌노드=E15, 우노드=E28 → start 는 E15 의 시점부,
+        //        end 는 E28 의 종점부로 각각 확장. (set 앵커 등 노드 정보 없으면 fitWall 폴백)
+        const getFitSpan = (seg, side) => {
+            let fitWall = null;
+            if (seg.nodeWalls && seg.nodeWalls.length) {
+                fitWall = (side === 'start') ? seg.nodeWalls[0] : seg.nodeWalls[seg.nodeWalls.length - 1];
+            }
+            if (!fitWall) fitWall = Physics.getSegmentFitWall(seg);
             if (!fitWall) return null;
             let fitKey = fitWall.id || `${fitWall.x1},${fitWall.y1},${fitWall.x2},${fitWall.y2}`;
 
@@ -425,10 +433,13 @@ const Physics = {
         // FIT 스팬은 p1/p2 를 바꾸기 전에 미리 계산 (start 적용이 end 계산에 영향 주지 않도록)
         const firstSeg = trebar.segments[0];
         const lastSeg = trebar.segments[trebar.segments.length - 1];
-        const startSpan = (startRule && startRule.type === "FIT") ? getFitSpan(firstSeg) : null;
-        const endSpan = (endRule && endRule.type === "FIT") ? getFitSpan(lastSeg) : null;
+        const startSpan = (startRule && startRule.type === "FIT") ? getFitSpan(firstSeg, 'start') : null;
+        const endSpan = (endRule && endRule.type === "FIT") ? getFitSpan(lastSeg, 'end') : null;
         if (startSpan || endSpan) {
-            console.log(`[FIT] ${trebar.id || ''} → 벽 ${(startSpan || endSpan).wallId} 전 구간으로 확장`);
+            console.log(`[FIT] ${trebar.id || ''} → ` +
+                (startSpan ? `시점: ${startSpan.wallId}` : '') +
+                (startSpan && endSpan ? ' ~ ' : '') +
+                (endSpan ? `종점: ${endSpan.wallId}` : ''));
         }
 
         if (startRule) {
