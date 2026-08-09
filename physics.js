@@ -349,19 +349,67 @@ const Physics = {
             return Physics.getCoverWallByOrigWall(wall, walls, coverWallMap);
         };
 
-        // FIT: 안착한 벽(피복선)의 "전체 구간"을 바 축에 투영해 결정적으로 산출.
+        // FIT: 안착한 벽(피복선)의 "전체 면"을 바 축에 투영해 결정적으로 산출.
         //  · 벽 양 끝점을 바 축 파라미터 t(작다=start 쪽, 크다=end 쪽)로 정렬 → start=min(t), end=max(t)
-        //  · 이전 방식(반대 끝점에서 먼 쪽 하나씩 선택)은 적용 순서·안착 위상에 따라
-        //    한쪽만 확장되거나 치우칠 수 있어 제거. val 은 벽 끝단을 넘는 추가 연장량(0=끝단까지).
+        //  · 도로 크라운(경사 꺾임)처럼 한 면이 완만한 각도로 여러 벽에 분할된 경우,
+        //    안착 벽과 방향 차가 FIT_MERGE_ANG(기본 6°) 이내인 "이웃 벽"을 같은 면으로 병합.
+        //    → 크라운(≈4°)은 한 면으로 이어지고, 헌치·웹(큰 꺾임)은 병합되지 않음.
+        //  · val 은 면 끝단을 넘는 추가 연장량(0=끝단까지).
+        const FIT_MERGE_ANG = (CONFIG.PHYSICS && CONFIG.PHYSICS.FIT_MERGE_ANG != null) ? CONFIG.PHYSICS.FIT_MERGE_ANG : 6;
+        const mergeCos = Math.cos(FIT_MERGE_ANG * Math.PI / 180);
+
         const getFitSpan = (seg) => {
-            let coverWall = getCoverWallForSeg(seg);
-            if (!coverWall) return null;
+            let fitWall = Physics.getSegmentFitWall(seg);
+            if (!fitWall) return null;
+            let fitKey = fitWall.id || `${fitWall.x1},${fitWall.y1},${fitWall.x2},${fitWall.y2}`;
+
+            // 안착 벽이 속한 루프의 피복선(트림 완료)을 순서대로 확보
+            let loops = Physics.splitWallLoops(walls || []);
+            let coverLoop = null, idxInLoop = -1;
+            for (let li = 0; li < loops.length && !coverLoop; li++) {
+                let trimmed = Physics.trimShiftedLoop(loops[li], wallStack, dia);
+                for (let wi = 0; wi < trimmed.length; wi++) {
+                    let k = trimmed[wi].id || `${trimmed[wi].origWall.x1},${trimmed[wi].origWall.y1},${trimmed[wi].origWall.x2},${trimmed[wi].origWall.y2}`;
+                    if (k === fitKey) { coverLoop = trimmed; idxInLoop = wi; break; }
+                }
+            }
+            if (!coverLoop) {
+                let cw = getCoverWallForSeg(seg);
+                if (!cw) return null;
+                coverLoop = [cw]; idxInLoop = 0;
+            }
+
+            const dirOf = (w) => {
+                let dx = w.x2 - w.x1, dy = w.y2 - w.y1, l = MathUtils.hypot(dx, dy);
+                return l > 1e-9 ? { x: dx / l, y: dy / l } : { x: 1, y: 0 };
+            };
+            let baseDir = dirOf(coverLoop[idxInLoop]);
+            let n = coverLoop.length;
+            let merged = [coverLoop[idxInLoop]];
+            let ids = [coverLoop[idxInLoop].id || '?'];
+            // 양방향으로 이웃 벽 병합 (안착 벽 방향 기준 각도 → 곡선에서 누적 이탈 제한)
+            for (let dirStep = -1; dirStep <= 1; dirStep += 2) {
+                for (let s = 1; s < n; s++) {
+                    let j = ((idxInLoop + dirStep * s) % n + n) % n;
+                    if (j === idxInLoop) break;
+                    let d = dirOf(coverLoop[j]);
+                    if (d.x * baseDir.x + d.y * baseDir.y < mergeCos) break;
+                    merged.push(coverLoop[j]);
+                    if (dirStep < 0) ids.unshift(coverLoop[j].id || '?'); else ids.push(coverLoop[j].id || '?');
+                }
+            }
+
             let o = seg.p1, u = seg.uDir;
-            let t1 = (coverWall.x1 - o.x) * u.x + (coverWall.y1 - o.y) * u.y;
-            let t2 = (coverWall.x2 - o.x) * u.x + (coverWall.y2 - o.y) * u.y;
-            let lo = Math.min(t1, t2), hi = Math.max(t1, t2);
+            let lo = Infinity, hi = -Infinity;
+            merged.forEach((w) => {
+                [[w.x1, w.y1], [w.x2, w.y2]].forEach((p) => {
+                    let t = (p[0] - o.x) * u.x + (p[1] - o.y) * u.y;
+                    if (t < lo) lo = t;
+                    if (t > hi) hi = t;
+                });
+            });
             return {
-                wallId: coverWall.id || (coverWall.origWall && coverWall.origWall.id) || '?',
+                wallId: ids.join('+'),
                 lo: { x: o.x + u.x * lo, y: o.y + u.y * lo },
                 hi: { x: o.x + u.x * hi, y: o.y + u.y * hi }
             };
