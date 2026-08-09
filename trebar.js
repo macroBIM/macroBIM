@@ -188,6 +188,26 @@ class Shape11 extends TrebarBase {
     }
 }
 
+// 14: 두 다리 사이각 45° (예각 V형, ACI #14) — A(경사) + B(수평, 카탈로그의 C)
+//     A 가 -45° 로 내려와 꺾임점에서 되접혀(턴 -135°) 수평으로 복귀. 사이각 = 45°
+class Shape14 extends TrebarBase {
+    generate() {
+        let A = this.dims.A || 400;
+        let B = this.dims.B || 400;
+        return this.buildSequential([A, B], -45, [-135], [-1, 1], (pts) => pts[1]);
+    }
+}
+
+// 15: 두 다리 사이각 135° (둔각, ACI #15) — A(경사) + B(수평, 카탈로그의 C)
+//     A 가 -45° 로 내려와 완만히 꺾여(턴 +45°) 수평 진행. 사이각 = 135°
+class Shape15 extends TrebarBase {
+    generate() {
+        let A = this.dims.A || 400;
+        let B = this.dims.B || 400;
+        return this.buildSequential([A, B], -45, [45], [-1, -1], (pts) => pts[1]);
+    }
+}
+
 class Shape21 extends TrebarBase {
     generate() {
         let A = this.dims.A || 400;
@@ -268,6 +288,8 @@ class TrebarFactory {
 
         if (code === 1) r = new Shape01(center, dims, rotation, angs, nors, barEnds);
         else if (code === 11) r = new Shape11(center, dims, rotation, angs, nors, barEnds);
+        else if (code === 14) r = new Shape14(center, dims, rotation, angs, nors, barEnds);
+        else if (code === 15) r = new Shape15(center, dims, rotation, angs, nors, barEnds);
         else if (code === 21) r = new Shape21(center, dims, rotation, angs, nors, barEnds);
         else if (code === 41 || code === 44) r = new Shape41(center, dims, rotation, angs, nors, barEnds);
 
