@@ -1055,16 +1055,33 @@
               miny = Math.min(miny, -pt.y); maxy = Math.max(maxy, -pt.y);   // y 반전 (엔진 y-up)
             });
           });
-          var pad = Math.max(maxx - minx, maxy - miny) * 0.18 + 40;
+          var pad = Math.max(maxx - minx, maxy - miny) * 0.26 + 60;
           var vb = (minx - pad) + ' ' + (miny - pad) + ' ' + ((maxx - minx) + 2 * pad) + ' ' + ((maxy - miny) + 2 * pad);
-          var sw = Math.max(maxx - minx, maxy - miny, 100) * 0.035;
-          var svg = '<svg width="150" height="105" viewBox="' + vb + '" preserveAspectRatio="xMidYMid meet">';
+          var sw = Math.max(maxx - minx, maxy - miny, 100) * 0.03;
+          var svg = '<svg width="176" height="122" viewBox="' + vb + '" preserveAspectRatio="xMidYMid meet">';
           t.segments.forEach(function (s, i) {
             svg += '<line x1="' + s.p1.x + '" y1="' + (-s.p1.y) + '" x2="' + s.p2.x + '" y2="' + (-s.p2.y) + '" stroke="#1d4ed8" stroke-width="' + sw + '" stroke-linecap="round"/>';
             var mx = (s.p1.x + s.p2.x) / 2, my = (-s.p1.y - s.p2.y) / 2;
             var ux = s.p2.x - s.p1.x, uy = -(s.p2.y - s.p1.y), L = Math.hypot(ux, uy) || 1;
-            svg += '<text x="' + (mx - uy / L * sw * 4) + '" y="' + (my + ux / L * sw * 4) + '" font-size="' + (sw * 4.2) + '" fill="#64748b" text-anchor="middle" dominant-baseline="middle" font-weight="600">' + String.fromCharCode(97 + i) + '</text>';
+            var lbl = String.fromCharCode(97 + i) + '=' + Math.round(L);   // 조각 문자 + 디폴트 길이
+            svg += '<text x="' + (mx - uy / L * sw * 4.6) + '" y="' + (my + ux / L * sw * 4.6) + '" font-size="' + (sw * 3.6) + '" fill="#475569" text-anchor="middle" dominant-baseline="middle" font-weight="600">' + lbl + '</text>';
           });
+          // 꺾임점 사이각 표기 — 인접 조각 방향으로부터 계산 (엔진 형상과 항상 일치)
+          for (var ci = 0; ci < t.segments.length - 1; ci++) {
+            var s1 = t.segments[ci], s2 = t.segments[ci + 1];
+            var cxp = s1.p2.x, cyp = -s1.p2.y;
+            var v1x = s1.p2.x - s1.p1.x, v1y = -(s1.p2.y - s1.p1.y), L1 = Math.hypot(v1x, v1y) || 1;
+            var v2x = s2.p2.x - s2.p1.x, v2y = -(s2.p2.y - s2.p1.y), L2 = Math.hypot(v2x, v2y) || 1;
+            v1x /= L1; v1y /= L1; v2x /= L2; v2y /= L2;
+            var dot = Math.max(-1, Math.min(1, (-v1x) * v2x + (-v1y) * v2y));
+            var arad = Math.acos(dot), adeg = Math.round(arad * 180 / Math.PI);   // 사이각(내각)
+            var bx = (-v1x + v2x), by = (-v1y + v2y), bl = Math.hypot(bx, by);
+            if (bl < 1e-6) continue;
+            bx /= bl; by /= bl;                                            // 코너 내각 이등분(안쪽) 방향
+            var ad = sw * 6;                                               // 외각(바깥) 방향 — 어느 형상이든 공간이 넉넉
+            var spread = ((maxx + minx) / 2 < cxp ? 1 : ((maxx + minx) / 2 > cxp ? -1 : 0)) * sw * 3.5;   // 이웃 코너 라벨과 좌우로 벌림
+            svg += '<text x="' + (cxp - bx * ad + spread) + '" y="' + (cyp - by * ad) + '" font-size="' + (sw * 3.2) + '" fill="#b45309" text-anchor="middle" dominant-baseline="middle" font-weight="700">' + adeg + '&#176;</text>';
+          }
           svg += '</svg>';
           h += '<div class="shape-tile">' + svg + '<div class="shape-code">' + cd.lbl + '</div></div>';
         });
