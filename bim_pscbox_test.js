@@ -134,6 +134,8 @@
     '.phys-split{display:flex;align-items:flex-start;}' +
     '.phys-tblwrap{flex:1 1 0;min-width:0;height:480px;overflow:auto;background:#fff;border-left:1px solid var(--hair);border-radius:0 0 10px 0;}' +
     '.phys-tbl{font-size:11.5px;}.phys-tbl th,.phys-tbl td{white-space:nowrap;padding:4px 8px;}' +
+    '.px-tbl.dim-tbl th{background:#1e293b;color:#fff;font-weight:600;text-align:center;border-bottom:1px solid #334155;border-right:1px solid #334155;}.px-tbl.dim-tbl th:last-child{border-right:none;}' +
+    '.px-cover{width:64px;}' +
     '.px-tbl.phys-tbl th{background:#1e293b;color:#fff;font-weight:600;text-align:center;border-bottom:1px solid #334155;border-right:1px solid #334155;}.px-tbl.phys-tbl th:last-child{border-right:none;}' +
     '.phys-tbl td.phys-moving{color:#d97706 !important;}' +
     '.phys-tbl td{text-align:right;color:#334155;}.phys-tbl td:first-child{text-align:left;font-weight:700;color:#0f172a;}' +
@@ -894,7 +896,15 @@
         });
 
         var walls = [], displayPaths = [], eid = 0;
-        loops.forEach(function (loop) {
+        // 외곽 루프(가장 큰 bbox) 판별 — 외곽 상면은 top(데크), 나머지 외곽은 outer, 내부 셀 루프는 inner
+        var outerIdx = -1, outerArea = -1;
+        loops.forEach(function (lp, li) {
+          var mnx = 1e18, mny = 1e18, mxx = -1e18, mxy = -1e18;
+          lp.forEach(function (s) { mnx = Math.min(mnx, s.x1, s.x2); mxx = Math.max(mxx, s.x1, s.x2); mny = Math.min(mny, s.y1, s.y2); mxy = Math.max(mxy, s.y1, s.y2); });
+          var a = (mxx - mnx) * (mxy - mny);
+          if (a > outerArea) { outerArea = a; outerIdx = li; }
+        });
+        loops.forEach(function (loop, li) {
           if (!loop.length) return;
           var pts = [{ x: loop[0].x1, y: loop[0].y1 }];
           loop.forEach(function (seg) {
@@ -906,12 +916,15 @@
               else { var vx = cx - mx, vy = cy - my, vl = Math.hypot(vx, vy) || 1; nx = vx / vl; ny = vy / vl; }
             }
             eid++;
-            walls.push({ id: 'E' + eid, tag: 'outer', nx: nx, ny: ny, x1: seg.x1, y1: seg.y1, x2: seg.x2, y2: seg.y2, src: seg.src || null });
+            var tag = (li === outerIdx) ? (ny <= -0.5 ? 'top' : 'outer') : 'inner';
+            walls.push({ id: 'E' + eid, tag: tag, nx: nx, ny: ny, x1: seg.x1, y1: seg.y1, x2: seg.x2, y2: seg.y2, src: seg.src || null });
             pts.push({ x: seg.x2, y: seg.y2 });
           });
           displayPaths.push(pts);
         });
-        return { walls: walls, displayPaths: displayPaths, covers: { top: 50, outer: 50, inner: 50 } };
+        function cval(id) { var el = document.getElementById(id); var n = el ? Number(el.value) : NaN; return isFinite(n) && n > 0 ? n : 50; }
+        return { walls: walls, displayPaths: displayPaths,
+                 covers: { top: cval('cover_deck_s'), outer: cval('cover_ext_s'), inner: cval('cover_int_s') } };
       },
 
       _applyGenericSection: function (sec) {
@@ -1171,6 +1184,9 @@
       });
       var r1 = document.querySelector('input[name="box12cell_ncell"][value="1"]');
       if (r1) r1.checked = true;
+      ['cover_deck_s', 'cover_ext_s', 'cover_int_s'].forEach(function (cid) {
+        var el = document.getElementById(cid); if (el) el.value = '50';
+      });
     },
 
     // 'type' 블록 : type | 1c/2c → Section Type 라디오
@@ -1376,11 +1392,15 @@
         '      <div class="px-radio"><b>Section Type :</b>' +
         '        <label><input type="radio" name="box12cell_ncell" value="1" checked onchange="PXBOX.redraw()"> 1 Cell</label>' +
         '        <label><input type="radio" name="box12cell_ncell" value="2" onchange="PXBOX.redraw()"> 2 Cell</label>' +
+        '        <span style="margin-left:26px;"><b>Cover Depth (mm) :</b></span>' +
+        '        <label>Deck <input type="text" spellcheck="false" class="form-input px-cover" id="cover_deck_s" value="50" onchange="PXBOX.redraw()" title="Top slab (deck) cover"></label>' +
+        '        <label>Exterior <input type="text" spellcheck="false" class="form-input px-cover" id="cover_ext_s" value="50" onchange="PXBOX.redraw()" title="Outer surface cover"></label>' +
+        '        <label>Interior <input type="text" spellcheck="false" class="form-input px-cover" id="cover_int_s" value="50" onchange="PXBOX.redraw()" title="Cell (void) surface cover"></label>' +
         '      </div>' +
         '      <div class="px-split">' +
         '        <div class="px-guide" id="box12cell_guide"></div>' +
         '        <div class="px-tblwrap" id="box12cell_vartable">' +
-        '          <table class="px-tbl"><thead><tr><th>Dimension</th><th>Value / Formula</th><th class="px-symh" title="Check to enter the right side independently">&#8646;</th><th>Dimension</th><th>Value / Formula</th></tr></thead>' +
+        '          <table class="px-tbl dim-tbl"><thead><tr><th>Dimension</th><th>Value / Formula</th><th class="px-symh" title="Check to enter the right side independently">&#8646;</th><th>Dimension</th><th>Value / Formula</th></tr></thead>' +
         '          <tbody>' + rows + '</tbody></table>' +
         '        </div>' +
         '      </div>' +
