@@ -137,6 +137,7 @@
     '.px-tbl.var-tbl th{background:#1e293b;color:#fff;font-weight:600;text-align:center;border-bottom:1px solid #334155;border-right:1px solid #334155;}.px-tbl.var-tbl th:last-child{border-right:none;}' +
     '.px-tbl.dim-tbl th{background:#1e293b;color:#fff;font-weight:600;text-align:center;border-bottom:1px solid #334155;border-right:1px solid #334155;}.px-tbl.dim-tbl th:last-child{border-right:none;}' +
     '.px-cover{width:64px;}' +
+    '.px-optrow{gap:16px;margin-left:0;}.px-opthalf{flex:1 1 0;min-width:0;display:flex;gap:14px;align-items:center;flex-wrap:wrap;}' +
     '.px-tbl.phys-tbl th{background:#1e293b;color:#fff;font-weight:600;text-align:center;border-bottom:1px solid #334155;border-right:1px solid #334155;}.px-tbl.phys-tbl th:last-child{border-right:none;}' +
     '.phys-tbl td.phys-moving{color:#d97706 !important;}' +
     '.phys-tbl td{text-align:right;color:#334155;}.phys-tbl td:first-child{text-align:left;font-weight:700;color:#0f172a;}' +
@@ -1390,13 +1391,16 @@
         '    <div class="draw-card-header"><div><span class="draw-card-title">Dimension (mm)</span> <span class="draw-card-desc">PSC box girder &mdash; 1 / 2 cell</span></div>' +
         '      <button type="button" class="px-btn" onclick="PXBOX.sectionDXF()">&#8681; DXF</button></div>' +
         '    <div class="draw-card-body">' +
-        '      <div class="px-radio"><b>Section Type :</b>' +
-        '        <label><input type="radio" name="box12cell_ncell" value="1" checked onchange="PXBOX.redraw()"> 1 Cell</label>' +
-        '        <label><input type="radio" name="box12cell_ncell" value="2" onchange="PXBOX.redraw()"> 2 Cell</label>' +
-        '        <span style="margin-left:26px;"><b>Cover Depth (mm) :</b></span>' +
-        '        <label>Deck <input type="text" spellcheck="false" class="form-input px-cover" id="cover_deck_s" value="50" onchange="PXBOX.redraw()" title="Top slab (deck) cover"></label>' +
-        '        <label>Exterior <input type="text" spellcheck="false" class="form-input px-cover" id="cover_ext_s" value="50" onchange="PXBOX.redraw()" title="Outer surface cover"></label>' +
-        '        <label>Interior <input type="text" spellcheck="false" class="form-input px-cover" id="cover_int_s" value="50" onchange="PXBOX.redraw()" title="Cell (void) surface cover"></label>' +
+        '      <div class="px-radio px-optrow">' +
+        '        <div class="px-opthalf"><b>Section Type :</b>' +
+        '          <label><input type="radio" name="box12cell_ncell" value="1" checked onchange="PXBOX.redraw()"> 1 Cell</label>' +
+        '          <label><input type="radio" name="box12cell_ncell" value="2" onchange="PXBOX.redraw()"> 2 Cell</label>' +
+        '        </div>' +
+        '        <div class="px-opthalf"><b>Cover Depth (mm) :</b>' +
+        '          <label>Deck <input type="text" spellcheck="false" class="form-input px-cover" id="cover_deck_s" value="50" onchange="PXBOX.redraw()" title="Top slab (deck) cover"></label>' +
+        '          <label>Exterior <input type="text" spellcheck="false" class="form-input px-cover" id="cover_ext_s" value="50" onchange="PXBOX.redraw()" title="Outer surface cover"></label>' +
+        '          <label>Interior <input type="text" spellcheck="false" class="form-input px-cover" id="cover_int_s" value="50" onchange="PXBOX.redraw()" title="Cell (void) surface cover"></label>' +
+        '        </div>' +
         '      </div>' +
         '      <div class="px-split">' +
         '        <div class="px-guide" id="box12cell_guide"></div>' +
