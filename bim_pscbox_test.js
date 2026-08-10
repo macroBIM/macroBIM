@@ -134,6 +134,8 @@
     '.phys-split{display:flex;align-items:flex-start;}' +
     '.phys-tblwrap{flex:1 1 0;min-width:0;height:480px;overflow:auto;background:#fff;border-left:1px solid var(--hair);border-radius:0 0 10px 0;}' +
     '.phys-tbl{font-size:11.5px;}.phys-tbl th,.phys-tbl td{white-space:nowrap;padding:4px 8px;}' +
+    '.px-tbl.phys-tbl th{background:#1e293b;color:#fff;font-weight:600;border-bottom:1px solid #334155;border-right:1px solid #334155;}.px-tbl.phys-tbl th:last-child{border-right:none;}' +
+    '.phys-tbl td.phys-moving{color:#d97706 !important;}' +
     '.phys-tbl td{text-align:right;color:#334155;}.phys-tbl td:first-child{text-align:left;font-weight:700;color:#0f172a;}' +
     '.phys-tbl td.phys-na{color:#cbd5e1;text-align:center;}' +
     '.phys-rsp{padding:2px 8px;font-size:9.5px;}' +
@@ -452,11 +454,11 @@
           var inter = [], i;
           for (i = 0; i < 6; i++) inter.push(segs[i] != null ? segs[i] : null);
           for (i = 0; i < 5; i++) inter.push(arcs[i] != null ? arcs[i] : null);
-          h += '<tr><td>' + self._esc(t.id) + (t.state === 'FORMED' ? '' : ' <small>(moving)</small>') + '</td>' +
+          h += '<tr><td class="' + (t.state === 'FORMED' ? '' : 'phys-moving') + '">' + self._esc(t.id) + '</td>' +
                '<td><b>' + fmt(total) + '</b></td><td>' + fmt(t.dia) + '</td>' + cells(inter, 11) + rspBtn(t.id) + '</tr>';
         });
         (Domain.lrebarList || []).forEach(function (g) {
-          h += '<tr><td>' + self._esc(g.id) + (g.state === 'SETTLED' ? '' : ' <small>(moving)</small>') + '</td>' +
+          h += '<tr><td class="' + (g.state === 'SETTLED' ? '' : 'phys-moving') + '">' + self._esc(g.id) + '</td>' +
                '<td class="phys-na">&mdash;</td><td>' + fmt(g.dia) + '</td>' + cells([], 11) + rspBtn(g.id) + '</tr>';
         });
         if (!h) h = '<tr><td colspan="15" style="text-align:center;color:#94a3b8;padding:14px;">No rebar loaded.</td></tr>';
