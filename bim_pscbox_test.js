@@ -74,7 +74,7 @@
     if (typeof window.ExcelJS === 'undefined') need.push('https://cdnjs.cloudflare.com/ajax/libs/exceljs/4.3.0/exceljs.min.js');
     if (typeof window.loadSheetData === 'undefined') need.push(PAGES + 'excel_reader.js?v=2');
     if (!hasGlobal('EquationParser')) need.push(PAGES + 'equation.js?v=2');
-    if (!hasGlobal('TrebarFactory')) need.push(PAGES + 'trebar.js?v=2');
+    if (!hasGlobal('TrebarFactory')) need.push(PAGES + 'trebar.js?v=3');
     if (!hasGlobal('LRebarEngine')) need.push(PAGES + 'lrebar.js?v=2');
     if (!hasGlobal('Physics')) need.push(PAGES + 'physics.js?v=7');
     if (!hasGlobal('SectionBase')) need.push(PAGES + 'section.js?v=2');
@@ -140,6 +140,10 @@
     '.phys-tbl td.phys-na{color:#cbd5e1;text-align:center;}' +
     '.phys-rsp{padding:2px 8px;font-size:9.5px;}' +
     '@media(max-width:1100px){.phys-split{flex-direction:column;}.phys-tblwrap{border-left:none;border-top:1px solid var(--hair);height:300px;border-radius:0 0 10px 10px;}}' +
+    '.shape-grid{display:flex;flex-wrap:wrap;gap:12px;padding:4px 0 14px;margin-bottom:12px;border-bottom:1px dashed var(--hair);}' +
+    '.shape-tile{border:1px solid var(--hair);border-radius:8px;background:#f8fafc;padding:8px 10px 6px;text-align:center;}' +
+    '.shape-tile svg{display:block;background:#fff;border:1px solid #eef2f7;border-radius:6px;}' +
+    '.shape-tile .shape-code{font-size:11px;font-weight:700;color:#334155;margin-top:5px;letter-spacing:.04em;}' +
     '.px-toast{position:fixed;top:18px;left:50%;transform:translateX(-50%);z-index:9999;display:flex;align-items:center;gap:9px;padding:10px 18px;border-radius:8px;font-size:13px;font-weight:600;box-shadow:0 4px 14px rgba(0,0,0,.18);color:#fff;font-family:"Inter",system-ui,sans-serif;}' +
     '.px-toast.loading{background:#2563eb;}.px-toast.ok{background:#059669;}.px-toast.err{background:#dc2626;}' +
     '.px-toast .px-spin{width:14px;height:14px;border:2px solid rgba(255,255,255,.4);border-top-color:#fff;border-radius:50%;animation:pxspin .8s linear infinite;flex-shrink:0;}' +
@@ -1021,6 +1025,52 @@
 
       _esc: function (v) { return String(v == null ? '' : v).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;'); },
 
+      // ── 철근 형상 코드 안내 패널 ──────────────────────────
+      toggleRebarInfo: function () {
+        var pan = document.getElementById('pxShapeInfo');
+        var btn = document.getElementById('btnShapeInfo');
+        if (!pan) return;
+        var show = pan.style.display === 'none';
+        if (show && !pan.innerHTML) pan.innerHTML = this._buildShapeInfo();
+        pan.style.display = show ? '' : 'none';
+        if (btn) btn.classList.toggle('active', show);
+      },
+
+      // TrebarFactory 로 각 코드 형상을 기본 치수로 생성해 미니 SVG 로 작도 (엔진과 항상 일치)
+      _buildShapeInfo: function () {
+        if (typeof TrebarFactory === 'undefined') return '<p style="color:#94a3b8;">Rebar engine not loaded yet.</p>';
+        var CODES = [
+          { c: 1,  lbl: 'Code 1'  }, { c: 11, lbl: 'Code 11' }, { c: 14, lbl: 'Code 14' },
+          { c: 15, lbl: 'Code 15' }, { c: 21, lbl: 'Code 21' }, { c: 41, lbl: 'Code 41 / 44' }
+        ];
+        var h = '<div class="shape-grid">';
+        CODES.forEach(function (cd) {
+          var t = null;
+          try { t = TrebarFactory.create(cd.c, { x: 0, y: 0 }, {}, 0); } catch (e) {}
+          if (!t || !t.segments || !t.segments.length) return;
+          var minx = 1e18, miny = 1e18, maxx = -1e18, maxy = -1e18;
+          t.segments.forEach(function (s) {
+            [s.p1, s.p2].forEach(function (pt) {
+              minx = Math.min(minx, pt.x); maxx = Math.max(maxx, pt.x);
+              miny = Math.min(miny, -pt.y); maxy = Math.max(maxy, -pt.y);   // y 반전 (엔진 y-up)
+            });
+          });
+          var pad = Math.max(maxx - minx, maxy - miny) * 0.18 + 40;
+          var vb = (minx - pad) + ' ' + (miny - pad) + ' ' + ((maxx - minx) + 2 * pad) + ' ' + ((maxy - miny) + 2 * pad);
+          var sw = Math.max(maxx - minx, maxy - miny, 100) * 0.035;
+          var svg = '<svg width="150" height="105" viewBox="' + vb + '" preserveAspectRatio="xMidYMid meet">';
+          t.segments.forEach(function (s, i) {
+            svg += '<line x1="' + s.p1.x + '" y1="' + (-s.p1.y) + '" x2="' + s.p2.x + '" y2="' + (-s.p2.y) + '" stroke="#1d4ed8" stroke-width="' + sw + '" stroke-linecap="round"/>';
+            var mx = (s.p1.x + s.p2.x) / 2, my = (-s.p1.y - s.p2.y) / 2;
+            var ux = s.p2.x - s.p1.x, uy = -(s.p2.y - s.p1.y), L = Math.hypot(ux, uy) || 1;
+            svg += '<text x="' + (mx - uy / L * sw * 4) + '" y="' + (my + ux / L * sw * 4) + '" font-size="' + (sw * 4.2) + '" fill="#64748b" text-anchor="middle" dominant-baseline="middle" font-weight="600">' + String.fromCharCode(97 + i) + '</text>';
+          });
+          svg += '</svg>';
+          h += '<div class="shape-tile">' + svg + '<div class="shape-code">' + cd.lbl + '</div></div>';
+        });
+        return h + '</div>';
+      },
+
       // 상단 중앙 토스트 — kind: 'loading'(스피너, 유지) / 'ok'(2.5s 후 자동 숨김) / 'err'(6s)
       _toast: function (msg, kind) {
         var t = document.getElementById('pxToast');
@@ -1322,8 +1372,11 @@
 
         '  <div class="draw-card">' +
         '    <div class="draw-card-header"><div><span class="draw-card-title">REBAR</span> <span class="draw-card-desc">trebar / lrebar input data</span></div>' +
-        '      <span id="pxRebarTools" style="display:inline-flex;gap:6px;align-items:center;"></span></div>' +
-        '    <div class="draw-card-body"><div id="rebarBody"></div></div>' +
+        '      <span style="display:inline-flex;gap:6px;align-items:center;">' +
+        '        <span id="pxRebarTools" style="display:inline-flex;gap:6px;align-items:center;"></span>' +
+        '        <button type="button" class="engine-btn engine-btn-lite" id="btnShapeInfo" onclick="PXBOX.toggleRebarInfo()" title="Rebar shape codes"><i class="bi bi-info-circle"></i> Shape Codes</button>' +
+        '      </span></div>' +
+        '    <div class="draw-card-body"><div id="pxShapeInfo" style="display:none;"></div><div id="rebarBody"></div></div>' +
         '  </div>' +
 
         '</div>';
