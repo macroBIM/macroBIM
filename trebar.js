@@ -188,23 +188,23 @@ class Shape11 extends TrebarBase {
     }
 }
 
-// 14: 두 다리 사이각 45° (예각 V형, ACI #14) — A(경사) + B(수평, 카탈로그의 C)
-//     A 가 -45° 로 내려와 꺾임점에서 되접혀(턴 -135°) 수평으로 복귀. 사이각 = 45°
+// 14: 사이각 45° 예각 V형 (좌우 대칭, 위로 벌어짐) — 각 다리가 수평과 67.5°
+//     A 가 -67.5° 로 내려와 꺾임점에서 +135° 턴 → +67.5° 로 상승. 수직축 대칭.
 class Shape14 extends TrebarBase {
     generate() {
         let A = this.dims.A || 400;
         let B = this.dims.B || 400;
-        return this.buildSequential([A, B], -45, [-135], [-1, 1], (pts) => pts[1]);
+        return this.buildSequential([A, B], -67.5, [135], [-1, -1], (pts) => pts[1]);
     }
 }
 
-// 15: 두 다리 사이각 135° (둔각, ACI #15) — A(경사) + B(수평, 카탈로그의 C)
-//     A 가 -45° 로 내려와 완만히 꺾여(턴 +45°) 수평 진행. 사이각 = 135°
+// 15: 사이각 135° 둔각 V형 (좌우 대칭, 위로 벌어짐) — 각 다리가 수평과 22.5°
+//     A 가 -22.5° 로 내려와 꺾임점에서 +45° 턴 → +22.5° 로 상승. 수직축 대칭.
 class Shape15 extends TrebarBase {
     generate() {
         let A = this.dims.A || 400;
         let B = this.dims.B || 400;
-        return this.buildSequential([A, B], -45, [45], [-1, -1], (pts) => pts[1]);
+        return this.buildSequential([A, B], -22.5, [45], [-1, -1], (pts) => pts[1]);
     }
 }
 
