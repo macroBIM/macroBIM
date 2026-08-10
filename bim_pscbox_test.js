@@ -131,6 +131,13 @@
     '@media(max-width:1000px){.px-split{flex-direction:column;}.px-tblwrap{max-height:320px;width:100%;height:auto !important;}}' +
     '.var-tblwrap{height:224px;overflow-y:auto;border:1px solid #e2e8f0;border-radius:8px;background:#fff;}.var-tbl .var-c-name{width:12%;}.var-tbl .var-c-val{width:8%;white-space:nowrap;}.var-tbl th.var-c-del,.var-tbl td.var-c-del{width:30px;padding-left:2px;padding-right:6px;}.var-del{padding:2px 6px;cursor:pointer;border-radius:5px;transition:background .12s,color .12s,transform .06s;}.var-del:hover{background:#fee2e2;color:#dc2626;}.var-del:active{transform:scale(.92);}.var-name{font-weight:600;}.var-expr{font-family:inherit;}.var-val{font-size:12.5px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}.var-val.ok{color:#059669;}.var-val.err{color:#dc2626;font-weight:500;}.rebar-table-wrap{overflow-x:auto;}.rebar-table{width:100%;border-collapse:collapse;font-size:12px;margin:2px 0;}.rebar-table th{background:#1e293b;color:#fff;font-weight:600;padding:6px 9px;text-align:left;white-space:nowrap;border:1px solid #334155;}.rebar-table th.rs-type{color:#FFC107;background:#0f172a;text-align:center;font-weight:700;}.rebar-table td{padding:5px 9px;border:1px solid #e2e8f0;color:#334155;white-space:nowrap;}.rebar-table td:first-child,.rebar-table th:first-child{text-align:center;}.rebar-table tbody tr:nth-child(even) td{background:#f8fafc;}.rebar-table tbody tr:hover td{background:#eff6ff;}.engine-btn{display:inline-flex;align-items:center;gap:6px;padding:5px 12px;border:1px solid #2563eb;border-radius:6px;background:#2563eb;color:#fff;font-weight:700;font-size:10.5px;letter-spacing:.06em;text-transform:uppercase;font-family:inherit;cursor:pointer;transition:background .12s,border-color .12s,box-shadow .12s,transform .06s;}.engine-btn:hover{background:#1d4ed8;box-shadow:0 2px 8px rgba(37,99,235,.35);}.engine-btn:active{transform:translateY(1px) scale(.97);box-shadow:none;}.engine-ctrls{display:flex;align-items:center;gap:8px;}.var-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:8px 20px;}@media(max-width:1500px){.var-grid{grid-template-columns:repeat(3,1fr);}}@media(max-width:1100px){.var-grid{grid-template-columns:repeat(2,1fr);}}@media(max-width:680px){.var-grid{grid-template-columns:1fr;}}' +
     '.engine-btn-lite{background:#fff;border-color:#cbd5e1;color:#334155;}.engine-btn-lite:hover{background:#f1f5f9;box-shadow:0 2px 6px rgba(15,23,42,.12);}.engine-btn-lite.active{background:#2563eb;border-color:#2563eb;color:#fff;}' +
+    '.phys-split{display:flex;align-items:stretch;}' +
+    '.phys-tblwrap{flex:1 1 0;min-width:0;height:600px;overflow:auto;background:#fff;border-left:1px solid var(--hair);border-radius:0 0 10px 0;}' +
+    '.phys-tbl{font-size:11.5px;}.phys-tbl th,.phys-tbl td{white-space:nowrap;padding:4px 8px;}' +
+    '.phys-tbl td{text-align:right;color:#334155;}.phys-tbl td:first-child{text-align:left;font-weight:700;color:#0f172a;}' +
+    '.phys-tbl td.phys-na{color:#cbd5e1;text-align:center;}' +
+    '.phys-rsp{padding:2px 8px;font-size:9.5px;}' +
+    '@media(max-width:1100px){.phys-split{flex-direction:column;}.phys-tblwrap{border-left:none;border-top:1px solid var(--hair);height:300px;border-radius:0 0 10px 10px;}}' +
     '.px-toast{position:fixed;top:18px;left:50%;transform:translateX(-50%);z-index:9999;display:flex;align-items:center;gap:9px;padding:10px 18px;border-radius:8px;font-size:13px;font-weight:600;box-shadow:0 4px 14px rgba(0,0,0,.18);color:#fff;font-family:"Inter",system-ui,sans-serif;}' +
     '.px-toast.loading{background:#2563eb;}.px-toast.ok{background:#059669;}.px-toast.err{background:#dc2626;}' +
     '.px-toast .px-spin{width:14px;height:14px;border:2px solid rgba(255,255,255,.4);border-top-color:#fff;border-radius:50%;animation:pxspin .8s linear infinite;flex-shrink:0;}' +
@@ -344,7 +351,16 @@
             '<div class="draw-card-desc" id="stat-grid"></div>' +
           '</div>' +
           '<div class="draw-card-body" style="padding:0;">' +
-            '<div id="renderContainer" style="width:100%;height:600px;background:#41699b;border-radius:0 0 10px 10px;overflow:hidden;cursor:grab;"></div>' +
+            '<div class="phys-split">' +
+              '<div id="renderContainer" style="flex:1 1 0;min-width:0;height:600px;background:#41699b;border-radius:0 0 0 10px;overflow:hidden;cursor:grab;"></div>' +
+              '<div class="phys-tblwrap">' +
+                '<table class="px-tbl phys-tbl"><thead><tr>' +
+                  '<th>ID</th><th>Total</th><th>Dia</th>' +
+                  '<th>a</th><th>ra</th><th>b</th><th>rb</th><th>c</th><th>rc</th><th>d</th><th>rd</th><th>e</th><th>re</th><th>f</th>' +
+                  '<th></th>' +
+                '</tr></thead><tbody id="physTblBody"></tbody></table>' +
+              '</div>' +
+            '</div>' +
           '</div>' +
         '</div>',
 
@@ -392,6 +408,91 @@
 
       rebarPause: function () {
         if (typeof Domain !== 'undefined' && typeof Domain.togglePause === 'function') Domain.togglePause();
+      },
+
+      // ── Rebar Physics 결과 표 : id / 총길이 / 직경 / 조각 a~f / 꺽임 ra~re ──
+      _renderPhysicsTable: function () {
+        var body = document.getElementById('physTblBody');
+        if (!body || typeof Domain === 'undefined') return;
+        var self = this, h = '';
+        function fmt(n) { return (n == null || !isFinite(n)) ? '' : String(Math.round(n)); }
+        function cells(vals, n) {
+          var s = '';
+          for (var i = 0; i < n; i++) s += (vals[i] == null) ? '<td class="phys-na">&mdash;</td>' : '<td>' + fmt(vals[i]) + '</td>';
+          return s;
+        }
+        function rspBtn(id) {
+          return '<td><button type="button" class="px-btn phys-rsp" title="Respawn this rebar" onclick="PXBOX.respawnOne(&quot;' + self._esc(String(id)) + '&quot;)">&#8635;</button></td>';
+        }
+        (Domain.trebarList || []).forEach(function (t) {
+          var segs = [], arcs = [], total = 0;
+          if (t.state === 'FORMED') {
+            self._trebarPrimitives(t).forEach(function (pr) {
+              if (pr.t === 'line') {
+                var L = Math.hypot(pr.p[2] - pr.p[0], pr.p[3] - pr.p[1]);
+                segs.push(L); total += L;
+              } else {
+                var sweep = ((pr.p[4] - pr.p[3]) % 360 + 360) % 360;
+                var al = pr.p[2] * sweep * Math.PI / 180;
+                arcs.push(al); total += al;
+              }
+            });
+          } else {
+            (t.segments || []).forEach(function (s) {
+              var L = Math.hypot(s.p2.x - s.p1.x, s.p2.y - s.p1.y);
+              segs.push(L); total += L;
+            });
+          }
+          // 조각/꺽임 교차 배치 : a ra b rb c rc d rd e re f
+          var inter = [];
+          for (var i = 0; i < 6; i++) {
+            inter.push(segs[i] != null ? segs[i] : null);
+            if (i < 5) inter.push(arcs[i] != null ? arcs[i] : null);
+          }
+          h += '<tr><td>' + self._esc(t.id) + (t.state === 'FORMED' ? '' : ' <small>(moving)</small>') + '</td>' +
+               '<td><b>' + fmt(total) + '</b></td><td>' + fmt(t.dia) + '</td>' + cells(inter, 11) + rspBtn(t.id) + '</tr>';
+        });
+        (Domain.lrebarList || []).forEach(function (g) {
+          h += '<tr><td>' + self._esc(g.id) + (g.state === 'SETTLED' ? '' : ' <small>(moving)</small>') + '</td>' +
+               '<td class="phys-na">&mdash;</td><td>' + fmt(g.dia) + '</td>' + cells([], 11) + rspBtn(g.id) + '</tr>';
+        });
+        if (!h) h = '<tr><td colspan="15" style="text-align:center;color:#94a3b8;padding:14px;">No rebar loaded.</td></tr>';
+        body.innerHTML = h;
+      },
+
+      // 개별 철근 재스폰 : 해당 id 만 초기 상태로 되돌려 안착 과정을 다시 관찰
+      respawnOne: function (id) {
+        if (typeof Domain === 'undefined' || typeof UI === 'undefined') return;
+        var rd = null, i;
+        for (i = 0; i < (this._rebarData || []).length; i++) {
+          if (String(this._rebarData[i].id) === String(id)) { rd = this._rebarData[i]; break; }
+        }
+        if (!rd) { console.warn('[PSCBOX] respawnOne: 데이터 없음', id); return; }
+        var kind = String(rd.type || 'trebar').toLowerCase();
+        try {
+          if (kind === 'trebar') {
+            var nb = Domain._createTrebarFromData(rd);
+            if (!nb) return;
+            for (i = 0; i < Domain.trebarList.length; i++) if (String(Domain.trebarList[i].id) === String(id)) break;
+            if (i < Domain.trebarList.length) Domain.trebarList[i] = nb; else Domain.trebarList.push(nb);
+            Domain.queue.push({ kind: 'trebar', obj: nb });
+          } else {
+            if (typeof LRebarEngine === 'undefined') return;
+            var ng = Domain._createLrebarFromData(rd);
+            if (!ng) return;
+            for (i = 0; i < Domain.lrebarList.length; i++) if (String(Domain.lrebarList[i].id) === String(id)) break;
+            if (i < Domain.lrebarList.length) Domain.lrebarList[i] = ng; else Domain.lrebarList.push(ng);
+            Domain.queue.push({ kind: 'lrebar', obj: ng });
+          }
+        } catch (e) { console.error('[PSCBOX] respawnOne:', id, e); return; }
+        Domain.isPaused = false;
+        var b = document.getElementById('btnPause');
+        if (b) b.innerHTML = '<i class="bi bi-pause-fill"></i> Pause';
+        this._rebarSettled = false;
+        if (this._settleTimer) { clearInterval(this._settleTimer); this._settleTimer = null; }
+        if (UI.anim && UI.anim.start) UI.anim.start();
+        this._watchSettle();
+        this._renderPhysicsTable();
       },
 
       toggleNormals: function () {
@@ -594,6 +695,7 @@
         });
         this._drawLrebarTrue();                                                    // lrebar 실제 반경으로 재작도
         if (UI.mainLayer) UI.mainLayer.draw();
+        this._renderPhysicsTable();                                                // 결과 표 갱신 (안착 후 길이 확정)
         console.log('[SeoulPhD] 굴짐 아크 적용 — FORMED ' + formed + '/' + Domain.trebarList.length);
       },
 
@@ -1120,6 +1222,7 @@
       this._rebarSettled = false;
       if (this._settleTimer) { clearInterval(this._settleTimer); this._settleTimer = null; }
       if (UI.anim && UI.anim.start) UI.anim.start();
+      this._renderPhysicsTable();          // 스폰 직후 표 갱신 (안착 전 — 길이는 settle 후 확정)
       try {
         var sec = this._buildSectionFromBim();
         if (sec && sec.walls.length) this._applyGenericSection(sec);
