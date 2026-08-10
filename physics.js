@@ -370,8 +370,17 @@ const Physics = {
             if (!cw) return null;
 
             let o = seg.p1, u = seg.uDir;
-            let t1 = (cw.x1 - o.x) * u.x + (cw.y1 - o.y) * u.y;
-            let t2 = (cw.x2 - o.x) * u.x + (cw.y2 - o.y) * u.y;
+            // 벽 끝점의 "법선 단면선"과 세그 축의 교점 파라미터 t.
+            //  · 세그가 벽과 평행하면 수직투영과 동일 (기존 동작 유지)
+            //  · 기울어진 세그(예: 15번 a다리 45°)는 벽 끝단면에서 정확히 멈춤 —
+            //    수직투영만 쓰면 끝단면을 지나 허공으로 삐져나감
+            const endT = (ex, ey) => {
+                let det = u.x * cw.ny - u.y * cw.nx;
+                if (Math.abs(det) < 1e-9) return (ex - o.x) * u.x + (ey - o.y) * u.y;   // 세그 ∥ 법선 → 투영 폴백
+                return ((ex - o.x) * cw.ny - (ey - o.y) * cw.nx) / det;
+            };
+            let t1 = endT(cw.x1, cw.y1);
+            let t2 = endT(cw.x2, cw.y2);
             let lo = Math.min(t1, t2), hi = Math.max(t1, t2);
             return {
                 wallId: cw.id || (cw.origWall && cw.origWall.id) || '?',
