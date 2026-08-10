@@ -1824,13 +1824,20 @@ function draw_box12cell_guide( sdivid, ap ){
 	odiv.style.position = 'relative';
 	odiv.innerHTML = window.RWSVG.renderSVG(rec, W, Hpx) +
 		'<button type="button" data-guide-regen title="Reset zoom/pan (double-click also works)" ' +
-		'style="position:absolute;top:8px;right:8px;padding:3px 10px;font-size:10.5px;font-weight:700;letter-spacing:.06em;' +
+		'style="position:absolute;top:8px;right:8px;padding:3px 10px;font-size:10.5px;font-weight:700;letter-spacing:.06em;transition:background .12s,border-color .12s,box-shadow .12s,transform .06s;' +
 		'color:#fff;background:#2563eb;border:1px solid #2563eb;border-radius:6px;cursor:pointer;">&#8635; REGEN</button>';
 	var svg = odiv.querySelector('svg');
 	if (svg) window.RWSVG.attachZoomPan(svg);
 	var oregen = function(){ draw_box12cell_guide(sdivid, ap); };	// 재렌더 = 뷰 초기화
 	var obtn = odiv.querySelector('[data-guide-regen]');
-	if (obtn) obtn.onclick = oregen;
+	if (obtn) {
+		obtn.onclick = oregen;
+		// 인라인 스타일 버튼이라 CSS :hover/:active 대신 JS로 클릭감 부여
+		obtn.onmouseenter = function(){ obtn.style.background = '#1d4ed8'; obtn.style.borderColor = '#1d4ed8'; obtn.style.boxShadow = '0 2px 8px rgba(37,99,235,.35)'; };
+		obtn.onmouseleave = function(){ obtn.style.background = '#2563eb'; obtn.style.borderColor = '#2563eb'; obtn.style.boxShadow = 'none'; obtn.style.transform = 'none'; };
+		obtn.onmousedown  = function(){ obtn.style.transform = 'translateY(1px) scale(.96)'; obtn.style.boxShadow = 'none'; };
+		obtn.onmouseup    = function(){ obtn.style.transform = 'none'; };
+	}
 	if (svg) svg.addEventListener('dblclick', oregen);
 
 	// 우측 변수표 높이를 가이드 그림과 동일하게 동기화 (스크롤 표)
