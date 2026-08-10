@@ -131,8 +131,8 @@
     '@media(max-width:1000px){.px-split{flex-direction:column;}.px-tblwrap{max-height:320px;width:100%;height:auto !important;}}' +
     '.var-tblwrap{height:224px;overflow-y:auto;border:1px solid #e2e8f0;border-radius:8px;background:#fff;}.var-tbl .var-c-name{width:12%;}.var-tbl .var-c-val{width:8%;white-space:nowrap;}.var-tbl th.var-c-del,.var-tbl td.var-c-del{width:30px;padding-left:2px;padding-right:6px;}.var-del{padding:2px 6px;cursor:pointer;border-radius:5px;transition:background .12s,color .12s,transform .06s;}.var-del:hover{background:#fee2e2;color:#dc2626;}.var-del:active{transform:scale(.92);}.var-name{font-weight:600;}.var-expr{font-family:inherit;}.var-val{font-size:12.5px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}.var-val.ok{color:#059669;}.var-val.err{color:#dc2626;font-weight:500;}.rebar-table-wrap{overflow-x:auto;}.rebar-table{width:100%;border-collapse:collapse;font-size:12px;margin:2px 0;}.rebar-table th{background:#1e293b;color:#fff;font-weight:600;padding:6px 9px;text-align:left;white-space:nowrap;border:1px solid #334155;}.rebar-table th.rs-type{color:#FFC107;background:#0f172a;text-align:center;font-weight:700;}.rebar-table td{padding:5px 9px;border:1px solid #e2e8f0;color:#334155;white-space:nowrap;}.rebar-table td:first-child,.rebar-table th:first-child{text-align:center;}.rebar-table tbody tr:nth-child(even) td{background:#f8fafc;}.rebar-table tbody tr:hover td{background:#eff6ff;}.engine-btn{display:inline-flex;align-items:center;gap:6px;padding:5px 12px;border:1px solid #2563eb;border-radius:6px;background:#2563eb;color:#fff;font-weight:700;font-size:10.5px;letter-spacing:.06em;text-transform:uppercase;font-family:inherit;cursor:pointer;transition:background .12s,border-color .12s,box-shadow .12s,transform .06s;}.engine-btn:hover{background:#1d4ed8;box-shadow:0 2px 8px rgba(37,99,235,.35);}.engine-btn:active{transform:translateY(1px) scale(.97);box-shadow:none;}.engine-ctrls{display:flex;align-items:center;gap:8px;}.var-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:8px 20px;}@media(max-width:1500px){.var-grid{grid-template-columns:repeat(3,1fr);}}@media(max-width:1100px){.var-grid{grid-template-columns:repeat(2,1fr);}}@media(max-width:680px){.var-grid{grid-template-columns:1fr;}}' +
     '.engine-btn-lite{background:#fff;border-color:#cbd5e1;color:#334155;}.engine-btn-lite:hover{background:#f1f5f9;box-shadow:0 2px 6px rgba(15,23,42,.12);}.engine-btn-lite.active{background:#2563eb;border-color:#2563eb;color:#fff;}' +
-    '.phys-split{display:flex;align-items:stretch;}' +
-    '.phys-tblwrap{flex:1 1 0;min-width:0;height:600px;overflow:auto;background:#fff;border-left:1px solid var(--hair);border-radius:0 0 10px 0;}' +
+    '.phys-split{display:flex;align-items:flex-start;}' +
+    '.phys-tblwrap{flex:1 1 0;min-width:0;height:480px;overflow:auto;background:#fff;border-left:1px solid var(--hair);border-radius:0 0 10px 0;}' +
     '.phys-tbl{font-size:11.5px;}.phys-tbl th,.phys-tbl td{white-space:nowrap;padding:4px 8px;}' +
     '.phys-tbl td{text-align:right;color:#334155;}.phys-tbl td:first-child{text-align:left;font-weight:700;color:#0f172a;}' +
     '.phys-tbl td.phys-na{color:#cbd5e1;text-align:center;}' +
@@ -352,11 +352,11 @@
           '</div>' +
           '<div class="draw-card-body" style="padding:0;">' +
             '<div class="phys-split">' +
-              '<div id="renderContainer" style="flex:1 1 0;min-width:0;height:600px;background:#41699b;border-radius:0 0 0 10px;overflow:hidden;cursor:grab;"></div>' +
+              '<div id="renderContainer" style="flex:1 1 0;min-width:0;aspect-ratio:16/9;height:auto;background:#41699b;border-radius:0 0 0 10px;overflow:hidden;cursor:grab;"></div>' +
               '<div class="phys-tblwrap">' +
                 '<table class="px-tbl phys-tbl"><thead><tr>' +
                   '<th>ID</th><th>Total</th><th>Dia</th>' +
-                  '<th>a</th><th>ra</th><th>b</th><th>rb</th><th>c</th><th>rc</th><th>d</th><th>rd</th><th>e</th><th>re</th><th>f</th>' +
+                  '<th>a</th><th>b</th><th>c</th><th>d</th><th>e</th><th>f</th><th>ra</th><th>rb</th><th>rc</th><th>rd</th><th>re</th>' +
                   '<th></th>' +
                 '</tr></thead><tbody id="physTblBody"></tbody></table>' +
               '</div>' +
@@ -380,8 +380,10 @@
         if (typeof UI === 'undefined' || !UI.stage || !UI.mainLayer) return;
         var rc = document.getElementById('renderContainer');
         if (!rc) return;
-        var w = rc.clientWidth || 800, h = rc.clientHeight || 600;
+        var w = rc.clientWidth || 800, h = rc.clientHeight || Math.round((rc.clientWidth || 800) * 9 / 16);
         UI.stage.width(w); UI.stage.height(h);
+        var tw = document.querySelector('.phys-tblwrap');
+        if (tw) tw.style.height = h + 'px';                 // 우측 표 높이를 16:9 뷰와 동기화
 
         var minx = 1e18, miny = 1e18, maxx = -1e18, maxy = -1e18;
         var paths = (typeof Domain !== 'undefined' && Domain.currentSection && Domain.currentSection.displayPaths) || [];
@@ -414,6 +416,9 @@
       _renderPhysicsTable: function () {
         var body = document.getElementById('physTblBody');
         if (!body || typeof Domain === 'undefined') return;
+        var rcv = document.getElementById('renderContainer');
+        var twp = document.querySelector('.phys-tblwrap');
+        if (rcv && twp && rcv.clientHeight) twp.style.height = rcv.clientHeight + 'px';
         var self = this, h = '';
         function fmt(n) { return (n == null || !isFinite(n)) ? '' : String(Math.round(n)); }
         function cells(vals, n) {
@@ -443,12 +448,10 @@
               segs.push(L); total += L;
             });
           }
-          // 조각/꺽임 교차 배치 : a ra b rb c rc d rd e re f
-          var inter = [];
-          for (var i = 0; i < 6; i++) {
-            inter.push(segs[i] != null ? segs[i] : null);
-            if (i < 5) inter.push(arcs[i] != null ? arcs[i] : null);
-          }
+          // 조각 a~f 먼저, 그 다음 꺽임 ra~re
+          var inter = [], i;
+          for (i = 0; i < 6; i++) inter.push(segs[i] != null ? segs[i] : null);
+          for (i = 0; i < 5; i++) inter.push(arcs[i] != null ? arcs[i] : null);
           h += '<tr><td>' + self._esc(t.id) + (t.state === 'FORMED' ? '' : ' <small>(moving)</small>') + '</td>' +
                '<td><b>' + fmt(total) + '</b></td><td>' + fmt(t.dia) + '</td>' + cells(inter, 11) + rspBtn(t.id) + '</tr>';
         });
