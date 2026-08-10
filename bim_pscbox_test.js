@@ -924,9 +924,9 @@
           });
           displayPaths.push(pts);
         });
-        function cval(id) { var el = document.getElementById(id); var n = el ? Number(el.value) : NaN; return isFinite(n) && n > 0 ? n : 50; }
+        function cval(id, def) { var el = document.getElementById(id); var n = el ? Number(el.value) : NaN; return isFinite(n) && n > 0 ? n : def; }
         return { walls: walls, displayPaths: displayPaths,
-                 covers: { top: cval('cover_deck_s'), outer: cval('cover_ext_s'), inner: cval('cover_int_s') } };
+                 covers: { top: cval('cover_deck_s', 50), outer: cval('cover_ext_s', 40), inner: cval('cover_int_s', 30) } };
       },
 
       _applyGenericSection: function (sec) {
@@ -1133,6 +1133,7 @@
             var nv = self._loadVariablesFromExcel(data);  // ② 'variable' 블록 → Variables 카드 (교체)
             self._loadTypeFromExcel(data);       // ③ 'type' 블록 → Section Type (1c/2c)
             var nd = self._loadDimsFromExcel(data);       // ④ 'dim' 블록 → Dimension 표 (대칭/비대칭 자동)
+            self._loadCoverFromExcel(data);      // ④-1 'cover' 블록 → 피복 3칸 (deck/exterior/interior)
             self._renderRebarTables();           // ⑤ 'trebar/lrebar' 블록 → REBAR 표
             self._rebarData = self._parseRebar(data);
             console.log('[PSCBOX] 철근 파싱:', self._rebarData);
@@ -1186,8 +1187,9 @@
       });
       var r1 = document.querySelector('input[name="box12cell_ncell"][value="1"]');
       if (r1) r1.checked = true;
-      ['cover_deck_s', 'cover_ext_s', 'cover_int_s'].forEach(function (cid) {
-        var el = document.getElementById(cid); if (el) el.value = '50';
+      var covDef = { cover_deck_s: '50', cover_ext_s: '40', cover_int_s: '30' };
+      Object.keys(covDef).forEach(function (cid) {
+        var el = document.getElementById(cid); if (el) el.value = covDef[cid];
       });
     },
 
@@ -1206,6 +1208,26 @@
           var rb = document.querySelector('input[name="box12cell_ncell"][value="' + n + '"]');
           if (rb) rb.checked = true;
           console.log('[PSCBOX] type 로드: ' + v + ' → ' + n + ' cell');
+          return;
+        }
+      }
+    },
+
+    // 'cover' 블록 : cover | deck | exterior | interior (3칸 순서 고정) → 피복 입력칸
+    _loadCoverFromExcel: function (fullData) {
+      if (!Array.isArray(fullData)) return;
+      for (var r = 0; r < fullData.length; r++) {
+        var row = fullData[r];
+        if (this._rowIsEnd(row)) break;
+        if (this._rowIsComment(row)) continue;
+        for (var c = 0; c < (row ? row.length : 0); c++) {
+          if (String(row[c] == null ? '' : row[c]).trim().toLowerCase() !== 'cover') continue;
+          var ids = ['cover_deck_s', 'cover_ext_s', 'cover_int_s'], n = 0;
+          for (var k = 0; k < 3; k++) {
+            var v = Number(row[c + 1 + k]);
+            if (isFinite(v) && v > 0) { var el = document.getElementById(ids[k]); if (el) { el.value = String(v); n++; } }
+          }
+          if (n) console.log('[PSCBOX] cover 로드: ' + n + '개 (deck/exterior/interior)');
           return;
         }
       }
@@ -1398,8 +1420,8 @@
         '        </div>' +
         '        <div class="px-opthalf"><b>Cover Depth (mm) :</b>' +
         '          <label>Deck <input type="text" spellcheck="false" class="form-input px-cover" id="cover_deck_s" value="50" onchange="PXBOX.redraw()" title="Top slab (deck) cover"></label>' +
-        '          <label>Exterior <input type="text" spellcheck="false" class="form-input px-cover" id="cover_ext_s" value="50" onchange="PXBOX.redraw()" title="Outer surface cover"></label>' +
-        '          <label>Interior <input type="text" spellcheck="false" class="form-input px-cover" id="cover_int_s" value="50" onchange="PXBOX.redraw()" title="Cell (void) surface cover"></label>' +
+        '          <label>Exterior <input type="text" spellcheck="false" class="form-input px-cover" id="cover_ext_s" value="40" onchange="PXBOX.redraw()" title="Outer surface cover"></label>' +
+        '          <label>Interior <input type="text" spellcheck="false" class="form-input px-cover" id="cover_int_s" value="30" onchange="PXBOX.redraw()" title="Cell (void) surface cover"></label>' +
         '        </div>' +
         '      </div>' +
         '      <div class="px-split">' +
