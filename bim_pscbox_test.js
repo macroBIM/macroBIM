@@ -134,7 +134,7 @@
     '.phys-split{display:flex;align-items:flex-start;}' +
     '.phys-tblwrap{flex:1 1 0;min-width:0;height:480px;overflow:auto;background:#fff;border-left:1px solid var(--hair);border-radius:0 0 10px 0;}' +
     '.phys-tbl{font-size:11.5px;}.phys-tbl th,.phys-tbl td{white-space:nowrap;padding:4px 8px;}' +
-    '.px-tbl.phys-tbl th{background:#1e293b;color:#fff;font-weight:600;border-bottom:1px solid #334155;border-right:1px solid #334155;}.px-tbl.phys-tbl th:last-child{border-right:none;}' +
+    '.px-tbl.phys-tbl th{background:#1e293b;color:#fff;font-weight:600;text-align:center;border-bottom:1px solid #334155;border-right:1px solid #334155;}.px-tbl.phys-tbl th:last-child{border-right:none;}' +
     '.phys-tbl td.phys-moving{color:#d97706 !important;}' +
     '.phys-tbl td{text-align:right;color:#334155;}.phys-tbl td:first-child{text-align:left;font-weight:700;color:#0f172a;}' +
     '.phys-tbl td.phys-na{color:#cbd5e1;text-align:center;}' +
@@ -357,7 +357,7 @@
               '<div id="renderContainer" style="flex:1 1 0;min-width:0;aspect-ratio:16/9;height:auto;background:#41699b;border-radius:0 0 0 10px;overflow:hidden;cursor:grab;"></div>' +
               '<div class="phys-tblwrap">' +
                 '<table class="px-tbl phys-tbl"><thead><tr>' +
-                  '<th>ID</th><th>Total</th><th>Dia</th>' +
+                  '<th>ID</th><th>Code</th><th>Total</th><th>Dia</th>' +
                   '<th>a</th><th>b</th><th>c</th><th>d</th><th>e</th><th>f</th><th>ra</th><th>rb</th><th>rc</th><th>rd</th><th>re</th>' +
                   '<th></th>' +
                 '</tr></thead><tbody id="physTblBody"></tbody></table>' +
@@ -422,7 +422,13 @@
         var twp = document.querySelector('.phys-tblwrap');
         if (rcv && twp && rcv.clientHeight) twp.style.height = rcv.clientHeight + 'px';
         var self = this, h = '';
+        var codeById = {};
+        (this._rebarData || []).forEach(function (rd) { if (rd && rd.id != null && rd.code != null) codeById[String(rd.id)] = rd.code; });
         function fmt(n) { return (n == null || !isFinite(n)) ? '' : String(Math.round(n)); }
+        function codeCell(id) {
+          var c = codeById[String(id)];
+          return (c == null) ? '<td class="phys-na">&mdash;</td>' : '<td>' + fmt(Number(c)) + '</td>';
+        }
         function cells(vals, n) {
           var s = '';
           for (var i = 0; i < n; i++) s += (vals[i] == null) ? '<td class="phys-na">&mdash;</td>' : '<td>' + fmt(vals[i]) + '</td>';
@@ -454,14 +460,14 @@
           var inter = [], i;
           for (i = 0; i < 6; i++) inter.push(segs[i] != null ? segs[i] : null);
           for (i = 0; i < 5; i++) inter.push(arcs[i] != null ? arcs[i] : null);
-          h += '<tr><td class="' + (t.state === 'FORMED' ? '' : 'phys-moving') + '">' + self._esc(t.id) + '</td>' +
+          h += '<tr><td class="' + (t.state === 'FORMED' ? '' : 'phys-moving') + '">' + self._esc(t.id) + '</td>' + codeCell(t.id) +
                '<td><b>' + fmt(total) + '</b></td><td>' + fmt(t.dia) + '</td>' + cells(inter, 11) + rspBtn(t.id) + '</tr>';
         });
         (Domain.lrebarList || []).forEach(function (g) {
-          h += '<tr><td class="' + (g.state === 'SETTLED' ? '' : 'phys-moving') + '">' + self._esc(g.id) + '</td>' +
+          h += '<tr><td class="' + (g.state === 'SETTLED' ? '' : 'phys-moving') + '">' + self._esc(g.id) + '</td>' + codeCell(g.id) +
                '<td class="phys-na">&mdash;</td><td>' + fmt(g.dia) + '</td>' + cells([], 11) + rspBtn(g.id) + '</tr>';
         });
-        if (!h) h = '<tr><td colspan="15" style="text-align:center;color:#94a3b8;padding:14px;">No rebar loaded.</td></tr>';
+        if (!h) h = '<tr><td colspan="16" style="text-align:center;color:#94a3b8;padding:14px;">No rebar loaded.</td></tr>';
         body.innerHTML = h;
       },
 
