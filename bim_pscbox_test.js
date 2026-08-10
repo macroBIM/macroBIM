@@ -490,6 +490,15 @@
             Domain.queue.push({ kind: 'lrebar', obj: ng });
           }
         } catch (e) { console.error('[PSCBOX] respawnOne:', id, e); return; }
+        // 벽 적층(wallStack) 재구성 — 재스폰 대상의 이전 기여분을 제거하지 않으면
+        // 누를 때마다 한 겹씩 안쪽으로 밀린다. 나머지 안착 철근 기여만 다시 누적.
+        Domain.wallStack = {};
+        Domain.trebarList.forEach(function (t) {
+          if (String(t.id) !== String(id) && t.state === 'FORMED') Domain._accumulateStack(t.dia || 0, Domain._collectTrebarWalls(t));
+        });
+        Domain.lrebarList.forEach(function (g) {
+          if (String(g.id) !== String(id) && g.state === 'SETTLED') Domain._accumulateStack(g.dia || 0, Domain._collectLrebarWalls(g));
+        });
         Domain.isPaused = false;
         var b = document.getElementById('btnPause');
         if (b) b.innerHTML = '<i class="bi bi-pause-fill"></i> Pause';
