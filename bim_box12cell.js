@@ -1819,8 +1819,8 @@ function draw_box12cell_guide( sdivid, ap ){
 
 	// ── 렌더 + 줌/팬 ──
 	var W = odiv.clientWidth || 900;
-	var bw = (xmax - xmin) + S*0.30, bh = (ytop - ybot) + S*0.38;
-	var Hpx = Math.max(320, Math.min(680, Math.round(W * bh / bw) + 20));
+	var Hpx = Math.round(W * 9 / 16);		// 16:9 고정 비율
+
 	odiv.style.position = 'relative';
 	odiv.innerHTML = window.RWSVG.renderSVG(rec, W, Hpx) +
 		'<button type="button" data-guide-regen title="Reset zoom/pan (double-click also works)" ' +
