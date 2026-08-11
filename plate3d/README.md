@@ -4,11 +4,14 @@
 
 ## 파일
 
-- **`plate_builder.js`** — 뷰어 엔진 (DATA_SCHEMA.md 구현). 사용자 HTML에서는 링크만 걸면 됨
-  - `plateBuilder.run({ title, PLATE, CUT, PLACE, colors })` 하나로 좌측 리스트+우측 3D 화면 자동 생성
+- **`plate_builder.js`** — 뷰어 엔진 (DATA_SCHEMA.md 구현). HTML에는 링크만 걸면 됨
+  - 로드되면 자동 실행: `window.PLATE_DATA` 가 있으면 그 데이터로, 없으면 **빈 기본 화면**(좌 리스트/우 3D)
+  - `plateBuilder.run({...})` 직접 호출도 가능 (자동 실행은 생략됨)
   - PLANE/EDGE 배치, MIRROR, polybooljs 절단(구멍·노치·REF), 그룹·부재별 토글, 중량, STL
-- `plate_builder.html` — 사용 예 (상대경로 `./plate_builder.js` — 저장소를 클론해서 열 때)
-- `codepen_example.html` — **CodePen용 예제** (jsDelivr CDN 절대경로 — 전체를 HTML 패널에 붙여넣기)
+- **`data_bracket.js`** — 서포트 브래킷 예제 데이터 (`window.PLATE_DATA` 정의) — 데이터 파일의 표본
+- `codepen_empty.html` — **CodePen용 · 빈 시작** (링크 4줄: 라이브러리 3 + 엔진)
+- `codepen_example.html` — **CodePen용 · 브래킷 예제** (링크 5줄: + 데이터 파일)
+- `plate_builder.html` — 로컬용 (상대경로 버전, 저장소 클론 후 열기)
 - `plate_assembly.html` — 초기 버전 (좌표 하드코딩 방식, 참고용)
 
 ## 링크만으로 사용하기
@@ -17,11 +20,13 @@
 <script src="https://unpkg.com/three@0.147.0/build/three.min.js"></script>
 <script src="https://unpkg.com/three@0.147.0/examples/js/controls/OrbitControls.js"></script>
 <script src="https://unpkg.com/polybooljs@1.1.0/dist/polybool.min.js"></script>
+<!-- 데이터 파일(선택): window.PLATE_DATA 를 정의. 없으면 빈 기본 화면 -->
+<script src="https://cdn.jsdelivr.net/gh/macroBIM/macroBIM@<커밋해시>/plate3d/data_bracket.js"></script>
 <script src="https://cdn.jsdelivr.net/gh/macroBIM/macroBIM@<커밋해시>/plate3d/plate_builder.js"></script>
-<script>
-plateBuilder.run({ PLATE: [...], CUT: [...], PLACE: [...] });
-</script>
 ```
+
+inline 스크립트 불필요 — 엔진이 로드되면 `window.PLATE_DATA` 를 자동 인식해 그린다.
+데이터 파일은 엔진 줄보다 **위에** 넣을 것.
 
 - 저장소가 public이라 jsDelivr(`cdn.jsdelivr.net/gh/...`)로 바로 서빙됨. raw.githubusercontent.com 은 브라우저가 스크립트 실행을 차단하므로 사용 불가.
 - 현재 브랜치명에 `/`가 있어 브랜치 URL은 안 되고 **@커밋해시**를 사용. main 병합 후에는 `@main/plate3d/plate_builder.js` 로 고정 가능 (단 jsDelivr가 브랜치 URL을 최대 12시간 캐시함 — 즉시 반영이 필요하면 커밋해시 사용).
