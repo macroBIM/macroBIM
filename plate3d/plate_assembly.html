@@ -2,14 +2,16 @@
 <html lang="ko">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
 <title>플레이트 조립 3D — 서포트 브래킷</title>
+</head>
+<body>
+<!-- CodePen 사용법: 이 파일 전체를 HTML 패널에 붙여넣으면 됩니다 -->
 <style>
   * { margin:0; padding:0; box-sizing:border-box; }
-  html,body { width:100%; height:100%; overflow:hidden; background:#15181c; color:#d8dce2;
-              font-family:'Malgun Gothic','Apple SD Gothic Neo',sans-serif; font-size:13px; }
-  #app { display:flex; width:100%; height:100%; }
-  #sidebar { width:300px; min-width:300px; height:100%; overflow-y:auto; background:#1c2026;
+  body { background:#15181c; color:#d8dce2; overflow:hidden;
+         font-family:'Malgun Gothic','Apple SD Gothic Neo',sans-serif; font-size:13px; }
+  #app { display:flex; width:100vw; height:100vh; }
+  #sidebar { width:290px; min-width:290px; height:100%; overflow-y:auto; background:#1c2026;
              border-right:1px solid #2c323b; padding:14px; }
   #viewer { flex:1; height:100%; position:relative; }
   #viewer canvas { display:block; }
@@ -37,10 +39,7 @@
   .note b { color:#f0c674; }
   #hud { position:absolute; left:10px; bottom:8px; color:#5b6472; font-size:11px; pointer-events:none; }
 </style>
-<script src="lib/three.min.js"></script>
-<script src="lib/OrbitControls.js"></script>
-</head>
-<body>
+
 <div id="app">
   <div id="sidebar">
     <h1>플레이트 조립 3D</h1>
@@ -66,12 +65,14 @@
   <div id="viewer"><div id="hud">드래그: 회전 · 휠: 줌 · 우클릭 드래그: 이동</div></div>
 </div>
 
+<script src="https://unpkg.com/three@0.147.0/build/three.min.js"></script>
+<script src="https://unpkg.com/three@0.147.0/examples/js/controls/OrbitControls.js"></script>
 <script>
 /* ============================================================
-   plate_assembly.html — 플레이트 조립 3D (서포트 브래킷)
+   플레이트 조립 3D (서포트 브래킷)
 
    좌표계: X = 정면도 좌우, Y = 높이(상방 +), Z = 깊이(정면 +)
-   원점  : 박스 평면 중심, Y=0 은 바닥판(T2)·측판(S1) 하단
+   원점  : 박스 평면 중심, Y=0 은 하판(T2)·측판(S1) 하단
 
    부재표 (도면 판독값, 전판 10T):
      PL C1  100×300  2EA   기둥 플레이트 (C2 사이 삽입)
@@ -249,7 +250,7 @@ function buildBOM() {
         tr.innerHTML =
             '<td><input type="checkbox" checked onchange="togglePart(' + i + ',this.checked)"></td>' +
             '<td><span class="chip" style="background:#' +
-                ('000000' + (p.group.children[0].material ? p.group.children[0].material.color.getHexString() : '888')).slice(-6) +
+                ('000000' + p.group.children[0].material.color.getHexString()).slice(-6) +
             '"></span>' + p.name + ' ×' + p.qty +
             (p.assumed ? '<span class="flag">가정</span>' : '<span class="ok">확정</span>') +
             '<div class="dims">' + p.dims + ' · 10T</div></td>' +

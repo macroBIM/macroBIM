@@ -4,9 +4,9 @@
 
 ## 파일
 
-- `plate_assembly.html` — 서포트 브래킷 조립 3D 뷰어 (브라우저에서 바로 열기)
+- `plate_assembly.html` — 서포트 브래킷 조립 3D 뷰어 (단일 파일, three.js CDN 사용)
+  - 브라우저에서 바로 열거나, 파일 전체를 CodePen HTML 패널에 붙여넣으면 됨
   - 마우스로 회전/줌/이동, 부재별 표시 토글, 부재별 중량 계산, STL 내보내기
-- `lib/three.min.js`, `lib/OrbitControls.js` — Three.js r147 (로컬 포함, 인터넷 불필요)
 
 ## 부재표 (도면 판독값, 전판 10T, 단위 mm)
 
