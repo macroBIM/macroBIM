@@ -483,7 +483,28 @@
     var grid = new THREE.GridHelper(Math.ceil(size / 400) * 800, 32, 0x39424d, 0x242a31);
     grid.position.y = -1;
     scene.add(grid);
-    scene.add(new THREE.AxesHelper(size * 0.15));
+
+    /* ---- 우상단 좌표축 표시 (카메라 회전을 따라 도는 미니 gizmo) ---- */
+    var axesScene = new THREE.Scene();
+    var axesCamera = new THREE.PerspectiveCamera(40, 1, 0.1, 100);
+    [{ v: [1, 0, 0], c: 0xe05c4f, label: 'X' },
+     { v: [0, 1, 0], c: 0x6fc36f, label: 'Y' },
+     { v: [0, 0, 1], c: 0x5c9bd1, label: 'Z' }].forEach(function (d) {
+      axesScene.add(new THREE.ArrowHelper(v3(d.v), new THREE.Vector3(0, 0, 0), 1.6, d.c, 0.35, 0.18));
+      var cv = document.createElement('canvas');
+      cv.width = cv.height = 64;
+      var ctx = cv.getContext('2d');
+      ctx.font = 'bold 42px sans-serif';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillStyle = '#' + ('000000' + d.c.toString(16)).slice(-6);
+      ctx.fillText(d.label, 32, 34);
+      var spr = new THREE.Sprite(new THREE.SpriteMaterial({
+        map: new THREE.CanvasTexture(cv), depthTest: false, transparent: true }));
+      spr.position.copy(v3(d.v).multiplyScalar(2.1));
+      spr.scale.set(0.6, 0.6, 1);
+      axesScene.add(spr);
+    });
 
     controls = new THREE.OrbitControls(camera, renderer.domElement);
     controls.enableDamping = true;
@@ -501,6 +522,22 @@
       requestAnimationFrame(animate);
       controls.update();
       renderer.render(scene, camera);
+
+      // 우상단 gizmo: 메인 카메라의 방향만 복사해 작은 뷰포트에 렌더
+      var gs = 110, gm = 8;
+      var cw = container.clientWidth, ch = container.clientHeight;
+      axesCamera.position.copy(camera.position).sub(controls.target).normalize().multiplyScalar(8.4);
+      axesCamera.up.copy(camera.up);
+      axesCamera.lookAt(0, 0, 0);
+      renderer.autoClear = false;
+      renderer.setScissorTest(true);
+      renderer.setViewport(cw - gs - gm, ch - gs - gm, gs, gs);
+      renderer.setScissor(cw - gs - gm, ch - gs - gm, gs, gs);
+      renderer.clearDepth();
+      renderer.render(axesScene, axesCamera);
+      renderer.setScissorTest(false);
+      renderer.setViewport(0, 0, cw, ch);
+      renderer.autoClear = true;
     })();
   }
 
