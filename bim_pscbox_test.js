@@ -1129,9 +1129,8 @@
             svg += '<line x1="' + ax1 + '" y1="' + ay1 + '" x2="' + (ax1 - nx * px(6) - ny * px(3.5)) + '" y2="' + (ay1 - ny * px(6) + nx * px(3.5)) + '" stroke="#f59e0b" stroke-width="' + px(2) + '" stroke-linecap="round"/>';
             svg += '<line x1="' + ax1 + '" y1="' + ay1 + '" x2="' + (ax1 - nx * px(6) + ny * px(3.5)) + '" y2="' + (ay1 - ny * px(6) - nx * px(3.5)) + '" stroke="#f59e0b" stroke-width="' + px(2) + '" stroke-linecap="round"/>';
             svg += '<text x="' + (ax1 + nx * px(8)) + '" y="' + (ay1 + ny * px(8)) + '" font-size="' + px(9) + '" fill="#d97706" text-anchor="middle" dominant-baseline="middle" font-weight="700">+1</text>';
-            // 조각 라벨은 화살표 반대쪽 (겹침 방지)
-            var lbl = String.fromCharCode(97 + i) + '=' + Math.round(L);
-            svg += '<text x="' + (mx - nx * px(15)) + '" y="' + (my - ny * px(15)) + '" font-size="' + px(10.5) + '" fill="#475569" text-anchor="middle" dominant-baseline="middle" font-weight="600">' + lbl + '</text>';
+            // 조각 라벨(기호만) — 화살표 반대쪽 (겹침 방지)
+            svg += '<text x="' + (mx - nx * px(13)) + '" y="' + (my - ny * px(13)) + '" font-size="' + px(11) + '" fill="#475569" text-anchor="middle" dominant-baseline="middle" font-weight="700">' + String.fromCharCode(97 + i) + '</text>';
           });
           // 꺾임점 사이각 표기 — 인접 조각 방향으로부터 계산 (엔진 형상과 항상 일치)
           for (var ci = 0; ci < t.segments.length - 1; ci++) {
@@ -1154,7 +1153,7 @@
         h += '</div>';
         h += '<div style="font-size:12px;color:#64748b;margin:-6px 0 12px;line-height:1.6;">' +
           '<span style="color:#d97706;font-weight:700;">주황 화살표</span> = 각 조각의 <b>nor 방향 (+1, 미입력 기본값)</b> — 물리가 이 방향의 벽을 찾아 안착합니다. ' +
-          '반대방향으로 붙이려면 해당 조각에 <b>-1</b> 을 입력하세요 (예: nors b=-1). rot 입력 시 화살표도 형상과 함께 회전합니다.</div>';
+          '반대방향으로 붙이려면 해당 조각에 <b>-1</b> 을 입력하세요 (예: nors b=-1). rot 입력 시 화살표도 형상과 함께 회전합니다. 모든 조각의 <b>기본 길이는 400</b> (segs 미입력 시)입니다.</div>';
         return h;
       },
 
