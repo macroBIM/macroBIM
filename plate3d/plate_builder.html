@@ -2,488 +2,77 @@
 <html lang="ko">
 <head>
 <meta charset="utf-8">
-<title>플레이트 빌더 — PLATE/CUT/PLACE 데이터 방식</title>
+<title>플레이트 빌더 — 서포트 브래킷</title>
 </head>
 <body>
-<!-- CodePen 사용법: 이 파일 전체를 HTML 패널에 붙여넣으면 됩니다 -->
-<style>
-  * { margin:0; padding:0; box-sizing:border-box; }
-  body { background:#15181c; color:#d8dce2; overflow:hidden;
-         font-family:'Malgun Gothic','Apple SD Gothic Neo',sans-serif; font-size:13px; }
-  #app { display:flex; width:100vw; height:100vh; }
-  #sidebar { width:300px; min-width:300px; height:100%; overflow-y:auto; background:#1c2026;
-             border-right:1px solid #2c323b; padding:14px; }
-  #viewer { flex:1; height:100%; position:relative; }
-  #viewer canvas { display:block; }
-  h1 { font-size:15px; color:#fff; margin-bottom:2px; }
-  .sub { color:#8a93a0; font-size:11px; margin-bottom:12px; }
-  .btnrow { display:flex; gap:5px; flex-wrap:wrap; margin-bottom:12px; }
-  button { background:#2a3038; color:#d8dce2; border:1px solid #3a424d; border-radius:4px;
-           padding:5px 10px; cursor:pointer; font-size:12px; }
-  button:hover { background:#39424d; }
-  button.accent { background:#2b5c8a; border-color:#3a76ad; color:#fff; }
-  table { width:100%; border-collapse:collapse; margin-bottom:10px; }
-  td { padding:4px 2px; border-bottom:1px solid #23272e; vertical-align:middle; }
-  tr.ghead td { color:#f0c674; font-size:11px; padding-top:10px; border-bottom:1px solid #2c323b; }
-  .chip { display:inline-block; width:11px; height:11px; border-radius:2px; margin-right:5px;
-          vertical-align:-1px; }
-  .dims { color:#8a93a0; font-size:11px; }
-  #total { color:#fff; font-size:12px; margin:6px 0 12px; }
-  .note { background:#22262d; border:1px solid #2c323b; border-radius:5px; padding:8px;
-          font-size:11px; color:#9aa3b0; line-height:1.55; }
-  #hud { position:absolute; left:10px; bottom:8px; color:#5b6472; font-size:11px; pointer-events:none; }
-</style>
-
-<div id="app">
-  <div id="sidebar">
-    <h1>플레이트 빌더</h1>
-    <div class="sub">PLATE / CUT / PLACE 데이터 방식 · 단위 mm</div>
-    <div class="btnrow">
-      <button onclick="setView('iso')" class="accent">ISO</button>
-      <button onclick="setView('front')">정면</button>
-      <button onclick="setView('side')">측면</button>
-      <button onclick="setView('top')">평면</button>
-      <button onclick="exportSTL()">STL 저장</button>
-    </div>
-    <table id="list"></table>
-    <div id="total"></div>
-    <div class="note">
-      아래 &lt;script&gt;의 SHEET_PLATE / SHEET_CUT / SHEET_PLACE 배열이
-      엑셀 시트와 같은 행 구조입니다. 값을 고치면 모델이 바뀝니다.
-      (추후 .xlsx 드래그&드롭으로 대체 예정)
-    </div>
-  </div>
-  <div id="viewer"><div id="hud">드래그: 회전 · 휠: 줌 · 우클릭 드래그: 이동</div></div>
-</div>
-
+<!--
+  사용자 HTML은 이 파일처럼 "라이브러리 링크 4개 + 데이터"만 있으면 됩니다.
+  뷰어 엔진(plate_builder.js)은 깃허브에서 로드됩니다.
+  CodePen에서는 codepen_example.html (jsDelivr 절대경로 버전)을 사용하세요.
+-->
 <script src="https://unpkg.com/three@0.147.0/build/three.min.js"></script>
 <script src="https://unpkg.com/three@0.147.0/examples/js/controls/OrbitControls.js"></script>
 <script src="https://unpkg.com/polybooljs@1.1.0/dist/polybool.min.js"></script>
+<script src="./plate_builder.js"></script>
 <script>
-/* ============================================================
-   plate_builder.js — DATA_SCHEMA.md v1 구현
+plateBuilder.run({
+  title: '플레이트 빌더',
+  subtitle: '서포트 브래킷 · PLATE/CUT/PLACE 데이터 방식 · 단위 mm',
+  note: '이 HTML의 PLATE/CUT/PLACE 배열이 엑셀 시트와 같은 행 구조입니다. ' +
+        '값을 고치면 모델이 바뀝니다.',
 
-   · PLATE : 부재 정의 (TRAP/CIRC, 로컬 XY평면, pbl=(0,0), 두께 +z)
-   · CUT   : 빼기 형상 (polybooljs 폴리곤 차집합 — 구멍/노치/절단 통합)
-   · PLACE : 배치 (PLANE = 기준평면+오프셋 / EDGE = 변에 붙이기)
-   · 점 9개 ptl~pbr+pcc, 변 4개 et/eb/el/er (CCW: eb→er→et→el)
-   ============================================================ */
+  PLATE: [
+    ['ID','SHAPE','B','TW','H','OF','D','THK','MAT'],
+    ['T2','TRAP',260,260,240,0,'',10,'SS275'],
+    ['S1','TRAP',290,290,280,0,'',10,'SS275'],
+    ['B1','TRAP',240,240,280,0,'',10,'SS275'],
+    ['T1','TRAP',350,350,300,0,'',10,'SS275'],
+    ['C1','TRAP',100,100,300,0,'',10,'SS275'],
+    ['C2','TRAP',120,120,300,0,'',10,'SS275'],
+    ['F1','TRAP',240,240,170,0,'',10,'SS275'],
+    ['F2','TRAP',60,60,240,0,'',10,'SS275'],
+    ['F3','TRAP',240,240,100,0,'',10,'SS275'],
+    ['SA','TRAP',220,220,240,0,'',10,'SS275'],
+    ['SB','TRAP',290,290,220,0,'',10,'SS275'],
+    ['BOLT','CIRC','','','','',20,135,'F10.8']
+  ],
 
-/* ---------------- 입력 데이터 (엑셀 시트와 동일 구조) ---------------- */
+  CUT: [
+    ['PLATE','TYPE','D','B','TW','H','OF','U','V','ANG','NX','PX','NY','PY'],
+    ['T1','CIRC',22,'','','','',  90, 40,0, 2,220,2,220],   // 레벨볼트 4-Ø22
+    ['T2','CIRC',24,'','','','',  30, 30,0, 2,200,2,180],   // 앵커 4-Ø24
+    ['S1','TRAP','',50,50,110,0,   0,  0,0, '','','',''],   // 좌하단 노치
+    ['B1','CIRC',30,'','','','', 120,125,0, '','','',''],   // 핀 구멍
+    ['F1','CIRC',30,'','','','',  30, 30,0, '','','','']    // 러그 구멍
+  ],
 
-var SHEET_PLATE = [
-  ['ID','SHAPE','B','TW','H','OF','D','THK','MAT'],
-  ['T2','TRAP',260,260,240,0,'',10,'SS275'],
-  ['S1','TRAP',290,290,280,0,'',10,'SS275'],
-  ['B1','TRAP',240,240,280,0,'',10,'SS275'],
-  ['T1','TRAP',350,350,300,0,'',10,'SS275'],
-  ['C1','TRAP',100,100,300,0,'',10,'SS275'],
-  ['C2','TRAP',120,120,300,0,'',10,'SS275'],
-  ['F1','TRAP',240,240,170,0,'',10,'SS275'],
-  ['F2','TRAP',60,60,240,0,'',10,'SS275'],
-  ['F3','TRAP',240,240,100,0,'',10,'SS275'],
-  ['SA','TRAP',220,220,240,0,'',10,'SS275'],
-  ['SB','TRAP',290,290,220,0,'',10,'SS275'],
-  ['BOLT','CIRC','','','','',20,135,'F10.8']
-];
+  PLACE: [
+    ['NO','PLATE','METHOD','PLANE','OFFSET','U','V','ANG','TO','MY_EDGE','TO_EDGE','FOLD','ALIGN','SLIDE','FLUSH','MIRROR','GROUP','REMARK'],
+    ['T2-1','T2','PLANE','PLAN',   0,-125,-120,0, '','','','','','','','',      'BOX','하판'],
+    ['S1-1','S1','EDGE','','','','','',           'T2-1','eb','eb',90,'S',-20,'IN','', 'BOX','전면 측판'],
+    ['S1-2','S1','EDGE','','','','','',           'T2-1','eb','et',90,'S',-10,'IN','X','BOX','후면 측판'],
+    ['B1-1','B1','EDGE','','','','','',           'T2-1','eb','er',90,'S',  0,'OUT','','BOX','우측판'],
+    ['T1-1','T1','PLANE','PLAN', 290,-175,-150,0, '','','','','','','','',      'BOX','상판'],
+    ['C2-1','C2','PLANE','SIDE', -60, -60, 300,0, '','','','','','','','',      'COL','기둥판 좌'],
+    ['C2-2','C2','PLANE','SIDE',  50, -60, 300,0, '','','','','','','','',      'COL','기둥판 우'],
+    ['C1-1','C1','PLANE','FRONT', 50, -50, 300,0, '','','','','','','','',      'COL','기둥판 전'],
+    ['C1-2','C1','PLANE','FRONT',-60, -50, 300,0, '','','','','','','','',      'COL','기둥판 후'],
+    ['F1-1','F1','PLANE','FRONT', -5,-265, 105,0, '','','','','','','','',      'ATT','러그 (위치추정)'],
+    ['F2-1','F2','PLANE','PLAN', 110,-155,-120,0, '','','','','','','','',      'ATT','선반판 (추정)'],
+    ['F3-1','F3','PLANE','SIDE',-155,-120,  20,0, '','','','','','','','',      'ATT','수직 립 (추정)'],
+    ['SA-1','SA','PLANE','PLAN', 240, -95,-120,0, '','','','','','','','',      'STF','수평 보강 (추정)'],
+    ['SB-1','SB','PLANE','FRONT',110,-145,  10,0, '','','','','','','','',      'STF','내면 보강 (추정)'],
+    ['BT-1','BOLT','PLANE','PLAN',282, -85,-110,0,'','','','','','','','',      'BLT','레벨볼트'],
+    ['BT-2','BOLT','PLANE','PLAN',282, -85, 110,0,'','','','','','','','',      'BLT','레벨볼트'],
+    ['BT-3','BOLT','PLANE','PLAN',282, 135,-110,0,'','','','','','','','',      'BLT','레벨볼트'],
+    ['BT-4','BOLT','PLANE','PLAN',282, 135, 110,0,'','','','','','','','',      'BLT','레벨볼트']
+  ],
 
-var SHEET_CUT = [
-  ['PLATE','TYPE','D','B','TW','H','OF','U','V','ANG','NX','PX','NY','PY'],
-  ['T1','CIRC',22,'','','','',  90, 40,0, 2,220,2,220],   // 레벨볼트 4-Ø22
-  ['T2','CIRC',24,'','','','',  30, 30,0, 2,200,2,180],   // 앵커 4-Ø24
-  ['S1','TRAP','',50,50,110,0,   0,  0,0, '','','',''],   // 좌하단 노치
-  ['B1','CIRC',30,'','','','', 120,125,0, '','','',''],   // 핀 구멍
-  ['F1','CIRC',30,'','','','',  30, 30,0, '','','','']    // 러그 구멍
-];
-
-var SHEET_PLACE = [
-  ['NO','PLATE','METHOD','PLANE','OFFSET','U','V','ANG','TO','MY_EDGE','TO_EDGE','FOLD','ALIGN','SLIDE','FLUSH','MIRROR','GROUP','REMARK'],
-  ['T2-1','T2','PLANE','PLAN',   0,-125,-120,0, '','','','','','','','',      'BOX','하판'],
-  ['S1-1','S1','EDGE','','','','','',           'T2-1','eb','eb',90,'S',-20,'IN','', 'BOX','전면 측판'],
-  ['S1-2','S1','EDGE','','','','','',           'T2-1','eb','et',90,'S',-10,'IN','X','BOX','후면 측판'],
-  ['B1-1','B1','EDGE','','','','','',           'T2-1','eb','er',90,'S',  0,'OUT','','BOX','우측판'],
-  ['T1-1','T1','PLANE','PLAN', 290,-175,-150,0, '','','','','','','','',      'BOX','상판'],
-  ['C2-1','C2','PLANE','SIDE', -60, -60, 300,0, '','','','','','','','',      'COL','기둥판 좌'],
-  ['C2-2','C2','PLANE','SIDE',  50, -60, 300,0, '','','','','','','','',      'COL','기둥판 우'],
-  ['C1-1','C1','PLANE','FRONT', 50, -50, 300,0, '','','','','','','','',      'COL','기둥판 전'],
-  ['C1-2','C1','PLANE','FRONT',-60, -50, 300,0, '','','','','','','','',      'COL','기둥판 후'],
-  ['F1-1','F1','PLANE','FRONT', -5,-265, 105,0, '','','','','','','','',      'ATT','러그 (위치추정)'],
-  ['F2-1','F2','PLANE','PLAN', 110,-155,-120,0, '','','','','','','','',      'ATT','선반판 (추정)'],
-  ['F3-1','F3','PLANE','SIDE',-155,-120,  20,0, '','','','','','','','',      'ATT','수직 립 (추정)'],
-  ['SA-1','SA','PLANE','PLAN', 240, -95,-120,0, '','','','','','','','',      'STF','수평 보강 (추정)'],
-  ['SB-1','SB','PLANE','FRONT',110,-145,  10,0, '','','','','','','','',      'STF','내면 보강 (추정)'],
-  ['BT-1','BOLT','PLANE','PLAN',282, -85,-110,0,'','','','','','','','',      'BLT','레벨볼트'],
-  ['BT-2','BOLT','PLANE','PLAN',282, -85, 110,0,'','','','','','','','',      'BLT','레벨볼트'],
-  ['BT-3','BOLT','PLANE','PLAN',282, 135,-110,0,'','','','','','','','',      'BLT','레벨볼트'],
-  ['BT-4','BOLT','PLANE','PLAN',282, 135, 110,0,'','','','','','','','',      'BLT','레벨볼트']
-];
-
-var COLORS = { T2:0x8d6e63, S1:0xc87137, B1:0x4caf50, T1:0x5c9bd1, C1:0xe0e0e0,
-               C2:0xd4b13e, F1:0x7cb342, F2:0xba68c8, F3:0xf06292, SA:0x4dd0e1,
-               SB:0x9575cd, BOLT:0xe8c84a };
-var RHO = 7.85e-6;   // kg/mm^3
-
-/* ---------------- 시트 파서 ---------------- */
-function sheetToObjects(sheet) {
-  var head = sheet[0];
-  return sheet.slice(1).map(function (row) {
-    var o = {};
-    head.forEach(function (h, i) { o[h] = row[i]; });
-    return o;
-  });
-}
-function num(v, dflt) { return (v === '' || v === undefined || v === null) ? dflt : Number(v); }
-
-/* ---------------- 2D 기하 유틸 ---------------- */
-function trapOutline(B, TW, H, OF) {              // CCW
-  if (TW <= 0) return [[0, 0], [B, 0], [OF, H]];
-  return [[0, 0], [B, 0], [OF + TW, H], [OF, H]];
-}
-function circleOutline(D, cx, cy, seg) {
-  var pts = [];
-  for (var i = 0; i < seg; i++) {
-    var a = i / seg * Math.PI * 2;
-    pts.push([cx + D / 2 * Math.cos(a), cy + D / 2 * Math.sin(a)]);
-  }
-  return pts;
-}
-function rotTrans(pts, ang, dx, dy) {             // (0,0) 기준 회전 후 이동
-  var c = Math.cos(ang * Math.PI / 180), s = Math.sin(ang * Math.PI / 180);
-  return pts.map(function (p) { return [p[0] * c - p[1] * s + dx, p[0] * s + p[1] * c + dy]; });
-}
-function ringArea(r) {
-  var a = 0;
-  for (var i = 0; i < r.length; i++) {
-    var p = r[i], q = r[(i + 1) % r.length];
-    a += p[0] * q[1] - q[0] * p[1];
-  }
-  return a / 2;
-}
-function pointInRing(pt, ring) {
-  var x = pt[0], y = pt[1], inside = false;
-  for (var i = 0, j = ring.length - 1; i < ring.length; j = i++) {
-    var xi = ring[i][0], yi = ring[i][1], xj = ring[j][0], yj = ring[j][1];
-    if ((yi > y) !== (yj > y) && x < (xj - xi) * (y - yi) / (yj - yi) + xi) inside = !inside;
-  }
-  return inside;
-}
-
-/* ---------------- 부재 형상 조립: 외곽 − CUT들 ---------------- */
-function buildPlate2D(plate, cuts) {
-  var outline = plate.SHAPE === 'CIRC'
-    ? circleOutline(num(plate.D, 0), 0, 0, 48)                       // CIRC: pcc = (0,0)
-    : trapOutline(num(plate.B, 0), num(plate.TW, num(plate.B, 0)),
-                  num(plate.H, 0), num(plate.OF, (num(plate.B,0) - num(plate.TW, num(plate.B,0))) / 2));
-
-  var cutters = [];
-  cuts.filter(function (c) { return c.PLATE === plate.ID; }).forEach(function (c) {
-    var nx = num(c.NX, 1), px = num(c.PX, 0), ny = num(c.NY, 1), py = num(c.PY, 0);
-    for (var ix = 0; ix < nx; ix++) for (var iy = 0; iy < ny; iy++) {
-      var u = num(c.U, 0) + ix * px, v = num(c.V, 0) + iy * py;
-      if (c.TYPE === 'CIRC') cutters.push(circleOutline(num(c.D, 0), u, v, 32));
-      else if (c.TYPE === 'TRAP') {
-        var tw = num(c.TW, num(c.B, 0));
-        cutters.push(rotTrans(trapOutline(num(c.B, 0), tw, num(c.H, 0), num(c.OF, (num(c.B,0)-tw)/2)),
-                              num(c.ANG, 0), u, v));
-      }
-      // TYPE=REF: 다른 PLATE 외곽 차용 (필요 시 확장)
-    }
-  });
-
-  var region = { regions: [outline], inverted: false };
-  cutters.forEach(function (cu) {
-    region = PolyBool.difference(region, { regions: [cu], inverted: false });
-  });
-
-  // 링 분류: 짝수 깊이 = 외곽, 홀수 깊이 = 구멍
-  var rings = region.regions.filter(function (r) { return r.length >= 3; });
-  var outers = [], holes = [];
-  rings.forEach(function (r) {
-    var depth = 0;
-    rings.forEach(function (s) { if (s !== r && pointInRing(r[0], s)) depth++; });
-    (depth % 2 ? holes : outers).push(r);
-  });
-  var area = 0;
-  outers.forEach(function (r) { area += Math.abs(ringArea(r)); });
-  holes.forEach(function (r) { area -= Math.abs(ringArea(r)); });
-
-  return { outline: outline, outers: outers,
-           holes: outers.map(function (o) {
-             return holes.filter(function (h) { return pointInRing(h[0], o); });
-           }),
-           area: area };
-}
-
-/* ---------------- 점·변 (절단 전 외곽 기준, MIRROR 반영) ---------------- */
-function namedPoints(plate, mirror) {
-  var p;
-  if (plate.SHAPE === 'CIRC') {
-    var r = num(plate.D, 0) / 2;
-    p = { pcc: [0, 0], ptc: [0, r], pbc: [0, -r], plm: [-r, 0], prm: [r, 0] };
-    p.ptl = p.ptr = p.ptc; p.pbl = p.pbr = p.pbc;
-  } else {
-    var B = num(plate.B, 0), TW = num(plate.TW, B), H = num(plate.H, 0),
-        OF = num(plate.OF, (B - TW) / 2);
-    p = { pbl: [0, 0], pbr: [B, 0], ptr: [OF + TW, H], ptl: [OF, H] };
-    if (mirror) {                                  // bbox 중심 기준 좌우반전 후 이름 재부여
-      var lo = Math.min(0, OF), hi = Math.max(B, OF + TW), m = lo + hi;
-      var M = function (q) { return [m - q[0], q[1]]; };
-      p = { pbl: M(p.pbr), pbr: M(p.pbl), ptl: M(p.ptr), ptr: M(p.ptl) };
-    }
-    p.pbc = mid(p.pbl, p.pbr); p.ptc = mid(p.ptl, p.ptr);
-    p.plm = mid(p.pbl, p.ptl); p.prm = mid(p.pbr, p.ptr);
-    p.pcc = [(p.pbl[0] + p.pbr[0] + p.ptr[0] + p.ptl[0]) / 4,
-             (p.pbl[1] + p.pbr[1] + p.ptr[1] + p.ptl[1]) / 4];
-  }
-  return p;
-  function mid(a, b) { return [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2]; }
-}
-// 변: CCW 방향 (내부가 진행방향 왼쪽)
-function edgeOf(pts, name) {
-  return { eb: [pts.pbl, pts.pbr], er: [pts.pbr, pts.ptr],
-           et: [pts.ptr, pts.ptl], el: [pts.ptl, pts.pbl] }[name];
-}
-function mirror2D(ringList, plate) {
-  var B = num(plate.B, 0), TW = num(plate.TW, B), OF = num(plate.OF, (B - TW) / 2);
-  var lo = Math.min(0, OF), hi = Math.max(B, OF + TW), m = lo + hi;
-  return ringList.map(function (ring) {
-    return ring.map(function (q) { return [m - q[0], q[1]]; }).reverse();
-  });
-}
-
-/* ---------------- 배치 행렬 ---------------- */
-var PLANE_BASIS = {
-  FRONT: { ex: [1, 0, 0], ey: [0, 1, 0],  ez: [0, 0, 1] },   // x→X, y→Y, 두께→+Z
-  SIDE:  { ex: [0, 0, -1], ey: [0, 1, 0], ez: [1, 0, 0] },   // x→−Z, y→Y, 두께→+X (우측면도)
-  PLAN:  { ex: [1, 0, 0], ey: [0, 0, -1], ez: [0, 1, 0] }    // x→X, y→−Z, 두께→+Y (평면도)
-};
-function v3(a) { return new THREE.Vector3(a[0], a[1], a[2]); }
-
-function planeMatrix(row) {
-  var b = PLANE_BASIS[row.PLANE];
-  var m = new THREE.Matrix4().makeBasis(v3(b.ex), v3(b.ey), v3(b.ez));
-  m.multiply(new THREE.Matrix4().makeTranslation(num(row.U, 0), num(row.V, 0), num(row.OFFSET, 0)));
-  m.multiply(new THREE.Matrix4().makeRotationZ(num(row.ANG, 0) * Math.PI / 180));
-  return m;
-}
-
-function edgeMatrix(row, inst, myPts, myTHK) {
-  var tgt = inst[row.TO];
-  if (!tgt) throw new Error(row.NO + ': TO=' + row.TO + ' 미정의 (앞선 행만 참조 가능)');
-  var te = edgeOf(tgt.pts, row.TO_EDGE);
-  var A = v3([te[0][0], te[0][1], tgt.thk]).applyMatrix4(tgt.matrix);     // 힌지 = 대상 앞면(z=THK)의 변
-  var Bp = v3([te[1][0], te[1][1], tgt.thk]).applyMatrix4(tgt.matrix);
-  var n = new THREE.Vector3().setFromMatrixColumn(tgt.matrix, 2).normalize();  // 대상 두께 방향
-  var d = Bp.clone().sub(A), Lt = d.length(); d.normalize();
-  var out = d.clone().cross(n);                                            // 바깥쪽 방향
-
-  var th = (180 - num(row.FOLD, 90)) * Math.PI / 180;                      // FOLD180=이어붙임, 90=직각
-  var ex = d.clone();
-  var ey = out.clone().multiplyScalar(Math.cos(th)).add(n.clone().multiplyScalar(Math.sin(th))).normalize();
-  var ez = ex.clone().cross(ey);
-
-  var me = edgeOf(myPts, row.MY_EDGE);
-  var s = me[0], e = me[1];
-  var Lm = Math.hypot(e[0] - s[0], e[1] - s[1]);
-  if (Lm < 1e-9) throw new Error(row.NO + ': ' + row.MY_EDGE + ' 변이 퇴화 (삼각형 꼭짓점)');
-  var phi = Math.atan2(e[1] - s[1], e[0] - s[0]);
-  var r0 = new THREE.Matrix4().makeRotationZ(-phi)
-             .multiply(new THREE.Matrix4().makeTranslation(-s[0], -s[1], 0));
-
-  var align = { S: 0, C: (Lt - Lm) / 2, E: Lt - Lm }[row.ALIGN || 'S'] + num(row.SLIDE, 0);
-  var flush = { OUT: -myTHK, C: -myTHK / 2, IN: 0 }[row.FLUSH || 'C'];
-  var origin = A.clone().add(d.clone().multiplyScalar(align)).add(ez.clone().multiplyScalar(flush));
-
-  return new THREE.Matrix4().makeBasis(ex, ey, ez).setPosition(origin).multiply(r0);
-}
-
-/* ---------------- 씬 구성 ---------------- */
-var scene, camera, renderer, controls;
-var items = [];          // {no, group, groupObj, mass, dims, remark}
-
-function buildAll() {
-  var plates = {}, cuts = sheetToObjects(SHEET_CUT);
-  sheetToObjects(SHEET_PLATE).forEach(function (p) { plates[p.ID] = p; });
-
-  var inst = {};         // NO → {matrix, pts, thk} (EDGE 참조용)
-
-  sheetToObjects(SHEET_PLACE).forEach(function (row) {
-    var plate = plates[row.PLATE];
-    if (!plate) { console.error(row.NO + ': PLATE=' + row.PLATE + ' 없음'); return; }
-    var thk = num(plate.THK, 10);
-    var mirror = row.MIRROR === 'X';
-    var g2d = buildPlate2D(plate, cuts);
-    var outers = g2d.outers, holesArr = g2d.holes;
-    if (mirror) {
-      outers = mirror2D(outers, plate);
-      holesArr = holesArr.map(function (hs) { return mirror2D(hs, plate); });
-    }
-    var pts = namedPoints(plate, mirror);
-
-    var matrix;
-    try {
-      matrix = row.METHOD === 'EDGE' ? edgeMatrix(row, inst, pts, thk) : planeMatrix(row);
-    } catch (err) { console.error(err.message); return; }
-    inst[row.NO] = { matrix: matrix, pts: pts, thk: thk };
-
-    // 지오메트리 (외곽 링 + 구멍)
-    var groupObj = new THREE.Group();
-    var mat = new THREE.MeshPhongMaterial({ color: COLORS[row.PLATE] || 0x999999, shininess: 28 });
-    outers.forEach(function (ring, i) {
-      var shape = new THREE.Shape(ring.map(function (q) { return new THREE.Vector2(q[0], q[1]); }));
-      holesArr[i].forEach(function (h) {
-        shape.holes.push(new THREE.Path(h.map(function (q) { return new THREE.Vector2(q[0], q[1]); })));
-      });
-      var geo = new THREE.ExtrudeGeometry(shape, { depth: thk, bevelEnabled: false, curveSegments: 24 });
-      var mesh = new THREE.Mesh(geo, mat);
-      mesh.matrixAutoUpdate = false;
-      mesh.matrix.copy(matrix);
-      groupObj.add(mesh);
-      var edge = new THREE.LineSegments(new THREE.EdgesGeometry(geo, 25),
-                                        new THREE.LineBasicMaterial({ color: 0x0e1013 }));
-      edge.matrixAutoUpdate = false;
-      edge.matrix.copy(matrix);
-      groupObj.add(edge);
-    });
-    scene.add(groupObj);
-
-    var dims = plate.SHAPE === 'CIRC'
-      ? 'Ø' + plate.D + '×' + thk
-      : plate.B + '×' + plate.H + '×' + thk + 'T';
-    items.push({ no: row.NO, plateId: row.PLATE, group: row.GROUP || '-',
-                 groupObj: groupObj, mass: g2d.area * thk * RHO,
-                 dims: dims, remark: row.REMARK || '' });
-  });
-}
-
-/* ---------------- 좌측 리스트 ---------------- */
-function buildList() {
-  var tbl = document.getElementById('list');
-  var total = 0, lastGroup = null;
-  items.forEach(function (it, i) {
-    total += it.mass;
-    if (it.group !== lastGroup) {
-      lastGroup = it.group;
-      var gtr = document.createElement('tr');
-      gtr.className = 'ghead';
-      gtr.innerHTML = '<td><input type="checkbox" checked onchange="toggleGroup(\'' + it.group + '\',this.checked)"></td>' +
-                      '<td colspan="2">▾ ' + it.group + '</td>';
-      tbl.appendChild(gtr);
-    }
-    var tr = document.createElement('tr');
-    tr.innerHTML =
-      '<td><input type="checkbox" checked id="cb' + i + '" onchange="toggleItem(' + i + ',this.checked)"></td>' +
-      '<td><span class="chip" style="background:#' +
-          ('000000' + (COLORS[it.plateId] || 0x999999).toString(16)).slice(-6) + '"></span>' +
-      it.no + '<div class="dims">' + it.dims + (it.remark ? ' · ' + it.remark : '') + '</div></td>' +
-      '<td class="dims">' + it.mass.toFixed(1) + 'kg</td>';
-    tbl.appendChild(tr);
-  });
-  document.getElementById('total').textContent =
-    '부재 ' + items.length + '개 · 총 중량 ' + total.toFixed(1) + ' kg';
-}
-function toggleItem(i, on) { items[i].groupObj.visible = on; }
-function toggleGroup(g, on) {
-  items.forEach(function (it, i) {
-    if (it.group === g) { it.groupObj.visible = on; document.getElementById('cb' + i).checked = on; }
-  });
-}
-
-/* ---------------- STL ---------------- */
-function exportSTL() {
-  var out = 'solid plate_builder\n';
-  scene.updateMatrixWorld(true);
-  items.forEach(function (it) {
-    if (!it.groupObj.visible) return;
-    it.groupObj.traverse(function (obj) {
-      if (!obj.isMesh) return;
-      var pos = obj.geometry.getAttribute('position');
-      if (!pos) return;
-      var idx = obj.geometry.getIndex();
-      var n = idx ? idx.count / 3 : pos.count / 3;
-      for (var i = 0; i < n; i++) {
-        var a = idx ? idx.getX(i * 3) : i * 3;
-        var b = idx ? idx.getX(i * 3 + 1) : i * 3 + 1;
-        var c = idx ? idx.getX(i * 3 + 2) : i * 3 + 2;
-        var vA = new THREE.Vector3().fromBufferAttribute(pos, a).applyMatrix4(obj.matrixWorld);
-        var vB = new THREE.Vector3().fromBufferAttribute(pos, b).applyMatrix4(obj.matrixWorld);
-        var vC = new THREE.Vector3().fromBufferAttribute(pos, c).applyMatrix4(obj.matrixWorld);
-        var nr = new THREE.Vector3().crossVectors(
-          new THREE.Vector3().subVectors(vB, vA),
-          new THREE.Vector3().subVectors(vC, vA)).normalize();
-        out += ' facet normal ' + nr.x + ' ' + nr.y + ' ' + nr.z + '\n  outer loop\n' +
-               '   vertex ' + vA.x + ' ' + vA.y + ' ' + vA.z + '\n' +
-               '   vertex ' + vB.x + ' ' + vB.y + ' ' + vB.z + '\n' +
-               '   vertex ' + vC.x + ' ' + vC.y + ' ' + vC.z + '\n  endloop\n endfacet\n';
-      }
-    });
-  });
-  out += 'endsolid plate_builder\n';
-  var link = document.createElement('a');
-  link.href = URL.createObjectURL(new Blob([out], { type: 'application/octet-stream' }));
-  link.download = 'plate_builder.stl';
-  link.click();
-  URL.revokeObjectURL(link.href);
-}
-
-/* ---------------- 뷰 / 초기화 ---------------- */
-var CENTER = new THREE.Vector3(-30, 280, 0);
-function setView(v) {
-  var d = 1200;
-  if (v === 'front') camera.position.set(CENTER.x, CENTER.y, d);
-  if (v === 'side')  camera.position.set(d, CENTER.y, 0);
-  if (v === 'top')   camera.position.set(CENTER.x, d + 300, 0.01);
-  if (v === 'iso')   camera.position.set(660, 600, 780);
-  controls.target.copy(CENTER);
-  controls.update();
-}
-
-function init() {
-  var container = document.getElementById('viewer');
-  var w = container.clientWidth, h = container.clientHeight;
-
-  scene = new THREE.Scene();
-  scene.background = new THREE.Color(0x15181c);
-  camera = new THREE.PerspectiveCamera(40, w / h, 1, 20000);
-  renderer = new THREE.WebGLRenderer({ antialias: true, preserveDrawingBuffer: true });
-  renderer.setSize(w, h);
-  renderer.setPixelRatio(window.devicePixelRatio || 1);
-  container.appendChild(renderer.domElement);
-
-  scene.add(new THREE.HemisphereLight(0xf4f6fa, 0x2a2d33, 0.95));
-  var sun = new THREE.DirectionalLight(0xffffff, 0.75);
-  sun.position.set(500, 900, 650);
-  scene.add(sun);
-  var back = new THREE.DirectionalLight(0x8899bb, 0.3);
-  back.position.set(-600, 300, -500);
-  scene.add(back);
-
-  var grid = new THREE.GridHelper(1600, 32, 0x39424d, 0x242a31);
-  grid.position.y = -1;
-  scene.add(grid);
-  scene.add(new THREE.AxesHelper(220));
-
-  buildAll();
-  buildList();
-
-  controls = new THREE.OrbitControls(camera, renderer.domElement);
-  controls.enableDamping = true;
-  controls.dampingFactor = 0.1;
-  setView('iso');
-
-  window.addEventListener('resize', function () {
-    camera.aspect = container.clientWidth / container.clientHeight;
-    camera.updateProjectionMatrix();
-    renderer.setSize(container.clientWidth, container.clientHeight);
-  });
-
-  (function animate() {
-    requestAnimationFrame(animate);
-    controls.update();
-    renderer.render(scene, camera);
-  })();
-}
-init();
+  // 색상 지정(선택) — 생략하면 자동 배정
+  colors: { T2:0x8d6e63, S1:0xc87137, B1:0x4caf50, T1:0x5c9bd1, C1:0xe0e0e0,
+            C2:0xd4b13e, F1:0x7cb342, F2:0xba68c8, F3:0xf06292, SA:0x4dd0e1,
+            SB:0x9575cd, BOLT:0xe8c84a }
+});
 </script>
 </body>
 </html>
