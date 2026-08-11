@@ -137,6 +137,11 @@
     '.px-tbl.var-tbl th{background:#1e293b;color:#fff;font-weight:600;text-align:center;border-bottom:1px solid #334155;border-right:1px solid #334155;}.px-tbl.var-tbl th:last-child{border-right:none;}' +
     '.px-tbl.dim-tbl th{background:#1e293b;color:#fff;font-weight:600;text-align:center;border-bottom:1px solid #334155;border-right:1px solid #334155;}.px-tbl.dim-tbl th:last-child{border-right:none;}' +
     '.px-cover{width:64px;text-align:right;}' +
+    '.px-menubar{display:flex;align-items:center;justify-content:flex-start;gap:8px;background:#fff;border:1px solid #e2e8f0;border-radius:10px;padding:8px 12px;margin-bottom:14px;}' +
+    '.px-mb-label{font-size:12.5px;font-weight:600;color:#475569;white-space:nowrap;}' +
+    '.px-btn-lite{background:#fff;color:#334155;border-color:#cbd5e1;}.px-btn-lite:hover{background:#f1f5f9;border-color:#cbd5e1;box-shadow:0 2px 6px rgba(15,23,42,.12);}.px-btn-lite.active{background:#2563eb;border-color:#2563eb;color:#fff;}' +
+    '.px-logpanel{background:#0f172a;color:#e2e8f0;border-radius:10px;padding:12px 16px;margin-bottom:14px;font-size:12px;font-family:ui-monospace,Menlo,Consolas,monospace;line-height:1.7;}' +
+    '.px-logpanel .log-time{color:#94a3b8;margin-bottom:4px;}.px-logpanel .log-ok{color:#34d399;}.px-logpanel .log-err{color:#f87171;}' +
     '.px-optrow{gap:16px;margin-left:0;}.px-opthalf{flex:1 1 0;min-width:0;display:flex;gap:14px;align-items:center;flex-wrap:wrap;}' +
     '.px-tbl.phys-tbl th{background:#1e293b;color:#fff;font-weight:600;text-align:center;border-bottom:1px solid #334155;border-right:1px solid #334155;}.px-tbl.phys-tbl th:last-child{border-right:none;}' +
     '.phys-tbl td.phys-moving{color:#d97706 !important;}' +
@@ -159,6 +164,7 @@
     _lines: [], _arcs: [], _circs: [],
     _uiInited: false, _settleTimer: null, _rebarSettled: false, _lastAp: null, _lastStuckMsg: null,
     _showEngNormals: false, _showEngNodes: false, _engNormGroup: null, _engNodeGroup: null,
+    _loadLog: null,
 
       _renderRebarTables: function () {
         var body = document.getElementById('rebarBody');
@@ -1053,6 +1059,26 @@
 
       _esc: function (v) { return String(v == null ? '' : v).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;'); },
 
+      // ── 로딩 로그 패널 : 마지막 엑셀 로딩 결과 다시 보기 ──
+      toggleLoadLog: function () {
+        var pan = document.getElementById('pxLoadLog');
+        var btn = document.getElementById('btnViewLog');
+        if (!pan) return;
+        var show = pan.style.display === 'none';
+        if (show) {
+          if (!this._loadLog) {
+            pan.innerHTML = '<div class="log-time">No Excel load yet.</div>';
+          } else {
+            var lg = this._loadLog, h = '<div class="log-time">' + this._esc(lg.time) + ' \u2014 ' +
+              (lg.ok ? '<span class="log-ok">SUCCESS</span>' : '<span class="log-err">FAILED</span>') + '</div>';
+            lg.lines.forEach(function (ln) { h += '<div>' + PXBOX._esc(ln) + '</div>'; });
+            pan.innerHTML = h;
+          }
+        }
+        pan.style.display = show ? '' : 'none';
+        if (btn) btn.classList.toggle('active', show);
+      },
+
       // ── 철근 형상 코드 안내 패널 ──────────────────────────
       toggleRebarInfo: function () {
         var pan = document.getElementById('pxShapeInfo');
@@ -1151,13 +1177,37 @@
             self._rebarData = self._parseRebar(data);
             console.log('[PSCBOX] 철근 파싱:', self._rebarData);
             self.redraw();              // 재작도 (physics 포함)
-            // \ub85c\ub529 \ud1a0\uc2a4\ud2b8\uc5d0 \ucd5c\uc885 \uacb0\uacfc \ud45c\uc2dc \u2014 id \uc911\ubcf5\uc774\uba74 \uc624\ub958 \uc0c1\ud0dc\ub85c (\uc131\uacf5 \ud1a0\uc2a4\ud2b8\uac00 \ub36e\uc9c0 \uc54a\uac8c)
+            var nre = self._rebarData ? self._rebarData.length : 0;
+            var ntre = 0, nlre = 0;
+            (self._rebarData || []).forEach(function (rd) { if (String(rd.type).toLowerCase() === 'lrebar') nlre++; else ntre++; });
+            var oncell = document.querySelector('input[name="box12cell_ncell"]:checked');
+            var cd = function (id) { var el = document.getElementById(id); return el ? el.value : '?'; };
+            self._loadLog = { time: new Date().toLocaleString(), ok: true, lines: [
+              'File      : ' + file.name,
+              'Sheet     : ' + sheet + '  (' + data.length + ' rows)',
+              'Section   : ' + (oncell ? oncell.value : '?') + ' cell',
+              'Variables : ' + (nv || 0),
+              'Dims      : ' + (nd || 0),
+              'Cover     : deck ' + cd('cover_deck_s') + ' / exterior ' + cd('cover_ext_s') + ' / interior ' + cd('cover_int_s'),
+              'Rebar     : ' + nre + '  (trebar ' + ntre + ', lrebar ' + nlre + ')'
+            ] };
+            // 최종 결과 토스트 — 철근 id 중복이면 오류 상태로 (성공 토스트가 덮지 않게)
             if (self._dupIds && self._dupIds.length) {
-              self._toast('\ucca0\uadfc id \uc911\ubcf5: ' + self._dupIds.join(', ') + ' \u2014 \ucca0\uadfc \ub85c\ub529 \uc911\ub2e8 (\ubcc0\uc218/\uce58\uc218\ub294 \ub85c\ub4dc\ub428)', 'err');
+              self._loadLog.ok = false;
+              self._loadLog.lines.push('ERROR     : duplicate rebar id ' + self._dupIds.join(', ') + ' \u2014 rebar loading skipped');
+              self._toast('Duplicate rebar id: ' + self._dupIds.join(', ') + ' \u2014 rebar loading skipped (variables/dims loaded)', 'err');
             } else {
-              self._toast('Excel loaded \u2014 variables ' + (nv || 0) + ', dims ' + (nd || 0) + ', rebar ' + (self._rebarData ? self._rebarData.length : 0), 'ok');
+              self._toast('Excel loaded \u2014 variables ' + (nv || 0) + ', dims ' + (nd || 0) + ', rebar ' + nre, 'ok');
             }
-          }).catch(function (e) { self._toast('Excel load failed: ' + e.message, 'err'); console.error('[PSCBOX] 엑셀 로드 오류:', e); });
+          }).catch(function (e) {
+            self._loadLog = { time: new Date().toLocaleString(), ok: false, lines: [
+              'File      : ' + file.name,
+              'Sheet     : ' + sheet,
+              'ERROR     : ' + e.message
+            ] };
+            self._toast('Excel load failed: ' + e.message, 'err');
+            console.error('[PSCBOX] 엑셀 로드 오류:', e);
+          });
         };
         fi.click();
       },
@@ -1416,6 +1466,15 @@
         '<style>' + CSS + '</style>' +
         '<div class="px-root">' +
 
+        '  <div class="px-menubar">' +
+        '    <span class="px-mb-label">Sheet Name :</span>' +
+        '    <input type="text" spellcheck="false" id="sheetName" class="form-input" value="input" style="width:90px;" title="Excel sheet name">' +
+        '    <button type="button" class="px-btn" onclick="PXBOX.loadExcel()">&#8682; Load Excel</button>' +
+        '    <button type="button" class="px-btn px-btn-lite" id="btnViewLog" onclick="PXBOX.toggleLoadLog()">&#128220; View Log</button>' +
+        '    <input type="file" id="excelFileInput" accept=".xlsx,.xls" style="display:none;">' +
+        '  </div>' +
+        '  <div id="pxLoadLog" class="px-logpanel" style="display:none;"></div>' +
+
         '  <div class="draw-card">' +
         '    <div class="draw-card-header"><div><span class="draw-card-title">Variables</span> <span class="draw-card-desc">(constants &amp; formulas &mdash; referenced by Dimension below. e.g. WL=6800, WR=WL/2)</span></div>' +
         '      <button type="button" class="px-btn" onclick="PXBOX.addVarRow()">+ Add</button></div>' +
@@ -1462,32 +1521,6 @@
         '  </div>' +
 
         '</div>';
-
-      // Excel controls (sheet name + Load Excel) live on the page headline; fall back to the REBAR header when no headline exists.
-      var toolsHTML =
-        '<span style="font-size:12.5px;font-weight:600;color:#475569;white-space:nowrap;">Sheet Name :</span>' +
-        '<input type="text" id="sheetName" class="form-input" value="input" style="width:90px;" title="Excel sheet name">' +
-        '<button type="button" class="px-btn" onclick="PXBOX.loadExcel()">&#8682; Load Excel</button>' +
-        '<input type="file" id="excelFileInput" accept=".xlsx,.xls" style="display:none;">';
-      var headTools = document.getElementById('pxHeadTools');
-      if (!headTools) {
-        var pageView = root.closest ? root.closest('.page-view') : null;
-        var heading = pageView ? pageView.querySelector('.page-heading') : null;
-        if (heading) {
-          heading.style.display = 'flex';
-          heading.style.alignItems = 'center';
-          heading.style.justifyContent = 'space-between';
-          heading.style.flexWrap = 'wrap';
-          headTools = document.createElement('span');
-          headTools.id = 'pxHeadTools';
-          headTools.className = 'px-root';
-          headTools.style.cssText = 'display:inline-flex;gap:6px;align-items:center;font-size:12px;font-weight:400;letter-spacing:normal;text-transform:none;';
-          headTools.innerHTML = toolsHTML;
-          heading.appendChild(headTools);
-        } else {
-          document.getElementById('pxRebarTools').innerHTML = toolsHTML;
-        }
-      }
 
       // ui.js 가 참조하는 숨김 DOM (sectionSelect / toggle 버튼)
       if (!document.getElementById('sectionSelect')) {
