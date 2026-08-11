@@ -253,6 +253,21 @@
           var type = self._rbStr(row[0]).toLowerCase();
           out.push(type === 'lrebar' ? self._parseLrebarRow(row) : self._parseTrebarRow(row));
         });
+        // id 중복 검사 — 중복이면 오류 알림 후 철근 로딩 중단 (빈 id 는 검사 제외)
+        var seen = {}, dups = [];
+        out.forEach(function (o) {
+          var k = String(o.id == null ? '' : o.id).trim().toLowerCase();
+          if (!k) return;
+          if (seen[k] && dups.indexOf(seen[k]) < 0) dups.push(seen[k]);
+          seen[k] = seen[k] || o.id;
+        });
+        if (dups.length) {
+          var msg = '철근 id 중복: ' + dups.join(', ') + ' — 철근 로딩을 중단합니다. 엑셀에서 id 를 고유하게 수정하세요.';
+          console.error('[PSCBOX] ' + msg);
+          this._toast(msg, 'err');
+          try { alert(msg); } catch (e) {}
+          return [];
+        }
         return out;
       },
 
