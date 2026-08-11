@@ -4,13 +4,27 @@
 
 ## 파일
 
-- `plate_builder.html` — **PLATE/CUT/PLACE 데이터 방식 뷰어** (DATA_SCHEMA.md 구현)
-  - 파일 안의 SHEET_PLATE / SHEET_CUT / SHEET_PLACE 배열(엑셀 시트와 동일 행 구조)을 파싱해 모델 생성
-  - PLANE/EDGE 배치, MIRROR, polybooljs 절단(구멍·노치), 그룹·부재별 토글, 중량, STL
-  - CDN: three.js r147 + polybooljs — CodePen HTML 패널에 전체 붙여넣기 가능
+- **`plate_builder.js`** — 뷰어 엔진 (DATA_SCHEMA.md 구현). 사용자 HTML에서는 링크만 걸면 됨
+  - `plateBuilder.run({ title, PLATE, CUT, PLACE, colors })` 하나로 좌측 리스트+우측 3D 화면 자동 생성
+  - PLANE/EDGE 배치, MIRROR, polybooljs 절단(구멍·노치·REF), 그룹·부재별 토글, 중량, STL
+- `plate_builder.html` — 사용 예 (상대경로 `./plate_builder.js` — 저장소를 클론해서 열 때)
+- `codepen_example.html` — **CodePen용 예제** (jsDelivr CDN 절대경로 — 전체를 HTML 패널에 붙여넣기)
 - `plate_assembly.html` — 초기 버전 (좌표 하드코딩 방식, 참고용)
-  - 브라우저에서 바로 열거나, 파일 전체를 CodePen HTML 패널에 붙여넣으면 됨
-  - 마우스로 회전/줌/이동, 부재별 표시 토글, 부재별 중량 계산, STL 내보내기
+
+## 링크만으로 사용하기
+
+```html
+<script src="https://unpkg.com/three@0.147.0/build/three.min.js"></script>
+<script src="https://unpkg.com/three@0.147.0/examples/js/controls/OrbitControls.js"></script>
+<script src="https://unpkg.com/polybooljs@1.1.0/dist/polybool.min.js"></script>
+<script src="https://cdn.jsdelivr.net/gh/macroBIM/macroBIM@<커밋해시>/plate3d/plate_builder.js"></script>
+<script>
+plateBuilder.run({ PLATE: [...], CUT: [...], PLACE: [...] });
+</script>
+```
+
+- 저장소가 public이라 jsDelivr(`cdn.jsdelivr.net/gh/...`)로 바로 서빙됨. raw.githubusercontent.com 은 브라우저가 스크립트 실행을 차단하므로 사용 불가.
+- 현재 브랜치명에 `/`가 있어 브랜치 URL은 안 되고 **@커밋해시**를 사용. main 병합 후에는 `@main/plate3d/plate_builder.js` 로 고정 가능 (단 jsDelivr가 브랜치 URL을 최대 12시간 캐시함 — 즉시 반영이 필요하면 커밋해시 사용).
 
 ## 부재표 (도면 판독값, 전판 10T, 단위 mm)
 
