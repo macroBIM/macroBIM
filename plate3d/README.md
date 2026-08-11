@@ -4,7 +4,11 @@
 
 ## 파일
 
-- `plate_assembly.html` — 서포트 브래킷 조립 3D 뷰어 (단일 파일, three.js CDN 사용)
+- `plate_builder.html` — **PLATE/CUT/PLACE 데이터 방식 뷰어** (DATA_SCHEMA.md 구현)
+  - 파일 안의 SHEET_PLATE / SHEET_CUT / SHEET_PLACE 배열(엑셀 시트와 동일 행 구조)을 파싱해 모델 생성
+  - PLANE/EDGE 배치, MIRROR, polybooljs 절단(구멍·노치), 그룹·부재별 토글, 중량, STL
+  - CDN: three.js r147 + polybooljs — CodePen HTML 패널에 전체 붙여넣기 가능
+- `plate_assembly.html` — 초기 버전 (좌표 하드코딩 방식, 참고용)
   - 브라우저에서 바로 열거나, 파일 전체를 CodePen HTML 패널에 붙여넣으면 됨
   - 마우스로 회전/줌/이동, 부재별 표시 토글, 부재별 중량 계산, STL 내보내기
 
