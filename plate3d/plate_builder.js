@@ -66,6 +66,7 @@
   var scene, camera, renderer, controls;
   var CENTER = null, VDIST = 1200;                // run()에서 모델 크기로 설정
   var items = [];
+  var runToken = 0;                               // 재실행(re-run) 구분용
 
   /* ---------------- 시트 파서 ---------------- */
   function sheetToObjects(sheet) {
@@ -399,9 +400,14 @@
 
   /* ---------------- DOM 생성 + 초기화 ---------------- */
   function buildDOM(title, subtitle, note) {
-    var style = document.createElement('style');
-    style.textContent = CSS;
-    document.head.appendChild(style);
+    if (!document.getElementById('pb-style')) {
+      var style = document.createElement('style');
+      style.id = 'pb-style';
+      style.textContent = CSS;
+      document.head.appendChild(style);
+    }
+    var old = document.getElementById('pb-app');
+    if (old) old.parentNode.removeChild(old);
     var app = document.createElement('div');
     app.id = 'pb-app';
     app.innerHTML =
@@ -431,9 +437,21 @@
       alert('three.js / polybooljs 라이브러리를 먼저 로드하세요.');
       return;
     }
+    data = data || {};
+    data.PLATE = data.PLATE || [[]];
+    data.CUT = data.CUT || [[]];
+    data.PLACE = data.PLACE || [[]];
+    runToken++;
+    var token = runToken;
+    items = [];
+
+    var empty = data.PLACE.length <= 1;
     buildDOM(data.title || '플레이트 빌더',
              data.subtitle || 'PLATE / CUT / PLACE 데이터 방식 · 단위 mm',
-             data.note);
+             data.note || (empty
+               ? '데이터가 비어 있습니다. PLATE/CUT/PLACE 배열을 window.PLATE_DATA 로 ' +
+                 '정의하거나 plateBuilder.run({...})으로 전달하면 모델이 표시됩니다.'
+               : null));
 
     var container = document.getElementById('pb-view');
     var w = container.clientWidth, h = container.clientHeight;
@@ -458,8 +476,8 @@
     var bbox = buildAll(data, colors);
     buildList(colors);
 
-    CENTER = bbox.isEmpty() ? new THREE.Vector3() : bbox.getCenter(new THREE.Vector3());
-    var size = bbox.isEmpty() ? 1000 : bbox.getSize(new THREE.Vector3()).length();
+    CENTER = bbox.isEmpty() ? new THREE.Vector3(0, 150, 0) : bbox.getCenter(new THREE.Vector3());
+    var size = bbox.isEmpty() ? 900 : bbox.getSize(new THREE.Vector3()).length();
     VDIST = size * 1.5 + 200;
 
     var grid = new THREE.GridHelper(Math.ceil(size / 400) * 800, 32, 0x39424d, 0x242a31);
@@ -479,6 +497,7 @@
     });
 
     (function animate() {
+      if (token !== runToken) return;             // 재실행되면 이전 루프 종료
       requestAnimationFrame(animate);
       controls.update();
       renderer.render(scene, camera);
@@ -489,4 +508,14 @@
     run: run, setView: setView, exportSTL: exportSTL,
     toggleItem: toggleItem, toggleGroup: toggleGroup
   };
+
+  /* ---- 자동 실행: window.PLATE_DATA 가 있으면 그 데이터로, 없으면 빈 화면 ----
+     (HTML에 링크만 있어도 기본 포맷이 뜨도록. plateBuilder.run()을 직접
+      호출한 경우에는 자동 실행하지 않음) */
+  function autorun() { if (!runToken) run(window.PLATE_DATA || {}); }
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', autorun);
+  } else {
+    setTimeout(autorun, 0);
+  }
 })();
