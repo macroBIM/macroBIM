@@ -456,7 +456,7 @@
     window.RWSVG.mountView({
       host: 'liftinglugplot', bar: 'lug-viewbar', view: window._lugView,
       view3dId: 'lug3d', render3dName: 'render_liftinglug_3d',
-      mod3d: 'https://macrobim.github.io/macroBIM/bim_liftinglug_3d.js',
+      mod3d: 'https://macrobim.github.io/macroBIM/bim_liftinglug_3d.js?v=1',
       aspect: 16 / 9,
       get3dArgs: function () { return [dd.geo]; },
       drawView: function (view, rec) { drawLug(view, rec, dd.geo, dd.aparam, dd.weld, dd.opt); }

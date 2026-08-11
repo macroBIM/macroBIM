@@ -196,6 +196,14 @@ function render_liftinglug_3d(containerId, geo) {
     const baseEdgeMat = new THREE.LineBasicMaterial({ color: 0xffcc66 });
     const edgeGroup = new THREE.Group();
     edgeGroup.add(new THREE.LineSegments(new THREE.EdgesGeometry(lugGeo, 30), edgeMat));
+    // Tangent edges: where the top arc meets the straight shoulders the surface is
+    // smooth (tangent), so EdgesGeometry skips it — but drafting convention shows
+    // this boundary line. Draw it explicitly across the plate thickness at Tl / Tr.
+    edgeGroup.add(new THREE.LineSegments(
+        new THREE.BufferGeometry().setFromPoints([
+            new THREE.Vector3(Trx, Try, -lugT / 2), new THREE.Vector3(Trx, Try, lugT / 2),
+            new THREE.Vector3(Tlx, Tly, -lugT / 2), new THREE.Vector3(Tlx, Tly, lugT / 2)
+        ]), edgeMat));
     if (pads && peDepth > 0) {
         edgeGroup.add(new THREE.LineSegments(new THREE.EdgesGeometry(peGeoRight, 30), peEdgeMat));
         edgeGroup.add(new THREE.LineSegments(new THREE.EdgesGeometry(peGeoLeft, 30), peEdgeMat));
