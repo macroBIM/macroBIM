@@ -229,9 +229,9 @@ class Shape21 extends TrebarBase {
 class Shape41 extends TrebarBase {
     generate() {
         let A = this.dims.A || 400;
-        let B = this.dims.B || 400;
+        let B = this.dims.B || 1000;
         let C = this.dims.C || 400;
-        let D = this.dims.D || 400;
+        let D = this.dims.D || 1000;
         let E = this.dims.E || 400;
 
         return this.buildSequential(
