@@ -1135,7 +1135,8 @@
               if (i === 0) { lx = s.p1.x - ux / L * px(10); ly = (-s.p1.y) - uy / L * px(10); }   // a: 자유단(상단) 너머
               else { lx = s.p2.x + ux / L * px(10); ly = (-s.p2.y) + uy / L * px(10); }           // b: 자유단(상단) 너머
             } else if (cd.c === 41) {
-              if (i === 0 || i === 4) { lx = mx; ly = my - px(11); }                              // a·e: 수평 날개 위
+              if (i === 0) { lx = s.p1.x + (s.p2.x - s.p1.x) * 0.15; ly = my - px(11); }         // a: 날개 위, 좌측(자유단 쪽)
+              else if (i === 4) { lx = s.p1.x + (s.p2.x - s.p1.x) * 0.85; ly = my - px(11); }      // e: 날개 위, 우측(자유단 쪽)
               else if (i === 1) { lx = s.p1.x + (s.p2.x - s.p1.x) * 0.25 - px(11); ly = -(s.p1.y + (s.p2.y - s.p1.y) * 0.25); }   // b: 위쪽 1/4, 바깥(좌)
               else if (i === 3) { lx = s.p1.x + (s.p2.x - s.p1.x) * 0.25 + px(11); ly = -(s.p1.y + (s.p2.y - s.p1.y) * 0.25); }   // d: 아래쪽 1/4, 바깥(우)
             }
