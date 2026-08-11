@@ -253,7 +253,7 @@
           var type = self._rbStr(row[0]).toLowerCase();
           out.push(type === 'lrebar' ? self._parseLrebarRow(row) : self._parseTrebarRow(row));
         });
-        // id 중복 검사 — 중복이면 오류 알림 후 철근 로딩 중단 (빈 id 는 검사 제외)
+        // id 중복 검사 — 중복이면 철근 로딩 중단 (결과는 로딩 토스트가 표시. 빈 id 는 검사 제외)
         var seen = {}, dups = [];
         out.forEach(function (o) {
           var k = String(o.id == null ? '' : o.id).trim().toLowerCase();
@@ -261,11 +261,9 @@
           if (seen[k] && dups.indexOf(seen[k]) < 0) dups.push(seen[k]);
           seen[k] = seen[k] || o.id;
         });
+        this._dupIds = dups;
         if (dups.length) {
-          var msg = '철근 id 중복: ' + dups.join(', ') + ' — 철근 로딩을 중단합니다. 엑셀에서 id 를 고유하게 수정하세요.';
-          console.error('[PSCBOX] ' + msg);
-          this._toast(msg, 'err');
-          try { alert(msg); } catch (e) {}
+          console.error('[PSCBOX] 철근 id 중복: ' + dups.join(', ') + ' — 철근 로딩 중단');
           return [];
         }
         return out;
@@ -1153,7 +1151,12 @@
             self._rebarData = self._parseRebar(data);
             console.log('[PSCBOX] 철근 파싱:', self._rebarData);
             self.redraw();              // 재작도 (physics 포함)
-            self._toast('Excel loaded \u2014 variables ' + (nv || 0) + ', dims ' + (nd || 0) + ', rebar ' + (self._rebarData ? self._rebarData.length : 0), 'ok');
+            // \ub85c\ub529 \ud1a0\uc2a4\ud2b8\uc5d0 \ucd5c\uc885 \uacb0\uacfc \ud45c\uc2dc \u2014 id \uc911\ubcf5\uc774\uba74 \uc624\ub958 \uc0c1\ud0dc\ub85c (\uc131\uacf5 \ud1a0\uc2a4\ud2b8\uac00 \ub36e\uc9c0 \uc54a\uac8c)
+            if (self._dupIds && self._dupIds.length) {
+              self._toast('\ucca0\uadfc id \uc911\ubcf5: ' + self._dupIds.join(', ') + ' \u2014 \ucca0\uadfc \ub85c\ub529 \uc911\ub2e8 (\ubcc0\uc218/\uce58\uc218\ub294 \ub85c\ub4dc\ub428)', 'err');
+            } else {
+              self._toast('Excel loaded \u2014 variables ' + (nv || 0) + ', dims ' + (nd || 0) + ', rebar ' + (self._rebarData ? self._rebarData.length : 0), 'ok');
+            }
           }).catch(function (e) { self._toast('Excel load failed: ' + e.message, 'err'); console.error('[PSCBOX] 엑셀 로드 오류:', e); });
         };
         fi.click();
