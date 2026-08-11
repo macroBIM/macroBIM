@@ -81,8 +81,10 @@ class TrebarBase {
             return (this.angs && this.angs[angKeys[i]] !== undefined) ? this.angs[angKeys[i]] : def;
         });
 
+        // nor 입력은 "형상 기본방향(defaultNor)에 대한 배수": +1(기본)=다이어그램 화살표 방향, -1=반대
         let norArray = defaultNor.map((def, i) => {
-            return (this.nors && this.nors[segKeys[i]] !== undefined) ? this.nors[segKeys[i]] : def;
+            let sign = (this.nors && this.nors[segKeys[i]] !== undefined) ? this.nors[segKeys[i]] : 1;
+            return sign * def;
         });
 
         let pts = [{ x: 0, y: 0 }];
@@ -184,7 +186,7 @@ class Shape11 extends TrebarBase {
     generate() {
         let A = this.dims.A || 400;
         let B = this.dims.B || 400;
-        return this.buildSequential([A, B], -90, [90], [1, 1], (pts) => pts[1]);
+        return this.buildSequential([A, B], -90, [90], [1, -1], (pts) => pts[1]);
     }
 }
 
@@ -194,7 +196,7 @@ class Shape14 extends TrebarBase {
     generate() {
         let A = this.dims.A || 400;
         let B = this.dims.B || 400;
-        return this.buildSequential([A, B], -67.5, [135], [1, 1], (pts) => pts[1]);
+        return this.buildSequential([A, B], -67.5, [135], [1, -1], (pts) => pts[1]);
     }
 }
 
@@ -204,7 +206,7 @@ class Shape15 extends TrebarBase {
     generate() {
         let A = this.dims.A || 400;
         let B = this.dims.B || 400;
-        return this.buildSequential([A, B], -22.5, [45], [1, 1], (pts) => pts[1]);
+        return this.buildSequential([A, B], -22.5, [45], [1, -1], (pts) => pts[1]);
     }
 }
 
@@ -218,7 +220,7 @@ class Shape21 extends TrebarBase {
             [A, B, C],
             -90,
             [90, 90],
-            [1, 1, 1],
+            [1, -1, -1],
             (pts) => ({ x: pts[1].x + B / 2, y: pts[1].y })
         );
     }
@@ -236,7 +238,7 @@ class Shape41 extends TrebarBase {
             [A, B, C, D, E],
             0,
             [-90, 90, 90, -90],
-            [1, 1, 1, 1, 1],
+            [1, -1, -1, -1, 1],
             (pts) => ({ x: pts[2].x + C / 2, y: pts[2].y })
         );
     }
@@ -291,7 +293,7 @@ class TrebarFactory {
         else if (code === 14) r = new Shape14(center, dims, rotation, angs, nors, barEnds);
         else if (code === 15) r = new Shape15(center, dims, rotation, angs, nors, barEnds);
         else if (code === 21) r = new Shape21(center, dims, rotation, angs, nors, barEnds);
-        else if (code === 41 || code === 44) r = new Shape41(center, dims, rotation, angs, nors, barEnds);
+        else if (code === 41) r = new Shape41(center, dims, rotation, angs, nors, barEnds);
 
         return r ? r.generate() : null;
     }
