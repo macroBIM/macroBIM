@@ -241,9 +241,11 @@ function render_liftinglug_3d(containerId, geo) {
     spMeshes.forEach(function (m) { solidMeshes.push(m); });
     const btnSTL = document.createElement('button');
     btnSTL.textContent = 'STL';
-    btnSTL.style.cssText = 'position:absolute;top:6px;left:6px;padding:3px 8px;background:#334155;color:#94a3b8;border:1px solid #475569;border-radius:4px;font-size:11px;font-weight:600;cursor:pointer;z-index:10;';
+    btnSTL.style.cssText = 'position:absolute;top:6px;left:6px;padding:3px 8px;background:#334155;color:#94a3b8;border:1px solid #475569;border-radius:4px;font-size:11px;font-weight:600;cursor:pointer;z-index:10;transition:transform .07s ease,background .07s ease;';
     btnSTL.onmouseenter = function () { btnSTL.style.background = '#2563eb'; btnSTL.style.color = '#fff'; };
-    btnSTL.onmouseleave = function () { btnSTL.style.background = '#334155'; btnSTL.style.color = '#94a3b8'; };
+    btnSTL.onmouseleave = function () { btnSTL.style.background = '#334155'; btnSTL.style.color = '#94a3b8'; btnSTL.style.transform = ''; };
+    btnSTL.onmousedown = function () { btnSTL.style.transform = 'scale(0.9)'; };
+    btnSTL.onmouseup = function () { btnSTL.style.transform = ''; };
     btnSTL.onclick = function () { _exportSTL_lug(solidMeshes, 'LiftingLug.stl'); };
     container.appendChild(btnSTL);
 
