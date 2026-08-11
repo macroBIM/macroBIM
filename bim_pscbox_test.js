@@ -1095,7 +1095,7 @@
         if (typeof TrebarFactory === 'undefined') return '<p style="color:#94a3b8;">Rebar engine not loaded yet.</p>';
         var CODES = [
           { c: 1,  lbl: 'Code 1'  }, { c: 11, lbl: 'Code 11' }, { c: 14, lbl: 'Code 14' },
-          { c: 15, lbl: 'Code 15' }, { c: 21, lbl: 'Code 21' }, { c: 41, lbl: 'Code 41 / 44' }
+          { c: 15, lbl: 'Code 15' }, { c: 21, lbl: 'Code 21' }, { c: 41, lbl: 'Code 41' }
         ];
         var h = '<div class="shape-grid">';
         CODES.forEach(function (cd) {
@@ -1109,25 +1109,29 @@
               miny = Math.min(miny, -pt.y); maxy = Math.max(maxy, -pt.y);   // y 반전 (엔진 y-up)
             });
           });
-          var pad = Math.max(maxx - minx, maxy - miny) * 0.26 + 60;
-          var vb = (minx - pad) + ' ' + (miny - pad) + ' ' + ((maxx - minx) + 2 * pad) + ' ' + ((maxy - miny) + 2 * pad);
-          var sw = Math.max(maxx - minx, maxy - miny, 100) * 0.03;
+          var span = Math.max(maxx - minx, maxy - miny, 100);
+          var pad = span * 0.45 + 60;
+          var vbW = (maxx - minx) + 2 * pad, vbH = (maxy - miny) + 2 * pad;
+          var vb = (minx - pad) + ' ' + (miny - pad) + ' ' + vbW + ' ' + vbH;
+          // 모든 타일에서 글자/화살표의 "화면 px" 크기 통일 — px(v) = 화면 v px 에 해당하는 도면 단위
+          var k = Math.min(176 / vbW, 122 / vbH);
+          var px = function (v) { return v / k; };
           var svg = '<svg width="176" height="122" viewBox="' + vb + '" preserveAspectRatio="xMidYMid meet">';
           t.segments.forEach(function (s, i) {
-            svg += '<line x1="' + s.p1.x + '" y1="' + (-s.p1.y) + '" x2="' + s.p2.x + '" y2="' + (-s.p2.y) + '" stroke="#1d4ed8" stroke-width="' + sw + '" stroke-linecap="round"/>';
+            svg += '<line x1="' + s.p1.x + '" y1="' + (-s.p1.y) + '" x2="' + s.p2.x + '" y2="' + (-s.p2.y) + '" stroke="#1d4ed8" stroke-width="' + px(3) + '" stroke-linecap="round"/>';
             var mx = (s.p1.x + s.p2.x) / 2, my = (-s.p1.y - s.p2.y) / 2;
             var ux = s.p2.x - s.p1.x, uy = -(s.p2.y - s.p1.y), L = Math.hypot(ux, uy) || 1;
-            // nor +1 방향 화살표 (주황) — 미입력 기본값. -1 입력 시 반대방향.
+            // nor +1(기본) 방향 화살표 (주황) — -1 입력 시 반대방향
             var nx = s.normal.x, ny = -s.normal.y;   // 엔진 y-up → svg y-down
-            var ax0 = mx + nx * sw * 1.4, ay0 = my + ny * sw * 1.4;
-            var ax1 = mx + nx * sw * 6.2, ay1 = my + ny * sw * 6.2;
-            svg += '<line x1="' + ax0 + '" y1="' + ay0 + '" x2="' + ax1 + '" y2="' + ay1 + '" stroke="#f59e0b" stroke-width="' + (sw * 0.85) + '" stroke-linecap="round"/>';
-            svg += '<line x1="' + ax1 + '" y1="' + ay1 + '" x2="' + (ax1 - nx * sw * 2 - ny * sw * 1.2) + '" y2="' + (ay1 - ny * sw * 2 + nx * sw * 1.2) + '" stroke="#f59e0b" stroke-width="' + (sw * 0.85) + '" stroke-linecap="round"/>';
-            svg += '<line x1="' + ax1 + '" y1="' + ay1 + '" x2="' + (ax1 - nx * sw * 2 + ny * sw * 1.2) + '" y2="' + (ay1 - ny * sw * 2 - nx * sw * 1.2) + '" stroke="#f59e0b" stroke-width="' + (sw * 0.85) + '" stroke-linecap="round"/>';
-            svg += '<text x="' + (ax1 + nx * sw * 2.4) + '" y="' + (ay1 + ny * sw * 2.4) + '" font-size="' + (sw * 2.8) + '" fill="#d97706" text-anchor="middle" dominant-baseline="middle" font-weight="700">+1</text>';
-            // 조각 라벨은 화살표 반대쪽에 배치 (겹침 방지)
-            var lbl = String.fromCharCode(97 + i) + '=' + Math.round(L);   // 조각 문자 + 디폴트 길이
-            svg += '<text x="' + (mx - nx * sw * 4.6) + '" y="' + (my - ny * sw * 4.6) + '" font-size="' + (sw * 3.6) + '" fill="#475569" text-anchor="middle" dominant-baseline="middle" font-weight="600">' + lbl + '</text>';
+            var ax0 = mx + nx * px(5), ay0 = my + ny * px(5);
+            var ax1 = mx + nx * px(22), ay1 = my + ny * px(22);
+            svg += '<line x1="' + ax0 + '" y1="' + ay0 + '" x2="' + ax1 + '" y2="' + ay1 + '" stroke="#f59e0b" stroke-width="' + px(2) + '" stroke-linecap="round"/>';
+            svg += '<line x1="' + ax1 + '" y1="' + ay1 + '" x2="' + (ax1 - nx * px(6) - ny * px(3.5)) + '" y2="' + (ay1 - ny * px(6) + nx * px(3.5)) + '" stroke="#f59e0b" stroke-width="' + px(2) + '" stroke-linecap="round"/>';
+            svg += '<line x1="' + ax1 + '" y1="' + ay1 + '" x2="' + (ax1 - nx * px(6) + ny * px(3.5)) + '" y2="' + (ay1 - ny * px(6) - nx * px(3.5)) + '" stroke="#f59e0b" stroke-width="' + px(2) + '" stroke-linecap="round"/>';
+            svg += '<text x="' + (ax1 + nx * px(8)) + '" y="' + (ay1 + ny * px(8)) + '" font-size="' + px(9) + '" fill="#d97706" text-anchor="middle" dominant-baseline="middle" font-weight="700">+1</text>';
+            // 조각 라벨은 화살표 반대쪽 (겹침 방지)
+            var lbl = String.fromCharCode(97 + i) + '=' + Math.round(L);
+            svg += '<text x="' + (mx - nx * px(15)) + '" y="' + (my - ny * px(15)) + '" font-size="' + px(10.5) + '" fill="#475569" text-anchor="middle" dominant-baseline="middle" font-weight="600">' + lbl + '</text>';
           });
           // 꺾임점 사이각 표기 — 인접 조각 방향으로부터 계산 (엔진 형상과 항상 일치)
           for (var ci = 0; ci < t.segments.length - 1; ci++) {
@@ -1137,13 +1141,12 @@
             var v2x = s2.p2.x - s2.p1.x, v2y = -(s2.p2.y - s2.p1.y), L2 = Math.hypot(v2x, v2y) || 1;
             v1x /= L1; v1y /= L1; v2x /= L2; v2y /= L2;
             var dot = Math.max(-1, Math.min(1, (-v1x) * v2x + (-v1y) * v2y));
-            var arad = Math.acos(dot), adeg = Math.round(arad * 180 / Math.PI);   // 사이각(내각)
+            var adeg = Math.round(Math.acos(dot) * 180 / Math.PI);   // 사이각(내각)
             var bx = (-v1x + v2x), by = (-v1y + v2y), bl = Math.hypot(bx, by);
             if (bl < 1e-6) continue;
-            bx /= bl; by /= bl;                                            // 코너 내각 이등분(안쪽) 방향
-            var ad = sw * 6;                                               // 외각(바깥) 방향 — 어느 형상이든 공간이 넉넉
-            var spread = ((maxx + minx) / 2 < cxp ? 1 : ((maxx + minx) / 2 > cxp ? -1 : 0)) * sw * 3.5;   // 이웃 코너 라벨과 좌우로 벌림
-            svg += '<text x="' + (cxp - bx * ad + spread) + '" y="' + (cyp - by * ad) + '" font-size="' + (sw * 3.2) + '" fill="#b45309" text-anchor="middle" dominant-baseline="middle" font-weight="700">' + adeg + '&#176;</text>';
+            bx /= bl; by /= bl;                                      // 코너 내각 이등분(안쪽) 방향
+            var spread = ((maxx + minx) / 2 < cxp ? 1 : ((maxx + minx) / 2 > cxp ? -1 : 0)) * px(11);
+            svg += '<text x="' + (cxp - bx * px(19) + spread) + '" y="' + (cyp - by * px(19)) + '" font-size="' + px(10) + '" fill="#b45309" text-anchor="middle" dominant-baseline="middle" font-weight="700">' + adeg + '&#176;</text>';
           }
           svg += '</svg>';
           h += '<div class="shape-tile">' + svg + '<div class="shape-code">' + cd.lbl + '</div></div>';
