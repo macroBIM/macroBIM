@@ -2,12 +2,12 @@
    data_bracket.js — Support bracket example data
    Registers window.PLATE_DATA; plate_builder.js renders it
    automatically. Row structure matches the Excel sheets
-   (PLATE/CUT/PLACE) — see DATA_SCHEMA.md.
+   (PLATE/CUT/ASSY) — see DATA_SCHEMA.md.
    ============================================================ */
 
 window.PLATE_DATA = {
   title: 'Plate Builder',
-  subtitle: 'Support bracket · PLATE/CUT/PLACE data · unit: mm',
+  subtitle: 'Support bracket · PLATE/CUT/ASSY data · unit: mm',
   note: 'This data is loaded from data_bracket.js. Replace it with any ' +
         'file that defines window.PLATE_DATA in the same structure.',
 
@@ -36,7 +36,7 @@ window.PLATE_DATA = {
     ['F1','CIRC',30,'','','','',  30, 30,0, '','','','']    // lug hole
   ],
 
-  PLACE: [
+  ASSY: [
     ['NO','PLATE','METHOD','PLANE','OFFSET','U','V','ANG','TO','MY_EDGE','TO_EDGE','FOLD','ALIGN','SLIDE','FLUSH','MIRROR','GROUP','REMARK'],
     ['T2-1','T2','PLANE','PLAN',   0,-125,-120,0, '','','','','','','','',      'BOX','Base plate'],
     ['S1-1','S1','EDGE','','','','','',           'T2-1','eb','eb',90,'S',-20,'IN','', 'BOX','Front side plate'],

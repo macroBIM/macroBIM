@@ -1,6 +1,6 @@
 /* ============================================================
    plate_builder.js — Plate assembly 3D engine driven by
-   PLATE / CUT / PLACE data rows (see DATA_SCHEMA.md · macroBIM/plate3d)
+   PLATE / CUT / ASSY data rows (see DATA_SCHEMA.md · macroBIM/plate3d)
 
    Usage — link-only HTML:
 
@@ -18,9 +18,10 @@
      (TRAP: B/TW/H/OF, CIRC: D)
    · CUT: polygon subtraction via polybool — holes/notches/trims in one
      path, NX·PX / NY·PY array patterns
-   · PLACE: PLANE (FRONT/SIDE/PLAN + OFFSET/U/V/ANG) or
+   · ASSY: PLANE (FRONT/SIDE/PLAN + OFFSET/U/V/ANG) or
             EDGE (attach to et/eb/el/er of a target instance with
             FOLD/ALIGN/SLIDE/FLUSH)
+     (the legacy sheet key PLACE is still accepted as an alias of ASSY)
    · 9 points: ptl ptc ptr / plm pcc prm / pbl pbc pbr
      (based on the uncut outline)
    ============================================================ */
@@ -263,7 +264,7 @@
     var inst = {};                       // NO → {matrix, pts, thk} for EDGE references
     var bbox = new THREE.Box3();
 
-    sheetToObjects(data.PLACE).forEach(function (row) {
+    sheetToObjects(data.ASSY).forEach(function (row) {
       var plate = plates[row.PLATE];
       if (!plate) { console.error(row.NO + ': unknown PLATE=' + row.PLATE); return; }
       var thk = num(plate.THK, 10);
@@ -442,16 +443,16 @@
     data = data || {};
     data.PLATE = data.PLATE || [[]];
     data.CUT = data.CUT || [[]];
-    data.PLACE = data.PLACE || [[]];
+    data.ASSY = data.ASSY || data.PLACE || [[]];   // PLACE = legacy alias
     runToken++;
     var token = runToken;
     items = [];
 
-    var empty = data.PLACE.length <= 1;
+    var empty = data.ASSY.length <= 1;
     buildDOM(data.title || 'Plate Builder',
-             data.subtitle || 'PLATE / CUT / PLACE data · unit: mm',
+             data.subtitle || 'PLATE / CUT / ASSY data · unit: mm',
              data.note || (empty
-               ? 'No data. Define PLATE/CUT/PLACE arrays as window.PLATE_DATA ' +
+               ? 'No data. Define PLATE/CUT/ASSY arrays as window.PLATE_DATA ' +
                  'or pass them to plateBuilder.run({...}) to display a model.'
                : null));
 
