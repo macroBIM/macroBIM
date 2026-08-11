@@ -1,20 +1,21 @@
 <!DOCTYPE html>
-<html lang="ko">
+<html lang="en">
 <head>
 <meta charset="utf-8">
-<title>플레이트 빌더 — 빈 시작</title>
+<title>Plate Builder — Empty Start</title>
 </head>
 <body>
 <!--
-  CodePen용 · 빈 데이터 시작 버전 — 이 4줄이 전부입니다.
-  HTML 패널에 전체 붙여넣기 하면 기본 포맷(좌: 리스트 / 우: 3D)이 뜹니다.
-  모델을 넣으려면: 이 아래에 데이터 파일 링크 한 줄 추가
-    <script src="https://cdn.jsdelivr.net/gh/macroBIM/macroBIM@7a3529d2da6cce6d6f76360b202723cafc89caa4/plate3d/data_bracket.js"></script>
-  를 plate_builder.js 줄보다 위에 넣으면 됩니다. (자신의 데이터 파일도 같은 방식)
+  CodePen version, empty start — these 4 lines are all you need.
+  Paste the whole file into the HTML panel to get the default layout
+  (left: part list / right: 3D view).
+  To load a model, add one data-file line ABOVE the plate_builder.js line:
+    <script src="https://cdn.jsdelivr.net/gh/macroBIM/macroBIM@c4c1bd0fa06c986f02df0e06d8036202fe4d4420/plate3d/data_bracket.js"></script>
+  (your own data file works the same way — it must define window.PLATE_DATA)
 -->
 <script src="https://unpkg.com/three@0.147.0/build/three.min.js"></script>
 <script src="https://unpkg.com/three@0.147.0/examples/js/controls/OrbitControls.js"></script>
 <script src="https://unpkg.com/polybooljs@1.1.0/dist/polybool.min.js"></script>
-<script src="https://cdn.jsdelivr.net/gh/macroBIM/macroBIM@7a3529d2da6cce6d6f76360b202723cafc89caa4/plate3d/plate_builder.js"></script>
+<script src="https://cdn.jsdelivr.net/gh/macroBIM/macroBIM@c4c1bd0fa06c986f02df0e06d8036202fe4d4420/plate3d/plate_builder.js"></script>
 </body>
 </html>
