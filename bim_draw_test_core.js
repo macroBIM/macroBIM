@@ -216,15 +216,17 @@
     })(0);
   }
 
-  // generic renderView: cfg = { host, bar, view3dId, render3dName, mod3d, get3dArgs, drawView }
+  // generic renderView: cfg = { host, bar, view3dId, render3dName, mod3d, get3dArgs, drawView, aspect }
   //   drawView(view, rec) fills rec (a MockViewer); returns nothing.
+  //   aspect (optional): width/height ratio for the pane (e.g. 16/9); default matches the input card.
   function mountView(cfg) {
     var host = document.getElementById(cfg.host);
     if (!host) return;
     var view = cfg.view || 'front';
     host.innerHTML = '';
     setActive(cfg.bar, view);
-    var Hpx = matchHeight();
+    host.style.width = '100%';
+    var Hpx = cfg.aspect ? Math.max(220, Math.round((host.clientWidth || 600) / cfg.aspect)) : matchHeight();
     host.style.cssText = 'width:100%;height:' + Hpx + 'px;';
     if (view === '3d') {
       var d3 = document.createElement('div');

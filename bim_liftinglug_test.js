@@ -457,6 +457,7 @@
       host: 'liftinglugplot', bar: 'lug-viewbar', view: window._lugView,
       view3dId: 'lug3d', render3dName: 'render_liftinglug_3d',
       mod3d: 'https://macrobim.github.io/macroBIM/bim_liftinglug_3d.js',
+      aspect: 16 / 9,
       get3dArgs: function () { return [dd.geo]; },
       drawView: function (view, rec) { drawLug(view, rec, dd.geo, dd.aparam, dd.weld, dd.opt); }
     });
