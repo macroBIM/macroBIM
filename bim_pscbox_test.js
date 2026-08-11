@@ -1117,8 +1117,17 @@
             svg += '<line x1="' + s.p1.x + '" y1="' + (-s.p1.y) + '" x2="' + s.p2.x + '" y2="' + (-s.p2.y) + '" stroke="#1d4ed8" stroke-width="' + sw + '" stroke-linecap="round"/>';
             var mx = (s.p1.x + s.p2.x) / 2, my = (-s.p1.y - s.p2.y) / 2;
             var ux = s.p2.x - s.p1.x, uy = -(s.p2.y - s.p1.y), L = Math.hypot(ux, uy) || 1;
+            // nor +1 방향 화살표 (주황) — 미입력 기본값. -1 입력 시 반대방향.
+            var nx = s.normal.x, ny = -s.normal.y;   // 엔진 y-up → svg y-down
+            var ax0 = mx + nx * sw * 1.4, ay0 = my + ny * sw * 1.4;
+            var ax1 = mx + nx * sw * 6.2, ay1 = my + ny * sw * 6.2;
+            svg += '<line x1="' + ax0 + '" y1="' + ay0 + '" x2="' + ax1 + '" y2="' + ay1 + '" stroke="#f59e0b" stroke-width="' + (sw * 0.85) + '" stroke-linecap="round"/>';
+            svg += '<line x1="' + ax1 + '" y1="' + ay1 + '" x2="' + (ax1 - nx * sw * 2 - ny * sw * 1.2) + '" y2="' + (ay1 - ny * sw * 2 + nx * sw * 1.2) + '" stroke="#f59e0b" stroke-width="' + (sw * 0.85) + '" stroke-linecap="round"/>';
+            svg += '<line x1="' + ax1 + '" y1="' + ay1 + '" x2="' + (ax1 - nx * sw * 2 + ny * sw * 1.2) + '" y2="' + (ay1 - ny * sw * 2 - nx * sw * 1.2) + '" stroke="#f59e0b" stroke-width="' + (sw * 0.85) + '" stroke-linecap="round"/>';
+            svg += '<text x="' + (ax1 + nx * sw * 2.4) + '" y="' + (ay1 + ny * sw * 2.4) + '" font-size="' + (sw * 2.8) + '" fill="#d97706" text-anchor="middle" dominant-baseline="middle" font-weight="700">+1</text>';
+            // 조각 라벨은 화살표 반대쪽에 배치 (겹침 방지)
             var lbl = String.fromCharCode(97 + i) + '=' + Math.round(L);   // 조각 문자 + 디폴트 길이
-            svg += '<text x="' + (mx - uy / L * sw * 4.6) + '" y="' + (my + ux / L * sw * 4.6) + '" font-size="' + (sw * 3.6) + '" fill="#475569" text-anchor="middle" dominant-baseline="middle" font-weight="600">' + lbl + '</text>';
+            svg += '<text x="' + (mx - nx * sw * 4.6) + '" y="' + (my - ny * sw * 4.6) + '" font-size="' + (sw * 3.6) + '" fill="#475569" text-anchor="middle" dominant-baseline="middle" font-weight="600">' + lbl + '</text>';
           });
           // 꺾임점 사이각 표기 — 인접 조각 방향으로부터 계산 (엔진 형상과 항상 일치)
           for (var ci = 0; ci < t.segments.length - 1; ci++) {
@@ -1139,7 +1148,11 @@
           svg += '</svg>';
           h += '<div class="shape-tile">' + svg + '<div class="shape-code">' + cd.lbl + '</div></div>';
         });
-        return h + '</div>';
+        h += '</div>';
+        h += '<div style="font-size:12px;color:#64748b;margin:-6px 0 12px;line-height:1.6;">' +
+          '<span style="color:#d97706;font-weight:700;">주황 화살표</span> = 각 조각의 <b>nor 방향 (+1, 미입력 기본값)</b> — 물리가 이 방향의 벽을 찾아 안착합니다. ' +
+          '반대방향으로 붙이려면 해당 조각에 <b>-1</b> 을 입력하세요 (예: nors b=-1). rot 입력 시 화살표도 형상과 함께 회전합니다.</div>';
+        return h;
       },
 
       // 상단 중앙 토스트 — kind: 'loading'(스피너, 유지) / 'ok'(2.5s 후 자동 숨김) / 'err'(6s)
