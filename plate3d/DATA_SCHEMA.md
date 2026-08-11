@@ -33,18 +33,28 @@
 | THK | 두께 | |
 | D | 직경 | SHAPE=CIRC 일 때만 |
 
-### 점·변 이름 (자동 부여)
+### 점·변 이름 (자동 부여) — 9점 체계
 
 ```
-        E3 (윗변)
-   P4 ┌──────────┐ P3
-  E4  │          │  E2
- (좌) │    C     │ (우)
-   P1 └──────────┘ P2
-        E1 (밑변)      E1 = P1→P2 방향
+    tl ───── tc ───── tr        변 이름: top / bot / left / right
+    │                  │
+    lm        cc       rm       top  = {tl, tc, tr}   left  = {tl, lm, bl}
+    │                  │        bot  = {bl, bc, br}   right = {tr, rm, br}
+    bl ───── bc ───── br        (꼭짓점은 이웃 변과 공유)
 ```
 
-- 꼭짓점 P1~P4 (반시계, P1=좌하 원점), 변 E1~E4, 도심 C, 변 중점 M1~M4
+| 점 | 위치 |
+|---|---|
+| tl, tr, bl, br | 실제 외곽선의 꼭짓점 (bl = P1 = 로컬 원점) |
+| tc, bc, lm, rm | 각 변의 중점 (실제 외곽선 위) |
+| cc | 도심 |
+
+부속 규칙:
+- **실제 외곽선 기준** (bbox 아님) — 오프셋 사다리꼴의 tl은 실제 꼭짓점 (OF, H), tc는 실제 윗변 중점. 판 밖 허공에 점이 생기지 않는다.
+- **삼각형(TW=0)**: tl = tc = tr 이 꼭짓점 한 점으로 겹침 (허용). 단 EDGE 방식으로 top 변에 붙이는 입력은 에러 처리.
+- **로컬 방향 고정**: top/left 등은 XY평면에 그린 정의 시점 기준. 참조 시에는 배치·회전·MIRROR 적용 후의 세계 좌표를 반환.
+- **CUT 무관**: 점은 절단 전 외곽 기준으로 고정 — 노치로 잘려나가도 bl 위치는 유지 (예측 가능, 절단 변경에 조립이 안 깨짐).
+- **원형판(CIRC)**: cc + 원주 4분원점 (top/bot/left/right 방향).
 
 ---
 
@@ -122,8 +132,8 @@ CUT 형상이 판 안쪽이면 구멍, 외곽선에 걸치면 노치/절단. 판
 | 열 | 의미 | 입력값 |
 |---|---|---|
 | TO | 붙일 대상 인스턴스 | 예: T2-1 (자기보다 위 행만) |
-| MY_EDGE | 내 판의 변 | E1~E4 |
-| TO_EDGE | 대상 판의 변 | E1~E4 |
+| MY_EDGE | 내 판의 변 | top / bot / left / right |
+| TO_EDGE | 대상 판의 변 | top / bot / left / right |
 | FOLD | 변을 힌지로 세우는 각도 | 180=같은 평면 이어붙임, 90=직각, 그 외=경사 |
 | ALIGN | 변 방향 정렬 | S(시작)/C(중앙)/E(끝), 기본 S |
 | SLIDE | 변 방향 추가 밀기 | mm |
@@ -140,9 +150,9 @@ FOLD=180 (이어붙임)          FOLD=90 (직각 세움)
 | NO | PLATE | METHOD | 입력 | 뜻 |
 |---|---|---|---|---|
 | T2-1 | T2 | PLANE | PLAN, OFFSET 0, U −125, V −120 | 바닥 수평판 |
-| S1-1 | S1 | EDGE | TO T2-1, E1→E1, FOLD 90, FLUSH OUT | 하판 앞변에 세운 전면 측판 |
-| S1-2 | S1 | EDGE | TO T2-1, E1→E3, FOLD 90, FLUSH OUT, MIRROR X | 후면 측판 |
-| B1-1 | B1 | EDGE | TO T2-1, E1→E2, FOLD 90, FLUSH OUT | 우측판 |
+| S1-1 | S1 | EDGE | TO T2-1, bot→bot, FOLD 90, FLUSH OUT | 하판 앞변에 세운 전면 측판 |
+| S1-2 | S1 | EDGE | TO T2-1, bot→top, FOLD 90, FLUSH OUT, MIRROR X | 후면 측판 |
+| B1-1 | B1 | EDGE | TO T2-1, bot→right, FOLD 90, FLUSH OUT | 우측판 |
 | T1-1 | T1 | PLANE | PLAN, OFFSET 280, U −175, V −150 | 수평 상판 |
 | C2-1 | C2 | PLANE | SIDE, OFFSET −60, U −60, V 290 | 상판 위 기둥판 |
 
