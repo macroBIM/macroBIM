@@ -1,0 +1,365 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>플레이트 조립 3D — 서포트 브래킷</title>
+<style>
+  * { margin:0; padding:0; box-sizing:border-box; }
+  html,body { width:100%; height:100%; overflow:hidden; background:#15181c; color:#d8dce2;
+              font-family:'Malgun Gothic','Apple SD Gothic Neo',sans-serif; font-size:13px; }
+  #app { display:flex; width:100%; height:100%; }
+  #sidebar { width:300px; min-width:300px; height:100%; overflow-y:auto; background:#1c2026;
+             border-right:1px solid #2c323b; padding:14px; }
+  #viewer { flex:1; height:100%; position:relative; }
+  #viewer canvas { display:block; }
+  h1 { font-size:15px; color:#fff; margin-bottom:2px; }
+  .sub { color:#8a93a0; font-size:11px; margin-bottom:12px; }
+  .btnrow { display:flex; gap:5px; flex-wrap:wrap; margin-bottom:12px; }
+  button { background:#2a3038; color:#d8dce2; border:1px solid #3a424d; border-radius:4px;
+           padding:5px 10px; cursor:pointer; font-size:12px; }
+  button:hover { background:#39424d; }
+  button.accent { background:#2b5c8a; border-color:#3a76ad; color:#fff; }
+  table { width:100%; border-collapse:collapse; margin-bottom:10px; }
+  th { text-align:left; color:#8a93a0; font-weight:normal; font-size:11px; padding:3px 2px;
+       border-bottom:1px solid #2c323b; }
+  td { padding:4px 2px; border-bottom:1px solid #23272e; vertical-align:middle; }
+  .chip { display:inline-block; width:11px; height:11px; border-radius:2px; margin-right:5px;
+          vertical-align:-1px; }
+  .dims { color:#8a93a0; font-size:11px; }
+  .flag { display:inline-block; background:#6b4a12; color:#f0c674; border-radius:3px;
+          font-size:10px; padding:0 4px; margin-left:4px; }
+  .ok   { display:inline-block; background:#1d4a2d; color:#8ec99a; border-radius:3px;
+          font-size:10px; padding:0 4px; margin-left:4px; }
+  #total { color:#fff; font-size:12px; margin:6px 0 12px; }
+  .note { background:#22262d; border:1px solid #2c323b; border-radius:5px; padding:8px;
+          font-size:11px; color:#9aa3b0; line-height:1.55; }
+  .note b { color:#f0c674; }
+  #hud { position:absolute; left:10px; bottom:8px; color:#5b6472; font-size:11px; pointer-events:none; }
+</style>
+<script src="lib/three.min.js"></script>
+<script src="lib/OrbitControls.js"></script>
+</head>
+<body>
+<div id="app">
+  <div id="sidebar">
+    <h1>플레이트 조립 3D</h1>
+    <div class="sub">서포트 브래킷 · 전판 10T · 단위 mm</div>
+    <div class="btnrow">
+      <button onclick="setView('iso')" class="accent">ISO</button>
+      <button onclick="setView('front')">정면</button>
+      <button onclick="setView('side')">측면</button>
+      <button onclick="setView('top')">평면</button>
+      <button onclick="exportSTL()">STL 저장</button>
+    </div>
+    <table id="bom">
+      <tr><th>표시</th><th>부재</th><th>중량</th></tr>
+    </table>
+    <div id="total"></div>
+    <div class="note">
+      <b>가정</b> 표시 부재는 조립도에서 정확한 위치를 확정할 수 없어
+      추정 배치한 것입니다. 위치·방향을 알려주시면 수정합니다.<br>
+      반투명 자홍색 핀은 PL F1 · PL B1의 Ø30 구멍 정렬 확인용 가상
+      부재입니다 (부재표에 없음).
+    </div>
+  </div>
+  <div id="viewer"><div id="hud">드래그: 회전 · 휠: 줌 · 우클릭 드래그: 이동</div></div>
+</div>
+
+<script>
+/* ============================================================
+   plate_assembly.html — 플레이트 조립 3D (서포트 브래킷)
+
+   좌표계: X = 정면도 좌우, Y = 높이(상방 +), Z = 깊이(정면 +)
+   원점  : 박스 평면 중심, Y=0 은 바닥판(T2)·측판(S1) 하단
+
+   부재표 (도면 판독값, 전판 10T):
+     PL C1  100×300  2EA   기둥 플레이트 (C2 사이 삽입)
+     PL C2  120×300  2EA   기둥 플레이트 (외측)
+     PL T1  350×300  1EA   상판, 레벨볼트 구멍 4-Ø22 (90/220/40 × 40/220/40)
+     PL T2  260×240  1EA   하판, 구멍 4-Ø24 (30/200/30 × 30/180/30)
+     PL S1  290×280  2EA   측판(전·후), 좌하단 노치 50×110
+     PL B1  240×280  1EA   우측판, Ø30 구멍 (하단에서 125, 중앙)
+     PL F1  240×170  1EA   러그 플레이트, Ø30 구멍 (모서리에서 30)
+     PL F2   60×240  1EA   ┐ 좌하단 브래킷 (배치 추정)
+     PL F3  240×100  1EA   ┘
+     STIFFENER 240×220 1EA 내부 보강 (배치 추정)
+     STIFFENER 290×220 1EA 내부 보강 (배치 추정)
+     LEVELING BOLT D20 F10.8 L=135 4EA
+   ============================================================ */
+
+var T = 10;                 // 공통 판두께
+var RHO = 7.85e-6;          // 강재 밀도 kg/mm^3
+
+var scene, camera, renderer, controls;
+var partGroups = [];        // {name, dims, qty, assumed, group, mass}
+
+/* ---------- 판재 지오메트리: 2D 외곽선(+원형 구멍) → 두께 압출 ---------- */
+function plateGeo(outline, holes, t) {
+    var shape = new THREE.Shape();
+    outline.forEach(function (p, i) {
+        if (i === 0) shape.moveTo(p[0], p[1]); else shape.lineTo(p[0], p[1]);
+    });
+    shape.closePath();
+    (holes || []).forEach(function (h) {
+        var path = new THREE.Path();
+        path.absarc(h[0], h[1], h[2], 0, Math.PI * 2, true);
+        shape.holes.push(path);
+    });
+    return new THREE.ExtrudeGeometry(shape, { depth: t, bevelEnabled: false, curveSegments: 32 });
+}
+
+/* 폴리곤 면적 (신발끈 공식) − 구멍, 중량 계산용 */
+function plateArea(outline, holes) {
+    var a = 0;
+    for (var i = 0; i < outline.length; i++) {
+        var p = outline[i], q = outline[(i + 1) % outline.length];
+        a += p[0] * q[1] - q[0] * p[1];
+    }
+    a = Math.abs(a) / 2;
+    (holes || []).forEach(function (h) { a -= Math.PI * h[2] * h[2]; });
+    return a;
+}
+
+/* ---------- 부재 등록 ----------
+   orient : 'XY' 수직판(법선 Z) / 'ZY' 수직판(법선 X) / 'XZ' 수평판
+   pos    : 로컬 원점(0,0,0)의 월드 좌표. 두께 방향 — XY:+Z, ZY:−X, XZ:−Y */
+function addPlate(entry, outline, holes, orient, positions) {
+    var geo = plateGeo(outline, holes, T);
+    var mat = new THREE.MeshPhongMaterial({ color: entry.color, shininess: 28 });
+    var group = new THREE.Group();
+    positions.forEach(function (pos) {
+        var mesh = new THREE.Mesh(geo, mat);
+        if (orient === 'ZY') mesh.rotation.y = -Math.PI / 2;   // 로컬 x→월드 Z, 두께→−X
+        if (orient === 'XZ') mesh.rotation.x = Math.PI / 2;    // 로컬 y→월드 Z, 두께→−Y
+        mesh.position.set(pos[0], pos[1], pos[2]);
+        group.add(mesh);
+        var edge = new THREE.LineSegments(
+            new THREE.EdgesGeometry(geo, 25),
+            new THREE.LineBasicMaterial({ color: 0x0e1013 }));
+        edge.rotation.copy(mesh.rotation);
+        edge.position.copy(mesh.position);
+        group.add(edge);
+    });
+    scene.add(group);
+    entry.group = group;
+    entry.qty = positions.length;
+    entry.mass = plateArea(outline, holes) * T * RHO;
+    partGroups.push(entry);
+}
+
+function buildAssembly() {
+
+    /* ---- PL S1 ×2 : 측판(전·후), 좌하단 노치 50×110 ---- */
+    addPlate({ name: 'PL S1', dims: '290×280 노치50×110', color: 0xc87137 },
+        [[-95, 0], [145, 0], [145, 280], [-145, 280], [-145, 110], [-95, 110]], [],
+        'XY', [[0, 0, 120], [0, 0, -130]]);
+
+    /* ---- PL B1 ×1 : 우측판, Ø30 구멍 (하단 125, 폭 중앙) ---- */
+    addPlate({ name: 'PL B1', dims: '240×280 Ø30', color: 0x4caf50 },
+        [[0, 0], [240, 0], [240, 280], [0, 280]], [[120, 125, 15]],
+        'ZY', [[145, 0, -120]]);            // x 135~145 (S1 우단과 면일치)
+
+    /* ---- PL T2 ×1 : 하판, 4-Ø24 (30/200/30 × 30/180/30) ---- */
+    addPlate({ name: 'PL T2', dims: '260×240 4-Ø24', color: 0x8d6e63 },
+        [[0, 0], [260, 0], [260, 240], [0, 240]],
+        [[30, 30, 12], [230, 30, 12], [30, 210, 12], [230, 210, 12]],
+        'XZ', [[-125, 10, -120]]);          // S1 사이, 우단은 B1 내면에 맞춤
+
+    /* ---- PL T1 ×1 : 상판, 4-Ø22 레벨볼트 구멍 (90/220/40 × 40/220/40) ---- */
+    addPlate({ name: 'PL T1', dims: '350×300 4-Ø22', color: 0x5c9bd1 },
+        [[0, 0], [350, 0], [350, 300], [0, 300]],
+        [[90, 40, 11], [310, 40, 11], [90, 260, 11], [310, 260, 11]],
+        'XZ', [[-175, 290, -150]]);         // y 280~290, 박스 중심에 배치
+
+    /* ---- 기둥 : C2(외측, 법선 X) + C1(사이, 법선 Z) = 120×120 박스 ---- */
+    addPlate({ name: 'PL C2', dims: '120×300', color: 0xd4b13e },
+        [[0, 0], [120, 0], [120, 300], [0, 300]], [],
+        'ZY', [[-50, 290, -60], [60, 290, -60]]);   // x −60~−50 / 50~60
+
+    addPlate({ name: 'PL C1', dims: '100×300', color: 0xe0e0e0 },
+        [[0, 0], [100, 0], [100, 300], [0, 300]], [],
+        'XY', [[-50, 290, 50], [-50, 290, -60]]);   // z 50~60 / −60~−50
+
+    /* ---- PL F1 ×1 : 러그, Ø30 구멍 — B1 구멍과 y=125 정렬 (위치 추정) ---- */
+    addPlate({ name: 'PL F1', dims: '240×170 Ø30', color: 0x7cb342, assumed: true },
+        [[0, 0], [240, 0], [240, 170], [0, 170]], [[30, 30, 15]],
+        'XY', [[-265, 95, -5]]);            // 좌측 개구부에서 돌출, 중앙면 배치
+
+    /* ---- PL F2 ×1 : 좌하단 선반판 (위치 추정) ---- */
+    addPlate({ name: 'PL F2', dims: '60×240', color: 0xba68c8, assumed: true },
+        [[0, 0], [60, 0], [60, 240], [0, 240]], [],
+        'XZ', [[-155, 110, -120]]);         // S1 노치 상단(y=110)과 면일치
+
+    /* ---- PL F3 ×1 : 좌하단 수직 립 (위치 추정) ---- */
+    addPlate({ name: 'PL F3', dims: '240×100', color: 0xf06292, assumed: true },
+        [[0, 0], [240, 0], [240, 100], [0, 100]], [],
+        'ZY', [[-145, 10, -120]]);          // F2 좌단 아래로 내려가는 립
+
+    /* ---- STIFFENER 240×220 : 내부 수평 다이어프램 (위치 추정) ---- */
+    addPlate({ name: 'STIFF-A', dims: '240×220', color: 0x4dd0e1, assumed: true },
+        [[0, 0], [220, 0], [220, 240], [0, 240]], [],
+        'XZ', [[-85, 230, -120]]);          // 상부, 240은 S1 내폭에 맞춤
+
+    /* ---- STIFFENER 290×220 : 전면 S1 내면 보강판 (위치 추정) ---- */
+    addPlate({ name: 'STIFF-B', dims: '290×220', color: 0x9575cd, assumed: true },
+        [[0, 0], [290, 0], [290, 220], [0, 220]], [],
+        'XY', [[-145, 0, 110]]);            // 290은 S1 폭과 동일 → 내면 부착으로 추정
+
+    /* ---- LEVELING BOLT D20 L=135 ×4 : T1 구멍 관통 ---- */
+    (function () {
+        var mat = new THREE.MeshPhongMaterial({ color: 0xe8c84a, shininess: 60 });
+        var shaft = new THREE.CylinderGeometry(10, 10, 135, 24);
+        var head = new THREE.CylinderGeometry(15, 15, 12, 6);
+        var group = new THREE.Group();
+        [[-85, -110], [-85, 110], [135, -110], [135, 110]].forEach(function (p) {
+            var s = new THREE.Mesh(shaft, mat);
+            s.position.set(p[0], 339.5, p[1]);          // y 272~407, T1 관통
+            var h = new THREE.Mesh(head, mat);
+            h.position.set(p[0], 413, p[1]);
+            group.add(s, h);
+        });
+        scene.add(group);
+        partGroups.push({ name: 'LEVEL BOLT', dims: 'D20 L135', qty: 4, group: group,
+                          mass: Math.PI * 100 * 135 * RHO });
+    })();
+
+    /* ---- 가상 핀 : F1·B1 Ø30 구멍 정렬 확인용 (부재표 외) ---- */
+    (function () {
+        var mat = new THREE.MeshPhongMaterial({ color: 0xff4fd8, transparent: true, opacity: 0.35 });
+        var pin = new THREE.Mesh(new THREE.CylinderGeometry(14, 14, 420, 24), mat);
+        pin.rotation.z = Math.PI / 2;
+        pin.position.set(-40, 125, 0);      // x −250~170, F1(−235)·B1(140) 구멍 관통
+        var group = new THREE.Group();
+        group.add(pin);
+        scene.add(group);
+        partGroups.push({ name: '(가상 핀)', dims: 'Ø28 정렬확인', qty: 1, group: group,
+                          mass: 0, assumed: true, ghost: true });
+    })();
+}
+
+/* ---------- BOM 사이드바 ---------- */
+function buildBOM() {
+    var tbl = document.getElementById('bom');
+    var total = 0;
+    partGroups.forEach(function (p, i) {
+        var m = p.mass * p.qty;
+        if (!p.ghost) total += m;
+        var tr = document.createElement('tr');
+        tr.innerHTML =
+            '<td><input type="checkbox" checked onchange="togglePart(' + i + ',this.checked)"></td>' +
+            '<td><span class="chip" style="background:#' +
+                ('000000' + (p.group.children[0].material ? p.group.children[0].material.color.getHexString() : '888')).slice(-6) +
+            '"></span>' + p.name + ' ×' + p.qty +
+            (p.assumed ? '<span class="flag">가정</span>' : '<span class="ok">확정</span>') +
+            '<div class="dims">' + p.dims + ' · 10T</div></td>' +
+            '<td class="dims">' + (p.ghost ? '–' : m.toFixed(1) + 'kg') + '</td>';
+        tbl.appendChild(tr);
+    });
+    document.getElementById('total').textContent = '총 중량 (핀 제외): ' + total.toFixed(1) + ' kg';
+}
+function togglePart(i, on) { partGroups[i].group.visible = on; }
+
+/* ---------- STL 내보내기 (월드 변환 적용) ---------- */
+function exportSTL() {
+    var out = 'solid plate_assembly\n';
+    scene.updateMatrixWorld(true);
+    partGroups.forEach(function (p) {
+        if (p.ghost || !p.group.visible) return;
+        p.group.traverse(function (obj) {
+            if (!obj.isMesh) return;
+            var geo = obj.geometry, pos = geo.getAttribute('position');
+            if (!pos) return;
+            var idx = geo.getIndex();
+            var n = idx ? idx.count / 3 : pos.count / 3;
+            for (var i = 0; i < n; i++) {
+                var a = idx ? idx.getX(i * 3) : i * 3;
+                var b = idx ? idx.getX(i * 3 + 1) : i * 3 + 1;
+                var c = idx ? idx.getX(i * 3 + 2) : i * 3 + 2;
+                var vA = new THREE.Vector3().fromBufferAttribute(pos, a).applyMatrix4(obj.matrixWorld);
+                var vB = new THREE.Vector3().fromBufferAttribute(pos, b).applyMatrix4(obj.matrixWorld);
+                var vC = new THREE.Vector3().fromBufferAttribute(pos, c).applyMatrix4(obj.matrixWorld);
+                var nrm = new THREE.Vector3().crossVectors(
+                    new THREE.Vector3().subVectors(vB, vA),
+                    new THREE.Vector3().subVectors(vC, vA)).normalize();
+                out += ' facet normal ' + nrm.x + ' ' + nrm.y + ' ' + nrm.z + '\n  outer loop\n';
+                out += '   vertex ' + vA.x + ' ' + vA.y + ' ' + vA.z + '\n';
+                out += '   vertex ' + vB.x + ' ' + vB.y + ' ' + vB.z + '\n';
+                out += '   vertex ' + vC.x + ' ' + vC.y + ' ' + vC.z + '\n';
+                out += '  endloop\n endfacet\n';
+            }
+        });
+    });
+    out += 'endsolid plate_assembly\n';
+    var link = document.createElement('a');
+    link.href = URL.createObjectURL(new Blob([out], { type: 'application/octet-stream' }));
+    link.download = 'plate_assembly.stl';
+    link.click();
+    URL.revokeObjectURL(link.href);
+}
+
+/* ---------- 뷰 ---------- */
+var CENTER = new THREE.Vector3(-40, 260, 0);
+function setView(v) {
+    var d = 1150;
+    if (v === 'front') camera.position.set(CENTER.x, CENTER.y, d);
+    if (v === 'side')  camera.position.set(d, CENTER.y, 0);
+    if (v === 'top')   camera.position.set(CENTER.x, d + 300, 0.01);
+    if (v === 'iso')   camera.position.set(640, 580, 760);
+    controls.target.copy(CENTER);
+    controls.update();
+}
+
+/* ---------- 초기화 ---------- */
+function init() {
+    var container = document.getElementById('viewer');
+    var w = container.clientWidth, h = container.clientHeight;
+
+    scene = new THREE.Scene();
+    scene.background = new THREE.Color(0x15181c);
+
+    camera = new THREE.PerspectiveCamera(40, w / h, 1, 20000);
+
+    renderer = new THREE.WebGLRenderer({ antialias: true, preserveDrawingBuffer: true });
+    renderer.setSize(w, h);
+    renderer.setPixelRatio(window.devicePixelRatio || 1);
+    container.appendChild(renderer.domElement);
+
+    scene.add(new THREE.HemisphereLight(0xf4f6fa, 0x2a2d33, 0.95));
+    var sun = new THREE.DirectionalLight(0xffffff, 0.75);
+    sun.position.set(500, 900, 650);
+    scene.add(sun);
+    var back = new THREE.DirectionalLight(0x8899bb, 0.3);
+    back.position.set(-600, 300, -500);
+    scene.add(back);
+
+    var grid = new THREE.GridHelper(1600, 32, 0x39424d, 0x242a31);
+    grid.position.y = -1;
+    scene.add(grid);
+    scene.add(new THREE.AxesHelper(220));
+
+    buildAssembly();
+    buildBOM();
+
+    controls = new THREE.OrbitControls(camera, renderer.domElement);
+    controls.enableDamping = true;
+    controls.dampingFactor = 0.1;
+    setView('iso');
+
+    window.addEventListener('resize', function () {
+        var w2 = container.clientWidth, h2 = container.clientHeight;
+        camera.aspect = w2 / h2;
+        camera.updateProjectionMatrix();
+        renderer.setSize(w2, h2);
+    });
+
+    (function animate() {
+        requestAnimationFrame(animate);
+        controls.update();
+        renderer.render(scene, camera);
+    })();
+}
+init();
+</script>
+</body>
+</html>
