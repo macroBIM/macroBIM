@@ -21,15 +21,15 @@
 <script src="https://unpkg.com/three@0.147.0/examples/js/controls/OrbitControls.js"></script>
 <script src="https://unpkg.com/polybooljs@1.1.0/dist/polybool.min.js"></script>
 <!-- 데이터 파일(선택): window.PLATE_DATA 를 정의. 없으면 빈 기본 화면 -->
-<script src="https://cdn.jsdelivr.net/gh/macroBIM/macroBIM@<커밋해시>/plate3d/data_bracket.js"></script>
-<script src="https://cdn.jsdelivr.net/gh/macroBIM/macroBIM@<커밋해시>/plate3d/plate_builder.js"></script>
+<script src="https://cdn.jsdelivr.net/gh/macroBIM/macroBIM@main/plate3d/data_bracket.js"></script>
+<script src="https://cdn.jsdelivr.net/gh/macroBIM/macroBIM@main/plate3d/plate_builder.js"></script>
 ```
 
 inline 스크립트 불필요 — 엔진이 로드되면 `window.PLATE_DATA` 를 자동 인식해 그린다.
 데이터 파일은 엔진 줄보다 **위에** 넣을 것.
 
 - 저장소가 public이라 jsDelivr(`cdn.jsdelivr.net/gh/...`)로 바로 서빙됨. raw.githubusercontent.com 은 브라우저가 스크립트 실행을 차단하므로 사용 불가.
-- 현재 브랜치명에 `/`가 있어 브랜치 URL은 안 되고 **@커밋해시**를 사용. main 병합 후에는 `@main/plate3d/plate_builder.js` 로 고정 가능 (단 jsDelivr가 브랜치 URL을 최대 12시간 캐시함 — 즉시 반영이 필요하면 커밋해시 사용).
+- `@main` 링크는 고정 — 파일을 수정해 main에 푸시하면 같은 링크가 자동으로 최신 버전을 서빙. 단 jsDelivr가 최대 12시간 캐시하므로, 즉시 반영하려면 브라우저에서 `https://purge.jsdelivr.net/gh/macroBIM/macroBIM@main/plate3d/plate_builder.js` 를 한 번 열어 캐시를 비우면 됨.
 
 ## 부재표 (도면 판독값, 전판 10T, 단위 mm)
 
