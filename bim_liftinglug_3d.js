@@ -15,6 +15,39 @@
     geo.Rcx, Rcy, Tlx/Tly/Trx/Try, arc_angb/arc_ange (degrees),
     geo.aparam (lugW, lugH, baseH, outerR, innerR, padeyeR, lugT, padeyeT).
 */
+function _exportSTL_lug(meshes, filename) {
+    var output = 'solid liftinglug\n';
+    meshes.forEach(function (mesh) {
+        var geo = mesh.geometry;
+        var pos = geo.getAttribute('position');
+        if (!pos) return;
+        var idx = geo.getIndex();
+        var triCount = idx ? idx.count / 3 : pos.count / 3;
+        for (var i = 0; i < triCount; i++) {
+            var a, b, c;
+            if (idx) { a = idx.getX(i * 3); b = idx.getX(i * 3 + 1); c = idx.getX(i * 3 + 2); }
+            else { a = i * 3; b = i * 3 + 1; c = i * 3 + 2; }
+            var vA = new THREE.Vector3(pos.getX(a), pos.getY(a), pos.getZ(a));
+            var vB = new THREE.Vector3(pos.getX(b), pos.getY(b), pos.getZ(b));
+            var vC = new THREE.Vector3(pos.getX(c), pos.getY(c), pos.getZ(c));
+            var n = new THREE.Vector3().crossVectors(
+                new THREE.Vector3().subVectors(vB, vA),
+                new THREE.Vector3().subVectors(vC, vA)).normalize();
+            output += '  facet normal ' + n.x + ' ' + n.y + ' ' + n.z + '\n    outer loop\n';
+            output += '      vertex ' + vA.x + ' ' + vA.y + ' ' + vA.z + '\n';
+            output += '      vertex ' + vB.x + ' ' + vB.y + ' ' + vB.z + '\n';
+            output += '      vertex ' + vC.x + ' ' + vC.y + ' ' + vC.z + '\n';
+            output += '    endloop\n  endfacet\n';
+        }
+    });
+    output += 'endsolid liftinglug\n';
+    var link = document.createElement('a');
+    link.href = URL.createObjectURL(new Blob([output], { type: 'application/octet-stream' }));
+    link.download = filename;
+    link.click();
+    URL.revokeObjectURL(link.href);
+}
+
 function render_liftinglug_3d(containerId, geo) {
     const container = document.getElementById(containerId);
     if (!container) return;
@@ -196,9 +229,23 @@ function render_liftinglug_3d(containerId, geo) {
     const renderer = new THREE.WebGLRenderer({ antialias: true });
     renderer.setPixelRatio(window.devicePixelRatio);
     renderer.setSize(w, h);
+    container.style.position = 'relative';
     container.appendChild(renderer.domElement);
     const controls = new THREE.OrbitControls(camera, renderer.domElement);
     controls.enableDamping = true; controls.dampingFactor = 0.1;
+
+    // STL download button (top-left)
+    const solidMeshes = [lugMesh];
+    if (pads && peDepth > 0) { solidMeshes.push(peRightMesh, peLeftMesh); }
+    if (baseMesh) solidMeshes.push(baseMesh);
+    spMeshes.forEach(function (m) { solidMeshes.push(m); });
+    const btnSTL = document.createElement('button');
+    btnSTL.textContent = 'STL';
+    btnSTL.style.cssText = 'position:absolute;top:6px;left:6px;padding:3px 8px;background:#334155;color:#94a3b8;border:1px solid #475569;border-radius:4px;font-size:11px;font-weight:600;cursor:pointer;z-index:10;';
+    btnSTL.onmouseenter = function () { btnSTL.style.background = '#2563eb'; btnSTL.style.color = '#fff'; };
+    btnSTL.onmouseleave = function () { btnSTL.style.background = '#334155'; btnSTL.style.color = '#94a3b8'; };
+    btnSTL.onclick = function () { _exportSTL_lug(solidMeshes, 'LiftingLug.stl'); };
+    container.appendChild(btnSTL);
 
     const bbox = new THREE.Box3();
     bbox.expandByObject(lugMesh);
