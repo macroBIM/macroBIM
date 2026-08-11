@@ -492,17 +492,17 @@
      { v: [0, 0, 1], c: 0x5c9bd1, label: 'Z' }].forEach(function (d) {
       axesScene.add(new THREE.ArrowHelper(v3(d.v), new THREE.Vector3(0, 0, 0), 1.6, d.c, 0.35, 0.18));
       var cv = document.createElement('canvas');
-      cv.width = cv.height = 64;
+      cv.width = cv.height = 128;
       var ctx = cv.getContext('2d');
-      ctx.font = 'bold 42px sans-serif';
+      ctx.font = 'bold 84px sans-serif';
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
       ctx.fillStyle = '#' + ('000000' + d.c.toString(16)).slice(-6);
-      ctx.fillText(d.label, 32, 34);
+      ctx.fillText(d.label, 64, 68);
       var spr = new THREE.Sprite(new THREE.SpriteMaterial({
         map: new THREE.CanvasTexture(cv), depthTest: false, transparent: true }));
       spr.position.copy(v3(d.v).multiplyScalar(2.1));
-      spr.scale.set(0.6, 0.6, 1);
+      spr.scale.set(0.9, 0.9, 1);
       axesScene.add(spr);
     });
 
