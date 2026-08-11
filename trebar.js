@@ -186,7 +186,7 @@ class Shape11 extends TrebarBase {
     generate() {
         let A = this.dims.A || 400;
         let B = this.dims.B || 400;
-        return this.buildSequential([A, B], -90, [90], [1, -1], (pts) => pts[1]);
+        return this.buildSequential([A, B], -90, [90], [-1, -1], (pts) => pts[1]);
     }
 }
 
@@ -196,7 +196,7 @@ class Shape14 extends TrebarBase {
     generate() {
         let A = this.dims.A || 400;
         let B = this.dims.B || 400;
-        return this.buildSequential([A, B], -67.5, [135], [1, -1], (pts) => pts[1]);
+        return this.buildSequential([A, B], -67.5, [135], [-1, -1], (pts) => pts[1]);
     }
 }
 
@@ -206,7 +206,7 @@ class Shape15 extends TrebarBase {
     generate() {
         let A = this.dims.A || 400;
         let B = this.dims.B || 400;
-        return this.buildSequential([A, B], -22.5, [45], [1, -1], (pts) => pts[1]);
+        return this.buildSequential([A, B], -22.5, [45], [-1, -1], (pts) => pts[1]);
     }
 }
 
@@ -220,7 +220,7 @@ class Shape21 extends TrebarBase {
             [A, B, C],
             -90,
             [90, 90],
-            [1, -1, -1],
+            [-1, -1, -1],
             (pts) => ({ x: pts[1].x + B / 2, y: pts[1].y })
         );
     }
