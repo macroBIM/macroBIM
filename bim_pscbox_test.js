@@ -66,24 +66,24 @@
 
   function ensureDeps(cb) {
     var need = [];
-    if (!hasGlobal('geo_fillet')) need.push(PAGES + 'geomath.js?v=2');
-    if (!hasGlobal('dxf_generator')) need.push(PAGES + 'bim_dxf.js?v=2');
-    if (typeof window.RWSVG === 'undefined') need.push(PAGES + 'bim_draw_test_core.js?v=3');
-    if (!hasGlobal('geo_box12cell')) need.push(PAGES + 'bim_box12cell.js?v=4');
-    if (typeof window.Calc === 'undefined') need.push(PAGES + 'calc.js?v=2');
+    if (!hasGlobal('geo_fillet')) need.push(PAGES + 'geomath.js');
+    if (!hasGlobal('dxf_generator')) need.push(PAGES + 'bim_dxf.js');
+    if (typeof window.RWSVG === 'undefined') need.push(PAGES + 'bim_draw_test_core.js');
+    if (!hasGlobal('geo_box12cell')) need.push(PAGES + 'bim_box12cell.js');
+    if (typeof window.Calc === 'undefined') need.push(PAGES + 'calc.js');
     if (typeof window.ExcelJS === 'undefined') need.push('https://cdnjs.cloudflare.com/ajax/libs/exceljs/4.3.0/exceljs.min.js');
-    if (typeof window.loadSheetData === 'undefined') need.push(PAGES + 'excel_reader.js?v=2');
-    if (!hasGlobal('EquationParser')) need.push(PAGES + 'equation.js?v=2');
-    if (!hasGlobal('TrebarFactory')) need.push(PAGES + 'trebar.js?v=3');
-    if (!hasGlobal('LRebarEngine')) need.push(PAGES + 'lrebar.js?v=2');
-    if (!hasGlobal('Physics')) need.push(PAGES + 'physics.js?v=7');
-    if (!hasGlobal('SectionBase')) need.push(PAGES + 'section.js?v=2');
-    if (!hasGlobal('Domain')) need.push(PAGES + 'domain.js?v=2');
-    if (!hasGlobal('UI')) need.push(PAGES + 'ui.js?v=2');
+    if (typeof window.loadSheetData === 'undefined') need.push(PAGES + 'excel_reader.js');
+    if (!hasGlobal('EquationParser')) need.push(PAGES + 'equation.js');
+    if (!hasGlobal('TrebarFactory')) need.push(PAGES + 'trebar.js');
+    if (!hasGlobal('LRebarEngine')) need.push(PAGES + 'lrebar.js');
+    if (!hasGlobal('Physics')) need.push(PAGES + 'physics.js');
+    if (!hasGlobal('SectionBase')) need.push(PAGES + 'section.js');
+    if (!hasGlobal('Domain')) need.push(PAGES + 'domain.js');
+    if (!hasGlobal('UI')) need.push(PAGES + 'ui.js');
     (function next(i) {
       if (i >= need.length) { cb(); return; }
       var s = document.createElement('script');
-      s.src = need[i];
+      s.src = need[i].indexOf(PAGES) === 0 ? need[i] + '?v=' + Date.now() : need[i];   // 리포 파일은 항상 최신 (CDN 은 그대로 캐시)
       s.onload = function () { next(i + 1); };
       s.onerror = function () { console.error('[pscbox] failed to load', need[i]); next(i + 1); };
       document.head.appendChild(s);
