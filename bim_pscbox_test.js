@@ -68,7 +68,7 @@
     var need = [];
     if (!hasGlobal('geo_fillet')) need.push(PAGES + 'geomath.js?v=2');
     if (!hasGlobal('dxf_generator')) need.push(PAGES + 'bim_dxf.js?v=2');
-    if (typeof window.RWSVG === 'undefined') need.push(PAGES + 'bim_draw_test_core.js?v=2');
+    if (typeof window.RWSVG === 'undefined') need.push(PAGES + 'bim_draw_test_core.js?v=3');
     if (!hasGlobal('geo_box12cell')) need.push(PAGES + 'bim_box12cell.js?v=4');
     if (typeof window.Calc === 'undefined') need.push(PAGES + 'calc.js?v=2');
     if (typeof window.ExcelJS === 'undefined') need.push('https://cdnjs.cloudflare.com/ajax/libs/exceljs/4.3.0/exceljs.min.js');
