@@ -1,34 +1,34 @@
 /* ============================================================
-   plate_builder.js — PLATE/CUT/PLACE 데이터 방식 플레이트 조립 3D 엔진
-   (DATA_SCHEMA.md 구현 · macroBIM/plate3d)
+   plate_builder.js — Plate assembly 3D engine driven by
+   PLATE / CUT / PLACE data rows (see DATA_SCHEMA.md · macroBIM/plate3d)
 
-   사용법 — HTML에서 링크만 걸고 데이터를 전달:
+   Usage — link-only HTML:
 
      <script src="https://unpkg.com/three@0.147.0/build/three.min.js"></script>
      <script src="https://unpkg.com/three@0.147.0/examples/js/controls/OrbitControls.js"></script>
      <script src="https://unpkg.com/polybooljs@1.1.0/dist/polybool.min.js"></script>
-     <script src="(이 파일의 jsDelivr URL)"></script>
-     <script>
-       plateBuilder.run({
-         title: '내 조립품',
-         PLATE: [ ['ID','SHAPE','B','TW','H','OF','D','THK','MAT'], ...행들 ],
-         CUT:   [ ['PLATE','TYPE','D','B','TW','H','OF','U','V','ANG','NX','PX','NY','PY'], ... ],
-         PLACE: [ ['NO','PLATE','METHOD','PLANE','OFFSET','U','V','ANG','TO','MY_EDGE','TO_EDGE',
-                   'FOLD','ALIGN','SLIDE','FLUSH','MIRROR','GROUP','REMARK'], ... ]
-       });
-     </script>
+     <script src="(optional data file defining window.PLATE_DATA)"></script>
+     <script src="(jsDelivr URL of this file)"></script>
 
-   · 판 정의: 로컬 XY평면, pbl=(0,0), 두께 +z (TRAP: B/TW/H/OF, CIRC: D)
-   · CUT: polybool 차집합 — 구멍/노치/절단 통합, NX·PX/NY·PY 배열 복제
-   · PLACE: PLANE(FRONT/SIDE/PLAN + OFFSET/U/V/ANG) 또는
-            EDGE(TO 인스턴스의 et/eb/el/er 변에 FOLD/ALIGN/SLIDE/FLUSH로 붙임)
-   · 점 9개: ptl ptc ptr / plm pcc prm / pbl pbc pbr (절단 전 외곽 기준)
+   On load the engine auto-runs: it renders window.PLATE_DATA if present,
+   otherwise an empty default layout. plateBuilder.run({...}) can also be
+   called directly (skips the auto-run).
+
+   · Plate definition: local XY plane, pbl=(0,0), thickness +z
+     (TRAP: B/TW/H/OF, CIRC: D)
+   · CUT: polygon subtraction via polybool — holes/notches/trims in one
+     path, NX·PX / NY·PY array patterns
+   · PLACE: PLANE (FRONT/SIDE/PLAN + OFFSET/U/V/ANG) or
+            EDGE (attach to et/eb/el/er of a target instance with
+            FOLD/ALIGN/SLIDE/FLUSH)
+   · 9 points: ptl ptc ptr / plm pcc prm / pbl pbc pbr
+     (based on the uncut outline)
    ============================================================ */
 
 (function () {
   'use strict';
 
-  var RHO = 7.85e-6;   // 강재 밀도 kg/mm^3
+  var RHO = 7.85e-6;   // steel density, kg/mm^3
   var PALETTE = [0xc87137, 0x4caf50, 0x5c9bd1, 0xd4b13e, 0xe0e0e0, 0x8d6e63,
                  0x7cb342, 0xba68c8, 0xf06292, 0x4dd0e1, 0x9575cd, 0xe8c84a,
                  0x81c784, 0x64b5f6, 0xffb74d, 0xa1887f];
@@ -37,7 +37,7 @@
     '#pb-app * { margin:0; padding:0; box-sizing:border-box; }',
     'body { background:#15181c; overflow:hidden; }',
     '#pb-app { display:flex; width:100vw; height:100vh; color:#d8dce2;',
-    "  font-family:'Malgun Gothic','Apple SD Gothic Neo',sans-serif; font-size:13px; }",
+    "  font-family:'Segoe UI','Helvetica Neue',Arial,sans-serif; font-size:13px; }",
     '#pb-side { width:300px; min-width:300px; height:100%; overflow-y:auto; background:#1c2026;',
     '  border-right:1px solid #2c323b; padding:14px; }',
     '#pb-view { flex:1; height:100%; position:relative; }',
@@ -64,11 +64,11 @@
   ].join('\n');
 
   var scene, camera, renderer, controls;
-  var CENTER = null, VDIST = 1200;                // run()에서 모델 크기로 설정
+  var CENTER = null, VDIST = 1200;                // set from model bbox in run()
   var items = [];
-  var runToken = 0;                               // 재실행(re-run) 구분용
+  var runToken = 0;                               // distinguishes re-runs
 
-  /* ---------------- 시트 파서 ---------------- */
+  /* ---------------- sheet parser ---------------- */
   function sheetToObjects(sheet) {
     var head = sheet[0];
     return sheet.slice(1).map(function (row) {
@@ -79,7 +79,7 @@
   }
   function num(v, dflt) { return (v === '' || v === undefined || v === null) ? dflt : Number(v); }
 
-  /* ---------------- 2D 기하 ---------------- */
+  /* ---------------- 2D geometry ---------------- */
   function trapOutline(B, TW, H, OF) {              // CCW
     if (TW <= 0) return [[0, 0], [B, 0], [OF, H]];
     return [[0, 0], [B, 0], [OF + TW, H], [OF, H]];
@@ -92,7 +92,7 @@
     }
     return pts;
   }
-  function rotTrans(pts, ang, dx, dy) {
+  function rotTrans(pts, ang, dx, dy) {             // rotate about (0,0), then translate
     var c = Math.cos(ang * Math.PI / 180), s = Math.sin(ang * Math.PI / 180);
     return pts.map(function (p) { return [p[0] * c - p[1] * s + dx, p[0] * s + p[1] * c + dy]; });
   }
@@ -113,7 +113,7 @@
     return inside;
   }
 
-  /* ---------------- 부재 형상: 외곽 − CUT들 ---------------- */
+  /* ---------------- plate shape: outline minus cuts ---------------- */
   function buildPlate2D(plate, cuts, plates) {
     var outline = plate.SHAPE === 'CIRC'
       ? circleOutline(num(plate.D, 0), 0, 0, 48)                       // CIRC: pcc=(0,0)
@@ -130,7 +130,7 @@
           var tw = num(c.TW, num(c.B, 0));
           cutters.push(rotTrans(trapOutline(num(c.B, 0), tw, num(c.H, 0), num(c.OF, (num(c.B, 0) - tw) / 2)),
                                 num(c.ANG, 0), u, v));
-        } else if (c.TYPE === 'REF' && plates[c.REF]) {                // 다른 PLATE 외곽 차용
+        } else if (c.TYPE === 'REF' && plates[c.REF]) {                // borrow another plate outline
           var rp = plates[c.REF];
           var ro = rp.SHAPE === 'CIRC'
             ? circleOutline(num(rp.D, 0), 0, 0, 32)
@@ -146,6 +146,7 @@
       region = PolyBool.difference(region, { regions: [cu], inverted: false });
     });
 
+    // classify rings: even containment depth = outer, odd = hole
     var rings = region.regions.filter(function (r) { return r.length >= 3; });
     var outers = [], holes = [];
     rings.forEach(function (r) {
@@ -164,7 +165,7 @@
              area: area };
   }
 
-  /* ---------------- 점·변 (절단 전 외곽, MIRROR 반영) ---------------- */
+  /* ------- named points/edges (uncut outline, MIRROR applied) ------- */
   function namedPoints(plate, mirror) {
     var p;
     function mid(a, b) { return [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2]; }
@@ -177,7 +178,7 @@
     var B = num(plate.B, 0), TW = num(plate.TW, B), H = num(plate.H, 0),
         OF = num(plate.OF, (B - TW) / 2);
     p = { pbl: [0, 0], pbr: [B, 0], ptr: [OF + TW, H], ptl: [OF, H] };
-    if (mirror) {
+    if (mirror) {                                  // mirror about bbox center, then rename
       var lo = Math.min(0, OF), hi = Math.max(B, OF + TW), m = lo + hi;
       var M = function (q) { return [m - q[0], q[1]]; };
       p = { pbl: M(p.pbr), pbr: M(p.pbl), ptl: M(p.ptr), ptr: M(p.ptl) };
@@ -188,7 +189,8 @@
              (p.pbl[1] + p.pbr[1] + p.ptr[1] + p.ptl[1]) / 4];
     return p;
   }
-  function edgeOf(pts, name) {                       // CCW: 내부가 진행방향 왼쪽
+  // edges in CCW order (interior on the left of travel direction)
+  function edgeOf(pts, name) {
     return { eb: [pts.pbl, pts.pbr], er: [pts.pbr, pts.ptr],
              et: [pts.ptr, pts.ptl], el: [pts.ptl, pts.pbl] }[name];
   }
@@ -200,17 +202,17 @@
     });
   }
 
-  /* ---------------- 배치 행렬 ---------------- */
+  /* ---------------- placement matrices ---------------- */
   var PLANE_BASIS = {
-    FRONT: { ex: [1, 0, 0],  ey: [0, 1, 0],  ez: [0, 0, 1] },   // x→X, y→Y, 두께→+Z
-    SIDE:  { ex: [0, 0, -1], ey: [0, 1, 0],  ez: [1, 0, 0] },   // x→−Z, y→Y, 두께→+X
-    PLAN:  { ex: [1, 0, 0],  ey: [0, 0, -1], ez: [0, 1, 0] }    // x→X, y→−Z, 두께→+Y
+    FRONT: { ex: [1, 0, 0],  ey: [0, 1, 0],  ez: [0, 0, 1] },   // x→X, y→Y, thickness→+Z
+    SIDE:  { ex: [0, 0, -1], ey: [0, 1, 0],  ez: [1, 0, 0] },   // x→−Z, y→Y, thickness→+X
+    PLAN:  { ex: [1, 0, 0],  ey: [0, 0, -1], ez: [0, 1, 0] }    // x→X, y→−Z, thickness→+Y
   };
   function v3(a) { return new THREE.Vector3(a[0], a[1], a[2]); }
 
   function planeMatrix(row) {
     var b = PLANE_BASIS[row.PLANE];
-    if (!b) throw new Error(row.NO + ': PLANE=' + row.PLANE + ' (FRONT/SIDE/PLAN 중 하나)');
+    if (!b) throw new Error(row.NO + ': PLANE=' + row.PLANE + ' (use FRONT/SIDE/PLAN)');
     var m = new THREE.Matrix4().makeBasis(v3(b.ex), v3(b.ey), v3(b.ez));
     m.multiply(new THREE.Matrix4().makeTranslation(num(row.U, 0), num(row.V, 0), num(row.OFFSET, 0)));
     m.multiply(new THREE.Matrix4().makeRotationZ(num(row.ANG, 0) * Math.PI / 180));
@@ -219,16 +221,16 @@
 
   function edgeMatrix(row, inst, myPts, myTHK) {
     var tgt = inst[row.TO];
-    if (!tgt) throw new Error(row.NO + ': TO=' + row.TO + ' 미정의 (앞선 행만 참조 가능)');
+    if (!tgt) throw new Error(row.NO + ': TO=' + row.TO + ' undefined (only earlier rows can be referenced)');
     var te = edgeOf(tgt.pts, row.TO_EDGE);
     if (!te) throw new Error(row.NO + ': TO_EDGE=' + row.TO_EDGE);
-    var A = v3([te[0][0], te[0][1], tgt.thk]).applyMatrix4(tgt.matrix);   // 힌지 = 대상 앞면의 변
+    var A = v3([te[0][0], te[0][1], tgt.thk]).applyMatrix4(tgt.matrix);   // hinge = edge on target front face
     var Bp = v3([te[1][0], te[1][1], tgt.thk]).applyMatrix4(tgt.matrix);
-    var n = new THREE.Vector3().setFromMatrixColumn(tgt.matrix, 2).normalize();
+    var n = new THREE.Vector3().setFromMatrixColumn(tgt.matrix, 2).normalize();  // target thickness dir
     var d = Bp.clone().sub(A), Lt = d.length(); d.normalize();
-    var out = d.clone().cross(n);                                          // 바깥쪽
+    var out = d.clone().cross(n);                                          // outward direction
 
-    var th = (180 - num(row.FOLD, 90)) * Math.PI / 180;                    // 180=이어붙임, 90=직각
+    var th = (180 - num(row.FOLD, 90)) * Math.PI / 180;                    // FOLD 180=coplanar, 90=perpendicular
     var ex = d.clone();
     var ey = out.clone().multiplyScalar(Math.cos(th))
                 .add(n.clone().multiplyScalar(Math.sin(th))).normalize();
@@ -238,7 +240,7 @@
     if (!me) throw new Error(row.NO + ': MY_EDGE=' + row.MY_EDGE);
     var s = me[0], e = me[1];
     var Lm = Math.hypot(e[0] - s[0], e[1] - s[1]);
-    if (Lm < 1e-9) throw new Error(row.NO + ': ' + row.MY_EDGE + ' 변이 퇴화 (삼각형 꼭짓점)');
+    if (Lm < 1e-9) throw new Error(row.NO + ': edge ' + row.MY_EDGE + ' is degenerate (triangle apex)');
     var phi = Math.atan2(e[1] - s[1], e[0] - s[0]);
     var r0 = new THREE.Matrix4().makeRotationZ(-phi)
                .multiply(new THREE.Matrix4().makeTranslation(-s[0], -s[1], 0));
@@ -250,20 +252,20 @@
     return new THREE.Matrix4().makeBasis(ex, ey, ez).setPosition(origin).multiply(r0);
   }
 
-  /* ---------------- 씬 구성 ---------------- */
+  /* ---------------- scene build ---------------- */
   function buildAll(data, colors) {
-    var plates = {}, cuts = sheetToObjects(data.CUT || [[]]);
+    var plates = {}, cuts = sheetToObjects(data.CUT);
     var colorSeq = 0;
     sheetToObjects(data.PLATE).forEach(function (p) {
       plates[p.ID] = p;
       if (!(p.ID in colors)) colors[p.ID] = PALETTE[colorSeq++ % PALETTE.length];
     });
-    var inst = {};
+    var inst = {};                       // NO → {matrix, pts, thk} for EDGE references
     var bbox = new THREE.Box3();
 
     sheetToObjects(data.PLACE).forEach(function (row) {
       var plate = plates[row.PLATE];
-      if (!plate) { console.error(row.NO + ': PLATE=' + row.PLATE + ' 없음'); return; }
+      if (!plate) { console.error(row.NO + ': unknown PLATE=' + row.PLATE); return; }
       var thk = num(plate.THK, 10);
       var mirror = row.MIRROR === 'X';
       var g2d = buildPlate2D(plate, cuts, plates);
@@ -303,7 +305,7 @@
       scene.add(groupObj);
 
       var dims = plate.SHAPE === 'CIRC'
-        ? 'Ø' + plate.D + '×' + thk
+        ? 'D' + plate.D + '×' + thk
         : plate.B + '×' + plate.H + '×' + thk + 'T';
       items.push({ no: row.NO, plateId: row.PLATE, group: row.GROUP || '-',
                    groupObj: groupObj, mass: g2d.area * thk * RHO,
@@ -312,7 +314,7 @@
     return bbox;
   }
 
-  /* ---------------- 좌측 리스트 ---------------- */
+  /* ---------------- sidebar list ---------------- */
   function buildList(colors) {
     var tbl = document.getElementById('pb-list');
     var total = 0, lastGroup = null;
@@ -338,7 +340,7 @@
       tbl.appendChild(tr);
     });
     document.getElementById('pb-total').textContent =
-      '부재 ' + items.length + '개 · 총 중량 ' + total.toFixed(1) + ' kg';
+      'Parts: ' + items.length + ' · Total weight: ' + total.toFixed(1) + ' kg';
   }
   function toggleItem(i, on) { items[i].groupObj.visible = on; }
   function toggleGroup(g, on) {
@@ -350,7 +352,7 @@
     });
   }
 
-  /* ---------------- STL ---------------- */
+  /* -------- STL export (world transforms applied) -------- */
   function exportSTL() {
     var out = 'solid plate_builder\n';
     scene.updateMatrixWorld(true);
@@ -387,7 +389,7 @@
     URL.revokeObjectURL(link.href);
   }
 
-  /* ---------------- 뷰 ---------------- */
+  /* ---------------- views ---------------- */
   function setView(v) {
     var d = VDIST;
     if (v === 'front') camera.position.set(CENTER.x, CENTER.y, CENTER.z + d);
@@ -398,7 +400,7 @@
     controls.update();
   }
 
-  /* ---------------- DOM 생성 + 초기화 ---------------- */
+  /* ---------------- DOM + init ---------------- */
   function buildDOM(title, subtitle, note) {
     if (!document.getElementById('pb-style')) {
       var style = document.createElement('style');
@@ -415,16 +417,16 @@
       '  <h1></h1><div class="sub"></div>' +
       '  <div class="btnrow">' +
       '    <button class="accent" onclick="plateBuilder.setView(\'iso\')">ISO</button>' +
-      '    <button onclick="plateBuilder.setView(\'front\')">정면</button>' +
-      '    <button onclick="plateBuilder.setView(\'side\')">측면</button>' +
-      '    <button onclick="plateBuilder.setView(\'top\')">평면</button>' +
-      '    <button onclick="plateBuilder.exportSTL()">STL 저장</button>' +
+      '    <button onclick="plateBuilder.setView(\'front\')">Front</button>' +
+      '    <button onclick="plateBuilder.setView(\'side\')">Side</button>' +
+      '    <button onclick="plateBuilder.setView(\'top\')">Top</button>' +
+      '    <button onclick="plateBuilder.exportSTL()">Save STL</button>' +
       '  </div>' +
       '  <table id="pb-list"></table>' +
       '  <div id="pb-total"></div>' +
       '  <div id="pb-note"></div>' +
       '</div>' +
-      '<div id="pb-view"><div id="pb-hud">드래그: 회전 · 휠: 줌 · 우클릭 드래그: 이동</div></div>';
+      '<div id="pb-view"><div id="pb-hud">Drag: rotate · Wheel: zoom · Right-drag: pan</div></div>';
     document.body.appendChild(app);
     app.querySelector('h1').textContent = title;
     app.querySelector('.sub').textContent = subtitle;
@@ -434,7 +436,7 @@
 
   function run(data) {
     if (typeof THREE === 'undefined' || typeof PolyBool === 'undefined') {
-      alert('three.js / polybooljs 라이브러리를 먼저 로드하세요.');
+      alert('Load the three.js and polybooljs libraries first.');
       return;
     }
     data = data || {};
@@ -446,11 +448,11 @@
     items = [];
 
     var empty = data.PLACE.length <= 1;
-    buildDOM(data.title || '플레이트 빌더',
-             data.subtitle || 'PLATE / CUT / PLACE 데이터 방식 · 단위 mm',
+    buildDOM(data.title || 'Plate Builder',
+             data.subtitle || 'PLATE / CUT / PLACE data · unit: mm',
              data.note || (empty
-               ? '데이터가 비어 있습니다. PLATE/CUT/PLACE 배열을 window.PLATE_DATA 로 ' +
-                 '정의하거나 plateBuilder.run({...})으로 전달하면 모델이 표시됩니다.'
+               ? 'No data. Define PLATE/CUT/PLACE arrays as window.PLATE_DATA ' +
+                 'or pass them to plateBuilder.run({...}) to display a model.'
                : null));
 
     var container = document.getElementById('pb-view');
@@ -484,7 +486,7 @@
     grid.position.y = -1;
     scene.add(grid);
 
-    /* ---- 우상단 좌표축 표시 (카메라 회전을 따라 도는 미니 gizmo) ---- */
+    /* ---- mini axis gizmo, top-right corner (follows camera rotation) ---- */
     var axesScene = new THREE.Scene();
     var axesCamera = new THREE.PerspectiveCamera(40, 1, 0.1, 100);
     [{ v: [1, 0, 0], c: 0xe05c4f, label: 'X' },
@@ -518,12 +520,12 @@
     });
 
     (function animate() {
-      if (token !== runToken) return;             // 재실행되면 이전 루프 종료
+      if (token !== runToken) return;             // stop old loop after a re-run
       requestAnimationFrame(animate);
       controls.update();
       renderer.render(scene, camera);
 
-      // 우상단 gizmo: 메인 카메라의 방향만 복사해 작은 뷰포트에 렌더
+      // gizmo: copy only the main camera orientation into a small viewport
       var gs = 110, gm = 8;
       var cw = container.clientWidth, ch = container.clientHeight;
       axesCamera.position.copy(camera.position).sub(controls.target).normalize().multiplyScalar(8.4);
@@ -546,9 +548,8 @@
     toggleItem: toggleItem, toggleGroup: toggleGroup
   };
 
-  /* ---- 자동 실행: window.PLATE_DATA 가 있으면 그 데이터로, 없으면 빈 화면 ----
-     (HTML에 링크만 있어도 기본 포맷이 뜨도록. plateBuilder.run()을 직접
-      호출한 경우에는 자동 실행하지 않음) */
+  /* ---- auto-run: use window.PLATE_DATA if present, else empty default.
+     Skipped when plateBuilder.run() was already called directly. ---- */
   function autorun() { if (!runToken) run(window.PLATE_DATA || {}); }
   if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', autorun);
