@@ -142,7 +142,7 @@
       arrow(x2, y2, (x2 - x1) / dl, (y2 - y1) / dl, DIM);
     });
 
-    var bg = 'background:linear-gradient(#e2e8f0 1px,transparent 1px) 0 0/26px 26px,linear-gradient(90deg,#e2e8f0 1px,transparent 1px) 0 0/26px 26px,#fff;';
+    var bg = 'background:#fff;';   // 그리드 제거 — 흰 배경만
     return '<svg width="' + cW + '" height="' + cH + '" viewBox="0 0 ' + cW + ' ' + cH + '" style="display:block;' + bg + '">' + e.join('') + '</svg>';
   }
 
