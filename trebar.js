@@ -171,7 +171,7 @@ class TrebarBase {
 // --- Shape 클래스들 ---
 class Shape01 extends TrebarBase {
     generate() {
-        let A = this.dims.A || 1000;
+        let A = this.dims.A || 400;
         return this.buildSequential(
             [A],
             0,
@@ -228,11 +228,11 @@ class Shape21 extends TrebarBase {
 
 class Shape41 extends TrebarBase {
     generate() {
-        let A = this.dims.A || 300;
-        let B = this.dims.B || 1000;
-        let C = this.dims.C || 300;
-        let D = this.dims.D || 1000;
-        let E = this.dims.E || 300;
+        let A = this.dims.A || 400;
+        let B = this.dims.B || 400;
+        let C = this.dims.C || 400;
+        let D = this.dims.D || 400;
+        let E = this.dims.E || 400;
 
         return this.buildSequential(
             [A, B, C, D, E],
