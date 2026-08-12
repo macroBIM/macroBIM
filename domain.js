@@ -272,7 +272,15 @@ const Domain = {
             const trebar = item.obj;
             Physics.updatePhysics(trebar, Domain.currentSection.walls, Domain.wallStack);
             if (trebar.state === "FORMED") {
-                Domain._accumulateStack(trebar.dia || 0, Domain._collectTrebarWalls(trebar));
+                const hitWalls = Domain._collectTrebarWalls(trebar);
+                // 적층 진단 로그 — 세그별 안착 벽 + 적층 후 각 벽의 누적 두께
+                const segInfo = trebar.segments.map(s => {
+                    const w = s.fitWall || s.anchorWall || s.contactWall;
+                    return s.label + '=' + ((w && w.id) || '?');
+                }).join(', ');
+                Domain._accumulateStack(trebar.dia || 0, hitWalls);
+                const stackInfo = Array.from(hitWalls).map(id => id + ':' + Domain.wallStack[id]).join(', ');
+                console.log('[STACK] ' + (trebar.id || '?') + ' (dia ' + (trebar.dia || 0) + ') 세그[' + segInfo + '] → 적층 {' + stackInfo + '}');
                 Domain.activeQueueIndex++;
             }
         } else if (item.kind === "lrebar") {
