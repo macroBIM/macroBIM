@@ -507,6 +507,20 @@
     }
     return a / 2;
   }
+  function polyCentroid(ring) {          // area-weighted centroid (circle -> centre)
+    var a = 0, cx = 0, cy = 0;
+    for (var i = 0; i < ring.length; i++) {
+      var p = ring[i], q = ring[(i + 1) % ring.length];
+      var f = p[0] * q[1] - q[0] * p[1];
+      a += f; cx += (p[0] + q[0]) * f; cy += (p[1] + q[1]) * f;
+    }
+    if (Math.abs(a) < 1e-9) {            // degenerate -> average of vertices
+      var sx = 0, sy = 0;
+      ring.forEach(function (p) { sx += p[0]; sy += p[1]; });
+      return [sx / ring.length, sy / ring.length];
+    }
+    return [cx / (3 * a), cy / (3 * a)];
+  }
   function pointInRing(pt, ring) {
     var x = pt[0], y = pt[1], inside = false;
     for (var i = 0, j = ring.length - 1; i < ring.length; j = i++) {
@@ -520,7 +534,7 @@
   function buildPlate2D(spec, cuts, plates) {
     var outline = outlineOf(spec);
 
-    var cutters = [];
+    var cutters = [], feats = [];               // feats: centre of every cut instance
     var basePts = namedPoints(spec, false);       // cut coords are measured from REFPT
     cuts.filter(function (c) { return c.PLATE === spec.ID; }).forEach(function (c) {
       var anchor = basePts[c.REFPT || (c.__xlCut ? 'pbc' : 'pbl')] || [0, 0];
@@ -536,15 +550,19 @@
           uvs.push([anchor[0] + num(c.U, 0) + ix * px, anchor[1] + num(c.V, 0) + iy * py]);
       }
       uvs.forEach(function (uv) {
-        var u = uv[0], v = uv[1];
-        if (c.TYPE === 'CIRC') cutters.push(circleOutline(num(c.D, 0), u, v, 32));
+        var u = uv[0], v = uv[1], ring = null, kind = 'cut';
+        if (c.TYPE === 'CIRC') { ring = circleOutline(num(c.D, 0), u, v, 32); kind = 'hole'; }
         else if (c.TYPE === 'TRAP') {
           var tw = num(c.TW, num(c.B, 0));
-          cutters.push(rotTrans(trapOutline(num(c.B, 0), tw, num(c.H, 0), num(c.OF, (num(c.B, 0) - tw) / 2)),
-                                num(c.ANG, 0), u, v));
+          ring = rotTrans(trapOutline(num(c.B, 0), tw, num(c.H, 0), num(c.OF, (num(c.B, 0) - tw) / 2)),
+                          num(c.ANG, 0), u, v);
         } else if (c.TYPE === 'REF' && plates[c.REF]) {                // borrow another plate outline
-          cutters.push(rotTrans(outlineOf(plates[c.REF]), num(c.ANG, 0), u, v));
+          ring = rotTrans(outlineOf(plates[c.REF]), num(c.ANG, 0), u, v);
         }
+        if (!ring) return;
+        cutters.push(ring);
+        var ct = polyCentroid(ring);
+        feats.push({ x: ct[0], y: ct[1], kind: kind });
       });
     });
 
@@ -569,6 +587,7 @@
              holes: outers.map(function (o) {
                return holes.filter(function (h) { return pointInRing(h[0], o); });
              }),
+             feats: feats,
              area: area };
   }
 
@@ -982,12 +1001,24 @@
       esc(dims) + ' &middot; cuts ' + ncut +
       (spec.MAT ? ' &middot; ' + esc(spec.MAT) : '') +
       ' &middot; ' + (g.area * spec.THK * RHO).toFixed(3) + ' kg' +
-      ' &nbsp;&nbsp;<span style="color:#5b6472">(+ = 9 reference points &middot; grid ' +
-      step + 'mm)</span>';
+      ' &nbsp;&nbsp;<span style="color:#5b6472">(+ = 9 reference points &amp; cut centres ' +
+      '&middot; grid ' + step + 'mm)</span>';
     pvPts = [];
     ['ptl', 'ptc', 'ptr', 'plm', 'pcc', 'prm', 'pbl', 'pbc', 'pbr'].forEach(function (k) {
       var a = pts[k];
       if (a) pvPts.push({ name: k.slice(1), x: a[0], y: a[1] });
+    });
+    var nk = {};
+    (g.feats || []).forEach(function (f) {          // centre of each cut (hole/notch)
+      nk[f.kind] = (nk[f.kind] || 0) + 1;
+      pvPts.push({ name: f.kind + nk[f.kind], x: f.x, y: f.y });
+      var px = mx(f.x), py = my(f.y);
+      ctx.strokeStyle = '#7f8b9c';
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.moveTo(px - 3.5, py); ctx.lineTo(px + 3.5, py);
+      ctx.moveTo(px, py - 3.5); ctx.lineTo(px, py + 3.5);
+      ctx.stroke();
     });
     if (!pvBase) pvBase = document.createElement('canvas');
     pvBase.width = W; pvBase.height = H;
