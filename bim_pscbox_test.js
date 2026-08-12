@@ -80,6 +80,12 @@
     if (!hasGlobal('SectionBase')) need.push(PAGES + 'section.js');
     if (!hasGlobal('Domain')) need.push(PAGES + 'domain.js');
     if (!hasGlobal('UI')) need.push(PAGES + 'ui.js');
+    // 개발 중 엔진 파일이 캐시에 물려 옛 동작이 남는 것을 막는다 (레이아웃의 pscbox 로더와 동일 방식)
+    var bust = 'v=' + Date.now();
+    need = need.map(function (u) {
+      if (u.indexOf('cdnjs') >= 0 || u.indexOf('cdn.jsdelivr') >= 0) return u;   // 외부 CDN 은 그대로
+      return u + (u.indexOf('?') >= 0 ? '&' : '?') + bust;
+    });
     (function next(i) {
       if (i >= need.length) { cb(); return; }
       var s = document.createElement('script');

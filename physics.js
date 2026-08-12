@@ -418,22 +418,52 @@ const Physics = {
                     }
                     return cross;
                 };
-                // 바 축을 따라 콘크리트를 벗어나는 지점까지 전진 → 그 면의 피복만큼 후퇴.
-                // 단면 밖으로 나가는 일도, 조각 경계에서 조기에 끊기는 일도 없다.
+                // 안착 지점의 실제 여유 — 지지면(피복선)에 닿아 있으므로 이 값이 기준이 된다.
+                let clearAt = (px, py) => {
+                    let m = Infinity;
+                    for (let wi = 0; wi < walls.length; wi++) {
+                        let w = walls[wi];
+                        let dd = segDist(px, py, w.x1, w.y1, w.x2, w.y2);
+                        if (dd < m) m = dd;
+                    }
+                    return m;
+                };
+                let baseClear = clearAt(mid.x, mid.y);
+                // 모든 면에 대해 '그 면의 요구 피복'과 '안착 여유' 중 작은 값 이상을 유지.
+                //  · 셀 바닥에 앉은 바 : 헌치가 솟아오르며 여유가 줄어드는 지점에서 정지
+                //  · 데크 바 : 천장·캔틸레버 하면이 같은 높이라 여유가 그대로 → 계속 진행
+                let clearOK = (px, py) => {
+                    for (let wi = 0; wi < walls.length; wi++) {
+                        let w = walls[wi];
+                        let need = Physics.getWallCoverValue(w) + (wallStack[w.id] || 0) + dia / 2;
+                        // 바와 나란한 면(지지면·천장)은 안착 여유까지만 요구 — 단면 자체가 그
+                        // 이상 줄 수 없는 경우 중간에서 잘리지 않게. 마주 보는 끝면은 규정 피복 그대로.
+                        if (Math.abs(w.nx * u.x + w.ny * u.y) <= 0.5 && need > baseClear) need = baseClear;
+                        if (segDist(px, py, w.x1, w.y1, w.x2, w.y2) < need - 1.0) return false;
+                    }
+                    return true;
+                };
+                // 축을 따라 전진 : 콘크리트를 벗어나거나(→ 그 면의 피복만큼 후퇴)
+                //                  지지면 여유가 줄어들면(→ 그 지점에서 정지) 종료
                 let reach = (dSign) => {
                     let dx = u.x * dSign, dy = u.y * dSign;
                     const STEP = 25, LIMIT = 60000;
-                    let good = 0, hit = false;
+                    let good = 0, exited = false, stopped = false;
                     for (let s = STEP; s <= LIMIT; s += STEP) {
-                        if (!inside(mid.x + dx * s, mid.y + dy * s)) { hit = true; break; }
+                        let px = mid.x + dx * s, py = mid.y + dy * s;
+                        if (!inside(px, py)) { exited = true; break; }
+                        if (!clearOK(px, py)) { stopped = true; break; }
                         good = s;
                     }
-                    if (!hit) return good;
-                    let a = good, b = good + STEP;
+                    if (!exited && !stopped) return good;
+                    let a = good, b = good + STEP, test = exited
+                        ? function (m) { return inside(mid.x + dx * m, mid.y + dy * m); }
+                        : function (m) { return clearOK(mid.x + dx * m, mid.y + dy * m); };
                     for (let it = 0; it < 14; it++) {                 // 경계 1mm 이내
                         let m = (a + b) / 2;
-                        if (inside(mid.x + dx * m, mid.y + dy * m)) a = m; else b = m;
+                        if (test(m)) a = m; else b = m;
                     }
+                    if (!exited) return a;                            // 피복 여유로 멈춤 → 추가 후퇴 없음
                     let ex = mid.x + dx * a, ey = mid.y + dy * a;     // 콘크리트 경계 지점
                     let near = null, nd2 = Infinity;
                     for (let wi = 0; wi < walls.length; wi++) {
