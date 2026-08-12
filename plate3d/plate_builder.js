@@ -96,7 +96,7 @@
   var scene, camera, renderer, controls;
   var lastPlates = {}, lastCuts = [], lastColors = {}, lastParts = {};  // for preview modals
   var pvToken = 0, pvRenderer = null;   // 3D preview lifecycle
-  var pvX = null;                       // 2D preview transform (for cursor readout)
+  var pvX = null, pvPts = [], pvBase = null;   // 2D preview: transform, snap points, base image
   var CENTER = null, VDIST = 1200;                // set from model bbox in run()
   var items = [];
   var runToken = 0;                               // distinguishes re-runs
@@ -213,7 +213,7 @@
       } else if (kw === 'CUT') {          // CUT [plateID] [refPt] TYPE ...
         function isCutType(x) { return x === 'RECT' || x === 'CIRC' || x === 'PLATE'; }
         var sub = str(v[0]).toUpperCase();
-        var target = current, refpt = 'pbl';
+        var target = current, refpt = 'pbc';   // default = plate local origin
         if (!isCutType(sub)) {
           var tp = resolvePlate(sub);     // 2nd cell = target plate
           if (tp) { target = tp; v = v.slice(1); sub = str(v[0]).toUpperCase(); }
@@ -224,7 +224,7 @@
           sub = str(v[0]).toUpperCase();
         }
         if (!target) { warn('row ' + (r + 1) + ': CUT before any PLATE'); continue; }
-        var c = { PLATE: target, REFPT: refpt };
+        var c = { PLATE: target, REFPT: refpt, __xlCut: true };
         if (sub === 'RECT') {
           c.TYPE = 'TRAP'; c.B = num(v[1], 0); c.TW = c.B; c.H = num(v[2], 0); c.OF = 0;
           c.U = num(v[3], 0); c.V = num(v[4], 0); c.ANG = num(v[5], 0);
@@ -453,9 +453,14 @@
     return spec;
   }
 
+  // local origin of a plate is pbc (bottom centre); bars/circles stay centred
+  function xShift(spec) {
+    return spec.SHAPE === 'CIRC' ? 0 : num(spec.OFF_B, 0) + num(spec.WB, 0) / 2;
+  }
   function cornersOf(spec) {
-    return { pbl: [spec.OFF_B, 0], pbr: [spec.OFF_B + spec.WB, 0],
-             ptr: [spec.OFF_T + spec.WT, spec.H], ptl: [spec.OFF_T, spec.H] };
+    var d = xShift(spec);
+    return { pbl: [spec.OFF_B - d, 0], pbr: [spec.OFF_B + spec.WB - d, 0],
+             ptr: [spec.OFF_T + spec.WT - d, spec.H], ptl: [spec.OFF_T - d, spec.H] };
   }
   function outlineOf(spec) {                       // CCW
     if (spec.SHAPE === 'CIRC') return circleOutline(spec.D, 0, 0, 48);   // CIRC: pcc=(0,0)
@@ -464,8 +469,9 @@
     return [c.pbl, c.pbr, c.ptr, c.ptl];
   }
   function mirrorAxisOf(spec) {                    // bbox center ×2 (for x → m − x)
-    var lo = Math.min(spec.OFF_B, spec.OFF_T);
-    var hi = Math.max(spec.OFF_B + spec.WB, spec.OFF_T + spec.WT);
+    var d = xShift(spec);
+    var lo = Math.min(spec.OFF_B, spec.OFF_T) - d;
+    var hi = Math.max(spec.OFF_B + spec.WB, spec.OFF_T + spec.WT) - d;
     return lo + hi;
   }
 
@@ -510,7 +516,7 @@
     var cutters = [];
     var basePts = namedPoints(spec, false);       // cut coords are measured from REFPT
     cuts.filter(function (c) { return c.PLATE === spec.ID; }).forEach(function (c) {
-      var anchor = (c.REFPT && basePts[c.REFPT]) || [0, 0];
+      var anchor = basePts[c.REFPT || (c.__xlCut ? 'pbc' : 'pbl')] || [0, 0];
       // positions: 1D repeat (N/DX/DY, Excel grammar) or NX·PX/NY·PY grid
       var uvs = [];
       if (c.N !== undefined) {
@@ -971,6 +977,14 @@
       ' &middot; ' + (g.area * spec.THK * RHO).toFixed(3) + ' kg' +
       ' &nbsp;&nbsp;<span style="color:#5b6472">(+ = 9 reference points &middot; grid ' +
       step + 'mm)</span>';
+    pvPts = [];
+    ['ptl', 'ptc', 'ptr', 'plm', 'pcc', 'prm', 'pbl', 'pbc', 'pbr'].forEach(function (k) {
+      var a = pts[k];
+      if (a) pvPts.push({ name: k.slice(1), x: a[0], y: a[1] });
+    });
+    if (!pvBase) pvBase = document.createElement('canvas');
+    pvBase.width = W; pvBase.height = H;
+    pvBase.getContext('2d').drawImage(cv, 0, 0);   // snapshot for cheap hover redraws
     document.getElementById('pb-pv-pos').innerHTML = '&nbsp;';
     modal.style.display = 'flex';
   }
@@ -1391,13 +1405,43 @@
       var sy = (e.clientY - r.top) * pvCv.height / r.height;
       var x = pvX.minx + (sx - pvX.ox) / pvX.sc;
       var y = pvX.miny + (pvX.H - pvX.oy - sy) / pvX.sc;
-      document.getElementById('pb-pv-pos').innerHTML =
-        'cursor &nbsp;X <b style="color:#d8dce2">' + x.toFixed(1) +
-        '</b> &nbsp; Y <b style="color:#d8dce2">' + y.toFixed(1) + '</b> mm';
+
+      var snap = null, best = 13 * 13;             // snap radius in pixels
+      pvPts.forEach(function (p) {
+        var px = pvX.ox + (p.x - pvX.minx) * pvX.sc;
+        var py = pvX.H - pvX.oy - (p.y - pvX.miny) * pvX.sc;
+        var d2 = (px - sx) * (px - sx) + (py - sy) * (py - sy);
+        if (d2 < best) { best = d2; snap = { p: p, px: px, py: py }; }
+      });
+
+      var ctx2 = pvCv.getContext('2d');
+      if (pvBase) { ctx2.clearRect(0, 0, pvX.W, pvX.H); ctx2.drawImage(pvBase, 0, 0); }
+      if (snap) {                                   // highlight the snapped point
+        ctx2.strokeStyle = '#f0c674';
+        ctx2.lineWidth = 1.5;
+        ctx2.beginPath();
+        ctx2.arc(snap.px, snap.py, 7, 0, Math.PI * 2);
+        ctx2.stroke();
+        ctx2.fillStyle = '#f0c674';
+        ctx2.beginPath();
+        ctx2.arc(snap.px, snap.py, 2.5, 0, Math.PI * 2);
+        ctx2.fill();
+      }
+      var el = document.getElementById('pb-pv-pos');
+      el.innerHTML = snap
+        ? '<span style="color:#f0c674">snap ' + snap.p.name + '</span> &nbsp;X <b style="color:#f0c674">' +
+          snap.p.x.toFixed(1) + '</b> &nbsp; Y <b style="color:#f0c674">' + snap.p.y.toFixed(1) + '</b> mm'
+        : 'cursor &nbsp;X <b style="color:#d8dce2">' + x.toFixed(1) +
+          '</b> &nbsp; Y <b style="color:#d8dce2">' + y.toFixed(1) + '</b> mm';
     });
     pvCv.addEventListener('mouseleave', function () {
       var el = document.getElementById('pb-pv-pos');
       if (el) el.innerHTML = '&nbsp;';
+      if (pvBase && pvX) {
+        var c2 = pvCv.getContext('2d');
+        c2.clearRect(0, 0, pvX.W, pvX.H);
+        c2.drawImage(pvBase, 0, 0);
+      }
     });
     app.querySelector('h1').textContent = title;
     app.querySelector('.sub').textContent = subtitle;
