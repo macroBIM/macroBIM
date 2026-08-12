@@ -294,11 +294,16 @@
         warn('row ' + (r + 1) + ': unknown keyword ' + kw);
       }
     }
+    if (!assy.length && (Object.keys(plates).length || Object.keys(parts).length)) {
+      warn('no ASSY row — nothing is placed. Add e.g. "ASSY <module or plate id> XY o 0 0 0 0"');
+    }
     Object.keys(parts).forEach(function (id) {
       if (!parts[id].pos.length) warn('MODULE ' + id + ': has no POS rows');
       else if (!parts[id].base) warn('MODULE ' + id + ': BASE not defined — using local origin (0,0)');
       else if (!parts[id].pos.some(function (p) { return p.NO === parts[id].base.inst; }))
         warn('MODULE ' + id + ': BASE instance ' + parts[id].base.inst + ' not found among POS rows — using local origin');
+      if (assy.length && !assy.some(function (a) { return a.PART === id; }))
+        warn('MODULE ' + id + ': defined but never used in an ASSY row');
     });
     return { plates: plates, parts: parts, cuts: cuts, assy: assy, log: log, counts: counts };
   }
