@@ -20,6 +20,8 @@
 <script src="https://unpkg.com/three@0.147.0/build/three.min.js"></script>
 <script src="https://unpkg.com/three@0.147.0/examples/js/controls/OrbitControls.js"></script>
 <script src="https://unpkg.com/polybooljs@1.1.0/dist/polybool.min.js"></script>
+<!-- 엑셀 읽기(선택): Load Excel / 드래그&드롭 기능을 쓰려면 필요 -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/exceljs/4.3.0/exceljs.min.js"></script>
 <!-- 데이터 파일(선택): window.PLATE_DATA 를 정의. 없으면 빈 기본 화면 -->
 <script src="https://cdn.jsdelivr.net/gh/macroBIM/macroBIM@main/plate3d/data_bracket.js"></script>
 <script src="https://cdn.jsdelivr.net/gh/macroBIM/macroBIM@main/plate3d/plate_builder.js"></script>

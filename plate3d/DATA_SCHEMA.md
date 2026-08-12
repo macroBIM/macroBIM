@@ -183,7 +183,33 @@ FOLD=180 (이어붙임)          FOLD=90 (직각 세움)
 
 ---
 
-## 4. 처리 파이프라인
+## 4. 엑셀 입력 (단일 시트 · 키워드 방식)
+
+한 시트에 키워드 행으로 순차 입력한다. `Load Excel` 버튼 또는 화면에 .xlsx 드래그&드롭.
+
+**공통 규칙**
+- 행 첫 글자가 `#` 또는 `!` 이면 주석 (무시)
+- `END` 키워드가 나올 때까지가 유효한 입력
+- 대소문자 구분 없음 — 내부에서 대문자로 변환해 처리
+- 필요 CDN: `https://cdnjs.cloudflare.com/ajax/libs/exceljs/4.3.0/exceljs.min.js`
+
+| 키워드 | 값 (순서대로) | 설명 |
+|---|---|---|
+| PLATE | ID, WT, WB, H, OFF_T, OFF_B, THK, MAT | 사다리꼴 (값 7개 이상이면 사다리꼴로 판별) |
+| PLATE | ID, B, H, THK, MAT | 사각형 |
+| BAR | ID, Dia, Length | 원기둥 (볼트 등) |
+| CUT | RECT, B, H, L.X, L.Y, L.ROT, dx, dy, repeat | 직전 PLATE/BAR 에 사각 구멍/노치 |
+| CUT | CIRC, D, L.X, L.Y, L.ROT, dx, dy, repeat | 원형 구멍 |
+| CUT | PLATE, ID, L.X, L.Y, L.ROT, dx, dy, repeat | 다른 PLATE 외곽 형상으로 빼기 |
+| ASSY | ID, PLANE, Ref.Pt, L.X, L.Y, L.ROT, OFFSET | 배치 |
+| END | | 입력 종료 |
+
+- **CUT은 바로 위에서 정의한 PLATE/BAR에 적용** (정의 → 절단 → 다음 부재 순서로 작성)
+- CUT 위치: CIRC는 중심, RECT/PLATE는 좌하단 기준. dx/dy/repeat = 배열 복제 (피치 벡터 × 개수)
+- ASSY의 PLANE: XY(정면)/YZ(측면)/XZ(수평), Ref.Pt: tl~br·cc (p 접두사 있어도 인식)
+  — 부재의 Ref.Pt 점이 평면 내 (L.X, L.Y)에 오도록 배치, L.ROT는 그 점 기준 면내 회전, OFFSET은 법선 방향 거리
+
+## 5. 처리 파이프라인
 
 ```
 엑셀(.xlsx: PLATE/CUT/ASSY 3시트)
