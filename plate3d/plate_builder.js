@@ -91,6 +91,9 @@
     '  padding:14px; box-shadow:0 8px 30px rgba(0,0,0,.5); }',
     '#pb-modal h2 { font-size:14px; color:#fff; margin:0 0 8px; }',
     '#pb-modal .close { float:right; cursor:pointer; color:#8a93a0; padding:0 4px; }',
+    '#pb-modal .pvchk { float:right; font-size:11px; font-weight:normal; color:#8a93a0;',
+    '  cursor:pointer; margin-right:12px; display:flex; align-items:center; gap:4px; }',
+    '#pb-modal .pvchk:hover { color:#d8dce2; }',
     '#pb-modal .close:hover { color:#fff; }',
     '#pb-modal canvas { background:#15181c; border:1px solid #2c323b; border-radius:4px;',
     '  display:block; }',
@@ -1009,6 +1012,7 @@
     var ncut = lastCuts.filter(function (c) { return c.PLATE === id; }).length;
     stopPreview3D();
     pvModuleId = null;
+    document.getElementById('pb-pv-flat').parentNode.style.display = 'none';
     cv.style.display = 'block';
     document.getElementById('pb-pv3d').style.display = 'none';
     document.getElementById('pb-pv-title').textContent = id;
@@ -1075,6 +1079,47 @@
     });
   }
 
+  function buildGizmo() {                       // small axis indicator (camera-synced)
+    var scn = new THREE.Scene();
+    var cam = new THREE.PerspectiveCamera(40, 1, 0.1, 100);
+    [{ v: [1, 0, 0], c: 0xe05c4f, label: 'X' },
+     { v: [0, 1, 0], c: 0x6fc36f, label: 'Y' },
+     { v: [0, 0, 1], c: 0x5c9bd1, label: 'Z' }].forEach(function (d) {
+      scn.add(new THREE.ArrowHelper(v3(d.v), new THREE.Vector3(0, 0, 0), 1.6, d.c, 0.35, 0.18));
+      var cv = document.createElement('canvas');
+      cv.width = cv.height = 128;
+      var ctx = cv.getContext('2d');
+      ctx.font = 'bold 84px sans-serif';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillStyle = '#' + ('000000' + d.c.toString(16)).slice(-6);
+      ctx.fillText(d.label, 64, 68);
+      var spr = new THREE.Sprite(new THREE.SpriteMaterial({
+        map: new THREE.CanvasTexture(cv), depthTest: false, transparent: true }));
+      spr.position.copy(v3(d.v).multiplyScalar(2.1));
+      spr.scale.set(0.9, 0.9, 1);
+      scn.add(spr);
+    });
+    return { scene: scn, camera: cam };
+  }
+
+  // draw the gizmo into the top-right corner of a renderer's canvas
+  function drawGizmo(rn, gz, mainCam, target, w, h, gs) {
+    var m = 8;
+    gz.camera.position.copy(mainCam.position).sub(target).normalize().multiplyScalar(8.4);
+    gz.camera.up.copy(mainCam.up);
+    gz.camera.lookAt(0, 0, 0);
+    rn.autoClear = false;
+    rn.setScissorTest(true);
+    rn.setViewport(w - gs - m, h - gs - m, gs, gs);
+    rn.setScissor(w - gs - m, h - gs - m, gs, gs);
+    rn.clearDepth();
+    rn.render(gz.scene, gz.camera);
+    rn.setScissorTest(false);
+    rn.setViewport(0, 0, w, h);
+    rn.autoClear = true;
+  }
+
   function makeLabel(text, color, h) {          // canvas text as a camera-facing sprite
     var pad = 6, fs = 42;
     var cv = document.createElement('canvas');
@@ -1095,31 +1140,6 @@
     return spr;
   }
 
-  // dimension line between two points, offset along dir, with the length as text
-  function dimLine(scn, a, b, dir, off, size, color) {
-    var A = a.clone().add(dir.clone().multiplyScalar(off));
-    var B = b.clone().add(dir.clone().multiplyScalar(off));
-    var mat = new THREE.LineBasicMaterial({ color: color, depthTest: false });
-    var tick = dir.clone().multiplyScalar(size * 0.02);
-    [[a, A.clone().add(tick)], [b, B.clone().add(tick)], [A, B]].forEach(function (seg) {
-      scn.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints([seg[0], seg[1]]), mat));
-    });
-    var arrow = size * 0.022;
-    var d = B.clone().sub(A).normalize();
-    [[A, d], [B, d.clone().negate()]].forEach(function (e) {
-      var tip = e[0], u = e[1];
-      var side = dir.clone().multiplyScalar(arrow * 0.45);
-      var back = tip.clone().add(u.clone().multiplyScalar(arrow));
-      scn.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints(
-        [tip, back.clone().add(side), back.clone().sub(side), tip]), mat));
-    });
-    var len = b.clone().sub(a).length();
-    var lab = makeLabel(Math.round(len) + '', color === 0xf0c674 ? '#f0c674' : '#9aa3b0', size * 0.042);
-    lab.position.copy(A.clone().add(B).multiplyScalar(0.5)
-      .add(dir.clone().multiplyScalar(size * 0.038)));
-    scn.add(lab);
-  }
-
   function stopPreview3D() {
     pvToken++;
     if (pvRenderer) {
@@ -1138,6 +1158,8 @@
     if (!modal || !host) return;
     stopPreview3D();
     pvModuleId = id;
+    document.getElementById('pb-pv-flat').checked = flatMode;
+    document.getElementById('pb-pv-flat').parentNode.style.display = 'flex';
     document.getElementById('pb-pv-canvas').style.display = 'none';
     host.style.display = 'block';
     modal.style.display = 'flex';
@@ -1196,17 +1218,6 @@
     var size = bbox.isEmpty() ? 500 : bbox.getSize(new THREE.Vector3()).length();
     var mn = bbox.min, mx3 = bbox.max;
 
-    if (!bbox.isEmpty()) {                     // overall dimensions (W / H / D)
-      var ex = new THREE.Vector3(1, 0, 0), ey = new THREE.Vector3(0, 1, 0), ez = new THREE.Vector3(0, 0, 1);
-      var o = size * 0.07;
-      dimLine(sc, new THREE.Vector3(mn.x, mn.y, mx3.z), new THREE.Vector3(mx3.x, mn.y, mx3.z),
-              ey.clone().negate(), o, size, 0x9aa3b0);                       // width  (X)
-      dimLine(sc, new THREE.Vector3(mx3.x, mn.y, mx3.z), new THREE.Vector3(mx3.x, mx3.y, mx3.z),
-              ex, o, size, 0x9aa3b0);                                        // height (Y)
-      dimLine(sc, new THREE.Vector3(mx3.x, mn.y, mx3.z), new THREE.Vector3(mx3.x, mn.y, mn.z),
-              ey.clone().negate(), o, size, 0x9aa3b0);                       // depth  (Z)
-    }
-
     if (basePt) {                              // module base point
       var mk = new THREE.Mesh(new THREE.SphereGeometry(size * 0.022, 20, 14),
                               new THREE.MeshBasicMaterial({ color: 0xf0c674, depthTest: false }));
@@ -1224,16 +1235,6 @@
       sc.add(bl);
       sc.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints([basePt, bl.position.clone()]),
                             new THREE.LineBasicMaterial({ color: 0xf0c674, depthTest: false })));
-      if (!bbox.isEmpty()) {                   // base offsets to the model extents
-        if (Math.abs(basePt.x - mn.x) > size * 0.01) {
-          dimLine(sc, new THREE.Vector3(mn.x, basePt.y, mn.z), new THREE.Vector3(basePt.x, basePt.y, mn.z),
-                  new THREE.Vector3(0, -1, 0), size * 0.02, size, 0xf0c674);
-        }
-        if (Math.abs(basePt.y - mn.y) > size * 0.01) {
-          dimLine(sc, new THREE.Vector3(basePt.x, mn.y, mn.z), new THREE.Vector3(basePt.x, basePt.y, mn.z),
-                  new THREE.Vector3(-1, 0, 0), size * 0.02, size, 0xf0c674);
-        }
-      }
     }
     var grid = new THREE.GridHelper(Math.ceil(size / 200) * 400, 20, 0x39424d, 0x242a31);
     grid.position.set(center.x, bbox.isEmpty() ? 0 : mn.y - 1, center.z);
@@ -1254,6 +1255,7 @@
                  : '<span style="color:#f0c674">no BASE — local origin</span>') +
       ' &nbsp;&nbsp;<span style="color:#5b6472">drag to rotate</span>';
 
+    var pgz = buildGizmo();
     pvToken++;
     var token = pvToken;
     (function loop() {
@@ -1261,6 +1263,7 @@
       requestAnimationFrame(loop);
       ctr.update();
       rn.render(sc, cam);
+      drawGizmo(rn, pgz, cam, ctr.target, W, H, 74);
     })();
   }
 
@@ -1530,6 +1533,8 @@
       '<div id="pb-view"><div id="pb-hud">Drag: rotate · Wheel: zoom · Right-drag: pan</div></div>' +
       '<div id="pb-modal"><div class="box">' +
       '  <h2><span class="close" onclick="plateBuilder.closePreview()">&#10005;</span>' +
+      '      <label class="pvchk"><input type="checkbox" id="pb-pv-flat"' +
+      '        onchange="plateBuilder.setFlat(this.checked)"> surface only</label>' +
       '      <span id="pb-pv-title"></span></h2>' +
       '  <canvas id="pb-pv-canvas" width="560" height="420"></canvas>' +
       '  <div id="pb-pv3d" style="width:560px;height:420px;display:none;' +
@@ -1647,27 +1652,8 @@
     grid.position.y = -1;
     scene.add(grid);
 
-    /* ---- mini axis gizmo, top-right corner (follows camera rotation) ---- */
-    var axesScene = new THREE.Scene();
-    var axesCamera = new THREE.PerspectiveCamera(40, 1, 0.1, 100);
-    [{ v: [1, 0, 0], c: 0xe05c4f, label: 'X' },
-     { v: [0, 1, 0], c: 0x6fc36f, label: 'Y' },
-     { v: [0, 0, 1], c: 0x5c9bd1, label: 'Z' }].forEach(function (d) {
-      axesScene.add(new THREE.ArrowHelper(v3(d.v), new THREE.Vector3(0, 0, 0), 1.6, d.c, 0.35, 0.18));
-      var cv = document.createElement('canvas');
-      cv.width = cv.height = 128;
-      var ctx = cv.getContext('2d');
-      ctx.font = 'bold 84px sans-serif';
-      ctx.textAlign = 'center';
-      ctx.textBaseline = 'middle';
-      ctx.fillStyle = '#' + ('000000' + d.c.toString(16)).slice(-6);
-      ctx.fillText(d.label, 64, 68);
-      var spr = new THREE.Sprite(new THREE.SpriteMaterial({
-        map: new THREE.CanvasTexture(cv), depthTest: false, transparent: true }));
-      spr.position.copy(v3(d.v).multiplyScalar(2.1));
-      spr.scale.set(0.9, 0.9, 1);
-      axesScene.add(spr);
-    });
+    var gz = buildGizmo();
+    var axesScene = gz.scene, axesCamera = gz.camera;
 
     controls = new THREE.OrbitControls(camera, renderer.domElement);
     controls.enableDamping = true;
@@ -1699,28 +1685,17 @@
       controls.update();
       renderer.render(scene, camera);
 
-      // gizmo: copy only the main camera orientation into a small viewport
-      var gs = 110, gm = 8;
-      var cw = container.clientWidth, ch = container.clientHeight;
-      axesCamera.position.copy(camera.position).sub(controls.target).normalize().multiplyScalar(8.4);
-      axesCamera.up.copy(camera.up);
-      axesCamera.lookAt(0, 0, 0);
-      renderer.autoClear = false;
-      renderer.setScissorTest(true);
-      renderer.setViewport(cw - gs - gm, ch - gs - gm, gs, gs);
-      renderer.setScissor(cw - gs - gm, ch - gs - gm, gs, gs);
-      renderer.clearDepth();
-      renderer.render(axesScene, axesCamera);
-      renderer.setScissorTest(false);
-      renderer.setViewport(0, 0, cw, ch);
-      renderer.autoClear = true;
+      drawGizmo(renderer, { scene: axesScene, camera: axesCamera }, camera, controls.target,
+                container.clientWidth, container.clientHeight, 110);
     })();
   }
 
   function setFlat(on) {
     flatMode = !!on;
-    var cb = document.getElementById('pb-flat');
-    if (cb) cb.checked = flatMode;
+    ['pb-flat', 'pb-pv-flat'].forEach(function (id) {
+      var cb = document.getElementById(id);
+      if (cb) cb.checked = flatMode;
+    });
     items.forEach(function (it) {
       it.groupObj.children.forEach(function (obj) {
         var d = obj.userData;
