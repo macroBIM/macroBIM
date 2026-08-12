@@ -612,7 +612,9 @@
             : spec.WT + '/' + spec.WB + '×' + spec.H + '×' + thk + 'T');
       items.push({ no: row.NO, plateId: row.PLATE, group: row.GROUP || '-',
                    groupObj: groupObj, mass: g2d.area * thk * RHO,
-                   dims: dims, remark: row.REMARK || '' });
+                   dims: dims, remark: row.REMARK || '',
+                   spec: spec, thk: thk, matrix: matrix,
+                   rings: { outers: outers, holes: holesArr } });
     });
     return bbox;
   }
@@ -692,6 +694,140 @@
     URL.revokeObjectURL(link.href);
   }
 
+  /* -------- IFC export (IFC2X3, parametric extrusions) --------
+     Each visible part becomes an IfcPlate (IfcMember for bars) whose
+     geometry is the exact 2D profile (with hole voids) extruded by the
+     thickness — real BIM solids, not triangle meshes. */
+  function exportIFC() {
+    var L = [], id = 0;
+    function nx(s) { id++; L.push('#' + id + '=' + s + ';'); return '#' + id; }
+    function f(v) {
+      v = Math.round((Number(v) || 0) * 1e6) / 1e6;
+      var s = String(v);
+      if (s.indexOf('.') < 0 && s.indexOf('e') < 0 && s.indexOf('E') < 0) s += '.';
+      return s;
+    }
+    function sq(s) {                                     // SPF string with \X2\ non-ASCII encoding
+      s = String(s);
+      var out = '';
+      for (var i = 0; i < s.length; i++) {
+        var c = s.charCodeAt(i);
+        if (c === 39) out += "''";
+        else if (c === 92) out += '\\\\';
+        else if (c >= 32 && c <= 126) out += s.charAt(i);
+        else out += '\\X2\\' + ('0000' + c.toString(16).toUpperCase()).slice(-4) + '\\X0\\';
+      }
+      return "'" + out + "'";
+    }
+    var B64 = '0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz_$';
+    function guid() {
+      var bits = '';
+      for (var i = 0; i < 16; i++) {
+        var b = Math.floor(Math.random() * 256);
+        bits += ('0000000' + b.toString(2)).slice(-8);
+      }
+      var s = B64.charAt(parseInt(bits.slice(0, 2), 2));
+      for (var j = 2; j < 128; j += 6) s += B64.charAt(parseInt(bits.slice(j, j + 6), 2));
+      return "'" + s + "'";
+    }
+    function pt2(x, y) { return nx('IFCCARTESIANPOINT((' + f(x) + ',' + f(y) + '))'); }
+    function pt3(x, y, z) { return nx('IFCCARTESIANPOINT((' + f(x) + ',' + f(y) + ',' + f(z) + '))'); }
+    function dir3(x, y, z) { return nx('IFCDIRECTION((' + f(x) + ',' + f(y) + ',' + f(z) + '))'); }
+    function ccw(ring) { return ringArea(ring) >= 0 ? ring : ring.slice().reverse(); }
+    function cw(ring) { return ringArea(ring) < 0 ? ring : ring.slice().reverse(); }
+    function polyline(ring) {
+      var ids = ring.map(function (p) { return pt2(p[0], p[1]); });
+      ids.push(ids[0]);                                   // closed
+      return nx('IFCPOLYLINE((' + ids.join(',') + '))');
+    }
+
+    var oPerson = nx("IFCPERSON($,$,'',$,$,$,$,$)");
+    var oOrg = nx("IFCORGANIZATION($,'macroBIM',$,$,$)");
+    var oPO = nx('IFCPERSONANDORGANIZATION(' + oPerson + ',' + oOrg + ',$)');
+    var oApp = nx('IFCAPPLICATION(' + oOrg + ",'1.0','plate_builder','plate_builder')");
+    var oOH = nx('IFCOWNERHISTORY(' + oPO + ',' + oApp + ',$,.NOCHANGE.,$,$,$,' +
+                 Math.floor(Date.now() / 1000) + ')');
+    var o0 = pt3(0, 0, 0);
+    var oZ = dir3(0, 0, 1), oX = dir3(1, 0, 0);
+    var oWCS = nx('IFCAXIS2PLACEMENT3D(' + o0 + ',' + oZ + ',' + oX + ')');
+    var oCtx = nx("IFCGEOMETRICREPRESENTATIONCONTEXT($,'Model',3,1.0E-5," + oWCS + ',$)');
+    var uLen = nx('IFCSIUNIT(*,.LENGTHUNIT.,.MILLI.,.METRE.)');
+    var uArea = nx('IFCSIUNIT(*,.AREAUNIT.,$,.SQUARE_METRE.)');
+    var uVol = nx('IFCSIUNIT(*,.VOLUMEUNIT.,$,.CUBIC_METRE.)');
+    var uAng = nx('IFCSIUNIT(*,.PLANEANGLEUNIT.,$,.RADIAN.)');
+    var oUnits = nx('IFCUNITASSIGNMENT((' + [uLen, uArea, uVol, uAng].join(',') + '))');
+    var oProj = nx('IFCPROJECT(' + guid() + ',' + oOH + ",'Plate Builder',$,$,$,$,(" +
+                   oCtx + '),' + oUnits + ')');
+    var plSite = nx('IFCLOCALPLACEMENT($,' + oWCS + ')');
+    var oSite = nx('IFCSITE(' + guid() + ',' + oOH + ",'Site',$,$," + plSite +
+                   ',$,$,.ELEMENT.,$,$,$,$,$)');
+    var plBld = nx('IFCLOCALPLACEMENT(' + plSite + ',' + oWCS + ')');
+    var oBld = nx('IFCBUILDING(' + guid() + ',' + oOH + ",'Building',$,$," + plBld +
+                  ',$,$,.ELEMENT.,$,$,$)');
+    var plSt = nx('IFCLOCALPLACEMENT(' + plBld + ',' + oWCS + ')');
+    var oSt = nx('IFCBUILDINGSTOREY(' + guid() + ',' + oOH + ",'Storey',$,$," + plSt +
+                 ',$,$,.ELEMENT.,0.)');
+    nx('IFCRELAGGREGATES(' + guid() + ',' + oOH + ',$,$,' + oProj + ',(' + oSite + '))');
+    nx('IFCRELAGGREGATES(' + guid() + ',' + oOH + ',$,$,' + oSite + ',(' + oBld + '))');
+    nx('IFCRELAGGREGATES(' + guid() + ',' + oOH + ',$,$,' + oBld + ',(' + oSt + '))');
+    var oSolidPos = nx('IFCAXIS2PLACEMENT3D(' + o0 + ',$,$)');
+
+    var elements = [];
+    items.forEach(function (it) {
+      if (!it.groupObj.visible) return;
+      var m = it.matrix.elements;                         // column-major
+      var loc = pt3(m[12], m[13], m[14]);
+      var axis = dir3(m[8], m[9], m[10]);
+      var ref = dir3(m[0], m[1], m[2]);
+      var a2p = nx('IFCAXIS2PLACEMENT3D(' + loc + ',' + axis + ',' + ref + ')');
+      var lp = nx('IFCLOCALPLACEMENT(' + plSt + ',' + a2p + ')');
+      var solids = it.rings.outers.map(function (ring, i) {
+        var holes = it.rings.holes[i] || [];
+        var profile;
+        if (it.spec.SHAPE === 'CIRC' && !holes.length && it.rings.outers.length === 1) {
+          var p2 = nx('IFCAXIS2PLACEMENT2D(' + pt2(0, 0) + ',$)');
+          profile = nx('IFCCIRCLEPROFILEDEF(.AREA.,$,' + p2 + ',' + f(num(it.spec.D, 0) / 2) + ')');
+        } else {
+          var outerPl = polyline(ccw(ring));
+          profile = holes.length
+            ? nx('IFCARBITRARYPROFILEDEFWITHVOIDS(.AREA.,$,' + outerPl + ',(' +
+                 holes.map(function (h) { return polyline(cw(h)); }).join(',') + '))')
+            : nx('IFCARBITRARYCLOSEDPROFILEDEF(.AREA.,$,' + outerPl + ')');
+        }
+        return nx('IFCEXTRUDEDAREASOLID(' + profile + ',' + oSolidPos + ',' + oZ + ',' + f(it.thk) + ')');
+      });
+      if (!solids.length) return;
+      var shape = nx('IFCSHAPEREPRESENTATION(' + oCtx + ",'Body','SweptSolid',(" + solids.join(',') + '))');
+      var pds = nx('IFCPRODUCTDEFINITIONSHAPE($,$,(' + shape + '))');
+      var ent = it.spec.SHAPE === 'CIRC'
+        ? nx('IFCMEMBER(' + guid() + ',' + oOH + ',' + sq(it.no) + ',$,$,' + lp + ',' + pds + ',$)')
+        : nx('IFCPLATE(' + guid() + ',' + oOH + ',' + sq(it.no) + ',$,$,' + lp + ',' + pds + ',$)');
+      elements.push(ent);
+      var pv1 = nx("IFCPROPERTYSINGLEVALUE('Material',$,IFCTEXT(" + sq(it.spec.MAT || '') + '),$)');
+      var pv2 = nx("IFCPROPERTYSINGLEVALUE('Weight_kg',$,IFCREAL(" + f(it.mass) + '),$)');
+      var pv3 = nx("IFCPROPERTYSINGLEVALUE('Dims',$,IFCTEXT(" + sq(it.dims) + '),$)');
+      var ps = nx('IFCPROPERTYSET(' + guid() + ',' + oOH + ",'Pset_PlateBuilder',$,(" +
+                  [pv1, pv2, pv3].join(',') + '))');
+      nx('IFCRELDEFINESBYPROPERTIES(' + guid() + ',' + oOH + ',$,$,(' + ent + '),' + ps + ')');
+    });
+    if (elements.length) {
+      nx('IFCRELCONTAINEDINSPATIALSTRUCTURE(' + guid() + ',' + oOH + ',$,$,(' +
+         elements.join(',') + '),' + oSt + ')');
+    }
+
+    var out = 'ISO-10303-21;\nHEADER;\n' +
+      "FILE_DESCRIPTION(('ViewDefinition [CoordinationView]'),'2;1');\n" +
+      "FILE_NAME('plate_builder.ifc','" + new Date().toISOString().slice(0, 19) +
+      "',(''),('macroBIM'),'plate_builder.js','plate_builder','');\n" +
+      "FILE_SCHEMA(('IFC2X3'));\nENDSEC;\nDATA;\n" +
+      L.join('\n') + '\nENDSEC;\nEND-ISO-10303-21;\n';
+    var link = document.createElement('a');
+    link.href = URL.createObjectURL(new Blob([out], { type: 'application/octet-stream' }));
+    link.download = 'plate_builder.ifc';
+    link.click();
+    URL.revokeObjectURL(link.href);
+  }
+
   /* ---------------- views ---------------- */
   function setView(v) {
     var d = VDIST;
@@ -724,6 +860,7 @@
       '    <button onclick="plateBuilder.setView(\'side\')">Side</button>' +
       '    <button onclick="plateBuilder.setView(\'top\')">Top</button>' +
       '    <button onclick="plateBuilder.exportSTL()">Save STL</button>' +
+      '    <button onclick="plateBuilder.exportIFC()">Save IFC</button>' +
       '    <button class="accent" onclick="plateBuilder.pickExcel()">&#8682; Load Excel</button>' +
       '    <input type="file" id="pb-file" accept=".xlsx,.xls" style="display:none">' +
       '  </div>' +
@@ -869,7 +1006,7 @@
   }
 
   window.plateBuilder = {
-    run: run, setView: setView, exportSTL: exportSTL,
+    run: run, setView: setView, exportSTL: exportSTL, exportIFC: exportIFC,
     toggleItem: toggleItem, toggleGroup: toggleGroup,
     pickExcel: pickExcel, loadExcelFile: loadExcelFile
   };
