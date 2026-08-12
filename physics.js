@@ -395,37 +395,59 @@ const Physics = {
             let wdx = baseWall.x2 - baseWall.x1, wdy = baseWall.y2 - baseWall.y1;
             let wlen = Math.hypot(wdx, wdy) || 1;
             let par = Math.abs((wdx * u.x + wdy * u.y) / wlen);
-            if (par >= 0.9999985) {                                   // ±0.1° 이내로 벽과 나란함
-                // 광선은 '원본 벽'에 쏜다. 피복벽은 오목 모서리에서 서로 트림되며 실제
-                // 콘크리트 면보다 길게 늘어나므로(예: 셀 천장 단차의 수직면이 천장 피복선까지
-                // 연장됨) 콘크리트 안쪽인데도 가짜로 막히는 일이 생긴다.
-                let dSign = (side === 'start') ? -1 : 1;
-                let d = { x: u.x * dSign, y: u.y * dSign };
+            if (par >= 0.9999985) {
+                // 표면과 나란한 바(데크/슬래브 횡철근)는 '콘크리트 안에서 피복을 확보한 채
+                // 갈 수 있는 데까지' 연장한다. 기준 벽 조각 단위로 끊으면 크라운 분할·단차에서
+                // 절반만 배근되고, 단순 광선만 쓰면 모따기·헌치를 지나쳐 단면 밖으로 나간다.
                 let mid = { x: (seg.p1.x + seg.p2.x) / 2, y: (seg.p1.y + seg.p2.y) / 2 };
-                // 엄격한 광선-선분 교차 (MathUtils.rayLineIntersect 는 벽을 양끝 10% 늘려
-                // 판정하고 뒤쪽 교차도 반환한다 → 긴 복부면이 슬래브 높이까지 뻗은 것처럼
-                // 잡혀 바가 엉뚱한 곳에서 잘린다).
-                let best = null, bestDist = Infinity;
-                (walls || []).forEach(w => {
-                    let nd = w.nx * d.x + w.ny * d.y;
-                    if (nd > -0.05) return;                           // 마주보지 않거나 거의 평행 → 무시
-                    let ex = w.x2 - w.x1, ey = w.y2 - w.y1;
-                    let den = d.x * ey - d.y * ex;
-                    if (Math.abs(den) < 1e-9) return;
-                    let rx = w.x1 - mid.x, ry = w.y1 - mid.y;
-                    let tRay = (rx * ey - ry * ex) / den;             // 광선 진행량(단위벡터 → 거리)
-                    let sSeg = (rx * d.y - ry * d.x) / den;           // 벽 내 위치 0..1
-                    if (tRay <= 0.1 || tRay >= bestDist) return;
-                    if (sSeg < -1e-6 || sSeg > 1 + 1e-6) return;
-                    bestDist = tRay;
-                    best = { h: { x: mid.x + d.x * tRay, y: mid.y + d.y * tRay }, w: w, nd: nd };
-                });
-                if (best) {
-                    let cov = Physics.getWallCoverValue(best.w) + (wallStack[best.w.id] || 0) + dia / 2;
-                    let tHit = (best.h.x - o.x) * u.x + (best.h.y - o.y) * u.y;
-                    let t = tHit - dSign * cov / Math.abs(best.nd);   // 경사 벽이면 축방향 후퇴량 보정
-                    if (side === 'start') lo = t; else hi = t;
-                }
+                let segDist = (px, py, ax, ay, bx, by) => {
+                    let ex = bx - ax, ey = by - ay, L2 = ex * ex + ey * ey;
+                    let s = L2 ? ((px - ax) * ex + (py - ay) * ey) / L2 : 0;
+                    s = s < 0 ? 0 : (s > 1 ? 1 : s);
+                    return Math.hypot(px - (ax + s * ex), py - (ay + s * ey));
+                };
+                // 콘크리트 내부 판정 (외곽 + 공동 루프 교차 홀짝)
+                let inside = (px, py) => {
+                    let cross = false;
+                    for (let wi = 0; wi < walls.length; wi++) {
+                        let w = walls[wi];
+                        if ((w.y1 > py) !== (w.y2 > py)) {
+                            let xx = (w.x2 - w.x1) * (py - w.y1) / (w.y2 - w.y1) + w.x1;
+                            if (px < xx) cross = !cross;
+                        }
+                    }
+                    return cross;
+                };
+                // 바 축을 따라 콘크리트를 벗어나는 지점까지 전진 → 그 면의 피복만큼 후퇴.
+                // 단면 밖으로 나가는 일도, 조각 경계에서 조기에 끊기는 일도 없다.
+                let reach = (dSign) => {
+                    let dx = u.x * dSign, dy = u.y * dSign;
+                    const STEP = 25, LIMIT = 60000;
+                    let good = 0, hit = false;
+                    for (let s = STEP; s <= LIMIT; s += STEP) {
+                        if (!inside(mid.x + dx * s, mid.y + dy * s)) { hit = true; break; }
+                        good = s;
+                    }
+                    if (!hit) return good;
+                    let a = good, b = good + STEP;
+                    for (let it = 0; it < 14; it++) {                 // 경계 1mm 이내
+                        let m = (a + b) / 2;
+                        if (inside(mid.x + dx * m, mid.y + dy * m)) a = m; else b = m;
+                    }
+                    let ex = mid.x + dx * a, ey = mid.y + dy * a;     // 콘크리트 경계 지점
+                    let near = null, nd2 = Infinity;
+                    for (let wi = 0; wi < walls.length; wi++) {
+                        let w = walls[wi];
+                        let dd = segDist(ex, ey, w.x1, w.y1, w.x2, w.y2);
+                        if (dd < nd2) { nd2 = dd; near = w; }
+                    }
+                    if (!near) return a;
+                    let need = Physics.getWallCoverValue(near) + (wallStack[near.id] || 0) + dia / 2;
+                    let cosA = Math.abs(near.nx * dx + near.ny * dy);  // 비스듬한 면이면 축방향 후퇴량 증가
+                    return Math.max(0, a - need / Math.max(0.2, cosA));
+                };
+                let tMid = (mid.x - o.x) * u.x + (mid.y - o.y) * u.y;
+                if (side === 'start') lo = tMid - reach(-1); else hi = tMid + reach(1);
             }
 
             return {
