@@ -94,7 +94,8 @@
   ].join('\n');
 
   var scene, camera, renderer, controls;
-  var lastPlates = {}, lastCuts = [], lastColors = {};   // for the plate preview modal
+  var lastPlates = {}, lastCuts = [], lastColors = {}, lastParts = {};  // for preview modals
+  var pvToken = 0, pvRenderer = null;   // 3D preview lifecycle
   var CENTER = null, VDIST = 1200;                // set from model bbox in run()
   var items = [];
   var runToken = 0;                               // distinguishes re-runs
@@ -674,6 +675,7 @@
     lastPlates = plates;
     lastCuts = cuts;
     lastColors = colors;
+    lastParts = parts;
     var inst = {};                       // NO → {matrix, pts, thk} for EDGE references
     var bbox = new THREE.Box3();
 
@@ -929,6 +931,9 @@
           ? spec.WB + ' × ' + spec.H + ' × ' + spec.THK + 'T'
           : 'WT ' + spec.WT + ' / WB ' + spec.WB + ' × H ' + spec.H + ' × ' + spec.THK + 'T');
     var ncut = lastCuts.filter(function (c) { return c.PLATE === id; }).length;
+    stopPreview3D();
+    cv.style.display = 'block';
+    document.getElementById('pb-pv3d').style.display = 'none';
     document.getElementById('pb-pv-title').textContent = id;
     document.getElementById('pb-pv-meta').innerHTML =
       esc(dims) + ' &middot; cuts ' + ncut +
@@ -938,8 +943,144 @@
     modal.style.display = 'flex';
   }
   function closePreview() {
+    stopPreview3D();
     var modal = document.getElementById('pb-modal');
     if (modal) modal.style.display = 'none';
+  }
+
+  /* -------- module list + 3D preview -------- */
+  function buildModuleList() {
+    var tbl = document.getElementById('pb-modules');
+    if (!tbl) return;
+    tbl.innerHTML = '';
+    var ids = Object.keys(lastParts);
+    if (!ids.length) return;
+    var gtr = document.createElement('tr');
+    gtr.className = 'ghead';
+    gtr.innerHTML = '<td colspan="3">MODULES — click to preview</td>';
+    tbl.appendChild(gtr);
+    ids.forEach(function (id) {
+      var part = lastParts[id];
+      var used = items.some(function (it) { return it.group === id || it.no.indexOf(id) === 0; });
+      var tr = document.createElement('tr');
+      tr.innerHTML =
+        '<td></td>' +
+        '<td><span class="plname" onclick="plateBuilder.previewModule(\'' + id + '\')">' +
+        esc(id) + '</span>' +
+        '<div class="dims">plates ' + part.pos.length +
+        (part.base ? ' · base ' + esc(part.base.inst) + '.' + part.base.pt.slice(1) : ' · no base') +
+        (used ? '' : ' · not assembled') + '</div></td>' +
+        '<td></td>';
+      tbl.appendChild(tr);
+    });
+  }
+
+  function stopPreview3D() {
+    pvToken++;
+    if (pvRenderer) {
+      var host = document.getElementById('pb-pv3d');
+      if (host && pvRenderer.domElement.parentNode === host) host.removeChild(pvRenderer.domElement);
+      pvRenderer.dispose();
+      pvRenderer = null;
+    }
+  }
+
+  function previewModule(id) {
+    var part = lastParts[id];
+    if (!part) return;
+    var modal = document.getElementById('pb-modal');
+    var host = document.getElementById('pb-pv3d');
+    if (!modal || !host) return;
+    stopPreview3D();
+    document.getElementById('pb-pv-canvas').style.display = 'none';
+    host.style.display = 'block';
+    modal.style.display = 'flex';
+
+    var W = 560, H = 420;
+    var sc = new THREE.Scene();
+    sc.background = new THREE.Color(0x15181c);
+    var cam = new THREE.PerspectiveCamera(40, W / H, 1, 50000);
+    var rn = new THREE.WebGLRenderer({ antialias: true });
+    rn.setSize(W, H);
+    rn.setPixelRatio(window.devicePixelRatio || 1);
+    host.appendChild(rn.domElement);
+    pvRenderer = rn;
+
+    sc.add(new THREE.HemisphereLight(0xf4f6fa, 0x2a2d33, 0.95));
+    var sun = new THREE.DirectionalLight(0xffffff, 0.75);
+    sun.position.set(500, 900, 650);
+    sc.add(sun);
+
+    var bbox = new THREE.Box3(), mass = 0, basePt = null;
+    part.pos.forEach(function (row) {
+      var spec = lastPlates[row.PLATE];
+      if (!spec) return;
+      var pts = namedPoints(spec, false);
+      var m;
+      try { m = planeMatrixAnchor(row, pts); } catch (e) { return; }
+      if (part.base && row.NO === part.base.inst) {
+        var a = pts[part.base.pt] || pts.pbl;
+        basePt = new THREE.Vector3(a[0], a[1], 0).applyMatrix4(m);
+      }
+      var g2d = buildPlate2D(spec, lastCuts, lastPlates);
+      mass += g2d.area * spec.THK * RHO;
+      var mat = new THREE.MeshPhongMaterial({ color: lastColors[row.PLATE] || 0x999999, shininess: 28 });
+      g2d.outers.forEach(function (ring, i) {
+        var shape = new THREE.Shape(ring.map(function (q) { return new THREE.Vector2(q[0], q[1]); }));
+        (g2d.holes[i] || []).forEach(function (h) {
+          shape.holes.push(new THREE.Path(h.map(function (q) { return new THREE.Vector2(q[0], q[1]); })));
+        });
+        var geo = new THREE.ExtrudeGeometry(shape, { depth: spec.THK, bevelEnabled: false, curveSegments: 24 });
+        var mesh = new THREE.Mesh(geo, mat);
+        mesh.matrixAutoUpdate = false;
+        mesh.matrix.copy(m);
+        sc.add(mesh);
+        geo.computeBoundingBox();
+        bbox.union(geo.boundingBox.clone().applyMatrix4(m));
+        var eg = new THREE.LineSegments(new THREE.EdgesGeometry(geo, 25),
+                                        new THREE.LineBasicMaterial({ color: 0x0e1013 }));
+        eg.matrixAutoUpdate = false;
+        eg.matrix.copy(m);
+        sc.add(eg);
+      });
+    });
+
+    var center = bbox.isEmpty() ? new THREE.Vector3() : bbox.getCenter(new THREE.Vector3());
+    var size = bbox.isEmpty() ? 500 : bbox.getSize(new THREE.Vector3()).length();
+    if (basePt) {                              // mark the module base point
+      var mk = new THREE.Mesh(new THREE.SphereGeometry(size * 0.018, 16, 12),
+                              new THREE.MeshBasicMaterial({ color: 0xf0c674 }));
+      mk.position.copy(basePt);
+      sc.add(mk);
+      sc.add(new THREE.AxesHelper(size * 0.18).translateX(basePt.x).translateY(basePt.y).translateZ(basePt.z));
+    }
+    var grid = new THREE.GridHelper(Math.ceil(size / 200) * 400, 20, 0x39424d, 0x242a31);
+    grid.position.set(center.x, bbox.isEmpty() ? 0 : bbox.min.y - 1, center.z);
+    sc.add(grid);
+
+    var ctr = new THREE.OrbitControls(cam, rn.domElement);
+    ctr.enableDamping = true;
+    ctr.dampingFactor = 0.1;
+    cam.position.set(center.x + size * 0.8, center.y + size * 0.7, center.z + size * 0.9);
+    ctr.target.copy(center);
+    ctr.update();
+
+    document.getElementById('pb-pv-title').textContent = id + '  (module)';
+    document.getElementById('pb-pv-meta').innerHTML =
+      'plates ' + part.pos.length + ' &middot; ' + mass.toFixed(3) + ' kg &middot; ' +
+      (part.base ? 'base ' + esc(part.base.inst) + '.' + part.base.pt.slice(1) +
+                   ' <span style="color:#f0c674">(&#9679;)</span>'
+                 : '<span style="color:#f0c674">no BASE — local origin</span>') +
+      ' &nbsp;&nbsp;<span style="color:#5b6472">drag to rotate</span>';
+
+    pvToken++;
+    var token = pvToken;
+    (function loop() {
+      if (token !== pvToken) return;
+      requestAnimationFrame(loop);
+      ctr.update();
+      rn.render(sc, cam);
+    })();
   }
 
   /* ---------------- sidebar list ---------------- */
@@ -1192,6 +1333,7 @@
       '    <div class="pb-track"><div id="pb-prog-bar"></div></div></div>' +
       '  <div id="pb-result"></div>' +
       '  <table id="pb-plates"></table>' +
+      '  <table id="pb-modules"></table>' +
       '  <table id="pb-list"></table>' +
       '  <div id="pb-total"></div>' +
       '  <div id="pb-note"></div>' +
@@ -1201,6 +1343,8 @@
       '  <h2><span class="close" onclick="plateBuilder.closePreview()">&#10005;</span>' +
       '      <span id="pb-pv-title"></span></h2>' +
       '  <canvas id="pb-pv-canvas" width="560" height="420"></canvas>' +
+      '  <div id="pb-pv3d" style="width:560px;height:420px;display:none;' +
+      '       border:1px solid #2c323b;border-radius:4px;overflow:hidden;"></div>' +
       '  <div class="meta" id="pb-pv-meta"></div>' +
       '</div></div>';
     document.body.appendChild(app);
@@ -1256,6 +1400,7 @@
     var bbox = buildAll(data, colors);
     buildPlateList(colors);
     buildList(colors);
+    buildModuleList();
 
     CENTER = bbox.isEmpty() ? new THREE.Vector3(0, 150, 0) : bbox.getCenter(new THREE.Vector3());
     var size = bbox.isEmpty() ? 900 : bbox.getSize(new THREE.Vector3()).length();
@@ -1343,7 +1488,7 @@
     run: run, setView: setView, exportSTL: exportSTL, exportIFC: exportIFC,
     toggleItem: toggleItem, toggleGroup: toggleGroup,
     pickExcel: pickExcel, loadExcelFile: loadExcelFile,
-    preview: preview, closePreview: closePreview
+    preview: preview, previewModule: previewModule, closePreview: closePreview
   };
 
   /* ---- auto-run: use window.PLATE_DATA if present, else empty default.

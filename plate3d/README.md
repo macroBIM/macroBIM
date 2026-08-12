@@ -7,7 +7,9 @@
 - **`plate_builder.js`** — 뷰어 엔진 (DATA_SCHEMA.md 구현). HTML에는 링크만 걸면 됨
   - 로드되면 자동 실행: `window.PLATE_DATA` 가 있으면 그 데이터로, 없으면 **빈 기본 화면**(좌 리스트/우 3D)
   - `plateBuilder.run({...})` 직접 호출도 가능 (자동 실행은 생략됨)
-  - PLANE/EDGE 배치, MIRROR, polybooljs 절단(구멍·노치·REF), 그룹·부재별 토글, 중량, STL
+  - PLANE/EDGE 배치, MIRROR, polybooljs 절단(구멍·노치·REF), 그룹·부재별 토글, 중량, STL·IFC 출력
+  - 엑셀(.xlsx) 로딩: Load Excel 버튼/드래그&드롭, 진행률 바, 결과·경고 패널
+  - 좌측 목록: PLATES(클릭 → 2D 도면 팝업) · MODULES(클릭 → 3D 미리보기) · 배치된 부재
 - **`data_bracket.js`** — 서포트 브래킷 예제 데이터 (`window.PLATE_DATA` 정의) — 데이터 파일의 표본
 - `codepen_empty.html` — **CodePen용 · 빈 시작** (링크 4줄: 라이브러리 3 + 엔진)
 - `codepen_example.html` — **CodePen용 · 브래킷 예제** (링크 5줄: + 데이터 파일)
