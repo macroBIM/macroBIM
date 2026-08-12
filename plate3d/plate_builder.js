@@ -86,6 +86,134 @@
     });
   }
   function num(v, dflt) { return (v === '' || v === undefined || v === null) ? dflt : Number(v); }
+  function str(v) { return String(v === undefined || v === null ? '' : v).trim(); }
+
+  /* ================================================================
+     Excel loader — single-sheet keyword grammar (ExcelJS required):
+       · first char '#' or '!'  → comment row (ignored)
+       · rows are read until an END keyword row
+       · keywords/IDs/planes/points are case-insensitive (uppercased)
+       PLATE ID WT WB H OFF_T OFF_B THK MAT   (trapezoid, 7+ values)
+       PLATE ID B H THK MAT                   (rectangle)
+       BAR   ID DIA LENGTH                    (cylinder)
+       CUT   RECT  B H  L.X L.Y L.ROT dx dy repeat   (cuts the last PLATE/BAR)
+       CUT   CIRC  D    L.X L.Y L.ROT dx dy repeat
+       CUT   PLATE ID   L.X L.Y L.ROT dx dy repeat
+       ASSY  ID PLANE REF.PT L.X L.Y L.ROT OFFSET    (PLANE: XY/YZ/XZ,
+                                              REF.PT: TL..BR/CC, p-prefix ok)
+       END
+     ================================================================ */
+  var PLANE_ALIAS = { XY: 'FRONT', YZ: 'SIDE', XZ: 'PLAN',
+                      FRONT: 'FRONT', SIDE: 'SIDE', PLAN: 'PLAN' };
+  var POINT_ALIAS = { TL: 'ptl', TC: 'ptc', TR: 'ptr', LM: 'plm', CC: 'pcc',
+                      RM: 'prm', BL: 'pbl', BC: 'pbc', BR: 'pbr' };
+  function normPoint(s) {
+    var up = str(s).toUpperCase();
+    if (up.length === 3 && up.charAt(0) === 'P') up = up.slice(1);
+    return POINT_ALIAS[up] || 'pbl';
+  }
+
+  function parseExcelRows(rows) {
+    var plates = {}, cuts = [], assy = [];
+    var current = null, counter = {};
+    for (var r = 0; r < rows.length; r++) {
+      var row = rows[r] || [];
+      var k = 0;
+      while (k < row.length && str(row[k]) === '') k++;
+      if (k >= row.length) continue;
+      var kw = str(row[k]).toUpperCase();
+      if (kw.charAt(0) === '#' || kw.charAt(0) === '!') continue;
+      var v = row.slice(k + 1);
+      while (v.length && str(v[v.length - 1]) === '') v.pop();
+      if (kw === 'END') break;
+
+      if (kw === 'PLATE') {
+        var id = str(v[0]).toUpperCase();
+        if (!id) continue;
+        var spec;
+        if (v.length >= 7) {              // trapezoid
+          spec = { ID: id, SHAPE: 'TRAP', WT: num(v[1], 0), WB: num(v[2], 0),
+                   H: num(v[3], 0), OFF_T: num(v[4], 0), OFF_B: num(v[5], 0),
+                   THK: num(v[6], 10), MAT: str(v[7]) };
+        } else {                          // rectangle
+          var b = num(v[1], 0);
+          spec = { ID: id, SHAPE: 'TRAP', WT: b, WB: b, H: num(v[2], 0),
+                   OFF_T: 0, OFF_B: 0, THK: num(v[3], 10), MAT: str(v[4]) };
+        }
+        plates[id] = spec;
+        current = id;
+      } else if (kw === 'BAR') {          // ID DIA LENGTH → cylinder
+        var idb = str(v[0]).toUpperCase();
+        if (!idb) continue;
+        plates[idb] = { ID: idb, SHAPE: 'CIRC', D: num(v[1], 0),
+                        THK: num(v[2], 0), MAT: str(v[3]) };
+        current = idb;
+      } else if (kw === 'CUT') {          // applies to the last PLATE/BAR row
+        if (!current) { console.error('row ' + (r + 1) + ': CUT before any PLATE'); continue; }
+        var sub = str(v[0]).toUpperCase();
+        var c = { PLATE: current };
+        if (sub === 'RECT') {
+          c.TYPE = 'TRAP'; c.B = num(v[1], 0); c.TW = c.B; c.H = num(v[2], 0); c.OF = 0;
+          c.U = num(v[3], 0); c.V = num(v[4], 0); c.ANG = num(v[5], 0);
+          c.DX = num(v[6], 0); c.DY = num(v[7], 0); c.N = num(v[8], 1);
+        } else if (sub === 'CIRC') {
+          c.TYPE = 'CIRC'; c.D = num(v[1], 0);
+          c.U = num(v[2], 0); c.V = num(v[3], 0); c.ANG = num(v[4], 0);
+          c.DX = num(v[5], 0); c.DY = num(v[6], 0); c.N = num(v[7], 1);
+        } else if (sub === 'PLATE') {
+          c.TYPE = 'REF'; c.REF = str(v[1]).toUpperCase();
+          c.U = num(v[2], 0); c.V = num(v[3], 0); c.ANG = num(v[4], 0);
+          c.DX = num(v[5], 0); c.DY = num(v[6], 0); c.N = num(v[7], 1);
+        } else { console.error('row ' + (r + 1) + ': unknown CUT type ' + sub); continue; }
+        cuts.push(c);
+      } else if (kw === 'ASSY') {         // ID PLANE REF.PT L.X L.Y L.ROT OFFSET
+        var pid = str(v[0]).toUpperCase();
+        counter[pid] = (counter[pid] || 0) + 1;
+        var plkey = str(v[1]).toUpperCase();
+        assy.push({ __xl: true, NO: pid + '-' + counter[pid], PLATE: pid,
+                    PLANE: PLANE_ALIAS[plkey] || plkey, REFPT: normPoint(v[2]),
+                    LX: num(v[3], 0), LY: num(v[4], 0), ROT: num(v[5], 0),
+                    OFFSET: num(v[6], 0), GROUP: '-', REMARK: '', MIRROR: '' });
+      } else {
+        console.error('row ' + (r + 1) + ': unknown keyword ' + kw);
+      }
+    }
+    return { plates: plates, cuts: cuts, assy: assy };
+  }
+
+  function cellVal(c) {
+    if (c && typeof c === 'object') {
+      if (c.result !== undefined) return c.result;
+      if (c.text !== undefined) return c.text;
+      if (c.richText) return c.richText.map(function (t) { return t.text; }).join('');
+      return '';
+    }
+    return c;
+  }
+
+  function loadExcelFile(file) {
+    if (typeof ExcelJS === 'undefined') {
+      alert('ExcelJS library is missing. Add this line before plate_builder.js:\n' +
+            '<script src="https://cdnjs.cloudflare.com/ajax/libs/exceljs/4.3.0/exceljs.min.js"><\/script>');
+      return;
+    }
+    file.arrayBuffer().then(function (buf) {
+      var wb = new ExcelJS.Workbook();
+      return wb.xlsx.load(buf);
+    }).then(function (wb) {
+      var ws = wb.worksheets[0];
+      var rows = [];
+      ws.eachRow({ includeEmpty: true }, function (r) {
+        rows.push((r.values || []).slice(1).map(cellVal));
+      });
+      var parsed = parseExcelRows(rows);
+      run({ title: 'Plate Builder', subtitle: file.name + ' · PLATE/CUT/ASSY · unit: mm',
+            note: 'Loaded from ' + file.name + ' — edit the Excel file and load it again to update.',
+            __parsed: parsed });
+    }).catch(function (err) {
+      alert('Failed to read the Excel file: ' + err.message);
+    });
+  }
 
   /* ------- PLATE sheet parser: '#'-prefixed block headers ------- */
   function parsePlateSheet(sheet) {
@@ -193,9 +321,18 @@
 
     var cutters = [];
     cuts.filter(function (c) { return c.PLATE === spec.ID; }).forEach(function (c) {
-      var nx = num(c.NX, 1), px = num(c.PX, 0), ny = num(c.NY, 1), py = num(c.PY, 0);
-      for (var ix = 0; ix < nx; ix++) for (var iy = 0; iy < ny; iy++) {
-        var u = num(c.U, 0) + ix * px, v = num(c.V, 0) + iy * py;
+      // positions: 1D repeat (N/DX/DY, Excel grammar) or NX·PX/NY·PY grid
+      var uvs = [];
+      if (c.N !== undefined) {
+        for (var i = 0; i < num(c.N, 1); i++)
+          uvs.push([num(c.U, 0) + i * num(c.DX, 0), num(c.V, 0) + i * num(c.DY, 0)]);
+      } else {
+        var nx = num(c.NX, 1), px = num(c.PX, 0), ny = num(c.NY, 1), py = num(c.PY, 0);
+        for (var ix = 0; ix < nx; ix++) for (var iy = 0; iy < ny; iy++)
+          uvs.push([num(c.U, 0) + ix * px, num(c.V, 0) + iy * py]);
+      }
+      uvs.forEach(function (uv) {
+        var u = uv[0], v = uv[1];
         if (c.TYPE === 'CIRC') cutters.push(circleOutline(num(c.D, 0), u, v, 32));
         else if (c.TYPE === 'TRAP') {
           var tw = num(c.TW, num(c.B, 0));
@@ -204,7 +341,7 @@
         } else if (c.TYPE === 'REF' && plates[c.REF]) {                // borrow another plate outline
           cutters.push(rotTrans(outlineOf(plates[c.REF]), num(c.ANG, 0), u, v));
         }
-      }
+      });
     });
 
     var region = { regions: [outline], inverted: false };
@@ -282,6 +419,19 @@
     return m;
   }
 
+  // Excel grammar placement: the plate's REF.PT lands at (L.X, L.Y) on the
+  // plane, rotated by L.ROT about that point, at OFFSET along the normal
+  function planeMatrixAnchor(row, pts) {
+    var b = PLANE_BASIS[row.PLANE];
+    if (!b) throw new Error(row.NO + ': PLANE=' + row.PLANE + ' (use XY/YZ/XZ)');
+    var a = pts[row.REFPT] || pts.pbl;
+    var m = new THREE.Matrix4().makeBasis(v3(b.ex), v3(b.ey), v3(b.ez));
+    m.multiply(new THREE.Matrix4().makeTranslation(row.LX, row.LY, row.OFFSET));
+    m.multiply(new THREE.Matrix4().makeRotationZ(row.ROT * Math.PI / 180));
+    m.multiply(new THREE.Matrix4().makeTranslation(-a[0], -a[1], 0));
+    return m;
+  }
+
   function edgeMatrix(row, inst, myPts, myTHK) {
     var tgt = inst[row.TO];
     if (!tgt) throw new Error(row.NO + ': TO=' + row.TO + ' undefined (only earlier rows can be referenced)');
@@ -317,16 +467,24 @@
 
   /* ---------------- scene build ---------------- */
   function buildAll(data, colors) {
-    var plates = {}, cuts = sheetToObjects(data.CUT);
+    var plates = {}, cuts, assyRows;
     var colorSeq = 0;
-    parsePlateSheet(data.PLATE).forEach(function (p) {
-      plates[p.ID] = p;
-      if (!(p.ID in colors)) colors[p.ID] = PALETTE[colorSeq++ % PALETTE.length];
+    if (data.__parsed) {                 // Excel keyword-grammar path
+      plates = data.__parsed.plates;
+      cuts = data.__parsed.cuts;
+      assyRows = data.__parsed.assy;
+    } else {                             // JS sheet-array path
+      cuts = sheetToObjects(data.CUT);
+      assyRows = sheetToObjects(data.ASSY);
+      parsePlateSheet(data.PLATE).forEach(function (p) { plates[p.ID] = p; });
+    }
+    Object.keys(plates).forEach(function (id) {
+      if (!(id in colors)) colors[id] = PALETTE[colorSeq++ % PALETTE.length];
     });
     var inst = {};                       // NO → {matrix, pts, thk} for EDGE references
     var bbox = new THREE.Box3();
 
-    sheetToObjects(data.ASSY).forEach(function (row) {
+    assyRows.forEach(function (row) {
       var spec = plates[row.PLATE];
       if (!spec) { console.error(row.NO + ': unknown PLATE=' + row.PLATE); return; }
       var thk = spec.THK;
@@ -341,7 +499,9 @@
 
       var matrix;
       try {
-        matrix = row.METHOD === 'EDGE' ? edgeMatrix(row, inst, pts, thk) : planeMatrix(row);
+        matrix = row.__xl ? planeMatrixAnchor(row, pts)
+               : row.METHOD === 'EDGE' ? edgeMatrix(row, inst, pts, thk)
+               : planeMatrix(row);
       } catch (err) { console.error(err.message); return; }
       inst[row.NO] = { matrix: matrix, pts: pts, thk: thk };
 
@@ -486,6 +646,8 @@
       '    <button onclick="plateBuilder.setView(\'side\')">Side</button>' +
       '    <button onclick="plateBuilder.setView(\'top\')">Top</button>' +
       '    <button onclick="plateBuilder.exportSTL()">Save STL</button>' +
+      '    <button onclick="plateBuilder.pickExcel()">Load Excel</button>' +
+      '    <input type="file" id="pb-file" accept=".xlsx" style="display:none">' +
       '  </div>' +
       '  <table id="pb-list"></table>' +
       '  <div id="pb-total"></div>' +
@@ -512,7 +674,7 @@
     var token = runToken;
     items = [];
 
-    var empty = data.ASSY.length <= 1;
+    var empty = data.__parsed ? !data.__parsed.assy.length : data.ASSY.length <= 1;
     buildDOM(data.title || 'Plate Builder',
              data.subtitle || 'PLATE / CUT / ASSY data · unit: mm',
              data.note || (empty
@@ -578,6 +740,18 @@
     controls.dampingFactor = 0.1;
     setView('iso');
 
+    // Excel loading: file picker + drag & drop anywhere on the app
+    var fileInput = document.getElementById('pb-file');
+    fileInput.addEventListener('change', function () {
+      if (fileInput.files.length) loadExcelFile(fileInput.files[0]);
+    });
+    var app = document.getElementById('pb-app');
+    app.addEventListener('dragover', function (e) { e.preventDefault(); });
+    app.addEventListener('drop', function (e) {
+      e.preventDefault();
+      if (e.dataTransfer.files.length) loadExcelFile(e.dataTransfer.files[0]);
+    });
+
     window.addEventListener('resize', function () {
       camera.aspect = container.clientWidth / container.clientHeight;
       camera.updateProjectionMatrix();
@@ -608,9 +782,15 @@
     })();
   }
 
+  function pickExcel() {
+    var el = document.getElementById('pb-file');
+    if (el) el.click();
+  }
+
   window.plateBuilder = {
     run: run, setView: setView, exportSTL: exportSTL,
-    toggleItem: toggleItem, toggleGroup: toggleGroup
+    toggleItem: toggleItem, toggleGroup: toggleGroup,
+    pickExcel: pickExcel, loadExcelFile: loadExcelFile
   };
 
   /* ---- auto-run: use window.PLATE_DATA if present, else empty default.
