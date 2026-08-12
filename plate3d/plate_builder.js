@@ -128,6 +128,8 @@
        CUT   [plateID] [refPt] RECT  B H  L.X L.Y L.ROT dx dy repeat
        CUT   [plateID] [refPt] CIRC  D    L.X L.Y L.ROT dx dy repeat
        CUT   [plateID] [refPt] PLATE ID   L.X L.Y L.ROT dx dy repeat
+                                              (repeat = extra copies, each offset by
+                                               dx,dy from the previous one; 0/blank = none)
                                               (plateID optional -> last PLATE/BAR row;
                                                refPt optional -> pbl. L.X/L.Y are
                                                measured from that reference point)
@@ -228,21 +230,20 @@
         if (sub === 'RECT') {
           c.TYPE = 'TRAP'; c.B = num(v[1], 0); c.TW = c.B; c.H = num(v[2], 0); c.OF = 0;
           c.U = num(v[3], 0); c.V = num(v[4], 0); c.ANG = num(v[5], 0);
-          c.DX = num(v[6], 0); c.DY = num(v[7], 0); c.N = num(v[8], 1);
+          c.DX = num(v[6], 0); c.DY = num(v[7], 0); c.REP = num(v[8], 0);
         } else if (sub === 'CIRC') {
           c.TYPE = 'CIRC'; c.D = num(v[1], 0);
           c.U = num(v[2], 0); c.V = num(v[3], 0); c.ANG = num(v[4], 0);
-          c.DX = num(v[5], 0); c.DY = num(v[6], 0); c.N = num(v[7], 1);
+          c.DX = num(v[5], 0); c.DY = num(v[6], 0); c.REP = num(v[7], 0);
         } else if (sub === 'PLATE') {
           c.TYPE = 'REF'; c.REF = str(v[1]).toUpperCase();
           c.U = num(v[2], 0); c.V = num(v[3], 0); c.ANG = num(v[4], 0);
-          c.DX = num(v[5], 0); c.DY = num(v[6], 0); c.N = num(v[7], 1);
+          c.DX = num(v[5], 0); c.DY = num(v[6], 0); c.REP = num(v[7], 0);
         } else { warn('row ' + (r + 1) + ': unknown CUT type ' + sub); continue; }
-        if ((num(c.DX, 0) || num(c.DY, 0)) && num(c.N, 1) < 2) {
-          warn('row ' + (r + 1) + ': CUT on ' + target + ' has dx/dy but repeat is ' +
-               (c.N === undefined || str(c.N) === '' ? 'empty' : c.N) +
-               ' — only one copy is made. Check the column alignment (CIRC/PLATE rows ' +
-               'have one parameter less than RECT, so dx/dy/repeat shift one column left)');
+        if ((num(c.DX, 0) || num(c.DY, 0)) && num(c.REP, 0) < 1) {
+          warn('row ' + (r + 1) + ': CUT on ' + target + ' has dx/dy but repeat is 0/empty' +
+               ' — no copy is made. Check the column alignment (CIRC/PLATE rows have one ' +
+               'parameter less than RECT, so dx/dy/repeat shift one column left)');
         }
         cuts.push(c);
         counts.cut++;
@@ -525,8 +526,8 @@
       var anchor = basePts[c.REFPT || (c.__xlCut ? 'pbc' : 'pbl')] || [0, 0];
       // positions: 1D repeat (N/DX/DY, Excel grammar) or NX·PX/NY·PY grid
       var uvs = [];
-      if (c.N !== undefined) {
-        for (var i = 0; i < num(c.N, 1); i++)
+      if (c.REP !== undefined) {              // repeat = extra copies (original excluded)
+        for (var i = 0; i <= num(c.REP, 0); i++)
           uvs.push([anchor[0] + num(c.U, 0) + i * num(c.DX, 0),
                     anchor[1] + num(c.V, 0) + i * num(c.DY, 0)]);
       } else {
