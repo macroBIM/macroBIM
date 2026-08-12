@@ -413,8 +413,21 @@ const Physics = {
                             // 약간 기울어진 벽에서 실제 끝점을 지나 오버슛한다.
                             let e1 = (w2.x1 - o.x) * u.x + (w2.y1 - o.y) * u.y;
                             let e2 = (w2.x2 - o.x) * u.x + (w2.y2 - o.y) * u.y;
-                            let far = (dirSign < 0) ? Math.min(e1, e2) : Math.max(e1, e2);
-                            if ((dirSign < 0 && far < cur - 1e-6) || (dirSign > 0 && far > cur + 1e-6)) {
+                            // 표면 레벨(법선 방향 부호거리) — 얕은 경사면이 바 축을 가로지르면
+                            // (예: 하부슬래브 끝 모따기) 바가 표면을 뚫고 나가므로 교차점에서 클램프.
+                            let d1 = (w2.x1 - o.x) * n.x + (w2.y1 - o.y) * n.y;
+                            let d2 = (w2.x2 - o.x) * n.x + (w2.y2 - o.y) * n.y;
+                            let eN, eF, dN, dF;
+                            if ((dirSign > 0) === (e2 >= e1)) { eN = e1; dN = d1; eF = e2; dF = d2; }
+                            else { eN = e2; dN = d2; eF = e1; dF = d1; }
+                            let rMin = Math.max(dia / 2, 8);      // 표면까지 최소 이격 (바 반지름)
+                            let far = eF;
+                            let usable = true;
+                            if (dF < rMin) {
+                                if (dN <= rMin) usable = false;   // 벽 전체가 바 축 반대편/근접 → 연장 불가
+                                else far = eN + (eF - eN) * (dN - rMin) / (dN - dF);   // 레벨 rMin 교차점까지만
+                            }
+                            if (usable && ((dirSign < 0 && far < cur - 1e-6) || (dirSign > 0 && far > cur + 1e-6))) {
                                 cur = far; k = 1; ok = true;   // 연장됨 → 새 끝에서 다시 전진
                             }
                         }
