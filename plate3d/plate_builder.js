@@ -109,8 +109,17 @@
        CUT   RECT  B H  L.X L.Y L.ROT dx dy repeat   (cuts the last PLATE/BAR)
        CUT   CIRC  D    L.X L.Y L.ROT dx dy repeat
        CUT   PLATE ID   L.X L.Y L.ROT dx dy repeat
-       ASSY  ID PLANE REF.PT L.X L.Y L.ROT OFFSET    (PLANE: XY/YZ/XZ,
-                                              REF.PT: TL..BR/CC, p-prefix ok)
+       PART  ID                               (part definition starts;
+                                               following POS/BASE rows belong to it)
+       POS   ID PLANE REF.PT L.X L.Y L.ROT OFFSET    (place a plate INSIDE the
+                                               current part, part-local coords)
+       BASE  INSTANCE POINT                   (part reference point = one of the
+                                               9 points of a member plate;
+                                               missing BASE -> warning + local origin)
+       ASSY  ID PLANE REF.PT L.X L.Y L.ROT OFFSET    (assemble a PART or a PLATE.
+                                               REF.PT for parts: blank/O = BASE point,
+                                               9-point name = part bbox point,
+                                               INSTANCE.POINT = explicit plate point)
        END
      ================================================================ */
   var PLANE_ALIAS = { XY: 'FRONT', YZ: 'SIDE', XZ: 'PLAN',
@@ -124,10 +133,16 @@
   }
 
   function parseExcelRows(rows) {
-    var plates = {}, cuts = [], assy = [], log = [];
-    var counts = { plate: 0, bar: 0, cut: 0, assy: 0 };
-    var current = null, counter = {};
+    var plates = {}, parts = {}, cuts = [], assy = [], log = [];
+    var counts = { plate: 0, bar: 0, cut: 0, part: 0, assy: 0 };
+    var current = null, currentPart = null, counter = {};
     function warn(m) { log.push(m); console.error('[plateBuilder] ' + m); }
+    function resolvePlate(pid) {          // exact id, or instance suffix PL.C1_2 → PL.C1
+      if (plates[pid]) return pid;
+      var sfx = pid.match(/^(.+?)[_-]\d+$/);
+      if (sfx && plates[sfx[1]]) return sfx[1];
+      return null;
+    }
     for (var r = 0; r < rows.length; r++) {
       var row = rows[r] || [];
       var k = 0;
@@ -181,21 +196,43 @@
         } else { warn('row ' + (r + 1) + ': unknown CUT type ' + sub); continue; }
         cuts.push(c);
         counts.cut++;
+      } else if (kw === 'PART') {         // PART ID — part definition starts
+        var partId = str(v[0]).toUpperCase();
+        if (!partId) { warn('row ' + (r + 1) + ': PART without ID'); continue; }
+        currentPart = { ID: partId, pos: [], base: null };
+        parts[partId] = currentPart;
+        counts.part++;
+      } else if (kw === 'POS') {          // place a plate inside the current part
+        if (!currentPart) { warn('row ' + (r + 1) + ': POS outside of a PART'); continue; }
+        var ppid = str(v[0]).toUpperCase();
+        var pplate = resolvePlate(ppid);
+        if (!pplate) { warn('row ' + (r + 1) + ': POS of undefined plate ' + ppid); continue; }
+        var pplane = str(v[1]).toUpperCase();
+        if (!PLANE_ALIAS[pplane]) { warn('row ' + (r + 1) + ': unknown PLANE ' + pplane + ' (use XY/YZ/XZ)'); continue; }
+        currentPart.pos.push({ NO: ppid, PLATE: pplate, PLANE: PLANE_ALIAS[pplane],
+                               REFPT: normPoint(v[2]), LX: num(v[3], 0), LY: num(v[4], 0),
+                               ROT: num(v[5], 0), OFFSET: num(v[6], 0) });
+      } else if (kw === 'BASE') {         // BASE INSTANCE POINT — part reference point
+        if (!currentPart) { warn('row ' + (r + 1) + ': BASE outside of a PART'); continue; }
+        currentPart.base = { inst: str(v[0]).toUpperCase(), pt: normPoint(v[1]) };
       } else if (kw === 'ASSY') {         // ID PLANE REF.PT L.X L.Y L.ROT OFFSET
         var pid = str(v[0]).toUpperCase();
-        var plateId = pid;
-        if (!plates[plateId]) {           // instance-suffix convention: PL.C1_2 → plate PL.C1
-          var sfx = pid.match(/^(.+?)[_-]\d+$/);
-          if (sfx && plates[sfx[1]]) plateId = sfx[1];
+        var partRef = parts[pid] ? pid : null;
+        if (!partRef) {                   // instance-suffix on parts too: PC.COL_2 → PC.COL
+          var psfx = pid.match(/^(.+?)[_-]\d+$/);
+          if (psfx && parts[psfx[1]]) partRef = psfx[1];
         }
-        if (!plates[plateId]) { warn('row ' + (r + 1) + ': ASSY of undefined ID ' + pid); continue; }
-        counter[plateId] = (counter[plateId] || 0) + 1;
+        var plateId = partRef ? null : resolvePlate(pid);
+        if (!partRef && !plateId) { warn('row ' + (r + 1) + ': ASSY of undefined ID ' + pid); continue; }
+        var key = partRef || plateId;
+        counter[key] = (counter[key] || 0) + 1;
         var plkey = str(v[1]).toUpperCase();
         if (!PLANE_ALIAS[plkey]) { warn('row ' + (r + 1) + ': unknown PLANE ' + plkey + ' (use XY/YZ/XZ)'); continue; }
         assy.push({ __xl: true,
-                    NO: pid !== plateId ? pid : plateId + '-' + counter[plateId],
-                    PLATE: plateId,
-                    PLANE: PLANE_ALIAS[plkey], REFPT: normPoint(v[2]),
+                    NO: pid !== key ? pid : key + '-' + counter[key],
+                    PLATE: plateId, PART: partRef,
+                    PLANE: PLANE_ALIAS[plkey],
+                    REFPT: partRef ? str(v[2]) : normPoint(v[2]),   // parts: raw, resolved at build
                     LX: num(v[3], 0), LY: num(v[4], 0), ROT: num(v[5], 0),
                     OFFSET: num(v[6], 0), GROUP: '-', REMARK: '', MIRROR: '' });
         counts.assy++;
@@ -203,7 +240,13 @@
         warn('row ' + (r + 1) + ': unknown keyword ' + kw);
       }
     }
-    return { plates: plates, cuts: cuts, assy: assy, log: log, counts: counts };
+    Object.keys(parts).forEach(function (id) {
+      if (!parts[id].pos.length) warn('PART ' + id + ': has no POS rows');
+      else if (!parts[id].base) warn('PART ' + id + ': BASE not defined — using local origin (0,0)');
+      else if (!parts[id].pos.some(function (p) { return p.NO === parts[id].base.inst; }))
+        warn('PART ' + id + ': BASE instance ' + parts[id].base.inst + ' not found among POS rows — using local origin');
+    });
+    return { plates: plates, parts: parts, cuts: cuts, assy: assy, log: log, counts: counts };
   }
 
   function cellVal(c) {
@@ -243,6 +286,7 @@
     el.className = log.length ? 'warn' : 'ok';
     var h = '<b>' + (log.length ? '&#9888; ' : '&#10003; ') + esc(fname) + '</b><br>' +
             'plates ' + c.plate + ' &middot; bars ' + c.bar + ' &middot; cuts ' + c.cut +
+            ' &middot; parts ' + (c.part || 0) +
             ' &middot; assy ' + c.assy + ' &rarr; placed ' + placed;
     if (log.length) {
       h += '<ul>' + log.slice(0, 10).map(function (m) { return '<li>' + esc(m) + '</li>'; }).join('') +
@@ -550,10 +594,11 @@
 
   /* ---------------- scene build ---------------- */
   function buildAll(data, colors) {
-    var plates = {}, cuts, assyRows;
+    var plates = {}, parts = {}, cuts, assyRows;
     var colorSeq = 0;
     if (data.__parsed) {                 // Excel keyword-grammar path
       plates = data.__parsed.plates;
+      parts = data.__parsed.parts || {};
       cuts = data.__parsed.cuts;
       assyRows = data.__parsed.assy;
     } else {                             // JS sheet-array path
@@ -569,29 +614,17 @@
 
     function buildErr(m) { buildLog.push(m); console.error('[plateBuilder] ' + m); }
 
-    assyRows.forEach(function (row) {
-      var spec = plates[row.PLATE];
-      if (!spec) { buildErr(row.NO + ': unknown PLATE=' + row.PLATE); return; }
+    // create geometry for one plate instance with a final world matrix
+    function buildInstance(spec, matrix, no, group, remark, mirror) {
       var thk = spec.THK;
-      var mirror = row.MIRROR === 'X';
       var g2d = buildPlate2D(spec, cuts, plates);
       var outers = g2d.outers, holesArr = g2d.holes;
       if (mirror) {
         outers = mirror2D(outers, spec);
         holesArr = holesArr.map(function (hs) { return mirror2D(hs, spec); });
       }
-      var pts = namedPoints(spec, mirror);
-
-      var matrix;
-      try {
-        matrix = row.__xl ? planeMatrixAnchor(row, pts)
-               : row.METHOD === 'EDGE' ? edgeMatrix(row, inst, pts, thk)
-               : planeMatrix(row);
-      } catch (err) { buildErr(err.message); return; }
-      inst[row.NO] = { matrix: matrix, pts: pts, thk: thk };
-
       var groupObj = new THREE.Group();
-      var mat = new THREE.MeshPhongMaterial({ color: colors[row.PLATE], shininess: 28 });
+      var mat = new THREE.MeshPhongMaterial({ color: colors[spec.ID], shininess: 28 });
       outers.forEach(function (ring, i) {
         var shape = new THREE.Shape(ring.map(function (q) { return new THREE.Vector2(q[0], q[1]); }));
         holesArr[i].forEach(function (h) {
@@ -611,17 +644,105 @@
         groupObj.add(edge);
       });
       scene.add(groupObj);
-
       var dims = spec.SHAPE === 'CIRC'
         ? 'D' + spec.D + '×' + thk
         : (spec.WT === spec.WB && spec.OFF_T === spec.OFF_B
             ? spec.WB + '×' + spec.H + '×' + thk + 'T'
             : spec.WT + '/' + spec.WB + '×' + spec.H + '×' + thk + 'T');
-      items.push({ no: row.NO, plateId: row.PLATE, group: row.GROUP || '-',
+      items.push({ no: no, plateId: spec.ID, group: group || '-',
                    groupObj: groupObj, mass: g2d.area * thk * RHO,
-                   dims: dims, remark: row.REMARK || '',
+                   dims: dims, remark: remark || '',
                    spec: spec, thk: thk, matrix: matrix,
                    rings: { outers: outers, holes: holesArr } });
+      return { pts: namedPoints(spec, mirror), thk: thk };
+    }
+
+    // part-local placements + base point (3D, part-local)
+    function partLocals(part) {
+      var locals = part.pos.map(function (p) {
+        var spec = plates[p.PLATE];
+        var pts = namedPoints(spec, false);
+        return { row: p, spec: spec, pts: pts, mloc: planeMatrixAnchor(p, pts) };
+      });
+      var base = new THREE.Vector3(0, 0, 0);
+      if (part.base) {
+        for (var i = 0; i < locals.length; i++) {
+          if (locals[i].row.NO === part.base.inst) {
+            var a = locals[i].pts[part.base.pt] || locals[i].pts.pbl;
+            base = new THREE.Vector3(a[0], a[1], 0).applyMatrix4(locals[i].mloc);
+            break;
+          }
+        }
+      }
+      return { locals: locals, base: base };
+    }
+
+    // part reference point in part-local 3D coords, per ASSY REFPT syntax
+    function partRefPoint(pl, refpt) {
+      var s = str(refpt).toUpperCase();
+      if (s === '' || s === 'O') return pl.base;                     // BASE (or origin)
+      var dot = s.indexOf('.');
+      if (dot > 0 && s.lastIndexOf('.') !== 0) {                     // INSTANCE.POINT
+        var pt = s.slice(s.lastIndexOf('.') + 1);
+        var instName = s.slice(0, s.lastIndexOf('.'));
+        for (var i = 0; i < pl.locals.length; i++) {
+          if (pl.locals[i].row.NO === instName) {
+            var a = pl.locals[i].pts[normPoint(pt)] || pl.locals[i].pts.pbl;
+            return new THREE.Vector3(a[0], a[1], 0).applyMatrix4(pl.locals[i].mloc);
+          }
+        }
+        buildErr('part ref point ' + s + ' not found — using BASE');
+        return pl.base;
+      }
+      // plain 9-point name → part bbox (X/Y per name, Z centered)
+      var bb = new THREE.Box3();
+      pl.locals.forEach(function (L) {
+        var c = L.spec.SHAPE === 'CIRC'
+          ? { pbl: [-L.spec.D / 2, -L.spec.D / 2], ptr: [L.spec.D / 2, L.spec.D / 2] }
+          : cornersOf(L.spec);
+        var xs = [], ys = [];
+        Object.keys(c).forEach(function (k) { xs.push(c[k][0]); ys.push(c[k][1]); });
+        [[Math.min.apply(null, xs), Math.min.apply(null, ys), 0],
+         [Math.max.apply(null, xs), Math.max.apply(null, ys), L.spec.THK]].forEach(function (q) {
+          bb.expandByPoint(new THREE.Vector3(q[0], q[1], q[2]).applyMatrix4(L.mloc));
+        });
+      });
+      var p9 = normPoint(refpt);
+      var x = p9.charAt(2) === 'l' ? bb.min.x : p9.charAt(2) === 'r' ? bb.max.x : (bb.min.x + bb.max.x) / 2;
+      var y = p9.charAt(1) === 'b' ? bb.min.y : p9.charAt(1) === 't' ? bb.max.y : (bb.min.y + bb.max.y) / 2;
+      return new THREE.Vector3(x, y, (bb.min.z + bb.max.z) / 2);
+    }
+
+    assyRows.forEach(function (row) {
+      if (row.PART) {                    // part instance: place every member plate
+        var part = parts[row.PART];
+        if (!part) { buildErr(row.NO + ': unknown PART=' + row.PART); return; }
+        var pl;
+        try { pl = partLocals(part); } catch (err) { buildErr(row.NO + ': ' + err.message); return; }
+        var B = partRefPoint(pl, row.REFPT);
+        var b = PLANE_BASIS[row.PLANE];
+        var M = new THREE.Matrix4().makeBasis(v3(b.ex), v3(b.ey), v3(b.ez));
+        M.multiply(new THREE.Matrix4().makeTranslation(row.LX, row.LY, row.OFFSET));
+        M.multiply(new THREE.Matrix4().makeRotationZ(row.ROT * Math.PI / 180));
+        M.multiply(new THREE.Matrix4().makeTranslation(-B.x, -B.y, -B.z));
+        pl.locals.forEach(function (L) {
+          var world = M.clone().multiply(L.mloc);
+          buildInstance(L.spec, world, row.NO + '/' + L.row.NO, row.NO, '', false);
+        });
+        return;
+      }
+      var spec = plates[row.PLATE];
+      if (!spec) { buildErr(row.NO + ': unknown PLATE=' + row.PLATE); return; }
+      var mirror = row.MIRROR === 'X';
+      var pts = namedPoints(spec, mirror);
+      var matrix;
+      try {
+        matrix = row.__xl ? planeMatrixAnchor(row, pts)
+               : row.METHOD === 'EDGE' ? edgeMatrix(row, inst, pts, spec.THK)
+               : planeMatrix(row);
+      } catch (err) { buildErr(err.message); return; }
+      var r2 = buildInstance(spec, matrix, row.NO, row.GROUP, row.REMARK, mirror);
+      inst[row.NO] = { matrix: matrix, pts: r2.pts, thk: r2.thk };
     });
     return bbox;
   }
