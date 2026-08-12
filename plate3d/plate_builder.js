@@ -64,6 +64,10 @@
     '#pb-side .chip { display:inline-block; width:11px; height:11px; border-radius:2px;',
     '  margin-right:5px; vertical-align:-1px; }',
     '#pb-side .dims { color:#8a93a0; font-size:11px; }',
+    '#pb-side .chk { display:flex; align-items:center; gap:4px; font-size:12px;',
+    '  color:#8a93a0; cursor:pointer; padding:5px 6px; border:1px solid #3a424d;',
+    '  border-radius:4px; }',
+    '#pb-side .chk:hover { color:#d8dce2; }',
     '#pb-total { color:#fff; font-size:12px; margin:6px 0 12px; }',
     '#pb-prog { display:none; margin:0 0 10px; }',
     '#pb-prog-label { font-size:11px; color:#8a93a0; margin-bottom:4px; }',
@@ -93,9 +97,16 @@
     '#pb-modal .meta { color:#8a93a0; font-size:11px; margin-top:8px; }'
   ].join('\n');
 
+  var flatMode = false;                 // draw plates as surfaces (no thickness)
+  function plateGeom(shape, thk) {      // local plane = mid-thickness
+    if (flatMode) return new THREE.ShapeGeometry(shape);
+    var g = new THREE.ExtrudeGeometry(shape, { depth: thk, bevelEnabled: false, curveSegments: 24 });
+    g.translate(0, 0, -thk / 2);
+    return g;
+  }
   var scene, camera, renderer, controls;
   var lastPlates = {}, lastCuts = [], lastColors = {}, lastParts = {};  // for preview modals
-  var pvToken = 0, pvRenderer = null;   // 3D preview lifecycle
+  var pvToken = 0, pvRenderer = null, pvModuleId = null;   // 3D preview lifecycle
   var pvX = null, pvPts = [], pvBase = null;   // 2D preview: transform, snap points, base image
   var CENTER = null, VDIST = 1200;                // set from model bbox in run()
   var items = [];
@@ -660,8 +671,8 @@
     if (!tgt) throw new Error(row.NO + ': TO=' + row.TO + ' undefined (only earlier rows can be referenced)');
     var te = edgeOf(tgt.pts, row.TO_EDGE);
     if (!te) throw new Error(row.NO + ': TO_EDGE=' + row.TO_EDGE);
-    var A = v3([te[0][0], te[0][1], tgt.thk]).applyMatrix4(tgt.matrix);   // hinge = edge on target front face
-    var Bp = v3([te[1][0], te[1][1], tgt.thk]).applyMatrix4(tgt.matrix);
+    var A = v3([te[0][0], te[0][1], tgt.thk / 2]).applyMatrix4(tgt.matrix);   // hinge = target front face
+    var Bp = v3([te[1][0], te[1][1], tgt.thk / 2]).applyMatrix4(tgt.matrix);
     var n = new THREE.Vector3().setFromMatrixColumn(tgt.matrix, 2).normalize();  // target thickness dir
     var d = Bp.clone().sub(A), Lt = d.length(); d.normalize();
     var out = d.clone().cross(n);                                          // outward direction
@@ -682,7 +693,7 @@
                .multiply(new THREE.Matrix4().makeTranslation(-s[0], -s[1], 0));
 
     var align = { S: 0, C: (Lt - Lm) / 2, E: Lt - Lm }[row.ALIGN || 'S'] + num(row.SLIDE, 0);
-    var flush = { OUT: -myTHK, C: -myTHK / 2, IN: 0 }[row.FLUSH || 'C'];
+    var flush = { OUT: -myTHK / 2, C: 0, IN: myTHK / 2 }[row.FLUSH || 'C'];
     var origin = A.clone().add(d.clone().multiplyScalar(align)).add(ez.clone().multiplyScalar(flush));
 
     return new THREE.Matrix4().makeBasis(ex, ey, ez).setPosition(origin).multiply(r0);
@@ -724,16 +735,18 @@
         holesArr = holesArr.map(function (hs) { return mirror2D(hs, spec); });
       }
       var groupObj = new THREE.Group();
-      var mat = new THREE.MeshPhongMaterial({ color: colors[spec.ID], shininess: 28 });
+      var mat = new THREE.MeshPhongMaterial({ color: colors[spec.ID], shininess: 28,
+                                              side: THREE.DoubleSide });
       outers.forEach(function (ring, i) {
         var shape = new THREE.Shape(ring.map(function (q) { return new THREE.Vector2(q[0], q[1]); }));
         holesArr[i].forEach(function (h) {
           shape.holes.push(new THREE.Path(h.map(function (q) { return new THREE.Vector2(q[0], q[1]); })));
         });
-        var geo = new THREE.ExtrudeGeometry(shape, { depth: thk, bevelEnabled: false, curveSegments: 24 });
+        var geo = plateGeom(shape, thk);
         var mesh = new THREE.Mesh(geo, mat);
         mesh.matrixAutoUpdate = false;
         mesh.matrix.copy(matrix);
+        mesh.userData = { shape: shape, thk: thk };
         groupObj.add(mesh);
         geo.computeBoundingBox();
         bbox.union(geo.boundingBox.clone().applyMatrix4(matrix));
@@ -741,6 +754,7 @@
                                           new THREE.LineBasicMaterial({ color: 0x0e1013 }));
         edge.matrixAutoUpdate = false;
         edge.matrix.copy(matrix);
+        edge.userData = { shape: shape, thk: thk };
         groupObj.add(edge);
       });
       scene.add(groupObj);
@@ -994,6 +1008,7 @@
           : 'WT ' + spec.WT + ' / WB ' + spec.WB + ' × H ' + spec.H + ' × ' + spec.THK + 'T');
     var ncut = lastCuts.filter(function (c) { return c.PLATE === id; }).length;
     stopPreview3D();
+    pvModuleId = null;
     cv.style.display = 'block';
     document.getElementById('pb-pv3d').style.display = 'none';
     document.getElementById('pb-pv-title').textContent = id;
@@ -1027,6 +1042,7 @@
     modal.style.display = 'flex';
   }
   function closePreview() {
+    pvModuleId = null;
     stopPreview3D();
     var modal = document.getElementById('pb-modal');
     if (modal) modal.style.display = 'none';
@@ -1059,6 +1075,51 @@
     });
   }
 
+  function makeLabel(text, color, h) {          // canvas text as a camera-facing sprite
+    var pad = 6, fs = 42;
+    var cv = document.createElement('canvas');
+    var c = cv.getContext('2d');
+    c.font = 'bold ' + fs + 'px sans-serif';
+    cv.width = Math.ceil(c.measureText(text).width) + pad * 2;
+    cv.height = fs + pad * 2;
+    c = cv.getContext('2d');
+    c.font = 'bold ' + fs + 'px sans-serif';
+    c.textBaseline = 'middle';
+    c.fillStyle = 'rgba(21,24,28,0.8)';
+    c.fillRect(0, 0, cv.width, cv.height);
+    c.fillStyle = color;
+    c.fillText(text, pad, cv.height / 2);
+    var spr = new THREE.Sprite(new THREE.SpriteMaterial({
+      map: new THREE.CanvasTexture(cv), depthTest: false, transparent: true }));
+    spr.scale.set(h * cv.width / cv.height, h, 1);
+    return spr;
+  }
+
+  // dimension line between two points, offset along dir, with the length as text
+  function dimLine(scn, a, b, dir, off, size, color) {
+    var A = a.clone().add(dir.clone().multiplyScalar(off));
+    var B = b.clone().add(dir.clone().multiplyScalar(off));
+    var mat = new THREE.LineBasicMaterial({ color: color, depthTest: false });
+    var tick = dir.clone().multiplyScalar(size * 0.02);
+    [[a, A.clone().add(tick)], [b, B.clone().add(tick)], [A, B]].forEach(function (seg) {
+      scn.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints([seg[0], seg[1]]), mat));
+    });
+    var arrow = size * 0.022;
+    var d = B.clone().sub(A).normalize();
+    [[A, d], [B, d.clone().negate()]].forEach(function (e) {
+      var tip = e[0], u = e[1];
+      var side = dir.clone().multiplyScalar(arrow * 0.45);
+      var back = tip.clone().add(u.clone().multiplyScalar(arrow));
+      scn.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints(
+        [tip, back.clone().add(side), back.clone().sub(side), tip]), mat));
+    });
+    var len = b.clone().sub(a).length();
+    var lab = makeLabel(Math.round(len) + '', color === 0xf0c674 ? '#f0c674' : '#9aa3b0', size * 0.042);
+    lab.position.copy(A.clone().add(B).multiplyScalar(0.5)
+      .add(dir.clone().multiplyScalar(size * 0.038)));
+    scn.add(lab);
+  }
+
   function stopPreview3D() {
     pvToken++;
     if (pvRenderer) {
@@ -1076,6 +1137,7 @@
     var host = document.getElementById('pb-pv3d');
     if (!modal || !host) return;
     stopPreview3D();
+    pvModuleId = id;
     document.getElementById('pb-pv-canvas').style.display = 'none';
     host.style.display = 'block';
     modal.style.display = 'flex';
@@ -1108,13 +1170,14 @@
       }
       var g2d = buildPlate2D(spec, lastCuts, lastPlates);
       mass += g2d.area * spec.THK * RHO;
-      var mat = new THREE.MeshPhongMaterial({ color: lastColors[row.PLATE] || 0x999999, shininess: 28 });
+      var mat = new THREE.MeshPhongMaterial({ color: lastColors[row.PLATE] || 0x999999,
+                                             shininess: 28, side: THREE.DoubleSide });
       g2d.outers.forEach(function (ring, i) {
         var shape = new THREE.Shape(ring.map(function (q) { return new THREE.Vector2(q[0], q[1]); }));
         (g2d.holes[i] || []).forEach(function (h) {
           shape.holes.push(new THREE.Path(h.map(function (q) { return new THREE.Vector2(q[0], q[1]); })));
         });
-        var geo = new THREE.ExtrudeGeometry(shape, { depth: spec.THK, bevelEnabled: false, curveSegments: 24 });
+        var geo = plateGeom(shape, spec.THK);
         var mesh = new THREE.Mesh(geo, mat);
         mesh.matrixAutoUpdate = false;
         mesh.matrix.copy(m);
@@ -1131,21 +1194,55 @@
 
     var center = bbox.isEmpty() ? new THREE.Vector3() : bbox.getCenter(new THREE.Vector3());
     var size = bbox.isEmpty() ? 500 : bbox.getSize(new THREE.Vector3()).length();
-    if (basePt) {                              // mark the module base point
-      var mk = new THREE.Mesh(new THREE.SphereGeometry(size * 0.018, 16, 12),
-                              new THREE.MeshBasicMaterial({ color: 0xf0c674 }));
+    var mn = bbox.min, mx3 = bbox.max;
+
+    if (!bbox.isEmpty()) {                     // overall dimensions (W / H / D)
+      var ex = new THREE.Vector3(1, 0, 0), ey = new THREE.Vector3(0, 1, 0), ez = new THREE.Vector3(0, 0, 1);
+      var o = size * 0.07;
+      dimLine(sc, new THREE.Vector3(mn.x, mn.y, mx3.z), new THREE.Vector3(mx3.x, mn.y, mx3.z),
+              ey.clone().negate(), o, size, 0x9aa3b0);                       // width  (X)
+      dimLine(sc, new THREE.Vector3(mx3.x, mn.y, mx3.z), new THREE.Vector3(mx3.x, mx3.y, mx3.z),
+              ex, o, size, 0x9aa3b0);                                        // height (Y)
+      dimLine(sc, new THREE.Vector3(mx3.x, mn.y, mx3.z), new THREE.Vector3(mx3.x, mn.y, mn.z),
+              ey.clone().negate(), o, size, 0x9aa3b0);                       // depth  (Z)
+    }
+
+    if (basePt) {                              // module base point
+      var mk = new THREE.Mesh(new THREE.SphereGeometry(size * 0.022, 20, 14),
+                              new THREE.MeshBasicMaterial({ color: 0xf0c674, depthTest: false }));
       mk.position.copy(basePt);
       sc.add(mk);
-      sc.add(new THREE.AxesHelper(size * 0.18).translateX(basePt.x).translateY(basePt.y).translateZ(basePt.z));
+      var cr = size * 0.09, cmat = new THREE.LineBasicMaterial({ color: 0xf0c674, depthTest: false });
+      [[new THREE.Vector3(cr, 0, 0)], [new THREE.Vector3(0, cr, 0)], [new THREE.Vector3(0, 0, cr)]]
+        .forEach(function (v) {
+          sc.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints(
+            [basePt.clone().sub(v[0]), basePt.clone().add(v[0])]), cmat));
+        });
+      var bl = makeLabel('BASE (' + Math.round(basePt.x) + ', ' + Math.round(basePt.y) + ', ' +
+                         Math.round(basePt.z) + ')', '#f0c674', size * 0.05);
+      bl.position.copy(basePt.clone().add(new THREE.Vector3(-size * 0.13, -size * 0.06, size * 0.13)));
+      sc.add(bl);
+      sc.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints([basePt, bl.position.clone()]),
+                            new THREE.LineBasicMaterial({ color: 0xf0c674, depthTest: false })));
+      if (!bbox.isEmpty()) {                   // base offsets to the model extents
+        if (Math.abs(basePt.x - mn.x) > size * 0.01) {
+          dimLine(sc, new THREE.Vector3(mn.x, basePt.y, mn.z), new THREE.Vector3(basePt.x, basePt.y, mn.z),
+                  new THREE.Vector3(0, -1, 0), size * 0.02, size, 0xf0c674);
+        }
+        if (Math.abs(basePt.y - mn.y) > size * 0.01) {
+          dimLine(sc, new THREE.Vector3(basePt.x, mn.y, mn.z), new THREE.Vector3(basePt.x, basePt.y, mn.z),
+                  new THREE.Vector3(-1, 0, 0), size * 0.02, size, 0xf0c674);
+        }
+      }
     }
     var grid = new THREE.GridHelper(Math.ceil(size / 200) * 400, 20, 0x39424d, 0x242a31);
-    grid.position.set(center.x, bbox.isEmpty() ? 0 : bbox.min.y - 1, center.z);
+    grid.position.set(center.x, bbox.isEmpty() ? 0 : mn.y - 1, center.z);
     sc.add(grid);
 
     var ctr = new THREE.OrbitControls(cam, rn.domElement);
     ctr.enableDamping = true;
     ctr.dampingFactor = 0.1;
-    cam.position.set(center.x + size * 0.8, center.y + size * 0.7, center.z + size * 0.9);
+    cam.position.set(center.x + size * 1.05, center.y + size * 0.85, center.z + size * 1.2);
     ctr.target.copy(center);
     ctr.update();
 
@@ -1208,6 +1305,8 @@
 
   /* -------- STL export (world transforms applied) -------- */
   function exportSTL() {
+    var wasFlat = flatMode;
+    if (wasFlat) setFlat(false);              // STL must carry the real thickness
     var out = 'solid plate_builder\n';
     scene.updateMatrixWorld(true);
     items.forEach(function (it) {
@@ -1241,6 +1340,7 @@
     link.download = 'plate_builder.stl';
     link.click();
     URL.revokeObjectURL(link.href);
+    if (wasFlat) setFlat(true);
   }
 
   /* -------- IFC export (IFC2X3, parametric extrusions) --------
@@ -1319,7 +1419,7 @@
     nx('IFCRELAGGREGATES(' + guid() + ',' + oOH + ',$,$,' + oProj + ',(' + oSite + '))');
     nx('IFCRELAGGREGATES(' + guid() + ',' + oOH + ',$,$,' + oSite + ',(' + oBld + '))');
     nx('IFCRELAGGREGATES(' + guid() + ',' + oOH + ',$,$,' + oBld + ',(' + oSt + '))');
-    var oSolidPos = nx('IFCAXIS2PLACEMENT3D(' + o0 + ',$,$)');
+    var solidPos = {};   // one placement per thickness (extrusion starts at -t/2)
 
     var elements = [];
     items.forEach(function (it) {
@@ -1343,7 +1443,10 @@
                  holes.map(function (h) { return polyline(cw(h)); }).join(',') + '))')
             : nx('IFCARBITRARYCLOSEDPROFILEDEF(.AREA.,$,' + outerPl + ')');
         }
-        return nx('IFCEXTRUDEDAREASOLID(' + profile + ',' + oSolidPos + ',' + oZ + ',' + f(it.thk) + ')');
+        if (!solidPos[it.thk]) {
+          solidPos[it.thk] = nx('IFCAXIS2PLACEMENT3D(' + pt3(0, 0, -it.thk / 2) + ',$,$)');
+        }
+        return nx('IFCEXTRUDEDAREASOLID(' + profile + ',' + solidPos[it.thk] + ',' + oZ + ',' + f(it.thk) + ')');
       });
       if (!solids.length) return;
       var shape = nx('IFCSHAPEREPRESENTATION(' + oCtx + ",'Body','SweptSolid',(" + solids.join(',') + '))');
@@ -1412,6 +1515,8 @@
       '    <button onclick="plateBuilder.exportIFC()">Save IFC</button>' +
       '    <button class="accent" onclick="plateBuilder.pickExcel()">&#8682; Load Excel</button>' +
       '    <input type="file" id="pb-file" accept=".xlsx,.xls" style="display:none">' +
+      '    <label class="chk"><input type="checkbox" id="pb-flat"' +
+      '      onchange="plateBuilder.setFlat(this.checked)"> surface only</label>' +
       '  </div>' +
       '  <div id="pb-prog"><div id="pb-prog-label"></div>' +
       '    <div class="pb-track"><div id="pb-prog-bar"></div></div></div>' +
@@ -1528,6 +1633,7 @@
     scene.add(back);
 
     var colors = data.colors || {};
+    pvModuleId = null;
     var bbox = buildAll(data, colors);
     buildPlateList(colors);
     buildList(colors);
@@ -1567,6 +1673,7 @@
     controls.enableDamping = true;
     controls.dampingFactor = 0.1;
     setView('iso');
+    if (flatMode) document.getElementById('pb-flat').checked = true;
 
     // Excel loading: file picker + drag & drop anywhere on the app
     var fileInput = document.getElementById('pb-file');
@@ -1610,6 +1717,22 @@
     })();
   }
 
+  function setFlat(on) {
+    flatMode = !!on;
+    var cb = document.getElementById('pb-flat');
+    if (cb) cb.checked = flatMode;
+    items.forEach(function (it) {
+      it.groupObj.children.forEach(function (obj) {
+        var d = obj.userData;
+        if (!d || !d.shape) return;
+        var geo = plateGeom(d.shape, d.thk);
+        obj.geometry.dispose();
+        obj.geometry = obj.isMesh ? geo : new THREE.EdgesGeometry(geo, 25);
+      });
+    });
+    if (pvModuleId) previewModule(pvModuleId);      // keep an open preview in sync
+  }
+
   function pickExcel() {
     var el = document.getElementById('pb-file');
     if (el) el.click();
@@ -1619,7 +1742,8 @@
     run: run, setView: setView, exportSTL: exportSTL, exportIFC: exportIFC,
     toggleItem: toggleItem, toggleGroup: toggleGroup,
     pickExcel: pickExcel, loadExcelFile: loadExcelFile,
-    preview: preview, previewModule: previewModule, closePreview: closePreview
+    preview: preview, previewModule: previewModule, closePreview: closePreview,
+    setFlat: setFlat
   };
 
   /* ---- auto-run: use window.PLATE_DATA if present, else empty default.
