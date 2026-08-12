@@ -238,6 +238,12 @@
           c.U = num(v[2], 0); c.V = num(v[3], 0); c.ANG = num(v[4], 0);
           c.DX = num(v[5], 0); c.DY = num(v[6], 0); c.N = num(v[7], 1);
         } else { warn('row ' + (r + 1) + ': unknown CUT type ' + sub); continue; }
+        if ((num(c.DX, 0) || num(c.DY, 0)) && num(c.N, 1) < 2) {
+          warn('row ' + (r + 1) + ': CUT on ' + target + ' has dx/dy but repeat is ' +
+               (c.N === undefined || str(c.N) === '' ? 'empty' : c.N) +
+               ' — only one copy is made. Check the column alignment (CIRC/PLATE rows ' +
+               'have one parameter less than RECT, so dx/dy/repeat shift one column left)');
+        }
         cuts.push(c);
         counts.cut++;
       } else if (kw === 'MODULE' || kw === 'PART') {   // module row (PART = legacy alias)
