@@ -96,6 +96,7 @@
   var scene, camera, renderer, controls;
   var lastPlates = {}, lastCuts = [], lastColors = {}, lastParts = {};  // for preview modals
   var pvToken = 0, pvRenderer = null;   // 3D preview lifecycle
+  var pvX = null;                       // 2D preview transform (for cursor readout)
   var CENTER = null, VDIST = 1200;                // set from model bbox in run()
   var items = [];
   var runToken = 0;                               // distinguishes re-runs
@@ -863,17 +864,46 @@
       });
     });
     if (minx > maxx) { minx = miny = 0; maxx = maxy = 1; }
-    var W = cv.width, H = cv.height, PAD = 46;
+    var W = cv.width, H = cv.height, PAD = 54;
     var sc = Math.min((W - PAD * 2) / Math.max(maxx - minx, 1e-6),
                       (H - PAD * 2) / Math.max(maxy - miny, 1e-6));
     var ox = (W - (maxx - minx) * sc) / 2, oy = (H - (maxy - miny) * sc) / 2;
     function mx(x) { return ox + (x - minx) * sc; }
     function my(y) { return H - oy - (y - miny) * sc; }
+    pvX = { minx: minx, miny: miny, sc: sc, ox: ox, oy: oy, H: H, W: W };
 
     var ctx = cv.getContext('2d');
     ctx.clearRect(0, 0, W, H);
     ctx.fillStyle = '#15181c';
     ctx.fillRect(0, 0, W, H);
+
+    // --- grid + rulers (spacing picked so one cell is ~20-90 px) ---
+    var STEPS = [1, 2, 5, 10, 20, 25, 50, 100, 200, 250, 500, 1000, 2000, 5000];
+    var step = STEPS[STEPS.length - 1];
+    for (var si = 0; si < STEPS.length; si++) {
+      if (STEPS[si] * sc >= 20) { step = STEPS[si]; break; }
+    }
+    var gx0 = minx - ox / sc, gx1 = minx + (W - ox) / sc;
+    var gy0 = miny - oy / sc, gy1 = miny + (H - oy) / sc;
+    ctx.lineWidth = 1;
+    ctx.font = '9px sans-serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'alphabetic';
+    for (var gx = Math.ceil(gx0 / step) * step; gx <= gx1; gx += step) {
+      var px = mx(gx);
+      ctx.strokeStyle = Math.abs(gx) < 1e-6 ? '#4a5666' : '#242a31';
+      ctx.beginPath(); ctx.moveTo(px, 0); ctx.lineTo(px, H); ctx.stroke();
+      ctx.fillStyle = '#5b6472';
+      ctx.fillText(String(Math.round(gx)), px, H - 4);
+    }
+    ctx.textAlign = 'left';
+    for (var gy = Math.ceil(gy0 / step) * step; gy <= gy1; gy += step) {
+      var py = my(gy);
+      ctx.strokeStyle = Math.abs(gy) < 1e-6 ? '#4a5666' : '#242a31';
+      ctx.beginPath(); ctx.moveTo(0, py); ctx.lineTo(W, py); ctx.stroke();
+      ctx.fillStyle = '#5b6472';
+      ctx.fillText(String(Math.round(gy)), 3, py - 3);
+    }
 
     ctx.beginPath();
     g.outers.forEach(function (ring, i) {
@@ -939,7 +969,9 @@
       esc(dims) + ' &middot; cuts ' + ncut +
       (spec.MAT ? ' &middot; ' + esc(spec.MAT) : '') +
       ' &middot; ' + (g.area * spec.THK * RHO).toFixed(3) + ' kg' +
-      ' &nbsp;&nbsp;<span style="color:#5b6472">(+ = 9 reference points)</span>';
+      ' &nbsp;&nbsp;<span style="color:#5b6472">(+ = 9 reference points &middot; grid ' +
+      step + 'mm)</span>';
+    document.getElementById('pb-pv-pos').innerHTML = '&nbsp;';
     modal.style.display = 'flex';
   }
   function closePreview() {
@@ -1110,7 +1142,7 @@
       tbl.appendChild(tr);
     });
     document.getElementById('pb-total').textContent =
-      'Parts: ' + items.length + ' · Total weight: ' + total.toFixed(1) + ' kg';
+      'Placed plates: ' + items.length + ' · Total weight: ' + total.toFixed(3) + ' kg';
   }
   function toggleItem(i, on) { items[i].groupObj.visible = on; }
   function toggleGroup(g, on) {
@@ -1346,10 +1378,27 @@
       '  <div id="pb-pv3d" style="width:560px;height:420px;display:none;' +
       '       border:1px solid #2c323b;border-radius:4px;overflow:hidden;"></div>' +
       '  <div class="meta" id="pb-pv-meta"></div>' +
+      '  <div class="meta" id="pb-pv-pos">&nbsp;</div>' +
       '</div></div>';
     document.body.appendChild(app);
     var modal = document.getElementById('pb-modal');
     modal.addEventListener('click', function (e) { if (e.target === modal) closePreview(); });
+    var pvCv = document.getElementById('pb-pv-canvas');
+    pvCv.addEventListener('mousemove', function (e) {
+      if (!pvX) return;
+      var r = pvCv.getBoundingClientRect();
+      var sx = (e.clientX - r.left) * pvCv.width / r.width;
+      var sy = (e.clientY - r.top) * pvCv.height / r.height;
+      var x = pvX.minx + (sx - pvX.ox) / pvX.sc;
+      var y = pvX.miny + (pvX.H - pvX.oy - sy) / pvX.sc;
+      document.getElementById('pb-pv-pos').innerHTML =
+        'cursor &nbsp;X <b style="color:#d8dce2">' + x.toFixed(1) +
+        '</b> &nbsp; Y <b style="color:#d8dce2">' + y.toFixed(1) + '</b> mm';
+    });
+    pvCv.addEventListener('mouseleave', function () {
+      var el = document.getElementById('pb-pv-pos');
+      if (el) el.innerHTML = '&nbsp;';
+    });
     app.querySelector('h1').textContent = title;
     app.querySelector('.sub').textContent = subtitle;
     var noteEl = document.getElementById('pb-note');
