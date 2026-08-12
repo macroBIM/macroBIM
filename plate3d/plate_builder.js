@@ -14,8 +14,15 @@
    otherwise an empty default layout. plateBuilder.run({...}) can also be
    called directly (skips the auto-run).
 
-   · Plate definition: local XY plane, pbl=(0,0), thickness +z
-     (TRAP: B/TW/H/OF, CIRC: D)
+   · Plate definition: local XY plane, thickness +z.
+     The PLATE sheet uses block headers — a row starting with '#'
+     declares the columns for the rows below it; blocks can be mixed:
+       trapezoid: # PLATE | ID | WT | WB | H | OFF_T | OFF_B | THK | MAT
+       rectangle: # PLATE | ID | B | H | THK | MAT
+       circle:    # PLATE | ID | D | THK | MAT
+     (WT/WB = top/bottom width, OFF_T/OFF_B = top/bottom left offsets;
+      WT=0 makes a triangle. The legacy single-header format with a
+      SHAPE column is still accepted.)
    · CUT: polygon subtraction via polybool — holes/notches/trims in one
      path, NX·PX / NY·PY array patterns
    · ASSY: PLANE (FRONT/SIDE/PLAN + OFFSET/U/V/ANG) or
@@ -80,6 +87,72 @@
   }
   function num(v, dflt) { return (v === '' || v === undefined || v === null) ? dflt : Number(v); }
 
+  /* ------- PLATE sheet parser: '#'-prefixed block headers ------- */
+  function parsePlateSheet(sheet) {
+    var out = [], colmap = null;
+    (sheet || []).forEach(function (row) {
+      if (!row || !row.length) return;
+      var first = String(row[0] === undefined || row[0] === null ? '' : row[0]).trim();
+      var isMarker = first.charAt(0) === '#';
+      var isLegacyHeader = first === 'ID';
+      if (isMarker || isLegacyHeader) {            // header row: build index → column-name map
+        colmap = [];
+        row.forEach(function (cell, i) {
+          var name = String(cell === undefined || cell === null ? '' : cell).trim();
+          if (name && name.charAt(0) !== '#' && name !== 'PLATE') colmap.push([i, name]);
+        });
+        return;
+      }
+      if (!colmap) return;                         // data before any header — ignore
+      var o = {};
+      colmap.forEach(function (m) { o[m[1]] = row[m[0]]; });
+      if (o.ID === undefined || o.ID === '' || o.ID === null) return;
+      out.push(normalizePlate(o));
+    });
+    return out;
+  }
+
+  // normalize any accepted row format into {ID, SHAPE, WB, WT, H, OFF_T, OFF_B, D, THK, MAT}
+  function normalizePlate(o) {
+    var spec = { ID: o.ID, THK: num(o.THK, 10), MAT: o.MAT || '' };
+    if (o.SHAPE !== undefined) {                   // legacy single-header format
+      if (o.SHAPE === 'CIRC') { spec.SHAPE = 'CIRC'; spec.D = num(o.D, 0); return spec; }
+      var B = num(o.B, 0), TW = num(o.TW, B);
+      spec.SHAPE = 'TRAP'; spec.WB = B; spec.WT = TW; spec.H = num(o.H, 0);
+      spec.OFF_B = 0; spec.OFF_T = num(o.OF, (B - TW) / 2);
+      return spec;
+    }
+    if (o.D !== undefined && o.WB === undefined && o.B === undefined) {   // circle block
+      spec.SHAPE = 'CIRC'; spec.D = num(o.D, 0);
+      return spec;
+    }
+    if (o.WB !== undefined || o.WT !== undefined) {                       // trapezoid block
+      spec.SHAPE = 'TRAP'; spec.WB = num(o.WB, 0); spec.WT = num(o.WT, 0);
+      spec.H = num(o.H, 0); spec.OFF_T = num(o.OFF_T, 0); spec.OFF_B = num(o.OFF_B, 0);
+      return spec;
+    }
+    var b = num(o.B, 0);                                                  // rectangle block
+    spec.SHAPE = 'TRAP'; spec.WB = b; spec.WT = b; spec.H = num(o.H, 0);
+    spec.OFF_T = 0; spec.OFF_B = 0;
+    return spec;
+  }
+
+  function cornersOf(spec) {
+    return { pbl: [spec.OFF_B, 0], pbr: [spec.OFF_B + spec.WB, 0],
+             ptr: [spec.OFF_T + spec.WT, spec.H], ptl: [spec.OFF_T, spec.H] };
+  }
+  function outlineOf(spec) {                       // CCW
+    if (spec.SHAPE === 'CIRC') return circleOutline(spec.D, 0, 0, 48);   // CIRC: pcc=(0,0)
+    var c = cornersOf(spec);
+    if (spec.WT <= 0) return [c.pbl, c.pbr, c.ptl];
+    return [c.pbl, c.pbr, c.ptr, c.ptl];
+  }
+  function mirrorAxisOf(spec) {                    // bbox center ×2 (for x → m − x)
+    var lo = Math.min(spec.OFF_B, spec.OFF_T);
+    var hi = Math.max(spec.OFF_B + spec.WB, spec.OFF_T + spec.WT);
+    return lo + hi;
+  }
+
   /* ---------------- 2D geometry ---------------- */
   function trapOutline(B, TW, H, OF) {              // CCW
     if (TW <= 0) return [[0, 0], [B, 0], [OF, H]];
@@ -115,14 +188,11 @@
   }
 
   /* ---------------- plate shape: outline minus cuts ---------------- */
-  function buildPlate2D(plate, cuts, plates) {
-    var outline = plate.SHAPE === 'CIRC'
-      ? circleOutline(num(plate.D, 0), 0, 0, 48)                       // CIRC: pcc=(0,0)
-      : trapOutline(num(plate.B, 0), num(plate.TW, num(plate.B, 0)), num(plate.H, 0),
-                    num(plate.OF, (num(plate.B, 0) - num(plate.TW, num(plate.B, 0))) / 2));
+  function buildPlate2D(spec, cuts, plates) {
+    var outline = outlineOf(spec);
 
     var cutters = [];
-    cuts.filter(function (c) { return c.PLATE === plate.ID; }).forEach(function (c) {
+    cuts.filter(function (c) { return c.PLATE === spec.ID; }).forEach(function (c) {
       var nx = num(c.NX, 1), px = num(c.PX, 0), ny = num(c.NY, 1), py = num(c.PY, 0);
       for (var ix = 0; ix < nx; ix++) for (var iy = 0; iy < ny; iy++) {
         var u = num(c.U, 0) + ix * px, v = num(c.V, 0) + iy * py;
@@ -132,12 +202,7 @@
           cutters.push(rotTrans(trapOutline(num(c.B, 0), tw, num(c.H, 0), num(c.OF, (num(c.B, 0) - tw) / 2)),
                                 num(c.ANG, 0), u, v));
         } else if (c.TYPE === 'REF' && plates[c.REF]) {                // borrow another plate outline
-          var rp = plates[c.REF];
-          var ro = rp.SHAPE === 'CIRC'
-            ? circleOutline(num(rp.D, 0), 0, 0, 32)
-            : trapOutline(num(rp.B, 0), num(rp.TW, num(rp.B, 0)), num(rp.H, 0),
-                          num(rp.OF, (num(rp.B, 0) - num(rp.TW, num(rp.B, 0))) / 2));
-          cutters.push(rotTrans(ro, num(c.ANG, 0), u, v));
+          cutters.push(rotTrans(outlineOf(plates[c.REF]), num(c.ANG, 0), u, v));
         }
       }
     });
@@ -167,20 +232,18 @@
   }
 
   /* ------- named points/edges (uncut outline, MIRROR applied) ------- */
-  function namedPoints(plate, mirror) {
+  function namedPoints(spec, mirror) {
     var p;
     function mid(a, b) { return [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2]; }
-    if (plate.SHAPE === 'CIRC') {
-      var r = num(plate.D, 0) / 2;
+    if (spec.SHAPE === 'CIRC') {
+      var r = num(spec.D, 0) / 2;
       p = { pcc: [0, 0], ptc: [0, r], pbc: [0, -r], plm: [-r, 0], prm: [r, 0] };
       p.ptl = p.ptr = p.ptc; p.pbl = p.pbr = p.pbc;
       return p;
     }
-    var B = num(plate.B, 0), TW = num(plate.TW, B), H = num(plate.H, 0),
-        OF = num(plate.OF, (B - TW) / 2);
-    p = { pbl: [0, 0], pbr: [B, 0], ptr: [OF + TW, H], ptl: [OF, H] };
+    p = cornersOf(spec);
     if (mirror) {                                  // mirror about bbox center, then rename
-      var lo = Math.min(0, OF), hi = Math.max(B, OF + TW), m = lo + hi;
+      var m = mirrorAxisOf(spec);
       var M = function (q) { return [m - q[0], q[1]]; };
       p = { pbl: M(p.pbr), pbr: M(p.pbl), ptl: M(p.ptr), ptr: M(p.ptl) };
     }
@@ -195,9 +258,8 @@
     return { eb: [pts.pbl, pts.pbr], er: [pts.pbr, pts.ptr],
              et: [pts.ptr, pts.ptl], el: [pts.ptl, pts.pbl] }[name];
   }
-  function mirror2D(ringList, plate) {
-    var B = num(plate.B, 0), TW = num(plate.TW, B), OF = num(plate.OF, (B - TW) / 2);
-    var lo = Math.min(0, OF), hi = Math.max(B, OF + TW), m = lo + hi;
+  function mirror2D(ringList, spec) {
+    var m = mirrorAxisOf(spec);
     return ringList.map(function (ring) {
       return ring.map(function (q) { return [m - q[0], q[1]]; }).reverse();
     });
@@ -257,7 +319,7 @@
   function buildAll(data, colors) {
     var plates = {}, cuts = sheetToObjects(data.CUT);
     var colorSeq = 0;
-    sheetToObjects(data.PLATE).forEach(function (p) {
+    parsePlateSheet(data.PLATE).forEach(function (p) {
       plates[p.ID] = p;
       if (!(p.ID in colors)) colors[p.ID] = PALETTE[colorSeq++ % PALETTE.length];
     });
@@ -265,17 +327,17 @@
     var bbox = new THREE.Box3();
 
     sheetToObjects(data.ASSY).forEach(function (row) {
-      var plate = plates[row.PLATE];
-      if (!plate) { console.error(row.NO + ': unknown PLATE=' + row.PLATE); return; }
-      var thk = num(plate.THK, 10);
+      var spec = plates[row.PLATE];
+      if (!spec) { console.error(row.NO + ': unknown PLATE=' + row.PLATE); return; }
+      var thk = spec.THK;
       var mirror = row.MIRROR === 'X';
-      var g2d = buildPlate2D(plate, cuts, plates);
+      var g2d = buildPlate2D(spec, cuts, plates);
       var outers = g2d.outers, holesArr = g2d.holes;
       if (mirror) {
-        outers = mirror2D(outers, plate);
-        holesArr = holesArr.map(function (hs) { return mirror2D(hs, plate); });
+        outers = mirror2D(outers, spec);
+        holesArr = holesArr.map(function (hs) { return mirror2D(hs, spec); });
       }
-      var pts = namedPoints(plate, mirror);
+      var pts = namedPoints(spec, mirror);
 
       var matrix;
       try {
@@ -305,9 +367,11 @@
       });
       scene.add(groupObj);
 
-      var dims = plate.SHAPE === 'CIRC'
-        ? 'D' + plate.D + '×' + thk
-        : plate.B + '×' + plate.H + '×' + thk + 'T';
+      var dims = spec.SHAPE === 'CIRC'
+        ? 'D' + spec.D + '×' + thk
+        : (spec.WT === spec.WB && spec.OFF_T === spec.OFF_B
+            ? spec.WB + '×' + spec.H + '×' + thk + 'T'
+            : spec.WT + '/' + spec.WB + '×' + spec.H + '×' + thk + 'T');
       items.push({ no: row.NO, plateId: row.PLATE, group: row.GROUP || '-',
                    groupObj: groupObj, mass: g2d.area * thk * RHO,
                    dims: dims, remark: row.REMARK || '' });
