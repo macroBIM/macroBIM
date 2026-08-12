@@ -384,60 +384,49 @@ const Physics = {
             let t2 = endT(cw.x2, cw.y2);
             let lo = Math.min(t1, t2), hi = Math.max(t1, t2);
 
-            // ── 같은 면 체인 연장 ─────────────────────────────────────
-            // 기준 벽의 끝(크라운 꺾임, 중앙 복부 등)을 넘어서도 세그와 거의 평행하고
-            // 레벨이 이어지는 벽이 계속되면 그 끝까지 스팬을 확장한다.
-            // (데크 횡철근이 2셀 중앙 복부를 관통해 전폭 fit 되도록)
-            // 기울어진 세그(예: 15번 45° 다리)는 평행 조건을 만족하지 못해 기존처럼 벽 끝에서 멈춘다.
-            const PAR_TOL = 0.9999985;                  // 벽∥세그 허용 (±0.1°) — 사실상 평행만 체인
-            const LVL_TOL = 600;                        // 법선 방향 레벨 연속 허용 (mm)
-            let n = seg.normal || { x: 0, y: -1 };
-            const hitDistOf = (P, hx, hy) => (hx - P.x) * n.x + (hy - P.y) * n.y;
-            let refP = { x: endPt.x, y: endPt.y };
-            let dRef = tgt ? hitDistOf(refP, tgt.x, tgt.y) : 0;
-            const march = (dirSign, cur) => {
-                const STEP = 150, MAXPROBE = 120;
-                let probes = 0, k = 1;
-                while (probes < MAXPROBE && k <= 60) {
-                    probes++;
-                    let tP = cur + dirSign * STEP * k;
-                    let P = { x: o.x + u.x * tP, y: o.y + u.y * tP };
-                    let g = Physics.getGravityTarget(P.x, P.y, n, walls, wallStack, dia);
-                    let ok = false;
-                    if (g && g.coverWall) {
-                        let w2 = g.coverWall;
-                        let wdx = w2.x2 - w2.x1, wdy = w2.y2 - w2.y1, wl = Math.hypot(wdx, wdy) || 1;
-                        let par = Math.abs((wdx * u.x + wdy * u.y) / wl);
-                        let lvl = Math.abs(hitDistOf(P, g.x, g.y) - dRef);
-                        if (par >= PAR_TOL && lvl <= LVL_TOL) {
-                            // 체인 벽은 평행투영으로 끝점 산정 — endT(법선 단면선 교차)를 쓰면
-                            // 약간 기울어진 벽에서 실제 끝점을 지나 오버슛한다.
-                            let e1 = (w2.x1 - o.x) * u.x + (w2.y1 - o.y) * u.y;
-                            let e2 = (w2.x2 - o.x) * u.x + (w2.y2 - o.y) * u.y;
-                            // 표면 레벨(법선 방향 부호거리) — 얕은 경사면이 바 축을 가로지르면
-                            // (예: 하부슬래브 끝 모따기) 바가 표면을 뚫고 나가므로 교차점에서 클램프.
-                            let d1 = (w2.x1 - o.x) * n.x + (w2.y1 - o.y) * n.y;
-                            let d2 = (w2.x2 - o.x) * n.x + (w2.y2 - o.y) * n.y;
-                            let eN, eF, dN, dF;
-                            if ((dirSign > 0) === (e2 >= e1)) { eN = e1; dN = d1; eF = e2; dF = d2; }
-                            else { eN = e2; dN = d2; eF = e1; dF = d1; }
-                            let rMin = Math.max(dia / 2, 8);      // 표면까지 최소 이격 (바 반지름)
-                            let far = eF;
-                            let usable = true;
-                            if (dF < rMin) {
-                                if (dN <= rMin) usable = false;   // 벽 전체가 바 축 반대편/근접 → 연장 불가
-                                else far = eN + (eF - eN) * (dN - rMin) / (dN - dF);   // 레벨 rMin 교차점까지만
-                            }
-                            if (usable && ((dirSign < 0 && far < cur - 1e-6) || (dirSign > 0 && far > cur + 1e-6))) {
-                                cur = far; k = 1; ok = true;   // 연장됨 → 새 끝에서 다시 전진
-                            }
-                        }
-                    }
-                    if (!ok) k++;
+            // ── 표면과 나란한 바(데크/슬래브 횡철근)는 콘크리트 경계까지 연장 ──
+            // 기준 벽의 끝(크라운 분할, 헌치 시작 등)에서 멈추면 슬래브 절반만 배근된다.
+            // 바 축을 따라 광선을 쏴 실제로 막히는 피복면(캔틸레버 선단, 복부 내측 등)을
+            // 찾아 그 지점까지 연장한다. 축과 기울어진 세그(15번 45° 다리 등)는 평행 조건을
+            // 만족하지 않으므로 기존의 '기준 벽 끝단면에서 정지' 규칙이 그대로 유지된다.
+            // 평행 판정은 '세그먼트가 안착한 벽'(다수결 fitWall) 기준 — 끝점 아래 벽으로 재면
+            // 끝이 우연히 단차/헌치 위에 걸렸을 때 한쪽만 연장되어 좌우 비대칭이 된다.
+            let baseWall = Physics.getSegmentFitWall(seg) || refWall;
+            let wdx = baseWall.x2 - baseWall.x1, wdy = baseWall.y2 - baseWall.y1;
+            let wlen = Math.hypot(wdx, wdy) || 1;
+            let par = Math.abs((wdx * u.x + wdy * u.y) / wlen);
+            if (par >= 0.9999985) {                                   // ±0.1° 이내로 벽과 나란함
+                // 광선은 '원본 벽'에 쏜다. 피복벽은 오목 모서리에서 서로 트림되며 실제
+                // 콘크리트 면보다 길게 늘어나므로(예: 셀 천장 단차의 수직면이 천장 피복선까지
+                // 연장됨) 콘크리트 안쪽인데도 가짜로 막히는 일이 생긴다.
+                let dSign = (side === 'start') ? -1 : 1;
+                let d = { x: u.x * dSign, y: u.y * dSign };
+                let mid = { x: (seg.p1.x + seg.p2.x) / 2, y: (seg.p1.y + seg.p2.y) / 2 };
+                // 엄격한 광선-선분 교차 (MathUtils.rayLineIntersect 는 벽을 양끝 10% 늘려
+                // 판정하고 뒤쪽 교차도 반환한다 → 긴 복부면이 슬래브 높이까지 뻗은 것처럼
+                // 잡혀 바가 엉뚱한 곳에서 잘린다).
+                let best = null, bestDist = Infinity;
+                (walls || []).forEach(w => {
+                    let nd = w.nx * d.x + w.ny * d.y;
+                    if (nd > -0.05) return;                           // 마주보지 않거나 거의 평행 → 무시
+                    let ex = w.x2 - w.x1, ey = w.y2 - w.y1;
+                    let den = d.x * ey - d.y * ex;
+                    if (Math.abs(den) < 1e-9) return;
+                    let rx = w.x1 - mid.x, ry = w.y1 - mid.y;
+                    let tRay = (rx * ey - ry * ex) / den;             // 광선 진행량(단위벡터 → 거리)
+                    let sSeg = (rx * d.y - ry * d.x) / den;           // 벽 내 위치 0..1
+                    if (tRay <= 0.1 || tRay >= bestDist) return;
+                    if (sSeg < -1e-6 || sSeg > 1 + 1e-6) return;
+                    bestDist = tRay;
+                    best = { h: { x: mid.x + d.x * tRay, y: mid.y + d.y * tRay }, w: w, nd: nd };
+                });
+                if (best) {
+                    let cov = Physics.getWallCoverValue(best.w) + (wallStack[best.w.id] || 0) + dia / 2;
+                    let tHit = (best.h.x - o.x) * u.x + (best.h.y - o.y) * u.y;
+                    let t = tHit - dSign * cov / Math.abs(best.nd);   // 경사 벽이면 축방향 후퇴량 보정
+                    if (side === 'start') lo = t; else hi = t;
                 }
-                return cur;
-            };
-            if (side === 'start') lo = march(-1, lo); else hi = march(1, hi);
+            }
 
             return {
                 wallId: cw.id || (cw.origWall && cw.origWall.id) || '?',
