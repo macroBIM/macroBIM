@@ -63,6 +63,13 @@
     '  border-bottom:1px solid #2c323b; }',
     '#pb-side .chip { display:inline-block; width:11px; height:11px; border-radius:2px;',
     '  margin-right:5px; vertical-align:-1px; }',
+    '#pb-side input[type=color] { width:17px; height:17px; padding:0; border:1px solid #3a424d;',
+    '  border-radius:3px; background:none; cursor:pointer; vertical-align:middle; }',
+    '#pb-side input[type=color]::-webkit-color-swatch { border:none; border-radius:2px; }',
+    '#pb-side input[type=color]::-webkit-color-swatch-wrapper { padding:0; }',
+    '#pb-side input[type=range] { width:42px; height:12px; vertical-align:middle;',
+    '  margin-left:4px; accent-color:#3a76ad; cursor:pointer; }',
+    '#pb-side td.sty { white-space:nowrap; width:70px; }',
     '#pb-side .dims { color:#8a93a0; font-size:11px; }',
     '#pb-side .chk { display:flex; align-items:center; gap:4px; font-size:12px;',
     '  color:#8a93a0; cursor:pointer; padding:5px 6px; border:1px solid #3a424d;',
@@ -101,6 +108,23 @@
   ].join('\n');
 
   var flatMode = false;                 // draw plates as surfaces (no thickness)
+  // appearance overrides, kept across reloads: instance > module > plate
+  var ovColor = { plate: {}, module: {}, item: {} };
+  var ovOpac = { plate: {}, module: {}, item: {} };
+  function hex2int(h) { return parseInt(String(h).replace('#', ''), 16); }
+  function int2hex(v) { return '#' + ('000000' + (v >>> 0).toString(16)).slice(-6); }
+  function resolveColor(plateId, moduleId, itemNo, base) {
+    if (itemNo && ovColor.item[itemNo] !== undefined) return ovColor.item[itemNo];
+    if (moduleId && ovColor.module[moduleId] !== undefined) return ovColor.module[moduleId];
+    if (ovColor.plate[plateId] !== undefined) return ovColor.plate[plateId];
+    return base;
+  }
+  function resolveOpac(plateId, moduleId, itemNo) {
+    if (itemNo && ovOpac.item[itemNo] !== undefined) return ovOpac.item[itemNo];
+    if (moduleId && ovOpac.module[moduleId] !== undefined) return ovOpac.module[moduleId];
+    if (ovOpac.plate[plateId] !== undefined) return ovOpac.plate[plateId];
+    return 1;
+  }
   function plateGeom(shape, thk) {      // local plane = mid-thickness
     if (flatMode) return new THREE.ShapeGeometry(shape);
     var g = new THREE.ExtrudeGeometry(shape, { depth: thk, bevelEnabled: false, curveSegments: 24 });
@@ -729,7 +753,7 @@
     function buildErr(m) { buildLog.push(m); console.error('[plateBuilder] ' + m); }
 
     // create geometry for one plate instance with a final world matrix
-    function buildInstance(spec, matrix, no, group, remark, mirror) {
+    function buildInstance(spec, matrix, no, group, remark, mirror, moduleId) {
       var thk = spec.THK;
       var g2d = buildPlate2D(spec, cuts, plates);
       var outers = g2d.outers, holesArr = g2d.holes;
@@ -740,6 +764,7 @@
       var groupObj = new THREE.Group();
       var mat = new THREE.MeshPhongMaterial({ color: colors[spec.ID], shininess: 28,
                                               side: THREE.DoubleSide });
+      var edgeMat = new THREE.LineBasicMaterial({ color: 0x0e1013 });
       outers.forEach(function (ring, i) {
         var shape = new THREE.Shape(ring.map(function (q) { return new THREE.Vector2(q[0], q[1]); }));
         holesArr[i].forEach(function (h) {
@@ -753,8 +778,7 @@
         groupObj.add(mesh);
         geo.computeBoundingBox();
         bbox.union(geo.boundingBox.clone().applyMatrix4(matrix));
-        var edge = new THREE.LineSegments(new THREE.EdgesGeometry(geo, 25),
-                                          new THREE.LineBasicMaterial({ color: 0x0e1013 }));
+        var edge = new THREE.LineSegments(new THREE.EdgesGeometry(geo, 25), edgeMat);
         edge.matrixAutoUpdate = false;
         edge.matrix.copy(matrix);
         edge.userData = { shape: shape, thk: thk };
@@ -766,11 +790,14 @@
         : (spec.WT === spec.WB && spec.OFF_T === spec.OFF_B
             ? spec.WB + '×' + spec.H + '×' + thk + 'T'
             : spec.WT + '/' + spec.WB + '×' + spec.H + '×' + thk + 'T');
-      items.push({ no: no, plateId: spec.ID, group: group || '-',
-                   groupObj: groupObj, mass: g2d.area * thk * RHO,
-                   dims: dims, remark: remark || '',
-                   spec: spec, thk: thk, matrix: matrix,
-                   rings: { outers: outers, holes: holesArr } });
+      var it = { no: no, plateId: spec.ID, group: group || '-', moduleId: moduleId || null,
+                 groupObj: groupObj, mass: g2d.area * thk * RHO,
+                 dims: dims, remark: remark || '',
+                 spec: spec, thk: thk, matrix: matrix, mat: mat, edgeMat: edgeMat,
+                 baseColor: colors[spec.ID],
+                 rings: { outers: outers, holes: holesArr } };
+      items.push(it);
+      styleItem(it);
       return { pts: namedPoints(spec, mirror), thk: thk };
     }
 
@@ -844,7 +871,7 @@
         M.multiply(new THREE.Matrix4().makeTranslation(-B.x, -B.y, -B.z));
         pl.locals.forEach(function (L) {
           var world = M.clone().multiply(L.mloc);
-          buildInstance(L.spec, world, row.NO + '/' + L.row.NO, row.NO, '', false);
+          buildInstance(L.spec, world, row.NO + '/' + L.row.NO, row.NO, '', false, row.PART);
         });
         return;
       }
@@ -873,7 +900,7 @@
     if (!ids.length) return;
     var gtr = document.createElement('tr');
     gtr.className = 'ghead';
-    gtr.innerHTML = '<td colspan="3">PLATES — click to preview</td>';
+    gtr.innerHTML = '<td colspan="2">PLATES — click to preview</td>';
     tbl.appendChild(gtr);
     ids.forEach(function (id) {
       var spec = lastPlates[id];
@@ -885,13 +912,15 @@
       var ncut = lastCuts.filter(function (c) { return c.PLATE === id; }).length;
       var tr = document.createElement('tr');
       tr.innerHTML =
-        '<td></td>' +
-        '<td><span class="chip" style="background:#' +
-        ('000000' + (colors[id] || 0x999999).toString(16)).slice(-6) + '"></span>' +
-        '<span class="plname" onclick="plateBuilder.preview(\'' + id + '\')">' + esc(id) + '</span>' +
+        '<td class="sty"><input type="color" value="' +
+        int2hex(resolveColor(id, null, null, colors[id] || 0x999999)) +
+        '" oninput="plateBuilder.setColor(\'plate\',\'' + id + '\',this.value)">' +
+        '<input type="range" min="10" max="100" step="5" value="' +
+        Math.round(resolveOpac(id, null, null) * 100) +
+        '" title="opacity" oninput="plateBuilder.setOpacity(\'plate\',\'' + id + '\',this.value)"></td>' +
+        '<td><span class="plname" onclick="plateBuilder.preview(\'' + id + '\')">' + esc(id) + '</span>' +
         '<div class="dims">' + dims + (ncut ? ' · cuts ' + ncut : '') +
-        (spec.MAT ? ' · ' + esc(spec.MAT) : '') + '</div></td>' +
-        '<td></td>';
+        (spec.MAT ? ' · ' + esc(spec.MAT) : '') + '</div></td>';
       tbl.appendChild(tr);
     });
   }
@@ -1061,20 +1090,25 @@
     if (!ids.length) return;
     var gtr = document.createElement('tr');
     gtr.className = 'ghead';
-    gtr.innerHTML = '<td colspan="3">MODULES — click to preview</td>';
+    gtr.innerHTML = '<td colspan="2">MODULES — click to preview</td>';
     tbl.appendChild(gtr);
     ids.forEach(function (id) {
       var part = lastParts[id];
       var used = items.some(function (it) { return it.group === id || it.no.indexOf(id) === 0; });
+      var mcol = ovColor.module[id] !== undefined ? ovColor.module[id] : 0x8a93a0;
       var tr = document.createElement('tr');
       tr.innerHTML =
-        '<td></td>' +
+        '<td class="sty"><input type="color" value="' + int2hex(mcol) +
+        '" title="module colour (overrides plate colours)"' +
+        ' oninput="plateBuilder.setColor(\'module\',\'' + id + '\',this.value)">' +
+        '<input type="range" min="10" max="100" step="5" value="' +
+        Math.round(resolveOpac('', id, null) * 100) +
+        '" title="opacity" oninput="plateBuilder.setOpacity(\'module\',\'' + id + '\',this.value)"></td>' +
         '<td><span class="plname" onclick="plateBuilder.previewModule(\'' + id + '\')">' +
         esc(id) + '</span>' +
         '<div class="dims">plates ' + part.pos.length +
         (part.base ? ' · base ' + esc(part.base.inst) + '.' + part.base.pt.slice(1) : ' · no base') +
-        (used ? '' : ' · not assembled') + '</div></td>' +
-        '<td></td>';
+        (used ? '' : ' · not assembled') + '</div></td>';
       tbl.appendChild(tr);
     });
   }
@@ -1192,8 +1226,11 @@
       }
       var g2d = buildPlate2D(spec, lastCuts, lastPlates);
       mass += g2d.area * spec.THK * RHO;
-      var mat = new THREE.MeshPhongMaterial({ color: lastColors[row.PLATE] || 0x999999,
-                                             shininess: 28, side: THREE.DoubleSide });
+      var pop = resolveOpac(row.PLATE, id, null);
+      var mat = new THREE.MeshPhongMaterial({
+        color: resolveColor(row.PLATE, id, null, lastColors[row.PLATE] || 0x999999),
+        shininess: 28, side: THREE.DoubleSide,
+        transparent: pop < 1, opacity: pop, depthWrite: pop >= 1 });
       g2d.outers.forEach(function (ring, i) {
         var shape = new THREE.Shape(ring.map(function (q) { return new THREE.Vector2(q[0], q[1]); }));
         (g2d.holes[i] || []).forEach(function (h) {
@@ -1279,18 +1316,23 @@
         gtr.className = 'ghead';
         gtr.innerHTML = '<td><input type="checkbox" checked ' +
           'onchange="plateBuilder.toggleGroup(\'' + it.group + '\',this.checked)"></td>' +
-          '<td colspan="2">▾ ' + it.group + '</td>';
+          '<td>▾ ' + it.group + '</td>';
         tbl.appendChild(gtr);
       }
       var tr = document.createElement('tr');
       tr.innerHTML =
-        '<td><input type="checkbox" checked id="pb-cb' + i + '" ' +
-        'onchange="plateBuilder.toggleItem(' + i + ',this.checked)"></td>' +
-        '<td><span class="chip" style="background:#' +
-        ('000000' + colors[it.plateId].toString(16)).slice(-6) + '"></span>' +
-        '<span class="plname" onclick="plateBuilder.preview(\'' + it.plateId + '\')">' + it.no + '</span>' +
-        '<div class="dims">' + it.dims + (it.remark ? ' · ' + it.remark : '') + '</div></td>' +
-        '<td class="dims">' + it.mass.toFixed(3) + 'kg</td>';
+        '<td class="sty"><input type="checkbox" checked id="pb-cb' + i + '" ' +
+        'onchange="plateBuilder.toggleItem(' + i + ',this.checked)">' +
+        '<input type="color" value="' +
+        int2hex(resolveColor(it.plateId, it.moduleId, it.no, it.baseColor)) +
+        '" oninput="plateBuilder.setColor(\'item\',\'' + it.no + '\',this.value)"></td>' +
+        '<td><span class="plname" onclick="plateBuilder.preview(\'' + it.plateId + '\')">' + it.no + '</span>' +
+        '<div class="dims">' + it.dims + (it.remark ? ' · ' + it.remark : '') +
+        ' · ' + it.mass.toFixed(3) + 'kg' +
+        '<input type="range" min="10" max="100" step="5" value="' +
+        Math.round(resolveOpac(it.plateId, it.moduleId, it.no) * 100) +
+        '" title="opacity" oninput="plateBuilder.setOpacity(\'item\',\'' + it.no + '\',this.value)">' +
+        '</div></td>';
       tbl.appendChild(tr);
     });
     document.getElementById('pb-total').textContent =
@@ -1690,6 +1732,30 @@
     })();
   }
 
+  function styleItem(it) {
+    var col = resolveColor(it.plateId, it.moduleId, it.no, it.baseColor);
+    var op = resolveOpac(it.plateId, it.moduleId, it.no);
+    it.mat.color.setHex(col);
+    it.mat.opacity = op;
+    it.mat.transparent = op < 1;
+    it.mat.depthWrite = op >= 1;
+    it.mat.needsUpdate = true;
+    it.edgeMat.transparent = op < 1;
+    it.edgeMat.opacity = Math.min(1, op + 0.15);
+  }
+  function restyleAll() { items.forEach(styleItem); }
+
+  function setColor(scope, key, hex) {
+    ovColor[scope][key] = hex2int(hex);
+    restyleAll();
+    if (pvModuleId) previewModule(pvModuleId);
+  }
+  function setOpacity(scope, key, pct) {
+    ovOpac[scope][key] = Math.max(0.05, Number(pct) / 100);
+    restyleAll();
+    if (pvModuleId) previewModule(pvModuleId);
+  }
+
   function setFlat(on) {
     flatMode = !!on;
     ['pb-flat', 'pb-pv-flat'].forEach(function (id) {
@@ -1718,7 +1784,7 @@
     toggleItem: toggleItem, toggleGroup: toggleGroup,
     pickExcel: pickExcel, loadExcelFile: loadExcelFile,
     preview: preview, previewModule: previewModule, closePreview: closePreview,
-    setFlat: setFlat
+    setFlat: setFlat, setColor: setColor, setOpacity: setOpacity
   };
 
   /* ---- auto-run: use window.PLATE_DATA if present, else empty default.
