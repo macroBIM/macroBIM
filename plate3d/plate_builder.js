@@ -183,11 +183,18 @@
         counts.cut++;
       } else if (kw === 'ASSY') {         // ID PLANE REF.PT L.X L.Y L.ROT OFFSET
         var pid = str(v[0]).toUpperCase();
-        if (!plates[pid]) { warn('row ' + (r + 1) + ': ASSY of undefined ID ' + pid); continue; }
-        counter[pid] = (counter[pid] || 0) + 1;
+        var plateId = pid;
+        if (!plates[plateId]) {           // instance-suffix convention: PL.C1_2 → plate PL.C1
+          var sfx = pid.match(/^(.+?)[_-]\d+$/);
+          if (sfx && plates[sfx[1]]) plateId = sfx[1];
+        }
+        if (!plates[plateId]) { warn('row ' + (r + 1) + ': ASSY of undefined ID ' + pid); continue; }
+        counter[plateId] = (counter[plateId] || 0) + 1;
         var plkey = str(v[1]).toUpperCase();
         if (!PLANE_ALIAS[plkey]) { warn('row ' + (r + 1) + ': unknown PLANE ' + plkey + ' (use XY/YZ/XZ)'); continue; }
-        assy.push({ __xl: true, NO: pid + '-' + counter[pid], PLATE: pid,
+        assy.push({ __xl: true,
+                    NO: pid !== plateId ? pid : plateId + '-' + counter[plateId],
+                    PLATE: plateId,
                     PLANE: PLANE_ALIAS[plkey], REFPT: normPoint(v[2]),
                     LX: num(v[3], 0), LY: num(v[4], 0), ROT: num(v[5], 0),
                     OFFSET: num(v[6], 0), GROUP: '-', REMARK: '', MIRROR: '' });
