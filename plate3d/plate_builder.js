@@ -109,16 +109,17 @@
        CUT   RECT  B H  L.X L.Y L.ROT dx dy repeat   (cuts the last PLATE/BAR)
        CUT   CIRC  D    L.X L.Y L.ROT dx dy repeat
        CUT   PLATE ID   L.X L.Y L.ROT dx dy repeat
-       PART  ID                               (part definition starts;
-                                               following POS/BASE rows belong to it)
+       MODULE ID                              (module definition starts;
+                                               following POS/BASE rows belong to it;
+                                               legacy keyword PART is an alias)
        POS   ID PLANE REF.PT L.X L.Y L.ROT OFFSET    (place a plate INSIDE the
-                                               current part, part-local coords)
-       BASE  INSTANCE POINT                   (part reference point = one of the
+                                               current module, module-local coords)
+       BASE  INSTANCE POINT                   (module reference point = one of the
                                                9 points of a member plate;
                                                missing BASE -> warning + local origin)
-       ASSY  ID PLANE REF.PT L.X L.Y L.ROT OFFSET    (assemble a PART or a PLATE.
-                                               REF.PT for parts: blank/O = BASE point,
-                                               9-point name = part bbox point,
+       ASSY  ID PLANE REF.PT L.X L.Y L.ROT OFFSET    (assemble a MODULE or a PLATE.
+                                               REF.PT for modules: blank/O = BASE point,
+                                               9-point name = module bbox point,
                                                INSTANCE.POINT = explicit plate point)
        END
      ================================================================ */
@@ -134,7 +135,7 @@
 
   function parseExcelRows(rows) {
     var plates = {}, parts = {}, cuts = [], assy = [], log = [];
-    var counts = { plate: 0, bar: 0, cut: 0, part: 0, assy: 0 };
+    var counts = { plate: 0, bar: 0, cut: 0, module: 0, assy: 0 };
     var current = null, currentPart = null, counter = {};
     function warn(m) { log.push(m); console.error('[plateBuilder] ' + m); }
     function resolvePlate(pid) {          // exact id, or instance suffix PL.C1_2 → PL.C1
@@ -196,14 +197,14 @@
         } else { warn('row ' + (r + 1) + ': unknown CUT type ' + sub); continue; }
         cuts.push(c);
         counts.cut++;
-      } else if (kw === 'PART') {         // PART ID — part definition starts
+      } else if (kw === 'MODULE' || kw === 'PART') {   // module definition starts (PART = legacy alias)
         var partId = str(v[0]).toUpperCase();
-        if (!partId) { warn('row ' + (r + 1) + ': PART without ID'); continue; }
+        if (!partId) { warn('row ' + (r + 1) + ': MODULE without ID'); continue; }
         currentPart = { ID: partId, pos: [], base: null };
         parts[partId] = currentPart;
-        counts.part++;
+        counts.module++;
       } else if (kw === 'POS') {          // place a plate inside the current part
-        if (!currentPart) { warn('row ' + (r + 1) + ': POS outside of a PART'); continue; }
+        if (!currentPart) { warn('row ' + (r + 1) + ': POS outside of a MODULE'); continue; }
         var ppid = str(v[0]).toUpperCase();
         var pplate = resolvePlate(ppid);
         if (!pplate) { warn('row ' + (r + 1) + ': POS of undefined plate ' + ppid); continue; }
@@ -213,7 +214,7 @@
                                REFPT: normPoint(v[2]), LX: num(v[3], 0), LY: num(v[4], 0),
                                ROT: num(v[5], 0), OFFSET: num(v[6], 0) });
       } else if (kw === 'BASE') {         // BASE INSTANCE POINT — part reference point
-        if (!currentPart) { warn('row ' + (r + 1) + ': BASE outside of a PART'); continue; }
+        if (!currentPart) { warn('row ' + (r + 1) + ': BASE outside of a MODULE'); continue; }
         currentPart.base = { inst: str(v[0]).toUpperCase(), pt: normPoint(v[1]) };
       } else if (kw === 'ASSY') {         // ID PLANE REF.PT L.X L.Y L.ROT OFFSET
         var pid = str(v[0]).toUpperCase();
@@ -241,10 +242,10 @@
       }
     }
     Object.keys(parts).forEach(function (id) {
-      if (!parts[id].pos.length) warn('PART ' + id + ': has no POS rows');
-      else if (!parts[id].base) warn('PART ' + id + ': BASE not defined — using local origin (0,0)');
+      if (!parts[id].pos.length) warn('MODULE ' + id + ': has no POS rows');
+      else if (!parts[id].base) warn('MODULE ' + id + ': BASE not defined — using local origin (0,0)');
       else if (!parts[id].pos.some(function (p) { return p.NO === parts[id].base.inst; }))
-        warn('PART ' + id + ': BASE instance ' + parts[id].base.inst + ' not found among POS rows — using local origin');
+        warn('MODULE ' + id + ': BASE instance ' + parts[id].base.inst + ' not found among POS rows — using local origin');
     });
     return { plates: plates, parts: parts, cuts: cuts, assy: assy, log: log, counts: counts };
   }
@@ -286,7 +287,7 @@
     el.className = log.length ? 'warn' : 'ok';
     var h = '<b>' + (log.length ? '&#9888; ' : '&#10003; ') + esc(fname) + '</b><br>' +
             'plates ' + c.plate + ' &middot; bars ' + c.bar + ' &middot; cuts ' + c.cut +
-            ' &middot; parts ' + (c.part || 0) +
+            ' &middot; modules ' + (c.module || 0) +
             ' &middot; assy ' + c.assy + ' &rarr; placed ' + placed;
     if (log.length) {
       h += '<ul>' + log.slice(0, 10).map(function (m) { return '<li>' + esc(m) + '</li>'; }).join('') +
@@ -716,7 +717,7 @@
     assyRows.forEach(function (row) {
       if (row.PART) {                    // part instance: place every member plate
         var part = parts[row.PART];
-        if (!part) { buildErr(row.NO + ': unknown PART=' + row.PART); return; }
+        if (!part) { buildErr(row.NO + ': unknown MODULE=' + row.PART); return; }
         var pl;
         try { pl = partLocals(part); } catch (err) { buildErr(row.NO + ': ' + err.message); return; }
         var B = partRefPoint(pl, row.REFPT);

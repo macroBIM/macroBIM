@@ -201,29 +201,30 @@ FOLD=180 (이어붙임)          FOLD=90 (직각 세움)
 | CUT | RECT, B, H, L.X, L.Y, L.ROT, dx, dy, repeat | 직전 PLATE/BAR 에 사각 구멍/노치 |
 | CUT | CIRC, D, L.X, L.Y, L.ROT, dx, dy, repeat | 원형 구멍 |
 | CUT | PLATE, ID, L.X, L.Y, L.ROT, dx, dy, repeat | 다른 PLATE 외곽 형상으로 빼기 |
-| **PART** | ID | 부품 정의 시작 — 이후 POS/BASE 행이 이 부품 소속 |
-| **POS** | ID, PLANE, Ref.Pt, L.X, L.Y, L.ROT, OFFSET | 부품 내부에 판 배치 (부품 로컬 좌표) |
-| **BASE** | 판인스턴스, 점이름 | 부품 기준점 = 구성 판의 9점 중 하나. **누락 시 경고** + 로컬 원점 사용 |
-| ASSY | ID, PLANE, Ref.Pt, L.X, L.Y, L.ROT, OFFSET | 조립 — **PART와 낱장 PLATE 모두 가능** |
+| **MODULE** | ID | 모듈(부품) 정의 시작 — 이후 POS/BASE 행이 이 모듈 소속 (구버전 키워드 PART도 별칭 인식) |
+| **POS** | ID, PLANE, Ref.Pt, L.X, L.Y, L.ROT, OFFSET | 모듈 내부에 판 배치 (모듈 로컬 좌표) |
+| **BASE** | 판인스턴스, 점이름 | 모듈 기준점 = 구성 판의 9점 중 하나. **누락 시 경고** + 로컬 원점 사용 |
+| ASSY | ID, PLANE, Ref.Pt, L.X, L.Y, L.ROT, OFFSET | 조립 — **MODULE과 낱장 PLATE 모두 가능** |
 | END | | 입력 종료 |
 
 - **CUT은 바로 위에서 정의한 PLATE/BAR에 적용** (정의 → 절단 → 다음 부재 순서로 작성)
 - CUT 위치: CIRC는 중심, RECT/PLATE는 좌하단 기준. dx/dy/repeat = 배열 복제 (피치 벡터 × 개수)
 - ASSY의 PLANE: XY(정면)/YZ(측면)/XZ(수평), Ref.Pt: tl~br·cc (p 접두사 있어도 인식)
   — 부재의 Ref.Pt 점이 평면 내 (L.X, L.Y)에 오도록 배치, L.ROT는 그 점 기준 면내 회전, OFFSET은 법선 방향 거리
-- **PART 조립 시 ASSY의 Ref.Pt**: 빈칸/`o` = BASE 점 (기본) · 9점 이름(`bc` 등) = 부품 바운딩박스 점(Z는 중앙) · `판인스턴스.점`(예: `pl.C2_1.tc`) = 특정 판의 점 직접 지정
-- ID에 `_숫자` 접미사를 붙이면 같은 PART/PLATE의 인스턴스로 인식 (예: `pc.COL_1`, `pc.COL_2` → 부품 pc.COL 2개 배치)
-- 부품 예:
+- **MODULE 조립 시 ASSY의 Ref.Pt**: 빈칸/`o` = BASE 점 (기본) · 9점 이름(`bc` 등) = 모듈 바운딩박스 점(Z는 중앙) · `판인스턴스.점`(예: `pl.C2_1.tc`) = 특정 판의 점 직접 지정
+- ID에 `_숫자` 접미사를 붙이면 같은 MODULE/PLATE의 인스턴스로 인식 (예: `md.COL_1`, `md.COL_2` → 모듈 md.COL 2개 배치)
+- ID 접두사 관례: `pl.` 판 · `br.` 볼트/봉 · `md.` 모듈
+- 모듈 예:
 ```
-PART   pc.COL                       ← 부품 시작 (부품 로컬 좌표계)
+MODULE md.COL                       ← 모듈 시작 (모듈 로컬 좌표계)
 POS    pl.C1_1  XY  bc  0 0 0  -60
 POS    pl.C1_2  XY  bc  0 0 0   50
 POS    pl.C2_1  YZ  bc  0 0 0  -60
 POS    pl.C2_2  YZ  bc  0 0 0   50
 BASE   pl.C1_1  bc                  ← 기준점 = C1_1 판의 하단중앙
 
-ASSY   pc.COL_1  XY  o    0 0 0 0   ← 부품 통째로 배치
-ASSY   pc.COL_2  XY  o  400 0 0 0   ← 같은 부품 재사용
+ASSY   md.COL_1  XY  o    0 0 0 0   ← 모듈 통째로 배치
+ASSY   md.COL_2  XY  o  400 0 0 0   ← 같은 모듈 재사용
 ```
 
 ## 5. 처리 파이프라인
