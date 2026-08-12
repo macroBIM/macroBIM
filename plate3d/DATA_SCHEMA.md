@@ -201,9 +201,8 @@ FOLD=180 (이어붙임)          FOLD=90 (직각 세움)
 | CUT | RECT, B, H, L.X, L.Y, L.ROT, dx, dy, repeat | 직전 PLATE/BAR 에 사각 구멍/노치 |
 | CUT | CIRC, D, L.X, L.Y, L.ROT, dx, dy, repeat | 원형 구멍 |
 | CUT | PLATE, ID, L.X, L.Y, L.ROT, dx, dy, repeat | 다른 PLATE 외곽 형상으로 빼기 |
-| **MODULE** | ID | 모듈(부품) 정의 시작 — 이후 POS/BASE 행이 이 모듈 소속 (구버전 키워드 PART도 별칭 인식) |
-| **POS** | ID, PLANE, Ref.Pt, L.X, L.Y, L.ROT, OFFSET | 모듈 내부에 판 배치 (모듈 로컬 좌표) |
-| **BASE** | 판인스턴스, 점이름 | 모듈 기준점 = 구성 판의 9점 중 하나. **누락 시 경고** + 로컬 원점 사용 |
+| **MODULE** | ID, PLATE.ID, PLANE, Ref.Pt, L.X, L.Y, L.ROT, OFFSET | 모듈에 판 1장 배치 (행마다 모듈 ID 반복 — 같은 ID 행들이 한 모듈로 누적, 모듈 로컬 좌표). PART도 별칭 인식 |
+| **MODULE** | ID, **BASE**, 판인스턴스, 점이름 | 모듈 기준점 = 구성 판의 9점 중 하나. **누락 시 경고** + 로컬 원점 사용 |
 | ASSY | ID, PLANE, Ref.Pt, L.X, L.Y, L.ROT, OFFSET | 조립 — **MODULE과 낱장 PLATE 모두 가능** |
 | END | | 입력 종료 |
 
@@ -214,18 +213,18 @@ FOLD=180 (이어붙임)          FOLD=90 (직각 세움)
 - **MODULE 조립 시 ASSY의 Ref.Pt**: 빈칸/`o` = BASE 점 (기본) · 9점 이름(`bc` 등) = 모듈 바운딩박스 점(Z는 중앙) · `판인스턴스.점`(예: `pl.C2_1.tc`) = 특정 판의 점 직접 지정
 - ID에 `_숫자` 접미사를 붙이면 같은 MODULE/PLATE의 인스턴스로 인식 (예: `md.COL_1`, `md.COL_2` → 모듈 md.COL 2개 배치)
 - ID 접두사 관례: `pl.` 판 · `br.` 볼트/봉 · `md.` 모듈
-- 모듈 예:
+- 모듈 예 (한 행 = 판 1장, 모듈 ID 반복):
 ```
-MODULE md.COL                       ← 모듈 시작 (모듈 로컬 좌표계)
-POS    pl.C1_1  XY  bc  0 0 0  -60
-POS    pl.C1_2  XY  bc  0 0 0   50
-POS    pl.C2_1  YZ  bc  0 0 0  -60
-POS    pl.C2_2  YZ  bc  0 0 0   50
-BASE   pl.C1_1  bc                  ← 기준점 = C1_1 판의 하단중앙
+MODULE  md.tower  pl.C1_1  XY  bc  0 0 0  -60
+MODULE  md.tower  pl.C1_2  XY  bc  0 0 0   50
+MODULE  md.tower  pl.C2_1  YZ  bc  0 0 0  -60
+MODULE  md.tower  pl.C2_2  YZ  bc  0 0 0   50
+MODULE  md.tower  BASE  pl.C1_1  bc     ← 기준점 = C1_1 판의 하단중앙
 
-ASSY   md.COL_1  XY  o    0 0 0 0   ← 모듈 통째로 배치
-ASSY   md.COL_2  XY  o  400 0 0 0   ← 같은 모듈 재사용
+ASSY    md.tower_1  XY  o    0 0 0 0    ← 모듈 통째로 배치
+ASSY    md.tower_2  XY  o  400 0 0 0    ← 같은 모듈 재사용
 ```
+(블록 방식 — `MODULE ID` 한 줄 후 `POS`/`BASE` 행 나열 — 도 계속 인식됨)
 
 ## 5. 처리 파이프라인
 

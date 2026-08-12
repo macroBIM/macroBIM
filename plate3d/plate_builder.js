@@ -122,14 +122,15 @@
        CUT   RECT  B H  L.X L.Y L.ROT dx dy repeat   (cuts the last PLATE/BAR)
        CUT   CIRC  D    L.X L.Y L.ROT dx dy repeat
        CUT   PLATE ID   L.X L.Y L.ROT dx dy repeat
-       MODULE ID                              (module definition starts;
-                                               following POS/BASE rows belong to it;
-                                               legacy keyword PART is an alias)
-       POS   ID PLANE REF.PT L.X L.Y L.ROT OFFSET    (place a plate INSIDE the
-                                               current module, module-local coords)
-       BASE  INSTANCE POINT                   (module reference point = one of the
+       MODULE ID PLATE.ID PLANE REF.PT L.X L.Y L.ROT OFFSET
+                                              (one row per member plate, module-local
+                                               coords; rows with the same module ID
+                                               accumulate; PART = legacy alias)
+       MODULE ID BASE INSTANCE POINT          (module reference point = one of the
                                                9 points of a member plate;
                                                missing BASE -> warning + local origin)
+       -- block style also accepted: a bare "MODULE ID" row followed by
+          POS ID PLANE REF.PT L.X L.Y L.ROT OFFSET  and  BASE INSTANCE POINT rows
        ASSY  ID PLANE REF.PT L.X L.Y L.ROT OFFSET    (assemble a MODULE or a PLATE.
                                                REF.PT for modules: blank/O = BASE point,
                                                9-point name = module bbox point,
@@ -210,12 +211,24 @@
         } else { warn('row ' + (r + 1) + ': unknown CUT type ' + sub); continue; }
         cuts.push(c);
         counts.cut++;
-      } else if (kw === 'MODULE' || kw === 'PART') {   // module definition starts (PART = legacy alias)
+      } else if (kw === 'MODULE' || kw === 'PART') {   // module row (PART = legacy alias)
         var partId = str(v[0]).toUpperCase();
         if (!partId) { warn('row ' + (r + 1) + ': MODULE without ID'); continue; }
-        currentPart = { ID: partId, pos: [], base: null };
-        parts[partId] = currentPart;
-        counts.module++;
+        if (!parts[partId]) { parts[partId] = { ID: partId, pos: [], base: null }; counts.module++; }
+        currentPart = parts[partId];
+        if (v.length <= 1) continue;      // block style: POS/BASE rows follow
+        var msub = str(v[1]).toUpperCase();
+        if (msub === 'BASE') {            // MODULE id BASE <instance> <point>
+          currentPart.base = { inst: str(v[2]).toUpperCase(), pt: normPoint(v[3]) };
+          continue;
+        }
+        var mplate = resolvePlate(msub);  // MODULE id <plate> <PLANE> <Ref.Pt> <L.X> <L.Y> <L.ROT> <OFFSET>
+        if (!mplate) { warn('row ' + (r + 1) + ': MODULE row with undefined plate ' + msub); continue; }
+        var mplane = str(v[2]).toUpperCase();
+        if (!PLANE_ALIAS[mplane]) { warn('row ' + (r + 1) + ': unknown PLANE ' + mplane + ' (use XY/YZ/XZ)'); continue; }
+        currentPart.pos.push({ NO: msub, PLATE: mplate, PLANE: PLANE_ALIAS[mplane],
+                               REFPT: normPoint(v[3]), LX: num(v[4], 0), LY: num(v[5], 0),
+                               ROT: num(v[6], 0), OFFSET: num(v[7], 0) });
       } else if (kw === 'POS') {          // place a plate inside the current part
         if (!currentPart) { warn('row ' + (r + 1) + ': POS outside of a MODULE'); continue; }
         var ppid = str(v[0]).toUpperCase();
