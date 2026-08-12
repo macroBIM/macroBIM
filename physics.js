@@ -382,6 +382,49 @@ const Physics = {
             let t1 = endT(cw.x1, cw.y1);
             let t2 = endT(cw.x2, cw.y2);
             let lo = Math.min(t1, t2), hi = Math.max(t1, t2);
+
+            // ── 같은 면 체인 연장 ─────────────────────────────────────
+            // 기준 벽의 끝(크라운 꺾임, 중앙 복부 등)을 넘어서도 세그와 거의 평행하고
+            // 레벨이 이어지는 벽이 계속되면 그 끝까지 스팬을 확장한다.
+            // (데크 횡철근이 2셀 중앙 복부를 관통해 전폭 fit 되도록)
+            // 기울어진 세그(예: 15번 45° 다리)는 평행 조건을 만족하지 못해 기존처럼 벽 끝에서 멈춘다.
+            const PAR_TOL = 0.94;                       // 벽∥세그 허용 (약 ±20°)
+            const LVL_TOL = 600;                        // 법선 방향 레벨 연속 허용 (mm)
+            let n = seg.normal || { x: 0, y: -1 };
+            const hitDistOf = (P, hx, hy) => (hx - P.x) * n.x + (hy - P.y) * n.y;
+            let refP = { x: endPt.x, y: endPt.y };
+            let dRef = tgt ? hitDistOf(refP, tgt.x, tgt.y) : 0;
+            const march = (dirSign, cur) => {
+                const STEP = 150, MAXPROBE = 120;
+                let probes = 0, k = 1;
+                while (probes < MAXPROBE && k <= 60) {
+                    probes++;
+                    let tP = cur + dirSign * STEP * k;
+                    let P = { x: o.x + u.x * tP, y: o.y + u.y * tP };
+                    let g = Physics.getGravityTarget(P.x, P.y, n, walls, wallStack, dia);
+                    let ok = false;
+                    if (g && g.coverWall) {
+                        let w2 = g.coverWall;
+                        let wdx = w2.x2 - w2.x1, wdy = w2.y2 - w2.y1, wl = Math.hypot(wdx, wdy) || 1;
+                        let par = Math.abs((wdx * u.x + wdy * u.y) / wl);
+                        let lvl = Math.abs(hitDistOf(P, g.x, g.y) - dRef);
+                        if (par >= PAR_TOL && lvl <= LVL_TOL) {
+                            // 체인 벽은 평행투영으로 끝점 산정 — endT(법선 단면선 교차)를 쓰면
+                            // 약간 기울어진 벽에서 실제 끝점을 지나 오버슛한다.
+                            let e1 = (w2.x1 - o.x) * u.x + (w2.y1 - o.y) * u.y;
+                            let e2 = (w2.x2 - o.x) * u.x + (w2.y2 - o.y) * u.y;
+                            let far = (dirSign < 0) ? Math.min(e1, e2) : Math.max(e1, e2);
+                            if ((dirSign < 0 && far < cur - 1e-6) || (dirSign > 0 && far > cur + 1e-6)) {
+                                cur = far; k = 1; ok = true;   // 연장됨 → 새 끝에서 다시 전진
+                            }
+                        }
+                    }
+                    if (!ok) k++;
+                }
+                return cur;
+            };
+            if (side === 'start') lo = march(-1, lo); else hi = march(1, hi);
+
             return {
                 wallId: cw.id || (cw.origWall && cw.origWall.id) || '?',
                 lo: { x: o.x + u.x * lo, y: o.y + u.y * lo },
