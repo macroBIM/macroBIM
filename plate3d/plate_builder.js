@@ -641,7 +641,7 @@
         '<td><span class="chip" style="background:#' +
         ('000000' + colors[it.plateId].toString(16)).slice(-6) + '"></span>' +
         it.no + '<div class="dims">' + it.dims + (it.remark ? ' · ' + it.remark : '') + '</div></td>' +
-        '<td class="dims">' + it.mass.toFixed(1) + 'kg</td>';
+        '<td class="dims">' + it.mass.toFixed(3) + 'kg</td>';
       tbl.appendChild(tr);
     });
     document.getElementById('pb-total').textContent =
