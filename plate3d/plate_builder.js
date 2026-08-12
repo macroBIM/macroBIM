@@ -65,6 +65,16 @@
     '  margin-right:5px; vertical-align:-1px; }',
     '#pb-side .dims { color:#8a93a0; font-size:11px; }',
     '#pb-total { color:#fff; font-size:12px; margin:6px 0 12px; }',
+    '#pb-prog { display:none; margin:0 0 10px; }',
+    '#pb-prog-label { font-size:11px; color:#8a93a0; margin-bottom:4px; }',
+    '.pb-track { height:8px; background:#242a31; border-radius:4px; overflow:hidden; }',
+    '#pb-prog-bar { height:100%; width:0; background:#3a76ad; transition:width .15s; }',
+    '#pb-result { display:none; border:1px solid; border-radius:5px; padding:8px;',
+    '  font-size:11px; line-height:1.5; margin-bottom:10px; word-break:break-all; }',
+    '#pb-result.ok { border-color:#2e6b3a; background:#12281a; color:#8ec99a; }',
+    '#pb-result.warn { border-color:#8a6d1a; background:#2a2312; color:#f0c674; }',
+    '#pb-result.err { border-color:#a03a3a; background:#2a1414; color:#f09a9a; }',
+    '#pb-result ul { margin:6px 0 0 16px; }',
     '#pb-note { background:#22262d; border:1px solid #2c323b; border-radius:5px; padding:8px;',
     '  font-size:11px; color:#9aa3b0; line-height:1.55; }',
     '#pb-hud { position:absolute; left:10px; bottom:8px; color:#5b6472; font-size:11px;',
@@ -114,8 +124,10 @@
   }
 
   function parseExcelRows(rows) {
-    var plates = {}, cuts = [], assy = [];
+    var plates = {}, cuts = [], assy = [], log = [];
+    var counts = { plate: 0, bar: 0, cut: 0, assy: 0 };
     var current = null, counter = {};
+    function warn(m) { log.push(m); console.error('[plateBuilder] ' + m); }
     for (var r = 0; r < rows.length; r++) {
       var row = rows[r] || [];
       var k = 0;
@@ -142,14 +154,16 @@
         }
         plates[id] = spec;
         current = id;
+        counts.plate++;
       } else if (kw === 'BAR') {          // ID DIA LENGTH → cylinder
         var idb = str(v[0]).toUpperCase();
         if (!idb) continue;
         plates[idb] = { ID: idb, SHAPE: 'CIRC', D: num(v[1], 0),
                         THK: num(v[2], 0), MAT: str(v[3]) };
         current = idb;
+        counts.bar++;
       } else if (kw === 'CUT') {          // applies to the last PLATE/BAR row
-        if (!current) { console.error('row ' + (r + 1) + ': CUT before any PLATE'); continue; }
+        if (!current) { warn('row ' + (r + 1) + ': CUT before any PLATE'); continue; }
         var sub = str(v[0]).toUpperCase();
         var c = { PLATE: current };
         if (sub === 'RECT') {
@@ -164,21 +178,25 @@
           c.TYPE = 'REF'; c.REF = str(v[1]).toUpperCase();
           c.U = num(v[2], 0); c.V = num(v[3], 0); c.ANG = num(v[4], 0);
           c.DX = num(v[5], 0); c.DY = num(v[6], 0); c.N = num(v[7], 1);
-        } else { console.error('row ' + (r + 1) + ': unknown CUT type ' + sub); continue; }
+        } else { warn('row ' + (r + 1) + ': unknown CUT type ' + sub); continue; }
         cuts.push(c);
+        counts.cut++;
       } else if (kw === 'ASSY') {         // ID PLANE REF.PT L.X L.Y L.ROT OFFSET
         var pid = str(v[0]).toUpperCase();
+        if (!plates[pid]) { warn('row ' + (r + 1) + ': ASSY of undefined ID ' + pid); continue; }
         counter[pid] = (counter[pid] || 0) + 1;
         var plkey = str(v[1]).toUpperCase();
+        if (!PLANE_ALIAS[plkey]) { warn('row ' + (r + 1) + ': unknown PLANE ' + plkey + ' (use XY/YZ/XZ)'); continue; }
         assy.push({ __xl: true, NO: pid + '-' + counter[pid], PLATE: pid,
-                    PLANE: PLANE_ALIAS[plkey] || plkey, REFPT: normPoint(v[2]),
+                    PLANE: PLANE_ALIAS[plkey], REFPT: normPoint(v[2]),
                     LX: num(v[3], 0), LY: num(v[4], 0), ROT: num(v[5], 0),
                     OFFSET: num(v[6], 0), GROUP: '-', REMARK: '', MIRROR: '' });
+        counts.assy++;
       } else {
-        console.error('row ' + (r + 1) + ': unknown keyword ' + kw);
+        warn('row ' + (r + 1) + ': unknown keyword ' + kw);
       }
     }
-    return { plates: plates, cuts: cuts, assy: assy };
+    return { plates: plates, cuts: cuts, assy: assy, log: log, counts: counts };
   }
 
   function cellVal(c) {
@@ -191,28 +209,86 @@
     return c;
   }
 
+  var buildLog = [];                      // scene-build errors, shown in the result panel
+  function esc(s) {
+    return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  }
+  function pbProgress(pct, label) {
+    var wrap = document.getElementById('pb-prog');
+    if (!wrap) return;
+    if (pct === null) { wrap.style.display = 'none'; return; }
+    wrap.style.display = 'block';
+    document.getElementById('pb-prog-bar').style.width = Math.round(pct) + '%';
+    document.getElementById('pb-prog-label').textContent = label + ' — ' + Math.round(pct) + '%';
+  }
+  function showResult(fname, parsed, fatal) {
+    var el = document.getElementById('pb-result');
+    if (!el) return;
+    if (fatal) {
+      el.className = 'err';
+      el.innerHTML = '<b>&#9888; ' + esc(fname) + '</b><br>' + esc(fatal);
+      el.style.display = 'block';
+      return;
+    }
+    var log = (parsed.log || []).concat(buildLog);
+    var c = parsed.counts;
+    var placed = items.length;
+    el.className = log.length ? 'warn' : 'ok';
+    var h = '<b>' + (log.length ? '&#9888; ' : '&#10003; ') + esc(fname) + '</b><br>' +
+            'plates ' + c.plate + ' &middot; bars ' + c.bar + ' &middot; cuts ' + c.cut +
+            ' &middot; assy ' + c.assy + ' &rarr; placed ' + placed;
+    if (log.length) {
+      h += '<ul>' + log.slice(0, 10).map(function (m) { return '<li>' + esc(m) + '</li>'; }).join('') +
+           (log.length > 10 ? '<li>... ' + (log.length - 10) + ' more (see console)</li>' : '') + '</ul>';
+    }
+    el.innerHTML = h;
+    el.style.display = 'block';
+  }
+
   function loadExcelFile(file) {
     if (typeof ExcelJS === 'undefined') {
       alert('ExcelJS library is missing. Add this line before plate_builder.js:\n' +
             '<script src="https://cdnjs.cloudflare.com/ajax/libs/exceljs/4.3.0/exceljs.min.js"><\/script>');
       return;
     }
-    file.arrayBuffer().then(function (buf) {
-      var wb = new ExcelJS.Workbook();
-      return wb.xlsx.load(buf);
-    }).then(function (wb) {
-      var ws = wb.worksheets[0];
-      var rows = [];
-      ws.eachRow({ includeEmpty: true }, function (r) {
-        rows.push((r.values || []).slice(1).map(cellVal));
-      });
-      var parsed = parseExcelRows(rows);
-      run({ title: 'Plate Builder', subtitle: file.name + ' · PLATE/CUT/ASSY · unit: mm',
-            note: 'Loaded from ' + file.name + ' — edit the Excel file and load it again to update.',
-            __parsed: parsed });
-    }).catch(function (err) {
-      alert('Failed to read the Excel file: ' + err.message);
-    });
+    var reader = new FileReader();
+    pbProgress(3, 'Reading ' + file.name);
+    reader.onprogress = function (e) {
+      if (e.lengthComputable) pbProgress(3 + 37 * e.loaded / e.total, 'Reading ' + file.name);
+    };
+    reader.onerror = function () {
+      pbProgress(null);
+      showResult(file.name, null, 'Failed to read the file.');
+    };
+    reader.onload = function () {
+      pbProgress(45, 'Opening workbook');
+      setTimeout(function () {                       // let the bar repaint
+        var wb = new ExcelJS.Workbook();
+        wb.xlsx.load(reader.result).then(function (wb2) {
+          pbProgress(70, 'Parsing data');
+          var ws = wb2.worksheets[0];
+          var rows = [];
+          ws.eachRow({ includeEmpty: true }, function (r) {
+            rows.push((r.values || []).slice(1).map(cellVal));
+          });
+          var parsed = parseExcelRows(rows);
+          pbProgress(90, 'Building model');
+          setTimeout(function () {
+            buildLog = [];
+            run({ title: 'Plate Builder',
+                  subtitle: file.name + ' · PLATE/CUT/ASSY · unit: mm',
+                  note: 'Loaded from ' + file.name +
+                        ' — edit the Excel file and load it again to update.',
+                  __parsed: parsed });                 // rebuilds the DOM
+            showResult(file.name, parsed);             // result panel in the new DOM
+          }, 30);
+        }).catch(function (err) {
+          pbProgress(null);
+          showResult(file.name, null, 'Failed to open the workbook: ' + err.message);
+        });
+      }, 30);
+    };
+    reader.readAsArrayBuffer(file);
   }
 
   /* ------- PLATE sheet parser: '#'-prefixed block headers ------- */
@@ -484,9 +560,11 @@
     var inst = {};                       // NO → {matrix, pts, thk} for EDGE references
     var bbox = new THREE.Box3();
 
+    function buildErr(m) { buildLog.push(m); console.error('[plateBuilder] ' + m); }
+
     assyRows.forEach(function (row) {
       var spec = plates[row.PLATE];
-      if (!spec) { console.error(row.NO + ': unknown PLATE=' + row.PLATE); return; }
+      if (!spec) { buildErr(row.NO + ': unknown PLATE=' + row.PLATE); return; }
       var thk = spec.THK;
       var mirror = row.MIRROR === 'X';
       var g2d = buildPlate2D(spec, cuts, plates);
@@ -502,7 +580,7 @@
         matrix = row.__xl ? planeMatrixAnchor(row, pts)
                : row.METHOD === 'EDGE' ? edgeMatrix(row, inst, pts, thk)
                : planeMatrix(row);
-      } catch (err) { console.error(err.message); return; }
+      } catch (err) { buildErr(err.message); return; }
       inst[row.NO] = { matrix: matrix, pts: pts, thk: thk };
 
       var groupObj = new THREE.Group();
@@ -646,9 +724,12 @@
       '    <button onclick="plateBuilder.setView(\'side\')">Side</button>' +
       '    <button onclick="plateBuilder.setView(\'top\')">Top</button>' +
       '    <button onclick="plateBuilder.exportSTL()">Save STL</button>' +
-      '    <button onclick="plateBuilder.pickExcel()">Load Excel</button>' +
-      '    <input type="file" id="pb-file" accept=".xlsx" style="display:none">' +
+      '    <button class="accent" onclick="plateBuilder.pickExcel()">&#8682; Load Excel</button>' +
+      '    <input type="file" id="pb-file" accept=".xlsx,.xls" style="display:none">' +
       '  </div>' +
+      '  <div id="pb-prog"><div id="pb-prog-label"></div>' +
+      '    <div class="pb-track"><div id="pb-prog-bar"></div></div></div>' +
+      '  <div id="pb-result"></div>' +
       '  <table id="pb-list"></table>' +
       '  <div id="pb-total"></div>' +
       '  <div id="pb-note"></div>' +
