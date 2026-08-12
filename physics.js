@@ -152,6 +152,7 @@ const Physics = {
                 let dx = w.x2 - w.x1;
                 let dy = w.y2 - w.y1;
                 let len = Math.sqrt(dx * dx + dy * dy);
+                if (len < 0.5) return;               // 길이 0 벽(0값 치수의 퇴화 세그먼트) 무시
                 let p1 = { x: w.x1, y: w.y1 };
                 let p2 = { x: w.x2, y: w.y2 };
 
@@ -388,7 +389,7 @@ const Physics = {
             // 레벨이 이어지는 벽이 계속되면 그 끝까지 스팬을 확장한다.
             // (데크 횡철근이 2셀 중앙 복부를 관통해 전폭 fit 되도록)
             // 기울어진 세그(예: 15번 45° 다리)는 평행 조건을 만족하지 못해 기존처럼 벽 끝에서 멈춘다.
-            const PAR_TOL = 0.94;                       // 벽∥세그 허용 (약 ±20°)
+            const PAR_TOL = 0.9999985;                  // 벽∥세그 허용 (±0.1°) — 사실상 평행만 체인
             const LVL_TOL = 600;                        // 법선 방향 레벨 연속 허용 (mm)
             let n = seg.normal || { x: 0, y: -1 };
             const hitDistOf = (P, hx, hy) => (hx - P.x) * n.x + (hy - P.y) * n.y;
