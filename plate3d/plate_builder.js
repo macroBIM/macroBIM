@@ -78,10 +78,23 @@
     '#pb-note { background:#22262d; border:1px solid #2c323b; border-radius:5px; padding:8px;',
     '  font-size:11px; color:#9aa3b0; line-height:1.55; }',
     '#pb-hud { position:absolute; left:10px; bottom:8px; color:#5b6472; font-size:11px;',
-    '  pointer-events:none; }'
+    '  pointer-events:none; }',
+    '#pb-side .plname { cursor:pointer; }',
+    '#pb-side .plname:hover { color:#6fb3e8; text-decoration:underline; }',
+    '#pb-modal { position:fixed; left:0; top:0; right:0; bottom:0; background:rgba(0,0,0,.55);',
+    '  display:none; z-index:50; align-items:center; justify-content:center; }',
+    '#pb-modal .box { background:#1c2026; border:1px solid #3a424d; border-radius:8px;',
+    '  padding:14px; box-shadow:0 8px 30px rgba(0,0,0,.5); }',
+    '#pb-modal h2 { font-size:14px; color:#fff; margin:0 0 8px; }',
+    '#pb-modal .close { float:right; cursor:pointer; color:#8a93a0; padding:0 4px; }',
+    '#pb-modal .close:hover { color:#fff; }',
+    '#pb-modal canvas { background:#15181c; border:1px solid #2c323b; border-radius:4px;',
+    '  display:block; }',
+    '#pb-modal .meta { color:#8a93a0; font-size:11px; margin-top:8px; }'
   ].join('\n');
 
   var scene, camera, renderer, controls;
+  var lastPlates = {}, lastCuts = [], lastColors = {};   // for the plate preview modal
   var CENTER = null, VDIST = 1200;                // set from model bbox in run()
   var items = [];
   var runToken = 0;                               // distinguishes re-runs
@@ -610,6 +623,9 @@
     Object.keys(plates).forEach(function (id) {
       if (!(id in colors)) colors[id] = PALETTE[colorSeq++ % PALETTE.length];
     });
+    lastPlates = plates;
+    lastCuts = cuts;
+    lastColors = colors;
     var inst = {};                       // NO → {matrix, pts, thk} for EDGE references
     var bbox = new THREE.Box3();
 
@@ -748,6 +764,136 @@
     return bbox;
   }
 
+  /* -------- plate definition list + 2D preview modal -------- */
+  function buildPlateList(colors) {
+    var tbl = document.getElementById('pb-plates');
+    if (!tbl) return;
+    tbl.innerHTML = '';
+    var ids = Object.keys(lastPlates);
+    if (!ids.length) return;
+    var gtr = document.createElement('tr');
+    gtr.className = 'ghead';
+    gtr.innerHTML = '<td colspan="3">PLATES — click to preview</td>';
+    tbl.appendChild(gtr);
+    ids.forEach(function (id) {
+      var spec = lastPlates[id];
+      var dims = spec.SHAPE === 'CIRC'
+        ? 'D' + spec.D + '×' + spec.THK
+        : (spec.WT === spec.WB && spec.OFF_T === spec.OFF_B
+            ? spec.WB + '×' + spec.H + '×' + spec.THK + 'T'
+            : spec.WT + '/' + spec.WB + '×' + spec.H + '×' + spec.THK + 'T');
+      var ncut = lastCuts.filter(function (c) { return c.PLATE === id; }).length;
+      var tr = document.createElement('tr');
+      tr.innerHTML =
+        '<td></td>' +
+        '<td><span class="chip" style="background:#' +
+        ('000000' + (colors[id] || 0x999999).toString(16)).slice(-6) + '"></span>' +
+        '<span class="plname" onclick="plateBuilder.preview(\'' + id + '\')">' + esc(id) + '</span>' +
+        '<div class="dims">' + dims + (ncut ? ' · cuts ' + ncut : '') +
+        (spec.MAT ? ' · ' + esc(spec.MAT) : '') + '</div></td>' +
+        '<td></td>';
+      tbl.appendChild(tr);
+    });
+  }
+
+  function preview(id) {
+    var spec = lastPlates[id];
+    if (!spec) return;
+    var modal = document.getElementById('pb-modal');
+    var cv = document.getElementById('pb-pv-canvas');
+    if (!modal || !cv) return;
+    var g = buildPlate2D(spec, lastCuts, lastPlates);
+    var pts = namedPoints(spec, false);
+
+    var minx = 1e9, miny = 1e9, maxx = -1e9, maxy = -1e9;
+    g.outers.forEach(function (ring) {
+      ring.forEach(function (q) {
+        if (q[0] < minx) minx = q[0]; if (q[0] > maxx) maxx = q[0];
+        if (q[1] < miny) miny = q[1]; if (q[1] > maxy) maxy = q[1];
+      });
+    });
+    if (minx > maxx) { minx = miny = 0; maxx = maxy = 1; }
+    var W = cv.width, H = cv.height, PAD = 46;
+    var sc = Math.min((W - PAD * 2) / Math.max(maxx - minx, 1e-6),
+                      (H - PAD * 2) / Math.max(maxy - miny, 1e-6));
+    var ox = (W - (maxx - minx) * sc) / 2, oy = (H - (maxy - miny) * sc) / 2;
+    function mx(x) { return ox + (x - minx) * sc; }
+    function my(y) { return H - oy - (y - miny) * sc; }
+
+    var ctx = cv.getContext('2d');
+    ctx.clearRect(0, 0, W, H);
+    ctx.fillStyle = '#15181c';
+    ctx.fillRect(0, 0, W, H);
+
+    ctx.beginPath();
+    g.outers.forEach(function (ring, i) {
+      ring.forEach(function (q, j) { j ? ctx.lineTo(mx(q[0]), my(q[1])) : ctx.moveTo(mx(q[0]), my(q[1])); });
+      ctx.closePath();
+      (g.holes[i] || []).forEach(function (h) {
+        h.forEach(function (q, j) { j ? ctx.lineTo(mx(q[0]), my(q[1])) : ctx.moveTo(mx(q[0]), my(q[1])); });
+        ctx.closePath();
+      });
+    });
+    var col = (lastColors && lastColors[id]) || 0x5c9bd1;
+    ctx.fillStyle = '#' + ('000000' + col.toString(16)).slice(-6);
+    ctx.globalAlpha = 0.35;
+    ctx.fill('evenodd');
+    ctx.globalAlpha = 1;
+    ctx.strokeStyle = '#' + ('000000' + col.toString(16)).slice(-6);
+    ctx.lineWidth = 1.5;
+    ctx.stroke();
+
+    // 9 reference points with labels
+    ctx.font = '10px sans-serif';
+    var seen = {};
+    ['pbl', 'pbc', 'pbr', 'plm', 'pcc', 'prm', 'ptl', 'ptc', 'ptr'].forEach(function (k) {
+      var a = pts[k];
+      if (!a) return;
+      var key = a[0].toFixed(3) + ',' + a[1].toFixed(3);
+      var x = mx(a[0]), y = my(a[1]);
+      ctx.strokeStyle = '#f0c674';
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.moveTo(x - 4, y); ctx.lineTo(x + 4, y);
+      ctx.moveTo(x, y - 4); ctx.lineTo(x, y + 4);
+      ctx.stroke();
+      if (!seen[key]) {
+        seen[key] = [];
+        ctx.fillStyle = '#f0c674';
+      }
+      seen[key].push(k.slice(1));
+    });
+    Object.keys(seen).length && ['pbl', 'pbc', 'pbr', 'plm', 'pcc', 'prm', 'ptl', 'ptc', 'ptr'].forEach(function (k) {
+      var a = pts[k];
+      if (!a) return;
+      var key = a[0].toFixed(3) + ',' + a[1].toFixed(3);
+      if (!seen[key]) return;
+      var label = seen[key].join('/');
+      delete seen[key];
+      var x = mx(a[0]), y = my(a[1]);
+      ctx.fillStyle = '#f0c674';
+      ctx.fillText(label, x + 5, y - 5);
+    });
+
+    var dims = spec.SHAPE === 'CIRC'
+      ? 'D' + spec.D + ' × THK ' + spec.THK
+      : (spec.WT === spec.WB && spec.OFF_T === spec.OFF_B
+          ? spec.WB + ' × ' + spec.H + ' × ' + spec.THK + 'T'
+          : 'WT ' + spec.WT + ' / WB ' + spec.WB + ' × H ' + spec.H + ' × ' + spec.THK + 'T');
+    var ncut = lastCuts.filter(function (c) { return c.PLATE === id; }).length;
+    document.getElementById('pb-pv-title').textContent = id;
+    document.getElementById('pb-pv-meta').innerHTML =
+      esc(dims) + ' &middot; cuts ' + ncut +
+      (spec.MAT ? ' &middot; ' + esc(spec.MAT) : '') +
+      ' &middot; ' + (g.area * spec.THK * RHO).toFixed(3) + ' kg' +
+      ' &nbsp;&nbsp;<span style="color:#5b6472">(+ = 9 reference points)</span>';
+    modal.style.display = 'flex';
+  }
+  function closePreview() {
+    var modal = document.getElementById('pb-modal');
+    if (modal) modal.style.display = 'none';
+  }
+
   /* ---------------- sidebar list ---------------- */
   function buildList(colors) {
     var tbl = document.getElementById('pb-list');
@@ -769,7 +915,8 @@
         'onchange="plateBuilder.toggleItem(' + i + ',this.checked)"></td>' +
         '<td><span class="chip" style="background:#' +
         ('000000' + colors[it.plateId].toString(16)).slice(-6) + '"></span>' +
-        it.no + '<div class="dims">' + it.dims + (it.remark ? ' · ' + it.remark : '') + '</div></td>' +
+        '<span class="plname" onclick="plateBuilder.preview(\'' + it.plateId + '\')">' + it.no + '</span>' +
+        '<div class="dims">' + it.dims + (it.remark ? ' · ' + it.remark : '') + '</div></td>' +
         '<td class="dims">' + it.mass.toFixed(3) + 'kg</td>';
       tbl.appendChild(tr);
     });
@@ -996,12 +1143,21 @@
       '  <div id="pb-prog"><div id="pb-prog-label"></div>' +
       '    <div class="pb-track"><div id="pb-prog-bar"></div></div></div>' +
       '  <div id="pb-result"></div>' +
+      '  <table id="pb-plates"></table>' +
       '  <table id="pb-list"></table>' +
       '  <div id="pb-total"></div>' +
       '  <div id="pb-note"></div>' +
       '</div>' +
-      '<div id="pb-view"><div id="pb-hud">Drag: rotate · Wheel: zoom · Right-drag: pan</div></div>';
+      '<div id="pb-view"><div id="pb-hud">Drag: rotate · Wheel: zoom · Right-drag: pan</div></div>' +
+      '<div id="pb-modal"><div class="box">' +
+      '  <h2><span class="close" onclick="plateBuilder.closePreview()">&#10005;</span>' +
+      '      <span id="pb-pv-title"></span></h2>' +
+      '  <canvas id="pb-pv-canvas" width="560" height="420"></canvas>' +
+      '  <div class="meta" id="pb-pv-meta"></div>' +
+      '</div></div>';
     document.body.appendChild(app);
+    var modal = document.getElementById('pb-modal');
+    modal.addEventListener('click', function (e) { if (e.target === modal) closePreview(); });
     app.querySelector('h1').textContent = title;
     app.querySelector('.sub').textContent = subtitle;
     var noteEl = document.getElementById('pb-note');
@@ -1050,6 +1206,7 @@
 
     var colors = data.colors || {};
     var bbox = buildAll(data, colors);
+    buildPlateList(colors);
     buildList(colors);
 
     CENTER = bbox.isEmpty() ? new THREE.Vector3(0, 150, 0) : bbox.getCenter(new THREE.Vector3());
@@ -1137,7 +1294,8 @@
   window.plateBuilder = {
     run: run, setView: setView, exportSTL: exportSTL, exportIFC: exportIFC,
     toggleItem: toggleItem, toggleGroup: toggleGroup,
-    pickExcel: pickExcel, loadExcelFile: loadExcelFile
+    pickExcel: pickExcel, loadExcelFile: loadExcelFile,
+    preview: preview, closePreview: closePreview
   };
 
   /* ---- auto-run: use window.PLATE_DATA if present, else empty default.
