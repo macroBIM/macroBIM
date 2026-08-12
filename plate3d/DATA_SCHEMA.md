@@ -195,18 +195,20 @@ FOLD=180 (이어붙임)          FOLD=90 (직각 세움)
 
 | 키워드 | 값 (순서대로) | 설명 |
 |---|---|---|
-| PLATE | ID, WT, WB, H, OFF_T, OFF_B, THK, MAT | 사다리꼴 (값 7개 이상이면 사다리꼴로 판별) |
+| PLATE | ID, WT, WB, H, OFF_TOP, THK, MAT | 사다리꼴 (OFF_T·OFF_B 두 칸 방식도 인식). 형상은 **값으로 판별**하므로 오른쪽 메모 칸이 있어도 무방 |
 | PLATE | ID, B, H, THK, MAT | 사각형 |
 | BAR | ID, Dia, Length | 원기둥 (볼트 등) |
-| CUT | [판ID], RECT, B, H, L.X, L.Y, L.ROT, dx, dy, repeat | 사각 구멍/노치 (판ID 생략 시 직전 PLATE/BAR 에 적용) |
-| CUT | [판ID], CIRC, D, L.X, L.Y, L.ROT, dx, dy, repeat | 원형 구멍 |
-| CUT | [판ID], PLATE, ID, L.X, L.Y, L.ROT, dx, dy, repeat | 다른 PLATE 외곽 형상으로 빼기 |
+| CUT | [판ID], [기준점], RECT, B, H, L.X, L.Y, L.ROT, dx, dy, repeat | 사각 구멍/노치 |
+| CUT | [판ID], [기준점], CIRC, D, L.X, L.Y, L.ROT, dx, dy, repeat | 원형 구멍 |
+| CUT | [판ID], [기준점], PLATE, ID, L.X, L.Y, L.ROT, dx, dy, repeat | 다른 PLATE 외곽 형상으로 빼기 |
 | **MODULE** | ID, PLATE.ID, PLANE, Ref.Pt, L.X, L.Y, L.ROT, OFFSET | 모듈에 판 1장 배치 (행마다 모듈 ID 반복 — 같은 ID 행들이 한 모듈로 누적, 모듈 로컬 좌표). PART도 별칭 인식 |
 | **MODULE** | ID, **BASE**, 판인스턴스, 점이름 | 모듈 기준점 = 구성 판의 9점 중 하나. **누락 시 경고** + 로컬 원점 사용 |
 | ASSY | ID, PLANE, Ref.Pt, L.X, L.Y, L.ROT, OFFSET | 조립 — **MODULE과 낱장 PLATE 모두 가능** |
 | END | | 입력 종료 |
 
-- **CUT의 대상 판**: 두 번째 칸에 판 ID를 쓰면 그 판에 적용(행 순서 무관), 생략하면 바로 위에서 정의한 PLATE/BAR에 적용
+- **CUT의 대상 판**: 판 ID를 쓰면 그 판에 적용(행 순서 무관), 생략하면 바로 위에서 정의한 PLATE/BAR에 적용
+- **CUT의 기준점**: 판의 9점 중 하나(`bc`, `tl` 등)를 쓰면 **그 점에서 L.X, L.Y 만큼 떨어진 위치**를 자름. 생략하면 pbl(좌하단) 기준
+  예: `CUT pl.T1 bc CIRC 22 -110 90` = 하단중앙에서 왼쪽 110, 위로 90인 곳에 Ø22 구멍
 - CUT 위치: CIRC는 중심, RECT/PLATE는 좌하단 기준. dx/dy/repeat = 배열 복제 (피치 벡터 × 개수)
 - ASSY의 PLANE: XY(정면)/YZ(측면)/XZ(수평), Ref.Pt: tl~br·cc (p 접두사 있어도 인식)
   — 부재의 Ref.Pt 점이 평면 내 (L.X, L.Y)에 오도록 배치, L.ROT는 그 점 기준 면내 회전, OFFSET은 법선 방향 거리

@@ -110,20 +110,25 @@
   }
   function num(v, dflt) { return (v === '' || v === undefined || v === null) ? dflt : Number(v); }
   function str(v) { return String(v === undefined || v === null ? '' : v).trim(); }
+  function isNum(v) { return str(v) !== '' && isFinite(Number(v)); }
 
   /* ================================================================
      Excel loader — single-sheet keyword grammar (ExcelJS required):
        · first char '#' or '!'  → comment row (ignored)
        · rows are read until an END keyword row
        · keywords/IDs/planes/points are case-insensitive (uppercased)
-       PLATE ID WT WB H OFF_T OFF_B THK MAT   (trapezoid, 7+ values)
+       PLATE ID WT WB H OFF_TOP THK MAT       (trapezoid; OFF_T OFF_B variant
+                                               also accepted)
        PLATE ID B H THK MAT                   (rectangle)
+                                              (shape detected from the values, so
+                                               trailing note columns are ignored)
        BAR   ID DIA LENGTH                    (cylinder)
-       CUT   [plateID] RECT  B H  L.X L.Y L.ROT dx dy repeat
-       CUT   [plateID] CIRC  D    L.X L.Y L.ROT dx dy repeat
-       CUT   [plateID] PLATE ID   L.X L.Y L.ROT dx dy repeat
-                                              (plateID optional; without it the cut
-                                               applies to the last PLATE/BAR row)
+       CUT   [plateID] [refPt] RECT  B H  L.X L.Y L.ROT dx dy repeat
+       CUT   [plateID] [refPt] CIRC  D    L.X L.Y L.ROT dx dy repeat
+       CUT   [plateID] [refPt] PLATE ID   L.X L.Y L.ROT dx dy repeat
+                                              (plateID optional -> last PLATE/BAR row;
+                                               refPt optional -> pbl. L.X/L.Y are
+                                               measured from that reference point)
        MODULE ID PLATE.ID PLANE REF.PT L.X L.Y L.ROT OFFSET
                                               (one row per member plate, module-local
                                                coords; rows with the same module ID
@@ -175,11 +180,20 @@
         var id = str(v[0]).toUpperCase();
         if (!id) continue;
         var spec;
-        if (v.length >= 7) {              // trapezoid
-          spec = { ID: id, SHAPE: 'TRAP', WT: num(v[1], 0), WB: num(v[2], 0),
-                   H: num(v[3], 0), OFF_T: num(v[4], 0), OFF_B: num(v[5], 0),
-                   THK: num(v[6], 10), MAT: str(v[7]) };
-        } else {                          // rectangle
+        // shape is decided by the values, not the row length (trailing note
+        // columns are ignored): rectangle has MAT (text) where a trapezoid
+        // has OFF_TOP (number)
+        if (isNum(v[4])) {
+          if (isNum(v[6])) {              // ID WT WB H OFF_T OFF_B THK MAT
+            spec = { ID: id, SHAPE: 'TRAP', WT: num(v[1], 0), WB: num(v[2], 0),
+                     H: num(v[3], 0), OFF_T: num(v[4], 0), OFF_B: num(v[5], 0),
+                     THK: num(v[6], 10), MAT: str(v[7]) };
+          } else {                        // ID WT WB H OFF_TOP THK MAT
+            spec = { ID: id, SHAPE: 'TRAP', WT: num(v[1], 0), WB: num(v[2], 0),
+                     H: num(v[3], 0), OFF_T: num(v[4], 0), OFF_B: 0,
+                     THK: num(v[5], 10), MAT: str(v[6]) };
+          }
+        } else {                          // ID B H THK MAT
           var b = num(v[1], 0);
           spec = { ID: id, SHAPE: 'TRAP', WT: b, WB: b, H: num(v[2], 0),
                    OFF_T: 0, OFF_B: 0, THK: num(v[3], 10), MAT: str(v[4]) };
@@ -194,15 +208,21 @@
                         THK: num(v[2], 0), MAT: str(v[3]) };
         current = idb;
         counts.bar++;
-      } else if (kw === 'CUT') {          // CUT [plateID] TYPE ... — plate ID optional
+      } else if (kw === 'CUT') {          // CUT [plateID] [refPt] TYPE ...
+        function isCutType(x) { return x === 'RECT' || x === 'CIRC' || x === 'PLATE'; }
         var sub = str(v[0]).toUpperCase();
-        var target = current;
-        if (sub !== 'RECT' && sub !== 'CIRC' && sub !== 'PLATE') {
-          var tp = resolvePlate(sub);     // row style: CUT <plateID> <TYPE> ...
+        var target = current, refpt = 'pbl';
+        if (!isCutType(sub)) {
+          var tp = resolvePlate(sub);     // 2nd cell = target plate
           if (tp) { target = tp; v = v.slice(1); sub = str(v[0]).toUpperCase(); }
         }
+        if (!isCutType(sub)) {            // 3rd cell = reference point
+          refpt = normPoint(sub);
+          v = v.slice(1);
+          sub = str(v[0]).toUpperCase();
+        }
         if (!target) { warn('row ' + (r + 1) + ': CUT before any PLATE'); continue; }
-        var c = { PLATE: target };
+        var c = { PLATE: target, REFPT: refpt };
         if (sub === 'RECT') {
           c.TYPE = 'TRAP'; c.B = num(v[1], 0); c.TW = c.B; c.H = num(v[2], 0); c.OF = 0;
           c.U = num(v[3], 0); c.V = num(v[4], 0); c.ANG = num(v[5], 0);
@@ -481,16 +501,19 @@
     var outline = outlineOf(spec);
 
     var cutters = [];
+    var basePts = namedPoints(spec, false);       // cut coords are measured from REFPT
     cuts.filter(function (c) { return c.PLATE === spec.ID; }).forEach(function (c) {
+      var anchor = (c.REFPT && basePts[c.REFPT]) || [0, 0];
       // positions: 1D repeat (N/DX/DY, Excel grammar) or NX·PX/NY·PY grid
       var uvs = [];
       if (c.N !== undefined) {
         for (var i = 0; i < num(c.N, 1); i++)
-          uvs.push([num(c.U, 0) + i * num(c.DX, 0), num(c.V, 0) + i * num(c.DY, 0)]);
+          uvs.push([anchor[0] + num(c.U, 0) + i * num(c.DX, 0),
+                    anchor[1] + num(c.V, 0) + i * num(c.DY, 0)]);
       } else {
         var nx = num(c.NX, 1), px = num(c.PX, 0), ny = num(c.NY, 1), py = num(c.PY, 0);
         for (var ix = 0; ix < nx; ix++) for (var iy = 0; iy < ny; iy++)
-          uvs.push([num(c.U, 0) + ix * px, num(c.V, 0) + iy * py]);
+          uvs.push([anchor[0] + num(c.U, 0) + ix * px, anchor[1] + num(c.V, 0) + iy * py]);
       }
       uvs.forEach(function (uv) {
         var u = uv[0], v = uv[1];
