@@ -119,9 +119,11 @@
        PLATE ID WT WB H OFF_T OFF_B THK MAT   (trapezoid, 7+ values)
        PLATE ID B H THK MAT                   (rectangle)
        BAR   ID DIA LENGTH                    (cylinder)
-       CUT   RECT  B H  L.X L.Y L.ROT dx dy repeat   (cuts the last PLATE/BAR)
-       CUT   CIRC  D    L.X L.Y L.ROT dx dy repeat
-       CUT   PLATE ID   L.X L.Y L.ROT dx dy repeat
+       CUT   [plateID] RECT  B H  L.X L.Y L.ROT dx dy repeat
+       CUT   [plateID] CIRC  D    L.X L.Y L.ROT dx dy repeat
+       CUT   [plateID] PLATE ID   L.X L.Y L.ROT dx dy repeat
+                                              (plateID optional; without it the cut
+                                               applies to the last PLATE/BAR row)
        MODULE ID PLATE.ID PLANE REF.PT L.X L.Y L.ROT OFFSET
                                               (one row per member plate, module-local
                                                coords; rows with the same module ID
@@ -192,10 +194,15 @@
                         THK: num(v[2], 0), MAT: str(v[3]) };
         current = idb;
         counts.bar++;
-      } else if (kw === 'CUT') {          // applies to the last PLATE/BAR row
-        if (!current) { warn('row ' + (r + 1) + ': CUT before any PLATE'); continue; }
+      } else if (kw === 'CUT') {          // CUT [plateID] TYPE ... — plate ID optional
         var sub = str(v[0]).toUpperCase();
-        var c = { PLATE: current };
+        var target = current;
+        if (sub !== 'RECT' && sub !== 'CIRC' && sub !== 'PLATE') {
+          var tp = resolvePlate(sub);     // row style: CUT <plateID> <TYPE> ...
+          if (tp) { target = tp; v = v.slice(1); sub = str(v[0]).toUpperCase(); }
+        }
+        if (!target) { warn('row ' + (r + 1) + ': CUT before any PLATE'); continue; }
+        var c = { PLATE: target };
         if (sub === 'RECT') {
           c.TYPE = 'TRAP'; c.B = num(v[1], 0); c.TW = c.B; c.H = num(v[2], 0); c.OF = 0;
           c.U = num(v[3], 0); c.V = num(v[4], 0); c.ANG = num(v[5], 0);
