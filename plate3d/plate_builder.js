@@ -1423,31 +1423,39 @@
     return out;
   }
 
+  var ringTex = null;
+  function ringTexture() {                       // shared, never disposed
+    if (ringTex) return ringTex;
+    var cv = document.createElement('canvas');
+    cv.width = cv.height = 64;
+    var c = cv.getContext('2d');
+    c.strokeStyle = '#ffffff';
+    c.lineWidth = 7;
+    c.beginPath();
+    c.arc(32, 32, 24, 0, Math.PI * 2);
+    c.stroke();
+    ringTex = new THREE.CanvasTexture(cv);
+    ringTex.userData.keep = true;
+    return ringTex;
+  }
+
   // One measuring session over a scene: hover snaps to the nearest point, two
   // clicks fix a span, a third starts over. Attached per view (main + preview).
   function createMeasure(cfg) {          // {scene, camera, dom, out, size}
-    var M = { on: false, snaps: [], picks: [], hover: null, grp: null, cloud: null,
+    var M = { on: false, snaps: [], picks: [], hover: null, grp: null,
               down: null, moved: false };
     var v = new THREE.Vector3();
 
     function clear() {
       if (M.grp) { disposeScene(M.grp); cfg.scene.remove(M.grp); M.grp = null; }
     }
-    // every pickable point, shown while measuring so the corners are visible
-    function buildCloud() {
-      if (M.cloud) { disposeScene(M.cloud); cfg.scene.remove(M.cloud); M.cloud = null; }
-      if (!M.on || !M.snaps.length) return;
-      M.cloud = new THREE.Points(
-        new THREE.BufferGeometry().setFromPoints(M.snaps),
-        new THREE.PointsMaterial({ color: 0x8ecbff, size: cfg.size() * 0.018,
-                                   sizeAttenuation: true, transparent: true,
-                                   opacity: 0.85, depthTest: false }));
-      cfg.scene.add(M.cloud);
-    }
-    function dot(p, color, r) {
-      var m = new THREE.Mesh(new THREE.SphereGeometry(r, 14, 10),
-                new THREE.MeshBasicMaterial({ color: color, depthTest: false }));
+    // hollow ring, drawn as a camera-facing sprite so it reads as a circle
+    // from any angle and never hides the point it marks
+    function dot(p, color, d) {
+      var m = new THREE.Sprite(new THREE.SpriteMaterial({
+        map: ringTexture(), color: color, depthTest: false, transparent: true }));
       m.position.copy(p);
+      m.scale.set(d, d, 1);
       return m;
     }
     function seg(a, b, color, r) {
@@ -1459,8 +1467,8 @@
     function redraw() {
       clear();
       if (!M.on) { report(); return; }
-      var g = new THREE.Group(), r = cfg.size() * 0.009;
-      if (M.hover && M.picks.length < 2) g.add(dot(M.hover, 0x6fb3e8, r * 1.5));
+      var g = new THREE.Group(), r = cfg.size() * 0.016;
+      if (M.hover && M.picks.length < 2) g.add(dot(M.hover, 0xffd24a, r * 1.3));
       M.picks.forEach(function (p) { g.add(dot(p, 0xf0c674, r)); });
       if (M.picks.length === 2) {
         var a = M.picks[0], b = M.picks[1];
@@ -1551,19 +1559,12 @@
     cfg.dom.addEventListener('contextmenu', onCtx);
 
     return {
-      setSnaps: function (list) {
-        M.snaps = list; M.picks = []; M.hover = null;
-        buildCloud(); redraw();
-      },
-      enable: function (on) {
-        M.on = !!on; M.picks = []; M.hover = null;
-        buildCloud(); redraw();
-      },
+      setSnaps: function (list) { M.snaps = list; M.picks = []; M.hover = null; redraw(); },
+      enable: function (on) { M.on = !!on; M.picks = []; M.hover = null; redraw(); },
       isOn: function () { return M.on; },
       refresh: redraw,
       dispose: function () {
         clear();
-        if (M.cloud) { disposeScene(M.cloud); cfg.scene.remove(M.cloud); M.cloud = null; }
         cfg.dom.removeEventListener('mousemove', onMove);
         cfg.dom.removeEventListener('mousedown', onDown);
         cfg.dom.removeEventListener('mouseup', onUp);
@@ -1713,7 +1714,7 @@
       if (o.geometry) o.geometry.dispose();
       if (o.material) {
         [].concat(o.material).forEach(function (m) {
-          if (m.map) m.map.dispose();
+          if (m.map && !(m.map.userData && m.map.userData.keep)) m.map.dispose();
           m.dispose();
         });
       }
