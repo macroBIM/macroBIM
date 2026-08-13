@@ -106,6 +106,10 @@
     '#pb-modal .pvchk { float:right; font-size:11px; font-weight:normal; color:#8a93a0;',
     '  cursor:pointer; margin-right:12px; display:flex; align-items:center; gap:4px; }',
     '#pb-modal .pvchk:hover { color:#d8dce2; }',
+    '#pb-modal .pvbtn { float:right; margin-right:8px; background:#2a3038; color:#d8dce2;',
+    '  border:1px solid #3a424d; border-radius:4px; padding:2px 9px; font-size:11px;',
+    '  cursor:pointer; }',
+    '#pb-modal .pvbtn:hover { background:#39424d; }',
     '#pb-modal .close:hover { color:#fff; }',
     '#pb-modal canvas { background:#15181c; border:1px solid #2c323b; border-radius:4px;',
     '  display:block; cursor:crosshair; }',
@@ -965,6 +969,8 @@
     stopPreview3D();
     pvModuleId = null;
     document.getElementById('pb-pv-flat').parentNode.style.display = 'none';
+    document.getElementById('pb-pv-stl').style.display = 'none';
+    document.getElementById('pb-pv-ifc').style.display = 'none';
     cv.style.display = 'block';
     document.getElementById('pb-pv3d').style.display = 'none';
 
@@ -1230,6 +1236,8 @@
     pvModuleId = id;
     document.getElementById('pb-pv-flat').checked = flatMode;
     document.getElementById('pb-pv-flat').parentNode.style.display = 'flex';
+    document.getElementById('pb-pv-stl').style.display = 'block';
+    document.getElementById('pb-pv-ifc').style.display = 'block';
     document.getElementById('pb-pv-canvas').style.display = 'none';
     host.style.display = 'block';
     modal.style.display = 'flex';
@@ -1391,26 +1399,28 @@
   }
 
   /* -------- STL export (world transforms applied) -------- */
-  function exportSTL() {
-    var wasFlat = flatMode;
-    if (wasFlat) setFlat(false);              // STL must carry the real thickness
-    var out = 'solid plate_builder\n';
-    scene.updateMatrixWorld(true);
-    items.forEach(function (it) {
-      if (!it.groupObj.visible) return;
-      it.groupObj.traverse(function (obj) {
-        if (!obj.isMesh) return;
-        var pos = obj.geometry.getAttribute('position');
-        if (!pos) return;
-        var idx = obj.geometry.getIndex();
+  // triangles come from the stored rings, so the flat view and the module
+  // preview (which has no scene meshes) export identical solids
+  function buildSTL(list, name) {
+    var out = 'solid ' + name + '\n';
+    list.forEach(function (it) {
+      it.rings.outers.forEach(function (ring, i) {
+        var shape = new THREE.Shape(ring.map(function (q) { return new THREE.Vector2(q[0], q[1]); }));
+        (it.rings.holes[i] || []).forEach(function (h) {
+          shape.holes.push(new THREE.Path(h.map(function (q) { return new THREE.Vector2(q[0], q[1]); })));
+        });
+        var geo = new THREE.ExtrudeGeometry(shape, { depth: it.thk, bevelEnabled: false, curveSegments: 24 });
+        geo.translate(0, 0, -it.thk / 2);
+        var pos = geo.getAttribute('position');
+        var idx = geo.getIndex();
         var n = idx ? idx.count / 3 : pos.count / 3;
-        for (var i = 0; i < n; i++) {
-          var a = idx ? idx.getX(i * 3) : i * 3;
-          var b = idx ? idx.getX(i * 3 + 1) : i * 3 + 1;
-          var c = idx ? idx.getX(i * 3 + 2) : i * 3 + 2;
-          var vA = new THREE.Vector3().fromBufferAttribute(pos, a).applyMatrix4(obj.matrixWorld);
-          var vB = new THREE.Vector3().fromBufferAttribute(pos, b).applyMatrix4(obj.matrixWorld);
-          var vC = new THREE.Vector3().fromBufferAttribute(pos, c).applyMatrix4(obj.matrixWorld);
+        for (var k = 0; k < n; k++) {
+          var a = idx ? idx.getX(k * 3) : k * 3;
+          var b = idx ? idx.getX(k * 3 + 1) : k * 3 + 1;
+          var c = idx ? idx.getX(k * 3 + 2) : k * 3 + 2;
+          var vA = new THREE.Vector3().fromBufferAttribute(pos, a).applyMatrix4(it.matrix);
+          var vB = new THREE.Vector3().fromBufferAttribute(pos, b).applyMatrix4(it.matrix);
+          var vC = new THREE.Vector3().fromBufferAttribute(pos, c).applyMatrix4(it.matrix);
           var nr = new THREE.Vector3().crossVectors(
             new THREE.Vector3().subVectors(vB, vA),
             new THREE.Vector3().subVectors(vC, vA)).normalize();
@@ -1419,15 +1429,49 @@
                  '   vertex ' + vB.x + ' ' + vB.y + ' ' + vB.z + '\n' +
                  '   vertex ' + vC.x + ' ' + vC.y + ' ' + vC.z + '\n  endloop\n endfacet\n';
         }
+        geo.dispose();
       });
     });
-    out += 'endsolid plate_builder\n';
+    return out + 'endsolid ' + name + '\n';
+  }
+
+  function download(text, filename) {
     var link = document.createElement('a');
-    link.href = URL.createObjectURL(new Blob([out], { type: 'application/octet-stream' }));
-    link.download = 'plate_builder.stl';
+    link.href = URL.createObjectURL(new Blob([text], { type: 'application/octet-stream' }));
+    link.download = filename;
     link.click();
     URL.revokeObjectURL(link.href);
-    if (wasFlat) setFlat(true);
+  }
+
+  // plates of a module, in module-local coordinates (for preview exports)
+  function moduleItems(id) {
+    var part = lastParts[id];
+    if (!part) return [];
+    var out = [];
+    part.pos.forEach(function (row) {
+      var spec = lastPlates[row.PLATE];
+      if (!spec) return;
+      var m;
+      try { m = planeMatrixAnchor(row, namedPoints(spec, false)); } catch (e) { return; }
+      var g2 = buildPlate2D(spec, lastCuts, lastPlates);
+      out.push({ no: row.NO, spec: spec, thk: spec.THK, matrix: m,
+                 mass: g2.area * spec.THK * RHO, dims: '',
+                 rings: { outers: g2.outers, holes: g2.holes } });
+    });
+    return out;
+  }
+
+  function exportSTL() {
+    download(buildSTL(items.filter(function (it) { return it.groupObj.visible; }), 'plate_builder'),
+             'plate_builder.stl');
+  }
+  function exportModuleSTL() {
+    if (!pvModuleId) return;
+    download(buildSTL(moduleItems(pvModuleId), pvModuleId), pvModuleId + '.stl');
+  }
+  function exportModuleIFC() {
+    if (!pvModuleId) return;
+    download(buildIFC(moduleItems(pvModuleId), pvModuleId), pvModuleId + '.ifc');
   }
 
   /* -------- IFC export (IFC2X3, parametric extrusions) --------
@@ -1435,6 +1479,11 @@
      geometry is the exact 2D profile (with hole voids) extruded by the
      thickness — real BIM solids, not triangle meshes. */
   function exportIFC() {
+    download(buildIFC(items.filter(function (it) { return it.groupObj.visible; }), 'plate_builder'),
+             'plate_builder.ifc');
+  }
+
+  function buildIFC(list, projName) {
     var L = [], id = 0;
     function nx(s) { id++; L.push('#' + id + '=' + s + ';'); return '#' + id; }
     function f(v) {
@@ -1492,7 +1541,7 @@
     var uVol = nx('IFCSIUNIT(*,.VOLUMEUNIT.,$,.CUBIC_METRE.)');
     var uAng = nx('IFCSIUNIT(*,.PLANEANGLEUNIT.,$,.RADIAN.)');
     var oUnits = nx('IFCUNITASSIGNMENT((' + [uLen, uArea, uVol, uAng].join(',') + '))');
-    var oProj = nx('IFCPROJECT(' + guid() + ',' + oOH + ",'Plate Builder',$,$,$,$,(" +
+    var oProj = nx('IFCPROJECT(' + guid() + ',' + oOH + ',' + sq(projName) + ',$,$,$,$,(' +
                    oCtx + '),' + oUnits + ')');
     var plSite = nx('IFCLOCALPLACEMENT($,' + oWCS + ')');
     var oSite = nx('IFCSITE(' + guid() + ',' + oOH + ",'Site',$,$," + plSite +
@@ -1509,8 +1558,7 @@
     var solidPos = {};   // one placement per thickness (extrusion starts at -t/2)
 
     var elements = [];
-    items.forEach(function (it) {
-      if (!it.groupObj.visible) return;
+    list.forEach(function (it) {
       var m = it.matrix.elements;                         // column-major
       var loc = pt3(m[12], m[13], m[14]);
       var axis = dir3(m[8], m[9], m[10]);
@@ -1556,15 +1604,11 @@
 
     var out = 'ISO-10303-21;\nHEADER;\n' +
       "FILE_DESCRIPTION(('ViewDefinition [CoordinationView]'),'2;1');\n" +
-      "FILE_NAME('plate_builder.ifc','" + new Date().toISOString().slice(0, 19) +
+      "FILE_NAME('" + projName + ".ifc','" + new Date().toISOString().slice(0, 19) +
       "',(''),('macroBIM'),'plate_builder.js','plate_builder','');\n" +
       "FILE_SCHEMA(('IFC2X3'));\nENDSEC;\nDATA;\n" +
       L.join('\n') + '\nENDSEC;\nEND-ISO-10303-21;\n';
-    var link = document.createElement('a');
-    link.href = URL.createObjectURL(new Blob([out], { type: 'application/octet-stream' }));
-    link.download = 'plate_builder.ifc';
-    link.click();
-    URL.revokeObjectURL(link.href);
+    return out;
   }
 
   /* ---------------- views ---------------- */
@@ -1618,6 +1662,8 @@
       '<div id="pb-pal"></div>' +
       '<div id="pb-modal"><div class="box">' +
       '  <h2><span class="close" onclick="plateBuilder.closePreview()">&#10005;</span>' +
+      '      <button class="pvbtn" id="pb-pv-ifc" onclick="plateBuilder.exportModuleIFC()">IFC</button>' +
+      '      <button class="pvbtn" id="pb-pv-stl" onclick="plateBuilder.exportModuleSTL()">STL</button>' +
       '      <label class="pvchk"><input type="checkbox" id="pb-pv-flat"' +
       '        onchange="plateBuilder.setFlat(this.checked)"> surface only</label>' +
       '      <span id="pb-pv-title"></span></h2>' +
@@ -1868,7 +1914,8 @@
     pickExcel: pickExcel, loadExcelFile: loadExcelFile,
     preview: preview, previewModule: previewModule, closePreview: closePreview,
     setFlat: setFlat, setColor: setColor, setOpacity: setOpacity, fitPreview: pvFit,
-    openPalette: openPalette, pickColor: pickColor
+    openPalette: openPalette, pickColor: pickColor,
+    exportModuleSTL: exportModuleSTL, exportModuleIFC: exportModuleIFC
   };
 
   /* ---- auto-run: use window.PLATE_DATA if present, else empty default.
