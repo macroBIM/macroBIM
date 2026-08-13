@@ -188,6 +188,7 @@
   var scene, camera, renderer, controls;
   var lastPlates = {}, lastCuts = [], lastColors = {}, lastParts = {};  // for preview modals
   var pvToken = 0, pvRenderer = null, pvModuleId = null;   // 3D preview lifecycle
+  var pvCtrl = null, pvScene = null;
   var pvX = null, pvPts = [], pvBase = null, pv = null;   // 2D preview state
   var CENTER = null, VDIST = 1200;                // set from model bbox in run()
   var items = [];
@@ -1334,14 +1335,43 @@
     return Math.max(20, Math.min(w, num(spec.H, 100)) * 0.3);
   }
 
-  function stopPreview3D() {
-    pvToken++;
+  // One WebGL context for the preview, reused across opens. Building a new
+  // renderer per open exhausts the browser's context budget - the opacity and
+  // axis controls reopen the preview on every input step - and once the budget
+  // is gone the preview stays blank until the page is reloaded.
+  function pvGetRenderer(host, W, H) {
     if (pvRenderer) {
-      var host = document.getElementById('pb-pv3d');
-      if (host && pvRenderer.domElement.parentNode === host) host.removeChild(pvRenderer.domElement);
-      pvRenderer.dispose();
-      pvRenderer = null;
+      var gl = pvRenderer.getContext();
+      if (gl && gl.isContextLost && gl.isContextLost()) pvRenderer = null;
     }
+    if (!pvRenderer) {
+      try {
+        pvRenderer = new THREE.WebGLRenderer({ antialias: true });
+      } catch (e) {
+        console.error('[plateBuilder] preview renderer: ' + e.message);
+        return null;
+      }
+      pvRenderer.setPixelRatio(window.devicePixelRatio || 1);
+    }
+    pvRenderer.setSize(W, H);
+    if (pvRenderer.domElement.parentNode !== host) host.appendChild(pvRenderer.domElement);
+    return pvRenderer;
+  }
+  function disposeScene(sc) {
+    sc.traverse(function (o) {
+      if (o.geometry) o.geometry.dispose();
+      if (o.material) {
+        [].concat(o.material).forEach(function (m) {
+          if (m.map) m.map.dispose();
+          m.dispose();
+        });
+      }
+    });
+  }
+  function stopPreview3D() {
+    pvToken++;                                   // stops the render loop
+    if (pvCtrl) { pvCtrl.dispose(); pvCtrl = null; }
+    if (pvScene) { disposeScene(pvScene); pvScene = null; }
   }
 
   function previewModule(id) {
@@ -1360,25 +1390,33 @@
     host.style.display = 'block';
     modal.style.display = 'flex';
 
+    var pvTitle = document.getElementById('pb-pv-title');
+    var pvMeta = document.getElementById('pb-pv-meta');
+    pvTitle.textContent = id + '  (module)';     // set first, so the box is never blank
+    pvMeta.textContent = '';
+
     var W = 560, H = 420;
     var sc = new THREE.Scene();
+    pvScene = sc;
     sc.background = new THREE.Color(0x15181c);
     var cam = new THREE.PerspectiveCamera(40, W / H, 1, 50000);
-    var rn = new THREE.WebGLRenderer({ antialias: true });
-    rn.setSize(W, H);
-    rn.setPixelRatio(window.devicePixelRatio || 1);
-    host.appendChild(rn.domElement);
-    pvRenderer = rn;
+    var rn = pvGetRenderer(host, W, H);
+    if (!rn) {
+      pvMeta.innerHTML = '<span style="color:#f09a9a">3D preview unavailable — ' +
+                         'the browser gave no WebGL context. Reload the page.</span>';
+      return;
+    }
 
     sc.add(new THREE.HemisphereLight(0xf4f6fa, 0x2a2d33, 0.95));
     var sun = new THREE.DirectionalLight(0xffffff, 0.75);
     sun.position.set(500, 900, 650);
     sc.add(sun);
 
-    var bbox = new THREE.Box3(), mass = 0, basePt = null;
+    var bbox = new THREE.Box3(), mass = 0, basePt = null, bad = [];
     part.pos.forEach(function (row) {
+     try {
       var spec = lastPlates[row.PLATE];
-      if (!spec) return;
+      if (!spec) { bad.push(row.NO); return; }
       var pts = namedPoints(spec, false);
       var m;
       try { m = planeMatrixAnchor(row, pts, spec.THK); } catch (e) { return; }
@@ -1414,6 +1452,10 @@
         eg.matrix.copy(m);
         sc.add(eg);
       });
+     } catch (e) {                               // one bad plate must not blank the box
+      bad.push(row.NO);
+      console.error('[plateBuilder] ' + id + '/' + row.NO + ': ' + e.message);
+     }
     });
 
     var center = bbox.isEmpty() ? new THREE.Vector3() : bbox.getCenter(new THREE.Vector3());
@@ -1450,18 +1492,20 @@
       [new THREE.Vector3(0, 0, 0), new THREE.Vector3(0, size * 0.12, 0)]), omat));
 
     var ctr = new THREE.OrbitControls(cam, rn.domElement);
+    pvCtrl = ctr;
     ctr.enableDamping = true;
     ctr.dampingFactor = 0.1;
     cam.position.set(center.x + size * 1.05, center.y + size * 0.85, center.z + size * 1.2);
     ctr.target.copy(center);
     ctr.update();
 
-    document.getElementById('pb-pv-title').textContent = id + '  (module)';
-    document.getElementById('pb-pv-meta').innerHTML =
+    pvMeta.innerHTML =
       'plates ' + part.pos.length + ' &middot; ' + mass.toFixed(3) + ' kg &middot; ' +
       (part.base ? 'base ' + esc(part.base.inst) + '.' + part.base.pt.slice(1) +
-                   ' <span style="color:#f0c674">(&#9679;)</span>'
+                   faceMark(part.base.face) + ' <span style="color:#f0c674">(&#9679;)</span>'
                  : '<span style="color:#f0c674">no BASE — local origin</span>') +
+      (bad.length ? ' &middot; <span style="color:#f09a9a">not drawn: ' +
+                    esc(bad.join(', ')) + '</span>' : '') +
       ' &nbsp;&nbsp;<span style="color:#5b6472">drag to rotate</span>';
 
     var pgz = buildGizmo();
