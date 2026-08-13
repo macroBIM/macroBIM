@@ -296,14 +296,14 @@
                                                One result, so it takes ID as it is)
        ASSY  ID SOURCE COPY d.X d.Y d.Z repeat
                                               (repeat extra copies of SOURCE, each one
-                                               d.X/d.Y/d.Z further on, named ID001,
-                                               ID002, ... in the order they are made)
+                                               d.X/d.Y/d.Z further on, named ID.001,
+                                               ID.002, ... in the order they are made)
        ASSY  ID SOURCE ROT  C.X C.Y C.Z AXIS angle repeat
                                               (radial array: repeat extra copies of
                                                SOURCE, each turned another `angle` degrees
                                                about the world X/Y/Z axis through the
                                                absolute centre C.X/C.Y/C.Z. Named
-                                               ID001, ID002, ...)
+                                               ID.001, ID.002, ...)
                                               (the command column may be left out, in
                                                which case the row is read as ADD)
        ASSY  ID PLANE REF.PT L.X L.Y L.ROT OFFSET    (legacy order, still read: assemble a
@@ -359,9 +359,9 @@
       return counter[id] > 1 ? id + '-' + counter[id] : id;
     }
     var assySeq = {};                    // ID given to COPY/ROT -> results numbered so far
-    function seqAssyId(base) {           // ID001, ID002, ... in the order they are made
+    function seqAssyId(base) {           // ID.001, ID.002, ... in the order they are made
       assySeq[base] = (assySeq[base] || 0) + 1;
-      return uniqueAssyId(base + ('000' + assySeq[base]).slice(-3));
+      return uniqueAssyId(base + '.' + ('000' + assySeq[base]).slice(-3));
     }
     var palias = PLANE_ALIAS, yup = false;   // switched by a COORD row
     var counts = { plate: 0, bar: 0, cut: 0, module: 0, assy: 0 };
