@@ -63,10 +63,15 @@
     '  border-bottom:1px solid #2c323b; }',
     '#pb-side .chip { display:inline-block; width:11px; height:11px; border-radius:2px;',
     '  margin-right:5px; vertical-align:-1px; }',
-    '#pb-side input[type=color] { width:17px; height:17px; padding:0; border:1px solid #3a424d;',
-    '  border-radius:3px; background:none; cursor:pointer; vertical-align:middle; }',
-    '#pb-side input[type=color]::-webkit-color-swatch { border:none; border-radius:2px; }',
-    '#pb-side input[type=color]::-webkit-color-swatch-wrapper { padding:0; }',
+    '#pb-side .sw { display:inline-block; width:17px; height:17px; border:1px solid #3a424d;',
+    '  border-radius:3px; cursor:pointer; vertical-align:middle; }',
+    '#pb-side .sw:hover { border-color:#8a93a0; }',
+    '#pb-pal { display:none; position:fixed; z-index:60; grid-template-columns:repeat(4,20px);',
+    '  gap:4px; padding:7px; background:#22262d; border:1px solid #3a424d; border-radius:6px;',
+    '  box-shadow:0 6px 20px rgba(0,0,0,.5); }',
+    '#pb-pal i { width:20px; height:20px; border-radius:3px; cursor:pointer;',
+    '  border:1px solid rgba(255,255,255,.15); display:block; }',
+    '#pb-pal i:hover { outline:2px solid #6fb3e8; }',
     '#pb-side input[type=range] { width:42px; height:12px; vertical-align:middle;',
     '  margin-left:4px; accent-color:#3a76ad; cursor:pointer; }',
     '#pb-side td.sty { white-space:nowrap; width:70px; }',
@@ -111,6 +116,32 @@
   // appearance overrides, kept across reloads: instance > module > plate
   var ovColor = { plate: {}, module: {}, item: {} };
   var ovOpac = { plate: {}, module: {}, item: {} };
+  var SWATCHES = ['#e05c4f', '#ef8b3c', '#f0c674', '#d4b13e',
+                  '#8ec96b', '#4caf50', '#2f9e8f', '#4dd0e1',
+                  '#5c9bd1', '#3f6fb5', '#9575cd', '#c47ad0',
+                  '#f06292', '#8d6e63', '#c9cdd3', '#6b7480'];
+  var palPending = null;
+  function openPalette(ev, scope, key, el) {
+    ev.stopPropagation();
+    var pal = document.getElementById('pb-pal');
+    if (!pal) return;
+    palPending = { scope: scope, key: key, el: el };
+    pal.style.display = 'grid';
+    var w = 4 * 24 + 14, h = 4 * 24 + 14;
+    pal.style.left = Math.min(window.innerWidth - w - 8, ev.clientX - 10) + 'px';
+    pal.style.top = Math.min(window.innerHeight - h - 8, ev.clientY + 14) + 'px';
+  }
+  function pickColor(hex) {
+    if (!palPending) return;
+    setColor(palPending.scope, palPending.key, hex);
+    if (palPending.el) palPending.el.style.background = hex;
+    closePalette();
+  }
+  function closePalette() {
+    palPending = null;
+    var pal = document.getElementById('pb-pal');
+    if (pal) pal.style.display = 'none';
+  }
   function hex2int(h) { return parseInt(String(h).replace('#', ''), 16); }
   function int2hex(v) { return '#' + ('000000' + (v >>> 0).toString(16)).slice(-6); }
   function resolveColor(plateId, moduleId, itemNo, base) {
@@ -912,9 +943,9 @@
       var ncut = lastCuts.filter(function (c) { return c.PLATE === id; }).length;
       var tr = document.createElement('tr');
       tr.innerHTML =
-        '<td class="sty"><input type="color" value="' +
+        '<td class="sty"><span class="sw" style="background:' +
         int2hex(resolveColor(id, null, null, colors[id] || 0x999999)) +
-        '" oninput="plateBuilder.setColor(\'plate\',\'' + id + '\',this.value)">' +
+        '" onclick="plateBuilder.openPalette(event,\'plate\',\'' + id + '\',this)"></span>' +
         '<input type="range" min="10" max="100" step="5" value="' +
         Math.round(resolveOpac(id, null, null) * 100) +
         '" title="opacity" oninput="plateBuilder.setOpacity(\'plate\',\'' + id + '\',this.value)"></td>' +
@@ -1107,9 +1138,9 @@
       var mcol = ovColor.module[id] !== undefined ? ovColor.module[id] : 0x8a93a0;
       var tr = document.createElement('tr');
       tr.innerHTML =
-        '<td class="sty"><input type="color" value="' + int2hex(mcol) +
-        '" title="module colour (overrides plate colours)"' +
-        ' oninput="plateBuilder.setColor(\'module\',\'' + id + '\',this.value)">' +
+        '<td class="sty"><span class="sw" title="module colour (overrides plate colours)"' +
+        ' style="background:' + int2hex(mcol) + '"' +
+        ' onclick="plateBuilder.openPalette(event,\'module\',\'' + id + '\',this)"></span>' +
         '<input type="range" min="10" max="100" step="5" value="' +
         Math.round(resolveOpac('', id, null) * 100) +
         '" title="opacity" oninput="plateBuilder.setOpacity(\'module\',\'' + id + '\',this.value)"></td>' +
@@ -1332,9 +1363,9 @@
       tr.innerHTML =
         '<td class="sty"><input type="checkbox" checked id="pb-cb' + i + '" ' +
         'onchange="plateBuilder.toggleItem(' + i + ',this.checked)">' +
-        '<input type="color" value="' +
+        '<span class="sw" style="background:' +
         int2hex(resolveColor(it.plateId, it.moduleId, it.no, it.baseColor)) +
-        '" oninput="plateBuilder.setColor(\'item\',\'' + it.no + '\',this.value)"></td>' +
+        '" onclick="plateBuilder.openPalette(event,\'item\',\'' + it.no + '\',this)"></span></td>' +
         '<td><span class="plname" onclick="plateBuilder.preview(\'' + it.plateId + '\')">' + it.no + '</span>' +
         '<div class="dims">' + it.dims + (it.remark ? ' · ' + it.remark : '') +
         ' · ' + it.mass.toFixed(3) + 'kg' +
@@ -1582,6 +1613,7 @@
       '  <div id="pb-note"></div>' +
       '</div>' +
       '<div id="pb-view"><div id="pb-hud">Drag: rotate · Wheel: zoom · Right-drag: pan</div></div>' +
+      '<div id="pb-pal"></div>' +
       '<div id="pb-modal"><div class="box">' +
       '  <h2><span class="close" onclick="plateBuilder.closePreview()">&#10005;</span>' +
       '      <label class="pvchk"><input type="checkbox" id="pb-pv-flat"' +
@@ -1594,6 +1626,13 @@
       '  <div class="meta" id="pb-pv-pos">&nbsp;</div>' +
       '</div></div>';
     document.body.appendChild(app);
+    var pal = document.getElementById('pb-pal');
+    pal.innerHTML = SWATCHES.map(function (c) {
+      return '<i style="background:' + c + '" onclick="plateBuilder.pickColor(\'' + c + '\')"></i>';
+    }).join('');
+    window.addEventListener('mousedown', function (e) {
+      if (palPending && !document.getElementById('pb-pal').contains(e.target)) closePalette();
+    });
     var modal = document.getElementById('pb-modal');
     modal.addEventListener('click', function (e) { if (e.target === modal) closePreview(); });
     var pvCv = document.getElementById('pb-pv-canvas');
@@ -1826,7 +1865,8 @@
     toggleItem: toggleItem, toggleGroup: toggleGroup,
     pickExcel: pickExcel, loadExcelFile: loadExcelFile,
     preview: preview, previewModule: previewModule, closePreview: closePreview,
-    setFlat: setFlat, setColor: setColor, setOpacity: setOpacity, fitPreview: pvFit
+    setFlat: setFlat, setColor: setColor, setOpacity: setOpacity, fitPreview: pvFit,
+    openPalette: openPalette, pickColor: pickColor
   };
 
   /* ---- auto-run: use window.PLATE_DATA if present, else empty default.
