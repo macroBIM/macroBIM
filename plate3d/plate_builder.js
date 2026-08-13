@@ -103,7 +103,7 @@
     '#pb-modal .pvchk:hover { color:#d8dce2; }',
     '#pb-modal .close:hover { color:#fff; }',
     '#pb-modal canvas { background:#15181c; border:1px solid #2c323b; border-radius:4px;',
-    '  display:block; }',
+    '  display:block; cursor:crosshair; }',
     '#pb-modal .meta { color:#8a93a0; font-size:11px; margin-top:8px; }'
   ].join('\n');
 
@@ -134,7 +134,7 @@
   var scene, camera, renderer, controls;
   var lastPlates = {}, lastCuts = [], lastColors = {}, lastParts = {};  // for preview modals
   var pvToken = 0, pvRenderer = null, pvModuleId = null;   // 3D preview lifecycle
-  var pvX = null, pvPts = [], pvBase = null;   // 2D preview: transform, snap points, base image
+  var pvX = null, pvPts = [], pvBase = null, pv = null;   // 2D preview state
   var CENTER = null, VDIST = 1200;                // set from model bbox in run()
   var items = [];
   var runToken = 0;                               // distinguishes re-runs
@@ -931,6 +931,12 @@
     var modal = document.getElementById('pb-modal');
     var cv = document.getElementById('pb-pv-canvas');
     if (!modal || !cv) return;
+    stopPreview3D();
+    pvModuleId = null;
+    document.getElementById('pb-pv-flat').parentNode.style.display = 'none';
+    cv.style.display = 'block';
+    document.getElementById('pb-pv3d').style.display = 'none';
+
     var g = buildPlate2D(spec, lastCuts, lastPlates);
     var pts = namedPoints(spec, false);
 
@@ -942,20 +948,53 @@
       });
     });
     if (minx > maxx) { minx = miny = 0; maxx = maxy = 1; }
+
+    // snap points: 9 reference points + the centre of every cut
+    pvPts = [];
+    ['ptl', 'ptc', 'ptr', 'plm', 'pcc', 'prm', 'pbl', 'pbc', 'pbr'].forEach(function (k) {
+      var a = pts[k];
+      if (a) pvPts.push({ name: k.slice(1), x: a[0], y: a[1] });
+    });
+    var nk = {};
+    (g.feats || []).forEach(function (f) {
+      nk[f.kind] = (nk[f.kind] || 0) + 1;
+      pvPts.push({ name: f.kind + nk[f.kind], x: f.x, y: f.y, cut: true });
+    });
+
     var W = cv.width, H = cv.height, PAD = 54;
-    var sc = Math.min((W - PAD * 2) / Math.max(maxx - minx, 1e-6),
-                      (H - PAD * 2) / Math.max(maxy - miny, 1e-6));
-    var ox = (W - (maxx - minx) * sc) / 2, oy = (H - (maxy - miny) * sc) / 2;
+    var fit = Math.min((W - PAD * 2) / Math.max(maxx - minx, 1e-6),
+                       (H - PAD * 2) / Math.max(maxy - miny, 1e-6));
+    pv = { id: id, spec: spec, g: g, pts: pts, W: W, H: H,
+           minx: minx, miny: miny, maxx: maxx, maxy: maxy, fit: fit,
+           sc: fit, ox: (W - (maxx - minx) * fit) / 2, oy: (H - (maxy - miny) * fit) / 2 };
+    drawPreview();
+    document.getElementById('pb-pv-pos').innerHTML = '&nbsp;';
+    modal.style.display = 'flex';
+  }
+
+  function pvFit() {                                  // reset zoom/pan to fit
+    if (!pv) return;
+    pv.sc = pv.fit;
+    pv.ox = (pv.W - (pv.maxx - pv.minx) * pv.fit) / 2;
+    pv.oy = (pv.H - (pv.maxy - pv.miny) * pv.fit) / 2;
+    drawPreview();
+  }
+
+  function drawPreview() {
+    if (!pv) return;
+    var cv = document.getElementById('pb-pv-canvas');
+    var ctx = cv.getContext('2d');
+    var W = pv.W, H = pv.H, sc = pv.sc, ox = pv.ox, oy = pv.oy;
+    var minx = pv.minx, miny = pv.miny, g = pv.g, pts = pv.pts, spec = pv.spec;
     function mx(x) { return ox + (x - minx) * sc; }
     function my(y) { return H - oy - (y - miny) * sc; }
     pvX = { minx: minx, miny: miny, sc: sc, ox: ox, oy: oy, H: H, W: W };
 
-    var ctx = cv.getContext('2d');
     ctx.clearRect(0, 0, W, H);
     ctx.fillStyle = '#15181c';
     ctx.fillRect(0, 0, W, H);
 
-    // --- grid + rulers (spacing picked so one cell is ~20-90 px) ---
+    // grid + rulers (spacing picked so one cell is ~20-90 px)
     var STEPS = [1, 2, 5, 10, 20, 25, 50, 100, 200, 250, 500, 1000, 2000, 5000];
     var step = STEPS[STEPS.length - 1];
     for (var si = 0; si < STEPS.length; si++) {
@@ -983,6 +1022,7 @@
       ctx.fillText(String(Math.round(gy)), 3, py - 3);
     }
 
+    // plate outline with holes
     ctx.beginPath();
     g.outers.forEach(function (ring, i) {
       ring.forEach(function (q, j) { j ? ctx.lineTo(mx(q[0]), my(q[1])) : ctx.moveTo(mx(q[0]), my(q[1])); });
@@ -992,45 +1032,36 @@
         ctx.closePath();
       });
     });
-    var col = (lastColors && lastColors[id]) || 0x5c9bd1;
-    ctx.fillStyle = '#' + ('000000' + col.toString(16)).slice(-6);
+    var col = resolveColor(pv.id, null, null, (lastColors && lastColors[pv.id]) || 0x5c9bd1);
+    var hexc = '#' + ('000000' + col.toString(16)).slice(-6);
+    ctx.fillStyle = hexc;
     ctx.globalAlpha = 0.35;
     ctx.fill('evenodd');
     ctx.globalAlpha = 1;
-    ctx.strokeStyle = '#' + ('000000' + col.toString(16)).slice(-6);
+    ctx.strokeStyle = hexc;
     ctx.lineWidth = 1.5;
     ctx.stroke();
 
-    // 9 reference points with labels
+    // reference points and cut centres
     ctx.font = '10px sans-serif';
+    ctx.textAlign = 'left';
     var seen = {};
-    ['pbl', 'pbc', 'pbr', 'plm', 'pcc', 'prm', 'ptl', 'ptc', 'ptr'].forEach(function (k) {
-      var a = pts[k];
-      if (!a) return;
-      var key = a[0].toFixed(3) + ',' + a[1].toFixed(3);
-      var x = mx(a[0]), y = my(a[1]);
-      ctx.strokeStyle = '#f0c674';
+    pvPts.forEach(function (p) {
+      var x = mx(p.x), y = my(p.y);
+      ctx.strokeStyle = p.cut ? '#7f8b9c' : '#f0c674';
       ctx.lineWidth = 1;
       ctx.beginPath();
       ctx.moveTo(x - 4, y); ctx.lineTo(x + 4, y);
       ctx.moveTo(x, y - 4); ctx.lineTo(x, y + 4);
       ctx.stroke();
-      if (!seen[key]) {
-        seen[key] = [];
-        ctx.fillStyle = '#f0c674';
-      }
-      seen[key].push(k.slice(1));
+      if (p.cut) return;
+      var key = p.x.toFixed(3) + ',' + p.y.toFixed(3);
+      if (seen[key]) { seen[key].n.push(p.name); return; }
+      seen[key] = { x: x, y: y, n: [p.name] };
     });
-    Object.keys(seen).length && ['pbl', 'pbc', 'pbr', 'plm', 'pcc', 'prm', 'ptl', 'ptc', 'ptr'].forEach(function (k) {
-      var a = pts[k];
-      if (!a) return;
-      var key = a[0].toFixed(3) + ',' + a[1].toFixed(3);
-      if (!seen[key]) return;
-      var label = seen[key].join('/');
-      delete seen[key];
-      var x = mx(a[0]), y = my(a[1]);
-      ctx.fillStyle = '#f0c674';
-      ctx.fillText(label, x + 5, y - 5);
+    ctx.fillStyle = '#f0c674';
+    Object.keys(seen).forEach(function (k) {
+      ctx.fillText(seen[k].n.join('/'), seen[k].x + 5, seen[k].y - 5);
     });
 
     var dims = spec.SHAPE === 'CIRC'
@@ -1038,44 +1069,22 @@
       : (spec.WT === spec.WB && spec.OFF_T === spec.OFF_B
           ? spec.WB + ' × ' + spec.H + ' × ' + spec.THK + 'T'
           : 'WT ' + spec.WT + ' / WB ' + spec.WB + ' × H ' + spec.H + ' × ' + spec.THK + 'T');
-    var ncut = lastCuts.filter(function (c) { return c.PLATE === id; }).length;
-    stopPreview3D();
-    pvModuleId = null;
-    document.getElementById('pb-pv-flat').parentNode.style.display = 'none';
-    cv.style.display = 'block';
-    document.getElementById('pb-pv3d').style.display = 'none';
-    document.getElementById('pb-pv-title').textContent = id;
+    var ncut = lastCuts.filter(function (c) { return c.PLATE === pv.id; }).length;
+    document.getElementById('pb-pv-title').textContent = pv.id;
     document.getElementById('pb-pv-meta').innerHTML =
       esc(dims) + ' &middot; cuts ' + ncut +
       (spec.MAT ? ' &middot; ' + esc(spec.MAT) : '') +
       ' &middot; ' + (g.area * spec.THK * RHO).toFixed(3) + ' kg' +
-      ' &nbsp;&nbsp;<span style="color:#5b6472">(+ = 9 reference points &amp; cut centres ' +
-      '&middot; grid ' + step + 'mm)</span>';
-    pvPts = [];
-    ['ptl', 'ptc', 'ptr', 'plm', 'pcc', 'prm', 'pbl', 'pbc', 'pbr'].forEach(function (k) {
-      var a = pts[k];
-      if (a) pvPts.push({ name: k.slice(1), x: a[0], y: a[1] });
-    });
-    var nk = {};
-    (g.feats || []).forEach(function (f) {          // centre of each cut (hole/notch)
-      nk[f.kind] = (nk[f.kind] || 0) + 1;
-      pvPts.push({ name: f.kind + nk[f.kind], x: f.x, y: f.y });
-      var px = mx(f.x), py = my(f.y);
-      ctx.strokeStyle = '#7f8b9c';
-      ctx.lineWidth = 1;
-      ctx.beginPath();
-      ctx.moveTo(px - 3.5, py); ctx.lineTo(px + 3.5, py);
-      ctx.moveTo(px, py - 3.5); ctx.lineTo(px, py + 3.5);
-      ctx.stroke();
-    });
+      ' &nbsp;&nbsp;<span style="color:#5b6472">grid ' + step + 'mm &middot; ' +
+      Math.round(sc / pv.fit * 100) + '% &middot; wheel: zoom, drag: pan, dbl-click: fit</span>';
+
     if (!pvBase) pvBase = document.createElement('canvas');
     pvBase.width = W; pvBase.height = H;
     pvBase.getContext('2d').drawImage(cv, 0, 0);   // snapshot for cheap hover redraws
-    document.getElementById('pb-pv-pos').innerHTML = '&nbsp;';
-    modal.style.display = 'flex';
   }
   function closePreview() {
     pvModuleId = null;
+    pv = null;
     stopPreview3D();
     var modal = document.getElementById('pb-modal');
     if (modal) modal.style.display = 'none';
@@ -1588,11 +1597,44 @@
     var modal = document.getElementById('pb-modal');
     modal.addEventListener('click', function (e) { if (e.target === modal) closePreview(); });
     var pvCv = document.getElementById('pb-pv-canvas');
-    pvCv.addEventListener('mousemove', function (e) {
-      if (!pvX) return;
+    function pvPix(e) {                       // event -> canvas pixel coords
       var r = pvCv.getBoundingClientRect();
-      var sx = (e.clientX - r.left) * pvCv.width / r.width;
-      var sy = (e.clientY - r.top) * pvCv.height / r.height;
+      return { x: (e.clientX - r.left) * pvCv.width / r.width,
+               y: (e.clientY - r.top) * pvCv.height / r.height };
+    }
+    pvCv.addEventListener('wheel', function (e) {
+      if (!pv) return;
+      e.preventDefault();
+      var s = pvPix(e);
+      var xm = pv.minx + (s.x - pv.ox) / pv.sc;         // model point under the cursor
+      var ym = pv.miny + (pv.H - pv.oy - s.y) / pv.sc;
+      var f = e.deltaY < 0 ? 1.15 : 1 / 1.15;
+      pv.sc = Math.max(pv.fit * 0.2, Math.min(pv.fit * 40, pv.sc * f));
+      pv.ox = s.x - (xm - pv.minx) * pv.sc;             // keep that point under the cursor
+      pv.oy = pv.H - s.y - (ym - pv.miny) * pv.sc;
+      drawPreview();
+    }, { passive: false });
+    var pvDrag = null;
+    pvCv.addEventListener('mousedown', function (e) {
+      if (!pv) return;
+      pvDrag = { x: e.clientX, y: e.clientY, ox: pv.ox, oy: pv.oy };
+      pvCv.style.cursor = 'grabbing';
+    });
+    window.addEventListener('mouseup', function () {
+      pvDrag = null;
+      pvCv.style.cursor = 'crosshair';
+    });
+    pvCv.addEventListener('dblclick', function () { pvFit(); });
+    pvCv.addEventListener('mousemove', function (e) {
+      if (pvDrag && pv) {                                // pan
+        var r = pvCv.getBoundingClientRect();
+        pv.ox = pvDrag.ox + (e.clientX - pvDrag.x) * pvCv.width / r.width;
+        pv.oy = pvDrag.oy - (e.clientY - pvDrag.y) * pvCv.height / r.height;
+        drawPreview();
+        return;
+      }
+      if (!pvX) return;
+      var sp = pvPix(e), sx = sp.x, sy = sp.y;
       var x = pvX.minx + (sx - pvX.ox) / pvX.sc;
       var y = pvX.miny + (pvX.H - pvX.oy - sy) / pvX.sc;
 
@@ -1784,7 +1826,7 @@
     toggleItem: toggleItem, toggleGroup: toggleGroup,
     pickExcel: pickExcel, loadExcelFile: loadExcelFile,
     preview: preview, previewModule: previewModule, closePreview: closePreview,
-    setFlat: setFlat, setColor: setColor, setOpacity: setOpacity
+    setFlat: setFlat, setColor: setColor, setOpacity: setOpacity, fitPreview: pvFit
   };
 
   /* ---- auto-run: use window.PLATE_DATA if present, else empty default.
