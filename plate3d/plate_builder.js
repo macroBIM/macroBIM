@@ -1600,16 +1600,33 @@
       sc.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints([basePt, bl.position.clone()]),
                             new THREE.LineBasicMaterial({ color: 0xf0c674, depthTest: false })));
     }
-    // grid centred on the module-local origin so its centre lines mark (0,0)
+    // Floor grid. Its centre lines still mark X=0 / Z=0, but it hangs below the
+    // model instead of sitting on the Y=0 plane - a plate lying on that plane is
+    // coplanar with it and the grid bleeds through the plate.
     var reach = bbox.isEmpty() ? 500 : Math.max(
       Math.abs(mn.x), Math.abs(mx3.x), Math.abs(mn.z), Math.abs(mx3.z), size * 0.3);
     var gspan = Math.ceil(reach * 2 / 100) * 100;
+    var gy = (bbox.isEmpty() ? 0 : Math.min(0, mn.y)) - Math.max(1, size * 0.02);
     var grid = new THREE.GridHelper(gspan, Math.max(4, Math.round(gspan / 50)), 0x5b6472, 0x242a31);
-    grid.position.set(0, 0, 0);
+    grid.position.set(0, gy, 0);
     sc.add(grid);
-    var omat = new THREE.LineBasicMaterial({ color: 0x6b7480 });
+
+    // module-local origin: the point L.X/L.Y/L.Z are measured from. Drawn on top
+    // of the plates so it stays readable, with a drop line onto the grid centre.
+    var oLen = size * 0.13;
+    [[new THREE.Vector3(oLen, 0, 0), 0xe05c4f],
+     [new THREE.Vector3(0, oLen, 0), 0x6fc36f],
+     [new THREE.Vector3(0, 0, oLen), 0x5c9bd1]].forEach(function (a) {
+      sc.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints(
+        [new THREE.Vector3(0, 0, 0), a[0]]),
+        new THREE.LineBasicMaterial({ color: a[1], depthTest: false })));
+    });
     sc.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints(
-      [new THREE.Vector3(0, 0, 0), new THREE.Vector3(0, size * 0.12, 0)]), omat));
+      [new THREE.Vector3(0, gy, 0), new THREE.Vector3(0, 0, 0)]),
+      new THREE.LineBasicMaterial({ color: 0x6b7480, depthTest: false })));
+    var ol = makeLabel('0, 0, 0', '#9aa3b0', size * 0.042);
+    ol.position.set(-oLen * 0.75, -oLen * 0.3, -oLen * 0.4);
+    sc.add(ol);
 
     var ctr = new THREE.OrbitControls(cam, rn.domElement);
     pvCtrl = ctr;
@@ -2118,7 +2135,8 @@
     VDIST = size * 1.5 + 200;
 
     var grid = new THREE.GridHelper(Math.ceil(size / 400) * 800, 32, 0x39424d, 0x242a31);
-    grid.position.y = -1;
+    grid.position.y = Math.min(-1, bbox.isEmpty() ? -1
+                                 : bbox.min.y - Math.max(1, size * 0.004));
     scene.add(grid);
 
     var gz = buildGizmo();
