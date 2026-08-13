@@ -210,6 +210,7 @@ FOLD=180 (이어붙임)          FOLD=90 (직각 세움)
 | **ASSY** | ID, ref MOD/ASSY, **ADD**, G.X, G.Y, G.Z, ROT.X, ROT.Y, ROT.Z | **생성할 조립체 ID** 와 **참조할 MODULE / 다른 ASSY / 낱장 PLATE**. 참조 대상의 기준점이 **글로벌 (G.X, G.Y, G.Z)** 에 오고, ROT.X/Y/Z로 3축 회전 |
 | **ASSY** | ID, ref MOD/ASSY, **MIR**, G.X, G.Y, G.Z, PLANE | 참조 대상을 **있는 자리에서** (G.X, G.Y, G.Z)를 지나는 XY/YZ/XZ 평면 기준으로 반사. 생성 ID = **`ID.MR`** |
 | **ASSY** | ID, ref MOD/ASSY, **COPY**, d.X, d.Y, d.Z, repeat | 참조 대상을 **있는 자리에서** (dX,dY,dZ)씩 밀어 **repeat개 추가 복사**. 생성 ID = **`ID.CP001`, `ID.CP002` …** |
+| **ASSY** | ID, ref MOD/ASSY, **ROT**, C.X, C.Y, C.Z, AXIS, Angle, repeat | **회전 복사** — (C.X, C.Y, C.Z)를 지나는 월드 **X/Y/Z 축** 둘레로 Angle°씩 돌려가며 **repeat개 추가 복사**. 생성 ID = **`ID.ROZ001`, `ID.ROZ002` …** (축 문자가 들어감) |
 | END | | 입력 종료 |
 
 - **CUT의 대상 판**: 판 ID를 쓰면 그 판에 적용(행 순서 무관), 생략하면 바로 위에서 정의한 PLATE/BAR에 적용
@@ -222,8 +223,16 @@ FOLD=180 (이어붙임)          FOLD=90 (직각 세움)
 - PLANE: **XY(수평)/XZ(정면)/YZ(측면)** — Z-up 기준. Ref.Pt: tl~br·cc (p 접두사 있어도 인식)
 - **MODULE 행 읽는 법**: 「이 판(PLATE.ID)의 이 점(Ref.Pt)을 모듈 좌표 (L.X, L.Y, L.Z)에 놓고, PLANE 평면에 눕히고, 필요하면 그 점을 중심으로 ROT.X/Y/Z만큼 돌려라」
 - **ASSY의 기준점**: 참조 대상이 MODULE이면 그 모듈의 **BASE 점**, 낱장 PLATE면 **bc**(평면은 XY 기준, 필요시 ROT으로 회전), 다른 ASSY면 그 조립체의 **자기 원점**
-- **ADD / MIR / COPY 차이**: ADD는 기준점을 **절대 좌표에 갖다 놓고**, MIR·COPY는 참조 대상이
-  **이미 놓인 자리를 기준으로** 반사·이동한다. (COPY의 repeat는 CUT과 같이 **추가 복사 개수**)
+- **좌표 기준**
+  | 명령 | 좌표 칸 | 의미 |
+  |---|---|---|
+  | ADD | G.X/G.Y/G.Z | **절대** — 참조 대상의 기준점이 이 좌표에 온다 |
+  | MIR | G.X/G.Y/G.Z | **절대** — 대칭 평면이 지나는 점 |
+  | ROT | C.X/C.Y/C.Z | **절대** — 회전축이 지나는 점 |
+  | COPY | d.X/d.Y/d.Z | **상대** — 참조 대상이 놓인 자리에서의 이동량 |
+
+  MIR·ROT·COPY는 모두 참조 대상을 **이미 놓인 자리에서** 반사·회전·이동시킨다.
+  repeat는 CUT과 같이 **추가 복사 개수**(원본 제외)이고, ROT의 각도는 누적된다(30°, 60°, 90° …).
 - MIR 결과물도 정상적인 우수좌표계로 만들어진다 — 반사는 판 외형(프로필)에 접어 넣으므로
   STL 면 방향과 IFC 배치가 깨지지 않는다.
 - 명령 칸(ADD/MIR/COPY)을 생략하면 ADD로 읽으므로 예전 시트도 그대로 동작한다.

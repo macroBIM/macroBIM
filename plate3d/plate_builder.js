@@ -298,6 +298,12 @@
                                               (repeat extra copies of SOURCE, each one
                                                d.X/d.Y/d.Z further on, named ID.CP001,
                                                ID.CP002, ...)
+       ASSY  ID SOURCE ROT  C.X C.Y C.Z AXIS angle repeat
+                                              (radial array: repeat extra copies of
+                                               SOURCE, each turned another `angle` degrees
+                                               about the world X/Y/Z axis through the
+                                               absolute centre C.X/C.Y/C.Z. Named
+                                               ID.RO<AXIS>001, ID.RO<AXIS>002, ...)
                                               (the command column may be left out, in
                                                which case the row is read as ADD)
        ASSY  ID PLANE REF.PT L.X L.Y L.ROT OFFSET    (legacy order, still read: assemble a
@@ -496,11 +502,13 @@
       } else if (kw === 'ASSY') {
         var acmd = str(v[2]).toUpperCase();
         if (acmd === 'MIRROR') acmd = 'MIR';
-        var hasCmd = acmd === 'ADD' || acmd === 'MIR' || acmd === 'COPY';
+        var hasCmd = acmd === 'ADD' || acmd === 'MIR' || acmd === 'COPY' || acmd === 'ROT';
         if (hasCmd || !palias[str(v[1]).toUpperCase()]) {
           //  ASSY <id> <MODULE/ASSY/PLATE> ADD  G.X G.Y G.Z [ROT.X ROT.Y ROT.Z]
           //  ASSY <id> <MODULE/ASSY/PLATE> MIR  G.X G.Y G.Z  PLANE      -> <id>.MR
           //  ASSY <id> <MODULE/ASSY/PLATE> COPY d.X d.Y d.Z  repeat     -> <id>.CP001...
+          //  ASSY <id> <MODULE/ASSY/PLATE> ROT  C.X C.Y C.Z  AXIS angle repeat
+          //                                                             -> <id>.ROZ001...
           var aid = str(v[0]).toUpperCase();
           var asrc = str(v[1]).toUpperCase();
           if (!aid) { warn('row ' + (r + 1) + ': ASSY without ID'); continue; }
@@ -527,6 +535,32 @@
             arow.GROUP = arow.NO;
             assy.push(arow);
             counts.assy++;
+            continue;
+          }
+          if (acmd === 'ROT') {
+            var rax = str(v[w + 3]).toUpperCase().replace(/[^XYZ]/g, '');
+            if (rax.length !== 1) {
+              warn('row ' + (r + 1) + ': ASSY ROT needs a rotation axis (X / Y / Z) after C.X/C.Y/C.Z');
+              continue;
+            }
+            var rang = num(v[w + 4], 0);
+            var rrep = Math.max(0, Math.round(num(v[w + 5], 0)));
+            if (!rrep) {
+              warn('row ' + (r + 1) + ': ASSY ROT with repeat 0/empty — no copy is made' +
+                   ' (repeat = how many extra copies)');
+              continue;
+            }
+            if (!rang) {
+              warn('row ' + (r + 1) + ': ASSY ROT has Angle 0 — the copies land on the original');
+            }
+            for (var ri = 1; ri <= rrep; ri++) {
+              var rno = uniqueAssyId(aid + '.RO' + rax + ('000' + ri).slice(-3));
+              assyIds[rno] = true;
+              assy.push({ __xl: true, __g: true, CMD: 'ROT', REF: aref, NO: rno, GROUP: rno,
+                          GX: arow.GX, GY: arow.GY, GZ: arow.GZ,
+                          AXIS: rax, ANG: rang * ri, REMARK: '', MIRROR: '' });
+              counts.assy++;
+            }
             continue;
           }
           if (acmd === 'COPY') {
@@ -1218,6 +1252,16 @@
                   .multiply(at);
           G = at.clone();
           flipAll = true;
+        } else if (row.CMD === 'ROT') {   // spin the source about an absolute axis
+          var rad = row.ANG * Math.PI / 180;
+          var R = row.AXIS === 'X' ? new THREE.Matrix4().makeRotationX(rad)
+                : row.AXIS === 'Y' ? new THREE.Matrix4().makeRotationY(rad)
+                                   : new THREE.Matrix4().makeRotationZ(rad);
+          var W = new THREE.Matrix4().makeTranslation(row.GX, row.GY, row.GZ)
+                    .multiply(R)
+                    .multiply(new THREE.Matrix4().makeTranslation(-row.GX, -row.GY, -row.GZ));
+          pre = new THREE.Matrix4().copy(at).invert().multiply(W).multiply(at);
+          G = at.clone();
         } else if (row.CMD === 'COPY') { // shift the source from where it already stands
           G = new THREE.Matrix4().makeTranslation(row.GX, row.GY, row.GZ).multiply(at);
         } else {                         // ADD: reference point lands on G.X/G.Y/G.Z
