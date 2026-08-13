@@ -206,6 +206,7 @@ FOLD=180 (이어붙임)          FOLD=90 (직각 세움)
 | CUT | [판ID], [기준점], PLATE, ID, L.X, L.Y, L.ROT, dx, dy, repeat | 다른 PLATE 외곽 형상으로 빼기 |
 | **MODULE** | ID, PLATE.ID, Ref.Pt, L.X, L.Y, L.Z, PLANE, ROT.X, ROT.Y, ROT.Z | 모듈에 판 1장 배치. 판의 Ref.Pt가 **모듈 로컬 (L.X, L.Y, L.Z)** 에 오고, PLANE은 그 판이 놓일 평면, ROT.X/Y/Z는 그 점을 중심으로 한 회전(도). 행마다 모듈 ID 반복 — 같은 ID 행들이 한 모듈로 누적. PART도 별칭 인식 |
 | **MODULE** | ID, **BASE**, 판인스턴스, 점이름 | 모듈 기준점 = 구성 판의 9점 중 하나(`bc+`처럼 면 지정 가능). **누락 시 경고** + 로컬 원점 사용 |
+| **COORD** | ZUP (기본) / YUP | 이 시트를 어느 좌표계로 읽을지. `YUP` 이면 예전 Y-up 기준으로 조립한 뒤 한 번만 세워 배치 — MODULE/ASSY 행보다 **위**에 둘 것 |
 | **ASSY** | ID, ref MOD/ASSY, G.X, G.Y, G.Z, ROT.X, ROT.Y, ROT.Z | **생성할 조립체 ID** 와 **참조할 MODULE / 다른 ASSY / 낱장 PLATE**. 참조 대상의 기준점이 **글로벌 (G.X, G.Y, G.Z)** 에 오고, ROT.X/Y/Z로 3축 회전 |
 | END | | 입력 종료 |
 
@@ -216,14 +217,22 @@ FOLD=180 (이어붙임)          FOLD=90 (직각 세움)
 - **dx / dy / repeat = 배열 복제**: repeat는 **추가 복제 개수**(원본 제외 — 0/빈칸이면 1개, 1이면 총 2개), dx·dy는 복제 간격 벡터.
   예: `... CIRC 22 -110 90 0 0 220 1` = ∅22 구멍이 (−110, 90)과 (−110, 310)에 2개
   ⚠ CIRC/PLATE 행은 RECT보다 파라미터가 하나 적어서 dx/dy/repeat 칸이 한 칸 왼쪽으로 당겨짐 — 열 정렬 주의 (엔진이 감지되면 경고 표시)
-- PLANE: XY(정면)/YZ(측면)/XZ(수평), Ref.Pt: tl~br·cc (p 접두사 있어도 인식)
+- PLANE: **XY(수평)/XZ(정면)/YZ(측면)** — Z-up 기준. Ref.Pt: tl~br·cc (p 접두사 있어도 인식)
 - **MODULE 행 읽는 법**: 「이 판(PLATE.ID)의 이 점(Ref.Pt)을 모듈 좌표 (L.X, L.Y, L.Z)에 놓고, PLANE 평면에 눕히고, 필요하면 그 점을 중심으로 ROT.X/Y/Z만큼 돌려라」
 - **ASSY의 기준점**: 참조 대상이 MODULE이면 그 모듈의 **BASE 점**, 낱장 PLATE면 **bc**(평면은 XY 기준, 필요시 ROT으로 회전), 다른 ASSY면 그 조립체의 **자기 원점**
 - ASSY는 **중첩 가능** — 먼저 정의한 ASSY를 참조해서 더 큰 조립체를 만들 수 있음 (같은 ID를 여러 번 쓰면 `-2`, `-3` 접미사가 붙어 복수 배치)
 - 회전 순서는 X → Y → Z (모듈/글로벌 축 기준)
-- **좌표계**: 화면(뷰어)은 WebGL 관례인 **Y-up 우수좌표계** — +X 오른쪽, +Y 위, +Z 화면 앞쪽.
-  **STL·IFC로 내보낼 때는 CAD/BIM 관례인 Z-up 으로 변환**해서 저장한다 (X축 기준 +90° 회전:
-  화면 (x, y, z) → 파일 (x, −z, y)). 즉 뷰어의 높이축 Y 가 파일에서는 Z 가 된다.
+- **좌표계는 Z-up 우수좌표계** — X 동, Y 북, **Z 위(높이)**. IFC·AutoCAD·Revit·Tekla 와 동일.
+  화면·STL·IFC 모두 같은 좌표를 쓴다(변환 없음).
+
+  | PLANE | 판의 로컬 x → | 판의 로컬 y → | 두께(+면) 방향 | 도면 |
+  |---|---|---|---|---|
+  | `XY` | X | Y | **+Z (위)** | 평면도 |
+  | `XZ` | X | **Z (높이)** | −Y | 정면도 |
+  | `YZ` | Y | **Z (높이)** | +X | 측면도 |
+
+- **`COORD YUP`** 행을 MODULE/ASSY 보다 위에 한 줄 넣으면, 예전 Y-up 기준으로 작성한 시트를
+  그대로 읽는다 (예전 좌표계로 조립한 뒤 한 번만 세워서 배치). 기본값은 `COORD ZUP`.
 - 예전 열 순서(`PLANE Ref.Pt L.X L.Y L.ROT OFFSET`, `ASSY 대상ID PLANE …`)도 계속 읽음 — 세 번째 칸이 평면 이름인지로 자동 판별
 - **Ref.Pt 뒤에 `+` / `−` 를 붙이면 두께 방향 기준면이 바뀜** (MODULE·POS·BASE·ASSY 모두 동일)
 

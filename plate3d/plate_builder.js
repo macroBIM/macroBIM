@@ -14,6 +14,13 @@
    otherwise an empty default layout. plateBuilder.run({...}) can also be
    called directly (skips the auto-run).
 
+   · World is Z-up (X east, Y north, Z up), matching IFC/AutoCAD/Revit/Tekla.
+     Plane names say which world axes a plate's local x,y run along:
+       XY -> horizontal, thickness +Z   XZ -> front elevation, thickness -Y
+       YZ -> side elevation, thickness +X
+     A sheet written for the old Y-up engine keeps working with a "COORD YUP"
+     row before its MODULE/ASSY rows - it is laid out in the old frame and the
+     finished model is turned upright once.
    · Plate definition: local XY plane, thickness +z.
      The PLATE sheet uses block headers — a row starting with '#'
      declares the columns for the rows below it; blocks can be mixed:
@@ -244,6 +251,8 @@
           member rows, MODULE BASE, POS, BASE and ASSY rows.
        -- block style also accepted: a bare "MODULE ID" row followed by
           POS ID PLANE REF.PT L.X L.Y L.ROT OFFSET  and  BASE INSTANCE POINT rows
+       COORD ZUP | YUP                       (default ZUP; YUP reads the sheet in the
+                                               old Y-up frame - put it above MODULE/ASSY)
        ASSY  ID SOURCE G.X G.Y G.Z [ROT.X ROT.Y ROT.Z]
                                               (ID = the assembly being created, SOURCE =
                                                the MODULE, PLATE or earlier ASSY it is
@@ -258,8 +267,14 @@
                                                explicit plate point)
        END
      ================================================================ */
-  var PLANE_ALIAS = { XY: 'FRONT', YZ: 'SIDE', XZ: 'PLAN',
-                      FRONT: 'FRONT', SIDE: 'SIDE', PLAN: 'PLAN' };
+  // World is Z-up (X east, Y north, Z up) like IFC/AutoCAD/Revit/Tekla, so the
+  // plane name says which two world axes the plate's local x,y run along.
+  var PLANE_ALIAS = { XY: 'PLAN', XZ: 'FRONT', YZ: 'SIDE',
+                      PLAN: 'PLAN', FRONT: 'FRONT', SIDE: 'SIDE' };
+  // sheets written for the old Y-up engine, where XY was the vertical front
+  // plane and XZ the horizontal one - reachable with a "COORD YUP" row
+  var PLANE_ALIAS_YUP = { XY: 'FRONT', YZ: 'SIDE', XZ: 'PLAN',
+                          PLAN: 'PLAN', FRONT: 'FRONT', SIDE: 'SIDE' };
   var POINT_ALIAS = { TL: 'ptl', TC: 'ptc', TR: 'ptr', LM: 'plm', CC: 'pcc',
                       RM: 'prm', BL: 'pbl', BC: 'pbc', BR: 'pbr' };
   function normPoint(s) {
@@ -286,6 +301,7 @@
   function parseExcelRows(rows) {
     var plates = {}, parts = {}, cuts = [], assy = [], log = [];
     var assyIds = {};                    // ASSY ids already defined (can be referenced again)
+    var palias = PLANE_ALIAS, yup = false;   // switched by a COORD row
     var counts = { plate: 0, bar: 0, cut: 0, module: 0, assy: 0 };
     var current = null, currentPart = null, counter = {};
     function warn(m) { log.push(m); console.error('[plateBuilder] ' + m); }
@@ -373,6 +389,9 @@
         }
         cuts.push(c);
         counts.cut++;
+      } else if (kw === 'COORD') {        // COORD ZUP (default) | YUP — frame the sheet is written in
+        yup = str(v[0]).toUpperCase() === 'YUP';
+        palias = yup ? PLANE_ALIAS_YUP : PLANE_ALIAS;
       } else if (kw === 'MODULE' || kw === 'PART') {   // module row (PART = legacy alias)
         var partId = str(v[0]).toUpperCase();
         if (!partId) { warn('row ' + (r + 1) + ': MODULE without ID'); continue; }
@@ -387,8 +406,8 @@
         }
         var mplate = resolvePlate(msub);
         if (!mplate) { warn('row ' + (r + 1) + ': MODULE row with undefined plate ' + msub); continue; }
-        if (PLANE_ALIAS[str(v[2]).toUpperCase()]) {   // legacy: <plate> PLANE Ref.Pt L.X L.Y L.ROT OFFSET
-          currentPart.pos.push({ NO: msub, PLATE: mplate, PLANE: PLANE_ALIAS[str(v[2]).toUpperCase()],
+        if (palias[str(v[2]).toUpperCase()]) {   // legacy: <plate> PLANE Ref.Pt L.X L.Y L.ROT OFFSET
+          currentPart.pos.push({ NO: msub, PLATE: mplate, PLANE: palias[str(v[2]).toUpperCase()],
                                  REFPT: normPoint(v[3]), FACE: faceOf(v[3]),
                                  LX: num(v[4], 0), LY: num(v[5], 0),
                                  ROT: num(v[6], 0), OFFSET: num(v[7], 0) });
@@ -396,12 +415,12 @@
         }
         // <plate> Ref.Pt L.X L.Y L.Z PLANE [ROT.X ROT.Y ROT.Z]
         var mplane = str(v[6]).toUpperCase();
-        if (!PLANE_ALIAS[mplane]) {
+        if (!palias[mplane]) {
           warn('row ' + (r + 1) + ': unknown PLANE ' + (str(v[6]) || '(blank)') +
                ' (use XY/YZ/XZ — column order is plate, Ref.Pt, L.X, L.Y, L.Z, PLANE)');
           continue;
         }
-        currentPart.pos.push({ __xyz: true, NO: msub, PLATE: mplate, PLANE: PLANE_ALIAS[mplane],
+        currentPart.pos.push({ __xyz: true, NO: msub, PLATE: mplate, PLANE: palias[mplane],
                                REFPT: normPoint(v[2]), FACE: faceOf(v[2]),
                                LX: num(v[3], 0), LY: num(v[4], 0), LZ: num(v[5], 0),
                                RX: num(v[7], 0), RY: num(v[8], 0), RZ: num(v[9], 0) });
@@ -411,8 +430,8 @@
         var pplate = resolvePlate(ppid);
         if (!pplate) { warn('row ' + (r + 1) + ': POS of undefined plate ' + ppid); continue; }
         var pplane = str(v[1]).toUpperCase();
-        if (!PLANE_ALIAS[pplane]) { warn('row ' + (r + 1) + ': unknown PLANE ' + pplane + ' (use XY/YZ/XZ)'); continue; }
-        currentPart.pos.push({ NO: ppid, PLATE: pplate, PLANE: PLANE_ALIAS[pplane],
+        if (!palias[pplane]) { warn('row ' + (r + 1) + ': unknown PLANE ' + pplane + ' (use XY/YZ/XZ)'); continue; }
+        currentPart.pos.push({ NO: ppid, PLATE: pplate, PLANE: palias[pplane],
                                REFPT: normPoint(v[2]), FACE: faceOf(v[2]),
                                LX: num(v[3], 0), LY: num(v[4], 0),
                                ROT: num(v[5], 0), OFFSET: num(v[6], 0) });
@@ -421,7 +440,7 @@
         currentPart.base = { inst: str(v[0]).toUpperCase(), pt: normPoint(v[1]),
                              face: faceOf(v[1]) };
       } else if (kw === 'ASSY') {
-        if (!PLANE_ALIAS[str(v[1]).toUpperCase()]) {
+        if (!palias[str(v[1]).toUpperCase()]) {
           // ASSY <new id> <MODULE / ASSY / PLATE> G.X G.Y G.Z [ROT.X ROT.Y ROT.Z]
           var aid = str(v[0]).toUpperCase();
           var asrc = str(v[1]).toUpperCase();
@@ -453,11 +472,11 @@
         var key = partRef || plateId;
         counter[key] = (counter[key] || 0) + 1;
         var plkey = str(v[1]).toUpperCase();
-        if (!PLANE_ALIAS[plkey]) { warn('row ' + (r + 1) + ': unknown PLANE ' + plkey + ' (use XY/YZ/XZ)'); continue; }
+        if (!palias[plkey]) { warn('row ' + (r + 1) + ': unknown PLANE ' + plkey + ' (use XY/YZ/XZ)'); continue; }
         assy.push({ __xl: true,
                     NO: pid !== key ? pid : key + '-' + counter[key],
                     PLATE: plateId, PART: partRef,
-                    PLANE: PLANE_ALIAS[plkey],
+                    PLANE: palias[plkey],
                     REFPT: partRef ? str(v[2]) : normPoint(v[2]),   // parts: raw, resolved at build
                     FACE: faceOf(v[2]),
                     LX: num(v[3], 0), LY: num(v[4], 0), ROT: num(v[5], 0),
@@ -478,7 +497,8 @@
       if (assy.length && !assy.some(function (a) { return a.PART === id || a.REF === id; }))
         warn('MODULE ' + id + ': defined but never used in an ASSY row');
     });
-    return { plates: plates, parts: parts, cuts: cuts, assy: assy, log: log, counts: counts };
+    return { plates: plates, parts: parts, cuts: cuts, assy: assy, log: log,
+             counts: counts, yup: yup };
   }
 
   function cellVal(c) {
@@ -791,14 +811,27 @@
 
   /* ---------------- placement matrices ---------------- */
   var PLANE_BASIS = {
-    FRONT: { ex: [1, 0, 0],  ey: [0, 1, 0],  ez: [0, 0, 1] },   // x→X, y→Y, thickness→+Z
-    SIDE:  { ex: [0, 0, -1], ey: [0, 1, 0],  ez: [1, 0, 0] },   // x→−Z, y→Y, thickness→+X
-    PLAN:  { ex: [1, 0, 0],  ey: [0, 0, -1], ez: [0, 1, 0] }    // x→X, y→−Z, thickness→+Y
+    PLAN:  { ex: [1, 0, 0], ey: [0, 1, 0], ez: [0, 0, 1] },     // XY: x→X, y→Y, thickness→+Z (up)
+    FRONT: { ex: [1, 0, 0], ey: [0, 0, 1], ez: [0, -1, 0] },    // XZ: x→X, y→Z (up), thickness→−Y
+    SIDE:  { ex: [0, 1, 0], ey: [0, 0, 1], ez: [1, 0, 0] }      // YZ: x→Y, y→Z (up), thickness→+X
   };
+  // A "COORD YUP" sheet is laid out entirely in the old Y-up frame - same bases
+  // the engine used to have - and the finished model is turned upright once, so
+  // chained EDGE placements and module bases keep working as they did.
+  var PLANE_BASIS_YUP = {
+    FRONT: { ex: [1, 0, 0],  ey: [0, 1, 0],  ez: [0, 0, 1] },
+    SIDE:  { ex: [0, 0, -1], ey: [0, 1, 0],  ez: [1, 0, 0] },
+    PLAN:  { ex: [1, 0, 0],  ey: [0, 0, -1], ez: [0, 1, 0] }
+  };
+  var yupSheet = false;                         // set per build from the COORD row
+  function planeBasis(role) { return (yupSheet ? PLANE_BASIS_YUP : PLANE_BASIS)[role]; }
+  function yupFix(m) {                          // Y-up layout -> Z-up world, applied once
+    return yupSheet ? new THREE.Matrix4().makeRotationX(Math.PI / 2).multiply(m) : m;
+  }
   function v3(a) { return new THREE.Vector3(a[0], a[1], a[2]); }
 
   function planeMatrix(row) {
-    var b = PLANE_BASIS[row.PLANE];
+    var b = planeBasis(row.PLANE);
     if (!b) throw new Error(row.NO + ': PLANE=' + row.PLANE + ' (use FRONT/SIDE/PLAN)');
     var m = new THREE.Matrix4().makeBasis(v3(b.ex), v3(b.ey), v3(b.ez));
     m.multiply(new THREE.Matrix4().makeTranslation(num(row.U, 0), num(row.V, 0), num(row.OFFSET, 0)));
@@ -809,7 +842,7 @@
   // Excel grammar placement: the plate's REF.PT lands at (L.X, L.Y) on the
   // plane, rotated by L.ROT about that point, at OFFSET along the normal
   function planeMatrixAnchor(row, pts, thk) {
-    var b = PLANE_BASIS[row.PLANE];
+    var b = planeBasis(row.PLANE);
     if (!b) throw new Error(row.NO + ': PLANE=' + row.PLANE + ' (use XY/YZ/XZ)');
     var a = pts[row.REFPT] || pts.pbl;
     // FACE 0 -> mid-thickness (default), +1/-1 -> that face lands on the plane
@@ -834,7 +867,7 @@
   // about that same point. Legacy rows fall back to the plane-anchored form.
   function memberMatrix(row, pts, thk) {
     if (!row.__xyz) return planeMatrixAnchor(row, pts, thk);
-    var b = PLANE_BASIS[row.PLANE];
+    var b = planeBasis(row.PLANE);
     if (!b) throw new Error(row.NO + ': PLANE=' + row.PLANE + ' (use XY/YZ/XZ)');
     var a = pts[row.REFPT] || pts.pbl;
     var az = (row.FACE || 0) * (thk || 0) / 2;
@@ -882,6 +915,7 @@
   function buildAll(data, colors) {
     var plates = {}, parts = {}, cuts, assyRows;
     var colorSeq = 0;
+    yupSheet = !!(data.__parsed && data.__parsed.yup);
     if (data.__parsed) {                 // Excel keyword-grammar path
       plates = data.__parsed.plates;
       parts = data.__parsed.parts || {};
@@ -906,6 +940,7 @@
 
     // create geometry for one plate instance with a final world matrix
     function buildInstance(spec, matrix, no, group, remark, mirror, moduleId, memberKey) {
+      var world = yupFix(matrix);        // EDGE chaining keeps using the raw matrix
       var thk = spec.THK;
       var g2d = buildPlate2D(spec, cuts, plates);
       var outers = g2d.outers, holesArr = g2d.holes;
@@ -925,14 +960,14 @@
         var geo = plateGeom(shape, thk);
         var mesh = new THREE.Mesh(geo, mat);
         mesh.matrixAutoUpdate = false;
-        mesh.matrix.copy(matrix);
+        mesh.matrix.copy(world);
         mesh.userData = { shape: shape, thk: thk };
         groupObj.add(mesh);
         geo.computeBoundingBox();
-        bbox.union(geo.boundingBox.clone().applyMatrix4(matrix));
+        bbox.union(geo.boundingBox.clone().applyMatrix4(world));
         var edge = new THREE.LineSegments(new THREE.EdgesGeometry(geo, 25), edgeMat);
         edge.matrixAutoUpdate = false;
-        edge.matrix.copy(matrix);
+        edge.matrix.copy(world);
         edge.userData = { shape: shape, thk: thk };
         groupObj.add(edge);
       });
@@ -946,7 +981,7 @@
                  memberKey: memberKey || null,
                  groupObj: groupObj, mass: g2d.area * thk * RHO,
                  dims: dims, remark: remark || '',
-                 spec: spec, thk: thk, matrix: matrix, mat: mat, edgeMat: edgeMat,
+                 spec: spec, thk: thk, matrix: world, mat: mat, edgeMat: edgeMat,
                  baseColor: colors[spec.ID],
                  rings: { outers: outers, holes: holesArr } };
       items.push(it);
@@ -1008,10 +1043,14 @@
         });
       });
       var p9 = normPoint(refpt);
-      var x = p9.charAt(2) === 'l' ? bb.min.x : p9.charAt(2) === 'r' ? bb.max.x : (bb.min.x + bb.max.x) / 2;
-      var y = p9.charAt(1) === 'b' ? bb.min.y : p9.charAt(1) === 't' ? bb.max.y : (bb.min.y + bb.max.y) / 2;
-      var z = f > 0 ? bb.max.z : f < 0 ? bb.min.z : (bb.min.z + bb.max.z) / 2;
-      return new THREE.Vector3(x, y, z);
+      // b/t run along the module's up axis, +/- along its depth axis
+      var up = yupSheet ? 'y' : 'z', dp = yupSheet ? 'z' : 'y';
+      var q = { x: (bb.min.x + bb.max.x) / 2 };
+      q.x = p9.charAt(2) === 'l' ? bb.min.x : p9.charAt(2) === 'r' ? bb.max.x : q.x;
+      q[up] = p9.charAt(1) === 'b' ? bb.min[up] : p9.charAt(1) === 't' ? bb.max[up]
+                                                : (bb.min[up] + bb.max[up]) / 2;
+      q[dp] = f > 0 ? bb.max[dp] : f < 0 ? bb.min[dp] : (bb.min[dp] + bb.max[dp]) / 2;
+      return new THREE.Vector3(q.x, q.y, q.z);
     }
 
     var assyDefs = {};                 // ASSY id -> members in that assembly's own frame
@@ -1062,7 +1101,7 @@
         var pl;
         try { pl = partLocals(part); } catch (err) { buildErr(row.NO + ': ' + err.message); return; }
         var B = partRefPoint(pl, row.REFPT);
-        var b = PLANE_BASIS[row.PLANE];
+        var b = planeBasis(row.PLANE);
         var M = new THREE.Matrix4().makeBasis(v3(b.ex), v3(b.ey), v3(b.ez));
         M.multiply(new THREE.Matrix4().makeTranslation(row.LX, row.LY, row.OFFSET));
         M.multiply(new THREE.Matrix4().makeRotationZ(row.ROT * Math.PI / 180));
@@ -1520,6 +1559,7 @@
     pvScene = sc;
     sc.background = new THREE.Color(0x15181c);
     var cam = new THREE.PerspectiveCamera(40, W / H, 1, 50000);
+    cam.up.set(0, 0, 1);                         // Z-up world
     var rn = pvGetRenderer(host, W, H);
     if (!rn) {
       pvMeta.innerHTML = '<span style="color:#f09a9a">3D preview unavailable — ' +
@@ -1527,9 +1567,11 @@
       return;
     }
 
-    sc.add(new THREE.HemisphereLight(0xf4f6fa, 0x2a2d33, 0.95));
+    var hemi = new THREE.HemisphereLight(0xf4f6fa, 0x2a2d33, 0.95);
+    hemi.position.set(0, 0, 1);
+    sc.add(hemi);
     var sun = new THREE.DirectionalLight(0xffffff, 0.75);
-    sun.position.set(500, 900, 650);
+    sun.position.set(500, -650, 900);
     sc.add(sun);
 
     var bbox = new THREE.Box3(), mass = 0, basePt = null, bad = [];
@@ -1539,7 +1581,7 @@
       if (!spec) { bad.push(row.NO); return; }
       var pts = namedPoints(spec, false);
       var m;
-      try { m = memberMatrix(row, pts, spec.THK); } catch (e) { return; }
+      try { m = yupFix(memberMatrix(row, pts, spec.THK)); } catch (e) { return; }
       if (part.base && row.NO === part.base.inst) {
         var a = pts[part.base.pt] || pts.pbl;
         basePt = new THREE.Vector3(a[0], a[1],
@@ -1595,7 +1637,7 @@
         });
       var bl = makeLabel('BASE (' + Math.round(basePt.x) + ', ' + Math.round(basePt.y) + ', ' +
                          Math.round(basePt.z) + ')', '#f0c674', size * 0.05);
-      bl.position.copy(basePt.clone().add(new THREE.Vector3(-size * 0.13, -size * 0.06, size * 0.13)));
+      bl.position.copy(basePt.clone().add(new THREE.Vector3(-size * 0.13, -size * 0.13, -size * 0.06)));
       sc.add(bl);
       sc.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints([basePt, bl.position.clone()]),
                             new THREE.LineBasicMaterial({ color: 0xf0c674, depthTest: false })));
@@ -1604,11 +1646,12 @@
     // model instead of sitting on the Y=0 plane - a plate lying on that plane is
     // coplanar with it and the grid bleeds through the plate.
     var reach = bbox.isEmpty() ? 500 : Math.max(
-      Math.abs(mn.x), Math.abs(mx3.x), Math.abs(mn.z), Math.abs(mx3.z), size * 0.3);
+      Math.abs(mn.x), Math.abs(mx3.x), Math.abs(mn.y), Math.abs(mx3.y), size * 0.3);
     var gspan = Math.ceil(reach * 2 / 100) * 100;
-    var gy = (bbox.isEmpty() ? 0 : Math.min(0, mn.y)) - Math.max(1, size * 0.02);
+    var gz = (bbox.isEmpty() ? 0 : Math.min(0, mn.z)) - Math.max(1, size * 0.02);
     var grid = new THREE.GridHelper(gspan, Math.max(4, Math.round(gspan / 50)), 0x5b6472, 0x242a31);
-    grid.position.set(0, gy, 0);
+    grid.rotation.x = Math.PI / 2;               // GridHelper is XZ by default, lay it on XY
+    grid.position.set(0, 0, gz);
     sc.add(grid);
 
     // module-local origin: the point L.X/L.Y/L.Z are measured from. Drawn on top
@@ -1622,17 +1665,17 @@
         new THREE.LineBasicMaterial({ color: a[1], depthTest: false })));
     });
     sc.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints(
-      [new THREE.Vector3(0, gy, 0), new THREE.Vector3(0, 0, 0)]),
+      [new THREE.Vector3(0, 0, gz), new THREE.Vector3(0, 0, 0)]),
       new THREE.LineBasicMaterial({ color: 0x6b7480, depthTest: false })));
     var ol = makeLabel('0, 0, 0', '#9aa3b0', size * 0.042);
-    ol.position.set(-oLen * 0.75, -oLen * 0.3, -oLen * 0.4);
+    ol.position.set(-oLen * 0.75, -oLen * 0.4, -oLen * 0.3);
     sc.add(ol);
 
     var ctr = new THREE.OrbitControls(cam, rn.domElement);
     pvCtrl = ctr;
     ctr.enableDamping = true;
     ctr.dampingFactor = 0.1;
-    cam.position.set(center.x + size * 1.05, center.y + size * 0.85, center.z + size * 1.2);
+    cam.position.set(center.x + size * 1.05, center.y - size * 1.2, center.z + size * 0.85);
     ctr.target.copy(center);
     ctr.update();
 
@@ -1713,13 +1756,8 @@
   /* -------- STL export (world transforms applied) -------- */
   // triangles come from the stored rings, so the flat view and the module
   // preview (which has no scene meshes) export identical solids
-  // The scene uses the WebGL frame (Y up, +Z out of the screen). Every CAD/BIM
-  // format this exports to is Z-up, so exported geometry is rotated +90 deg about
-  // X on the way out: (x, y, z)scene -> (x, -z, y)file.
-  function zUpMatrix() { return new THREE.Matrix4().makeRotationX(Math.PI / 2); }
-
+  // The scene is already Z-up, so STL/IFC take the world matrices as they are.
   function buildSTL(list, name) {
-    var ZUP = zUpMatrix();
     var out = 'solid ' + name + '\n';
     list.forEach(function (it) {
       it.rings.outers.forEach(function (ring, i) {
@@ -1736,10 +1774,9 @@
           var a = idx ? idx.getX(k * 3) : k * 3;
           var b = idx ? idx.getX(k * 3 + 1) : k * 3 + 1;
           var c = idx ? idx.getX(k * 3 + 2) : k * 3 + 2;
-          var wm = ZUP.clone().multiply(it.matrix);
-          var vA = new THREE.Vector3().fromBufferAttribute(pos, a).applyMatrix4(wm);
-          var vB = new THREE.Vector3().fromBufferAttribute(pos, b).applyMatrix4(wm);
-          var vC = new THREE.Vector3().fromBufferAttribute(pos, c).applyMatrix4(wm);
+          var vA = new THREE.Vector3().fromBufferAttribute(pos, a).applyMatrix4(it.matrix);
+          var vB = new THREE.Vector3().fromBufferAttribute(pos, b).applyMatrix4(it.matrix);
+          var vC = new THREE.Vector3().fromBufferAttribute(pos, c).applyMatrix4(it.matrix);
           var nr = new THREE.Vector3().crossVectors(
             new THREE.Vector3().subVectors(vB, vA),
             new THREE.Vector3().subVectors(vC, vA)).normalize();
@@ -1771,7 +1808,7 @@
       var spec = lastPlates[row.PLATE];
       if (!spec) return;
       var m;
-      try { m = memberMatrix(row, namedPoints(spec, false), spec.THK); } catch (e) { return; }
+      try { m = yupFix(memberMatrix(row, namedPoints(spec, false), spec.THK)); } catch (e) { return; }
       var g2 = buildPlate2D(spec, lastCuts, lastPlates);
       out.push({ no: row.NO, spec: spec, thk: spec.THK, matrix: m,
                  mass: g2.area * spec.THK * RHO, dims: '',
@@ -1876,10 +1913,9 @@
     nx('IFCRELAGGREGATES(' + guid() + ',' + oOH + ',$,$,' + oBld + ',(' + oSt + '))');
     var solidPos = {};   // one placement per thickness (extrusion starts at -t/2)
 
-    var ZUP = zUpMatrix();
     var elements = [];
     list.forEach(function (it) {
-      var m = ZUP.clone().multiply(it.matrix).elements;    // column-major, Z-up
+      var m = it.matrix.elements;                         // column-major, already Z-up
       var loc = pt3(m[12], m[13], m[14]);
       var axis = dir3(m[8], m[9], m[10]);
       var ref = dir3(m[0], m[1], m[2]);
@@ -1933,11 +1969,11 @@
 
   /* ---------------- views ---------------- */
   function setView(v) {
-    var d = VDIST;
-    if (v === 'front') camera.position.set(CENTER.x, CENTER.y, CENTER.z + d);
+    var d = VDIST;                               // Z-up: front looks north, top looks down
+    if (v === 'front') camera.position.set(CENTER.x, CENTER.y - d, CENTER.z);
     if (v === 'side')  camera.position.set(CENTER.x + d, CENTER.y, CENTER.z);
-    if (v === 'top')   camera.position.set(CENTER.x, CENTER.y + d, CENTER.z + 0.01);
-    if (v === 'iso')   camera.position.set(CENTER.x + d * 0.58, CENTER.y + d * 0.5, CENTER.z + d * 0.65);
+    if (v === 'top')   camera.position.set(CENTER.x, CENTER.y - 0.01, CENTER.z + d);
+    if (v === 'iso')   camera.position.set(CENTER.x + d * 0.58, CENTER.y - d * 0.65, CENTER.z + d * 0.5);
     controls.target.copy(CENTER);
     controls.update();
   }
@@ -2120,31 +2156,35 @@
     scene = new THREE.Scene();
     scene.background = new THREE.Color(0x15181c);
     camera = new THREE.PerspectiveCamera(40, w / h, 1, 50000);
+    camera.up.set(0, 0, 1);                      // Z-up world
     renderer = new THREE.WebGLRenderer({ antialias: true, preserveDrawingBuffer: true });
     renderer.setSize(w, h);
     renderer.setPixelRatio(window.devicePixelRatio || 1);
     container.appendChild(renderer.domElement);
 
-    scene.add(new THREE.HemisphereLight(0xf4f6fa, 0x2a2d33, 0.95));
+    var hemi = new THREE.HemisphereLight(0xf4f6fa, 0x2a2d33, 0.95);
+    hemi.position.set(0, 0, 1);
+    scene.add(hemi);
     var sun = new THREE.DirectionalLight(0xffffff, 0.75);
-    sun.position.set(500, 900, 650);
+    sun.position.set(500, -650, 900);
     scene.add(sun);
     var back = new THREE.DirectionalLight(0x8899bb, 0.3);
-    back.position.set(-600, 300, -500);
+    back.position.set(-600, 500, 300);
     scene.add(back);
 
     var colors = data.colors || {};
     pvModuleId = null;
     var bbox = buildAll(data, colors);
 
-    CENTER = bbox.isEmpty() ? new THREE.Vector3(0, 150, 0) : bbox.getCenter(new THREE.Vector3());
+    CENTER = bbox.isEmpty() ? new THREE.Vector3(0, 0, 150) : bbox.getCenter(new THREE.Vector3());
     var size = bbox.isEmpty() ? 900 : bbox.getSize(new THREE.Vector3()).length();
     if (!isFinite(size) || size <= 0) size = 900;
     VDIST = size * 1.5 + 200;
 
     var grid = new THREE.GridHelper(Math.ceil(size / 400) * 800, 32, 0x39424d, 0x242a31);
-    grid.position.y = Math.min(-1, bbox.isEmpty() ? -1
-                                 : bbox.min.y - Math.max(1, size * 0.004));
+    grid.rotation.x = Math.PI / 2;               // GridHelper is XZ by default, lay it on XY
+    grid.position.z = Math.min(-1, bbox.isEmpty() ? -1
+                                 : bbox.min.z - Math.max(1, size * 0.004));
     scene.add(grid);
 
     var gz = buildGizmo();
