@@ -143,7 +143,8 @@
   var showAxes = false;                 // local axes on every placed plate
   var showFaces = false;
   var measMain = null, measPv = null;     // measure tools, one per view
-  var showMeasure = false, measurePv = false;                // tint the +/- faces of every plate
+  var showMeasure = false, measurePv = false;
+  var sceneSize = 900;                   // model size, for scaling helpers                // tint the +/- faces of every plate
   var memberAxes = {};                  // 'MODULE/POS' -> show local axes in the preview
   // appearance overrides, kept across reloads: instance > module > plate
   var ovColor = { plate: {}, module: {}, item: {} };
@@ -1676,26 +1677,54 @@
   }
 
   // local axis triad at a plate's centre: +Z is the thickness / offset direction
-  function plateTriad(spec, matrix, len) {
+  // Plate-local Ref.Pt of a module member, in the plate's own coordinates
+  function memberRef(spec, row) {
+    var pts = namedPoints(spec, false);
+    var a = pts[row.REFPT] || pts.pbl;
+    return { p: new THREE.Vector3(a[0], a[1],
+                                  flatMode ? 0 : (row.FACE || 0) * num(spec.THK, 0) / 2),
+             name: row.REFPT.slice(1) + faceMark(row.FACE) };
+  }
+  // Local axes of one plate. Drawn on the member's Ref.Pt when there is one -
+  // that is the point its L.X/L.Y/L.Z were measured to - otherwise on the
+  // outline centroid. The thickness axis is drawn both ways and labelled, so
+  // which side is +Z can be read straight off the model.
+  function plateTriad(spec, matrix, len, org, name) {
     var g = new THREE.Group();
-    var c = (namedPoints(spec, false).pcc) || [0, 0];
+    var c = org;
+    if (!c) {
+      var pc = (namedPoints(spec, false).pcc) || [0, 0];
+      c = new THREE.Vector3(pc[0], pc[1], 0);
+    }
     g.matrixAutoUpdate = false;
-    g.matrix.copy(matrix.clone().multiply(new THREE.Matrix4().makeTranslation(c[0], c[1], 0)));
+    g.matrix.copy(matrix.clone().multiply(
+      new THREE.Matrix4().makeTranslation(c.x, c.y, c.z)));
     var o = new THREE.Vector3();
     g.add(new THREE.ArrowHelper(new THREE.Vector3(1, 0, 0), o, len, 0xe05c4f, len * 0.26, len * 0.15));
     g.add(new THREE.ArrowHelper(new THREE.Vector3(0, 1, 0), o, len, 0x6fc36f, len * 0.26, len * 0.15));
-    g.add(new THREE.ArrowHelper(new THREE.Vector3(0, 0, 1), o, len * 1.25, 0x5c9bd1, len * 0.3, len * 0.17));
-    var plus = makeLabel('+', '#5c9bd1', len * 0.55);
-    plus.position.set(0, 0, len * 1.5);
+    g.add(new THREE.ArrowHelper(new THREE.Vector3(0, 0, 1), o, len * 1.3, 0x5c9bd1, len * 0.3, len * 0.17));
+    g.add(new THREE.ArrowHelper(new THREE.Vector3(0, 0, -1), o, len * 0.75, 0x7f8b9c, len * 0.22, len * 0.13));
+    var plus = makeLabel('+Z', '#5c9bd1', len * 0.5);
+    plus.position.set(0, 0, len * 1.62);
     g.add(plus);
-    var minus = makeLabel('\u2212', '#8a93a0', len * 0.55);
-    minus.position.set(0, 0, -len * 0.55);
+    var minus = makeLabel('\u2212Z', '#9aa3b0', len * 0.5);
+    minus.position.set(0, 0, -len * 1.05);
     g.add(minus);
+    if (name) {                                  // the reference point itself
+      var mk = new THREE.Sprite(new THREE.SpriteMaterial({
+        map: ringTexture(), color: 0xf0c674, depthTest: false, transparent: true }));
+      mk.scale.set(len * 0.36, len * 0.36, 1);
+      g.add(mk);
+      var lb = makeLabel(name, '#f0c674', len * 0.44);
+      lb.position.set(-len * 0.52, -len * 0.36, 0);
+      g.add(lb);
+    }
     return g;
   }
-  function triadLen(spec) {
+  // sized off the plate, but never so small it is unreadable in a big model
+  function triadLen(spec, min) {
     var w = spec.SHAPE === 'CIRC' ? num(spec.D, 100) : Math.max(num(spec.WB, 0), num(spec.WT, 0));
-    return Math.max(20, Math.min(w, num(spec.H, 100)) * 0.3);
+    return Math.max(20, min || 0, Math.min(w, num(spec.H, 100)) * 0.3);
   }
 
   // One WebGL context for the preview, reused across opens. Building a new
@@ -1779,7 +1808,7 @@
     sun.position.set(500, -650, 900);
     sc.add(sun);
 
-    var bbox = new THREE.Box3(), mass = 0, basePt = null, bad = [], pvSnaps = [];
+    var bbox = new THREE.Box3(), mass = 0, basePt = null, bad = [], pvSnaps = [], axRows = [];
     part.pos.forEach(function (row) {
      try {
       var spec = lastPlates[row.PLATE];
@@ -1794,7 +1823,7 @@
       }
       var g2d = buildPlate2D(spec, lastCuts, lastPlates);
       mass += g2d.area * spec.THK * RHO;
-      if (memberAxes[id + '/' + row.NO]) sc.add(plateTriad(spec, m, triadLen(spec)));
+      if (memberAxes[id + '/' + row.NO]) axRows.push({ spec: spec, m: m, rp: memberRef(spec, row) });
       if (showFaces) sc.add(faceTint({ outers: g2d.outers, holes: g2d.holes }, spec.THK, m));
       pvSnaps = pvSnaps.concat(snapPointsOf({ outers: g2d.outers, holes: g2d.holes }, spec.THK, m));
       var pop = resolveOpac({ plateId: row.PLATE, moduleId: id, memberKey: id + '/' + row.NO });
@@ -1829,6 +1858,9 @@
     var center = bbox.isEmpty() ? new THREE.Vector3() : bbox.getCenter(new THREE.Vector3());
     var size = bbox.isEmpty() ? 500 : bbox.getSize(new THREE.Vector3()).length();
     var mn = bbox.min, mx3 = bbox.max;
+    axRows.forEach(function (a) {
+      sc.add(plateTriad(a.spec, a.m, triadLen(a.spec, size * 0.1), a.rp.p, a.rp.name));
+    });
 
     if (basePt) {                              // module base point
       var mk = new THREE.Mesh(new THREE.SphereGeometry(size * 0.022, 20, 14),
@@ -2457,6 +2489,7 @@
     CENTER = bbox.isEmpty() ? new THREE.Vector3(0, 0, 150) : bbox.getCenter(new THREE.Vector3());
     var size = bbox.isEmpty() ? 900 : bbox.getSize(new THREE.Vector3()).length();
     if (!isFinite(size) || size <= 0) size = 900;
+    sceneSize = size;
     VDIST = size * 1.5 + 200;
 
     var grid = new THREE.GridHelper(Math.ceil(size / 400) * 800, 32, 0x39424d, 0x242a31);
@@ -2606,7 +2639,15 @@
     sceneAxes = new THREE.Group();
     items.forEach(function (it) {
       if (!it.groupObj.visible) return;
-      sceneAxes.add(plateTriad(it.spec, it.matrix, triadLen(it.spec)));
+      var rp = null;
+      if (it.memberKey) {                        // module members know their Ref.Pt
+        var part = lastParts[it.moduleId];
+        var no = it.memberKey.slice(it.memberKey.indexOf('/') + 1);
+        var row = part && part.pos.filter(function (q) { return q.NO === no; })[0];
+        if (row) rp = memberRef(it.spec, row);
+      }
+      sceneAxes.add(plateTriad(it.spec, it.matrix, triadLen(it.spec, sceneSize * 0.045),
+                               rp && rp.p, rp && rp.name));
     });
     scene.add(sceneAxes);
   }
