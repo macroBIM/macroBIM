@@ -7,7 +7,9 @@
 - **`plate_builder.js`** — 뷰어 엔진 (DATA_SCHEMA.md 구현). HTML에는 링크만 걸면 됨
   - 로드되면 자동 실행: `window.PLATE_DATA` 가 있으면 그 데이터로, 없으면 **빈 기본 화면**(좌 리스트/우 3D)
   - `plateBuilder.run({...})` 직접 호출도 가능 (자동 실행은 생략됨)
-  - PLANE/EDGE 배치, MIRROR, polybooljs 절단(구멍·노치·REF), 그룹·부재별 토글, 중량, STL·IFC 출력
+  - PLATE(형상+CUT) → MODULE(판 조립 + BASE) → ASSY(글로벌 배치, 중첩 가능) 3단 구조
+  - Ref.Pt 뒤 `+`/`−` 로 두께 기준면 지정, ROT.X/Y/Z 3축 회전
+  - polybooljs 절단(구멍·노치·REF), 그룹·부재별 토글/투명도, 중량, STL·IFC 출력
   - 엑셀(.xlsx) 로딩: Load Excel 버튼/드래그&드롭, 진행률 바, 결과·경고 패널
   - 좌측 목록: PLATES(클릭 → 2D 도면 팝업) · MODULES(클릭 → 3D 미리보기) · 배치된 부재
 - **`data_bracket.js`** — 서포트 브래킷 예제 데이터 (`window.PLATE_DATA` 정의) — 데이터 파일의 표본

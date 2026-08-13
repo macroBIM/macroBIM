@@ -226,10 +226,15 @@
                                               (plateID optional -> last PLATE/BAR row;
                                                refPt optional -> pbl. L.X/L.Y are
                                                measured from that reference point)
-       MODULE ID PLATE.ID PLANE REF.PT L.X L.Y L.ROT OFFSET
-                                              (one row per member plate, module-local
-                                               coords; rows with the same module ID
-                                               accumulate; PART = legacy alias)
+       MODULE ID PLATE.ID REF.PT L.X L.Y L.Z PLANE [ROT.X ROT.Y ROT.Z]
+                                              (one row per member plate: the plate's
+                                               REF.PT lands on module-local L.X/L.Y/L.Z,
+                                               PLANE is the plane it lies on and ROT.X/Y/Z
+                                               spin it about that point. Rows with the
+                                               same module ID accumulate; PART = alias.
+                                               Legacy order PLANE REF.PT L.X L.Y L.ROT
+                                               OFFSET is still read - detected from
+                                               whether column 3 is a plane name)
        MODULE ID BASE INSTANCE POINT          (module reference point = one of the
                                                9 points of a member plate;
                                                missing BASE -> warning + local origin)
@@ -239,10 +244,18 @@
           member rows, MODULE BASE, POS, BASE and ASSY rows.
        -- block style also accepted: a bare "MODULE ID" row followed by
           POS ID PLANE REF.PT L.X L.Y L.ROT OFFSET  and  BASE INSTANCE POINT rows
-       ASSY  ID PLANE REF.PT L.X L.Y L.ROT OFFSET    (assemble a MODULE or a PLATE.
-                                               REF.PT for modules: blank/O = BASE point,
-                                               9-point name = module bbox point,
-                                               INSTANCE.POINT = explicit plate point)
+       ASSY  ID SOURCE G.X G.Y G.Z [ROT.X ROT.Y ROT.Z]
+                                              (ID = the assembly being created, SOURCE =
+                                               the MODULE, PLATE or earlier ASSY it is
+                                               built from. Its reference point - a
+                                               module's BASE, a plate's bc, an assembly's
+                                               own origin - lands on global G.X/G.Y/G.Z,
+                                               then ROT.X/Y/Z about that point)
+       ASSY  ID PLANE REF.PT L.X L.Y L.ROT OFFSET    (legacy order, still read: assemble a
+                                               MODULE or a PLATE. REF.PT for modules:
+                                               blank/O = BASE point, 9-point name =
+                                               module bbox point, INSTANCE.POINT =
+                                               explicit plate point)
        END
      ================================================================ */
   var PLANE_ALIAS = { XY: 'FRONT', YZ: 'SIDE', XZ: 'PLAN',
@@ -261,9 +274,18 @@
     return c === '+' ? 1 : c === '-' ? -1 : 0;
   }
   function faceMark(f) { return f > 0 ? '+' : f < 0 ? '\u2212' : ''; }
+  function memberDesc(row) {                    // sidebar line for one module member
+    var t = row.PLANE + ' \u00b7 ' + row.REFPT.slice(1) + faceMark(row.FACE) + ' \u00b7 ';
+    t += row.__xyz ? '(' + row.LX + ', ' + row.LY + ', ' + row.LZ + ')'
+                   : 'off ' + row.OFFSET;
+    var rot = row.__xyz ? [row.RX, row.RY, row.RZ] : [0, 0, row.ROT];
+    if (rot[0] || rot[1] || rot[2]) t += ' \u00b7 rot ' + rot.join('/');
+    return t;
+  }
 
   function parseExcelRows(rows) {
     var plates = {}, parts = {}, cuts = [], assy = [], log = [];
+    var assyIds = {};                    // ASSY ids already defined (can be referenced again)
     var counts = { plate: 0, bar: 0, cut: 0, module: 0, assy: 0 };
     var current = null, currentPart = null, counter = {};
     function warn(m) { log.push(m); console.error('[plateBuilder] ' + m); }
@@ -363,14 +385,26 @@
                                face: faceOf(v[3]) };
           continue;
         }
-        var mplate = resolvePlate(msub);  // MODULE id <plate> <PLANE> <Ref.Pt> <L.X> <L.Y> <L.ROT> <OFFSET>
+        var mplate = resolvePlate(msub);
         if (!mplate) { warn('row ' + (r + 1) + ': MODULE row with undefined plate ' + msub); continue; }
-        var mplane = str(v[2]).toUpperCase();
-        if (!PLANE_ALIAS[mplane]) { warn('row ' + (r + 1) + ': unknown PLANE ' + mplane + ' (use XY/YZ/XZ)'); continue; }
-        currentPart.pos.push({ NO: msub, PLATE: mplate, PLANE: PLANE_ALIAS[mplane],
-                               REFPT: normPoint(v[3]), FACE: faceOf(v[3]),
-                               LX: num(v[4], 0), LY: num(v[5], 0),
-                               ROT: num(v[6], 0), OFFSET: num(v[7], 0) });
+        if (PLANE_ALIAS[str(v[2]).toUpperCase()]) {   // legacy: <plate> PLANE Ref.Pt L.X L.Y L.ROT OFFSET
+          currentPart.pos.push({ NO: msub, PLATE: mplate, PLANE: PLANE_ALIAS[str(v[2]).toUpperCase()],
+                                 REFPT: normPoint(v[3]), FACE: faceOf(v[3]),
+                                 LX: num(v[4], 0), LY: num(v[5], 0),
+                                 ROT: num(v[6], 0), OFFSET: num(v[7], 0) });
+          continue;
+        }
+        // <plate> Ref.Pt L.X L.Y L.Z PLANE [ROT.X ROT.Y ROT.Z]
+        var mplane = str(v[6]).toUpperCase();
+        if (!PLANE_ALIAS[mplane]) {
+          warn('row ' + (r + 1) + ': unknown PLANE ' + (str(v[6]) || '(blank)') +
+               ' (use XY/YZ/XZ — column order is plate, Ref.Pt, L.X, L.Y, L.Z, PLANE)');
+          continue;
+        }
+        currentPart.pos.push({ __xyz: true, NO: msub, PLATE: mplate, PLANE: PLANE_ALIAS[mplane],
+                               REFPT: normPoint(v[2]), FACE: faceOf(v[2]),
+                               LX: num(v[3], 0), LY: num(v[4], 0), LZ: num(v[5], 0),
+                               RX: num(v[7], 0), RY: num(v[8], 0), RZ: num(v[9], 0) });
       } else if (kw === 'POS') {          // place a plate inside the current part
         if (!currentPart) { warn('row ' + (r + 1) + ': POS outside of a MODULE'); continue; }
         var ppid = str(v[0]).toUpperCase();
@@ -386,7 +420,28 @@
         if (!currentPart) { warn('row ' + (r + 1) + ': BASE outside of a MODULE'); continue; }
         currentPart.base = { inst: str(v[0]).toUpperCase(), pt: normPoint(v[1]),
                              face: faceOf(v[1]) };
-      } else if (kw === 'ASSY') {         // ID PLANE REF.PT L.X L.Y L.ROT OFFSET
+      } else if (kw === 'ASSY') {
+        if (!PLANE_ALIAS[str(v[1]).toUpperCase()]) {
+          // ASSY <new id> <MODULE / ASSY / PLATE> G.X G.Y G.Z [ROT.X ROT.Y ROT.Z]
+          var aid = str(v[0]).toUpperCase();
+          var asrc = str(v[1]).toUpperCase();
+          if (!aid) { warn('row ' + (r + 1) + ': ASSY without ID'); continue; }
+          var aref = (parts[asrc] || assyIds[asrc]) ? asrc : resolvePlate(asrc);
+          if (!aref) {
+            warn('row ' + (r + 1) + ': ASSY of undefined MODULE/ASSY/PLATE ' + (asrc || '(blank)'));
+            continue;
+          }
+          counter[aid] = (counter[aid] || 0) + 1;
+          var ano = counter[aid] > 1 ? aid + '-' + counter[aid] : aid;
+          assyIds[ano] = true;
+          assy.push({ __xl: true, __g: true, NO: ano, REF: aref,
+                      GX: num(v[2], 0), GY: num(v[3], 0), GZ: num(v[4], 0),
+                      RX: num(v[5], 0), RY: num(v[6], 0), RZ: num(v[7], 0),
+                      GROUP: ano, REMARK: '', MIRROR: '' });
+          counts.assy++;
+          continue;
+        }
+        // legacy: ASSY <module/plate id> PLANE Ref.Pt L.X L.Y L.ROT OFFSET
         var pid = str(v[0]).toUpperCase();
         var partRef = parts[pid] ? pid : null;
         if (!partRef) {                   // instance-suffix on parts too: PC.COL_2 → PC.COL
@@ -413,14 +468,14 @@
       }
     }
     if (!assy.length && (Object.keys(plates).length || Object.keys(parts).length)) {
-      warn('no ASSY row — nothing is placed. Add e.g. "ASSY <module or plate id> XY o 0 0 0 0"');
+      warn('no ASSY row — nothing is placed. Add e.g. "ASSY <assy id> <module or plate id> 0 0 0"');
     }
     Object.keys(parts).forEach(function (id) {
       if (!parts[id].pos.length) warn('MODULE ' + id + ': has no POS rows');
       else if (!parts[id].base) warn('MODULE ' + id + ': BASE not defined — using local origin (0,0)');
       else if (!parts[id].pos.some(function (p) { return p.NO === parts[id].base.inst; }))
         warn('MODULE ' + id + ': BASE instance ' + parts[id].base.inst + ' not found among POS rows — using local origin');
-      if (assy.length && !assy.some(function (a) { return a.PART === id; }))
+      if (assy.length && !assy.some(function (a) { return a.PART === id || a.REF === id; }))
         warn('MODULE ' + id + ': defined but never used in an ASSY row');
     });
     return { plates: plates, parts: parts, cuts: cuts, assy: assy, log: log, counts: counts };
@@ -766,6 +821,30 @@
     return m;
   }
 
+  function rotXYZ(rx, ry, rz) {                 // extrinsic X -> Y -> Z about the parent axes
+    var m = new THREE.Matrix4();
+    if (rz) m.multiply(new THREE.Matrix4().makeRotationZ(rz * Math.PI / 180));
+    if (ry) m.multiply(new THREE.Matrix4().makeRotationY(ry * Math.PI / 180));
+    if (rx) m.multiply(new THREE.Matrix4().makeRotationX(rx * Math.PI / 180));
+    return m;
+  }
+
+  // MODULE row, XYZ grammar: the plate's Ref.Pt lands on the module-local point
+  // (L.X, L.Y, L.Z), PLANE says which way the plate faces and ROT X/Y/Z spin it
+  // about that same point. Legacy rows fall back to the plane-anchored form.
+  function memberMatrix(row, pts, thk) {
+    if (!row.__xyz) return planeMatrixAnchor(row, pts, thk);
+    var b = PLANE_BASIS[row.PLANE];
+    if (!b) throw new Error(row.NO + ': PLANE=' + row.PLANE + ' (use XY/YZ/XZ)');
+    var a = pts[row.REFPT] || pts.pbl;
+    var az = (row.FACE || 0) * (thk || 0) / 2;
+    var m = new THREE.Matrix4().makeTranslation(row.LX, row.LY, row.LZ);
+    m.multiply(rotXYZ(row.RX, row.RY, row.RZ));
+    m.multiply(new THREE.Matrix4().makeBasis(v3(b.ex), v3(b.ey), v3(b.ez)));
+    m.multiply(new THREE.Matrix4().makeTranslation(-a[0], -a[1], -az));
+    return m;
+  }
+
   function edgeMatrix(row, inst, myPts, myTHK) {
     var tgt = inst[row.TO];
     if (!tgt) throw new Error(row.NO + ': TO=' + row.TO + ' undefined (only earlier rows can be referenced)');
@@ -880,7 +959,7 @@
       var locals = part.pos.map(function (p) {
         var spec = plates[p.PLATE];
         var pts = namedPoints(spec, false);
-        return { row: p, spec: spec, pts: pts, mloc: planeMatrixAnchor(p, pts, spec.THK) };
+        return { row: p, spec: spec, pts: pts, mloc: memberMatrix(p, pts, spec.THK) };
       });
       var base = new THREE.Vector3(0, 0, 0);
       if (part.base) {
@@ -935,7 +1014,48 @@
       return new THREE.Vector3(x, y, z);
     }
 
+    var assyDefs = {};                 // ASSY id -> members in that assembly's own frame
+
+    // members of an ASSY source, positioned so its reference point is at the origin
+    function assySource(row) {
+      if (parts[row.REF]) {                              // a MODULE: reference = its BASE point
+        var pl = partLocals(parts[row.REF]);
+        var B = pl.base;
+        var toBase = new THREE.Matrix4().makeTranslation(-B.x, -B.y, -B.z);
+        return pl.locals.map(function (L) {
+          return { spec: L.spec, no: L.row.NO, moduleId: row.REF,
+                   memberKey: row.REF + '/' + L.row.NO,
+                   mloc: toBase.clone().multiply(L.mloc) };
+        });
+      }
+      if (assyDefs[row.REF]) {                           // an earlier ASSY: reference = its origin
+        return assyDefs[row.REF].map(function (L) {
+          return { spec: L.spec, no: L.no, moduleId: L.moduleId, memberKey: L.memberKey,
+                   mloc: L.mloc.clone() };
+        });
+      }
+      var sp = plates[row.REF];                          // a single PLATE: reference = its bc
+      if (!sp) throw new Error(row.NO + ': unknown MODULE/ASSY/PLATE ' + row.REF);
+      var p0 = namedPoints(sp, false).pbc;
+      return [{ spec: sp, no: sp.ID, moduleId: null, memberKey: null,
+                mloc: new THREE.Matrix4().makeTranslation(-p0[0], -p0[1], 0) }];
+    }
+
     assyRows.forEach(function (row) {
+      if (row.__g) {                     // ASSY <id> <MODULE/ASSY/PLATE> G.X G.Y G.Z [ROT.X/Y/Z]
+        var src;
+        try { src = assySource(row); } catch (err) { buildErr(err.message); return; }
+        // the definition keeps its own reference point at the origin, so a later
+        // ASSY row that reuses this id places it by the same G.X/G.Y/G.Z rule
+        assyDefs[row.NO] = src;
+        var G = new THREE.Matrix4().makeTranslation(row.GX, row.GY, row.GZ)
+                  .multiply(rotXYZ(row.RX, row.RY, row.RZ));
+        src.forEach(function (L) {
+          buildInstance(L.spec, G.clone().multiply(L.mloc), row.NO + '/' + L.no,
+                        row.NO, '', false, L.moduleId, L.memberKey);
+        });
+        return;
+      }
       if (row.PART) {                    // part instance: place every member plate
         var part = parts[row.PART];
         if (!part) { buildErr(row.NO + ': unknown MODULE=' + row.PART); return; }
@@ -1184,7 +1304,9 @@
     if (!ids.length) { sectionRow(tbl, 'none', 'no MODULE row'); return; }
     ids.forEach(function (id) {
       var part = lastParts[id];
-      var used = items.some(function (it) { return it.group === id || it.no.indexOf(id) === 0; });
+      var used = items.some(function (it) {
+        return it.moduleId === id || it.group === id || it.no.indexOf(id) === 0;
+      });
       var tr = document.createElement('tr');
       tr.innerHTML =
         '<td class="sty"><input type="range" min="10" max="100" step="5" value="' +
@@ -1212,9 +1334,7 @@
           '" title="opacity of this plate in the module" ' +
           'oninput="plateBuilder.setOpacity(\'member\',\'' + key + '\',this.value)"></td>' +
           '<td class="memname">' + esc(row.NO) +
-          '<div class="dims">' + esc(row.PLANE) + ' · ' +
-          esc(row.REFPT.slice(1)) + faceMark(row.FACE) +
-          ' · off ' + row.OFFSET +
+          '<div class="dims">' + esc(memberDesc(row)) +
           (part.base && part.base.inst === row.NO ? ' · BASE' : '') + '</div></td>';
         tbl.appendChild(mr);
       });
@@ -1419,7 +1539,7 @@
       if (!spec) { bad.push(row.NO); return; }
       var pts = namedPoints(spec, false);
       var m;
-      try { m = planeMatrixAnchor(row, pts, spec.THK); } catch (e) { return; }
+      try { m = memberMatrix(row, pts, spec.THK); } catch (e) { return; }
       if (part.base && row.NO === part.base.inst) {
         var a = pts[part.base.pt] || pts.pbl;
         basePt = new THREE.Vector3(a[0], a[1],
@@ -1627,7 +1747,7 @@
       var spec = lastPlates[row.PLATE];
       if (!spec) return;
       var m;
-      try { m = planeMatrixAnchor(row, namedPoints(spec, false), spec.THK); } catch (e) { return; }
+      try { m = memberMatrix(row, namedPoints(spec, false), spec.THK); } catch (e) { return; }
       var g2 = buildPlate2D(spec, lastCuts, lastPlates);
       out.push({ no: row.NO, spec: spec, thk: spec.THK, matrix: m,
                  mass: g2.area * spec.THK * RHO, dims: '',
