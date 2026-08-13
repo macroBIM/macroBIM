@@ -112,6 +112,9 @@
     '  font-size:11px; color:#9aa3b0; line-height:1.55; }',
     '#pb-hud { position:absolute; left:10px; bottom:8px; color:#5b6472; font-size:11px;',
     '  pointer-events:none; }',
+    '#pb-meas-out { position:absolute; left:10px; top:8px; font-size:12px; color:#8a93a0;',
+    '  background:rgba(21,24,28,.82); border:1px solid #2c323b; border-radius:4px;',
+    '  padding:5px 9px; pointer-events:none; display:none; }',
     '#pb-side .plname { color:#eef1f6; cursor:pointer; }',
     '#pb-side .plname:hover { color:#6fb3e8; text-decoration:underline; }',
     '#pb-modal { position:fixed; left:0; top:0; right:0; bottom:0; background:rgba(0,0,0,.35);',
@@ -138,7 +141,9 @@
   var onResize = null;                  // the one live window-resize handler
   var flatMode = false;                 // draw plates as surfaces (no thickness)
   var showAxes = false;                 // local axes on every placed plate
-  var showFaces = false;                // tint the +/- faces of every plate
+  var showFaces = false;
+  var measMain = null, measPv = null;     // measure tools, one per view
+  var showMeasure = false, measurePv = false;                // tint the +/- faces of every plate
   var memberAxes = {};                  // 'MODULE/POS' -> show local axes in the preview
   // appearance overrides, kept across reloads: instance > module > plate
   var ovColor = { plate: {}, module: {}, item: {} };
@@ -1189,6 +1194,7 @@
     stopPreview3D();
     pvModuleId = null;
     document.getElementById('pb-pv-flat').parentNode.style.display = 'none';
+    document.getElementById('pb-pv-meas').parentNode.style.display = 'none';
     document.getElementById('pb-pv-stl').style.display = 'none';
     document.getElementById('pb-pv-ifc').style.display = 'none';
     cv.style.display = 'block';
@@ -1397,6 +1403,148 @@
     });
   }
 
+  /* ---------------- measure tool ---------------- */
+  // Snap targets: every vertex of a plate's cut outline on both faces, plus the
+  // centre of every hole (both faces and mid-thickness).
+  function snapPointsOf(rings, thk, matrix) {
+    var out = [], half = flatMode ? 0 : thk / 2;
+    function push(x, y, z) { out.push(new THREE.Vector3(x, y, z).applyMatrix4(matrix)); }
+    rings.outers.forEach(function (ring, i) {
+      ring.forEach(function (q) {
+        push(q[0], q[1], half);
+        if (half) push(q[0], q[1], -half);
+      });
+      (rings.holes[i] || []).forEach(function (h) {
+        var c = polyCentroid(h);
+        push(c[0], c[1], half);
+        if (half) { push(c[0], c[1], 0); push(c[0], c[1], -half); }
+      });
+    });
+    return out;
+  }
+
+  // One measuring session over a scene: hover snaps to the nearest point, two
+  // clicks fix a span, a third starts over. Attached per view (main + preview).
+  function createMeasure(cfg) {          // {scene, camera, dom, out, size}
+    var M = { on: false, snaps: [], picks: [], hover: null, grp: null,
+              down: null, moved: false };
+    var v = new THREE.Vector3();
+
+    function clear() {
+      if (M.grp) { disposeScene(M.grp); cfg.scene.remove(M.grp); M.grp = null; }
+    }
+    function dot(p, color, r) {
+      var m = new THREE.Mesh(new THREE.SphereGeometry(r, 14, 10),
+                new THREE.MeshBasicMaterial({ color: color, depthTest: false }));
+      m.position.copy(p);
+      return m;
+    }
+    function seg(a, b, color, r) {
+      var g = new THREE.BufferGeometry().setFromPoints([a, b]);
+      return new THREE.Line(g, new THREE.LineBasicMaterial({ color: color, depthTest: false }));
+    }
+    function fmt(n) { return (Math.round(n * 100) / 100).toString(); }
+
+    function redraw() {
+      clear();
+      if (!M.on) { report(); return; }
+      var g = new THREE.Group(), r = cfg.size() * 0.006;
+      if (M.hover && M.picks.length < 2) g.add(dot(M.hover, 0x6fb3e8, r * 1.3));
+      M.picks.forEach(function (p) { g.add(dot(p, 0xf0c674, r)); });
+      if (M.picks.length === 2) {
+        var a = M.picks[0], b = M.picks[1];
+        g.add(seg(a, b, 0xf0c674));
+        var c1 = new THREE.Vector3(b.x, a.y, a.z);      // X-Y-Z staircase
+        var c2 = new THREE.Vector3(b.x, b.y, a.z);
+        g.add(seg(a, c1, 0xe05c4f));
+        g.add(seg(c1, c2, 0x6fc36f));
+        g.add(seg(c2, b, 0x5c9bd1));
+        var mid = a.clone().add(b).multiplyScalar(0.5);
+        var lb = makeLabel(fmt(a.distanceTo(b)), '#f0c674', cfg.size() * 0.045);
+        lb.position.copy(mid);
+        g.add(lb);
+      }
+      M.grp = g;
+      cfg.scene.add(g);
+      report();
+    }
+
+    function report() {
+      var el = document.getElementById(cfg.out);
+      if (!el) return;
+      if (!M.on) { el.innerHTML = '&nbsp;'; return; }
+      if (M.picks.length === 0) {
+        el.innerHTML = '<span style="color:#6fb3e8">measure</span> — click a corner or a hole centre' +
+          (M.hover ? ' &nbsp; <span style="color:#8a93a0">' + xyz(M.hover) + '</span>' : '');
+        return;
+      }
+      if (M.picks.length === 1) {
+        el.innerHTML = '<span style="color:#f0c674">P1</span> ' + xyz(M.picks[0]) +
+          ' &nbsp; — click the second point';
+        return;
+      }
+      var a = M.picks[0], b = M.picks[1];
+      el.innerHTML =
+        '<span style="color:#e05c4f">\u0394X ' + fmt(b.x - a.x) + '</span> &nbsp; ' +
+        '<span style="color:#6fc36f">\u0394Y ' + fmt(b.y - a.y) + '</span> &nbsp; ' +
+        '<span style="color:#5c9bd1">\u0394Z ' + fmt(b.z - a.z) + '</span> &nbsp;&nbsp; ' +
+        '<span style="color:#f0c674">dist ' + fmt(a.distanceTo(b)) + '</span>' +
+        ' &nbsp; <span style="color:#5b6472">click again to restart</span>';
+    }
+    function xyz(p) { return '(' + fmt(p.x) + ', ' + fmt(p.y) + ', ' + fmt(p.z) + ')'; }
+
+    function nearest(ev) {
+      var rect = cfg.dom.getBoundingClientRect();
+      var mx = ev.clientX - rect.left, my = ev.clientY - rect.top;
+      var best = null, bd = 18 * 18;
+      for (var i = 0; i < M.snaps.length; i++) {
+        v.copy(M.snaps[i]).project(cfg.camera);
+        if (v.z > 1) continue;
+        var sx = (v.x + 1) / 2 * rect.width, sy = (1 - v.y) / 2 * rect.height;
+        var d = (sx - mx) * (sx - mx) + (sy - my) * (sy - my);
+        if (d < bd) { bd = d; best = M.snaps[i]; }
+      }
+      return best;
+    }
+
+    function onMove(ev) {
+      if (!M.on) return;
+      if (M.down) M.moved = M.moved ||
+        Math.abs(ev.clientX - M.down[0]) + Math.abs(ev.clientY - M.down[1]) > 4;
+      var h = nearest(ev);
+      if (h === M.hover) return;
+      M.hover = h;
+      redraw();
+    }
+    function onDown(ev) { M.down = [ev.clientX, ev.clientY]; M.moved = false; }
+    function onUp(ev) {
+      var wasDrag = M.moved;
+      M.down = null; M.moved = false;
+      if (!M.on || wasDrag || ev.button !== 0) return;
+      var h = nearest(ev);
+      if (!h) return;
+      if (M.picks.length >= 2) M.picks = [];
+      M.picks.push(h.clone());
+      redraw();
+    }
+    cfg.dom.addEventListener('mousemove', onMove);
+    cfg.dom.addEventListener('mousedown', onDown);
+    cfg.dom.addEventListener('mouseup', onUp);
+
+    return {
+      setSnaps: function (list) { M.snaps = list; M.picks = []; M.hover = null; redraw(); },
+      enable: function (on) { M.on = !!on; M.picks = []; M.hover = null; redraw(); },
+      isOn: function () { return M.on; },
+      refresh: redraw,
+      dispose: function () {
+        clear();
+        cfg.dom.removeEventListener('mousemove', onMove);
+        cfg.dom.removeEventListener('mousedown', onDown);
+        cfg.dom.removeEventListener('mouseup', onUp);
+      }
+    };
+  }
+
   function buildGizmo() {                       // small axis indicator (camera-synced)
     var scn = new THREE.Scene();
     var cam = new THREE.PerspectiveCamera(40, 1, 0.1, 100);
@@ -1560,6 +1708,7 @@
     pvModuleId = id;
     document.getElementById('pb-pv-flat').checked = flatMode;
     document.getElementById('pb-pv-flat').parentNode.style.display = 'flex';
+    document.getElementById('pb-pv-meas').parentNode.style.display = 'flex';
     document.getElementById('pb-pv-stl').style.display = 'block';
     document.getElementById('pb-pv-ifc').style.display = 'block';
     document.getElementById('pb-pv-canvas').style.display = 'none';
@@ -1591,7 +1740,7 @@
     sun.position.set(500, -650, 900);
     sc.add(sun);
 
-    var bbox = new THREE.Box3(), mass = 0, basePt = null, bad = [];
+    var bbox = new THREE.Box3(), mass = 0, basePt = null, bad = [], pvSnaps = [];
     part.pos.forEach(function (row) {
      try {
       var spec = lastPlates[row.PLATE];
@@ -1608,6 +1757,7 @@
       mass += g2d.area * spec.THK * RHO;
       if (memberAxes[id + '/' + row.NO]) sc.add(plateTriad(spec, m, triadLen(spec)));
       if (showFaces) sc.add(faceTint({ outers: g2d.outers, holes: g2d.holes }, spec.THK, m));
+      pvSnaps = pvSnaps.concat(snapPointsOf({ outers: g2d.outers, holes: g2d.holes }, spec.THK, m));
       var pop = resolveOpac({ plateId: row.PLATE, moduleId: id, memberKey: id + '/' + row.NO });
       var mat = new THREE.MeshPhongMaterial({
         color: resolveColor({ plateId: row.PLATE }, lastColors[row.PLATE] || 0x999999),
@@ -1704,6 +1854,13 @@
       (bad.length ? ' &middot; <span style="color:#f09a9a">not drawn: ' +
                     esc(bad.join(', ')) + '</span>' : '') +
       ' &nbsp;&nbsp;<span style="color:#5b6472">drag to rotate</span>';
+
+    if (measPv) measPv.dispose();
+    measPv = createMeasure({ scene: sc, camera: cam, dom: rn.domElement,
+                             out: 'pb-pv-pos', size: function () { return size; } });
+    measPv.setSnaps(pvSnaps);
+    document.getElementById('pb-pv-meas').checked = measurePv;
+    measPv.enable(measurePv);
 
     var pgz = buildGizmo();
     pvToken++;
@@ -1806,8 +1963,12 @@
     });
     updateSceneAxes();
     updateSceneFaces();
+    syncMeasureSnaps();
   }
-  function toggleItem(i, on) { items[i].groupObj.visible = on; updateSceneAxes(); updateSceneFaces(); }
+  function toggleItem(i, on) {
+    items[i].groupObj.visible = on;
+    updateSceneAxes(); updateSceneFaces(); syncMeasureSnaps();
+  }
   function toggleGroup(g, on) {
     items.forEach(function (it) { if (it.group === g) it.groupObj.visible = on; });
     listRows.forEach(function (r, i) {
@@ -1817,6 +1978,10 @@
     });
     updateSceneAxes();
     updateSceneFaces();
+    syncMeasureSnaps();
+  }
+  function syncMeasureSnaps() {
+    if (measMain && showMeasure) measMain.setSnaps(mainSnaps());
   }
 
   /* -------- STL export (world transforms applied) -------- */
@@ -2076,6 +2241,8 @@
       '      onchange="plateBuilder.setFaces(this.checked)">' +
       '      <span style="color:#ffb45a">+</span>/<span style="color:#5aa0ff">&#8722;</span>' +
       '      face</label>' +
+      '    <label class="chk"><input type="checkbox" id="pb-meas"' +
+      '      onchange="plateBuilder.setMeasure(this.checked)"> measure</label>' +
       '  </div>' +
       '  <div id="pb-prog"><div id="pb-prog-label"></div>' +
       '    <div class="pb-track"><div id="pb-prog-bar"></div></div></div>' +
@@ -2086,12 +2253,15 @@
       '  <div id="pb-total"></div>' +
       '  <div id="pb-note"></div>' +
       '</div>' +
-      '<div id="pb-view"><div id="pb-hud">Drag: rotate · Wheel: zoom · Right-drag: pan</div></div>' +
+      '<div id="pb-view"><div id="pb-hud">Drag: rotate · Wheel: zoom · Right-drag: pan</div>' +
+      '  <div id="pb-meas-out">&nbsp;</div></div>' +
       '<div id="pb-pal"></div>' +
       '<div id="pb-modal"><div class="box">' +
       '  <h2><span class="close" onclick="plateBuilder.closePreview()">&#10005;</span>' +
       '      <button class="pvbtn" id="pb-pv-ifc" onclick="plateBuilder.exportModuleIFC()">IFC</button>' +
       '      <button class="pvbtn" id="pb-pv-stl" onclick="plateBuilder.exportModuleSTL()">STL</button>' +
+      '      <label class="pvchk"><input type="checkbox" id="pb-pv-meas"' +
+      '        onchange="plateBuilder.setMeasurePv(this.checked)"> measure</label>' +
       '      <label class="pvchk"><input type="checkbox" id="pb-pv-flat"' +
       '        onchange="plateBuilder.setFlat(this.checked)"> surface only</label>' +
       '      <span id="pb-pv-title"></span></h2>' +
@@ -2281,6 +2451,12 @@
       if (e.dataTransfer.files.length) loadExcelFile(e.dataTransfer.files[0]);
     });
 
+    if (measMain) measMain.dispose();
+    measMain = createMeasure({ scene: scene, camera: camera, dom: renderer.domElement,
+                               out: 'pb-meas-out', size: function () { return size; } });
+    if (showMeasure) { document.getElementById('pb-meas').checked = true; }
+    setMeasure(showMeasure);
+
     var fitW = 0, fitH = 0;
     function fitRenderer() {                      // no-op while the pane has no size yet
       var cw = container.clientWidth, ch = container.clientHeight;
@@ -2347,6 +2523,32 @@
     });
     scene.add(sceneFaces);
   }
+  // snap targets for the main scene, rebuilt whenever visibility changes
+  function mainSnaps() {
+    var out = [];
+    items.forEach(function (it) {
+      if (!it.groupObj.visible) return;
+      out = out.concat(snapPointsOf(it.rings, it.thk, it.matrix));
+    });
+    return out;
+  }
+  function setMeasure(on) {
+    showMeasure = !!on;
+    var cb = document.getElementById('pb-meas');
+    if (cb) cb.checked = showMeasure;
+    var out = document.getElementById('pb-meas-out');
+    if (out) out.style.display = showMeasure ? 'block' : 'none';
+    if (!measMain) return;
+    measMain.setSnaps(showMeasure ? mainSnaps() : []);
+    measMain.enable(showMeasure);
+  }
+  function setMeasurePv(on) {
+    measurePv = !!on;
+    var cb = document.getElementById('pb-pv-meas');
+    if (cb) cb.checked = measurePv;
+    if (measPv) measPv.enable(measurePv);
+  }
+
   function setFaces(on) {
     showFaces = !!on;
     var cb = document.getElementById('pb-faces');
@@ -2413,6 +2615,7 @@
     pickExcel: pickExcel, loadExcelFile: loadExcelFile,
     preview: preview, previewModule: previewModule, closePreview: closePreview,
     setFlat: setFlat, setColor: setColor, setOpacity: setOpacity, fitPreview: pvFit,
+    setMeasure: setMeasure, setMeasurePv: setMeasurePv,
     openPalette: openPalette, pickColor: pickColor,
     exportModuleSTL: exportModuleSTL, exportModuleIFC: exportModuleIFC,
     setAxes: setAxes, setFaces: setFaces,
