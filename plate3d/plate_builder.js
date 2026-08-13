@@ -208,7 +208,7 @@
   var scene, camera, renderer, controls;
   var lastPlates = {}, lastCuts = [], lastColors = {}, lastParts = {};  // for preview modals
   var pvToken = 0, pvRenderer = null, pvModuleId = null;   // 3D preview lifecycle
-  var pvCtrl = null, pvScene = null;
+  var pvCtrl = null, pvScene = null, pvHome = null;   // pvHome = the preview's opening view
   var pvX = null, pvPts = [], pvBase = null, pv = null;   // 2D preview state
   var CENTER = null, VDIST = 1200;                // set from model bbox in run()
   var items = [];
@@ -1345,6 +1345,17 @@
     pvBase.width = W; pvBase.height = H;
     pvBase.getContext('2d').drawImage(cv, 0, 0);   // snapshot for cheap hover redraws
   }
+  function regenPreview() {                     // undo zoom/pan, back to the opening view
+    if (pvModuleId) {
+      if (!pvCtrl || !pvHome) return;
+      pvCtrl.object.position.copy(pvHome.pos);
+      pvCtrl.target.copy(pvHome.tgt);
+      pvCtrl.update();
+      return;
+    }
+    pvFit();
+  }
+
   function closePreview() {
     pvModuleId = null;
     pv = null;
@@ -1873,6 +1884,7 @@
     cam.position.set(center.x + size * 1.05, center.y - size * 1.2, center.z + size * 0.85);
     ctr.target.copy(center);
     ctr.update();
+    pvHome = { pos: cam.position.clone(), tgt: ctr.target.clone() };
 
     pvMeta.innerHTML =
       'plates ' + part.pos.length + ' &middot; ' + mass.toFixed(3) + ' kg &middot; ' +
@@ -2286,6 +2298,8 @@
       '<div id="pb-pal"></div>' +
       '<div id="pb-modal"><div class="box">' +
       '  <h2><span class="close" onclick="plateBuilder.closePreview()">&#10005;</span>' +
+      '      <button class="pvbtn" onclick="plateBuilder.regenPreview()"' +
+      '        title="back to the opening view">regen</button>' +
       '      <button class="pvbtn" id="pb-pv-ifc" onclick="plateBuilder.exportModuleIFC()">IFC</button>' +
       '      <button class="pvbtn" id="pb-pv-stl" onclick="plateBuilder.exportModuleSTL()">STL</button>' +
       '      <label class="pvchk"><input type="checkbox" id="pb-pv-meas"' +
@@ -2644,7 +2658,7 @@
     preview: preview, previewModule: previewModule, closePreview: closePreview,
     setFlat: setFlat, setColor: setColor, setOpacity: setOpacity, fitPreview: pvFit,
     setMeasure: setMeasure, setMeasurePv: setMeasurePv,
-    openPalette: openPalette, pickColor: pickColor,
+    openPalette: openPalette, pickColor: pickColor, regenPreview: regenPreview,
     exportModuleSTL: exportModuleSTL, exportModuleIFC: exportModuleIFC,
     setAxes: setAxes, setFaces: setFaces,
     toggleMemberAxis: toggleMemberAxis, toggleModuleRows: toggleModuleRows
