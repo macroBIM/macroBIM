@@ -128,6 +128,7 @@
     '#pb-modal .meta { color:#8a93a0; font-size:11px; margin-top:8px; }'
   ].join('\n');
 
+  var onResize = null;                  // the one live window-resize handler
   var flatMode = false;                 // draw plates as surfaces (no thickness)
   var showAxes = false;                 // local axes on every placed plate
   var showFaces = false;                // tint the +/- faces of every plate
@@ -1925,7 +1926,7 @@
                : null));
 
     var container = document.getElementById('pb-view');
-    var w = container.clientWidth, h = container.clientHeight;
+    var w = container.clientWidth || 800, h = container.clientHeight || 600;
 
     scene = new THREE.Scene();
     scene.background = new THREE.Color(0x15181c);
@@ -1946,12 +1947,10 @@
     var colors = data.colors || {};
     pvModuleId = null;
     var bbox = buildAll(data, colors);
-    buildPlateList(colors);
-    buildList(colors);
-    buildModuleList();
 
     CENTER = bbox.isEmpty() ? new THREE.Vector3(0, 150, 0) : bbox.getCenter(new THREE.Vector3());
     var size = bbox.isEmpty() ? 900 : bbox.getSize(new THREE.Vector3()).length();
+    if (!isFinite(size) || size <= 0) size = 900;
     VDIST = size * 1.5 + 200;
 
     var grid = new THREE.GridHelper(Math.ceil(size / 400) * 800, 32, 0x39424d, 0x242a31);
@@ -1965,6 +1964,11 @@
     controls.enableDamping = true;
     controls.dampingFactor = 0.1;
     setView('iso');
+
+    // the sidebar must never be able to take the 3D view down with it
+    try { buildPlateList(colors); } catch (e) { console.error('[plateBuilder] plate list: ' + e.message); }
+    try { buildList(colors); } catch (e) { console.error('[plateBuilder] placed list: ' + e.message); }
+    try { buildModuleList(); } catch (e) { console.error('[plateBuilder] module list: ' + e.message); }
     if (flatMode) document.getElementById('pb-flat').checked = true;
     if (showAxes) { document.getElementById('pb-axes').checked = true; updateSceneAxes(); }
     if (showFaces) { document.getElementById('pb-faces').checked = true; updateSceneFaces(); }
@@ -1981,20 +1985,31 @@
       if (e.dataTransfer.files.length) loadExcelFile(e.dataTransfer.files[0]);
     });
 
-    window.addEventListener('resize', function () {
-      camera.aspect = container.clientWidth / container.clientHeight;
+    var fitW = 0, fitH = 0;
+    function fitRenderer() {                      // no-op while the pane has no size yet
+      var cw = container.clientWidth, ch = container.clientHeight;
+      if (!cw || !ch || (cw === fitW && ch === fitH)) return;
+      fitW = cw; fitH = ch;
+      camera.aspect = cw / ch;
       camera.updateProjectionMatrix();
-      renderer.setSize(container.clientWidth, container.clientHeight);
-    });
+      renderer.setSize(cw, ch);
+    }
+    fitRenderer();
+    if (onResize) window.removeEventListener('resize', onResize);
+    onResize = fitRenderer;
+    window.addEventListener('resize', onResize);
 
     (function animate() {
       if (token !== runToken) return;             // stop old loop after a re-run
       requestAnimationFrame(animate);
+      fitRenderer();                              // panes can be resized without a window event
       controls.update();
       renderer.render(scene, camera);
 
-      drawGizmo(renderer, { scene: axesScene, camera: axesCamera }, camera, controls.target,
-                container.clientWidth, container.clientHeight, 110);
+      if (fitW && fitH) {
+        drawGizmo(renderer, { scene: axesScene, camera: axesCamera }, camera, controls.target,
+                  fitW, fitH, 110);
+      }
     })();
   }
 
