@@ -320,8 +320,15 @@
     return c === '+' ? 1 : c === '-' ? -1 : 0;
   }
   function faceMark(f) { return f > 0 ? '+' : f < 0 ? '\u2212' : ''; }
-  function memberDesc(row) {                    // sidebar line for one module member
-    var t = row.PLANE + ' \u00b7 ' + row.REFPT.slice(1) + faceMark(row.FACE) + ' \u00b7 ';
+  // the plane name as the sheet wrote it (XY / XZ / YZ), not the internal role
+  function planeLabel(role) {
+    var map = yupSheet ? PLANE_ALIAS_YUP : PLANE_ALIAS, k = ['XY', 'XZ', 'YZ'];
+    for (var i = 0; i < k.length; i++) if (map[k[i]] === role) return k[i];
+    return role;
+  }
+  function memberDesc(row) {                    // one module member, for the preview panel
+    var t = (row.PL_IN || planeLabel(row.PLANE)) + ' \u00b7 ' +
+            row.REFPT.slice(1) + faceMark(row.FACE) + ' \u00b7 ';
     t += row.__xyz ? '(' + row.LX + ', ' + row.LY + ', ' + row.LZ + ')'
                    : 'off ' + row.OFFSET;
     var rot = row.__xyz ? [row.RX, row.RY, row.RZ] : [0, 0, row.ROT];
@@ -439,6 +446,7 @@
         if (!mplate) { warn('row ' + (r + 1) + ': MODULE row with undefined plate ' + msub); continue; }
         if (palias[str(v[2]).toUpperCase()]) {   // legacy: <plate> PLANE Ref.Pt L.X L.Y L.ROT OFFSET
           currentPart.pos.push({ NO: msub, PLATE: mplate, PLANE: palias[str(v[2]).toUpperCase()],
+                                 PL_IN: str(v[2]).toUpperCase(),
                                  REFPT: normPoint(v[3]), FACE: faceOf(v[3]),
                                  LX: num(v[4], 0), LY: num(v[5], 0),
                                  ROT: num(v[6], 0), OFFSET: num(v[7], 0) });
@@ -452,6 +460,7 @@
           continue;
         }
         currentPart.pos.push({ __xyz: true, NO: msub, PLATE: mplate, PLANE: palias[mplane],
+                               PL_IN: mplane,
                                REFPT: normPoint(v[2]), FACE: faceOf(v[2]),
                                LX: num(v[3], 0), LY: num(v[4], 0), LZ: num(v[5], 0),
                                RX: num(v[7], 0), RY: num(v[8], 0), RZ: num(v[9], 0) });
@@ -463,6 +472,7 @@
         var pplane = str(v[1]).toUpperCase();
         if (!palias[pplane]) { warn('row ' + (r + 1) + ': unknown PLANE ' + pplane + ' (use XY/YZ/XZ)'); continue; }
         currentPart.pos.push({ NO: ppid, PLATE: pplate, PLANE: palias[pplane],
+                               PL_IN: pplane,
                                REFPT: normPoint(v[2]), FACE: faceOf(v[2]),
                                LX: num(v[3], 0), LY: num(v[4], 0),
                                ROT: num(v[5], 0), OFFSET: num(v[6], 0) });
