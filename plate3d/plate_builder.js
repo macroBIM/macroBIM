@@ -1135,13 +1135,9 @@
     ids.forEach(function (id) {
       var part = lastParts[id];
       var used = items.some(function (it) { return it.group === id || it.no.indexOf(id) === 0; });
-      var mcol = ovColor.module[id] !== undefined ? ovColor.module[id] : 0x8a93a0;
       var tr = document.createElement('tr');
       tr.innerHTML =
-        '<td class="sty"><span class="sw" title="module colour (overrides plate colours)"' +
-        ' style="background:' + int2hex(mcol) + '"' +
-        ' onclick="plateBuilder.openPalette(event,\'module\',\'' + id + '\',this)"></span>' +
-        '<input type="range" min="10" max="100" step="5" value="' +
+        '<td class="sty"><input type="range" min="10" max="100" step="5" value="' +
         Math.round(resolveOpac('', id, null) * 100) +
         '" title="opacity" oninput="plateBuilder.setOpacity(\'module\',\'' + id + '\',this.value)"></td>' +
         '<td><span class="plname" onclick="plateBuilder.previewModule(\'' + id + '\')">' +
@@ -1313,9 +1309,16 @@
       sc.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints([basePt, bl.position.clone()]),
                             new THREE.LineBasicMaterial({ color: 0xf0c674, depthTest: false })));
     }
-    var grid = new THREE.GridHelper(Math.ceil(size / 200) * 400, 20, 0x39424d, 0x242a31);
-    grid.position.set(center.x, bbox.isEmpty() ? 0 : mn.y - 1, center.z);
+    // grid centred on the module-local origin so its centre lines mark (0,0)
+    var reach = bbox.isEmpty() ? 500 : Math.max(
+      Math.abs(mn.x), Math.abs(mx3.x), Math.abs(mn.z), Math.abs(mx3.z), size * 0.3);
+    var gspan = Math.ceil(reach * 2 / 100) * 100;
+    var grid = new THREE.GridHelper(gspan, Math.max(4, Math.round(gspan / 50)), 0x5b6472, 0x242a31);
+    grid.position.set(0, 0, 0);
     sc.add(grid);
+    var omat = new THREE.LineBasicMaterial({ color: 0x6b7480 });
+    sc.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints(
+      [new THREE.Vector3(0, 0, 0), new THREE.Vector3(0, size * 0.12, 0)]), omat));
 
     var ctr = new THREE.OrbitControls(cam, rn.domElement);
     ctr.enableDamping = true;
@@ -1363,9 +1366,8 @@
       tr.innerHTML =
         '<td class="sty"><input type="checkbox" checked id="pb-cb' + i + '" ' +
         'onchange="plateBuilder.toggleItem(' + i + ',this.checked)">' +
-        '<span class="sw" style="background:' +
-        int2hex(resolveColor(it.plateId, it.moduleId, it.no, it.baseColor)) +
-        '" onclick="plateBuilder.openPalette(event,\'item\',\'' + it.no + '\',this)"></span></td>' +
+        '<span class="chip" style="margin-left:5px;background:' +
+        int2hex(resolveColor(it.plateId, it.moduleId, it.no, it.baseColor)) + '"></span></td>' +
         '<td><span class="plname" onclick="plateBuilder.preview(\'' + it.plateId + '\')">' + it.no + '</span>' +
         '<div class="dims">' + it.dims + (it.remark ? ' · ' + it.remark : '') +
         ' · ' + it.mass.toFixed(3) + 'kg' +
