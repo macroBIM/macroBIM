@@ -1713,7 +1713,13 @@
   /* -------- STL export (world transforms applied) -------- */
   // triangles come from the stored rings, so the flat view and the module
   // preview (which has no scene meshes) export identical solids
+  // The scene uses the WebGL frame (Y up, +Z out of the screen). Every CAD/BIM
+  // format this exports to is Z-up, so exported geometry is rotated +90 deg about
+  // X on the way out: (x, y, z)scene -> (x, -z, y)file.
+  function zUpMatrix() { return new THREE.Matrix4().makeRotationX(Math.PI / 2); }
+
   function buildSTL(list, name) {
+    var ZUP = zUpMatrix();
     var out = 'solid ' + name + '\n';
     list.forEach(function (it) {
       it.rings.outers.forEach(function (ring, i) {
@@ -1730,9 +1736,10 @@
           var a = idx ? idx.getX(k * 3) : k * 3;
           var b = idx ? idx.getX(k * 3 + 1) : k * 3 + 1;
           var c = idx ? idx.getX(k * 3 + 2) : k * 3 + 2;
-          var vA = new THREE.Vector3().fromBufferAttribute(pos, a).applyMatrix4(it.matrix);
-          var vB = new THREE.Vector3().fromBufferAttribute(pos, b).applyMatrix4(it.matrix);
-          var vC = new THREE.Vector3().fromBufferAttribute(pos, c).applyMatrix4(it.matrix);
+          var wm = ZUP.clone().multiply(it.matrix);
+          var vA = new THREE.Vector3().fromBufferAttribute(pos, a).applyMatrix4(wm);
+          var vB = new THREE.Vector3().fromBufferAttribute(pos, b).applyMatrix4(wm);
+          var vC = new THREE.Vector3().fromBufferAttribute(pos, c).applyMatrix4(wm);
           var nr = new THREE.Vector3().crossVectors(
             new THREE.Vector3().subVectors(vB, vA),
             new THREE.Vector3().subVectors(vC, vA)).normalize();
@@ -1869,9 +1876,10 @@
     nx('IFCRELAGGREGATES(' + guid() + ',' + oOH + ',$,$,' + oBld + ',(' + oSt + '))');
     var solidPos = {};   // one placement per thickness (extrusion starts at -t/2)
 
+    var ZUP = zUpMatrix();
     var elements = [];
     list.forEach(function (it) {
-      var m = it.matrix.elements;                         // column-major
+      var m = ZUP.clone().multiply(it.matrix).elements;    // column-major, Z-up
       var loc = pt3(m[12], m[13], m[14]);
       var axis = dir3(m[8], m[9], m[10]);
       var ref = dir3(m[0], m[1], m[2]);
