@@ -13,7 +13,8 @@
   - **measure**: 3D 화면·모듈 미리보기에서 판 모서리/구멍 중심을 클릭해 ΔX·ΔY·ΔZ·거리 측정
   - 미리보기 창 **regen** 버튼: 줌·팬·회전을 처음 열렸을 때의 화면으로 되돌림
   - 엑셀(.xlsx) 로딩: Load Excel 버튼/드래그&드롭, 진행률 바, 결과·경고 패널
-  - 좌측 목록: PLATES(클릭 → 2D 도면 팝업) · MODULES(클릭 → 3D 미리보기) · 배치된 부재
+  - 좌측 목록: PLATES(클릭 → 2D 도면 팝업) · MODULES(클릭 → 3D 미리보기) · ASSEMBLY(조립체·모듈)
+  - 모듈 미리보기 왼쪽 패널: 구성 판별 hide/show · 색상 · 투명도 · local axes
 - **`data_bracket.js`** — 서포트 브래킷 예제 데이터 (`window.PLATE_DATA` 정의) — 데이터 파일의 표본
 - `codepen_empty.html` — **CodePen용 · 빈 시작** (링크 4줄: 라이브러리 3 + 엔진)
 - `codepen_example.html` — **CodePen용 · 브래킷 예제** (링크 5줄: + 데이터 파일)

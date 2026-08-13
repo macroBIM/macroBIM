@@ -90,8 +90,6 @@
     '#pb-side td.sty { white-space:nowrap; width:70px; }',
     '#pb-side .caret { color:#8a93a0; cursor:pointer; font-size:10px; }',
     '#pb-side .caret:hover { color:#d8dce2; }',
-    '#pb-side tr.mem td { padding-top:2px; padding-bottom:2px; border-bottom:1px solid #1e2228; }',
-    '#pb-side .memname { color:#b6c0cd; font-size:11px; padding-left:12px; }',
     '#pb-side .dims { color:#8a93a0; font-size:11px; }',
     '#pb-side .chk { display:flex; align-items:center; gap:4px; font-size:12px;',
     '  color:#8a93a0; cursor:pointer; padding:5px 6px; border:1px solid #3a424d;',
@@ -135,7 +133,23 @@
     '#pb-modal .close:hover { color:#fff; }',
     '#pb-modal canvas { background:#15181c; border:1px solid #2c323b; border-radius:4px;',
     '  display:block; cursor:crosshair; }',
-    '#pb-modal .meta { color:#8a93a0; font-size:11px; margin-top:8px; }'
+    '#pb-modal .meta { color:#8a93a0; font-size:11px; margin-top:8px; }',
+    '#pb-modal .pvbody { display:flex; gap:10px; align-items:flex-start; }',
+    '#pb-pv-tree { display:none; width:196px; max-height:362px; overflow-y:auto;',
+    '  background:#191d23; border:1px solid #2c323b; border-radius:4px; padding:6px 4px; }',
+    '#pb-pv-tree table { width:100%; border-collapse:collapse; }',
+    '#pb-pv-tree td { padding:3px 2px; vertical-align:middle; color:#d8dce2;',
+    '  border-bottom:1px solid #22262d; }',
+    '#pb-pv-tree tr.thead td { color:#f0c674; font-size:10px; font-weight:600;',
+    '  letter-spacing:.4px; padding-bottom:5px; border-bottom:1px solid #3a424d; }',
+    '#pb-pv-tree tr.off td { opacity:.4; }',
+    '#pb-pv-tree .nm { font-size:11px; color:#eef1f6; }',
+    '#pb-pv-tree .dims { color:#8a93a0; font-size:10px; }',
+    '#pb-pv-tree input[type=range] { width:38px; height:11px; vertical-align:middle;',
+    '  accent-color:#3a76ad; cursor:pointer; }',
+    '#pb-pv-tree input[type=checkbox] { margin:0 3px 0 0; vertical-align:middle; }',
+    '#pb-pv-tree .sw { display:inline-block; width:12px; height:12px; border:1px solid #3a424d;',
+    '  border-radius:2px; cursor:pointer; vertical-align:middle; margin-right:3px; }'
   ].join('\n');
 
   var onResize = null;                  // the one live window-resize handler
@@ -146,6 +160,9 @@
   var showMeasure = false, measurePv = false;
   var sceneSize = 900;                   // model size, for scaling helpers                // tint the +/- faces of every plate
   var memberAxes = {};                  // 'MODULE/POS' -> show local axes in the preview
+  var memberHidden = {};                // 'MODULE/POS' -> hidden in the module preview
+  var pvTreeId = null;                  // module the preview panel is currently listing
+  var pvMemberObj = {};                 // 'MODULE/POS' -> its group in the open preview
   // appearance overrides, kept across reloads: instance > module > plate
   var ovColor = { plate: {}, module: {}, item: {} };
   var modColors = {};                   // auto colour per MODULE (the assembly view uses it)
@@ -1194,6 +1211,7 @@
     if (!modal || !cv) return;
     stopPreview3D();
     pvModuleId = null;
+    document.getElementById('pb-pv-tree').style.display = 'none';
     document.getElementById('pb-pv-flat').parentNode.style.display = 'none';
     document.getElementById('pb-pv-meas').parentNode.style.display = 'none';
     document.getElementById('pb-pv-stl').style.display = 'none';
@@ -1387,33 +1405,88 @@
         Math.round((ovOpac.module[id] !== undefined ? ovOpac.module[id] : 1) * 100) +
         '" title="opacity of the whole module" ' +
         'oninput="plateBuilder.setOpacity(\'module\',\'' + id + '\',this.value)"></td>' +
-        '<td><span class="caret" onclick="plateBuilder.toggleModuleRows(\'' + id + '\')">▾</span> ' +
-        '<span class="plname" onclick="plateBuilder.previewModule(\'' + id + '\')">' +
+        '<td><span class="plname" onclick="plateBuilder.previewModule(\'' + id + '\')">' +
         esc(id) + '</span>' +
         '<div class="dims">plates ' + part.pos.length +
         (part.base ? ' · base ' + esc(part.base.inst) + '.' + part.base.pt.slice(1) : ' · no base') +
         (used ? '' : ' · not assembled') + '</div></td>';
       tbl.appendChild(tr);
 
-      part.pos.forEach(function (row) {                 // member plates of this module
-        var key = id + '/' + row.NO;
-        var mr = document.createElement('tr');
-        mr.className = 'mem m-' + id.replace(/[^A-Za-z0-9]/g, '_');
-        mr.innerHTML =
-          '<td class="sty"><input type="checkbox" title="show local axes"' +
-          (memberAxes[key] ? ' checked' : '') +
-          ' onchange="plateBuilder.toggleMemberAxis(\'' + id + '\',\'' + row.NO + '\',this.checked)">' +
-          '<input type="range" min="10" max="100" step="5" value="' +
-          Math.round((ovOpac.member[key] !== undefined ? ovOpac.member[key] : 1) * 100) +
-          '" title="opacity of this plate in the module" ' +
-          'oninput="plateBuilder.setOpacity(\'member\',\'' + key + '\',this.value)"></td>' +
-          '<td class="memname">' + esc(row.NO) +
-          '<div class="dims">' + esc(memberDesc(row)) +
-          (part.base && part.base.inst === row.NO ? ' · BASE' : '') + '</div></td>';
-        tbl.appendChild(mr);
-      });
     });
   }
+
+  // The module's member plates, listed beside its preview: hide/show, local
+  // axes and per-plate opacity for the module currently open.
+  function buildPvTree(id, force) {
+    var host = document.getElementById('pb-pv-tree');
+    if (!host) return;
+    var part = lastParts[id];
+    if (!part) { host.style.display = 'none'; host.innerHTML = ''; pvTreeId = null; return; }
+    host.style.display = 'block';
+    // the preview rebuilds on every slider step - leave the panel's DOM alone
+    // then, or the control being dragged is destroyed under the pointer
+    if (!force && pvTreeId === id) return;
+    pvTreeId = id;
+    var t = document.createElement('table');
+    var hr = document.createElement('tr');
+    hr.className = 'thead';
+    hr.innerHTML = '<td colspan="2">PLATES IN ' + esc(id) + '</td>';
+    t.appendChild(hr);
+    part.pos.forEach(function (row) {
+      var key = id + '/' + row.NO;
+      var on = !memberHidden[key];
+      var tr = document.createElement('tr');
+      tr.setAttribute('data-key', key);
+      if (!on) tr.className = 'off';
+      tr.innerHTML =
+        '<td style="width:74px;white-space:nowrap">' +
+        '<input type="checkbox" title="show / hide this plate"' + (on ? ' checked' : '') +
+        ' onchange="plateBuilder.togglePvMember(\'' + id + '\',\'' + row.NO + '\',this.checked)">' +
+        '<span class="sw" title="colour of this plate" style="background:' +
+        int2hex(resolveColor({ plateId: row.PLATE }, (lastColors && lastColors[row.PLATE]) || 0x999999)) +
+        '" onclick="plateBuilder.openPalette(event,\'plate\',\'' + row.PLATE + '\',this)"></span>' +
+        '<input type="range" min="10" max="100" step="5" value="' +
+        Math.round((ovOpac.member[key] !== undefined ? ovOpac.member[key] : 1) * 100) +
+        '" title="opacity of this plate" ' +
+        'oninput="plateBuilder.setOpacity(\'member\',\'' + key + '\',this.value)"></td>' +
+        '<td><label class="nm" title="show local axes at its Ref.Pt">' +
+        '<input type="checkbox"' + (memberAxes[key] ? ' checked' : '') +
+        ' onchange="plateBuilder.toggleMemberAxis(\'' + id + '\',\'' + row.NO + '\',this.checked)"> ' +
+        esc(row.NO) + '</label>' +
+        '<div class="dims">' + esc(memberDesc(row)) +
+        (part.base && part.base.inst === row.NO ? ' · BASE' : '') + '</div></td>';
+      t.appendChild(tr);
+    });
+    host.innerHTML = '';
+    host.appendChild(t);
+  }
+
+  function pvSnapsOf(id) {
+    var part = lastParts[id], out = [];
+    if (!part) return out;
+    part.pos.forEach(function (row) {
+      if (memberHidden[id + '/' + row.NO]) return;
+      var spec = lastPlates[row.PLATE];
+      if (!spec) return;
+      var m;
+      try { m = yupFix(memberMatrix(row, namedPoints(spec, false), spec.THK)); } catch (e) { return; }
+      var g2 = buildPlate2D(spec, lastCuts, lastPlates);
+      out = out.concat(snapPointsOf({ outers: g2.outers, holes: g2.holes }, spec.THK, m));
+    });
+    return out;
+  }
+
+  function togglePvMember(id, no, on) {
+    var key = id + '/' + no;
+    if (on) delete memberHidden[key]; else memberHidden[key] = true;
+    var g = pvMemberObj[key];
+    if (g) g.visible = !!on;
+    if (measPv && measurePv) measPv.setSnaps(pvSnapsOf(id));
+    var host = document.getElementById('pb-pv-tree');
+    var tr = host && host.querySelector('tr[data-key="' + key + '"]');
+    if (tr) tr.className = on ? '' : 'off';
+  }
+
 
   /* ---------------- measure tool ---------------- */
   // Snap targets: every vertex of a plate's cut outline on both faces, plus the
@@ -1809,6 +1882,7 @@
     sc.add(sun);
 
     var bbox = new THREE.Box3(), mass = 0, basePt = null, bad = [], pvSnaps = [], axRows = [];
+    pvMemberObj = {};
     part.pos.forEach(function (row) {
      try {
       var spec = lastPlates[row.PLATE];
@@ -1823,9 +1897,16 @@
       }
       var g2d = buildPlate2D(spec, lastCuts, lastPlates);
       mass += g2d.area * spec.THK * RHO;
-      if (memberAxes[id + '/' + row.NO]) axRows.push({ spec: spec, m: m, rp: memberRef(spec, row) });
-      if (showFaces) sc.add(faceTint({ outers: g2d.outers, holes: g2d.holes }, spec.THK, m));
-      pvSnaps = pvSnaps.concat(snapPointsOf({ outers: g2d.outers, holes: g2d.holes }, spec.THK, m));
+      var mkey = id + '/' + row.NO;
+      var mg = new THREE.Group();            // one group per member, so it can be hidden
+      mg.visible = !memberHidden[mkey];
+      pvMemberObj[mkey] = mg;
+      sc.add(mg);
+      if (memberAxes[mkey]) axRows.push({ spec: spec, m: m, rp: memberRef(spec, row), g: mg });
+      if (showFaces) mg.add(faceTint({ outers: g2d.outers, holes: g2d.holes }, spec.THK, m));
+      if (mg.visible) {
+        pvSnaps = pvSnaps.concat(snapPointsOf({ outers: g2d.outers, holes: g2d.holes }, spec.THK, m));
+      }
       var pop = resolveOpac({ plateId: row.PLATE, moduleId: id, memberKey: id + '/' + row.NO });
       var mat = new THREE.MeshPhongMaterial({
         color: resolveColor({ plateId: row.PLATE }, lastColors[row.PLATE] || 0x999999),
@@ -1840,14 +1921,14 @@
         var mesh = new THREE.Mesh(geo, mat);
         mesh.matrixAutoUpdate = false;
         mesh.matrix.copy(m);
-        sc.add(mesh);
+        mg.add(mesh);
         geo.computeBoundingBox();
-        bbox.union(geo.boundingBox.clone().applyMatrix4(m));
+        bbox.union(geo.boundingBox.clone().applyMatrix4(m));   // frame stays put when hiding
         var eg = new THREE.LineSegments(new THREE.EdgesGeometry(geo, 25),
                                         new THREE.LineBasicMaterial({ color: 0x0e1013 }));
         eg.matrixAutoUpdate = false;
         eg.matrix.copy(m);
-        sc.add(eg);
+        mg.add(eg);
       });
      } catch (e) {                               // one bad plate must not blank the box
       bad.push(row.NO);
@@ -1859,7 +1940,7 @@
     var size = bbox.isEmpty() ? 500 : bbox.getSize(new THREE.Vector3()).length();
     var mn = bbox.min, mx3 = bbox.max;
     axRows.forEach(function (a) {
-      sc.add(plateTriad(a.spec, a.m, triadLen(a.spec, size * 0.1), a.rp.p, a.rp.name));
+      a.g.add(plateTriad(a.spec, a.m, triadLen(a.spec, size * 0.1), a.rp.p, a.rp.name));
     });
 
     if (basePt) {                              // module base point
@@ -1930,6 +2011,7 @@
     if (measPv) measPv.dispose();
     measPv = createMeasure({ scene: sc, camera: cam, dom: rn.domElement,
                              out: 'pb-pv-pos', size: function () { return size; } });
+    buildPvTree(id);
     measPv.setSnaps(pvSnaps);
     document.getElementById('pb-pv-meas').checked = measurePv;
     measPv.enable(measurePv);
@@ -1997,6 +2079,8 @@
         listRows.push(r);
         var col = r.moduleId ? moduleColor(r.moduleId)
                              : resolveColor({ plateId: r.plateId }, r.items[0].baseColor);
+        var cscope = r.moduleId ? 'module' : 'plate';
+        var ckey = r.moduleId || r.plateId;
         var open = r.moduleId
           ? 'plateBuilder.previewModule(\'' + r.moduleId + '\')'
           : 'plateBuilder.preview(\'' + r.plateId + '\')';
@@ -2006,7 +2090,10 @@
           (r.items.some(function (it) { return it.groupObj.visible; }) ? ' checked' : '') + ' ' +
           'data-grp="' + esc(r.group) + '" ' +
           'onchange="plateBuilder.toggleInst(' + ri + ',this.checked)">' +
-          '<span class="chip" style="margin-left:5px;background:' + int2hex(col) + '"></span></td>' +
+          '<span class="sw" style="margin-left:5px;background:' + int2hex(col) +
+          '" title="colour of this ' + cscope +
+          '" onclick="plateBuilder.openPalette(event,\'' + cscope + '\',\'' + ckey + '\',this)">' +
+          '</span></td>' +
           '<td><span class="plname" onclick="' + open + '">' +
           esc(r.moduleId || r.plateId) + '</span>' +
           '<div class="dims">' + (r.moduleId ? 'plates ' + r.n : r.items[0].dims) +
@@ -2108,6 +2195,7 @@
     if (!part) return [];
     var out = [];
     part.pos.forEach(function (row) {
+      if (memberHidden[id + '/' + row.NO]) return;      // export what the preview shows
       var spec = lastPlates[row.PLATE];
       if (!spec) return;
       var m;
@@ -2339,9 +2427,14 @@
       '      <label class="pvchk"><input type="checkbox" id="pb-pv-flat"' +
       '        onchange="plateBuilder.setFlat(this.checked)"> surface only</label>' +
       '      <span id="pb-pv-title"></span></h2>' +
-      '  <canvas id="pb-pv-canvas" width="640" height="360"></canvas>' +
-      '  <div id="pb-pv3d" style="width:640px;height:360px;display:none;' +
-      '       border:1px solid #2c323b;border-radius:4px;overflow:hidden;"></div>' +
+      '  <div class="pvbody">' +
+      '    <div id="pb-pv-tree"></div>' +
+      '    <div>' +
+      '      <canvas id="pb-pv-canvas" width="640" height="360"></canvas>' +
+      '      <div id="pb-pv3d" style="width:640px;height:360px;display:none;' +
+      '           border:1px solid #2c323b;border-radius:4px;overflow:hidden;"></div>' +
+      '    </div>' +
+      '  </div>' +
       '  <div class="meta" id="pb-pv-meta"></div>' +
       '  <div class="meta" id="pb-pv-pos">&nbsp;</div>' +
       '</div></div>';
@@ -2484,6 +2577,7 @@
 
     var colors = data.colors || {};
     pvModuleId = null;
+    pvTreeId = null;
     var bbox = buildAll(data, colors);
 
     CENTER = bbox.isEmpty() ? new THREE.Vector3(0, 0, 150) : bbox.getCenter(new THREE.Vector3());
@@ -2579,12 +2673,13 @@
     if (scope === 'plate') buildPlateList(lastColors);
     if (scope === 'module') buildModuleList();
     buildList(lastColors);
-    if (pvModuleId) previewModule(pvModuleId);
+    refreshPreview();
+    if (pvModuleId) buildPvTree(pvModuleId, true);
   }
   function setOpacity(scope, key, pct) {
     ovOpac[scope][key] = Math.max(0.05, Number(pct) / 100);
     restyleAll();
-    if (pvModuleId) previewModule(pvModuleId);
+    refreshPreview();
   }
 
   var sceneFaces = null;
@@ -2629,7 +2724,7 @@
     var cb = document.getElementById('pb-faces');
     if (cb) cb.checked = showFaces;
     updateSceneFaces();
-    if (pvModuleId) previewModule(pvModuleId);
+    refreshPreview();
   }
 
   var sceneAxes = null;
@@ -2657,15 +2752,23 @@
     if (cb) cb.checked = showAxes;
     updateSceneAxes();
   }
-  function toggleModuleRows(id) {
-    var cls = 'm-' + id.replace(/[^A-Za-z0-9]/g, '_');
-    var rows = document.getElementsByClassName(cls);
-    var hide = rows.length && rows[0].style.display !== 'none';
-    for (var i = 0; i < rows.length; i++) rows[i].style.display = hide ? 'none' : '';
+  // rebuild the open preview in place - the camera and its opening view survive,
+  // so dragging a slider or ticking a box does not throw the view back
+  function refreshPreview() {
+    if (!pvModuleId) return;
+    var keep = pvCtrl ? { pos: pvCtrl.object.position.clone(), tgt: pvCtrl.target.clone() } : null;
+    var home = pvHome;
+    previewModule(pvModuleId);
+    if (home) pvHome = home;
+    if (keep && pvCtrl) {
+      pvCtrl.object.position.copy(keep.pos);
+      pvCtrl.target.copy(keep.tgt);
+      pvCtrl.update();
+    }
   }
   function toggleMemberAxis(mod, pos, on) {
     memberAxes[mod + '/' + pos] = !!on;
-    previewModule(mod);                       // open (or refresh) that module's preview
+    if (pvModuleId === mod) refreshPreview(); else previewModule(mod);
   }
 
   function setFlat(on) {
@@ -2684,7 +2787,7 @@
       });
     });
     updateSceneFaces();
-    if (pvModuleId) previewModule(pvModuleId);      // keep an open preview in sync
+    refreshPreview();      // keep an open preview in sync
   }
 
   function pickExcel() {
@@ -2698,11 +2801,11 @@
     pickExcel: pickExcel, loadExcelFile: loadExcelFile,
     preview: preview, previewModule: previewModule, closePreview: closePreview,
     setFlat: setFlat, setColor: setColor, setOpacity: setOpacity, fitPreview: pvFit,
-    setMeasure: setMeasure, setMeasurePv: setMeasurePv,
+    setMeasure: setMeasure, setMeasurePv: setMeasurePv, togglePvMember: togglePvMember,
     openPalette: openPalette, pickColor: pickColor, regenPreview: regenPreview,
     exportModuleSTL: exportModuleSTL, exportModuleIFC: exportModuleIFC,
     setAxes: setAxes, setFaces: setFaces,
-    toggleMemberAxis: toggleMemberAxis, toggleModuleRows: toggleModuleRows
+    toggleMemberAxis: toggleMemberAxis
   };
 
   /* ---- auto-run: use window.PLATE_DATA if present, else empty default.
