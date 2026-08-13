@@ -1426,12 +1426,23 @@
   // One measuring session over a scene: hover snaps to the nearest point, two
   // clicks fix a span, a third starts over. Attached per view (main + preview).
   function createMeasure(cfg) {          // {scene, camera, dom, out, size}
-    var M = { on: false, snaps: [], picks: [], hover: null, grp: null,
+    var M = { on: false, snaps: [], picks: [], hover: null, grp: null, cloud: null,
               down: null, moved: false };
     var v = new THREE.Vector3();
 
     function clear() {
       if (M.grp) { disposeScene(M.grp); cfg.scene.remove(M.grp); M.grp = null; }
+    }
+    // every pickable point, shown while measuring so the corners are visible
+    function buildCloud() {
+      if (M.cloud) { disposeScene(M.cloud); cfg.scene.remove(M.cloud); M.cloud = null; }
+      if (!M.on || !M.snaps.length) return;
+      M.cloud = new THREE.Points(
+        new THREE.BufferGeometry().setFromPoints(M.snaps),
+        new THREE.PointsMaterial({ color: 0x8ecbff, size: cfg.size() * 0.018,
+                                   sizeAttenuation: true, transparent: true,
+                                   opacity: 0.85, depthTest: false }));
+      cfg.scene.add(M.cloud);
     }
     function dot(p, color, r) {
       var m = new THREE.Mesh(new THREE.SphereGeometry(r, 14, 10),
@@ -1448,8 +1459,8 @@
     function redraw() {
       clear();
       if (!M.on) { report(); return; }
-      var g = new THREE.Group(), r = cfg.size() * 0.006;
-      if (M.hover && M.picks.length < 2) g.add(dot(M.hover, 0x6fb3e8, r * 1.3));
+      var g = new THREE.Group(), r = cfg.size() * 0.009;
+      if (M.hover && M.picks.length < 2) g.add(dot(M.hover, 0x6fb3e8, r * 1.5));
       M.picks.forEach(function (p) { g.add(dot(p, 0xf0c674, r)); });
       if (M.picks.length === 2) {
         var a = M.picks[0], b = M.picks[1];
@@ -1480,7 +1491,8 @@
       }
       if (M.picks.length === 1) {
         el.innerHTML = '<span style="color:#f0c674">P1</span> ' + xyz(M.picks[0]) +
-          ' &nbsp; — click the second point';
+          ' &nbsp; — click the second point' +
+          ' &nbsp; <span style="color:#5b6472">right click to clear</span>';
         return;
       }
       var a = M.picks[0], b = M.picks[1];
@@ -1489,14 +1501,14 @@
         '<span style="color:#6fc36f">\u0394Y ' + fmt(b.y - a.y) + '</span> &nbsp; ' +
         '<span style="color:#5c9bd1">\u0394Z ' + fmt(b.z - a.z) + '</span> &nbsp;&nbsp; ' +
         '<span style="color:#f0c674">dist ' + fmt(a.distanceTo(b)) + '</span>' +
-        ' &nbsp; <span style="color:#5b6472">click again to restart</span>';
+        ' &nbsp; <span style="color:#5b6472">right click to clear</span>';
     }
     function xyz(p) { return '(' + fmt(p.x) + ', ' + fmt(p.y) + ', ' + fmt(p.z) + ')'; }
 
     function nearest(ev) {
       var rect = cfg.dom.getBoundingClientRect();
       var mx = ev.clientX - rect.left, my = ev.clientY - rect.top;
-      var best = null, bd = 18 * 18;
+      var best = null, bd = 24 * 24;
       for (var i = 0; i < M.snaps.length; i++) {
         v.copy(M.snaps[i]).project(cfg.camera);
         if (v.z > 1) continue;
@@ -1520,27 +1532,42 @@
     function onUp(ev) {
       var wasDrag = M.moved;
       M.down = null; M.moved = false;
-      if (!M.on || wasDrag || ev.button !== 0) return;
+      if (!M.on || wasDrag) return;
+      if (ev.button === 2) {                      // right click clears the picks
+        if (M.picks.length) { M.picks = []; redraw(); }
+        return;
+      }
+      if (ev.button !== 0) return;
       var h = nearest(ev);
       if (!h) return;
       if (M.picks.length >= 2) M.picks = [];
       M.picks.push(h.clone());
       redraw();
     }
+    function onCtx(ev) { if (M.on) ev.preventDefault(); }
     cfg.dom.addEventListener('mousemove', onMove);
     cfg.dom.addEventListener('mousedown', onDown);
     cfg.dom.addEventListener('mouseup', onUp);
+    cfg.dom.addEventListener('contextmenu', onCtx);
 
     return {
-      setSnaps: function (list) { M.snaps = list; M.picks = []; M.hover = null; redraw(); },
-      enable: function (on) { M.on = !!on; M.picks = []; M.hover = null; redraw(); },
+      setSnaps: function (list) {
+        M.snaps = list; M.picks = []; M.hover = null;
+        buildCloud(); redraw();
+      },
+      enable: function (on) {
+        M.on = !!on; M.picks = []; M.hover = null;
+        buildCloud(); redraw();
+      },
       isOn: function () { return M.on; },
       refresh: redraw,
       dispose: function () {
         clear();
+        if (M.cloud) { disposeScene(M.cloud); cfg.scene.remove(M.cloud); M.cloud = null; }
         cfg.dom.removeEventListener('mousemove', onMove);
         cfg.dom.removeEventListener('mousedown', onDown);
         cfg.dom.removeEventListener('mouseup', onUp);
+        cfg.dom.removeEventListener('contextmenu', onCtx);
       }
     };
   }
@@ -1720,7 +1747,7 @@
     pvTitle.textContent = id + '  (module)';     // set first, so the box is never blank
     pvMeta.textContent = '';
 
-    var W = 560, H = 420;
+    var W = 640, H = 360;                        // 16:9
     var sc = new THREE.Scene();
     pvScene = sc;
     sc.background = new THREE.Color(0x15181c);
@@ -2265,8 +2292,8 @@
       '      <label class="pvchk"><input type="checkbox" id="pb-pv-flat"' +
       '        onchange="plateBuilder.setFlat(this.checked)"> surface only</label>' +
       '      <span id="pb-pv-title"></span></h2>' +
-      '  <canvas id="pb-pv-canvas" width="560" height="420"></canvas>' +
-      '  <div id="pb-pv3d" style="width:560px;height:420px;display:none;' +
+      '  <canvas id="pb-pv-canvas" width="640" height="360"></canvas>' +
+      '  <div id="pb-pv3d" style="width:640px;height:360px;display:none;' +
       '       border:1px solid #2c323b;border-radius:4px;overflow:hidden;"></div>' +
       '  <div class="meta" id="pb-pv-meta"></div>' +
       '  <div class="meta" id="pb-pv-pos">&nbsp;</div>' +
