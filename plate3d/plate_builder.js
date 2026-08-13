@@ -128,7 +128,8 @@
   var memberAxes = {};                  // 'MODULE/POS' -> show local axes in the preview
   // appearance overrides, kept across reloads: instance > module > plate
   var ovColor = { plate: {}, module: {}, item: {} };
-  var ovOpac = { plate: {}, module: {}, item: {} };
+  // opacity scopes, most specific first: item > member > group > module > plate
+  var ovOpac = { plate: {}, module: {}, group: {}, member: {}, item: {} };
   var SWATCHES = ['#e05c4f', '#ef8b3c', '#f0c674', '#d4b13e',
                   '#8ec96b', '#4caf50', '#2f9e8f', '#4dd0e1',
                   '#5c9bd1', '#3f6fb5', '#9575cd', '#c47ad0',
@@ -157,16 +158,18 @@
   }
   function hex2int(h) { return parseInt(String(h).replace('#', ''), 16); }
   function int2hex(v) { return '#' + ('000000' + (v >>> 0).toString(16)).slice(-6); }
-  function resolveColor(plateId, moduleId, itemNo, base) {
-    if (itemNo && ovColor.item[itemNo] !== undefined) return ovColor.item[itemNo];
-    if (moduleId && ovColor.module[moduleId] !== undefined) return ovColor.module[moduleId];
-    if (ovColor.plate[plateId] !== undefined) return ovColor.plate[plateId];
+  function resolveColor(o, base) {
+    if (o.no && ovColor.item[o.no] !== undefined) return ovColor.item[o.no];
+    if (o.moduleId && ovColor.module[o.moduleId] !== undefined) return ovColor.module[o.moduleId];
+    if (o.plateId && ovColor.plate[o.plateId] !== undefined) return ovColor.plate[o.plateId];
     return base;
   }
-  function resolveOpac(plateId, moduleId, itemNo) {
-    if (itemNo && ovOpac.item[itemNo] !== undefined) return ovOpac.item[itemNo];
-    if (moduleId && ovOpac.module[moduleId] !== undefined) return ovOpac.module[moduleId];
-    if (ovOpac.plate[plateId] !== undefined) return ovOpac.plate[plateId];
+  function resolveOpac(o) {
+    if (o.no && ovOpac.item[o.no] !== undefined) return ovOpac.item[o.no];
+    if (o.memberKey && ovOpac.member[o.memberKey] !== undefined) return ovOpac.member[o.memberKey];
+    if (o.group && ovOpac.group[o.group] !== undefined) return ovOpac.group[o.group];
+    if (o.moduleId && ovOpac.module[o.moduleId] !== undefined) return ovOpac.module[o.moduleId];
+    if (o.plateId && ovOpac.plate[o.plateId] !== undefined) return ovOpac.plate[o.plateId];
     return 1;
   }
   function plateGeom(shape, thk) {      // local plane = mid-thickness
@@ -797,7 +800,7 @@
     function buildErr(m) { buildLog.push(m); console.error('[plateBuilder] ' + m); }
 
     // create geometry for one plate instance with a final world matrix
-    function buildInstance(spec, matrix, no, group, remark, mirror, moduleId) {
+    function buildInstance(spec, matrix, no, group, remark, mirror, moduleId, memberKey) {
       var thk = spec.THK;
       var g2d = buildPlate2D(spec, cuts, plates);
       var outers = g2d.outers, holesArr = g2d.holes;
@@ -835,6 +838,7 @@
             ? spec.WB + '×' + spec.H + '×' + thk + 'T'
             : spec.WT + '/' + spec.WB + '×' + spec.H + '×' + thk + 'T');
       var it = { no: no, plateId: spec.ID, group: group || '-', moduleId: moduleId || null,
+                 memberKey: memberKey || null,
                  groupObj: groupObj, mass: g2d.area * thk * RHO,
                  dims: dims, remark: remark || '',
                  spec: spec, thk: thk, matrix: matrix, mat: mat, edgeMat: edgeMat,
@@ -915,7 +919,8 @@
         M.multiply(new THREE.Matrix4().makeTranslation(-B.x, -B.y, -B.z));
         pl.locals.forEach(function (L) {
           var world = M.clone().multiply(L.mloc);
-          buildInstance(L.spec, world, row.NO + '/' + L.row.NO, row.NO, '', false, row.PART);
+          buildInstance(L.spec, world, row.NO + '/' + L.row.NO, row.NO, '', false, row.PART,
+                        row.PART + '/' + L.row.NO);
         });
         return;
       }
@@ -957,11 +962,8 @@
       var tr = document.createElement('tr');
       tr.innerHTML =
         '<td class="sty"><span class="sw" style="background:' +
-        int2hex(resolveColor(id, null, null, colors[id] || 0x999999)) +
-        '" onclick="plateBuilder.openPalette(event,\'plate\',\'' + id + '\',this)"></span>' +
-        '<input type="range" min="10" max="100" step="5" value="' +
-        Math.round(resolveOpac(id, null, null) * 100) +
-        '" title="opacity" oninput="plateBuilder.setOpacity(\'plate\',\'' + id + '\',this.value)"></td>' +
+        int2hex(resolveColor({ plateId: id }, colors[id] || 0x999999)) +
+        '" onclick="plateBuilder.openPalette(event,\'plate\',\'' + id + '\',this)"></span></td>' +
         '<td><span class="plname" onclick="plateBuilder.preview(\'' + id + '\')">' + esc(id) + '</span>' +
         '<div class="dims">' + dims + (ncut ? ' · cuts ' + ncut : '') +
         (spec.MAT ? ' · ' + esc(spec.MAT) : '') + '</div></td>';
@@ -1078,7 +1080,7 @@
         ctx.closePath();
       });
     });
-    var col = resolveColor(pv.id, null, null, (lastColors && lastColors[pv.id]) || 0x5c9bd1);
+    var col = resolveColor({ plateId: pv.id }, (lastColors && lastColors[pv.id]) || 0x5c9bd1);
     var hexc = '#' + ('000000' + col.toString(16)).slice(-6);
     ctx.fillStyle = hexc;
     ctx.globalAlpha = 0.35;
@@ -1153,8 +1155,9 @@
       var tr = document.createElement('tr');
       tr.innerHTML =
         '<td class="sty"><input type="range" min="10" max="100" step="5" value="' +
-        Math.round(resolveOpac('', id, null) * 100) +
-        '" title="opacity" oninput="plateBuilder.setOpacity(\'module\',\'' + id + '\',this.value)"></td>' +
+        Math.round((ovOpac.module[id] !== undefined ? ovOpac.module[id] : 1) * 100) +
+        '" title="opacity of the whole module" ' +
+        'oninput="plateBuilder.setOpacity(\'module\',\'' + id + '\',this.value)"></td>' +
         '<td><span class="caret" onclick="plateBuilder.toggleModuleRows(\'' + id + '\')">▾</span> ' +
         '<span class="plname" onclick="plateBuilder.previewModule(\'' + id + '\')">' +
         esc(id) + '</span>' +
@@ -1171,7 +1174,10 @@
           '<td class="sty"><input type="checkbox" title="show local axes"' +
           (memberAxes[key] ? ' checked' : '') +
           ' onchange="plateBuilder.toggleMemberAxis(\'' + id + '\',\'' + row.NO + '\',this.checked)">' +
-          '</td>' +
+          '<input type="range" min="10" max="100" step="5" value="' +
+          Math.round((ovOpac.member[key] !== undefined ? ovOpac.member[key] : 1) * 100) +
+          '" title="opacity of this plate in the module" ' +
+          'oninput="plateBuilder.setOpacity(\'member\',\'' + key + '\',this.value)"></td>' +
           '<td class="memname">' + esc(row.NO) +
           '<div class="dims">' + esc(row.PLANE) + ' · ' + esc(row.REFPT.slice(1)) +
           ' · off ' + row.OFFSET +
@@ -1351,9 +1357,9 @@
       mass += g2d.area * spec.THK * RHO;
       if (memberAxes[id + '/' + row.NO]) sc.add(plateTriad(spec, m, triadLen(spec)));
       if (showFaces) sc.add(faceTint({ outers: g2d.outers, holes: g2d.holes }, spec.THK, m));
-      var pop = resolveOpac(row.PLATE, id, null);
+      var pop = resolveOpac({ plateId: row.PLATE, moduleId: id, memberKey: id + '/' + row.NO });
       var mat = new THREE.MeshPhongMaterial({
-        color: resolveColor(row.PLATE, id, null, lastColors[row.PLATE] || 0x999999),
+        color: resolveColor({ plateId: row.PLATE, moduleId: id }, lastColors[row.PLATE] || 0x999999),
         shininess: 28, side: THREE.DoubleSide,
         transparent: pop < 1, opacity: pop, depthWrite: pop >= 1 });
       g2d.outers.forEach(function (ring, i) {
@@ -1446,8 +1452,12 @@
         lastGroup = it.group;
         var gtr = document.createElement('tr');
         gtr.className = 'ghead';
-        gtr.innerHTML = '<td><input type="checkbox" checked ' +
-          'onchange="plateBuilder.toggleGroup(\'' + it.group + '\',this.checked)"></td>' +
+        gtr.innerHTML = '<td class="sty"><input type="checkbox" checked ' +
+          'onchange="plateBuilder.toggleGroup(\'' + it.group + '\',this.checked)">' +
+          '<input type="range" min="10" max="100" step="5" value="' +
+          Math.round((ovOpac.group[it.group] !== undefined ? ovOpac.group[it.group] : 1) * 100) +
+          '" title="opacity of this assembly" ' +
+          'oninput="plateBuilder.setOpacity(\'group\',\'' + it.group + '\',this.value)"></td>' +
           '<td>▾ ' + it.group + '</td>';
         tbl.appendChild(gtr);
       }
@@ -1456,13 +1466,14 @@
         '<td class="sty"><input type="checkbox" checked id="pb-cb' + i + '" ' +
         'onchange="plateBuilder.toggleItem(' + i + ',this.checked)">' +
         '<span class="chip" style="margin-left:5px;background:' +
-        int2hex(resolveColor(it.plateId, it.moduleId, it.no, it.baseColor)) + '"></span></td>' +
+        int2hex(resolveColor(it, it.baseColor)) + '"></span></td>' +
         '<td><span class="plname" onclick="plateBuilder.preview(\'' + it.plateId + '\')">' + it.no + '</span>' +
         '<div class="dims">' + it.dims + (it.remark ? ' · ' + it.remark : '') +
         ' · ' + it.mass.toFixed(3) + 'kg' +
         '<input type="range" min="10" max="100" step="5" value="' +
-        Math.round(resolveOpac(it.plateId, it.moduleId, it.no) * 100) +
-        '" title="opacity" oninput="plateBuilder.setOpacity(\'item\',\'' + it.no + '\',this.value)">' +
+        Math.round(resolveOpac(it) * 100) +
+        '" title="opacity of this plate" ' +
+        'oninput="plateBuilder.setOpacity(\'item\',\'' + it.no + '\',this.value)">' +
         '</div></td>';
       tbl.appendChild(tr);
     });
@@ -1952,8 +1963,8 @@
   }
 
   function styleItem(it) {
-    var col = resolveColor(it.plateId, it.moduleId, it.no, it.baseColor);
-    var op = resolveOpac(it.plateId, it.moduleId, it.no);
+    var col = resolveColor(it, it.baseColor);
+    var op = resolveOpac(it);
     it.mat.color.setHex(col);
     it.mat.opacity = op;
     it.mat.transparent = op < 1;
