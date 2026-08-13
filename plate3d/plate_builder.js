@@ -142,8 +142,9 @@
   var memberAxes = {};                  // 'MODULE/POS' -> show local axes in the preview
   // appearance overrides, kept across reloads: instance > module > plate
   var ovColor = { plate: {}, module: {}, item: {} };
+  var modColors = {};                   // auto colour per MODULE (the assembly view uses it)
   // opacity scopes, most specific first: item > member > group > module > plate
-  var ovOpac = { plate: {}, module: {}, group: {}, member: {}, item: {} };
+  var ovOpac = { plate: {}, module: {}, group: {}, inst: {}, member: {}, item: {} };
   var SWATCHES = ['#e05c4f', '#ef8b3c', '#f0c674', '#d4b13e',
                   '#8ec96b', '#4caf50', '#2f9e8f', '#4dd0e1',
                   '#5c9bd1', '#3f6fb5', '#9575cd', '#c47ad0',
@@ -172,15 +173,22 @@
   }
   function hex2int(h) { return parseInt(String(h).replace('#', ''), 16); }
   function int2hex(v) { return '#' + ('000000' + (v >>> 0).toString(16)).slice(-6); }
+  // A module is one colour in the assembly view - its plates' own colours only
+  // show inside the module preview, where the module colour is not applied.
+  function moduleColor(id) {
+    if (ovColor.module[id] !== undefined) return ovColor.module[id];
+    return modColors[id] !== undefined ? modColors[id] : 0x9aa3b0;
+  }
   function resolveColor(o, base) {
     if (o.no && ovColor.item[o.no] !== undefined) return ovColor.item[o.no];
-    if (o.moduleId && ovColor.module[o.moduleId] !== undefined) return ovColor.module[o.moduleId];
+    if (o.moduleId) return moduleColor(o.moduleId);
     if (o.plateId && ovColor.plate[o.plateId] !== undefined) return ovColor.plate[o.plateId];
     return base;
   }
   function resolveOpac(o) {
     if (o.no && ovOpac.item[o.no] !== undefined) return ovOpac.item[o.no];
     if (o.memberKey && ovOpac.member[o.memberKey] !== undefined) return ovOpac.member[o.memberKey];
+    if (o.instKey && ovOpac.inst[o.instKey] !== undefined) return ovOpac.inst[o.instKey];
     if (o.group && ovOpac.group[o.group] !== undefined) return ovOpac.group[o.group];
     if (o.moduleId && ovOpac.module[o.moduleId] !== undefined) return ovOpac.module[o.moduleId];
     if (o.plateId && ovOpac.plate[o.plateId] !== undefined) return ovOpac.plate[o.plateId];
@@ -929,6 +937,10 @@
     Object.keys(plates).forEach(function (id) {
       if (!(id in colors)) colors[id] = PALETTE[colorSeq++ % PALETTE.length];
     });
+    modColors = {};
+    Object.keys(parts).forEach(function (id) {
+      modColors[id] = PALETTE[colorSeq++ % PALETTE.length];
+    });
     lastPlates = plates;
     lastCuts = cuts;
     lastColors = colors;
@@ -977,8 +989,10 @@
         : (spec.WT === spec.WB && spec.OFF_T === spec.OFF_B
             ? spec.WB + '×' + spec.H + '×' + thk + 'T'
             : spec.WT + '/' + spec.WB + '×' + spec.H + '×' + thk + 'T');
-      var it = { no: no, plateId: spec.ID, group: group || '-', moduleId: moduleId || null,
+      var gname = group || '-';
+      var it = { no: no, plateId: spec.ID, group: gname, moduleId: moduleId || null,
                  memberKey: memberKey || null,
+                 instKey: gname + '/' + (moduleId || '#' + spec.ID),
                  groupObj: groupObj, mass: g2d.area * thk * RHO,
                  dims: dims, remark: remark || '',
                  spec: spec, thk: thk, matrix: world, mat: mat, edgeMat: edgeMat,
@@ -1348,7 +1362,10 @@
       });
       var tr = document.createElement('tr');
       tr.innerHTML =
-        '<td class="sty"><input type="range" min="10" max="100" step="5" value="' +
+        '<td class="sty"><span class="sw" style="background:' + int2hex(moduleColor(id)) +
+        '" title="colour of this module in the assembly view"' +
+        ' onclick="plateBuilder.openPalette(event,\'module\',\'' + id + '\',this)"></span>' +
+        '<input type="range" min="10" max="100" step="5" value="' +
         Math.round((ovOpac.module[id] !== undefined ? ovOpac.module[id] : 1) * 100) +
         '" title="opacity of the whole module" ' +
         'oninput="plateBuilder.setOpacity(\'module\',\'' + id + '\',this.value)"></td>' +
@@ -1593,7 +1610,7 @@
       if (showFaces) sc.add(faceTint({ outers: g2d.outers, holes: g2d.holes }, spec.THK, m));
       var pop = resolveOpac({ plateId: row.PLATE, moduleId: id, memberKey: id + '/' + row.NO });
       var mat = new THREE.MeshPhongMaterial({
-        color: resolveColor({ plateId: row.PLATE, moduleId: id }, lastColors[row.PLATE] || 0x999999),
+        color: resolveColor({ plateId: row.PLATE }, lastColors[row.PLATE] || 0x999999),
         shininess: 28, side: THREE.DoubleSide,
         transparent: pop < 1, opacity: pop, depthWrite: pop >= 1 });
       g2d.outers.forEach(function (ring, i) {
@@ -1701,53 +1718,102 @@
   }
 
   /* ---------------- sidebar list ---------------- */
+  // The assembly list stops at ASSY and MODULE level: an assembly row, then one
+  // row per module placed in it (a plate placed on its own gets its own row).
+  // Individual plates live in the MODULE list and its preview.
+  var listRows = [], listGroups = [];   // display order, for checkbox syncing
   function buildList(colors) {
     var tbl = document.getElementById('pb-list');
-    var total = 0, lastGroup = null;
+    var total = 0;
     tbl.innerHTML = '';
-    sectionRow(tbl, 'ghead', 'ASSEMBLY — placed plates');
+    listRows = [];
+    listGroups = [];
+    sectionRow(tbl, 'ghead', 'ASSEMBLY — placed modules');
     if (!items.length) sectionRow(tbl, 'none', 'no ASSY row — nothing placed');
-    items.forEach(function (it, i) {
+
+    var groups = [], gmap = {};
+    items.forEach(function (it) {
       total += it.mass;
-      if (it.group !== lastGroup) {
-        lastGroup = it.group;
-        var gtr = document.createElement('tr');
-        gtr.className = 'gsub';
-        gtr.innerHTML = '<td class="sty"><input type="checkbox" checked ' +
-          'onchange="plateBuilder.toggleGroup(\'' + it.group + '\',this.checked)">' +
-          '<input type="range" min="10" max="100" step="5" value="' +
-          Math.round((ovOpac.group[it.group] !== undefined ? ovOpac.group[it.group] : 1) * 100) +
-          '" title="opacity of this assembly" ' +
-          'oninput="plateBuilder.setOpacity(\'group\',\'' + it.group + '\',this.value)"></td>' +
-          '<td>▾ ' + (it.group === '-' ? 'single plates' : esc(it.group)) + '</td>';
-        tbl.appendChild(gtr);
+      var g = gmap[it.group];
+      if (!g) { g = gmap[it.group] = { name: it.group, rows: [], rmap: {} }; groups.push(g); }
+      var r = g.rmap[it.instKey];
+      if (!r) {
+        r = g.rmap[it.instKey] = { key: it.instKey, group: it.group, moduleId: it.moduleId,
+                                   plateId: it.plateId, n: 0, mass: 0, items: [] };
+        g.rows.push(r);
       }
-      var tr = document.createElement('tr');
-      tr.innerHTML =
-        '<td class="sty"><input type="checkbox" checked id="pb-cb' + i + '" ' +
-        'onchange="plateBuilder.toggleItem(' + i + ',this.checked)">' +
-        '<span class="chip" style="margin-left:5px;background:' +
-        int2hex(resolveColor(it, it.baseColor)) + '"></span></td>' +
-        '<td><span class="plname" onclick="plateBuilder.preview(\'' + it.plateId + '\')">' + it.no + '</span>' +
-        '<div class="dims">' + it.dims + (it.remark ? ' · ' + it.remark : '') +
-        ' · ' + it.mass.toFixed(3) + 'kg' +
+      r.n++; r.mass += it.mass; r.items.push(it);
+    });
+
+    groups.forEach(function (g) {
+      var gi = listGroups.length;
+      listGroups.push(g);
+      var gtr = document.createElement('tr');
+      gtr.className = 'gsub';
+      var gOn = g.rows.some(function (r) {
+        return r.items.some(function (it) { return it.groupObj.visible; });
+      });
+      gtr.innerHTML = '<td class="sty"><input type="checkbox" id="pb-gb' + gi + '"' +
+        (gOn ? ' checked' : '') + ' ' +
+        'onchange="plateBuilder.toggleGroup(\'' + g.name + '\',this.checked)">' +
         '<input type="range" min="10" max="100" step="5" value="' +
-        Math.round(resolveOpac(it) * 100) +
-        '" title="opacity of this plate" ' +
-        'oninput="plateBuilder.setOpacity(\'item\',\'' + it.no + '\',this.value)">' +
-        '</div></td>';
-      tbl.appendChild(tr);
+        Math.round((ovOpac.group[g.name] !== undefined ? ovOpac.group[g.name] : 1) * 100) +
+        '" title="opacity of this assembly" ' +
+        'oninput="plateBuilder.setOpacity(\'group\',\'' + g.name + '\',this.value)"></td>' +
+        '<td>▾ ' + (g.name === '-' ? 'single plates' : esc(g.name)) + '</td>';
+      tbl.appendChild(gtr);
+
+      g.rows.forEach(function (r) {
+        var ri = listRows.length;
+        listRows.push(r);
+        var col = r.moduleId ? moduleColor(r.moduleId)
+                             : resolveColor({ plateId: r.plateId }, r.items[0].baseColor);
+        var open = r.moduleId
+          ? 'plateBuilder.previewModule(\'' + r.moduleId + '\')'
+          : 'plateBuilder.preview(\'' + r.plateId + '\')';
+        var tr = document.createElement('tr');
+        tr.innerHTML =
+          '<td class="sty"><input type="checkbox" id="pb-ib' + ri + '"' +
+          (r.items.some(function (it) { return it.groupObj.visible; }) ? ' checked' : '') + ' ' +
+          'data-grp="' + esc(r.group) + '" ' +
+          'onchange="plateBuilder.toggleInst(' + ri + ',this.checked)">' +
+          '<span class="chip" style="margin-left:5px;background:' + int2hex(col) + '"></span></td>' +
+          '<td><span class="plname" onclick="' + open + '">' +
+          esc(r.moduleId || r.plateId) + '</span>' +
+          '<div class="dims">' + (r.moduleId ? 'plates ' + r.n : r.items[0].dims) +
+          ' · ' + r.mass.toFixed(3) + 'kg' +
+          '<input type="range" min="10" max="100" step="5" value="' +
+          Math.round(resolveOpac(r.items[0]) * 100) +
+          '" title="opacity of this placement" ' +
+          'oninput="plateBuilder.setOpacity(\'inst\',\'' + r.key + '\',this.value)">' +
+          '</div></td>';
+        tbl.appendChild(tr);
+      });
     });
     document.getElementById('pb-total').textContent =
       'Placed plates: ' + items.length + ' · Total weight: ' + total.toFixed(3) + ' kg';
   }
+  function toggleInst(i, on) {
+    var r = listRows[i];
+    if (!r) return;
+    r.items.forEach(function (it) { it.groupObj.visible = on; });
+    listGroups.forEach(function (g, gi) {         // header follows its rows
+      if (g.name !== r.group) return;
+      var cb = document.getElementById('pb-gb' + gi);
+      if (cb) cb.checked = g.rows.some(function (q) {
+        return q.items.some(function (it) { return it.groupObj.visible; });
+      });
+    });
+    updateSceneAxes();
+    updateSceneFaces();
+  }
   function toggleItem(i, on) { items[i].groupObj.visible = on; updateSceneAxes(); updateSceneFaces(); }
   function toggleGroup(g, on) {
-    items.forEach(function (it, i) {
-      if (it.group === g) {
-        it.groupObj.visible = on;
-        document.getElementById('pb-cb' + i).checked = on;
-      }
+    items.forEach(function (it) { if (it.group === g) it.groupObj.visible = on; });
+    listRows.forEach(function (r, i) {
+      if (r.group !== g) return;
+      var cb = document.getElementById('pb-ib' + i);
+      if (cb) cb.checked = on;
     });
     updateSceneAxes();
     updateSceneFaces();
@@ -2259,6 +2325,9 @@
   function setColor(scope, key, hex) {
     ovColor[scope][key] = hex2int(hex);
     restyleAll();
+    if (scope === 'plate') buildPlateList(lastColors);
+    if (scope === 'module') buildModuleList();
+    buildList(lastColors);
     if (pvModuleId) previewModule(pvModuleId);
   }
   function setOpacity(scope, key, pct) {
@@ -2340,7 +2409,7 @@
 
   window.plateBuilder = {
     run: run, setView: setView, exportSTL: exportSTL, exportIFC: exportIFC,
-    toggleItem: toggleItem, toggleGroup: toggleGroup,
+    toggleItem: toggleItem, toggleGroup: toggleGroup, toggleInst: toggleInst,
     pickExcel: pickExcel, loadExcelFile: loadExcelFile,
     preview: preview, previewModule: previewModule, closePreview: closePreview,
     setFlat: setFlat, setColor: setColor, setOpacity: setOpacity, fitPreview: pvFit,
