@@ -225,6 +225,10 @@
        MODULE ID BASE INSTANCE POINT          (module reference point = one of the
                                                9 points of a member plate;
                                                missing BASE -> warning + local origin)
+       -- REF.PT face suffix: bc = mid-thickness (default), bc+ / bc- = the plus /
+          minus face of the plate. OFFSET is then measured to that face, so drawing
+          dimensions can be typed as-is instead of adding +/-THK/2. Works on MODULE
+          member rows, MODULE BASE, POS, BASE and ASSY rows.
        -- block style also accepted: a bare "MODULE ID" row followed by
           POS ID PLANE REF.PT L.X L.Y L.ROT OFFSET  and  BASE INSTANCE POINT rows
        ASSY  ID PLANE REF.PT L.X L.Y L.ROT OFFSET    (assemble a MODULE or a PLATE.
@@ -238,10 +242,17 @@
   var POINT_ALIAS = { TL: 'ptl', TC: 'ptc', TR: 'ptr', LM: 'plm', CC: 'pcc',
                       RM: 'prm', BL: 'pbl', BC: 'pbc', BR: 'pbr' };
   function normPoint(s) {
-    var up = str(s).toUpperCase();
+    var up = str(s).toUpperCase().replace(/[+\-]$/, '').trim();
     if (up.length === 3 && up.charAt(0) === 'P') up = up.slice(1);
     return POINT_ALIAS[up] || 'pbl';
   }
+  // a trailing + / - on a ref-point name measures from that face of the plate
+  // instead of from mid-thickness:  bc = centre, bc+ = plus face, bc- = minus face
+  function faceOf(s) {
+    var c = str(s).slice(-1);
+    return c === '+' ? 1 : c === '-' ? -1 : 0;
+  }
+  function faceMark(f) { return f > 0 ? '+' : f < 0 ? '\u2212' : ''; }
 
   function parseExcelRows(rows) {
     var plates = {}, parts = {}, cuts = [], assy = [], log = [];
@@ -340,7 +351,8 @@
         if (v.length <= 1) continue;      // block style: POS/BASE rows follow
         var msub = str(v[1]).toUpperCase();
         if (msub === 'BASE') {            // MODULE id BASE <instance> <point>
-          currentPart.base = { inst: str(v[2]).toUpperCase(), pt: normPoint(v[3]) };
+          currentPart.base = { inst: str(v[2]).toUpperCase(), pt: normPoint(v[3]),
+                               face: faceOf(v[3]) };
           continue;
         }
         var mplate = resolvePlate(msub);  // MODULE id <plate> <PLANE> <Ref.Pt> <L.X> <L.Y> <L.ROT> <OFFSET>
@@ -348,7 +360,8 @@
         var mplane = str(v[2]).toUpperCase();
         if (!PLANE_ALIAS[mplane]) { warn('row ' + (r + 1) + ': unknown PLANE ' + mplane + ' (use XY/YZ/XZ)'); continue; }
         currentPart.pos.push({ NO: msub, PLATE: mplate, PLANE: PLANE_ALIAS[mplane],
-                               REFPT: normPoint(v[3]), LX: num(v[4], 0), LY: num(v[5], 0),
+                               REFPT: normPoint(v[3]), FACE: faceOf(v[3]),
+                               LX: num(v[4], 0), LY: num(v[5], 0),
                                ROT: num(v[6], 0), OFFSET: num(v[7], 0) });
       } else if (kw === 'POS') {          // place a plate inside the current part
         if (!currentPart) { warn('row ' + (r + 1) + ': POS outside of a MODULE'); continue; }
@@ -358,11 +371,13 @@
         var pplane = str(v[1]).toUpperCase();
         if (!PLANE_ALIAS[pplane]) { warn('row ' + (r + 1) + ': unknown PLANE ' + pplane + ' (use XY/YZ/XZ)'); continue; }
         currentPart.pos.push({ NO: ppid, PLATE: pplate, PLANE: PLANE_ALIAS[pplane],
-                               REFPT: normPoint(v[2]), LX: num(v[3], 0), LY: num(v[4], 0),
+                               REFPT: normPoint(v[2]), FACE: faceOf(v[2]),
+                               LX: num(v[3], 0), LY: num(v[4], 0),
                                ROT: num(v[5], 0), OFFSET: num(v[6], 0) });
       } else if (kw === 'BASE') {         // BASE INSTANCE POINT — part reference point
         if (!currentPart) { warn('row ' + (r + 1) + ': BASE outside of a MODULE'); continue; }
-        currentPart.base = { inst: str(v[0]).toUpperCase(), pt: normPoint(v[1]) };
+        currentPart.base = { inst: str(v[0]).toUpperCase(), pt: normPoint(v[1]),
+                             face: faceOf(v[1]) };
       } else if (kw === 'ASSY') {         // ID PLANE REF.PT L.X L.Y L.ROT OFFSET
         var pid = str(v[0]).toUpperCase();
         var partRef = parts[pid] ? pid : null;
@@ -381,6 +396,7 @@
                     PLATE: plateId, PART: partRef,
                     PLANE: PLANE_ALIAS[plkey],
                     REFPT: partRef ? str(v[2]) : normPoint(v[2]),   // parts: raw, resolved at build
+                    FACE: faceOf(v[2]),
                     LX: num(v[3], 0), LY: num(v[4], 0), ROT: num(v[5], 0),
                     OFFSET: num(v[6], 0), GROUP: '-', REMARK: '', MIRROR: '' });
         counts.assy++;
@@ -729,14 +745,16 @@
 
   // Excel grammar placement: the plate's REF.PT lands at (L.X, L.Y) on the
   // plane, rotated by L.ROT about that point, at OFFSET along the normal
-  function planeMatrixAnchor(row, pts) {
+  function planeMatrixAnchor(row, pts, thk) {
     var b = PLANE_BASIS[row.PLANE];
     if (!b) throw new Error(row.NO + ': PLANE=' + row.PLANE + ' (use XY/YZ/XZ)');
     var a = pts[row.REFPT] || pts.pbl;
+    // FACE 0 -> mid-thickness (default), +1/-1 -> that face lands on the plane
+    var az = (row.FACE || 0) * (thk || 0) / 2;
     var m = new THREE.Matrix4().makeBasis(v3(b.ex), v3(b.ey), v3(b.ez));
     m.multiply(new THREE.Matrix4().makeTranslation(row.LX, row.LY, row.OFFSET));
     m.multiply(new THREE.Matrix4().makeRotationZ(row.ROT * Math.PI / 180));
-    m.multiply(new THREE.Matrix4().makeTranslation(-a[0], -a[1], 0));
+    m.multiply(new THREE.Matrix4().makeTranslation(-a[0], -a[1], -az));
     return m;
   }
 
@@ -854,14 +872,15 @@
       var locals = part.pos.map(function (p) {
         var spec = plates[p.PLATE];
         var pts = namedPoints(spec, false);
-        return { row: p, spec: spec, pts: pts, mloc: planeMatrixAnchor(p, pts) };
+        return { row: p, spec: spec, pts: pts, mloc: planeMatrixAnchor(p, pts, spec.THK) };
       });
       var base = new THREE.Vector3(0, 0, 0);
       if (part.base) {
         for (var i = 0; i < locals.length; i++) {
           if (locals[i].row.NO === part.base.inst) {
             var a = locals[i].pts[part.base.pt] || locals[i].pts.pbl;
-            base = new THREE.Vector3(a[0], a[1], 0).applyMatrix4(locals[i].mloc);
+            base = new THREE.Vector3(a[0], a[1],
+                     (part.base.face || 0) * locals[i].spec.THK / 2).applyMatrix4(locals[i].mloc);
             break;
           }
         }
@@ -871,7 +890,8 @@
 
     // part reference point in part-local 3D coords, per ASSY REFPT syntax
     function partRefPoint(pl, refpt) {
-      var s = str(refpt).toUpperCase();
+      var f = faceOf(refpt);                                         // trailing + / -
+      var s = str(refpt).toUpperCase().replace(/[+\-]$/, '').trim();
       if (s === '' || s === 'O') return pl.base;                     // BASE (or origin)
       var dot = s.indexOf('.');
       if (dot > 0 && s.lastIndexOf('.') !== 0) {                     // INSTANCE.POINT
@@ -880,7 +900,8 @@
         for (var i = 0; i < pl.locals.length; i++) {
           if (pl.locals[i].row.NO === instName) {
             var a = pl.locals[i].pts[normPoint(pt)] || pl.locals[i].pts.pbl;
-            return new THREE.Vector3(a[0], a[1], 0).applyMatrix4(pl.locals[i].mloc);
+            return new THREE.Vector3(a[0], a[1], f * pl.locals[i].spec.THK / 2)
+                     .applyMatrix4(pl.locals[i].mloc);
           }
         }
         buildErr('part ref point ' + s + ' not found — using BASE');
@@ -902,7 +923,8 @@
       var p9 = normPoint(refpt);
       var x = p9.charAt(2) === 'l' ? bb.min.x : p9.charAt(2) === 'r' ? bb.max.x : (bb.min.x + bb.max.x) / 2;
       var y = p9.charAt(1) === 'b' ? bb.min.y : p9.charAt(1) === 't' ? bb.max.y : (bb.min.y + bb.max.y) / 2;
-      return new THREE.Vector3(x, y, (bb.min.z + bb.max.z) / 2);
+      var z = f > 0 ? bb.max.z : f < 0 ? bb.min.z : (bb.min.z + bb.max.z) / 2;
+      return new THREE.Vector3(x, y, z);
     }
 
     assyRows.forEach(function (row) {
@@ -930,7 +952,7 @@
       var pts = namedPoints(spec, mirror);
       var matrix;
       try {
-        matrix = row.__xl ? planeMatrixAnchor(row, pts)
+        matrix = row.__xl ? planeMatrixAnchor(row, pts, spec.THK)
                : row.METHOD === 'EDGE' ? edgeMatrix(row, inst, pts, spec.THK)
                : planeMatrix(row);
       } catch (err) { buildErr(err.message); return; }
@@ -1179,7 +1201,8 @@
           '" title="opacity of this plate in the module" ' +
           'oninput="plateBuilder.setOpacity(\'member\',\'' + key + '\',this.value)"></td>' +
           '<td class="memname">' + esc(row.NO) +
-          '<div class="dims">' + esc(row.PLANE) + ' · ' + esc(row.REFPT.slice(1)) +
+          '<div class="dims">' + esc(row.PLANE) + ' · ' +
+          esc(row.REFPT.slice(1)) + faceMark(row.FACE) +
           ' · off ' + row.OFFSET +
           (part.base && part.base.inst === row.NO ? ' · BASE' : '') + '</div></td>';
         tbl.appendChild(mr);
@@ -1348,10 +1371,11 @@
       if (!spec) return;
       var pts = namedPoints(spec, false);
       var m;
-      try { m = planeMatrixAnchor(row, pts); } catch (e) { return; }
+      try { m = planeMatrixAnchor(row, pts, spec.THK); } catch (e) { return; }
       if (part.base && row.NO === part.base.inst) {
         var a = pts[part.base.pt] || pts.pbl;
-        basePt = new THREE.Vector3(a[0], a[1], 0).applyMatrix4(m);
+        basePt = new THREE.Vector3(a[0], a[1],
+                   (part.base.face || 0) * spec.THK / 2).applyMatrix4(m);
       }
       var g2d = buildPlate2D(spec, lastCuts, lastPlates);
       mass += g2d.area * spec.THK * RHO;
@@ -1546,7 +1570,7 @@
       var spec = lastPlates[row.PLATE];
       if (!spec) return;
       var m;
-      try { m = planeMatrixAnchor(row, namedPoints(spec, false)); } catch (e) { return; }
+      try { m = planeMatrixAnchor(row, namedPoints(spec, false), spec.THK); } catch (e) { return; }
       var g2 = buildPlate2D(spec, lastCuts, lastPlates);
       out.push({ no: row.NO, spec: spec, thk: spec.THK, matrix: m,
                  mass: g2.area * spec.THK * RHO, dims: '',

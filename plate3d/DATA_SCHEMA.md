@@ -205,7 +205,7 @@ FOLD=180 (이어붙임)          FOLD=90 (직각 세움)
 | CUT | [판ID], [기준점], CIRC, D, L.X, L.Y, L.ROT, dx, dy, repeat | 원형 구멍 |
 | CUT | [판ID], [기준점], PLATE, ID, L.X, L.Y, L.ROT, dx, dy, repeat | 다른 PLATE 외곽 형상으로 빼기 |
 | **MODULE** | ID, PLATE.ID, PLANE, Ref.Pt, L.X, L.Y, L.ROT, OFFSET | 모듈에 판 1장 배치 (행마다 모듈 ID 반복 — 같은 ID 행들이 한 모듈로 누적, 모듈 로컬 좌표). PART도 별칭 인식 |
-| **MODULE** | ID, **BASE**, 판인스턴스, 점이름 | 모듈 기준점 = 구성 판의 9점 중 하나. **누락 시 경고** + 로컬 원점 사용 |
+| **MODULE** | ID, **BASE**, 판인스턴스, 점이름 | 모듈 기준점 = 구성 판의 9점 중 하나(`bc+`처럼 면 지정 가능). **누락 시 경고** + 로컬 원점 사용 |
 | ASSY | ID, PLANE, Ref.Pt, L.X, L.Y, L.ROT, OFFSET | 조립 — **MODULE과 낱장 PLATE 모두 가능** |
 | END | | 입력 종료 |
 
@@ -218,7 +218,18 @@ FOLD=180 (이어붙임)          FOLD=90 (직각 세움)
   ⚠ CIRC/PLATE 행은 RECT보다 파라미터가 하나 적어서 dx/dy/repeat 칸이 한 칸 왼쪽으로 당겨짐 — 열 정렬 주의 (엔진이 감지되면 경고 표시)
 - ASSY의 PLANE: XY(정면)/YZ(측면)/XZ(수평), Ref.Pt: tl~br·cc (p 접두사 있어도 인식)
   — 부재의 Ref.Pt 점이 평면 내 (L.X, L.Y)에 오도록 배치, L.ROT는 그 점 기준 면내 회전, OFFSET은 법선 방향 거리
-- **MODULE 조립 시 ASSY의 Ref.Pt**: 빈칸/`o` = BASE 점 (기본) · 9점 이름(`bc` 등) = 모듈 바운딩박스 점(Z는 중앙) · `판인스턴스.점`(예: `pl.C2_1.tc`) = 특정 판의 점 직접 지정
+- **Ref.Pt 뒤에 `+` / `−` 를 붙이면 두께 방향 기준면이 바뀜** (MODULE·POS·BASE·ASSY 모두 동일)
+
+  | 표기 | 기준 | OFFSET이 가리키는 곳 |
+  |---|---|---|
+  | `bc` (기본) | 두께 중앙 | 판의 중립면 |
+  | `bc+` | +면 (로컬 +Z 쪽 면) | 그 면이 OFFSET 위치에 옴 → 판은 OFFSET−THK ~ OFFSET |
+  | `bc-` | −면 (로컬 −Z 쪽 면) | 그 면이 OFFSET 위치에 옴 → 판은 OFFSET ~ OFFSET+THK |
+
+  즉 도면에 적힌 **면 치수를 그대로 입력**하면 되고, `±THK/2` 를 손으로 더할 필요가 없다.
+  ± 방향(어느 쪽이 +면인지)은 좌측 MODULE 목록의 **local axes 체크박스**나 상단 **+ / − face** 버튼으로 확인.
+  예: 두께 20 판을 `XZ bc+ 0 0 0 500` → 판 윗면(+면)이 Y=500, 판은 Y 480~500 차지
+- **MODULE 조립 시 ASSY의 Ref.Pt**: 빈칸/`o` = BASE 점 (기본) · 9점 이름(`bc` 등) = 모듈 바운딩박스 점(Z는 중앙, `bc+`/`bc-`면 박스 앞/뒤면) · `판인스턴스.점`(예: `pl.C2_1.tc`, `pl.C2_1.tc+`) = 특정 판의 점 직접 지정
 - ID에 `_숫자` 접미사를 붙이면 같은 MODULE/PLATE의 인스턴스로 인식 (예: `md.COL_1`, `md.COL_2` → 모듈 md.COL 2개 배치)
 - ID 접두사 관례: `pl.` 판 · `br.` 볼트/봉 · `md.` 모듈
 - 모듈 예 (한 행 = 판 1장, 모듈 ID 반복):
