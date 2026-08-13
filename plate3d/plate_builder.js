@@ -71,8 +71,10 @@
     '#pb-side tr.ghead td { color:#f0c674; font-size:11px; font-weight:600;',
     '  letter-spacing:.4px; padding-top:12px; border-bottom:1px solid #3a424d; }',
     // group header inside the assembly list
-    '#pb-side tr.gsub td { color:#cdd6e2; font-size:12px; padding-top:7px;',
+    '#pb-side tr.gsub td { color:#cdd6e2; font-size:12px; padding-top:9px;',
     '  border-bottom:1px solid #2c323b; }',
+    '#pb-side .gname { color:#eef1f6; font-size:13px; }',
+    '#pb-side .plname.subname { color:#aab4c2; font-size:11px; }',
     '#pb-side tr.none td { color:#6b7480; font-size:11px; font-style:italic; }',
     '#pb-side .chip { display:inline-block; width:11px; height:11px; border-radius:2px;',
     '  margin-right:5px; vertical-align:-1px; }',
@@ -2228,7 +2230,8 @@
         Math.round((ovOpac.group[g.name] !== undefined ? ovOpac.group[g.name] : 1) * 100) +
         '" title="opacity of this assembly" ' +
         'oninput="plateBuilder.setOpacity(\'group\',\'' + g.name + '\',this.value)"></td>' +
-        '<td>▾ ' + (g.name === '-' ? 'single plates' : esc(g.name)) + '</td>';
+        '<td>\u25be <span class="gname">' +
+        (g.name === '-' ? 'single plates' : esc(g.name)) + '</span></td>';
       tbl.appendChild(gtr);
 
       g.rows.forEach(function (r) {
@@ -2251,7 +2254,7 @@
           '" title="colour of this ' + cscope +
           '" onclick="plateBuilder.openPalette(event,\'' + cscope + '\',\'' + ckey + '\',this)">' +
           '</span></td>' +
-          '<td><span class="plname" onclick="' + open + '">' +
+          '<td><span class="plname subname" onclick="' + open + '">' +
           esc(r.moduleId || r.plateId) + '</span>' +
           '<div class="dims">' + (r.moduleId ? 'plates ' + r.n : r.items[0].dims) +
           ' · ' + r.mass.toFixed(3) + 'kg' +
