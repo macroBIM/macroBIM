@@ -124,6 +124,7 @@
 
   var flatMode = false;                 // draw plates as surfaces (no thickness)
   var showAxes = false;                 // local axes on every placed plate
+  var showFaces = false;                // tint the +/- faces of every plate
   var memberAxes = {};                  // 'MODULE/POS' -> show local axes in the preview
   // appearance overrides, kept across reloads: instance > module > plate
   var ovColor = { plate: {}, module: {}, item: {} };
@@ -1241,6 +1242,36 @@
     return spr;
   }
 
+  function shapesFromRings(rings) {
+    return rings.outers.map(function (ring, i) {
+      var shape = new THREE.Shape(ring.map(function (q) { return new THREE.Vector2(q[0], q[1]); }));
+      (rings.holes[i] || []).forEach(function (h) {
+        shape.holes.push(new THREE.Path(h.map(function (q) { return new THREE.Vector2(q[0], q[1]); })));
+      });
+      return shape;
+    });
+  }
+
+  // thin coloured skins on both faces: warm = +side (thickness direction), cool = -side
+  var TINT_PLUS = 0xffb45a, TINT_MINUS = 0x5aa0ff;
+  function faceTint(rings, thk, matrix) {
+    var g = new THREE.Group();
+    var off = (flatMode ? 0 : thk / 2) + 0.25;
+    shapesFromRings(rings).forEach(function (shape) {
+      [[off, TINT_PLUS], [-off, TINT_MINUS]].forEach(function (side) {
+        var geo = new THREE.ShapeGeometry(shape);
+        geo.translate(0, 0, side[0]);
+        var mesh = new THREE.Mesh(geo, new THREE.MeshBasicMaterial({
+          color: side[1], transparent: true, opacity: 0.5, side: THREE.DoubleSide,
+          depthWrite: false }));
+        mesh.matrixAutoUpdate = false;
+        mesh.matrix.copy(matrix);
+        g.add(mesh);
+      });
+    });
+    return g;
+  }
+
   // local axis triad at a plate's centre: +Z is the thickness / offset direction
   function plateTriad(spec, matrix, len) {
     var g = new THREE.Group();
@@ -1319,6 +1350,7 @@
       var g2d = buildPlate2D(spec, lastCuts, lastPlates);
       mass += g2d.area * spec.THK * RHO;
       if (memberAxes[id + '/' + row.NO]) sc.add(plateTriad(spec, m, triadLen(spec)));
+      if (showFaces) sc.add(faceTint({ outers: g2d.outers, holes: g2d.holes }, spec.THK, m));
       var pop = resolveOpac(row.PLATE, id, null);
       var mat = new THREE.MeshPhongMaterial({
         color: resolveColor(row.PLATE, id, null, lastColors[row.PLATE] || 0x999999),
@@ -1437,7 +1469,7 @@
     document.getElementById('pb-total').textContent =
       'Placed plates: ' + items.length + ' · Total weight: ' + total.toFixed(3) + ' kg';
   }
-  function toggleItem(i, on) { items[i].groupObj.visible = on; updateSceneAxes(); }
+  function toggleItem(i, on) { items[i].groupObj.visible = on; updateSceneAxes(); updateSceneFaces(); }
   function toggleGroup(g, on) {
     items.forEach(function (it, i) {
       if (it.group === g) {
@@ -1446,6 +1478,7 @@
       }
     });
     updateSceneAxes();
+    updateSceneFaces();
   }
 
   /* -------- STL export (world transforms applied) -------- */
@@ -1700,6 +1733,10 @@
       '      onchange="plateBuilder.setFlat(this.checked)"> surface only</label>' +
       '    <label class="chk"><input type="checkbox" id="pb-axes"' +
       '      onchange="plateBuilder.setAxes(this.checked)"> local axes</label>' +
+      '    <label class="chk"><input type="checkbox" id="pb-faces"' +
+      '      onchange="plateBuilder.setFaces(this.checked)">' +
+      '      <span style="color:#ffb45a">+</span>/<span style="color:#5aa0ff">&#8722;</span>' +
+      '      face</label>' +
       '  </div>' +
       '  <div id="pb-prog"><div id="pb-prog-label"></div>' +
       '    <div class="pb-track"><div id="pb-prog-bar"></div></div></div>' +
@@ -1883,6 +1920,7 @@
     setView('iso');
     if (flatMode) document.getElementById('pb-flat').checked = true;
     if (showAxes) { document.getElementById('pb-axes').checked = true; updateSceneAxes(); }
+    if (showFaces) { document.getElementById('pb-faces').checked = true; updateSceneFaces(); }
 
     // Excel loading: file picker + drag & drop anywhere on the app
     var fileInput = document.getElementById('pb-file');
@@ -1937,6 +1975,25 @@
     if (pvModuleId) previewModule(pvModuleId);
   }
 
+  var sceneFaces = null;
+  function updateSceneFaces() {
+    if (sceneFaces) { scene.remove(sceneFaces); sceneFaces = null; }
+    if (!showFaces) return;
+    sceneFaces = new THREE.Group();
+    items.forEach(function (it) {
+      if (!it.groupObj.visible) return;
+      sceneFaces.add(faceTint(it.rings, it.thk, it.matrix));
+    });
+    scene.add(sceneFaces);
+  }
+  function setFaces(on) {
+    showFaces = !!on;
+    var cb = document.getElementById('pb-faces');
+    if (cb) cb.checked = showFaces;
+    updateSceneFaces();
+    if (pvModuleId) previewModule(pvModuleId);
+  }
+
   var sceneAxes = null;
   function updateSceneAxes() {
     if (sceneAxes) { scene.remove(sceneAxes); sceneAxes = null; }
@@ -1980,6 +2037,7 @@
         obj.geometry = obj.isMesh ? geo : new THREE.EdgesGeometry(geo, 25);
       });
     });
+    updateSceneFaces();
     if (pvModuleId) previewModule(pvModuleId);      // keep an open preview in sync
   }
 
@@ -1996,7 +2054,8 @@
     setFlat: setFlat, setColor: setColor, setOpacity: setOpacity, fitPreview: pvFit,
     openPalette: openPalette, pickColor: pickColor,
     exportModuleSTL: exportModuleSTL, exportModuleIFC: exportModuleIFC,
-    setAxes: setAxes, toggleMemberAxis: toggleMemberAxis, toggleModuleRows: toggleModuleRows
+    setAxes: setAxes, setFaces: setFaces,
+    toggleMemberAxis: toggleMemberAxis, toggleModuleRows: toggleModuleRows
   };
 
   /* ---- auto-run: use window.PLATE_DATA if present, else empty default.
