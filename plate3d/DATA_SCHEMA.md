@@ -207,7 +207,9 @@ FOLD=180 (이어붙임)          FOLD=90 (직각 세움)
 | **MODULE** | ID, PLATE.ID, Ref.Pt, L.X, L.Y, L.Z, PLANE, ROT.X, ROT.Y, ROT.Z | 모듈에 판 1장 배치. 판의 Ref.Pt가 **모듈 로컬 (L.X, L.Y, L.Z)** 에 오고, PLANE은 그 판이 놓일 평면, ROT.X/Y/Z는 그 점을 중심으로 한 회전(도). 행마다 모듈 ID 반복 — 같은 ID 행들이 한 모듈로 누적. PART도 별칭 인식 |
 | **MODULE** | ID, **BASE**, 판인스턴스, 점이름 | 모듈 기준점 = 구성 판의 9점 중 하나(`bc+`처럼 면 지정 가능). **누락 시 경고** + 로컬 원점 사용 |
 | **COORD** | ZUP (기본) / YUP | 이 시트를 어느 좌표계로 읽을지. `YUP` 이면 예전 Y-up 기준으로 조립한 뒤 한 번만 세워 배치 — MODULE/ASSY 행보다 **위**에 둘 것 |
-| **ASSY** | ID, ref MOD/ASSY, G.X, G.Y, G.Z, ROT.X, ROT.Y, ROT.Z | **생성할 조립체 ID** 와 **참조할 MODULE / 다른 ASSY / 낱장 PLATE**. 참조 대상의 기준점이 **글로벌 (G.X, G.Y, G.Z)** 에 오고, ROT.X/Y/Z로 3축 회전 |
+| **ASSY** | ID, ref MOD/ASSY, **ADD**, G.X, G.Y, G.Z, ROT.X, ROT.Y, ROT.Z | **생성할 조립체 ID** 와 **참조할 MODULE / 다른 ASSY / 낱장 PLATE**. 참조 대상의 기준점이 **글로벌 (G.X, G.Y, G.Z)** 에 오고, ROT.X/Y/Z로 3축 회전 |
+| **ASSY** | ID, ref MOD/ASSY, **MIR**, G.X, G.Y, G.Z, PLANE | 참조 대상을 **있는 자리에서** (G.X, G.Y, G.Z)를 지나는 XY/YZ/XZ 평면 기준으로 반사. 생성 ID = **`ID.MR`** |
+| **ASSY** | ID, ref MOD/ASSY, **COPY**, d.X, d.Y, d.Z, repeat | 참조 대상을 **있는 자리에서** (dX,dY,dZ)씩 밀어 **repeat개 추가 복사**. 생성 ID = **`ID.CP001`, `ID.CP002` …** |
 | END | | 입력 종료 |
 
 - **CUT의 대상 판**: 판 ID를 쓰면 그 판에 적용(행 순서 무관), 생략하면 바로 위에서 정의한 PLATE/BAR에 적용
@@ -220,6 +222,11 @@ FOLD=180 (이어붙임)          FOLD=90 (직각 세움)
 - PLANE: **XY(수평)/XZ(정면)/YZ(측면)** — Z-up 기준. Ref.Pt: tl~br·cc (p 접두사 있어도 인식)
 - **MODULE 행 읽는 법**: 「이 판(PLATE.ID)의 이 점(Ref.Pt)을 모듈 좌표 (L.X, L.Y, L.Z)에 놓고, PLANE 평면에 눕히고, 필요하면 그 점을 중심으로 ROT.X/Y/Z만큼 돌려라」
 - **ASSY의 기준점**: 참조 대상이 MODULE이면 그 모듈의 **BASE 점**, 낱장 PLATE면 **bc**(평면은 XY 기준, 필요시 ROT으로 회전), 다른 ASSY면 그 조립체의 **자기 원점**
+- **ADD / MIR / COPY 차이**: ADD는 기준점을 **절대 좌표에 갖다 놓고**, MIR·COPY는 참조 대상이
+  **이미 놓인 자리를 기준으로** 반사·이동한다. (COPY의 repeat는 CUT과 같이 **추가 복사 개수**)
+- MIR 결과물도 정상적인 우수좌표계로 만들어진다 — 반사는 판 외형(프로필)에 접어 넣으므로
+  STL 면 방향과 IFC 배치가 깨지지 않는다.
+- 명령 칸(ADD/MIR/COPY)을 생략하면 ADD로 읽으므로 예전 시트도 그대로 동작한다.
 - ASSY는 **중첩 가능** — 먼저 정의한 ASSY를 참조해서 더 큰 조립체를 만들 수 있음 (같은 ID를 여러 번 쓰면 `-2`, `-3` 접미사가 붙어 복수 배치)
 - 회전 순서는 X → Y → Z (모듈/글로벌 축 기준)
 - **좌표계는 Z-up 우수좌표계** — X 동, Y 북, **Z 위(높이)**. IFC·AutoCAD·Revit·Tekla 와 동일.

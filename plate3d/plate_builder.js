@@ -284,13 +284,22 @@
           POS ID PLANE REF.PT L.X L.Y L.ROT OFFSET  and  BASE INSTANCE POINT rows
        COORD ZUP | YUP                       (default ZUP; YUP reads the sheet in the
                                                old Y-up frame - put it above MODULE/ASSY)
-       ASSY  ID SOURCE G.X G.Y G.Z [ROT.X ROT.Y ROT.Z]
+       ASSY  ID SOURCE ADD  G.X G.Y G.Z [ROT.X ROT.Y ROT.Z]
                                               (ID = the assembly being created, SOURCE =
                                                the MODULE, PLATE or earlier ASSY it is
                                                built from. Its reference point - a
                                                module's BASE, a plate's bc, an assembly's
                                                own origin - lands on global G.X/G.Y/G.Z,
                                                then ROT.X/Y/Z about that point)
+       ASSY  ID SOURCE MIR  G.X G.Y G.Z PLANE (reflect SOURCE where it stands, about the
+                                               XY / YZ / XZ plane through G.X/G.Y/G.Z.
+                                               The result is named ID.MR)
+       ASSY  ID SOURCE COPY d.X d.Y d.Z repeat
+                                              (repeat extra copies of SOURCE, each one
+                                               d.X/d.Y/d.Z further on, named ID.CP001,
+                                               ID.CP002, ...)
+                                              (the command column may be left out, in
+                                               which case the row is read as ADD)
        ASSY  ID PLANE REF.PT L.X L.Y L.ROT OFFSET    (legacy order, still read: assemble a
                                                MODULE or a PLATE. REF.PT for modules:
                                                blank/O = BASE point, 9-point name =
@@ -339,6 +348,10 @@
   function parseExcelRows(rows) {
     var plates = {}, parts = {}, cuts = [], assy = [], log = [];
     var assyIds = {};                    // ASSY ids already defined (can be referenced again)
+    function uniqueAssyId(id) {          // a repeated id gets -2, -3, ...
+      counter[id] = (counter[id] || 0) + 1;
+      return counter[id] > 1 ? id + '-' + counter[id] : id;
+    }
     var palias = PLANE_ALIAS, yup = false;   // switched by a COORD row
     var counts = { plate: 0, bar: 0, cut: 0, module: 0, assy: 0 };
     var current = null, currentPart = null, counter = {};
@@ -481,8 +494,13 @@
         currentPart.base = { inst: str(v[0]).toUpperCase(), pt: normPoint(v[1]),
                              face: faceOf(v[1]) };
       } else if (kw === 'ASSY') {
-        if (!palias[str(v[1]).toUpperCase()]) {
-          // ASSY <new id> <MODULE / ASSY / PLATE> G.X G.Y G.Z [ROT.X ROT.Y ROT.Z]
+        var acmd = str(v[2]).toUpperCase();
+        if (acmd === 'MIRROR') acmd = 'MIR';
+        var hasCmd = acmd === 'ADD' || acmd === 'MIR' || acmd === 'COPY';
+        if (hasCmd || !palias[str(v[1]).toUpperCase()]) {
+          //  ASSY <id> <MODULE/ASSY/PLATE> ADD  G.X G.Y G.Z [ROT.X ROT.Y ROT.Z]
+          //  ASSY <id> <MODULE/ASSY/PLATE> MIR  G.X G.Y G.Z  PLANE      -> <id>.MR
+          //  ASSY <id> <MODULE/ASSY/PLATE> COPY d.X d.Y d.Z  repeat     -> <id>.CP001...
           var aid = str(v[0]).toUpperCase();
           var asrc = str(v[1]).toUpperCase();
           if (!aid) { warn('row ' + (r + 1) + ': ASSY without ID'); continue; }
@@ -491,13 +509,51 @@
             warn('row ' + (r + 1) + ': ASSY of undefined MODULE/ASSY/PLATE ' + (asrc || '(blank)'));
             continue;
           }
-          counter[aid] = (counter[aid] || 0) + 1;
-          var ano = counter[aid] > 1 ? aid + '-' + counter[aid] : aid;
-          assyIds[ano] = true;
-          assy.push({ __xl: true, __g: true, NO: ano, REF: aref,
-                      GX: num(v[2], 0), GY: num(v[3], 0), GZ: num(v[4], 0),
-                      RX: num(v[5], 0), RY: num(v[6], 0), RZ: num(v[7], 0),
-                      GROUP: ano, REMARK: '', MIRROR: '' });
+          if (!hasCmd) acmd = 'ADD';                     // pre-command sheets
+          var w = hasCmd ? 3 : 2;                        // first coordinate column
+          var arow = { __xl: true, __g: true, CMD: acmd, REF: aref,
+                       GX: num(v[w], 0), GY: num(v[w + 1], 0), GZ: num(v[w + 2], 0),
+                       REMARK: '', MIRROR: '' };
+          if (acmd === 'MIR') {
+            var mp = str(v[w + 3]).toUpperCase().replace(/[^XYZ]/g, '');
+            mp = { XY: 'XY', YX: 'XY', YZ: 'YZ', ZY: 'YZ', XZ: 'XZ', ZX: 'XZ' }[mp];
+            if (!mp) {
+              warn('row ' + (r + 1) + ': ASSY MIR needs a mirror plane (XY / YZ / XZ) after G.X/G.Y/G.Z');
+              continue;
+            }
+            arow.MPLANE = mp;
+            arow.NO = uniqueAssyId(aid + '.MR');
+            assyIds[arow.NO] = true;
+            arow.GROUP = arow.NO;
+            assy.push(arow);
+            counts.assy++;
+            continue;
+          }
+          if (acmd === 'COPY') {
+            var rep = Math.max(0, Math.round(num(v[w + 3], 0)));
+            if (!rep) {
+              warn('row ' + (r + 1) + ': ASSY COPY with repeat 0/empty — no copy is made' +
+                   ' (repeat = how many extra copies)');
+              continue;
+            }
+            if (!num(v[w], 0) && !num(v[w + 1], 0) && !num(v[w + 2], 0)) {
+              warn('row ' + (r + 1) + ': ASSY COPY has d.X/d.Y/d.Z all 0 — the copies land on the original');
+            }
+            for (var ci = 1; ci <= rep; ci++) {
+              var cno = uniqueAssyId(aid + '.CP' + ('000' + ci).slice(-3));
+              assyIds[cno] = true;
+              assy.push({ __xl: true, __g: true, CMD: 'COPY', REF: aref, NO: cno, GROUP: cno,
+                          GX: arow.GX * ci, GY: arow.GY * ci, GZ: arow.GZ * ci,
+                          REMARK: '', MIRROR: '' });
+              counts.assy++;
+            }
+            continue;
+          }
+          arow.RX = num(v[w + 3], 0); arow.RY = num(v[w + 4], 0); arow.RZ = num(v[w + 5], 0);
+          arow.NO = uniqueAssyId(aid);
+          assyIds[arow.NO] = true;
+          arow.GROUP = arow.NO;
+          assy.push(arow);
           counts.assy++;
           continue;
         }
@@ -699,6 +755,21 @@
     var c = cornersOf(spec);
     if (spec.WT <= 0) return [c.pbl, c.pbr, c.ptl];
     return [c.pbl, c.pbr, c.ptr, c.ptl];
+  }
+  // Reflection about a coordinate plane through (px, py, pz)
+  function mirrorMatrix(plane, px, py, pz) {
+    if (plane === 'YZ') return new THREE.Matrix4().makeScale(-1, 1, 1).setPosition(2 * px, 0, 0);
+    if (plane === 'XZ') return new THREE.Matrix4().makeScale(1, -1, 1).setPosition(0, 2 * py, 0);
+    return new THREE.Matrix4().makeScale(1, 1, -1).setPosition(0, 0, 2 * pz);   // XY
+  }
+  // x -> -x in the plate's own plane, winding kept CCW. A reflected placement has
+  // a left-handed frame, which THREE lights wrong, STL winds inside out and IFC
+  // cannot express at all; folding the flip into the profile and squaring the
+  // matrix up again (world * diag(-1,1,1)) gives the same model, properly framed.
+  function flipRingsX(ringList) {
+    return ringList.map(function (ring) {
+      return ring.map(function (q) { return [-q[0], q[1]]; }).reverse();
+    });
   }
   function mirrorAxisOf(spec) {                    // bbox center ×2 (for x → m − x)
     var d = xShift(spec);
@@ -984,7 +1055,7 @@
     function buildErr(m) { buildLog.push(m); console.error('[plateBuilder] ' + m); }
 
     // create geometry for one plate instance with a final world matrix
-    function buildInstance(spec, matrix, no, group, remark, mirror, moduleId, memberKey) {
+    function buildInstance(spec, matrix, no, group, remark, mirror, moduleId, memberKey, flip) {
       var world = yupFix(matrix);        // EDGE chaining keeps using the raw matrix
       var thk = spec.THK;
       var g2d = buildPlate2D(spec, cuts, plates);
@@ -992,6 +1063,11 @@
       if (mirror) {
         outers = mirror2D(outers, spec);
         holesArr = holesArr.map(function (hs) { return mirror2D(hs, spec); });
+      }
+      if (flip) {                        // reflected instance, see flipRingsX
+        world = world.clone().multiply(new THREE.Matrix4().makeScale(-1, 1, 1));
+        outers = flipRingsX(outers);
+        holesArr = holesArr.map(flipRingsX);
       }
       var groupObj = new THREE.Group();
       var mat = new THREE.MeshPhongMaterial({ color: colors[spec.ID], shininess: 28,
@@ -1101,6 +1177,7 @@
     }
 
     var assyDefs = {};                 // ASSY id -> members in that assembly's own frame
+    var assyAt = {};                   // ASSY id -> where that assembly was placed
 
     // members of an ASSY source, positioned so its reference point is at the origin
     function assySource(row) {
@@ -1110,35 +1187,54 @@
         var toBase = new THREE.Matrix4().makeTranslation(-B.x, -B.y, -B.z);
         return pl.locals.map(function (L) {
           return { spec: L.spec, no: L.row.NO, moduleId: row.REF,
-                   memberKey: row.REF + '/' + L.row.NO,
+                   memberKey: row.REF + '/' + L.row.NO, flip: false,
                    mloc: toBase.clone().multiply(L.mloc) };
         });
       }
       if (assyDefs[row.REF]) {                           // an earlier ASSY: reference = its origin
         return assyDefs[row.REF].map(function (L) {
           return { spec: L.spec, no: L.no, moduleId: L.moduleId, memberKey: L.memberKey,
-                   mloc: L.mloc.clone() };
+                   flip: L.flip, mloc: L.mloc.clone() };
         });
       }
       var sp = plates[row.REF];                          // a single PLATE: reference = its bc
       if (!sp) throw new Error(row.NO + ': unknown MODULE/ASSY/PLATE ' + row.REF);
       var p0 = namedPoints(sp, false).pbc;
-      return [{ spec: sp, no: sp.ID, moduleId: null, memberKey: null,
+      return [{ spec: sp, no: sp.ID, moduleId: null, memberKey: null, flip: false,
                 mloc: new THREE.Matrix4().makeTranslation(-p0[0], -p0[1], 0) }];
     }
 
     assyRows.forEach(function (row) {
-      if (row.__g) {                     // ASSY <id> <MODULE/ASSY/PLATE> G.X G.Y G.Z [ROT.X/Y/Z]
+      if (row.__g) {                     // ADD / MIR / COPY
         var src;
         try { src = assySource(row); } catch (err) { buildErr(err.message); return; }
+        var at = assyAt[row.REF] || new THREE.Matrix4();
+        var G, pre = null, flipAll = false;
+        if (row.CMD === 'MIR') {         // reflect the source where it already stands
+          // fold the reflection into the definition, so the result can be
+          // re-placed later like any other assembly
+          pre = new THREE.Matrix4().copy(at).invert()
+                  .multiply(mirrorMatrix(row.MPLANE, row.GX, row.GY, row.GZ))
+                  .multiply(at);
+          G = at.clone();
+          flipAll = true;
+        } else if (row.CMD === 'COPY') { // shift the source from where it already stands
+          G = new THREE.Matrix4().makeTranslation(row.GX, row.GY, row.GZ).multiply(at);
+        } else {                         // ADD: reference point lands on G.X/G.Y/G.Z
+          G = new THREE.Matrix4().makeTranslation(row.GX, row.GY, row.GZ)
+                .multiply(rotXYZ(row.RX, row.RY, row.RZ));
+        }
         // the definition keeps its own reference point at the origin, so a later
         // ASSY row that reuses this id places it by the same G.X/G.Y/G.Z rule
-        assyDefs[row.NO] = src;
-        var G = new THREE.Matrix4().makeTranslation(row.GX, row.GY, row.GZ)
-                  .multiply(rotXYZ(row.RX, row.RY, row.RZ));
-        src.forEach(function (L) {
+        assyDefs[row.NO] = src.map(function (L) {
+          var ml = pre ? pre.clone().multiply(L.mloc) : L.mloc.clone();
+          return { spec: L.spec, no: L.no, moduleId: L.moduleId, memberKey: L.memberKey,
+                   flip: flipAll ? !L.flip : L.flip, mloc: ml };
+        });
+        assyAt[row.NO] = G;
+        assyDefs[row.NO].forEach(function (L) {
           buildInstance(L.spec, G.clone().multiply(L.mloc), row.NO + '/' + L.no,
-                        row.NO, '', false, L.moduleId, L.memberKey);
+                        row.NO, '', false, L.moduleId, L.memberKey, L.flip);
         });
         return;
       }
