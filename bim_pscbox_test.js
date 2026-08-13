@@ -80,6 +80,12 @@
     if (!hasGlobal('SectionBase')) need.push(PAGES + 'section.js');
     if (!hasGlobal('Domain')) need.push(PAGES + 'domain.js');
     if (!hasGlobal('UI')) need.push(PAGES + 'ui.js');
+    // 개발 중 엔진 파일이 캐시에 물려 옛 동작이 남는 것을 막는다 (레이아웃의 pscbox 로더와 동일 방식)
+    var bust = 'v=' + Date.now();
+    need = need.map(function (u) {
+      if (u.indexOf('cdnjs') >= 0 || u.indexOf('cdn.jsdelivr') >= 0) return u;   // 외부 CDN 은 그대로
+      return u + (u.indexOf('?') >= 0 ? '&' : '?') + bust;
+    });
     (function next(i) {
       if (i >= need.length) { cb(); return; }
       var s = document.createElement('script');
@@ -929,6 +935,8 @@
           if (!loop.length) return;
           var pts = [{ x: loop[0].x1, y: loop[0].y1 }];
           loop.forEach(function (seg) {
+            // 길이 0 세그먼트(입력 안 함/0 입력 치수) → 벽 생성 생략 (경로 점만 유지)
+            if (Math.hypot(seg.x2 - seg.x1, seg.y2 - seg.y1) < 0.5) { pts.push({ x: seg.x2, y: seg.y2 }); return; }
             var mx = (seg.x1 + seg.x2) / 2, my = (seg.y1 + seg.y2) / 2;
             var dx = seg.x2 - seg.x1, dy = seg.y2 - seg.y1, len = Math.hypot(dx, dy) || 1;
             var nx = -dy / len, ny = dx / len;
