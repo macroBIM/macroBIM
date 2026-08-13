@@ -293,17 +293,17 @@
                                                then ROT.X/Y/Z about that point)
        ASSY  ID SOURCE MIR  G.X G.Y G.Z PLANE (reflect SOURCE where it stands, about the
                                                XY / YZ / XZ plane through G.X/G.Y/G.Z.
-                                               The result is named ID.MR)
+                                               One result, so it takes ID as it is)
        ASSY  ID SOURCE COPY d.X d.Y d.Z repeat
                                               (repeat extra copies of SOURCE, each one
-                                               d.X/d.Y/d.Z further on, named ID.CP001,
-                                               ID.CP002, ...)
+                                               d.X/d.Y/d.Z further on, named ID001,
+                                               ID002, ... in the order they are made)
        ASSY  ID SOURCE ROT  C.X C.Y C.Z AXIS angle repeat
                                               (radial array: repeat extra copies of
                                                SOURCE, each turned another `angle` degrees
                                                about the world X/Y/Z axis through the
                                                absolute centre C.X/C.Y/C.Z. Named
-                                               ID.RO<AXIS>001, ID.RO<AXIS>002, ...)
+                                               ID001, ID002, ...)
                                               (the command column may be left out, in
                                                which case the row is read as ADD)
        ASSY  ID PLANE REF.PT L.X L.Y L.ROT OFFSET    (legacy order, still read: assemble a
@@ -357,6 +357,11 @@
     function uniqueAssyId(id) {          // a repeated id gets -2, -3, ...
       counter[id] = (counter[id] || 0) + 1;
       return counter[id] > 1 ? id + '-' + counter[id] : id;
+    }
+    var assySeq = {};                    // ID given to COPY/ROT -> results numbered so far
+    function seqAssyId(base) {           // ID001, ID002, ... in the order they are made
+      assySeq[base] = (assySeq[base] || 0) + 1;
+      return uniqueAssyId(base + ('000' + assySeq[base]).slice(-3));
     }
     var palias = PLANE_ALIAS, yup = false;   // switched by a COORD row
     var counts = { plate: 0, bar: 0, cut: 0, module: 0, assy: 0 };
@@ -505,10 +510,12 @@
         var hasCmd = acmd === 'ADD' || acmd === 'MIR' || acmd === 'COPY' || acmd === 'ROT';
         if (hasCmd || !palias[str(v[1]).toUpperCase()]) {
           //  ASSY <id> <MODULE/ASSY/PLATE> ADD  G.X G.Y G.Z [ROT.X ROT.Y ROT.Z]
-          //  ASSY <id> <MODULE/ASSY/PLATE> MIR  G.X G.Y G.Z  PLANE      -> <id>.MR
-          //  ASSY <id> <MODULE/ASSY/PLATE> COPY d.X d.Y d.Z  repeat     -> <id>.CP001...
+          //  ASSY <id> <MODULE/ASSY/PLATE> MIR  G.X G.Y G.Z  PLANE      -> <id>
+          //  ASSY <id> <MODULE/ASSY/PLATE> COPY d.X d.Y d.Z  repeat     -> <id>001, <id>002...
           //  ASSY <id> <MODULE/ASSY/PLATE> ROT  C.X C.Y C.Z  AXIS angle repeat
-          //                                                             -> <id>.ROZ001...
+          //                                                             -> <id>001, <id>002...
+          //  (the ID column names the result; COPY and ROT number theirs in the
+          //   order they are generated, MIR makes only one so it takes the ID as is)
           var aid = str(v[0]).toUpperCase();
           var asrc = str(v[1]).toUpperCase();
           if (!aid) { warn('row ' + (r + 1) + ': ASSY without ID'); continue; }
@@ -530,7 +537,7 @@
               continue;
             }
             arow.MPLANE = mp;
-            arow.NO = uniqueAssyId(aid + '.MR');
+            arow.NO = uniqueAssyId(aid);
             assyIds[arow.NO] = true;
             arow.GROUP = arow.NO;
             assy.push(arow);
@@ -554,7 +561,7 @@
               warn('row ' + (r + 1) + ': ASSY ROT has Angle 0 — the copies land on the original');
             }
             for (var ri = 1; ri <= rrep; ri++) {
-              var rno = uniqueAssyId(aid + '.RO' + rax + ('000' + ri).slice(-3));
+              var rno = seqAssyId(aid);
               assyIds[rno] = true;
               assy.push({ __xl: true, __g: true, CMD: 'ROT', REF: aref, NO: rno, GROUP: rno,
                           GX: arow.GX, GY: arow.GY, GZ: arow.GZ,
@@ -574,7 +581,7 @@
               warn('row ' + (r + 1) + ': ASSY COPY has d.X/d.Y/d.Z all 0 — the copies land on the original');
             }
             for (var ci = 1; ci <= rep; ci++) {
-              var cno = uniqueAssyId(aid + '.CP' + ('000' + ci).slice(-3));
+              var cno = seqAssyId(aid);
               assyIds[cno] = true;
               assy.push({ __xl: true, __g: true, CMD: 'COPY', REF: aref, NO: cno, GROUP: cno,
                           GX: arow.GX * ci, GY: arow.GY * ci, GZ: arow.GZ * ci,
