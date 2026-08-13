@@ -1522,12 +1522,12 @@
   function ringTexture() {                       // shared, never disposed
     if (ringTex) return ringTex;
     var cv = document.createElement('canvas');
-    cv.width = cv.height = 64;
+    cv.width = cv.height = 96;
     var c = cv.getContext('2d');
     c.strokeStyle = '#ffffff';
-    c.lineWidth = 7;
+    c.lineWidth = 12;
     c.beginPath();
-    c.arc(32, 32, 24, 0, Math.PI * 2);
+    c.arc(48, 48, 36, 0, Math.PI * 2);
     c.stroke();
     ringTex = new THREE.CanvasTexture(cv);
     ringTex.userData.keep = true;
@@ -1563,18 +1563,18 @@
       clear();
       if (!M.on) { report(); return; }
       var g = new THREE.Group(), r = cfg.size() * 0.016;
-      if (M.hover && M.picks.length < 2) g.add(dot(M.hover, 0xffd24a, r * 1.3));
-      M.picks.forEach(function (p) { g.add(dot(p, 0xf0c674, r)); });
+      if (M.hover && M.picks.length < 2) g.add(dot(M.hover, 0xffff7a, r * 1.3));
+      M.picks.forEach(function (p) { g.add(dot(p, 0xffe81f, r)); });
       if (M.picks.length === 2) {
         var a = M.picks[0], b = M.picks[1];
-        g.add(seg(a, b, 0xf0c674));
+        g.add(seg(a, b, 0xffe81f));
         var c1 = new THREE.Vector3(b.x, a.y, a.z);      // X-Y-Z staircase
         var c2 = new THREE.Vector3(b.x, b.y, a.z);
         g.add(seg(a, c1, 0xe05c4f));
         g.add(seg(c1, c2, 0x6fc36f));
         g.add(seg(c2, b, 0x5c9bd1));
         var mid = a.clone().add(b).multiplyScalar(0.5);
-        var lb = makeLabel(fmt(a.distanceTo(b)), '#f0c674', cfg.size() * 0.045);
+        var lb = makeLabel(fmt(a.distanceTo(b)), '#ffe81f', cfg.size() * 0.045);
         lb.position.copy(mid);
         g.add(lb);
       }
@@ -1593,7 +1593,7 @@
         return;
       }
       if (M.picks.length === 1) {
-        el.innerHTML = '<span style="color:#f0c674">P1</span> ' + xyz(M.picks[0]) +
+        el.innerHTML = '<span style="color:#ffe81f">P1</span> ' + xyz(M.picks[0]) +
           ' &nbsp; — click the second point' +
           ' &nbsp; <span style="color:#5b6472">right click to clear</span>';
         return;
@@ -1603,7 +1603,7 @@
         '<span style="color:#e05c4f">\u0394X ' + fmt(b.x - a.x) + '</span> &nbsp; ' +
         '<span style="color:#6fc36f">\u0394Y ' + fmt(b.y - a.y) + '</span> &nbsp; ' +
         '<span style="color:#5c9bd1">\u0394Z ' + fmt(b.z - a.z) + '</span> &nbsp;&nbsp; ' +
-        '<span style="color:#f0c674">dist ' + fmt(a.distanceTo(b)) + '</span>' +
+        '<span style="color:#ffe81f">dist ' + fmt(a.distanceTo(b)) + '</span>' +
         ' &nbsp; <span style="color:#5b6472">right click to clear</span>';
     }
     function xyz(p) { return '(' + fmt(p.x) + ', ' + fmt(p.y) + ', ' + fmt(p.z) + ')'; }
