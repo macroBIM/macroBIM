@@ -58,9 +58,15 @@
     '#pb-side button:hover { background:#39424d; }',
     '#pb-side button.accent { background:#2b5c8a; border-color:#3a76ad; color:#fff; }',
     '#pb-side table { width:100%; border-collapse:collapse; margin-bottom:10px; }',
-    '#pb-side td { padding:4px 2px; border-bottom:1px solid #23272e; vertical-align:middle; }',
-    '#pb-side tr.ghead td { color:#f0c674; font-size:11px; padding-top:10px;',
+    '#pb-side td { padding:4px 2px; border-bottom:1px solid #23272e;',
+    '  vertical-align:middle; color:#d8dce2; }',
+    // section title (PLATES / MODULES / ASSEMBLY) - always visible
+    '#pb-side tr.ghead td { color:#f0c674; font-size:11px; font-weight:600;',
+    '  letter-spacing:.4px; padding-top:12px; border-bottom:1px solid #3a424d; }',
+    // group header inside the assembly list
+    '#pb-side tr.gsub td { color:#cdd6e2; font-size:12px; padding-top:7px;',
     '  border-bottom:1px solid #2c323b; }',
+    '#pb-side tr.none td { color:#6b7480; font-size:11px; font-style:italic; }',
     '#pb-side .chip { display:inline-block; width:11px; height:11px; border-radius:2px;',
     '  margin-right:5px; vertical-align:-1px; }',
     '#pb-side .sw { display:inline-block; width:17px; height:17px; border:1px solid #3a424d;',
@@ -78,7 +84,7 @@
     '#pb-side .caret { color:#8a93a0; cursor:pointer; font-size:10px; }',
     '#pb-side .caret:hover { color:#d8dce2; }',
     '#pb-side tr.mem td { padding-top:2px; padding-bottom:2px; border-bottom:1px solid #1e2228; }',
-    '#pb-side .memname { color:#9aa3b0; font-size:11px; padding-left:12px; }',
+    '#pb-side .memname { color:#b6c0cd; font-size:11px; padding-left:12px; }',
     '#pb-side .dims { color:#8a93a0; font-size:11px; }',
     '#pb-side .chk { display:flex; align-items:center; gap:4px; font-size:12px;',
     '  color:#8a93a0; cursor:pointer; padding:5px 6px; border:1px solid #3a424d;',
@@ -99,7 +105,7 @@
     '  font-size:11px; color:#9aa3b0; line-height:1.55; }',
     '#pb-hud { position:absolute; left:10px; bottom:8px; color:#5b6472; font-size:11px;',
     '  pointer-events:none; }',
-    '#pb-side .plname { cursor:pointer; }',
+    '#pb-side .plname { color:#eef1f6; cursor:pointer; }',
     '#pb-side .plname:hover { color:#6fb3e8; text-decoration:underline; }',
     '#pb-modal { position:fixed; left:0; top:0; right:0; bottom:0; background:rgba(0,0,0,.35);',
     '  display:none; z-index:50; align-items:center; justify-content:center;',
@@ -962,17 +968,23 @@
     return bbox;
   }
 
+  // section title / placeholder rows - same look in every list
+  function sectionRow(tbl, cls, text) {
+    var tr = document.createElement('tr');
+    tr.className = cls;
+    tr.innerHTML = '<td colspan="2">' + text + '</td>';
+    tbl.appendChild(tr);
+    return tr;
+  }
+
   /* -------- plate definition list + 2D preview modal -------- */
   function buildPlateList(colors) {
     var tbl = document.getElementById('pb-plates');
     if (!tbl) return;
     tbl.innerHTML = '';
     var ids = Object.keys(lastPlates);
-    if (!ids.length) return;
-    var gtr = document.createElement('tr');
-    gtr.className = 'ghead';
-    gtr.innerHTML = '<td colspan="2">PLATES — click to preview</td>';
-    tbl.appendChild(gtr);
+    sectionRow(tbl, 'ghead', 'PLATES — click to preview');
+    if (!ids.length) { sectionRow(tbl, 'none', 'no PLATE row'); return; }
     ids.forEach(function (id) {
       var spec = lastPlates[id];
       var dims = spec.SHAPE === 'CIRC'
@@ -1166,11 +1178,8 @@
     if (!tbl) return;
     tbl.innerHTML = '';
     var ids = Object.keys(lastParts);
-    if (!ids.length) return;
-    var gtr = document.createElement('tr');
-    gtr.className = 'ghead';
-    gtr.innerHTML = '<td colspan="2">MODULES — click to preview</td>';
-    tbl.appendChild(gtr);
+    sectionRow(tbl, 'ghead', 'MODULES — click to preview');
+    if (!ids.length) { sectionRow(tbl, 'none', 'no MODULE row'); return; }
     ids.forEach(function (id) {
       var part = lastParts[id];
       var used = items.some(function (it) { return it.group === id || it.no.indexOf(id) === 0; });
@@ -1470,19 +1479,22 @@
   function buildList(colors) {
     var tbl = document.getElementById('pb-list');
     var total = 0, lastGroup = null;
+    tbl.innerHTML = '';
+    sectionRow(tbl, 'ghead', 'ASSEMBLY — placed plates');
+    if (!items.length) sectionRow(tbl, 'none', 'no ASSY row — nothing placed');
     items.forEach(function (it, i) {
       total += it.mass;
       if (it.group !== lastGroup) {
         lastGroup = it.group;
         var gtr = document.createElement('tr');
-        gtr.className = 'ghead';
+        gtr.className = 'gsub';
         gtr.innerHTML = '<td class="sty"><input type="checkbox" checked ' +
           'onchange="plateBuilder.toggleGroup(\'' + it.group + '\',this.checked)">' +
           '<input type="range" min="10" max="100" step="5" value="' +
           Math.round((ovOpac.group[it.group] !== undefined ? ovOpac.group[it.group] : 1) * 100) +
           '" title="opacity of this assembly" ' +
           'oninput="plateBuilder.setOpacity(\'group\',\'' + it.group + '\',this.value)"></td>' +
-          '<td>▾ ' + it.group + '</td>';
+          '<td>▾ ' + (it.group === '-' ? 'single plates' : esc(it.group)) + '</td>';
         tbl.appendChild(gtr);
       }
       var tr = document.createElement('tr');
