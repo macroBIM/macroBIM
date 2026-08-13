@@ -75,6 +75,10 @@
     '#pb-side input[type=range] { width:42px; height:12px; vertical-align:middle;',
     '  margin-left:4px; accent-color:#3a76ad; cursor:pointer; }',
     '#pb-side td.sty { white-space:nowrap; width:70px; }',
+    '#pb-side .caret { color:#8a93a0; cursor:pointer; font-size:10px; }',
+    '#pb-side .caret:hover { color:#d8dce2; }',
+    '#pb-side tr.mem td { padding-top:2px; padding-bottom:2px; border-bottom:1px solid #1e2228; }',
+    '#pb-side .memname { color:#9aa3b0; font-size:11px; padding-left:12px; }',
     '#pb-side .dims { color:#8a93a0; font-size:11px; }',
     '#pb-side .chk { display:flex; align-items:center; gap:4px; font-size:12px;',
     '  color:#8a93a0; cursor:pointer; padding:5px 6px; border:1px solid #3a424d;',
@@ -97,9 +101,11 @@
     '  pointer-events:none; }',
     '#pb-side .plname { cursor:pointer; }',
     '#pb-side .plname:hover { color:#6fb3e8; text-decoration:underline; }',
-    '#pb-modal { position:fixed; left:0; top:0; right:0; bottom:0; background:rgba(0,0,0,.55);',
-    '  display:none; z-index:50; align-items:center; justify-content:center; }',
-    '#pb-modal .box { background:#1c2026; border:1px solid #3a424d; border-radius:8px;',
+    '#pb-modal { position:fixed; left:0; top:0; right:0; bottom:0; background:rgba(0,0,0,.35);',
+    '  display:none; z-index:50; align-items:center; justify-content:center;',
+    '  pointer-events:none; }',
+    '#pb-modal .box { pointer-events:auto; background:#1c2026; border:1px solid #3a424d;',
+    '  border-radius:8px;',
     '  padding:14px; box-shadow:0 8px 30px rgba(0,0,0,.5); }',
     '#pb-modal h2 { font-size:14px; color:#fff; margin:0 0 8px; }',
     '#pb-modal .close { float:right; cursor:pointer; color:#8a93a0; padding:0 4px; }',
@@ -117,6 +123,8 @@
   ].join('\n');
 
   var flatMode = false;                 // draw plates as surfaces (no thickness)
+  var showAxes = false;                 // local axes on every placed plate
+  var memberAxes = {};                  // 'MODULE/POS' -> show local axes in the preview
   // appearance overrides, kept across reloads: instance > module > plate
   var ovColor = { plate: {}, module: {}, item: {} };
   var ovOpac = { plate: {}, module: {}, item: {} };
@@ -1146,12 +1154,29 @@
         '<td class="sty"><input type="range" min="10" max="100" step="5" value="' +
         Math.round(resolveOpac('', id, null) * 100) +
         '" title="opacity" oninput="plateBuilder.setOpacity(\'module\',\'' + id + '\',this.value)"></td>' +
-        '<td><span class="plname" onclick="plateBuilder.previewModule(\'' + id + '\')">' +
+        '<td><span class="caret" onclick="plateBuilder.toggleModuleRows(\'' + id + '\')">▾</span> ' +
+        '<span class="plname" onclick="plateBuilder.previewModule(\'' + id + '\')">' +
         esc(id) + '</span>' +
         '<div class="dims">plates ' + part.pos.length +
         (part.base ? ' · base ' + esc(part.base.inst) + '.' + part.base.pt.slice(1) : ' · no base') +
         (used ? '' : ' · not assembled') + '</div></td>';
       tbl.appendChild(tr);
+
+      part.pos.forEach(function (row) {                 // member plates of this module
+        var key = id + '/' + row.NO;
+        var mr = document.createElement('tr');
+        mr.className = 'mem m-' + id.replace(/[^A-Za-z0-9]/g, '_');
+        mr.innerHTML =
+          '<td class="sty"><input type="checkbox" title="show local axes"' +
+          (memberAxes[key] ? ' checked' : '') +
+          ' onchange="plateBuilder.toggleMemberAxis(\'' + id + '\',\'' + row.NO + '\',this.checked)">' +
+          '</td>' +
+          '<td class="memname">' + esc(row.NO) +
+          '<div class="dims">' + esc(row.PLANE) + ' · ' + esc(row.REFPT.slice(1)) +
+          ' · off ' + row.OFFSET +
+          (part.base && part.base.inst === row.NO ? ' · BASE' : '') + '</div></td>';
+        tbl.appendChild(mr);
+      });
     });
   }
 
@@ -1216,6 +1241,29 @@
     return spr;
   }
 
+  // local axis triad at a plate's centre: +Z is the thickness / offset direction
+  function plateTriad(spec, matrix, len) {
+    var g = new THREE.Group();
+    var c = (namedPoints(spec, false).pcc) || [0, 0];
+    g.matrixAutoUpdate = false;
+    g.matrix.copy(matrix.clone().multiply(new THREE.Matrix4().makeTranslation(c[0], c[1], 0)));
+    var o = new THREE.Vector3();
+    g.add(new THREE.ArrowHelper(new THREE.Vector3(1, 0, 0), o, len, 0xe05c4f, len * 0.26, len * 0.15));
+    g.add(new THREE.ArrowHelper(new THREE.Vector3(0, 1, 0), o, len, 0x6fc36f, len * 0.26, len * 0.15));
+    g.add(new THREE.ArrowHelper(new THREE.Vector3(0, 0, 1), o, len * 1.25, 0x5c9bd1, len * 0.3, len * 0.17));
+    var plus = makeLabel('+', '#5c9bd1', len * 0.55);
+    plus.position.set(0, 0, len * 1.5);
+    g.add(plus);
+    var minus = makeLabel('\u2212', '#8a93a0', len * 0.55);
+    minus.position.set(0, 0, -len * 0.55);
+    g.add(minus);
+    return g;
+  }
+  function triadLen(spec) {
+    var w = spec.SHAPE === 'CIRC' ? num(spec.D, 100) : Math.max(num(spec.WB, 0), num(spec.WT, 0));
+    return Math.max(20, Math.min(w, num(spec.H, 100)) * 0.3);
+  }
+
   function stopPreview3D() {
     pvToken++;
     if (pvRenderer) {
@@ -1270,6 +1318,7 @@
       }
       var g2d = buildPlate2D(spec, lastCuts, lastPlates);
       mass += g2d.area * spec.THK * RHO;
+      if (memberAxes[id + '/' + row.NO]) sc.add(plateTriad(spec, m, triadLen(spec)));
       var pop = resolveOpac(row.PLATE, id, null);
       var mat = new THREE.MeshPhongMaterial({
         color: resolveColor(row.PLATE, id, null, lastColors[row.PLATE] || 0x999999),
@@ -1388,7 +1437,7 @@
     document.getElementById('pb-total').textContent =
       'Placed plates: ' + items.length + ' · Total weight: ' + total.toFixed(3) + ' kg';
   }
-  function toggleItem(i, on) { items[i].groupObj.visible = on; }
+  function toggleItem(i, on) { items[i].groupObj.visible = on; updateSceneAxes(); }
   function toggleGroup(g, on) {
     items.forEach(function (it, i) {
       if (it.group === g) {
@@ -1396,6 +1445,7 @@
         document.getElementById('pb-cb' + i).checked = on;
       }
     });
+    updateSceneAxes();
   }
 
   /* -------- STL export (world transforms applied) -------- */
@@ -1648,6 +1698,8 @@
       '    <input type="file" id="pb-file" accept=".xlsx,.xls" style="display:none">' +
       '    <label class="chk"><input type="checkbox" id="pb-flat"' +
       '      onchange="plateBuilder.setFlat(this.checked)"> surface only</label>' +
+      '    <label class="chk"><input type="checkbox" id="pb-axes"' +
+      '      onchange="plateBuilder.setAxes(this.checked)"> local axes</label>' +
       '  </div>' +
       '  <div id="pb-prog"><div id="pb-prog-label"></div>' +
       '    <div class="pb-track"><div id="pb-prog-bar"></div></div></div>' +
@@ -1682,7 +1734,6 @@
       if (palPending && !document.getElementById('pb-pal').contains(e.target)) closePalette();
     });
     var modal = document.getElementById('pb-modal');
-    modal.addEventListener('click', function (e) { if (e.target === modal) closePreview(); });
     var pvCv = document.getElementById('pb-pv-canvas');
     function pvPix(e) {                       // event -> canvas pixel coords
       var r = pvCv.getBoundingClientRect();
@@ -1831,6 +1882,7 @@
     controls.dampingFactor = 0.1;
     setView('iso');
     if (flatMode) document.getElementById('pb-flat').checked = true;
+    if (showAxes) { document.getElementById('pb-axes').checked = true; updateSceneAxes(); }
 
     // Excel loading: file picker + drag & drop anywhere on the app
     var fileInput = document.getElementById('pb-file');
@@ -1885,6 +1937,34 @@
     if (pvModuleId) previewModule(pvModuleId);
   }
 
+  var sceneAxes = null;
+  function updateSceneAxes() {
+    if (sceneAxes) { scene.remove(sceneAxes); sceneAxes = null; }
+    if (!showAxes) return;
+    sceneAxes = new THREE.Group();
+    items.forEach(function (it) {
+      if (!it.groupObj.visible) return;
+      sceneAxes.add(plateTriad(it.spec, it.matrix, triadLen(it.spec)));
+    });
+    scene.add(sceneAxes);
+  }
+  function setAxes(on) {
+    showAxes = !!on;
+    var cb = document.getElementById('pb-axes');
+    if (cb) cb.checked = showAxes;
+    updateSceneAxes();
+  }
+  function toggleModuleRows(id) {
+    var cls = 'm-' + id.replace(/[^A-Za-z0-9]/g, '_');
+    var rows = document.getElementsByClassName(cls);
+    var hide = rows.length && rows[0].style.display !== 'none';
+    for (var i = 0; i < rows.length; i++) rows[i].style.display = hide ? 'none' : '';
+  }
+  function toggleMemberAxis(mod, pos, on) {
+    memberAxes[mod + '/' + pos] = !!on;
+    previewModule(mod);                       // open (or refresh) that module's preview
+  }
+
   function setFlat(on) {
     flatMode = !!on;
     ['pb-flat', 'pb-pv-flat'].forEach(function (id) {
@@ -1915,7 +1995,8 @@
     preview: preview, previewModule: previewModule, closePreview: closePreview,
     setFlat: setFlat, setColor: setColor, setOpacity: setOpacity, fitPreview: pvFit,
     openPalette: openPalette, pickColor: pickColor,
-    exportModuleSTL: exportModuleSTL, exportModuleIFC: exportModuleIFC
+    exportModuleSTL: exportModuleSTL, exportModuleIFC: exportModuleIFC,
+    setAxes: setAxes, toggleMemberAxis: toggleMemberAxis, toggleModuleRows: toggleModuleRows
   };
 
   /* ---- auto-run: use window.PLATE_DATA if present, else empty default.
