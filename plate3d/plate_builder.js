@@ -158,6 +158,7 @@
   var flatMode = false;                 // draw plates as surfaces (no thickness)
   var showAxes = false;                 // local axes on every placed plate
   var showFaces = false;
+  var showIds = false;                  // draw each plate's id on the model
   var measMain = null, measPv = null;     // measure tools, one per view
   var showMeasure = false, measurePv = false;
   var sceneSize = 900;                   // model size, for scaling helpers                // tint the +/- faces of every plate
@@ -1371,8 +1372,9 @@
     stopPreview3D();
     pvModuleId = null;
     document.getElementById('pb-pv-tree').style.display = 'none';
-    document.getElementById('pb-pv-flat').parentNode.style.display = 'none';
-    document.getElementById('pb-pv-meas').parentNode.style.display = 'none';
+    ['pb-pv-flat', 'pb-pv-meas', 'pb-pv-ids', 'pb-pv-faces'].forEach(function (q) {
+      document.getElementById(q).parentNode.style.display = 'none';
+    });
     document.getElementById('pb-pv-stl').style.display = 'none';
     document.getElementById('pb-pv-ifc').style.display = 'none';
     cv.style.display = 'block';
@@ -1954,6 +1956,14 @@
     return g;
   }
   // sized off the plate, but never so small it is unreadable in a big model
+  function ringsCenter(rings) {
+    var bb = new THREE.Box2();
+    rings.outers.forEach(function (ring) {
+      ring.forEach(function (q) { bb.expandByPoint(new THREE.Vector2(q[0], q[1])); });
+    });
+    var c = bb.getCenter(new THREE.Vector2());
+    return new THREE.Vector3(c.x, c.y, 0);
+  }
   function triadLen(spec, min) {
     var w = spec.SHAPE === 'CIRC' ? num(spec.D, 100) : Math.max(num(spec.WB, 0), num(spec.WT, 0));
     return Math.max(20, min || 0, Math.min(w, num(spec.H, 100)) * 0.3);
@@ -2007,8 +2017,9 @@
     stopPreview3D();
     pvModuleId = id;
     document.getElementById('pb-pv-flat').checked = flatMode;
-    document.getElementById('pb-pv-flat').parentNode.style.display = 'flex';
-    document.getElementById('pb-pv-meas').parentNode.style.display = 'flex';
+    ['pb-pv-flat', 'pb-pv-meas', 'pb-pv-ids', 'pb-pv-faces'].forEach(function (q) {
+      document.getElementById(q).parentNode.style.display = 'flex';
+    });
     document.getElementById('pb-pv-stl').style.display = 'block';
     document.getElementById('pb-pv-ifc').style.display = 'block';
     document.getElementById('pb-pv-canvas').style.display = 'none';
@@ -2040,7 +2051,8 @@
     sun.position.set(500, -650, 900);
     sc.add(sun);
 
-    var bbox = new THREE.Box3(), mass = 0, basePt = null, bad = [], pvSnaps = [], axRows = [];
+    var bbox = new THREE.Box3(), mass = 0, basePt = null, bad = [], pvSnaps = [], axRows = [],
+        idRows = [];
     pvMemberObj = {};
     part.pos.forEach(function (row) {
      try {
@@ -2062,6 +2074,8 @@
       pvMemberObj[mkey] = mg;
       sc.add(mg);
       if (memberAxes[mkey]) axRows.push({ spec: spec, m: m, rp: memberRef(spec, row), g: mg });
+      if (showIds) idRows.push({ text: row.NO,
+                                 pos: ringsCenter({ outers: g2d.outers }).applyMatrix4(m), g: mg });
       if (showFaces) mg.add(faceTint({ outers: g2d.outers, holes: g2d.holes }, spec.THK, m));
       if (mg.visible) {
         pvSnaps = pvSnaps.concat(snapPointsOf({ outers: g2d.outers, holes: g2d.holes }, spec.THK, m));
@@ -2100,6 +2114,11 @@
     var mn = bbox.min, mx3 = bbox.max;
     axRows.forEach(function (a) {
       a.g.add(plateTriad(a.spec, a.m, triadLen(a.spec, size * 0.1), a.rp.p, a.rp.name));
+    });
+    idRows.forEach(function (d) {
+      var lb = makeLabel(d.text, '#dfe6f0', size * 0.045);
+      lb.position.copy(d.pos);
+      d.g.add(lb);
     });
 
     if (basePt) {                              // module base point
@@ -2282,11 +2301,12 @@
     });
     updateSceneAxes();
     updateSceneFaces();
+    updateSceneIds();
     syncMeasureSnaps();
   }
   function toggleItem(i, on) {
     items[i].groupObj.visible = on;
-    updateSceneAxes(); updateSceneFaces(); syncMeasureSnaps();
+    updateSceneAxes(); updateSceneFaces(); updateSceneIds(); syncMeasureSnaps();
   }
   function toggleGroup(g, on) {
     items.forEach(function (it) { if (it.group === g) it.groupObj.visible = on; });
@@ -2297,6 +2317,7 @@
     });
     updateSceneAxes();
     updateSceneFaces();
+    updateSceneIds();
     syncMeasureSnaps();
   }
   function syncMeasureSnaps() {
@@ -2561,6 +2582,8 @@
       '      onchange="plateBuilder.setFaces(this.checked)">' +
       '      <span style="color:#ffb45a">+</span>/<span style="color:#5aa0ff">&#8722;</span>' +
       '      face</label>' +
+      '    <label class="chk"><input type="checkbox" id="pb-ids"' +
+      '      onchange="plateBuilder.setIds(this.checked)"> id</label>' +
       '    <label class="chk"><input type="checkbox" id="pb-meas"' +
       '      onchange="plateBuilder.setMeasure(this.checked)"> measure</label>' +
       '  </div>' +
@@ -2584,6 +2607,12 @@
       '      <button class="pvbtn" id="pb-pv-stl" onclick="plateBuilder.exportModuleSTL()">STL</button>' +
       '      <label class="pvchk"><input type="checkbox" id="pb-pv-meas"' +
       '        onchange="plateBuilder.setMeasurePv(this.checked)"> measure</label>' +
+      '      <label class="pvchk"><input type="checkbox" id="pb-pv-ids"' +
+      '        onchange="plateBuilder.setIds(this.checked)"> id</label>' +
+      '      <label class="pvchk"><input type="checkbox" id="pb-pv-faces"' +
+      '        onchange="plateBuilder.setFaces(this.checked)">' +
+      '        <span style="color:#ffb45a">+</span>/<span style="color:#5aa0ff">&#8722;</span>' +
+      '        surface</label>' +
       '      <label class="pvchk"><input type="checkbox" id="pb-pv-flat"' +
       '        onchange="plateBuilder.setFlat(this.checked)"> surface only</label>' +
       '      <span id="pb-pv-title"></span></h2>' +
@@ -2767,6 +2796,7 @@
     if (flatMode) document.getElementById('pb-flat').checked = true;
     if (showAxes) { document.getElementById('pb-axes').checked = true; updateSceneAxes(); }
     if (showFaces) { document.getElementById('pb-faces').checked = true; updateSceneFaces(); }
+    if (showIds) { document.getElementById('pb-ids').checked = true; updateSceneIds(); }
 
     // Excel loading: file picker + drag & drop anywhere on the app
     var fileInput = document.getElementById('pb-file');
@@ -2881,9 +2911,34 @@
 
   function setFaces(on) {
     showFaces = !!on;
-    var cb = document.getElementById('pb-faces');
-    if (cb) cb.checked = showFaces;
+    ['pb-faces', 'pb-pv-faces'].forEach(function (q) {
+      var cb = document.getElementById(q);
+      if (cb) cb.checked = showFaces;
+    });
     updateSceneFaces();
+    refreshPreview();
+  }
+
+  var sceneIds = null;
+  function updateSceneIds() {
+    if (sceneIds) { disposeScene(sceneIds); scene.remove(sceneIds); sceneIds = null; }
+    if (!showIds) return;
+    sceneIds = new THREE.Group();
+    items.forEach(function (it) {
+      if (!it.groupObj.visible) return;
+      var lb = makeLabel(it.no, '#dfe6f0', sceneSize * 0.02);
+      lb.position.copy(ringsCenter(it.rings).applyMatrix4(it.matrix));
+      sceneIds.add(lb);
+    });
+    scene.add(sceneIds);
+  }
+  function setIds(on) {
+    showIds = !!on;
+    ['pb-ids', 'pb-pv-ids'].forEach(function (q) {
+      var cb = document.getElementById(q);
+      if (cb) cb.checked = showIds;
+    });
+    updateSceneIds();
     refreshPreview();
   }
 
@@ -2962,6 +3017,7 @@
     preview: preview, previewModule: previewModule, closePreview: closePreview,
     setFlat: setFlat, setColor: setColor, setOpacity: setOpacity, fitPreview: pvFit,
     setMeasure: setMeasure, setMeasurePv: setMeasurePv, togglePvMember: togglePvMember,
+    setIds: setIds,
     openPalette: openPalette, pickColor: pickColor, regenPreview: regenPreview,
     exportModuleSTL: exportModuleSTL, exportModuleIFC: exportModuleIFC,
     setAxes: setAxes, setFaces: setFaces,
