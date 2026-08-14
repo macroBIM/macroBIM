@@ -260,14 +260,22 @@
                                               (shape detected from the values, so
                                                trailing note columns are ignored)
        BAR   ID DIA LENGTH                    (cylinder)
-       CUT   [plateID] [refPt] RECT  B H  L.X L.Y L.ROT dx dy repeat
-       CUT   [plateID] [refPt] CIRC  D    L.X L.Y L.ROT dx dy repeat
-       CUT   [plateID] [refPt] PLATE ID   L.X L.Y L.ROT dx dy repeat
+       CUT   [plateID] [refPt] L.X L.Y dx dy repeat  RECT  B H [ROT]
+       CUT   [plateID] [refPt] L.X L.Y dx dy repeat  CIRC  D
+       CUT   [plateID] [refPt] L.X L.Y dx dy repeat  PLATE ID [ROT]
+                                              (the shape and its values come last, so
+                                               they can differ in count without moving
+                                               anything. Every shape is placed by its
+                                               centre - a circle's centre, a rectangle's
+                                               centre, a borrowed outline's centroid)
                                               (repeat = extra copies, each offset by
                                                dx,dy from the previous one; 0/blank = none)
                                               (plateID optional -> last PLATE/BAR row;
-                                               refPt optional -> pbl. L.X/L.Y are
+                                               refPt optional -> pbc. L.X/L.Y are
                                                measured from that reference point)
+       -- the older order, shape first, is still read:
+          CUT [plateID] [refPt] RECT B H L.X L.Y L.ROT dx dy repeat
+          (those rows keep placing RECT/PLATE by their lower-left corner)
        MODULE ID PLATE.ID REF.PT L.X L.Y L.Z PLANE [ROT.X ROT.Y ROT.Z]
                                               (one row per member plate: the plate's
                                                REF.PT lands on module-local L.X/L.Y/L.Z,
@@ -428,13 +436,40 @@
           var tp = resolvePlate(sub);     // 2nd cell = target plate
           if (tp) { target = tp; v = v.slice(1); sub = str(v[0]).toUpperCase(); }
         }
-        if (!isCutType(sub)) {            // 3rd cell = reference point
+        if (!isCutType(sub) && !isNum(sub)) {   // 3rd cell = reference point
           refpt = normPoint(sub);
           v = v.slice(1);
           sub = str(v[0]).toUpperCase();
         }
         if (!target) { warn('row ' + (r + 1) + ': CUT before any PLATE'); continue; }
         var c = { PLATE: target, REFPT: refpt, __xlCut: true };
+        if (!isCutType(sub)) {
+          // L.X L.Y dx dy repeat come first, so the shape values that follow can
+          // vary in count without moving anything. Shapes sit on their centre.
+          c.U = num(v[0], 0); c.V = num(v[1], 0);
+          c.DX = num(v[2], 0); c.DY = num(v[3], 0); c.REP = num(v[4], 0);
+          c.__ctr = true;
+          var ct = str(v[5]).toUpperCase();
+          if (ct === 'RECT') {
+            c.TYPE = 'TRAP'; c.B = num(v[6], 0); c.TW = c.B; c.H = num(v[7], 0); c.OF = 0;
+            c.ANG = num(v[8], 0);
+          } else if (ct === 'CIRC') {
+            c.TYPE = 'CIRC'; c.D = num(v[6], 0); c.ANG = 0;
+          } else if (ct === 'PLATE') {
+            c.TYPE = 'REF'; c.REF = str(v[6]).toUpperCase(); c.ANG = num(v[7], 0);
+          } else {
+            warn('row ' + (r + 1) + ': CUT on ' + target + ' — expected RECT / CIRC / PLATE' +
+                 ' after L.X, L.Y, dx, dy, repeat, found ' + (str(v[5]) || '(blank)'));
+            continue;
+          }
+          if ((c.DX || c.DY) && c.REP < 1) {
+            warn('row ' + (r + 1) + ': CUT on ' + target + ' has dx/dy but repeat is 0/empty' +
+                 ' — no copy is made (repeat = how many extra copies)');
+          }
+          cuts.push(c);
+          counts.cut++;
+          continue;
+        }
         if (sub === 'RECT') {
           c.TYPE = 'TRAP'; c.B = num(v[1], 0); c.TW = c.B; c.H = num(v[2], 0); c.OF = 0;
           c.U = num(v[3], 0); c.V = num(v[4], 0); c.ANG = num(v[5], 0);
@@ -836,6 +871,10 @@
     }
     return pts;
   }
+  function recenter(ring) {                         // area centroid -> (0,0)
+    var c = polyCentroid(ring);
+    return ring.map(function (p) { return [p[0] - c[0], p[1] - c[1]]; });
+  }
   function rotTrans(pts, ang, dx, dy) {             // rotate about (0,0), then translate
     var c = Math.cos(ang * Math.PI / 180), s = Math.sin(ang * Math.PI / 180);
     return pts.map(function (p) { return [p[0] * c - p[1] * s + dx, p[0] * s + p[1] * c + dy]; });
@@ -895,10 +934,11 @@
         if (c.TYPE === 'CIRC') { ring = circleOutline(num(c.D, 0), u, v, 32); kind = 'hole'; }
         else if (c.TYPE === 'TRAP') {
           var tw = num(c.TW, num(c.B, 0));
-          ring = rotTrans(trapOutline(num(c.B, 0), tw, num(c.H, 0), num(c.OF, (num(c.B, 0) - tw) / 2)),
-                          num(c.ANG, 0), u, v);
+          var tr = trapOutline(num(c.B, 0), tw, num(c.H, 0), num(c.OF, (num(c.B, 0) - tw) / 2));
+          ring = rotTrans(c.__ctr ? recenter(tr) : tr, num(c.ANG, 0), u, v);
         } else if (c.TYPE === 'REF' && plates[c.REF]) {                // borrow another plate outline
-          ring = rotTrans(outlineOf(plates[c.REF]), num(c.ANG, 0), u, v);
+          var ro = outlineOf(plates[c.REF]);
+          ring = rotTrans(c.__ctr ? recenter(ro) : ro, num(c.ANG, 0), u, v);
         }
         if (!ring) return;
         cutters.push(ring);
