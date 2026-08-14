@@ -157,8 +157,9 @@
   var onResize = null;                  // the one live window-resize handler
   var flatMode = false;                 // draw plates as surfaces (no thickness)
   var showAxes = false;                 // local axes on every placed plate
-  var showFaces = false;
-  var showIds = false;                  // draw each plate's id on the model
+  var showFaces = false;                // +/- face tint, main view
+  var showIds = false;                  // plate id labels, main view
+  var showFacesPv = false, showIdsPv = false;   // the same two, module preview
   var measMain = null, measPv = null;     // measure tools, one per view
   var showMeasure = false, measurePv = false;
   var sceneSize = 900;                   // model size, for scaling helpers                // tint the +/- faces of every plate
@@ -2074,9 +2075,9 @@
       pvMemberObj[mkey] = mg;
       sc.add(mg);
       if (memberAxes[mkey]) axRows.push({ spec: spec, m: m, rp: memberRef(spec, row), g: mg });
-      if (showIds) idRows.push({ text: row.NO,
+      if (showIdsPv) idRows.push({ text: row.NO,
                                  pos: ringsCenter({ outers: g2d.outers }).applyMatrix4(m), g: mg });
-      if (showFaces) mg.add(faceTint({ outers: g2d.outers, holes: g2d.holes }, spec.THK, m));
+      if (showFacesPv) mg.add(faceTint({ outers: g2d.outers, holes: g2d.holes }, spec.THK, m));
       if (mg.visible) {
         pvSnaps = pvSnaps.concat(snapPointsOf({ outers: g2d.outers, holes: g2d.holes }, spec.THK, m));
       }
@@ -2192,6 +2193,8 @@
     buildPvTree(id);
     measPv.setSnaps(pvSnaps);
     document.getElementById('pb-pv-meas').checked = measurePv;
+    document.getElementById('pb-pv-ids').checked = showIdsPv;
+    document.getElementById('pb-pv-faces').checked = showFacesPv;
     measPv.enable(measurePv);
 
     var pgz = buildGizmo();
@@ -2608,9 +2611,9 @@
       '      <label class="pvchk"><input type="checkbox" id="pb-pv-meas"' +
       '        onchange="plateBuilder.setMeasurePv(this.checked)"> measure</label>' +
       '      <label class="pvchk"><input type="checkbox" id="pb-pv-ids"' +
-      '        onchange="plateBuilder.setIds(this.checked)"> id</label>' +
+      '        onchange="plateBuilder.setIdsPv(this.checked)"> id</label>' +
       '      <label class="pvchk"><input type="checkbox" id="pb-pv-faces"' +
-      '        onchange="plateBuilder.setFaces(this.checked)">' +
+      '        onchange="plateBuilder.setFacesPv(this.checked)">' +
       '        <span style="color:#ffb45a">+</span>/<span style="color:#5aa0ff">&#8722;</span>' +
       '        surface</label>' +
       '      <label class="pvchk"><input type="checkbox" id="pb-pv-flat"' +
@@ -2911,11 +2914,14 @@
 
   function setFaces(on) {
     showFaces = !!on;
-    ['pb-faces', 'pb-pv-faces'].forEach(function (q) {
-      var cb = document.getElementById(q);
-      if (cb) cb.checked = showFaces;
-    });
+    var cb = document.getElementById('pb-faces');
+    if (cb) cb.checked = showFaces;
     updateSceneFaces();
+  }
+  function setFacesPv(on) {
+    showFacesPv = !!on;
+    var cb = document.getElementById('pb-pv-faces');
+    if (cb) cb.checked = showFacesPv;
     refreshPreview();
   }
 
@@ -2934,11 +2940,14 @@
   }
   function setIds(on) {
     showIds = !!on;
-    ['pb-ids', 'pb-pv-ids'].forEach(function (q) {
-      var cb = document.getElementById(q);
-      if (cb) cb.checked = showIds;
-    });
+    var cb = document.getElementById('pb-ids');
+    if (cb) cb.checked = showIds;
     updateSceneIds();
+  }
+  function setIdsPv(on) {
+    showIdsPv = !!on;
+    var cb = document.getElementById('pb-pv-ids');
+    if (cb) cb.checked = showIdsPv;
     refreshPreview();
   }
 
@@ -3017,7 +3026,7 @@
     preview: preview, previewModule: previewModule, closePreview: closePreview,
     setFlat: setFlat, setColor: setColor, setOpacity: setOpacity, fitPreview: pvFit,
     setMeasure: setMeasure, setMeasurePv: setMeasurePv, togglePvMember: togglePvMember,
-    setIds: setIds,
+    setIds: setIds, setIdsPv: setIdsPv, setFacesPv: setFacesPv,
     openPalette: openPalette, pickColor: pickColor, regenPreview: regenPreview,
     exportModuleSTL: exportModuleSTL, exportModuleIFC: exportModuleIFC,
     setAxes: setAxes, setFaces: setFaces,
