@@ -1553,12 +1553,29 @@
       ctx.fillText(seen[k].n.join('/'), seen[k].x + 5, seen[k].y - 5);
     });
 
-    ctx.fillStyle = '#9fb4cc';                     // round holes carry their diameter
+    // round holes carry their diameter on a leader, arrow touching the circle
+    ctx.strokeStyle = '#9fb4cc';
+    ctx.fillStyle = '#9fb4cc';
     ctx.font = '11px sans-serif';
+    ctx.lineWidth = 1;
     pvPts.forEach(function (p) {
       if (!p.dia) return;
-      var r = p.dia / 2 * sc;
-      ctx.fillText('\u00d8' + p.dia, mx(p.x) + r + 4, my(p.y) - r - 2);
+      var cxp = mx(p.x), cyp = my(p.y), r = p.dia / 2 * sc;
+      var ux = Math.SQRT1_2, uy = -Math.SQRT1_2;         // 45 deg, up-right on screen
+      var ax = cxp + ux * r, ay = cyp + uy * r;          // on the circle
+      var kx = cxp + ux * (r + 16), ky = cyp + uy * (r + 16);
+      var sx2 = kx + 16;                                  // horizontal shoulder
+      ctx.beginPath();
+      ctx.moveTo(ax, ay); ctx.lineTo(kx, ky); ctx.lineTo(sx2, ky);
+      ctx.stroke();
+      var ah = 5, aw = 2.2;                               // arrowhead pointing at the circle
+      ctx.beginPath();
+      ctx.moveTo(ax, ay);
+      ctx.lineTo(ax + ux * ah - uy * aw, ay + uy * ah + ux * aw);
+      ctx.lineTo(ax + ux * ah + uy * aw, ay + uy * ah - ux * aw);
+      ctx.closePath();
+      ctx.fill();
+      ctx.fillText('\u00d8' + p.dia, sx2 + 3, ky - 3);
     });
 
     if (pvMeas.length) {                           // measurement in progress / done
