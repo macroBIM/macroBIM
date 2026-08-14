@@ -201,9 +201,9 @@ FOLD=180 (이어붙임)          FOLD=90 (직각 세움)
 | PLATE | ID, WT, WB, H, OFF_TOP, THK, MAT | 사다리꼴 (OFF_T·OFF_B 두 칸 방식도 인식). 형상은 **값으로 판별**하므로 오른쪽 메모 칸이 있어도 무방 |
 | PLATE | ID, B, H, THK, MAT | 사각형 |
 | BAR | ID, Dia, Length | 원기둥 (볼트 등) |
-| CUT | [판ID], [기준점], L.X, L.Y, dx, dy, repeat, **RECT**, B, H, [ROT] | 사각 구멍/노치 |
+| CUT | [판ID], [기준점], L.X, L.Y, dx, dy, repeat, **RECT**, B, H | 사각 구멍/노치 |
 | CUT | [판ID], [기준점], L.X, L.Y, dx, dy, repeat, **CIRC**, D | 원형 구멍 |
-| CUT | [판ID], [기준점], L.X, L.Y, dx, dy, repeat, **PLATE**, ID, [ROT] | 다른 PLATE 외곽 형상으로 빼기 |
+| CUT | [판ID], [기준점], L.X, L.Y, dx, dy, repeat, **PLATE**, ID | 다른 PLATE 외곽 형상으로 빼기 |
 | **MODULE** | ID, PLATE.ID, Ref.Pt, L.X, L.Y, L.Z, PLANE, ROT.X, ROT.Y, ROT.Z | 모듈에 판 1장 배치. 판의 Ref.Pt가 **모듈 로컬 (L.X, L.Y, L.Z)** 에 오고, PLANE은 그 판이 놓일 평면, ROT.X/Y/Z는 그 점을 중심으로 한 회전(도). 행마다 모듈 ID 반복 — 같은 ID 행들이 한 모듈로 누적. PART도 별칭 인식 |
 | **MODULE** | ID, **BASE**, 판인스턴스, 점이름 | 모듈 기준점 = 구성 판의 9점 중 하나(`bc+`처럼 면 지정 가능). **누락 시 경고** + 로컬 원점 사용 |
 | **COORD** | ZUP (기본) / YUP | 이 시트를 어느 좌표계로 읽을지. `YUP` 이면 예전 Y-up 기준으로 조립한 뒤 한 번만 세워 배치 — MODULE/ASSY 행보다 **위**에 둘 것 |
@@ -217,7 +217,7 @@ FOLD=180 (이어붙임)          FOLD=90 (직각 세움)
 - **CUT의 기준점**: 판의 9점 중 하나(`bc`, `tl` 등)를 쓰면 **그 점에서 L.X, L.Y 만큼 떨어진 위치**를 자름. 생략하면 판의 로컬 원점(= bc) 기준
   예: `CUT pl.T1 bc CIRC 22 -110 90` = 하단중앙에서 왼쪽 110, 위로 90인 곳에 Ø22 구멍
 - **CUT 위치는 전부 형상의 중심** — CIRC는 원 중심, RECT는 사각형 중심, PLATE는 빌려온 외곽선의
-  **무게중심(면적 도심)**. `ROT`도 그 중심을 축으로 돈다.
+  **무게중심(면적 도심)**. 회전(ROT) 칸은 없다 — 필요해지면 그때 추가.
 - **형상과 치수는 맨 뒤**에 온다. 앞쪽 칸(L.X · L.Y · dx · dy · repeat)이 고정이라 CIRC(값 1개)든
   RECT(2개)든 PLATE(1개)든 열이 밀리지 않는다.
 - 예전 순서(`… RECT B H L.X L.Y L.ROT dx dy repeat`)도 계속 읽으며, **그 행들은 예전대로

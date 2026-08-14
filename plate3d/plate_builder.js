@@ -260,9 +260,9 @@
                                               (shape detected from the values, so
                                                trailing note columns are ignored)
        BAR   ID DIA LENGTH                    (cylinder)
-       CUT   [plateID] [refPt] L.X L.Y dx dy repeat  RECT  B H [ROT]
+       CUT   [plateID] [refPt] L.X L.Y dx dy repeat  RECT  B H
        CUT   [plateID] [refPt] L.X L.Y dx dy repeat  CIRC  D
-       CUT   [plateID] [refPt] L.X L.Y dx dy repeat  PLATE ID [ROT]
+       CUT   [plateID] [refPt] L.X L.Y dx dy repeat  PLATE ID
                                               (the shape and its values come last, so
                                                they can differ in count without moving
                                                anything. Every shape is placed by its
@@ -450,13 +450,13 @@
           c.DX = num(v[2], 0); c.DY = num(v[3], 0); c.REP = num(v[4], 0);
           c.__ctr = true;
           var ct = str(v[5]).toUpperCase();
+          c.ANG = 0;                          // no rotation column for now
           if (ct === 'RECT') {
             c.TYPE = 'TRAP'; c.B = num(v[6], 0); c.TW = c.B; c.H = num(v[7], 0); c.OF = 0;
-            c.ANG = num(v[8], 0);
           } else if (ct === 'CIRC') {
-            c.TYPE = 'CIRC'; c.D = num(v[6], 0); c.ANG = 0;
+            c.TYPE = 'CIRC'; c.D = num(v[6], 0);
           } else if (ct === 'PLATE') {
-            c.TYPE = 'REF'; c.REF = str(v[6]).toUpperCase(); c.ANG = num(v[7], 0);
+            c.TYPE = 'REF'; c.REF = str(v[6]).toUpperCase();
           } else {
             warn('row ' + (r + 1) + ': CUT on ' + target + ' — expected RECT / CIRC / PLATE' +
                  ' after L.X, L.Y, dx, dy, repeat, found ' + (str(v[5]) || '(blank)'));
