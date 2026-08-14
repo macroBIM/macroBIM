@@ -232,6 +232,7 @@
   var pvToken = 0, pvRenderer = null, pvModuleId = null;   // 3D preview lifecycle
   var pvCtrl = null, pvScene = null, pvHome = null;   // pvHome = the preview's opening view
   var pvX = null, pvPts = [], pvBase = null, pv = null;   // 2D preview state
+  var pvMeas = [];                                       // 2D measure picks
   var CENTER = null, VDIST = 1200;                // set from model bbox in run()
   var items = [];
   var runToken = 0;                               // distinguishes re-runs
@@ -943,7 +944,8 @@
         if (!ring) return;
         cutters.push(ring);
         var ct = polyCentroid(ring);
-        feats.push({ x: ct[0], y: ct[1], kind: kind });
+        feats.push({ x: ct[0], y: ct[1], kind: kind,
+                     dia: c.TYPE === 'CIRC' ? num(c.D, 0) : 0 });
       });
     });
 
@@ -1413,9 +1415,12 @@
     stopPreview3D();
     pvModuleId = null;
     document.getElementById('pb-pv-tree').style.display = 'none';
-    ['pb-pv-flat', 'pb-pv-meas', 'pb-pv-ids', 'pb-pv-faces'].forEach(function (q) {
+    ['pb-pv-flat', 'pb-pv-ids', 'pb-pv-faces'].forEach(function (q) {
       document.getElementById(q).parentNode.style.display = 'none';
     });
+    document.getElementById('pb-pv-meas').parentNode.style.display = 'flex';
+    document.getElementById('pb-pv-meas').checked = measurePv;
+    pvMeas = [];
     document.getElementById('pb-pv-stl').style.display = 'none';
     document.getElementById('pb-pv-ifc').style.display = 'none';
     cv.style.display = 'block';
@@ -1442,7 +1447,7 @@
     var nk = {};
     (g.feats || []).forEach(function (f) {
       nk[f.kind] = (nk[f.kind] || 0) + 1;
-      pvPts.push({ name: f.kind + nk[f.kind], x: f.x, y: f.y, cut: true });
+      pvPts.push({ name: f.kind + nk[f.kind], x: f.x, y: f.y, cut: true, dia: f.dia || 0 });
     });
 
     var W = cv.width, H = cv.height, PAD = 54;
@@ -1547,6 +1552,38 @@
     Object.keys(seen).forEach(function (k) {
       ctx.fillText(seen[k].n.join('/'), seen[k].x + 5, seen[k].y - 5);
     });
+
+    ctx.fillStyle = '#9fb4cc';                     // round holes carry their diameter
+    ctx.font = '11px sans-serif';
+    pvPts.forEach(function (p) {
+      if (!p.dia) return;
+      var r = p.dia / 2 * sc;
+      ctx.fillText('\u00d8' + p.dia, mx(p.x) + r + 4, my(p.y) - r - 2);
+    });
+
+    if (pvMeas.length) {                           // measurement in progress / done
+      var A = { x: mx(pvMeas[0].x), y: my(pvMeas[0].y) };
+      ctx.strokeStyle = '#ffe81f';
+      ctx.fillStyle = '#ffe81f';
+      ctx.lineWidth = 1.4;
+      [A].concat(pvMeas.length > 1 ? [{ x: mx(pvMeas[1].x), y: my(pvMeas[1].y) }] : [])
+        .forEach(function (q) {
+          ctx.beginPath(); ctx.arc(q.x, q.y, 5, 0, Math.PI * 2); ctx.stroke();
+        });
+      if (pvMeas.length > 1) {
+        var B = { x: mx(pvMeas[1].x), y: my(pvMeas[1].y) };
+        ctx.beginPath(); ctx.moveTo(A.x, A.y); ctx.lineTo(B.x, B.y); ctx.stroke();
+        var dx = pvMeas[1].x - pvMeas[0].x, dy = pvMeas[1].y - pvMeas[0].y;
+        var r2 = function (n) { return (Math.round(n * 100) / 100).toString(); };
+        ctx.textAlign = 'center';
+        ctx.font = 'bold 14px sans-serif';
+        ctx.fillText(r2(Math.hypot(dx, dy)), (A.x + B.x) / 2, (A.y + B.y) / 2 - 10);
+        ctx.font = '11px sans-serif';
+        ctx.fillText('\u0394X ' + r2(dx) + '   \u0394Y ' + r2(dy),
+                     (A.x + B.x) / 2, (A.y + B.y) / 2 + 8);
+        ctx.textAlign = 'left';
+      }
+    }
 
     var dims = spec.SHAPE === 'CIRC'
       ? 'D' + spec.D + ' × THK ' + spec.THK
@@ -2697,18 +2734,49 @@
       pv.oy = pv.H - s.y - (ym - pv.miny) * pv.sc;
       drawPreview();
     }, { passive: false });
-    var pvDrag = null;
+    var pvDrag = null, pvDown = null;
+    function pvSnapAt(e) {
+      if (!pvX) return null;
+      var sp = pvPix(e), sx = sp.x, sy = sp.y;
+      var snap = null, best = 13 * 13;             // snap radius in pixels
+      pvPts.forEach(function (p) {
+        var px = pvX.ox + (p.x - pvX.minx) * pvX.sc;
+        var py = pvX.H - pvX.oy - (p.y - pvX.miny) * pvX.sc;
+        var d2 = (px - sx) * (px - sx) + (py - sy) * (py - sy);
+        if (d2 < best) { best = d2; snap = { p: p, px: px, py: py }; }
+      });
+      return snap;
+    }
     pvCv.addEventListener('mousedown', function (e) {
       if (!pv) return;
+      pvDown = { x: e.clientX, y: e.clientY, btn: e.button, moved: false };
+      if (e.button !== 0) return;
       pvDrag = { x: e.clientX, y: e.clientY, ox: pv.ox, oy: pv.oy };
       pvCv.style.cursor = 'grabbing';
     });
-    window.addEventListener('mouseup', function () {
+    pvCv.addEventListener('contextmenu', function (e) { if (measurePv && pv) e.preventDefault(); });
+    window.addEventListener('mouseup', function (e) {
       pvDrag = null;
       pvCv.style.cursor = 'crosshair';
+      var d = pvDown;
+      pvDown = null;
+      if (!d || d.moved || !pv || pvModuleId || !measurePv) return;
+      if (d.btn === 2) {                           // right click clears the span
+        if (pvMeas.length) { pvMeas = []; drawPreview(); }
+        return;
+      }
+      if (d.btn !== 0) return;
+      var snap = pvSnapAt(e);
+      if (!snap) return;
+      if (pvMeas.length >= 2) pvMeas = [];
+      pvMeas.push({ x: snap.p.x, y: snap.p.y });
+      drawPreview();
     });
     pvCv.addEventListener('dblclick', function () { pvFit(); });
     pvCv.addEventListener('mousemove', function (e) {
+      if (pvDown && (Math.abs(e.clientX - pvDown.x) + Math.abs(e.clientY - pvDown.y) > 4)) {
+        pvDown.moved = true;
+      }
       if (pvDrag && pv) {                                // pan
         var r = pvCv.getBoundingClientRect();
         pv.ox = pvDrag.ox + (e.clientX - pvDrag.x) * pvCv.width / r.width;
@@ -2720,14 +2788,7 @@
       var sp = pvPix(e), sx = sp.x, sy = sp.y;
       var x = pvX.minx + (sx - pvX.ox) / pvX.sc;
       var y = pvX.miny + (pvX.H - pvX.oy - sy) / pvX.sc;
-
-      var snap = null, best = 13 * 13;             // snap radius in pixels
-      pvPts.forEach(function (p) {
-        var px = pvX.ox + (p.x - pvX.minx) * pvX.sc;
-        var py = pvX.H - pvX.oy - (p.y - pvX.miny) * pvX.sc;
-        var d2 = (px - sx) * (px - sx) + (py - sy) * (py - sy);
-        if (d2 < best) { best = d2; snap = { p: p, px: px, py: py }; }
-      });
+      var snap = pvSnapAt(e);
 
       var ctx2 = pvCv.getContext('2d');
       if (pvBase) { ctx2.clearRect(0, 0, pvX.W, pvX.H); ctx2.drawImage(pvBase, 0, 0); }
@@ -2743,11 +2804,16 @@
         ctx2.fill();
       }
       var el = document.getElementById('pb-pv-pos');
-      el.innerHTML = snap
+      el.innerHTML = (snap
         ? '<span style="color:#f0c674">snap ' + snap.p.name + '</span> &nbsp;X <b style="color:#f0c674">' +
           snap.p.x.toFixed(1) + '</b> &nbsp; Y <b style="color:#f0c674">' + snap.p.y.toFixed(1) + '</b> mm'
         : 'cursor &nbsp;X <b style="color:#d8dce2">' + x.toFixed(1) +
-          '</b> &nbsp; Y <b style="color:#d8dce2">' + y.toFixed(1) + '</b> mm';
+          '</b> &nbsp; Y <b style="color:#d8dce2">' + y.toFixed(1) + '</b> mm') +
+        (measurePv
+          ? ' &nbsp;&nbsp;<span style="color:#5b6472">measure: ' +
+            (pvMeas.length === 1 ? 'click the second point'
+             : pvMeas.length ? 'right click to clear' : 'click a snap point') + '</span>'
+          : '');
     });
     pvCv.addEventListener('mouseleave', function () {
       var el = document.getElementById('pb-pv-pos');
@@ -2945,11 +3011,13 @@
     measMain.setSnaps(showMeasure ? mainSnaps() : []);
     measMain.enable(showMeasure);
   }
-  function setMeasurePv(on) {
+  function setMeasurePv(on) {                   // one switch, whichever preview is open
     measurePv = !!on;
     var cb = document.getElementById('pb-pv-meas');
     if (cb) cb.checked = measurePv;
-    if (measPv) measPv.enable(measurePv);
+    if (pvModuleId) { if (measPv) measPv.enable(measurePv); return; }
+    pvMeas = [];
+    drawPreview();
   }
 
   function setFaces(on) {
