@@ -1,5 +1,5 @@
 /* ============================================================
-   plate_builder.js — Plate assembly 3D engine driven by
+   plate_builder.js — PLATE3D, a plate assembly 3D engine driven by
    PLATE / CUT / ASSY data rows (see DATA_SCHEMA.md · macroBIM/plate3d)
 
    Usage — link-only HTML:
@@ -756,7 +756,7 @@
           pbProgress(90, 'Building model');
           setTimeout(function () {
             buildLog = [];
-            run({ title: 'Plate Builder',
+            run({ title: 'PLATE3D',
                   subtitle: file.name + ' · PLATE/CUT/ASSY · unit: mm',
                   note: 'Loaded from ' + file.name +
                         ' — edit the Excel file and load it again to update.',
@@ -2861,7 +2861,7 @@
     items = [];
 
     var empty = data.__parsed ? !data.__parsed.assy.length : data.ASSY.length <= 1;
-    buildDOM(data.title || 'Plate Builder',
+    buildDOM(data.title || 'PLATE3D',
              data.subtitle || 'PLATE / CUT / ASSY data · unit: mm',
              data.note || (empty
                ? 'No data. Define PLATE/CUT/ASSY arrays as window.PLATE_DATA ' +
