@@ -121,7 +121,7 @@
     '  display:none; z-index:50; align-items:center; justify-content:center;',
     '  pointer-events:none; }',
     '#pb-modal .box { pointer-events:auto; background:#1c2026; border:1px solid #3a424d;',
-    '  border-radius:8px;',
+    '  border-radius:8px; max-width:97vw; max-height:96vh; overflow:auto;',
     '  padding:14px; box-shadow:0 8px 30px rgba(0,0,0,.5); }',
     '#pb-modal h2 { font-size:14px; color:#fff; margin:0 0 8px; }',
     '#pb-modal .close { float:right; cursor:pointer; color:#8a93a0; padding:0 4px; }',
@@ -137,7 +137,7 @@
     '  display:block; cursor:crosshair; }',
     '#pb-modal .meta { color:#8a93a0; font-size:11px; margin-top:8px; }',
     '#pb-modal .pvbody { display:flex; gap:10px; align-items:flex-start; }',
-    '#pb-pv-tree { display:none; width:196px; max-height:362px; overflow-y:auto;',
+    '#pb-pv-tree { display:none; width:196px; max-height:542px; overflow-y:auto;',
     '  background:#191d23; border:1px solid #2c323b; border-radius:4px; padding:6px 4px; }',
     '#pb-pv-tree table { width:100%; border-collapse:collapse; }',
     '#pb-pv-tree td { padding:3px 2px; vertical-align:middle; color:#d8dce2;',
@@ -2032,7 +2032,7 @@
     pvTitle.textContent = id + '  (module)';     // set first, so the box is never blank
     pvMeta.textContent = '';
 
-    var W = 640, H = 360;                        // 16:9
+    var W = 960, H = 540;                        // 16:9
     var sc = new THREE.Scene();
     pvScene = sc;
     sc.background = new THREE.Color(0x15181c);
@@ -2622,8 +2622,8 @@
       '  <div class="pvbody">' +
       '    <div id="pb-pv-tree"></div>' +
       '    <div>' +
-      '      <canvas id="pb-pv-canvas" width="640" height="360"></canvas>' +
-      '      <div id="pb-pv3d" style="width:640px;height:360px;display:none;' +
+      '      <canvas id="pb-pv-canvas" width="960" height="540"></canvas>' +
+      '      <div id="pb-pv3d" style="width:960px;height:540px;display:none;' +
       '           border:1px solid #2c323b;border-radius:4px;overflow:hidden;"></div>' +
       '    </div>' +
       '  </div>' +
