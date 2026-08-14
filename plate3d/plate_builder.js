@@ -36,7 +36,7 @@
             EDGE (attach to et/eb/el/er of a target instance with
             FOLD/ALIGN/SLIDE/FLUSH)
      (the legacy sheet key PLACE is still accepted as an alias of ASSY)
-   · 9 points: ptl ptc ptr / plm pcc prm / pbl pbc pbr
+   · 9 points: tl tc tr / ml mc mr / bl bc br
      (based on the uncut outline)
    ============================================================ */
 
@@ -229,6 +229,7 @@
   }
   var scene, camera, renderer, controls;
   var lastPlates = {}, lastCuts = [], lastColors = {}, lastParts = {};  // for preview modals
+  var shapeLib = {};        // HOLE definitions - cut shapes, never members
   var pvToken = 0, pvRenderer = null, pvModuleId = null;   // 3D preview lifecycle
   var pvCtrl = null, pvScene = null, pvHome = null;   // pvHome = the preview's opening view
   var pvX = null, pvPts = [], pvBase = null, pv = null;   // 2D preview state
@@ -255,28 +256,42 @@
        · first char '#' or '!'  → comment row (ignored)
        · rows are read until an END keyword row
        · keywords/IDs/planes/points are case-insensitive (uppercased)
-       PLATE ID WT WB H OFF_TOP THK MAT       (trapezoid; OFF_T OFF_B variant
-                                               also accepted)
-       PLATE ID B H THK MAT                   (rectangle)
-                                              (shape detected from the values, so
-                                               trailing note columns are ignored)
-       BAR   ID DIA LENGTH                    (cylinder)
-       CUT   [plateID] [refPt] L.X L.Y dx dy repeat  RECT  B H
-       CUT   [plateID] [refPt] L.X L.Y dx dy repeat  CIRC  D
-       CUT   [plateID] [refPt] L.X L.Y dx dy repeat  PLATE ID
-                                              (the shape and its values come last, so
-                                               they can differ in count without moving
-                                               anything. Every shape is placed by its
-                                               centre - a circle's centre, a rectangle's
-                                               centre, a borrowed outline's centroid)
+       PLATE ID MAT THK TRAP BASE.pt WB WT H OFF_T
+       PLATE ID MAT THK RECT BASE.pt B H
+       PLATE ID MAT THK CIRC BASE.pt D
+                                              (a physical member: mass, colour, IFC
+                                               and STL all come from these rows)
+       HOLE  ID TRAP BASE.pt WB WT H OFF_T
+       HOLE  ID RECT BASE.pt B H
+       HOLE  ID CIRC BASE.pt D
+                                              (a reusable 2D cut shape - no thickness,
+                                               no material, never becomes a solid.
+                                               Referenced by CUT rows)
+                                              (the shape keyword sits in a fixed column,
+                                               so the values after it can differ in
+                                               count without moving anything)
+                                              (BASE.pt = which of the 9 named points is
+                                               the shape's own origin (0,0). Blank -> bc
+                                               for a plate, mc for a circle or a HOLE)
+       BAR   ID DIA LENGTH                    (cylinder; same as PLATE ... CIRC)
+       CUT   plateID L.X L.Y shapeID dx dy repeat
+                                              (put shapeID - a HOLE, or another PLATE's
+                                               outline - on the plate at L.X/L.Y, both
+                                               measured from the plate's own origin.
+                                               The shape lands by its BASE.pt)
                                               (repeat = extra copies, each offset by
                                                dx,dy from the previous one; 0/blank = none)
-                                              (plateID optional -> last PLATE/BAR row;
-                                               refPt optional -> pbc. L.X/L.Y are
-                                               measured from that reference point)
-       -- the older order, shape first, is still read:
+                                              (the target plate must already be defined;
+                                               the shape may be defined anywhere)
+       -- older CUT rows, shape and its values last, are still read:
+          CUT [plateID] [refPt] L.X L.Y dx dy repeat  RECT B H | CIRC D | PLATE ID
+          (those place the shape by its centre)
+       -- older still, shape first:
           CUT [plateID] [refPt] RECT B H L.X L.Y L.ROT dx dy repeat
-          (those rows keep placing RECT/PLATE by their lower-left corner)
+          (those place RECT/PLATE by their lower-left corner)
+       -- legacy PLATE rows with no shape keyword are still read, the shape
+          taken from the values:  PLATE ID WT WB H OFF_TOP [OFF_B] THK MAT
+                                  PLATE ID B H THK MAT
        MODULE ID PLATE.ID REF.PT L.X L.Y L.Z PLANE [ROT.X ROT.Y ROT.Z]
                                               (one row per member plate: the plate's
                                                REF.PT lands on module-local L.X/L.Y/L.Z,
@@ -334,12 +349,30 @@
   // plane and XZ the horizontal one - reachable with a "COORD YUP" row
   var PLANE_ALIAS_YUP = { XY: 'FRONT', YZ: 'SIDE', XZ: 'PLAN',
                           PLAN: 'PLAN', FRONT: 'FRONT', SIDE: 'SIDE' };
-  var POINT_ALIAS = { TL: 'ptl', TC: 'ptc', TR: 'ptr', LM: 'plm', CC: 'pcc',
-                      RM: 'prm', BL: 'pbl', BC: 'pbc', BR: 'pbr' };
-  function normPoint(s) {
+  // 9 named points, t/m/b (top/middle/bottom) x l/c/r (left/centre/right):
+  //     tl tc tr
+  //     ml mc mr
+  //     bl bc br
+  // On a trapezoid ml/mr are the midpoints of the sloped sides. A circle has
+  // only five - tc ml mc mr bc - and its corner names fall back to tc / bc.
+  var POINT_ALIAS = { TL: 'tl', TC: 'tc', TR: 'tr',
+                      ML: 'ml', MC: 'mc', MR: 'mr',
+                      BL: 'bl', BC: 'bc', BR: 'br',
+                      LM: 'ml', CC: 'mc', RM: 'mr' };   // pre-rename spellings
+  var POINT_KEYS = ['tl', 'tc', 'tr', 'ml', 'mc', 'mr', 'bl', 'bc', 'br'];
+  function knownPoint(s) {
     var up = str(s).toUpperCase().replace(/[+\-]$/, '').trim();
     if (up.length === 3 && up.charAt(0) === 'P') up = up.slice(1);
-    return POINT_ALIAS[up] || 'pbl';
+    return !!POINT_ALIAS[up];
+  }
+  function normPoint(s) {
+    var up = str(s).toUpperCase().replace(/[+\-]$/, '').trim();
+    if (up.length === 3 && up.charAt(0) === 'P') up = up.slice(1);   // legacy pbl, pcc, ...
+    return POINT_ALIAS[up] || 'bl';
+  }
+  function isShapeKw(x) {
+    var u = str(x).toUpperCase();
+    return u === 'TRAP' || u === 'RECT' || u === 'CIRC';
   }
   // a trailing + / - on a ref-point name measures from that face of the plate
   // instead of from mid-thickness:  bc = centre, bc+ = plus face, bc- = minus face
@@ -356,7 +389,7 @@
   }
   function memberDesc(row) {                    // one module member, for the preview panel
     var t = (row.PL_IN || planeLabel(row.PLANE)) + ' \u00b7 ' +
-            row.REFPT.slice(1) + faceMark(row.FACE) + ' \u00b7 ';
+            row.REFPT + faceMark(row.FACE) + ' \u00b7 ';
     t += row.__xyz ? '(' + row.LX + ', ' + row.LY + ', ' + row.LZ + ')'
                    : 'off ' + row.OFFSET;
     var rot = row.__xyz ? [row.RX, row.RY, row.RZ] : [0, 0, row.ROT];
@@ -365,7 +398,7 @@
   }
 
   function parseExcelRows(rows) {
-    var plates = {}, parts = {}, cuts = [], assy = [], log = [];
+    var plates = {}, holes = {}, parts = {}, cuts = [], assy = [], log = [];
     var assyIds = {};                    // ASSY ids already defined (can be referenced again)
     function uniqueAssyId(id) {          // a repeated id gets -2, -3, ...
       counter[id] = (counter[id] || 0) + 1;
@@ -377,7 +410,7 @@
       return uniqueAssyId(base + '.' + ('000' + assySeq[base]).slice(-3));
     }
     var palias = PLANE_ALIAS, yup = false;   // switched by a COORD row
-    var counts = { plate: 0, bar: 0, cut: 0, module: 0, assy: 0 };
+    var counts = { plate: 0, hole: 0, bar: 0, cut: 0, module: 0, assy: 0 };
     var current = null, currentPart = null, counter = {};
     function warn(m) { log.push(m); console.error('[plateBuilder] ' + m); }
     function resolvePlate(pid) {          // exact id, or instance suffix PL.C1_2 → PL.C1
@@ -397,13 +430,56 @@
       while (v.length && str(v[v.length - 1]) === '') v.pop();
       if (kw === 'END') break;
 
-      if (kw === 'PLATE') {
+      if (kw === 'PLATE' || kw === 'HOLE') {
         var id = str(v[0]).toUpperCase();
         if (!id) continue;
+        var isHole = kw === 'HOLE';
         var spec;
-        // shape is decided by the values, not the row length (trailing note
-        // columns are ignored): rectangle has MAT (text) where a trapezoid
-        // has OFF_TOP (number)
+        // Current grammar - the shape keyword sits in a fixed column, so the
+        // parameters after it can differ in count without moving anything:
+        //   PLATE ID MAT THK <shape> BASE.pt <params>
+        //   HOLE  ID         <shape> BASE.pt <params>
+        var si = isHole ? 1 : 3;              // column holding TRAP/RECT/CIRC
+        if (isShapeKw(v[si])) {
+          var sk = str(v[si]).toUpperCase(), w = v.slice(si + 2);
+          spec = { ID: id, MAT: isHole ? '' : str(v[1]),
+                   THK: isHole ? 0 : num(v[2], 10), __hole: isHole };
+          if (sk === 'TRAP') {                // WB WT H OFF_T
+            spec.SHAPE = 'TRAP'; spec.WB = num(w[0], 0); spec.WT = num(w[1], 0);
+            spec.H = num(w[2], 0); spec.OFF_T = num(w[3], 0); spec.OFF_B = 0;
+          } else if (sk === 'RECT') {         // B H
+            var rb = num(w[0], 0);
+            spec.SHAPE = 'TRAP'; spec.WB = rb; spec.WT = rb;
+            spec.H = num(w[1], 0); spec.OFF_T = 0; spec.OFF_B = 0;
+          } else {                            // CIRC D
+            spec.SHAPE = 'CIRC'; spec.D = num(w[0], 0);
+          }
+          var bp = str(v[si + 1]);
+          if (bp && !knownPoint(bp)) {
+            warn('row ' + (r + 1) + ': ' + kw + ' ' + id + ' — unknown BASE.pt "' + bp +
+                 '" (use tl/tc/tr, ml/mc/mr, bl/bc/br' +
+                 (spec.SHAPE === 'CIRC' ? '; a circle has only tc ml mc mr bc' : '') + ')');
+          }
+          spec.BASEPT = bp ? normPoint(bp) : defaultBase(spec);
+          if (isHole) {
+            if (plates[id]) warn('row ' + (r + 1) + ': HOLE ' + id + ' reuses a PLATE id');
+            holes[id] = spec;
+            counts.hole++;
+            continue;
+          }
+          if (holes[id]) warn('row ' + (r + 1) + ': PLATE ' + id + ' reuses a HOLE id');
+          plates[id] = spec;
+          current = id;
+          counts.plate++;
+          continue;
+        }
+        if (isHole) {
+          warn('row ' + (r + 1) + ': HOLE ' + id + ' — expected TRAP / RECT / CIRC in ' +
+               'column 3, found ' + (str(v[1]) || '(blank)'));
+          continue;
+        }
+        // legacy PLATE rows: no shape keyword, so it is read from the values
+        // (a rectangle has MAT (text) where a trapezoid has OFF_TOP (number))
         if (isNum(v[4])) {
           if (isNum(v[6])) {              // ID WT WB H OFF_T OFF_B THK MAT
             spec = { ID: id, SHAPE: 'TRAP', WT: num(v[1], 0), WB: num(v[2], 0),
@@ -426,13 +502,13 @@
         var idb = str(v[0]).toUpperCase();
         if (!idb) continue;
         plates[idb] = { ID: idb, SHAPE: 'CIRC', D: num(v[1], 0),
-                        THK: num(v[2], 0), MAT: str(v[3]) };
+                        THK: num(v[2], 0), MAT: str(v[3]), BASEPT: 'mc' };
         current = idb;
         counts.bar++;
       } else if (kw === 'CUT') {          // CUT [plateID] [refPt] TYPE ...
         function isCutType(x) { return x === 'RECT' || x === 'CIRC' || x === 'PLATE'; }
         var sub = str(v[0]).toUpperCase();
-        var target = current, refpt = 'pbc';   // default = plate local origin
+        var target = current, refpt = 'bc';    // default = plate local origin
         if (!isCutType(sub)) {
           var tp = resolvePlate(sub);     // 2nd cell = target plate
           if (tp) { target = tp; v = v.slice(1); sub = str(v[0]).toUpperCase(); }
@@ -444,6 +520,23 @@
         }
         if (!target) { warn('row ' + (r + 1) + ': CUT before any PLATE'); continue; }
         var c = { PLATE: target, REFPT: refpt, __xlCut: true };
+        // Current grammar: CUT <plate> L.X L.Y <shape id> dx dy repeat.
+        // The shape is a HOLE (or another PLATE) defined elsewhere, so the row
+        // is a fixed width. L.X/L.Y are measured from the plate's own origin -
+        // its BASE.pt - and the shape is placed by its BASE.pt.
+        if (!isCutType(sub) && str(v[2]) !== '' && !isNum(v[2])) {
+          c.U = num(v[0], 0); c.V = num(v[1], 0);
+          c.TYPE = 'REF'; c.REF = str(v[2]).toUpperCase();
+          c.DX = num(v[3], 0); c.DY = num(v[4], 0); c.REP = num(v[5], 0);
+          c.ANG = 0; c.__org = true;
+          if ((c.DX || c.DY) && c.REP < 1) {
+            warn('row ' + (r + 1) + ': CUT on ' + target + ' has dx/dy but repeat is 0/empty' +
+                 ' — no copy is made (repeat = how many extra copies)');
+          }
+          cuts.push(c);
+          counts.cut++;
+          continue;
+        }
         if (!isCutType(sub)) {
           // L.X L.Y dx dy repeat come first, so the shape values that follow can
           // vary in count without moving anything. Shapes sit on their centre.
@@ -667,6 +760,15 @@
     if (!assy.length && (Object.keys(plates).length || Object.keys(parts).length)) {
       warn('no ASSY row — nothing is placed. Add e.g. "ASSY <assy id> <module or plate id> 0 0 0"');
     }
+    cuts.forEach(function (c) {
+      if (c.TYPE === 'REF' && !holes[c.REF] && !plates[c.REF])
+        warn('CUT on ' + c.PLATE + ': shape ' + (c.REF || '(blank)') +
+             ' is not a defined HOLE or PLATE');
+    });
+    Object.keys(holes).forEach(function (id) {
+      if (!cuts.some(function (c) { return c.REF === id; }))
+        warn('HOLE ' + id + ': defined but never used in a CUT row');
+    });
     Object.keys(parts).forEach(function (id) {
       if (!parts[id].pos.length) warn('MODULE ' + id + ': has no POS rows');
       else if (!parts[id].base) warn('MODULE ' + id + ': BASE not defined — using local origin (0,0)');
@@ -675,8 +777,8 @@
       if (assy.length && !assy.some(function (a) { return a.PART === id || a.REF === id; }))
         warn('MODULE ' + id + ': defined but never used in an ASSY row');
     });
-    return { plates: plates, parts: parts, cuts: cuts, assy: assy, log: log,
-             counts: counts, yup: yup };
+    return { plates: plates, holes: holes, parts: parts, cuts: cuts, assy: assy,
+             log: log, counts: counts, yup: yup };
   }
 
   function cellVal(c) {
@@ -715,7 +817,10 @@
     var placed = items.length;
     el.className = log.length ? 'warn' : 'ok';
     var h = '<b>' + (log.length ? '&#9888; ' : '&#10003; ') + esc(fname) + '</b><br>' +
-            'plates ' + c.plate + ' &middot; bars ' + c.bar + ' &middot; cuts ' + c.cut +
+            'plates ' + c.plate +
+            (c.hole ? ' &middot; holes ' + c.hole : '') +
+            (c.bar ? ' &middot; bars ' + c.bar : '') +
+            ' &middot; cuts ' + c.cut +
             ' &middot; modules ' + (c.module || 0) +
             ' &middot; assy ' + c.assy + ' &rarr; placed ' + placed;
     if (log.length) {
@@ -822,20 +927,55 @@
     return spec;
   }
 
-  // local origin of a plate is pbc (bottom centre); bars/circles stay centred
+  // A shape is first laid out with its bottom edge centred on the origin, then
+  // slid so that its BASE.pt sits at (0,0). BASE.pt defaults to bc for a
+  // plate, mc for a circle, mc for a HOLE (cut shapes read from their centre).
   function xShift(spec) {
     return spec.SHAPE === 'CIRC' ? 0 : num(spec.OFF_B, 0) + num(spec.WB, 0) / 2;
   }
-  function cornersOf(spec) {
+  function midPt(a, b) { return [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2]; }
+  function nineFrom(c) {                           // 4 corners -> the 9 points
+    var p = { bl: c.bl, br: c.br, tr: c.tr, tl: c.tl };
+    p.bc = midPt(p.bl, p.br); p.tc = midPt(p.tl, p.tr);
+    p.ml = midPt(p.bl, p.tl); p.mr = midPt(p.br, p.tr);
+    p.mc = [(p.bl[0] + p.br[0] + p.tr[0] + p.tl[0]) / 4,
+            (p.bl[1] + p.br[1] + p.tr[1] + p.tl[1]) / 4];
+    return p;
+  }
+  function rawCorners(spec) {                      // before BASE.pt is applied
     var d = xShift(spec);
-    return { pbl: [spec.OFF_B - d, 0], pbr: [spec.OFF_B + spec.WB - d, 0],
-             ptr: [spec.OFF_T + spec.WT - d, spec.H], ptl: [spec.OFF_T - d, spec.H] };
+    return { bl: [spec.OFF_B - d, 0], br: [spec.OFF_B + spec.WB - d, 0],
+             tr: [spec.OFF_T + spec.WT - d, spec.H], tl: [spec.OFF_T - d, spec.H] };
+  }
+  function rawPoints(spec) {
+    if (spec.SHAPE === 'CIRC') {
+      var r = num(spec.D, 0) / 2;
+      var p = { mc: [0, 0], tc: [0, r], bc: [0, -r], ml: [-r, 0], mr: [r, 0] };
+      p.tl = p.tr = p.tc; p.bl = p.br = p.bc;      // only 5 points on a circle
+      return p;
+    }
+    return nineFrom(rawCorners(spec));
+  }
+  function defaultBase(spec) {
+    return spec.SHAPE === 'CIRC' || spec.__hole ? 'mc' : 'bc';
+  }
+  function baseOffset(spec) {                      // raw origin -> BASE.pt
+    if (spec.__bo) return spec.__bo;
+    var raw = rawPoints(spec), d = defaultBase(spec);
+    spec.__bo = raw[spec.BASEPT || d] || raw[d] || [0, 0];
+    return spec.__bo;
+  }
+  function cornersOf(spec) {
+    var c = rawCorners(spec), o = baseOffset(spec);
+    function s(q) { return [q[0] - o[0], q[1] - o[1]]; }
+    return { bl: s(c.bl), br: s(c.br), tr: s(c.tr), tl: s(c.tl) };
   }
   function outlineOf(spec) {                       // CCW
-    if (spec.SHAPE === 'CIRC') return circleOutline(spec.D, 0, 0, 48);   // CIRC: pcc=(0,0)
+    var o = baseOffset(spec);
+    if (spec.SHAPE === 'CIRC') return circleOutline(spec.D, -o[0], -o[1], 48);
     var c = cornersOf(spec);
-    if (spec.WT <= 0) return [c.pbl, c.pbr, c.ptl];
-    return [c.pbl, c.pbr, c.ptr, c.ptl];
+    if (spec.WT <= 0) return [c.bl, c.br, c.tl];
+    return [c.bl, c.br, c.tr, c.tl];
   }
   // Reflection about a coordinate plane through (px, py, pz)
   function mirrorMatrix(plane, px, py, pz) {
@@ -853,7 +993,9 @@
     });
   }
   function mirrorAxisOf(spec) {                    // bbox center ×2 (for x → m − x)
-    var d = xShift(spec);
+    var o = baseOffset(spec);
+    if (spec.SHAPE === 'CIRC') return -2 * o[0];   // symmetric about its own centre
+    var d = xShift(spec) + o[0];
     var lo = Math.min(spec.OFF_B, spec.OFF_T) - d;
     var hi = Math.max(spec.OFF_B + spec.WB, spec.OFF_T + spec.WT) - d;
     return lo + hi;
@@ -918,7 +1060,8 @@
     var cutters = [], feats = [];               // feats: centre of every cut instance
     var basePts = namedPoints(spec, false);       // cut coords are measured from REFPT
     cuts.filter(function (c) { return c.PLATE === spec.ID; }).forEach(function (c) {
-      var anchor = basePts[c.REFPT || (c.__xlCut ? 'pbc' : 'pbl')] || [0, 0];
+      var anchor = c.__org ? [0, 0]
+                   : (basePts[c.REFPT || (c.__xlCut ? 'bc' : 'bl')] || [0, 0]);
       // positions: 1D repeat (N/DX/DY, Excel grammar) or NX·PX/NY·PY grid
       var uvs = [];
       if (c.REP !== undefined) {              // repeat = extra copies (original excluded)
@@ -931,21 +1074,26 @@
           uvs.push([anchor[0] + num(c.U, 0) + ix * px, anchor[1] + num(c.V, 0) + iy * py]);
       }
       uvs.forEach(function (uv) {
-        var u = uv[0], v = uv[1], ring = null, kind = 'cut';
-        if (c.TYPE === 'CIRC') { ring = circleOutline(num(c.D, 0), u, v, 32); kind = 'hole'; }
-        else if (c.TYPE === 'TRAP') {
+        var u = uv[0], v = uv[1], ring = null, kind = 'cut', dia = 0;
+        if (c.TYPE === 'CIRC') {
+          ring = circleOutline(num(c.D, 0), u, v, 32); kind = 'hole'; dia = num(c.D, 0);
+        } else if (c.TYPE === 'TRAP') {
           var tw = num(c.TW, num(c.B, 0));
           var tr = trapOutline(num(c.B, 0), tw, num(c.H, 0), num(c.OF, (num(c.B, 0) - tw) / 2));
           ring = rotTrans(c.__ctr ? recenter(tr) : tr, num(c.ANG, 0), u, v);
-        } else if (c.TYPE === 'REF' && plates[c.REF]) {                // borrow another plate outline
-          var ro = outlineOf(plates[c.REF]);
+        } else if (c.TYPE === 'REF') {          // a HOLE, or another plate's outline
+          var src = shapeLib[c.REF] || plates[c.REF];
+          if (!src) return;
+          // a shape defined with HOLE/PLATE already carries its BASE.pt at the
+          // origin; the older "CUT ... PLATE id" rows sit on their centroid
+          var ro = outlineOf(src);
           ring = rotTrans(c.__ctr ? recenter(ro) : ro, num(c.ANG, 0), u, v);
+          if (src.SHAPE === 'CIRC') { kind = 'hole'; dia = num(src.D, 0); }
         }
         if (!ring) return;
         cutters.push(ring);
         var ct = polyCentroid(ring);
-        feats.push({ x: ct[0], y: ct[1], kind: kind,
-                     dia: c.TYPE === 'CIRC' ? num(c.D, 0) : 0 });
+        feats.push({ x: ct[0], y: ct[1], kind: kind, dia: dia });
       });
     });
 
@@ -976,30 +1124,23 @@
 
   /* ------- named points/edges (uncut outline, MIRROR applied) ------- */
   function namedPoints(spec, mirror) {
-    var p;
-    function mid(a, b) { return [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2]; }
     if (spec.SHAPE === 'CIRC') {
-      var r = num(spec.D, 0) / 2;
-      p = { pcc: [0, 0], ptc: [0, r], pbc: [0, -r], plm: [-r, 0], prm: [r, 0] };
-      p.ptl = p.ptr = p.ptc; p.pbl = p.pbr = p.pbc;
+      var o = baseOffset(spec), raw = rawPoints(spec), p = {};
+      POINT_KEYS.forEach(function (k) { p[k] = [raw[k][0] - o[0], raw[k][1] - o[1]]; });
       return p;
     }
-    p = cornersOf(spec);
+    var c = cornersOf(spec);
     if (mirror) {                                  // mirror about bbox center, then rename
       var m = mirrorAxisOf(spec);
       var M = function (q) { return [m - q[0], q[1]]; };
-      p = { pbl: M(p.pbr), pbr: M(p.pbl), ptl: M(p.ptr), ptr: M(p.ptl) };
+      c = { bl: M(c.br), br: M(c.bl), tl: M(c.tr), tr: M(c.tl) };
     }
-    p.pbc = mid(p.pbl, p.pbr); p.ptc = mid(p.ptl, p.ptr);
-    p.plm = mid(p.pbl, p.ptl); p.prm = mid(p.pbr, p.ptr);
-    p.pcc = [(p.pbl[0] + p.pbr[0] + p.ptr[0] + p.ptl[0]) / 4,
-             (p.pbl[1] + p.pbr[1] + p.ptr[1] + p.ptl[1]) / 4];
-    return p;
+    return nineFrom(c);
   }
   // edges in CCW order (interior on the left of travel direction)
   function edgeOf(pts, name) {
-    return { eb: [pts.pbl, pts.pbr], er: [pts.pbr, pts.ptr],
-             et: [pts.ptr, pts.ptl], el: [pts.ptl, pts.pbl] }[name];
+    return { eb: [pts.bl, pts.br], er: [pts.br, pts.tr],
+             et: [pts.tr, pts.tl], el: [pts.tl, pts.bl] }[name];
   }
   function mirror2D(ringList, spec) {
     var m = mirrorAxisOf(spec);
@@ -1043,7 +1184,7 @@
   function planeMatrixAnchor(row, pts, thk) {
     var b = planeBasis(row.PLANE);
     if (!b) throw new Error(row.NO + ': PLANE=' + row.PLANE + ' (use XY/YZ/XZ)');
-    var a = pts[row.REFPT] || pts.pbl;
+    var a = pts[row.REFPT] || pts.bl;
     // FACE 0 -> mid-thickness (default), +1/-1 -> that face lands on the plane
     var az = (row.FACE || 0) * (thk || 0) / 2;
     var m = new THREE.Matrix4().makeBasis(v3(b.ex), v3(b.ey), v3(b.ez));
@@ -1068,7 +1209,7 @@
     if (!row.__xyz) return planeMatrixAnchor(row, pts, thk);
     var b = planeBasis(row.PLANE);
     if (!b) throw new Error(row.NO + ': PLANE=' + row.PLANE + ' (use XY/YZ/XZ)');
-    var a = pts[row.REFPT] || pts.pbl;
+    var a = pts[row.REFPT] || pts.bl;
     var az = (row.FACE || 0) * (thk || 0) / 2;
     var m = new THREE.Matrix4().makeTranslation(row.LX, row.LY, row.LZ);
     m.multiply(rotXYZ(row.RX, row.RY, row.RZ));
@@ -1115,6 +1256,7 @@
     var plates = {}, parts = {}, cuts, assyRows;
     var colorSeq = 0;
     yupSheet = !!(data.__parsed && data.__parsed.yup);
+    shapeLib = (data.__parsed && data.__parsed.holes) || {};
     if (data.__parsed) {                 // Excel keyword-grammar path
       plates = data.__parsed.plates;
       parts = data.__parsed.parts || {};
@@ -1210,7 +1352,7 @@
       if (part.base) {
         for (var i = 0; i < locals.length; i++) {
           if (locals[i].row.NO === part.base.inst) {
-            var a = locals[i].pts[part.base.pt] || locals[i].pts.pbl;
+            var a = locals[i].pts[part.base.pt] || locals[i].pts.bl;
             base = new THREE.Vector3(a[0], a[1],
                      (part.base.face || 0) * locals[i].spec.THK / 2).applyMatrix4(locals[i].mloc);
             break;
@@ -1231,7 +1373,7 @@
         var instName = s.slice(0, s.lastIndexOf('.'));
         for (var i = 0; i < pl.locals.length; i++) {
           if (pl.locals[i].row.NO === instName) {
-            var a = pl.locals[i].pts[normPoint(pt)] || pl.locals[i].pts.pbl;
+            var a = pl.locals[i].pts[normPoint(pt)] || pl.locals[i].pts.bl;
             return new THREE.Vector3(a[0], a[1], f * pl.locals[i].spec.THK / 2)
                      .applyMatrix4(pl.locals[i].mloc);
           }
@@ -1243,7 +1385,7 @@
       var bb = new THREE.Box3();
       pl.locals.forEach(function (L) {
         var c = L.spec.SHAPE === 'CIRC'
-          ? { pbl: [-L.spec.D / 2, -L.spec.D / 2], ptr: [L.spec.D / 2, L.spec.D / 2] }
+          ? { bl: [-L.spec.D / 2, -L.spec.D / 2], tr: [L.spec.D / 2, L.spec.D / 2] }
           : cornersOf(L.spec);
         var xs = [], ys = [];
         Object.keys(c).forEach(function (k) { xs.push(c[k][0]); ys.push(c[k][1]); });
@@ -1286,7 +1428,7 @@
       }
       var sp = plates[row.REF];                          // a single PLATE: reference = its bc
       if (!sp) throw new Error(row.NO + ': unknown MODULE/ASSY/PLATE ' + row.REF);
-      var p0 = namedPoints(sp, false).pbc;
+      var p0 = namedPoints(sp, false).bc;
       return [{ spec: sp, no: sp.ID, moduleId: null, memberKey: null, flip: false,
                 mloc: new THREE.Matrix4().makeTranslation(-p0[0], -p0[1], 0) }];
     }
@@ -1440,9 +1582,9 @@
 
     // snap points: 9 reference points + the centre of every cut
     pvPts = [];
-    ['ptl', 'ptc', 'ptr', 'plm', 'pcc', 'prm', 'pbl', 'pbc', 'pbr'].forEach(function (k) {
+    POINT_KEYS.forEach(function (k) {
       var a = pts[k];
-      if (a) pvPts.push({ name: k.slice(1), x: a[0], y: a[1] });
+      if (a) pvPts.push({ name: k, x: a[0], y: a[1] });
     });
     var nk = {};
     (g.feats || []).forEach(function (f) {
@@ -1664,7 +1806,7 @@
         '<td><span class="plname" onclick="plateBuilder.previewModule(\'' + id + '\')">' +
         esc(id) + '</span>' +
         '<div class="dims">plates ' + part.pos.length +
-        (part.base ? ' · base ' + esc(part.base.inst) + '.' + part.base.pt.slice(1) : ' · no base') +
+        (part.base ? ' · base ' + esc(part.base.inst) + '.' + part.base.pt : ' · no base') +
         (used ? '' : ' · not assembled') + '</div></td>';
       tbl.appendChild(tr);
 
@@ -2009,10 +2151,10 @@
   // Plate-local Ref.Pt of a module member, in the plate's own coordinates
   function memberRef(spec, row) {
     var pts = namedPoints(spec, false);
-    var a = pts[row.REFPT] || pts.pbl;
+    var a = pts[row.REFPT] || pts.bl;
     return { p: new THREE.Vector3(a[0], a[1],
                                   flatMode ? 0 : (row.FACE || 0) * num(spec.THK, 0) / 2),
-             name: row.REFPT.slice(1) + faceMark(row.FACE) };
+             name: row.REFPT + faceMark(row.FACE) };
   }
   // Local axes of one plate. Drawn on the member's Ref.Pt when there is one -
   // that is the point its L.X/L.Y/L.Z were measured to - otherwise on the
@@ -2022,7 +2164,7 @@
     var g = new THREE.Group();
     var c = org;
     if (!c) {
-      var pc = (namedPoints(spec, false).pcc) || [0, 0];
+      var pc = (namedPoints(spec, false).mc) || [0, 0];
       c = new THREE.Vector3(pc[0], pc[1], 0);
     }
     g.matrixAutoUpdate = false;
@@ -2157,7 +2299,7 @@
       var m;
       try { m = yupFix(memberMatrix(row, pts, spec.THK)); } catch (e) { return; }
       if (part.base && row.NO === part.base.inst) {
-        var a = pts[part.base.pt] || pts.pbl;
+        var a = pts[part.base.pt] || pts.bl;
         basePt = new THREE.Vector3(a[0], a[1],
                    (part.base.face || 0) * spec.THK / 2).applyMatrix4(m);
       }
@@ -2274,7 +2416,7 @@
 
     pvMeta.innerHTML =
       'plates ' + part.pos.length + ' &middot; ' + mass.toFixed(3) + ' kg &middot; ' +
-      (part.base ? 'base ' + esc(part.base.inst) + '.' + part.base.pt.slice(1) +
+      (part.base ? 'base ' + esc(part.base.inst) + '.' + part.base.pt +
                    faceMark(part.base.face) + ' <span style="color:#f0c674">(&#9679;)</span>'
                  : '<span style="color:#f0c674">no BASE — local origin</span>') +
       (bad.length ? ' &middot; <span style="color:#f09a9a">not drawn: ' +

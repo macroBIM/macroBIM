@@ -8,7 +8,9 @@
 - **`plate_builder.js`** — 뷰어 엔진 (DATA_SCHEMA.md 구현). HTML에는 링크만 걸면 됨
   - 로드되면 자동 실행: `window.PLATE_DATA` 가 있으면 그 데이터로, 없으면 **빈 기본 화면**(좌 리스트/우 3D)
   - `plateBuilder.run({...})` 직접 호출도 가능 (자동 실행은 생략됨)
-  - PLATE(형상+CUT) → MODULE(판 조립 + BASE) → ASSY(글로벌 배치, 중첩 가능) 3단 구조
+  - PLATE(부재) + HOLE(빼기 형상) → CUT → MODULE(판 조립 + BASE) → ASSY(글로벌 배치, 중첩 가능)
+  - PLATE/HOLE 행은 `TRAP` / `RECT` / `CIRC` 를 고정 칸에 적고, `BASE.pt` 로 그 형상의 원점을 고름
+  - 9점 이름은 **tl tc tr / ml mc mr / bl bc br** (예전 `pbl`·`cc` 표기도 계속 인식)
   - Ref.Pt 뒤 `+`/`−` 로 두께 기준면 지정, ROT.X/Y/Z 3축 회전
   - polybooljs 절단(구멍·노치·REF), 그룹·부재별 토글/투명도, 중량, STL·IFC 출력
   - **measure**: 3D 화면·모듈 미리보기·판 2D 도면에서 두 점을 클릭해 거리·ΔX/ΔY/ΔZ 측정

@@ -6,7 +6,7 @@
    ============================================================ */
 
 window.PLATE_DATA = {
-  title: 'Plate Builder',
+  title: 'PLATE3D',
   subtitle: 'Support bracket · PLATE/CUT/ASSY data · unit: mm',
   note: 'This data is loaded from data_bracket.js. Replace it with any ' +
         'file that defines window.PLATE_DATA in the same structure.',

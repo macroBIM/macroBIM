@@ -1,7 +1,7 @@
 # PLATE3D 엑셀 데이터 입력체계 설계안 (v1)
 
 플레이트 조립 모델을 엑셀로 데이터화하기 위한 시트 구조.
-개념: **부재 정의(PLATE) → 빼기 형상(CUT) → 배치(ASSY)** 3시트.
+개념: **부재 정의(PLATE) → 빼기 형상(HOLE) → 절단(CUT) → 조립(MODULE) → 배치(ASSY)**.
 (구버전 키 PLACE 도 ASSY 의 별칭으로 계속 인식됨)
 
 - 판은 항상 **로컬 XY평면에서 정의** (P1=(0,0), 가로 x, 세로 y, 두께 z)
@@ -36,31 +36,33 @@
 
 ### 점·변 이름 (자동 부여) — 9점 체계
 
-접두사: **p = 점(point), e = 변(edge)** — 참조 시 접두사로 점/변이 구분된다 (예: `T2-1.pbl`, `T2-1.eb`).
+점 이름은 **t/m/b (top/middle/bottom) × l/c/r (left/centre/right)** 조합. 변은 `e` 접두사.
 
 ```
-   ptl ──── ptc ──── ptr      ← et (top)     et = {ptl, ptc, ptr}
-    │                 │                        eb = {pbl, pbc, pbr}
-   plm      pcc      prm      el (left)        el = {ptl, plm, pbl}
-    │                 │       er (right)       er = {ptr, prm, pbr}
-   pbl ──── pbc ──── pbr      ← eb (bot)       (꼭짓점은 이웃 변과 공유)
+   tl ───── tc ───── tr      ← et (top)     et = {tl, tc, tr}
+    │                │                        eb = {bl, bc, br}
+   ml       mc       mr      el (left)        el = {tl, ml, bl}
+    │                │       er (right)       er = {tr, mr, br}
+   bl ───── bc ───── br      ← eb (bot)       (꼭짓점은 이웃 변과 공유)
 ```
 
 | 점 | 위치 |
 |---|---|
-| ptl, ptr, pbl, pbr | 실제 외곽선의 꼭짓점 |
-| ptc, pbc, plm, prm | 각 변의 중점 (실제 외곽선 위) |
-| pcc | 도심 |
+| tl, tr, bl, br | 실제 외곽선의 꼭짓점 |
+| tc, bc, ml, mr | 각 변의 중점 (실제 외곽선 위) — 사다리꼴이면 ml/mr은 **빗변의 중점** |
+| mc | 도심 |
 
-**판의 로컬 원점은 pbc(하단 중앙) = (0,0)이고, 두께는 이 면을 기준으로 좌우 절반씩(−THK/2 ~ +THK/2)** 붙는다.
-**판의 로컬 원점은 pbc(하단 중앙) = (0,0)** — 밑변이 x = −WB/2 ~ +WB/2 에 놓인다. (원형/BAR 은 중심이 원점)
+**판의 로컬 원점 = PLATE/HOLE 행에서 고른 BASE.pt** 이고, 그 점이 (0,0)이 된다.
+비워두면 판은 **bc**(하단 중앙), 원형(CIRC)과 HOLE은 **mc**(중심)가 기본.
+두께는 이 면을 기준으로 좌우 절반씩(−THK/2 ~ +THK/2) 붙는다.
 
 부속 규칙:
 - **실제 외곽선 기준** (bbox 아님) — 오프셋 사다리꼴의 tl은 실제 꼭짓점 (OF, H), tc는 실제 윗변 중점. 판 밖 허공에 점이 생기지 않는다.
-- **삼각형(TW=0)**: ptl = ptc = ptr 이 꼭짓점 한 점으로 겹침 (허용). 단 EDGE 방식으로 et 에 붙이는 입력은 에러 처리.
+- **삼각형(TW=0)**: tl = tc = tr 이 꼭짓점 한 점으로 겹침 (허용). 단 EDGE 방식으로 et 에 붙이는 입력은 에러 처리.
 - **로컬 방향 고정**: top/left 등의 방향은 XY평면에 그린 정의 시점 기준. 참조 시에는 배치·회전·MIRROR 적용 후의 세계 좌표를 반환.
-- **CUT 무관**: 점은 절단 전 외곽 기준으로 고정 — 노치로 잘려나가도 pbl 위치는 유지 (예측 가능, 절단 변경에 조립이 안 깨짐).
-- **원형판(CIRC)**: pcc + 원주 4분원점 ptc/pbc/plm/prm (변·꼭짓점 없음).
+- **CUT 무관**: 점은 절단 전 외곽 기준으로 고정 — 노치로 잘려나가도 bl 위치는 유지 (예측 가능, 절단 변경에 조립이 안 깨짐).
+- **원형판(CIRC)**: 점은 **5개뿐** — mc + 원주 4분원점 tc / ml / mr / bc (변·꼭짓점 없음). 모서리 이름(tl 등)을 쓰면 tc/bc로 대체된다.
+- **예전 표기 호환**: `pbl` `pcc` `plm` `prm` 처럼 p를 붙인 이름과 `lm` `cc` `rm` 도 계속 인식된다 (각각 bl, mc, ml, mr).
 
 ---
 
@@ -70,10 +72,14 @@
 한 시트에 여러 블록을 섞어 쓸 수 있고, 헤더의 열 이름으로 형상이 자동 판별된다.
 
 ```
-(사다리꼴)  # PLATE | ID | WT | WB | H | OFF_T | OFF_B | THK | MAT
-(사각형)    # PLATE | ID | B | H | THK | MAT
-(원형)      # PLATE | ID | D | THK | MAT
+(사다리꼴)  # PLATE | ID | MAT | THK | TRAP | BASE.pt | WB | WT | H | OFF_T
+(사각형)    # PLATE | ID | MAT | THK | RECT | BASE.pt | B | H
+(원형)      # PLATE | ID | MAT | THK | CIRC | BASE.pt | D
+(빼기형상)  # HOLE  | ID | TRAP | BASE.pt | WB | WT | H | OFF_T
+            # HOLE  | ID | RECT | BASE.pt | B | H
+            # HOLE  | ID | CIRC | BASE.pt | D
 ```
+(도형 키워드 없는 예전 열 구성 `ID | WT | WB | H | OFF_T | OFF_B | THK | MAT` 도 계속 읽는다)
 
 | 열 | 의미 | 비고 |
 |---|---|---|
@@ -84,15 +90,16 @@
 | OFF_B | 밑변 좌측단 수평 오프셋 | 생략 = 0 |
 | B | 사각형 폭 | 사각형 블록 전용 |
 | D | 직경 | 원형 블록 전용 |
-| THK | 두께 | 생략 = 10 |
-| MAT | 재질 | 표시용 |
+| THK | 두께 | 생략 = 10. **HOLE에는 없음** |
+| MAT | 재질 | 표시용. **HOLE에는 없음** |
+| BASE.pt | 이 형상의 원점이 될 점 | 9점 중 하나. 생략 = PLATE는 bc, CIRC·HOLE은 mc |
 
 ```
       OFF_T    WT
       ├───┤├──────┤
-       ptl ────── ptr     ─┬─
+        tl ─────── tr     ─┬─
        /            \      │ H
-     pbl ────────── pbr   ─┴─
+      bl ─────────── br   ─┴─
   ├──┤├───── WB ─────┤
   OFF_B
 ```
@@ -198,12 +205,14 @@ FOLD=180 (이어붙임)          FOLD=90 (직각 세움)
 
 | 키워드 | 값 (순서대로) | 설명 |
 |---|---|---|
-| PLATE | ID, WT, WB, H, OFF_TOP, THK, MAT | 사다리꼴 (OFF_T·OFF_B 두 칸 방식도 인식). 형상은 **값으로 판별**하므로 오른쪽 메모 칸이 있어도 무방 |
-| PLATE | ID, B, H, THK, MAT | 사각형 |
-| BAR | ID, Dia, Length | 원기둥 (볼트 등) |
-| CUT | [판ID], [기준점], L.X, L.Y, dx, dy, repeat, **RECT**, B, H | 사각 구멍/노치 |
-| CUT | [판ID], [기준점], L.X, L.Y, dx, dy, repeat, **CIRC**, D | 원형 구멍 |
-| CUT | [판ID], [기준점], L.X, L.Y, dx, dy, repeat, **PLATE**, ID | 다른 PLATE 외곽 형상으로 빼기 |
+| PLATE | ID, MAT, THK, **TRAP**, BASE.pt, WB, WT, H, OFF_T | 사다리꼴 부재 |
+| PLATE | ID, MAT, THK, **RECT**, BASE.pt, B, H | 사각 부재 |
+| PLATE | ID, MAT, THK, **CIRC**, BASE.pt, D | 원형 부재 (봉·원판) |
+| HOLE | ID, **TRAP**, BASE.pt, WB, WT, H, OFF_T | 재사용할 빼기 형상 |
+| HOLE | ID, **RECT**, BASE.pt, B, H | 〃 |
+| HOLE | ID, **CIRC**, BASE.pt, D | 〃 |
+| BAR | ID, Dia, Length | 원기둥 (`PLATE … CIRC` 와 동일, 옛 표기) |
+| CUT | 판ID, L.X, L.Y, **형상ID**, dx, dy, repeat | 형상ID(HOLE 또는 다른 PLATE)를 그 판에서 빼기 |
 | **MODULE** | ID, PLATE.ID, Ref.Pt, L.X, L.Y, L.Z, PLANE, ROT.X, ROT.Y, ROT.Z | 모듈에 판 1장 배치. 판의 Ref.Pt가 **모듈 로컬 (L.X, L.Y, L.Z)** 에 오고, PLANE은 그 판이 놓일 평면, ROT.X/Y/Z는 그 점을 중심으로 한 회전(도). 행마다 모듈 ID 반복 — 같은 ID 행들이 한 모듈로 누적. PART도 별칭 인식 |
 | **MODULE** | ID, **BASE**, 판인스턴스, 점이름 | 모듈 기준점 = 구성 판의 9점 중 하나(`bc+`처럼 면 지정 가능). **누락 시 경고** + 로컬 원점 사용 |
 | **COORD** | ZUP (기본) / YUP | 이 시트를 어느 좌표계로 읽을지. `YUP` 이면 예전 Y-up 기준으로 조립한 뒤 한 번만 세워 배치 — MODULE/ASSY 행보다 **위**에 둘 것 |
@@ -213,19 +222,29 @@ FOLD=180 (이어붙임)          FOLD=90 (직각 세움)
 | **ASSY** | ID, ref MOD/ASSY, **ROT**, C.X, C.Y, C.Z, AXIS, Angle, repeat | **회전 복사** — (C.X, C.Y, C.Z)를 지나는 월드 **X/Y/Z 축** 둘레로 Angle°씩 돌려가며 **repeat개 추가 복사**. 생성 ID = **`ID.001`, `ID.002` …** (생성 순서대로 점 + 3자리) |
 | END | | 입력 종료 |
 
-- **CUT의 대상 판**: 판 ID를 쓰면 그 판에 적용(행 순서 무관), 생략하면 바로 위에서 정의한 PLATE/BAR에 적용
-- **CUT의 기준점**: 판의 9점 중 하나(`bc`, `tl` 등)를 쓰면 **그 점에서 L.X, L.Y 만큼 떨어진 위치**를 자름. 생략하면 판의 로컬 원점(= bc) 기준
-  예: `CUT pl.T1 bc CIRC 22 -110 90` = 하단중앙에서 왼쪽 110, 위로 90인 곳에 Ø22 구멍
-- **CUT 위치는 전부 형상의 중심** — CIRC는 원 중심, RECT는 사각형 중심, PLATE는 빌려온 외곽선의
-  **무게중심(면적 도심)**. 회전(ROT) 칸은 없다 — 필요해지면 그때 추가.
-- **형상과 치수는 맨 뒤**에 온다. 앞쪽 칸(L.X · L.Y · dx · dy · repeat)이 고정이라 CIRC(값 1개)든
-  RECT(2개)든 PLATE(1개)든 열이 밀리지 않는다.
-- 예전 순서(`… RECT B H L.X L.Y L.ROT dx dy repeat`)도 계속 읽으며, **그 행들은 예전대로
-  RECT/PLATE를 좌하단 기준으로** 배치한다 (기존 시트가 안 깨지도록)
+- **PLATE와 HOLE은 입력 칸이 같아 보여도 서로 다른 것**
+  - PLATE = 실물. 질량·색상·IFC·STL이 전부 이 행에서 나온다.
+  - HOLE = 빼기용 2D 형상. **두께도 재질도 받지 않는다** — 그래서 구조적으로 실물이 될 수 없고,
+    실수로 MODULE에 배치해도 엔진이 걸러낸다. (깊이가 필요해지는 날이 오면 그 값은 HOLE이 아니라
+    CUT 행에 붙는다. 같은 Ø22가 어떤 판에서는 관통, 다른 판에서는 부분일 수 있으므로 깊이는
+    *형상*이 아니라 *적용*의 성질이다.)
+- **도형 키워드(TRAP/RECT/CIRC)는 고정 칸**에 온다. 그래서 뒤따르는 값 개수가 달라도(TRAP 4개,
+  RECT 2개, CIRC 1개) 앞쪽 칸이 밀리지 않는다. 예전처럼 값 패턴으로 형상을 추측하지 않으므로
+  MAT 칸에 `400` 같은 숫자를 써도 오인되지 않는다.
+- **BASE.pt = 그 형상의 원점**. 9점 중 하나를 고르면 그 점이 (0,0)이 된다.
+  비우면 PLATE는 `bc`, CIRC와 HOLE은 `mc`.
+- **CUT의 L.X / L.Y 는 대상 판의 원점(= 그 판의 BASE.pt)에서 잰다.** 놓이는 형상은
+  **자기 BASE.pt** 가 그 자리에 오도록 배치된다.
+  예: `HOLE h.M22 CIRC mc 22` + `CUT pl.T1 -110 90 h.M22` = 판 원점에서 왼쪽 110, 위 90에 Ø22 구멍 중심
+- **대상 판은 CUT 행보다 먼저** 정의돼 있어야 한다. 형상(HOLE/PLATE)은 시트 어디에 있어도 된다.
+- **ID는 PLATE와 HOLE이 같은 공간을 쓴다** — CUT의 형상ID가 둘 다 가리킬 수 있기 때문. 중복되면 경고.
+- 예전 CUT 순서도 계속 읽는다:
+  `CUT [판ID] [기준점] L.X L.Y dx dy repeat RECT B H | CIRC D | PLATE ID` (형상을 **중심** 기준 배치)
+  `CUT [판ID] [기준점] RECT B H L.X L.Y L.ROT dx dy repeat` (형상을 **좌하단** 기준 배치)
+- 예전 PLATE 행(도형 키워드 없음)도 계속 읽는다: `PLATE ID WT WB H OFF_TOP [OFF_B] THK MAT`, `PLATE ID B H THK MAT`
 - **dx / dy / repeat = 배열 복제**: repeat는 **추가 복제 개수**(원본 제외 — 0/빈칸이면 1개, 1이면 총 2개), dx·dy는 복제 간격 벡터.
-  예: `... CIRC 22 -110 90 0 0 220 1` = ∅22 구멍이 (−110, 90)과 (−110, 310)에 2개
-  ⚠ CIRC/PLATE 행은 RECT보다 파라미터가 하나 적어서 dx/dy/repeat 칸이 한 칸 왼쪽으로 당겨짐 — 열 정렬 주의 (엔진이 감지되면 경고 표시)
-- PLANE: **XY(수평)/XZ(정면)/YZ(측면)** — Z-up 기준. Ref.Pt: tl~br·cc (p 접두사 있어도 인식)
+  예: `CUT pl.T1 -110 90 h.M22 0 220 1` = Ø22 구멍이 (−110, 90)과 (−110, 310)에 2개
+- PLANE: **XY(수평)/XZ(정면)/YZ(측면)** — Z-up 기준. Ref.Pt: tl·tc·tr·ml·mc·mr·bl·bc·br (예전 p 접두사 표기도 인식)
 - **MODULE 행 읽는 법**: 「이 판(PLATE.ID)의 이 점(Ref.Pt)을 모듈 좌표 (L.X, L.Y, L.Z)에 놓고, PLANE 평면에 눕히고, 필요하면 그 점을 중심으로 ROT.X/Y/Z만큼 돌려라」
 - **ASSY의 기준점**: 참조 대상이 MODULE이면 그 모듈의 **BASE 점**, 낱장 PLATE면 **bc**(평면은 XY 기준, 필요시 ROT으로 회전), 다른 ASSY면 그 조립체의 **자기 원점**
 - **좌표 기준**
