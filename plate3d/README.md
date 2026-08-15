@@ -11,6 +11,7 @@
   - PLATE(부재) + HOLE(빼기 형상) → CUT → MODULE(판 조립 + BASE) → ASSY(글로벌 배치, 중첩 가능)
   - PLATE/HOLE 행은 `TRAP` / `RECT` / `CIRC` 를 고정 칸에 적고, `BASE.pt` 로 그 형상의 원점을 고름
   - 9점 이름은 **tl tc tr / ml mc mr / bl bc br** (예전 `pbl`·`cc` 표기도 계속 인식)
+  - BAR(환봉)는 MODULE/ASSY에 판과 똑같이 배치. Ref.Pt는 비워둠 — **시점부 원형 중심**이 기준
   - Ref.Pt 뒤 `+`/`−` 로 두께 기준면 지정, ROT.X/Y/Z 3축 회전
   - polybooljs 절단(구멍·노치·REF), 그룹·부재별 토글/투명도, 중량, STL·IFC 출력
   - **measure**: 3D 화면·모듈 미리보기·판 2D 도면에서 두 점을 클릭해 거리·ΔX/ΔY/ΔZ 측정

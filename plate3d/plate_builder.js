@@ -306,7 +306,7 @@
           taken from the values:  PLATE ID WT WB H OFF_TOP [OFF_B] THK MAT
                                   PLATE ID B H THK MAT
        MODULE ID PLATE.ID REF.PT L.X L.Y L.Z PLANE [ROT.X ROT.Y ROT.Z]
-                                              (one row per member plate: the plate's
+                                              (one row per member: the plate's
                                                REF.PT lands on module-local L.X/L.Y/L.Z,
                                                PLANE is the plane it lies on and ROT.X/Y/Z
                                                spin it about that point. Rows with the
@@ -317,6 +317,9 @@
        MODULE ID BASE INSTANCE POINT          (module reference point = one of the
                                                9 points of a member plate;
                                                missing BASE -> warning + local origin)
+       -- a BAR member leaves REF.PT blank: a bar is always held by the centre of
+          its starting face and grows along the plane's thickness axis, so a bar
+          on XY at 0,0,0 runs from z=0 up to z=Length
        -- REF.PT face suffix: bc = mid-thickness (default), bc+ / bc- = the plus /
           minus face of the plate. OFFSET is then measured to that face, so drawing
           dimensions can be typed as-is instead of adding +/-THK/2. Works on MODULE
@@ -402,7 +405,7 @@
   }
   function memberDesc(row) {                    // one module member, for the preview panel
     var t = (row.PL_IN || planeLabel(row.PLANE)) + ' \u00b7 ' +
-            row.REFPT + faceMark(row.FACE) + ' \u00b7 ';
+            (row.__bar ? 'start' : row.REFPT + faceMark(row.FACE)) + ' \u00b7 ';
     t += row.__xyz ? '(' + row.LX + ', ' + row.LY + ', ' + row.LZ + ')'
                    : 'off ' + row.OFFSET;
     var rot = row.__xyz ? [row.RX, row.RY, row.RZ] : [0, 0, row.ROT];
@@ -623,7 +626,7 @@
         if (!mplate) { warn('row ' + (r + 1) + ': MODULE row with undefined plate ' + msub); continue; }
         if (palias[str(v[2]).toUpperCase()]) {   // legacy: <plate> PLANE Ref.Pt L.X L.Y L.ROT OFFSET
           currentPart.pos.push({ NO: msub, PLATE: mplate, PLANE: palias[str(v[2]).toUpperCase()],
-                                 PL_IN: str(v[2]).toUpperCase(),
+                                 PL_IN: str(v[2]).toUpperCase(), __bar: !!plates[mplate].__bar,
                                  REFPT: normPoint(v[3]), FACE: faceOf(v[3]),
                                  LX: num(v[4], 0), LY: num(v[5], 0),
                                  ROT: num(v[6], 0), OFFSET: num(v[7], 0) });
@@ -637,7 +640,7 @@
           continue;
         }
         currentPart.pos.push({ __xyz: true, NO: msub, PLATE: mplate, PLANE: palias[mplane],
-                               PL_IN: mplane,
+                               PL_IN: mplane, __bar: !!plates[mplate].__bar,
                                REFPT: normPoint(v[2]), FACE: faceOf(v[2]),
                                LX: num(v[3], 0), LY: num(v[4], 0), LZ: num(v[5], 0),
                                RX: num(v[7], 0), RY: num(v[8], 0), RZ: num(v[9], 0) });
@@ -649,7 +652,7 @@
         var pplane = str(v[1]).toUpperCase();
         if (!palias[pplane]) { warn('row ' + (r + 1) + ': unknown PLANE ' + pplane + ' (use XY/YZ/XZ)'); continue; }
         currentPart.pos.push({ NO: ppid, PLATE: pplate, PLANE: palias[pplane],
-                               PL_IN: pplane,
+                               PL_IN: pplane, __bar: !!plates[pplate].__bar,
                                REFPT: normPoint(v[2]), FACE: faceOf(v[2]),
                                LX: num(v[3], 0), LY: num(v[4], 0),
                                ROT: num(v[5], 0), OFFSET: num(v[6], 0) });
@@ -1225,12 +1228,24 @@
   // MODULE row, XYZ grammar: the plate's Ref.Pt lands on the module-local point
   // (L.X, L.Y, L.Z), PLANE says which way the plate faces and ROT X/Y/Z spin it
   // about that same point. Legacy rows fall back to the plane-anchored form.
+  // Where a member's reference point sits in its own xyz. A bar is always held
+  // by the centre of its starting face - the circle it grows from - so its
+  // Ref.Pt cell is not read at all; a plate uses its named point and the +/-
+  // face suffix.
+  function refAnchor(spec, pt, face) {
+    var thk = num(spec.THK, 0);
+    if (spec.__bar) return [0, 0, -thk / 2];
+    var p = namedPoints(spec, false), a = p[pt] || p.bl;
+    return [a[0], a[1], (face || 0) * thk / 2];
+  }
+  function isBarSpec(spec) { return !!(spec && spec.__bar); }
+
   function memberMatrix(row, pts, thk) {
     if (!row.__xyz) return planeMatrixAnchor(row, pts, thk);
     var b = planeBasis(row.PLANE);
     if (!b) throw new Error(row.NO + ': PLANE=' + row.PLANE + ' (use XY/YZ/XZ)');
-    var a = pts[row.REFPT] || pts.bl;
-    var az = (row.FACE || 0) * (thk || 0) / 2;
+    var a = row.__bar ? [0, 0] : (pts[row.REFPT] || pts.bl);
+    var az = row.__bar ? -(thk || 0) / 2 : (row.FACE || 0) * (thk || 0) / 2;
     var m = new THREE.Matrix4().makeTranslation(row.LX, row.LY, row.LZ);
     m.multiply(rotXYZ(row.RX, row.RY, row.RZ));
     m.multiply(new THREE.Matrix4().makeBasis(v3(b.ex), v3(b.ey), v3(b.ez)));
@@ -1372,9 +1387,8 @@
       if (part.base) {
         for (var i = 0; i < locals.length; i++) {
           if (locals[i].row.NO === part.base.inst) {
-            var a = locals[i].pts[part.base.pt] || locals[i].pts.bl;
-            base = new THREE.Vector3(a[0], a[1],
-                     (part.base.face || 0) * locals[i].spec.THK / 2).applyMatrix4(locals[i].mloc);
+            var a = refAnchor(locals[i].spec, part.base.pt, part.base.face);
+            base = new THREE.Vector3(a[0], a[1], a[2]).applyMatrix4(locals[i].mloc);
             break;
           }
         }
@@ -1446,11 +1460,11 @@
                    flip: L.flip, mloc: L.mloc.clone() };
         });
       }
-      var sp = plates[row.REF];                          // a single PLATE: reference = its bc
+      var sp = plates[row.REF];         // a single PLATE: reference = bc (a BAR: its start)
       if (!sp) throw new Error(row.NO + ': unknown MODULE/ASSY/PLATE ' + row.REF);
-      var p0 = namedPoints(sp, false).bc;
+      var p0 = refAnchor(sp, 'bc', 0);
       return [{ spec: sp, no: sp.ID, moduleId: null, memberKey: null, flip: false,
-                mloc: new THREE.Matrix4().makeTranslation(-p0[0], -p0[1], 0) }];
+                mloc: new THREE.Matrix4().makeTranslation(-p0[0], -p0[1], -p0[2]) }];
     }
 
     assyRows.forEach(function (row) {
@@ -1851,7 +1865,7 @@
         'oninput="plateBuilder.setOpacity(\'module\',\'' + id + '\',this.value)"></td>' +
         '<td><span class="plname" onclick="plateBuilder.previewModule(\'' + id + '\')">' +
         esc(id) + '</span>' +
-        '<div class="dims">plates ' + part.pos.length +
+        '<div class="dims">members ' + part.pos.length +
         (part.base ? ' · base ' + esc(part.base.inst) + '.' + part.base.pt : ' · no base') +
         (used ? '' : ' · not assembled') + '</div></td>';
       tbl.appendChild(tr);
@@ -1874,7 +1888,7 @@
     var t = document.createElement('table');
     var hr = document.createElement('tr');
     hr.className = 'thead';
-    hr.innerHTML = '<td colspan="2">PLATES IN ' + esc(id) + '</td>';
+    hr.innerHTML = '<td colspan="2">MEMBERS IN ' + esc(id) + '</td>';
     t.appendChild(hr);
     part.pos.forEach(function (row) {
       var key = id + '/' + row.NO;
@@ -2196,11 +2210,9 @@
   // local axis triad at a plate's centre: +Z is the thickness / offset direction
   // Plate-local Ref.Pt of a module member, in the plate's own coordinates
   function memberRef(spec, row) {
-    var pts = namedPoints(spec, false);
-    var a = pts[row.REFPT] || pts.bl;
-    return { p: new THREE.Vector3(a[0], a[1],
-                                  flatMode ? 0 : (row.FACE || 0) * num(spec.THK, 0) / 2),
-             name: row.REFPT + faceMark(row.FACE) };
+    var a = refAnchor(spec, row.REFPT, row.FACE);
+    return { p: new THREE.Vector3(a[0], a[1], flatMode ? 0 : a[2]),
+             name: isBarSpec(spec) ? 'start' : row.REFPT + faceMark(row.FACE) };
   }
   // Local axes of one plate. Drawn on the member's Ref.Pt when there is one -
   // that is the point its L.X/L.Y/L.Z were measured to - otherwise on the
@@ -2345,9 +2357,8 @@
       var m;
       try { m = yupFix(memberMatrix(row, pts, spec.THK)); } catch (e) { return; }
       if (part.base && row.NO === part.base.inst) {
-        var a = pts[part.base.pt] || pts.bl;
-        basePt = new THREE.Vector3(a[0], a[1],
-                   (part.base.face || 0) * spec.THK / 2).applyMatrix4(m);
+        var a = refAnchor(spec, part.base.pt, part.base.face);
+        basePt = new THREE.Vector3(a[0], a[1], a[2]).applyMatrix4(m);
       }
       var g2d = buildPlate2D(spec, lastCuts, lastPlates);
       mass += g2d.area * spec.THK * RHO;
@@ -2461,7 +2472,7 @@
     pvHome = { pos: cam.position.clone(), tgt: ctr.target.clone() };
 
     pvMeta.innerHTML =
-      'plates ' + part.pos.length + ' &middot; ' + mass.toFixed(3) + ' kg &middot; ' +
+      'members ' + part.pos.length + ' &middot; ' + mass.toFixed(3) + ' kg &middot; ' +
       (part.base ? 'base ' + esc(part.base.inst) + '.' + part.base.pt +
                    faceMark(part.base.face) + ' <span style="color:#f0c674">(&#9679;)</span>'
                  : '<span style="color:#f0c674">no BASE — local origin</span>') +
@@ -2560,7 +2571,7 @@
           '</span></td>' +
           '<td><span class="plname subname" onclick="' + open + '">' +
           esc(r.moduleId || r.plateId) + '</span>' +
-          '<div class="dims">' + (r.moduleId ? 'plates ' + r.n : r.items[0].dims) +
+          '<div class="dims">' + (r.moduleId ? 'members ' + r.n : r.items[0].dims) +
           ' · ' + r.mass.toFixed(3) + 'kg' +
           '<input type="range" min="10" max="100" step="5" value="' +
           Math.round(resolveOpac(r.items[0]) * 100) +
@@ -2571,7 +2582,7 @@
       });
     });
     document.getElementById('pb-total').textContent =
-      'Placed plates: ' + items.length + ' · Total weight: ' + total.toFixed(3) + ' kg';
+      'Placed members: ' + items.length + ' · Total weight: ' + total.toFixed(3) + ' kg';
   }
   function toggleInst(i, on) {
     var r = listRows[i];

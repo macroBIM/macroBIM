@@ -213,7 +213,7 @@ FOLD=180 (이어붙임)          FOLD=90 (직각 세움)
 | HOLE | ID, **CIRC**, BASE.pt, D | 〃 |
 | BAR | ID, MAT, Dia, Length | 직선 환봉. 왼쪽 **BARS** 표(ID·직경·길이·재질)에 따로 모이고, 배치는 MODULE/ASSY로 판과 동일. 예전 `ID, Dia, Length` 순서도 인식 |
 | CUT | 판ID, L.X, L.Y, **형상ID**, dx, dy, repeat | 형상ID(HOLE 또는 다른 PLATE)를 그 판에서 빼기 |
-| **MODULE** | ID, PLATE.ID, Ref.Pt, L.X, L.Y, L.Z, PLANE, ROT.X, ROT.Y, ROT.Z | 모듈에 판 1장 배치. 판의 Ref.Pt가 **모듈 로컬 (L.X, L.Y, L.Z)** 에 오고, PLANE은 그 판이 놓일 평면, ROT.X/Y/Z는 그 점을 중심으로 한 회전(도). 행마다 모듈 ID 반복 — 같은 ID 행들이 한 모듈로 누적. PART도 별칭 인식 |
+| **MODULE** | ID, PLATE/BAR.ID, Ref.Pt, L.X, L.Y, L.Z, PLANE, ROT.X, ROT.Y, ROT.Z | 모듈에 부재 1개 배치. 판의 Ref.Pt가 **모듈 로컬 (L.X, L.Y, L.Z)** 에 오고, PLANE은 그 판이 놓일 평면, ROT.X/Y/Z는 그 점을 중심으로 한 회전(도). 행마다 모듈 ID 반복 — 같은 ID 행들이 한 모듈로 누적. PART도 별칭 인식 |
 | **MODULE** | ID, **BASE**, 판인스턴스, 점이름 | 모듈 기준점 = 구성 판의 9점 중 하나(`bc+`처럼 면 지정 가능). **누락 시 경고** + 로컬 원점 사용 |
 | **COORD** | ZUP (기본) / YUP | 이 시트를 어느 좌표계로 읽을지. `YUP` 이면 예전 Y-up 기준으로 조립한 뒤 한 번만 세워 배치 — MODULE/ASSY 행보다 **위**에 둘 것 |
 | **ASSY** | ID, ref MOD/ASSY, **ADD**, G.X, G.Y, G.Z, ROT.X, ROT.Y, ROT.Z | **생성할 조립체 ID** 와 **참조할 MODULE / 다른 ASSY / 낱장 PLATE**. 참조 대상의 기준점이 **글로벌 (G.X, G.Y, G.Z)** 에 오고, ROT.X/Y/Z로 3축 회전 |
@@ -245,6 +245,10 @@ FOLD=180 (이어붙임)          FOLD=90 (직각 세움)
 - **dx / dy / repeat = 배열 복제**: repeat는 **추가 복제 개수**(원본 제외 — 0/빈칸이면 1개, 1이면 총 2개), dx·dy는 복제 간격 벡터.
   예: `CUT pl.T1 -110 90 h.M22 0 220 1` = Ø22 구멍이 (−110, 90)과 (−110, 310)에 2개
 - PLANE: **XY(수평)/XZ(정면)/YZ(측면)** — Z-up 기준. Ref.Pt: tl·tc·tr·ml·mc·mr·bl·bc·br (예전 p 접두사 표기도 인식)
+- **BAR 부재는 Ref.Pt를 비운다.** 봉은 항상 **시점부 원형 중심**이 기준이고, 거기서 그 평면의
+  두께 축 방향으로 Length만큼 뻗는다. XY면 +Z, XZ면 −Y, YZ면 +X.
+  예: `MODULE md.tower bar.pt3m (빈칸) 0 0 0 XY` = 원점에서 위로 3000mm 서는 봉.
+  ASSY에 봉을 직접 놓을 때도 같다 — G.X/G.Y/G.Z가 시점부 중심.
 - **MODULE 행 읽는 법**: 「이 판(PLATE.ID)의 이 점(Ref.Pt)을 모듈 좌표 (L.X, L.Y, L.Z)에 놓고, PLANE 평면에 눕히고, 필요하면 그 점을 중심으로 ROT.X/Y/Z만큼 돌려라」
 - **ASSY의 기준점**: 참조 대상이 MODULE이면 그 모듈의 **BASE 점**, 낱장 PLATE면 **bc**(평면은 XY 기준, 필요시 ROT으로 회전), 다른 ASSY면 그 조립체의 **자기 원점**
 - **좌표 기준**
