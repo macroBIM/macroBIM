@@ -244,6 +244,7 @@
   var pvCtrl = null, pvScene = null, pvHome = null;   // pvHome = the preview's opening view
   var pvX = null, pvPts = [], pvBase = null, pv = null;   // 2D preview state
   var pvMeas = [];                                       // 2D measure picks
+  var pvRszWired = false;
   var CENTER = null, VDIST = 1200;                // set from model bbox in run()
   var items = [];
   var runToken = 0;                               // distinguishes re-runs
@@ -1686,7 +1687,9 @@
       });
     });
 
-    var W = cv.width, H = cv.height, PAD = 54;
+    var vs = pvViewSize(false);
+    cv.width = vs.W; cv.height = vs.H;
+    var W = vs.W, H = vs.H, PAD = Math.round(54 * vs.H / 540);
     var fit = Math.min((W - PAD * 2) / Math.max(maxx - minx, 1e-6),
                        (H - PAD * 2) / Math.max(maxy - miny, 1e-6));
     pv = { id: id, spec: spec, g: g, pts: pts, W: W, H: H,
@@ -1726,6 +1729,29 @@
         '<span style="color:#ffe81f">dist ' + f(Math.hypot(b.x - a.x, b.y - a.y)) +
         '</span>' + tail;
     }
+  }
+
+  // The window changed shape - refit the open preview and keep what is on
+  // screen: the 3D box keeps its camera, the drawing keeps its zoom and the
+  // model point that was in the middle.
+  function pvResize() {
+    if (pvModuleId) { refreshPreview(); return; }
+    if (!pv) return;
+    var cv = document.getElementById('pb-pv-canvas');
+    if (!cv) return;
+    var vs = pvViewSize(false);
+    if (vs.W === pv.W && vs.H === pv.H) return;
+    var cxm = pv.minx + (pv.W / 2 - pv.ox) / pv.sc;
+    var cym = pv.miny + (pv.H / 2 - pv.oy) / pv.sc;
+    var PAD = Math.round(54 * vs.H / 540);
+    cv.width = vs.W; cv.height = vs.H;
+    pv.W = vs.W; pv.H = vs.H;
+    pv.fit = Math.min((pv.W - PAD * 2) / Math.max(pv.maxx - pv.minx, 1e-6),
+                      (pv.H - PAD * 2) / Math.max(pv.maxy - pv.miny, 1e-6));
+    pv.ox = pv.W / 2 - (cxm - pv.minx) * pv.sc;
+    pv.oy = pv.H / 2 - (cym - pv.miny) * pv.sc;
+    drawPreview();
+    pvReport(null);
   }
 
   function pvFit() {                                  // reset zoom/pan to fit
@@ -2334,6 +2360,21 @@
   // renderer per open exhausts the browser's context budget - the opacity and
   // axis controls reopen the preview on every input step - and once the budget
   // is gone the preview stays blank until the page is reloaded.
+  // The preview keeps 16:9 but never grows past what the window can show, so
+  // the modal does not need a scrollbar on a short screen. Chrome around the
+  // view: box padding+border, the title row, the two meta lines, and the member
+  // tree when the 3D box has one.
+  function pvViewSize(withTree) {
+    // the box itself is capped at 97vw / 96vh, so measure against that, less the
+    // chrome: padding + borders (34), title row + the two meta lines (~66), and
+    // the member tree with its gap (206) when the 3D box has one
+    var availW = Math.floor(window.innerWidth * 0.97) - (36 + (withTree ? 206 : 0));
+    var availH = Math.floor(window.innerHeight * 0.96) - 100;
+    var s = Math.min(1, availW / 960, availH / 540);
+    if (!(s > 0.3)) s = 0.3;                     // also catches NaN on odd hosts
+    return { W: Math.round(960 * s), H: Math.round(540 * s) };
+  }
+
   function pvGetRenderer(host, W, H) {
     if (pvRenderer) {
       var gl = pvRenderer.getContext();
@@ -2392,7 +2433,11 @@
     pvTitle.textContent = id + '  (module)';     // set first, so the box is never blank
     pvMeta.textContent = '';
 
-    var W = 960, H = 540;                        // 16:9
+    var vs = pvViewSize(true);
+    var W = vs.W, H = vs.H;                      // 16:9, clipped to the window
+    host.style.width = W + 'px'; host.style.height = H + 'px';
+    var tree = document.getElementById('pb-pv-tree');
+    if (tree) tree.style.maxHeight = (H + 2) + 'px';
     var sc = new THREE.Scene();
     pvScene = sc;
     sc.background = new THREE.Color(0x15181c);
@@ -2997,6 +3042,14 @@
     pal.innerHTML = SWATCHES.map(function (c) {
       return '<i style="background:' + c + '" onclick="plateBuilder.pickColor(\'' + c + '\')"></i>';
     }).join('');
+    if (!pvRszWired) {                             // one listener, not one per run
+      pvRszWired = true;
+      var t = null;
+      window.addEventListener('resize', function () {
+        if (t) clearTimeout(t);
+        t = setTimeout(pvResize, 150);
+      });
+    }
     window.addEventListener('mousedown', function (e) {
       if (palPending && !document.getElementById('pb-pal').contains(e.target)) closePalette();
     });
