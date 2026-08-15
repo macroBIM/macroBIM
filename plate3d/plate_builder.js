@@ -245,6 +245,8 @@
   var shapeLib = {};        // HOLE definitions - cut shapes, never members
   var pvToken = 0, pvRenderer = null, pvModuleId = null;   // 3D preview lifecycle
   var pvCtrl = null, pvScene = null, pvHome = null;   // pvHome = the preview's opening view
+  var pvCamP = null, pvCamO = null, pvCam = null;     // the preview's two cameras
+  var orthoPv = false, pvAspect = 16 / 9, pvBackDist = 1000;
   var pvX = null, pvPts = [], pvBase = null, pv = null;   // 2D preview state
   var pvMeas = [];                                       // 2D measure picks
   var pvRszWired = false;
@@ -1899,7 +1901,7 @@
     stopPreview3D();
     pvModuleId = null;
     document.getElementById('pb-pv-tree').style.display = 'none';
-    ['pb-pv-flat', 'pb-pv-ids', 'pb-pv-faces'].forEach(function (q) {
+    ['pb-pv-flat', 'pb-pv-ids', 'pb-pv-faces', 'pb-pv-ortho'].forEach(function (q) {
       document.getElementById(q).parentNode.style.display = 'none';
     });
     document.getElementById('pb-pv-meas').parentNode.style.display = 'flex';
@@ -2175,8 +2177,9 @@
   function regenPreview() {                     // undo zoom/pan, back to the opening view
     if (pvModuleId) {
       if (!pvCtrl || !pvHome) return;
-      pvCtrl.object.position.copy(pvHome.pos);
       pvCtrl.target.copy(pvHome.tgt);
+      frameCam(pvCtrl.object, pvHome.tgt, pvHome.pos, pvBackDist);
+      fitCam(pvCtrl.object, pvAspect);
       pvCtrl.update();
       return;
     }
@@ -2740,6 +2743,7 @@
     pvToken++;                                   // stops the render loop
     if (pvCtrl) { pvCtrl.dispose(); pvCtrl = null; }
     if (pvScene) { disposeScene(pvScene); pvScene = null; }
+    pvCam = pvCamP = pvCamO = null;
   }
 
   function previewModule(id) {
@@ -2751,7 +2755,7 @@
     stopPreview3D();
     pvModuleId = id;
     document.getElementById('pb-pv-flat').checked = flatMode;
-    ['pb-pv-flat', 'pb-pv-meas', 'pb-pv-ids', 'pb-pv-faces'].forEach(function (q) {
+    ['pb-pv-flat', 'pb-pv-meas', 'pb-pv-ids', 'pb-pv-faces', 'pb-pv-ortho'].forEach(function (q) {
       document.getElementById(q).parentNode.style.display = 'flex';
     });
     document.getElementById('pb-pv-stl').style.display = 'block';
@@ -2773,8 +2777,12 @@
     var sc = new THREE.Scene();
     pvScene = sc;
     sc.background = new THREE.Color(0x15181c);
-    var cam = new THREE.PerspectiveCamera(40, W / H, 1, 50000);
-    cam.up.set(0, 0, 1);                         // Z-up world
+    pvAspect = W / H;
+    pvCamP = new THREE.PerspectiveCamera(MAIN_FOV, pvAspect, 1, 50000);
+    pvCamO = new THREE.OrthographicCamera(-1, 1, 1, -1, 1, 50000);
+    pvCamP.up.set(0, 0, 1);                      // Z-up world
+    pvCamO.up.set(0, 0, 1);
+    var cam = pvCam = orthoPv ? pvCamO : pvCamP;
     var rn = pvGetRenderer(host, W, H);
     if (!rn) {
       pvMeta.innerHTML = '<span style="color:#f09a9a">3D preview unavailable — ' +
@@ -2914,10 +2922,14 @@
     pvCtrl = ctr;
     ctr.enableDamping = true;
     ctr.dampingFactor = 0.1;
-    cam.position.set(center.x + size * 1.05, center.y - size * 1.2, center.z + size * 0.85);
+    var home = new THREE.Vector3(center.x + size * 1.05, center.y - size * 1.2,
+                                 center.z + size * 0.85);
+    pvBackDist = home.distanceTo(center) || size || 1000;
     ctr.target.copy(center);
+    frameCam(cam, center, home, pvBackDist);
+    fitCam(cam, pvAspect);
     ctr.update();
-    pvHome = { pos: cam.position.clone(), tgt: ctr.target.clone() };
+    pvHome = { pos: home.clone(), tgt: center.clone() };
 
     pvMeta.innerHTML =
       'members ' + part.pos.length + ' &middot; ' + mass.toFixed(3) + ' kg &middot; ' +
@@ -2937,18 +2949,19 @@
     document.getElementById('pb-pv-meas').checked = measurePv;
     document.getElementById('pb-pv-ids').checked = showIdsPv;
     document.getElementById('pb-pv-faces').checked = showFacesPv;
+    document.getElementById('pb-pv-ortho').checked = orthoPv;
     measPv.enable(measurePv);
 
     var pgz = buildGizmo();
     pvToken++;
     var token = pvToken;
-    (function loop() {
+    (function loop() {                            // reads pvCam/pvCtrl: ortho can swap them
       if (token !== pvToken) return;
       requestAnimationFrame(loop);
-      ctr.update();
-      tickPx(sc, cam, H);
-      rn.render(sc, cam);
-      drawGizmo(rn, pgz, cam, ctr.target, W, H, 74);
+      pvCtrl.update();
+      tickPx(sc, pvCam, H);
+      rn.render(sc, pvCam);
+      drawGizmo(rn, pgz, pvCam, pvCtrl.target, W, H, 74);
     })();
   }
 
@@ -3288,19 +3301,54 @@
   }
 
   /* ---------------- views ---------------- */
-  // An orthographic camera has no aspect of its own: the frustum is rebuilt from
-  // the height it should cover (userData.viewH) and the pane's aspect. Zoom is
-  // left alone - OrbitControls dollies an ortho camera by changing camera.zoom.
-  function applyMainCam() {
-    if (!camera) return;
-    if (camera.isOrthographicCamera) {
-      var half = (camera.userData.viewH || 1000) / 2;
-      camera.left = -half * mainAspect; camera.right = half * mainAspect;
-      camera.top = half; camera.bottom = -half;
-    } else camera.aspect = mainAspect;
-    camera.updateProjectionMatrix();
-  }
+  // Both 3D views (main window and module preview) keep a perspective and an
+  // orthographic camera and swap between them. An ortho camera has no aspect of
+  // its own, so its frustum is rebuilt from the height it should cover
+  // (userData.viewH) and the pane's aspect. Zoom is left alone - OrbitControls
+  // dollies an ortho camera by changing camera.zoom, not by moving it.
   function fovHeight(d) { return 2 * d * Math.tan(MAIN_FOV * Math.PI / 360); }
+  function fitCam(cam, aspect) {
+    if (!cam) return;
+    if (cam.isOrthographicCamera) {
+      var half = (cam.userData.viewH || 1000) / 2;
+      cam.left = -half * aspect; cam.right = half * aspect;
+      cam.top = half; cam.bottom = -half;
+    } else cam.aspect = aspect;
+    cam.updateProjectionMatrix();
+  }
+  function applyMainCam() { fitCam(camera, mainAspect); }
+
+  // Look at target from the direction of pos, framing what a perspective camera
+  // would cover from there. An ortho camera is also set back to at least backOff:
+  // distance does not change a parallel image, but it keeps the model clear of
+  // the near plane however far the user zooms in.
+  function frameCam(cam, target, pos, backOff) {
+    var dir = pos.clone().sub(target);
+    var d = dir.length() || backOff;
+    dir.divideScalar(d);
+    if (cam.isOrthographicCamera) {
+      cam.zoom = 1;
+      cam.userData.viewH = fovHeight(d);
+      cam.position.copy(target).addScaledVector(dir, Math.max(d, backOff));
+    } else cam.position.copy(target).addScaledVector(dir, d);
+  }
+  // Hand the image from one projection to the other without moving it. Going
+  // back to perspective, the ortho zoom is what sets the camera distance.
+  function swapProjection(from, to, target, backOff) {
+    if (to.isOrthographicCamera) { frameCam(to, target, from.position, backOff); return; }
+    var dir = from.position.clone().sub(target);
+    var d = dir.length() || backOff;
+    var vh = (from.userData.viewH || fovHeight(backOff)) / (from.zoom || 1);
+    to.position.copy(target).addScaledVector(dir.divideScalar(d), vh / fovHeight(1));
+  }
+  function rebindOrbit(cam, dom, target) {         // OrbitControls binds one camera
+    var c = new THREE.OrbitControls(cam, dom);
+    c.enableDamping = true;
+    c.dampingFactor = 0.1;
+    c.target.copy(target);
+    c.update();
+    return c;
+  }
 
   function setView(v) {
     var d = VDIST;                               // Z-up: front looks north, top looks down
@@ -3309,46 +3357,41 @@
     if (v === 'top')   camera.position.set(CENTER.x, CENTER.y - 0.01, CENTER.z + d);
     if (v === 'iso')   camera.position.set(CENTER.x + d * 0.58, CENTER.y - d * 0.65, CENTER.z + d * 0.5);
     controls.target.copy(CENTER);
-    if (camera.isOrthographicCamera) {           // same framing as the perspective view
-      camera.zoom = 1;
-      camera.userData.viewH = fovHeight(d);
-      applyMainCam();
-    }
+    frameCam(camera, CENTER, camera.position.clone(), VDIST);
+    applyMainCam();
     controls.update();
   }
 
-  // Swap projection without moving the view: the ortho frustum is sized to what
-  // the perspective camera covers at the target, and vice versa. The ortho camera
-  // is then pushed back to at least VDIST - distance does not change an ortho
-  // image, but it keeps the model clear of the near plane at any zoom.
   function setOrtho(on) {
     orthoView = !!on;
     var cb = document.getElementById('pb-ortho');
     if (cb) cb.checked = orthoView;
     if (!camPersp || !camOrtho || !controls) return;
-    var from = camera, to = orthoView ? camOrtho : camPersp;
-    if (from === to) return;
-    var dir = from.position.clone().sub(controls.target);
-    var d = dir.length() || VDIST;
-    dir.divideScalar(d);
-    if (orthoView) {
-      camOrtho.zoom = 1;
-      camOrtho.userData.viewH = fovHeight(d);
-      camOrtho.position.copy(controls.target).addScaledVector(dir, Math.max(d, VDIST));
-    } else {
-      var vh = (camOrtho.userData.viewH || fovHeight(VDIST)) / (camOrtho.zoom || 1);
-      camPersp.position.copy(controls.target).addScaledVector(dir, vh / fovHeight(1));
-    }
+    var to = orthoView ? camOrtho : camPersp;
+    if (camera === to) return;
+    swapProjection(camera, to, controls.target, VDIST);
     camera = to;
     applyMainCam();
     var tgt = controls.target.clone();
-    controls.dispose();                          // OrbitControls binds one camera
-    controls = new THREE.OrbitControls(camera, renderer.domElement);
-    controls.enableDamping = true;
-    controls.dampingFactor = 0.1;
-    controls.target.copy(tgt);
-    controls.update();
+    controls.dispose();
+    controls = rebindOrbit(camera, renderer.domElement, tgt);
     if (measMain) measMain.setCamera(camera);
+  }
+
+  function setOrthoPv(on) {
+    orthoPv = !!on;
+    var cb = document.getElementById('pb-pv-ortho');
+    if (cb) cb.checked = orthoPv;
+    if (!pvModuleId || !pvCamP || !pvCamO || !pvCtrl || !pvRenderer) return;
+    var to = orthoPv ? pvCamO : pvCamP;
+    if (pvCam === to) return;
+    swapProjection(pvCam, to, pvCtrl.target, pvBackDist);
+    pvCam = to;
+    fitCam(pvCam, pvAspect);
+    var tgt = pvCtrl.target.clone();
+    pvCtrl.dispose();
+    pvCtrl = rebindOrbit(pvCam, pvRenderer.domElement, tgt);
+    if (measPv) measPv.setCamera(pvCam);
   }
 
   /* ---------------- DOM + init ---------------- */
@@ -3422,6 +3465,8 @@
       '        surface</label>' +
       '      <label class="pvchk"><input type="checkbox" id="pb-pv-flat"' +
       '        onchange="plateBuilder.setFlat(this.checked)"> surface only</label>' +
+      '      <label class="pvchk"><input type="checkbox" id="pb-pv-ortho"' +
+      '        onchange="plateBuilder.setOrthoPv(this.checked)"> ortho</label>' +
       '      <span id="pb-pv-title"></span></h2>' +
       '  <div class="pvbody">' +
       '    <div id="pb-pv-tree"></div>' +
@@ -3840,13 +3885,18 @@
   // so dragging a slider or ticking a box does not throw the view back
   function refreshPreview() {
     if (!pvModuleId) return;
-    var keep = pvCtrl ? { pos: pvCtrl.object.position.clone(), tgt: pvCtrl.target.clone() } : null;
+    var keep = pvCtrl ? { pos: pvCtrl.object.position.clone(), tgt: pvCtrl.target.clone(),
+                          zoom: pvCtrl.object.zoom,
+                          viewH: pvCtrl.object.userData.viewH } : null;
     var home = pvHome;
     previewModule(pvModuleId);
     if (home) pvHome = home;
     if (keep && pvCtrl) {
       pvCtrl.object.position.copy(keep.pos);
       pvCtrl.target.copy(keep.tgt);
+      pvCtrl.object.zoom = keep.zoom;             // ortho dollies by zoom, not distance
+      if (keep.viewH) pvCtrl.object.userData.viewH = keep.viewH;
+      fitCam(pvCtrl.object, pvAspect);
       pvCtrl.update();
     }
   }
@@ -3894,7 +3944,8 @@
     setIds: setIds, setIdsPv: setIdsPv, setFacesPv: setFacesPv,
     openPalette: openPalette, pickColor: pickColor, regenPreview: regenPreview,
     exportModuleSTL: exportModuleSTL, exportModuleIFC: exportModuleIFC,
-    setAxes: setAxes, setFaces: setFaces, setShadow: setShadow, setOrtho: setOrtho,
+    setAxes: setAxes, setFaces: setFaces, setShadow: setShadow,
+    setOrtho: setOrtho, setOrthoPv: setOrthoPv,
     toggleMemberAxis: toggleMemberAxis
   };
 
