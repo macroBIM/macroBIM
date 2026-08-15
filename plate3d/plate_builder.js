@@ -285,14 +285,18 @@
                                               (BASE.pt = which of the 9 named points is
                                                the shape's own origin (0,0). Blank -> bc
                                                for a plate, mc for a circle or a HOLE)
-       SECT  ID MAT Length TYPE BASE.pt  h b tw tf r r2 [b2 tf2]
-                                              (rolled section, TYPE = H / C / L.
-                                               One field set for all three: what a
-                                               shape does not need mirrors its partner,
-                                               so an H gets a symmetric bottom flange
-                                               (b2=b, tf2=tf) and an L equal legs
-                                               (b=h, tf=tw) unless the cells are filled
-                                               in. r = root fillet, r2 = toe radius -
+       SECT  ID MAT Length TYPE BASE.pt <values>
+                                              (rolled section, TYPE = H / C / L. The
+                                               values run straight on with no gaps and
+                                               each type has its own list:
+                                                 H : h bb bt tw tf1 tf2 r1 r2
+                                                     tf1 = bottom flange, tf2 = top
+                                                 C : h b tw tf rw rf
+                                                     rw = web root, rf = flange toe
+                                                 L : a b t1 t2 r1 r2
+                                                     t1 = a leg, t2 = b leg
+                                               A radius of 0 or blank is fine - the
+                                               corner just comes out square. Fillets are -
                                                both drawn, not approximated; dropping
                                                them costs ~2.6% of the area. A row that
                                                fails its checks is reported and skipped,
@@ -551,32 +555,28 @@
         current = idb;
         counts.bar++;
       } else if (kw === 'SECT') {
-        // SECT ID MAT Length TYPE BASE.pt  h b tw tf r r2 [b2 tf2]
-        // One field set for H, C and L. What a shape does not need mirrors its
-        // partner: an H gets a symmetric bottom flange, an L equal legs.
+        // SECT ID MAT Length TYPE BASE.pt <values>
+        // The values run straight on with no gaps, and each type has its own
+        // list - a C and an L happen to take the same count but not the same
+        // meaning, so they are read per type rather than from one shared set:
+        //   H : h bb bt tw tf1 tf2 r1 r2      (tf1 = bottom, tf2 = top)
+        //   C : h b tw tf rw rf               (rw = web root, rf = flange toe)
+        //   L : a b t1 t2 r1 r2               (t1 = a leg, t2 = b leg)
         var ids = str(v[0]).toUpperCase();
         if (!ids) continue;
         var st = str(v[3]).toUpperCase();
         if (st === 'I') st = 'H';
-        if (st !== 'H' && st !== 'C' && st !== 'L') {
+        if (!SECT_FIELDS[st]) {
           warn('row ' + (r + 1) + ': SECT ' + ids + ' — TYPE must be H, C or L, found ' +
                (str(v[3]) || '(blank)'));
           continue;
         }
         var sp = { ID: ids, SHAPE: 'SECT', SECT: st, __bar: true, __sect: true,
-                   MAT: str(v[1]), THK: num(v[2], 0),
-                   h: num(v[5], 0), tw: num(v[7], 0), r: num(v[9], 0), r2: num(v[10], 0) };
-        sp.b  = str(v[6]) === '' && st === 'L' ? sp.h  : num(v[6], 0);   // equal angle
-        sp.tf = str(v[8]) === '' && st === 'L' ? sp.tw : num(v[8], 0);
-        if (st === 'H') {                              // symmetric unless told otherwise
-          sp.b2  = str(v[11]) === '' ? sp.b  : num(v[11], 0);
-          sp.tf2 = str(v[12]) === '' ? sp.tf : num(v[12], 0);
-        }
+                   MAT: str(v[1]), THK: num(v[2], 0) };
+        SECT_FIELDS[st].forEach(function (k, i2) { sp[k] = num(v[5 + i2], 0); });
         var serr = sectErrors(sp);
         if (serr.length) {
-          serr.forEach(function (m) {
-            warn('row ' + (r + 1) + ': SECT ' + ids + ' — ' + m);
-          });
+          serr.forEach(function (m) { warn('row ' + (r + 1) + ': SECT ' + ids + ' — ' + m); });
           continue;                                    // refused, not repaired
         }
         var sbp = str(v[4]);
@@ -1044,55 +1044,57 @@
     }
     return out;
   }
-  // H / I - origin bottom centre, y up, CCW
+  // H / I - origin bottom centre, y up, CCW.  h bb bt tw tf1 tf2 r1 r2
   function outlineH(d) {
-    var seg = SECT_SEG, h = d.h, bt = d.b, bb = d.b2, tw = d.tw, tft = d.tf, tfb = d.tf2,
-        r = d.r || 0, r2 = d.r2 || 0, yT = h - tft, yB = tfb, xw = tw / 2, g = [];
+    var seg = SECT_SEG, h = d.h, bb = d.bb, bt = d.bt, tw = d.tw,
+        tf1 = d.tf1, tf2 = d.tf2, r1 = d.r1 || 0, r2 = d.r2 || 0,
+        yT = h - tf2, yB = tf1, xw = tw / 2, g = [];
     g.push([-bb / 2, 0], [bb / 2, 0]);
     if (r2 > 0) { g.push([bb / 2, yB - r2]); arcInto(g, bb / 2 - r2, yB - r2, r2, 0, 90, seg); }
     else g.push([bb / 2, yB]);
-    if (r > 0) { g.push([xw + r, yB]); arcInto(g, xw + r, yB + r, r, 270, 180, seg);
-                 arcInto(g, xw + r, yT - r, r, 180, 90, seg); }
+    if (r1 > 0) { g.push([xw + r1, yB]); arcInto(g, xw + r1, yB + r1, r1, 270, 180, seg);
+                  arcInto(g, xw + r1, yT - r1, r1, 180, 90, seg); }
     else g.push([xw, yB], [xw, yT]);
     if (r2 > 0) { g.push([bt / 2 - r2, yT]); arcInto(g, bt / 2 - r2, yT + r2, r2, 270, 360, seg); }
     else g.push([bt / 2, yT]);
     g.push([bt / 2, h], [-bt / 2, h]);
     if (r2 > 0) { g.push([-bt / 2, yT + r2]); arcInto(g, -bt / 2 + r2, yT + r2, r2, 180, 270, seg); }
     else g.push([-bt / 2, yT]);
-    if (r > 0) { g.push([-xw - r, yT]); arcInto(g, -xw - r, yT - r, r, 90, 0, seg);
-                 arcInto(g, -xw - r, yB + r, r, 0, -90, seg); }
+    if (r1 > 0) { g.push([-xw - r1, yT]); arcInto(g, -xw - r1, yT - r1, r1, 90, 0, seg);
+                  arcInto(g, -xw - r1, yB + r1, r1, 0, -90, seg); }
     else g.push([-xw, yT], [-xw, yB]);
     if (r2 > 0) { g.push([-bb / 2 + r2, yB]); arcInto(g, -bb / 2 + r2, yB - r2, r2, 90, 180, seg); }
     else g.push([-bb / 2, yB]);
     return cleanRing(g);
   }
-  // C - origin bottom left (web outer face), y up, flanges to +x, CCW
+  // C - origin bottom left (web outer face), flanges to +x, CCW.  h b tw tf rw rf
   function outlineC(d) {
     var seg = SECT_SEG, h = d.h, b = d.b, tw = d.tw, tf = d.tf,
-        r = d.r || 0, r2 = d.r2 || 0, g = [];
+        rw = d.rw || 0, rf = d.rf || 0, g = [];
     g.push([0, 0], [b, 0]);
-    if (r2 > 0) { g.push([b, tf - r2]); arcInto(g, b - r2, tf - r2, r2, 0, 90, seg); }
+    if (rf > 0) { g.push([b, tf - rf]); arcInto(g, b - rf, tf - rf, rf, 0, 90, seg); }
     else g.push([b, tf]);
-    if (r > 0) { g.push([tw + r, tf]); arcInto(g, tw + r, tf + r, r, 270, 180, seg);
-                 arcInto(g, tw + r, h - tf - r, r, 180, 90, seg); }
+    if (rw > 0) { g.push([tw + rw, tf]); arcInto(g, tw + rw, tf + rw, rw, 270, 180, seg);
+                  arcInto(g, tw + rw, h - tf - rw, rw, 180, 90, seg); }
     else g.push([tw, tf], [tw, h - tf]);
-    if (r2 > 0) { g.push([b - r2, h - tf]); arcInto(g, b - r2, h - tf + r2, r2, 270, 360, seg); }
+    if (rf > 0) { g.push([b - rf, h - tf]); arcInto(g, b - rf, h - tf + rf, rf, 270, 360, seg); }
     else g.push([b, h - tf]);
     g.push([b, h], [0, h]);
     return cleanRing(g);
   }
-  // L - origin at the heel, legs along +x (b) and +y (h), CCW
+  // L - origin at the heel, legs along +x (a) and +y (b), CCW.  a b t1 t2 r1 r2
+  // t1 belongs to the a leg, t2 to the b leg
   function outlineL(d) {
-    var seg = SECT_SEG, h = d.h, b = d.b, tw = d.tw, tf = d.tf,
-        r = d.r || 0, r2 = d.r2 || 0, g = [];
-    g.push([0, 0], [b, 0]);
-    if (r2 > 0) { g.push([b, tf - r2]); arcInto(g, b - r2, tf - r2, r2, 0, 90, seg); }
-    else g.push([b, tf]);
-    if (r > 0) { g.push([tw + r, tf]); arcInto(g, tw + r, tf + r, r, 270, 180, seg); }
-    else g.push([tw, tf]);
-    if (r2 > 0) { g.push([tw, h - r2]); arcInto(g, tw - r2, h - r2, r2, 0, 90, seg); }
-    else g.push([tw, h]);
-    g.push([0, h]);
+    var seg = SECT_SEG, a = d.a, b = d.b, t1 = d.t1, t2 = d.t2,
+        r1 = d.r1 || 0, r2 = d.r2 || 0, g = [];
+    g.push([0, 0], [a, 0]);
+    if (r2 > 0) { g.push([a, t1 - r2]); arcInto(g, a - r2, t1 - r2, r2, 0, 90, seg); }
+    else g.push([a, t1]);
+    if (r1 > 0) { g.push([t2 + r1, t1]); arcInto(g, t2 + r1, t1 + r1, r1, 270, 180, seg); }
+    else g.push([t2, t1]);
+    if (r2 > 0) { g.push([t2, b - r2]); arcInto(g, t2 - r2, b - r2, r2, 0, 90, seg); }
+    else g.push([t2, b]);
+    g.push([0, b]);
     return cleanRing(g);
   }
   function sectRing(spec) {                      // raw profile, before BASE.pt
@@ -1101,49 +1103,65 @@
                 : spec.SECT === 'L' ? outlineL(spec) : outlineH(spec);
     return spec.__ring;
   }
-  // Everything the sheet has to get right before a section can be built. The
-  // row is refused, not silently repaired - a fillet that does not fit draws a
-  // plausible looking profile with the wrong area.
+  // Every value the sheet has to get right. The row is refused, not repaired -
+  // a fillet that does not fit still draws a plausible profile with the wrong
+  // area, which is worse than no section at all.
+  var SECT_FIELDS = { H: ['h', 'bb', 'bt', 'tw', 'tf1', 'tf2', 'r1', 'r2'],
+                      C: ['h', 'b', 'tw', 'tf', 'rw', 'rf'],
+                      L: ['a', 'b', 't1', 't2', 'r1', 'r2'] };
   function sectErrors(d) {
-    var e = [], t = d.SECT;
-    ['h', 'b', 'tw', 'tf'].forEach(function (k) {
+    var e = [], t = d.SECT, f = SECT_FIELDS[t];
+    f.slice(0, f.length - 2).forEach(function (k) {          // the radii may be 0
       if (!(num(d[k], 0) > 0)) e.push(k + ' is blank or not a positive number');
     });
     if (!(num(d.THK, 0) > 0)) e.push('Length must be greater than 0');
-    if (num(d.r, 0) < 0 || num(d.r2, 0) < 0) e.push('r and r2 cannot be negative');
+    f.slice(f.length - 2).forEach(function (k) {
+      if (num(d[k], 0) < 0) e.push(k + ' cannot be negative');
+    });
     if (e.length) return e;
-    var h = d.h, b = d.b, tw = d.tw, tf = d.tf, r = num(d.r, 0), r2 = num(d.r2, 0);
     if (t === 'H') {
-      var b2 = d.b2, tf2 = d.tf2, bmin = Math.min(b, b2);
-      if (tf + tf2 >= h) e.push('flanges do not fit: tf + tf2 (' + (tf + tf2) + ') >= h (' + h + ')');
-      if (tw >= bmin) e.push('web is wider than the flange: tw (' + tw + ') >= b (' + bmin + ')');
-      if (r && r > (h - tf - tf2) / 2) e.push('r ' + r + ' too big for the clear web depth — max ' + ((h - tf - tf2) / 2).toFixed(1));
-      if (r && r > (bmin - tw) / 2) e.push('r ' + r + ' does not fit under the flange — max ' + ((bmin - tw) / 2).toFixed(1));
-      if (r2 && r2 > Math.min(tf, tf2)) e.push('r2 ' + r2 + ' is bigger than the flange thickness — max ' + Math.min(tf, tf2));
+      var h = d.h, bb = d.bb, bt = d.bt, tw = d.tw, tf1 = d.tf1, tf2 = d.tf2,
+          r1 = d.r1, r2 = d.r2, bmin = Math.min(bb, bt);
+      if (tf1 + tf2 >= h) e.push('flanges do not fit: tf1 + tf2 (' + (tf1 + tf2) + ') >= h (' + h + ')');
+      if (tw >= bmin) e.push('web is wider than the flange: tw (' + tw + ') >= ' + bmin);
+      if (r1 && r1 > (h - tf1 - tf2) / 2) e.push('r1 ' + r1 + ' too big for the clear web depth — max ' + ((h - tf1 - tf2) / 2).toFixed(1));
+      if (r1 && r1 > (bmin - tw) / 2) e.push('r1 ' + r1 + ' does not fit under the flange — max ' + ((bmin - tw) / 2).toFixed(1));
+      if (r2 && r2 > Math.min(tf1, tf2)) e.push('r2 ' + r2 + ' is bigger than the flange thickness — max ' + Math.min(tf1, tf2));
     } else if (t === 'C') {
-      if (2 * tf >= h) e.push('flanges do not fit: 2 x tf (' + 2 * tf + ') >= h (' + h + ')');
-      if (tw >= b) e.push('web is wider than the flange: tw (' + tw + ') >= b (' + b + ')');
-      if (r && r > (h - 2 * tf) / 2) e.push('r ' + r + ' too big for the clear web depth — max ' + ((h - 2 * tf) / 2).toFixed(1));
-      if (r && r > b - tw) e.push('r ' + r + ' does not fit along the flange — max ' + (b - tw));
-      if (r2 && r2 > tf) e.push('r2 ' + r2 + ' is bigger than the flange thickness — max ' + tf);
+      if (2 * d.tf >= d.h) e.push('flanges do not fit: 2 x tf (' + 2 * d.tf + ') >= h (' + d.h + ')');
+      if (d.tw >= d.b) e.push('web is wider than the flange: tw (' + d.tw + ') >= b (' + d.b + ')');
+      if (d.rw && d.rw > (d.h - 2 * d.tf) / 2) e.push('rw ' + d.rw + ' too big for the clear web depth — max ' + ((d.h - 2 * d.tf) / 2).toFixed(1));
+      if (d.rw && d.rw > d.b - d.tw) e.push('rw ' + d.rw + ' does not fit along the flange — max ' + (d.b - d.tw));
+      if (d.rf && d.rf > d.tf) e.push('rf ' + d.rf + ' is bigger than the flange thickness — max ' + d.tf);
     } else {
-      if (tf >= h) e.push('leg too short: tf (' + tf + ') >= h (' + h + ')');
-      if (tw >= b) e.push('leg too short: tw (' + tw + ') >= b (' + b + ')');
-      if (r && r > Math.min(h - tf, b - tw)) e.push('r ' + r + ' does not fit in the corner — max ' + Math.min(h - tf, b - tw));
-      if (r2 && r2 > Math.min(tw, tf)) e.push('r2 ' + r2 + ' is bigger than the leg thickness — max ' + Math.min(tw, tf));
+      if (d.t2 >= d.a) e.push('leg too short: t2 (' + d.t2 + ') >= a (' + d.a + ')');
+      if (d.t1 >= d.b) e.push('leg too short: t1 (' + d.t1 + ') >= b (' + d.b + ')');
+      if (d.r1 && d.r1 > Math.min(d.a - d.t2, d.b - d.t1)) e.push('r1 ' + d.r1 + ' does not fit in the corner — max ' + Math.min(d.a - d.t2, d.b - d.t1));
+      if (d.r2 && d.r2 > Math.min(d.t1, d.t2)) e.push('r2 ' + d.r2 + ' is bigger than the leg thickness — max ' + Math.min(d.t1, d.t2));
     }
     return e;
   }
-  function sectLabel(spec) {
+  function radLabel(a, b) {                        // r16 / r16/9 / nothing at all
     var n = function (v) { return String(+num(v, 0).toFixed(3)); };
-    var t = spec.SECT + '-' + n(spec.h) + '\u00d7' + n(spec.b) + '\u00d7' + n(spec.tw);
-    if (!(spec.SECT === 'L' && spec.tf === spec.tw)) t += '\u00d7' + n(spec.tf);
-    if (spec.SECT === 'H' && (spec.b2 !== spec.b || spec.tf2 !== spec.tf)) {
-      t += ' / ' + n(spec.b2) + '\u00d7' + n(spec.tf2);
+    if (!num(a, 0) && !num(b, 0)) return '';
+    if (!num(b, 0)) return ' r' + n(a);
+    if (!num(a, 0)) return ' r0/' + n(b);
+    return ' r' + n(a) + '/' + n(b);
+  }
+  function sectLabel(spec) {
+    var n = function (v) { return String(+num(v, 0).toFixed(3)); }, X = '\u00d7';
+    if (spec.SECT === 'C') {
+      return 'C-' + n(spec.h) + X + n(spec.b) + X + n(spec.tw) + X + n(spec.tf) +
+             radLabel(spec.rw, spec.rf);
     }
-    if (num(spec.r, 0)) t += ' r' + n(spec.r);
-    if (num(spec.r2, 0)) t += '/' + n(spec.r2);
-    return t;
+    if (spec.SECT === 'L') {
+      return 'L-' + n(spec.a) + X + n(spec.b) + X + n(spec.t1) +
+             (spec.t2 !== spec.t1 ? X + n(spec.t2) : '') +
+             radLabel(spec.r1, spec.r2);
+    }
+    var t = 'H-' + n(spec.h) + X + n(spec.bb) + X + n(spec.tw) + X + n(spec.tf1);
+    if (spec.bt !== spec.bb || spec.tf2 !== spec.tf1) t += ' / ' + n(spec.bt) + X + n(spec.tf2);
+    return t + radLabel(spec.r1, spec.r2);
   }
 
   // A shape is first laid out with its bottom edge centred on the origin, then
