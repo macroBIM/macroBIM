@@ -93,6 +93,14 @@
     '#pb-side .caret { color:#8a93a0; cursor:pointer; font-size:10px; }',
     '#pb-side .caret:hover { color:#d8dce2; }',
     '#pb-side .dims { color:#8a93a0; font-size:11px; }',
+    // BARS: a plain read-only table, so its rows are tighter than the click lists
+    '#pb-bars { display:none; }',
+    '#pb-side tr.chead td { color:#6b7480; font-size:10px; letter-spacing:.5px;',
+    '  padding:3px 6px 3px 2px; border-bottom:1px solid #2c323b; }',
+    '#pb-bars td { padding:3px 6px 3px 2px; font-size:12px; }',
+    '#pb-side td.num { text-align:right; white-space:nowrap; color:#cdd6e2; }',
+    '#pb-side td.bid { color:#eef1f6; }',
+    '#pb-side td.mat { color:#8a93a0; font-size:11px; white-space:nowrap; }',
     '#pb-side .chk { display:flex; align-items:center; gap:4px; font-size:12px;',
     '  color:#8a93a0; cursor:pointer; padding:5px 6px; border:1px solid #3a424d;',
     '  border-radius:4px; }',
@@ -273,7 +281,12 @@
                                               (BASE.pt = which of the 9 named points is
                                                the shape's own origin (0,0). Blank -> bc
                                                for a plate, mc for a circle or a HOLE)
-       BAR   ID DIA LENGTH                    (cylinder; same as PLATE ... CIRC)
+       BAR   ID MAT Dia Length                (straight round bar. Listed in its own
+                                               BARS table on the left - id, diameter,
+                                               length, material - and placed by MODULE
+                                               and ASSY rows like any other member.
+                                               The older "ID Dia Length" order is still
+                                               read)
        CUT   plateID L.X L.Y shapeID dx dy repeat
                                               (put shapeID - a HOLE, or another PLATE's
                                                outline - on the plate at L.X/L.Y, both
@@ -498,11 +511,18 @@
         plates[id] = spec;
         current = id;
         counts.plate++;
-      } else if (kw === 'BAR') {          // ID DIA LENGTH → cylinder
+      } else if (kw === 'BAR') {          // ID MAT Dia Length → round bar
         var idb = str(v[0]).toUpperCase();
         if (!idb) continue;
-        plates[idb] = { ID: idb, SHAPE: 'CIRC', D: num(v[1], 0),
-                        THK: num(v[2], 0), MAT: str(v[3]), BASEPT: 'mc' };
+        // MAT sits in column 3 like it does on a PLATE row; the older
+        // "ID Dia Length" order has Dia - a number - there instead. A blank
+        // cell is a bar with no material, not a bar with no diameter.
+        var bNew = !isNum(v[1]);
+        plates[idb] = { ID: idb, SHAPE: 'CIRC', __bar: true, BASEPT: 'mc',
+                        MAT: bNew ? str(v[1]) : str(v[3]),
+                        D:   num(bNew ? v[2] : v[1], 0),
+                        THK: num(bNew ? v[3] : v[2], 0) };
+        if (holes[idb]) warn('row ' + (r + 1) + ': BAR ' + idb + ' reuses a HOLE id');
         current = idb;
         counts.bar++;
       } else if (kw === 'CUT') {          // CUT [plateID] [refPt] TYPE ...
@@ -1512,10 +1532,10 @@
   }
 
   // section title / placeholder rows - same look in every list
-  function sectionRow(tbl, cls, text) {
+  function sectionRow(tbl, cls, text, span) {
     var tr = document.createElement('tr');
     tr.className = cls;
-    tr.innerHTML = '<td colspan="2">' + text + '</td>';
+    tr.innerHTML = '<td colspan="' + (span || 2) + '">' + text + '</td>';
     tbl.appendChild(tr);
     return tr;
   }
@@ -1525,7 +1545,7 @@
     var tbl = document.getElementById('pb-plates');
     if (!tbl) return;
     tbl.innerHTML = '';
-    var ids = Object.keys(lastPlates);
+    var ids = Object.keys(lastPlates).filter(function (id) { return !lastPlates[id].__bar; });
     sectionRow(tbl, 'ghead', 'PLATES — click to preview');
     if (!ids.length) { sectionRow(tbl, 'none', 'no PLATE row'); return; }
     ids.forEach(function (id) {
@@ -1547,6 +1567,32 @@
       tbl.appendChild(tr);
     });
   }
+
+  // Straight round bars, listed rather than drawn: a bar has nothing to preview
+  // that the four numbers do not already say.
+  function buildBarList() {
+    var tbl = document.getElementById('pb-bars');
+    if (!tbl) return;
+    tbl.innerHTML = '';
+    var ids = Object.keys(lastPlates).filter(function (id) { return lastPlates[id].__bar; });
+    if (!ids.length) { tbl.style.display = 'none'; return; }
+    tbl.style.display = 'table';
+    sectionRow(tbl, 'ghead', 'BARS', 4);
+    var hr = document.createElement('tr');
+    hr.className = 'chead';
+    hr.innerHTML = '<td>ID</td><td class="num">DIA</td><td class="num">LENGTH</td><td>MAT</td>';
+    tbl.appendChild(hr);
+    ids.forEach(function (id) {
+      var spec = lastPlates[id];
+      var tr = document.createElement('tr');
+      tr.innerHTML = '<td class="bid">' + esc(id) + '</td>' +
+                     '<td class="num">&#216;' + trim(spec.D) + '</td>' +
+                     '<td class="num">' + trim(spec.THK) + '</td>' +
+                     '<td class="mat">' + esc(spec.MAT || '\u2014') + '</td>';
+      tbl.appendChild(tr);
+    });
+  }
+  function trim(v) { return String(+num(v, 0).toFixed(3)); }
 
   function preview(id) {
     var spec = lastPlates[id];
@@ -2830,6 +2876,7 @@
       '    <div class="pb-track"><div id="pb-prog-bar"></div></div></div>' +
       '  <div id="pb-result"></div>' +
       '  <table id="pb-plates"></table>' +
+      '  <table id="pb-bars"></table>' +
       '  <table id="pb-modules"></table>' +
       '  <table id="pb-list"></table>' +
       '  <div id="pb-total"></div>' +
@@ -3059,6 +3106,7 @@
 
     // the sidebar must never be able to take the 3D view down with it
     try { buildPlateList(colors); } catch (e) { console.error('[plateBuilder] plate list: ' + e.message); }
+    try { buildBarList(); } catch (e) { console.error('[plateBuilder] bar list: ' + e.message); }
     try { buildList(colors); } catch (e) { console.error('[plateBuilder] placed list: ' + e.message); }
     try { buildModuleList(); } catch (e) { console.error('[plateBuilder] module list: ' + e.message); }
     if (flatMode) document.getElementById('pb-flat').checked = true;

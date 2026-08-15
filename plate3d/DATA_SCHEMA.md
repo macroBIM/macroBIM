@@ -211,7 +211,7 @@ FOLD=180 (이어붙임)          FOLD=90 (직각 세움)
 | HOLE | ID, **TRAP**, BASE.pt, WB, WT, H, OFF_T | 재사용할 빼기 형상 |
 | HOLE | ID, **RECT**, BASE.pt, B, H | 〃 |
 | HOLE | ID, **CIRC**, BASE.pt, D | 〃 |
-| BAR | ID, Dia, Length | 원기둥 (`PLATE … CIRC` 와 동일, 옛 표기) |
+| BAR | ID, MAT, Dia, Length | 직선 환봉. 왼쪽 **BARS** 표(ID·직경·길이·재질)에 따로 모이고, 배치는 MODULE/ASSY로 판과 동일. 예전 `ID, Dia, Length` 순서도 인식 |
 | CUT | 판ID, L.X, L.Y, **형상ID**, dx, dy, repeat | 형상ID(HOLE 또는 다른 PLATE)를 그 판에서 빼기 |
 | **MODULE** | ID, PLATE.ID, Ref.Pt, L.X, L.Y, L.Z, PLANE, ROT.X, ROT.Y, ROT.Z | 모듈에 판 1장 배치. 판의 Ref.Pt가 **모듈 로컬 (L.X, L.Y, L.Z)** 에 오고, PLANE은 그 판이 놓일 평면, ROT.X/Y/Z는 그 점을 중심으로 한 회전(도). 행마다 모듈 ID 반복 — 같은 ID 행들이 한 모듈로 누적. PART도 별칭 인식 |
 | **MODULE** | ID, **BASE**, 판인스턴스, 점이름 | 모듈 기준점 = 구성 판의 9점 중 하나(`bc+`처럼 면 지정 가능). **누락 시 경고** + 로컬 원점 사용 |
