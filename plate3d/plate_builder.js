@@ -2831,23 +2831,31 @@
       d.g.add(lb);
     });
 
-    if (basePt) {                              // module base point
-      var mk = new THREE.Mesh(new THREE.SphereGeometry(size * 0.022, 20, 14),
-                              new THREE.MeshBasicMaterial({ color: 0xf0c674, depthTest: false }));
-      mk.position.copy(basePt);
-      sc.add(mk);
-      var cr = size * 0.09, cmat = new THREE.LineBasicMaterial({ color: 0xf0c674, depthTest: false });
-      [[new THREE.Vector3(cr, 0, 0)], [new THREE.Vector3(0, cr, 0)], [new THREE.Vector3(0, 0, cr)]]
-        .forEach(function (v) {
-          sc.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints(
-            [basePt.clone().sub(v[0]), basePt.clone().add(v[0])]), cmat));
-        });
-      var bl = makeLabel('BASE', '#f0c674', size * 0.05);
-      bl.position.copy(basePt.clone().add(new THREE.Vector3(-size * 0.13, -size * 0.13, -size * 0.06)));
-      sc.add(bl);
-      sc.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints([basePt, bl.position.clone()]),
-                            new THREE.LineBasicMaterial({ color: 0xf0c674, depthTest: false })));
+    // Module base point. Everything in here is laid out in pixels and the whole
+    // group is rescaled each frame from the camera distance, so the marker stays
+    // the same size on screen however far in you zoom.
+    var baseGrp = null;
+    if (basePt) {
+      baseGrp = new THREE.Group();
+      baseGrp.position.copy(basePt);
+      var bmat = new THREE.MeshBasicMaterial({ color: 0xf0c674, depthTest: false });
+      var mk = new THREE.Mesh(new THREE.SphereGeometry(4, 16, 12), bmat);
+      baseGrp.add(mk);
+      var cmat = new THREE.LineBasicMaterial({ color: 0xf0c674, depthTest: false });
+      [[18, 0, 0], [0, 18, 0], [0, 0, 18]].forEach(function (v) {
+        var a = new THREE.Vector3(v[0], v[1], v[2]);
+        baseGrp.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints(
+          [a.clone().negate(), a]), cmat));
+      });
+      var bl = makeLabel('BASE', '#f0c674', 15);
+      var lpos = new THREE.Vector3(-42, -30, -16);
+      bl.position.copy(lpos);
+      baseGrp.add(bl);
+      baseGrp.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints(
+        [new THREE.Vector3(0, 0, 0), lpos.clone()]), cmat));
+      sc.add(baseGrp);
     }
+
     // Floor grid. Its centre lines still mark X=0 / Z=0, but it hangs below the
     // model instead of sitting on the Y=0 plane - a plate lying on that plane is
     // coplanar with it and the grid bleeds through the plate.
@@ -2910,6 +2918,11 @@
       if (token !== pvToken) return;
       requestAnimationFrame(loop);
       ctr.update();
+      if (baseGrp) {                              // one pixel of screen -> world
+        var perPx = 2 * cam.position.distanceTo(baseGrp.position) *
+                    Math.tan(cam.fov * Math.PI / 360) / Math.max(H, 1);
+        baseGrp.scale.setScalar(perPx);
+      }
       rn.render(sc, cam);
       drawGizmo(rn, pgz, cam, ctr.target, W, H, 74);
     })();
