@@ -237,6 +237,10 @@
     return g;
   }
   var scene, camera, renderer, controls;
+  // Two main-view cameras, swapped by the ortho checkbox. Only one is ever the
+  // live `camera`; the other keeps its last framing so the toggle round-trips.
+  var camPersp = null, camOrtho = null, orthoView = false;
+  var MAIN_FOV = 40, mainAspect = 1.6;
   var lastPlates = {}, lastCuts = [], lastColors = {}, lastParts = {};  // for preview modals
   var shapeLib = {};        // HOLE definitions - cut shapes, never members
   var pvToken = 0, pvRenderer = null, pvModuleId = null;   // 3D preview lifecycle
@@ -2471,6 +2475,7 @@
 
     return {
       setSnaps: function (list) { M.snaps = list; M.picks = []; M.hover = null; redraw(); },
+      setCamera: function (c) { cfg.camera = c; },   // the view can swap projection
       enable: function (on) { M.on = !!on; M.picks = []; M.hover = null; redraw(); },
       isOn: function () { return M.on; },
       refresh: redraw,
@@ -3283,6 +3288,20 @@
   }
 
   /* ---------------- views ---------------- */
+  // An orthographic camera has no aspect of its own: the frustum is rebuilt from
+  // the height it should cover (userData.viewH) and the pane's aspect. Zoom is
+  // left alone - OrbitControls dollies an ortho camera by changing camera.zoom.
+  function applyMainCam() {
+    if (!camera) return;
+    if (camera.isOrthographicCamera) {
+      var half = (camera.userData.viewH || 1000) / 2;
+      camera.left = -half * mainAspect; camera.right = half * mainAspect;
+      camera.top = half; camera.bottom = -half;
+    } else camera.aspect = mainAspect;
+    camera.updateProjectionMatrix();
+  }
+  function fovHeight(d) { return 2 * d * Math.tan(MAIN_FOV * Math.PI / 360); }
+
   function setView(v) {
     var d = VDIST;                               // Z-up: front looks north, top looks down
     if (v === 'front') camera.position.set(CENTER.x, CENTER.y - d, CENTER.z);
@@ -3290,7 +3309,46 @@
     if (v === 'top')   camera.position.set(CENTER.x, CENTER.y - 0.01, CENTER.z + d);
     if (v === 'iso')   camera.position.set(CENTER.x + d * 0.58, CENTER.y - d * 0.65, CENTER.z + d * 0.5);
     controls.target.copy(CENTER);
+    if (camera.isOrthographicCamera) {           // same framing as the perspective view
+      camera.zoom = 1;
+      camera.userData.viewH = fovHeight(d);
+      applyMainCam();
+    }
     controls.update();
+  }
+
+  // Swap projection without moving the view: the ortho frustum is sized to what
+  // the perspective camera covers at the target, and vice versa. The ortho camera
+  // is then pushed back to at least VDIST - distance does not change an ortho
+  // image, but it keeps the model clear of the near plane at any zoom.
+  function setOrtho(on) {
+    orthoView = !!on;
+    var cb = document.getElementById('pb-ortho');
+    if (cb) cb.checked = orthoView;
+    if (!camPersp || !camOrtho || !controls) return;
+    var from = camera, to = orthoView ? camOrtho : camPersp;
+    if (from === to) return;
+    var dir = from.position.clone().sub(controls.target);
+    var d = dir.length() || VDIST;
+    dir.divideScalar(d);
+    if (orthoView) {
+      camOrtho.zoom = 1;
+      camOrtho.userData.viewH = fovHeight(d);
+      camOrtho.position.copy(controls.target).addScaledVector(dir, Math.max(d, VDIST));
+    } else {
+      var vh = (camOrtho.userData.viewH || fovHeight(VDIST)) / (camOrtho.zoom || 1);
+      camPersp.position.copy(controls.target).addScaledVector(dir, vh / fovHeight(1));
+    }
+    camera = to;
+    applyMainCam();
+    var tgt = controls.target.clone();
+    controls.dispose();                          // OrbitControls binds one camera
+    controls = new THREE.OrbitControls(camera, renderer.domElement);
+    controls.enableDamping = true;
+    controls.dampingFactor = 0.1;
+    controls.target.copy(tgt);
+    controls.update();
+    if (measMain) measMain.setCamera(camera);
   }
 
   /* ---------------- DOM + init ---------------- */
@@ -3317,6 +3375,8 @@
       '    <button onclick="plateBuilder.exportIFC()">Save IFC</button>' +
       '    <button class="accent" onclick="plateBuilder.pickExcel()">&#8682; Load Excel</button>' +
       '    <input type="file" id="pb-file" accept=".xlsx,.xls" style="display:none">' +
+      '    <label class="chk"><input type="checkbox" id="pb-ortho"' +
+      '      onchange="plateBuilder.setOrtho(this.checked)"> ortho</label>' +
       '    <label class="chk"><input type="checkbox" id="pb-flat"' +
       '      onchange="plateBuilder.setFlat(this.checked)"> surface only</label>' +
       '    <label class="chk"><input type="checkbox" id="pb-shadow"' +
@@ -3522,8 +3582,12 @@
 
     scene = new THREE.Scene();
     scene.background = new THREE.Color(0x15181c);
-    camera = new THREE.PerspectiveCamera(40, w / h, 1, 50000);
-    camera.up.set(0, 0, 1);                      // Z-up world
+    mainAspect = w / h;
+    camPersp = new THREE.PerspectiveCamera(MAIN_FOV, mainAspect, 1, 50000);
+    camOrtho = new THREE.OrthographicCamera(-1, 1, 1, -1, 1, 50000);
+    camPersp.up.set(0, 0, 1);                    // Z-up world
+    camOrtho.up.set(0, 0, 1);
+    camera = orthoView ? camOrtho : camPersp;
     renderer = new THREE.WebGLRenderer({ antialias: true, preserveDrawingBuffer: true });
     renderer.setSize(w, h);
     renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
@@ -3576,6 +3640,7 @@
     try { buildList(colors); } catch (e) { console.error('[plateBuilder] placed list: ' + e.message); }
     try { buildModuleList(); } catch (e) { console.error('[plateBuilder] module list: ' + e.message); }
     if (flatMode) document.getElementById('pb-flat').checked = true;
+    document.getElementById('pb-ortho').checked = orthoView;
     document.getElementById('pb-shadow').checked = showShadow;
     if (showAxes) { document.getElementById('pb-axes').checked = true; updateSceneAxes(); }
     if (showFaces) { document.getElementById('pb-faces').checked = true; updateSceneFaces(); }
@@ -3604,8 +3669,8 @@
       var cw = container.clientWidth, ch = container.clientHeight;
       if (!cw || !ch || (cw === fitW && ch === fitH)) return;
       fitW = cw; fitH = ch;
-      camera.aspect = cw / ch;
-      camera.updateProjectionMatrix();
+      mainAspect = cw / ch;
+      applyMainCam();
       renderer.setSize(cw, ch);
     }
     fitRenderer();
@@ -3829,7 +3894,7 @@
     setIds: setIds, setIdsPv: setIdsPv, setFacesPv: setFacesPv,
     openPalette: openPalette, pickColor: pickColor, regenPreview: regenPreview,
     exportModuleSTL: exportModuleSTL, exportModuleIFC: exportModuleIFC,
-    setAxes: setAxes, setFaces: setFaces, setShadow: setShadow,
+    setAxes: setAxes, setFaces: setFaces, setShadow: setShadow, setOrtho: setOrtho,
     toggleMemberAxis: toggleMemberAxis
   };
 
