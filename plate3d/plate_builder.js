@@ -2265,6 +2265,25 @@
     host.appendChild(t);
   }
 
+  // Where the module's BASE point ends up in preview coordinates. Recomputed
+  // rather than cached, so hiding a member cannot take the datum away with it.
+  function pvBasePoint(id) {
+    var part = lastParts[id];
+    if (!part || !part.base) return null;
+    for (var i = 0; i < part.pos.length; i++) {
+      var row = part.pos[i];
+      if (row.NO !== part.base.inst) continue;
+      var spec = lastPlates[row.PLATE];
+      if (!spec) return null;
+      try {
+        var m = yupFix(memberMatrix(row, namedPoints(spec, false), spec.THK));
+        var a = refAnchor(spec, part.base.pt, part.base.face);
+        return new THREE.Vector3(a[0], a[1], a[2]).applyMatrix4(m);
+      } catch (e) { return null; }
+    }
+    return null;
+  }
+
   function pvSnapsOf(id) {
     var part = lastParts[id], out = [];
     if (!part) return out;
@@ -2277,6 +2296,8 @@
       var g2 = buildPlate2D(spec, lastCuts, lastPlates);
       out = out.concat(snapPointsOf({ outers: g2.outers, holes: g2.holes }, spec.THK, m));
     });
+    var bp = pvBasePoint(id);
+    if (bp) out.push(bp);
     return out;
   }
 
@@ -2821,8 +2842,7 @@
           sc.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints(
             [basePt.clone().sub(v[0]), basePt.clone().add(v[0])]), cmat));
         });
-      var bl = makeLabel('BASE (' + Math.round(basePt.x) + ', ' + Math.round(basePt.y) + ', ' +
-                         Math.round(basePt.z) + ')', '#f0c674', size * 0.05);
+      var bl = makeLabel('BASE', '#f0c674', size * 0.05);
       bl.position.copy(basePt.clone().add(new THREE.Vector3(-size * 0.13, -size * 0.13, -size * 0.06)));
       sc.add(bl);
       sc.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints([basePt, bl.position.clone()]),
@@ -2842,8 +2862,9 @@
     fitSunShadow(sun, sc, bbox, size);
     shadowFloor(sc, gz, gspan);
 
-    // module-local origin: the point L.X/L.Y/L.Z are measured from. Drawn on top
-    // of the plates so it stays readable, with a drop line onto the grid centre.
+    // module-local origin: the point L.X/L.Y/L.Z are measured from. Just the
+    // axis triad - a label here collides with the BASE one whenever the two
+    // points are close, which is most of the time.
     var oLen = size * 0.13;
     [[new THREE.Vector3(oLen, 0, 0), 0xe05c4f],
      [new THREE.Vector3(0, oLen, 0), 0x6fc36f],
@@ -2852,12 +2873,6 @@
         [new THREE.Vector3(0, 0, 0), a[0]]),
         new THREE.LineBasicMaterial({ color: a[1], depthTest: false })));
     });
-    sc.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints(
-      [new THREE.Vector3(0, 0, gz), new THREE.Vector3(0, 0, 0)]),
-      new THREE.LineBasicMaterial({ color: 0x6b7480, depthTest: false })));
-    var ol = makeLabel('0, 0, 0', '#9aa3b0', size * 0.042);
-    ol.position.set(-oLen * 0.75, -oLen * 0.4, -oLen * 0.3);
-    sc.add(ol);
 
     var ctr = new THREE.OrbitControls(cam, rn.domElement);
     pvCtrl = ctr;
@@ -2881,6 +2896,7 @@
     measPv = createMeasure({ scene: sc, camera: cam, dom: rn.domElement,
                              out: 'pb-pv-pos', size: function () { return size; } });
     buildPvTree(id);
+    if (basePt) pvSnaps.push(basePt.clone());    // the datum snaps too
     measPv.setSnaps(pvSnaps);
     document.getElementById('pb-pv-meas').checked = measurePv;
     document.getElementById('pb-pv-ids').checked = showIdsPv;
