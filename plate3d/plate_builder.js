@@ -244,7 +244,7 @@
   var pvX = null, pvPts = [], pvBase = null, pv = null;   // 2D preview state
   var pvMeas = [];                                       // 2D measure picks
   var pvRszWired = false;
-  var showShadow = true;          // one extra pass; cheap on a GPU, not on software GL
+  var showShadow = false;         // one extra pass; off unless the checkbox asks for it
   var CENTER = null, VDIST = 1200;                // set from model bbox in run()
   var items = [];
   var runToken = 0;                               // distinguishes re-runs
@@ -3271,7 +3271,7 @@
       '    <input type="file" id="pb-file" accept=".xlsx,.xls" style="display:none">' +
       '    <label class="chk"><input type="checkbox" id="pb-flat"' +
       '      onchange="plateBuilder.setFlat(this.checked)"> surface only</label>' +
-      '    <label class="chk"><input type="checkbox" id="pb-shadow" checked' +
+      '    <label class="chk"><input type="checkbox" id="pb-shadow"' +
       '      onchange="plateBuilder.setShadow(this.checked)"> shadow</label>' +
       '    <label class="chk"><input type="checkbox" id="pb-axes"' +
       '      onchange="plateBuilder.setAxes(this.checked)"> local axes</label>' +
