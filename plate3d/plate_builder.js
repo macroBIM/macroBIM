@@ -96,11 +96,9 @@
     '#pb-side .caret:hover { color:#d8dce2; }',
     '#pb-side .dims { color:#8a93a0; font-size:11px; }',
     // BARS: a plain read-only table, so its rows are tighter than the click lists
-    '#pb-bars, #pb-sects { display:none; }',
-    '#pb-sects td { padding:3px 6px 3px 2px; font-size:12px; }',
+    '#pb-bars td, #pb-sects td { padding:3px 6px 3px 2px; font-size:12px; }',
     '#pb-side tr.chead td { color:#6b7480; font-size:10px; letter-spacing:.5px;',
     '  padding:3px 6px 3px 2px; border-bottom:1px solid #2c323b; }',
-    '#pb-bars td { padding:3px 6px 3px 2px; font-size:12px; }',
     '#pb-side td.num { text-align:right; white-space:nowrap; color:#cdd6e2; }',
     '#pb-side td.bid { color:#eef1f6; }',
     '#pb-side td.mat { color:#8a93a0; font-size:11px; white-space:nowrap; }',
@@ -1843,9 +1841,8 @@
     if (!tbl) return;
     tbl.innerHTML = '';
     var ids = Object.keys(lastPlates).filter(function (id) { return isBarSpec(lastPlates[id]); });
-    if (!ids.length) { tbl.style.display = 'none'; return; }
-    tbl.style.display = 'table';
     sectionRow(tbl, 'ghead', 'BARS', 4);
+    if (!ids.length) { sectionRow(tbl, 'none', 'no BAR row', 4); return; }
     var hr = document.createElement('tr');
     hr.className = 'chead';
     hr.innerHTML = '<td>ID</td><td class="num">DIA</td><td class="num">LENGTH</td><td>MAT</td>';
@@ -1869,9 +1866,8 @@
     if (!tbl) return;
     tbl.innerHTML = '';
     var ids = Object.keys(lastPlates).filter(function (id) { return isSectSpec(lastPlates[id]); });
-    if (!ids.length) { tbl.style.display = 'none'; return; }
-    tbl.style.display = 'table';
     sectionRow(tbl, 'ghead', 'SECTIONS — click to preview', 3);
+    if (!ids.length) { sectionRow(tbl, 'none', 'no SECT row', 3); return; }
     var hr = document.createElement('tr');
     hr.className = 'chead';
     hr.innerHTML = '<td>ID</td><td class="num">LENGTH</td><td>MAT</td>';
