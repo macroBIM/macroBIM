@@ -1665,7 +1665,10 @@
     });
     if (minx > maxx) { minx = miny = 0; maxx = maxy = 1; }
 
-    // snap points: 9 reference points + the centre of every cut
+    // Snap points: the 9 reference points, the centre of every cut, and every
+    // vertex of the finished outline - which is what a notch corner or a hole
+    // edge becomes once the cut has been subtracted. Named points are pushed
+    // first, so where a corner coincides with one the name still wins.
     pvPts = [];
     POINT_KEYS.forEach(function (k) {
       var a = pts[k];
@@ -1676,6 +1679,12 @@
       nk[f.kind] = (nk[f.kind] || 0) + 1;
       pvPts.push({ name: f.kind + nk[f.kind], x: f.x, y: f.y, cut: true, dia: f.dia || 0 });
     });
+    g.outers.forEach(function (ring, i) {
+      ring.forEach(function (q) { pvPts.push({ name: 'edge', x: q[0], y: q[1], edge: true }); });
+      (g.holes[i] || []).forEach(function (h) {
+        h.forEach(function (q) { pvPts.push({ name: 'hole edge', x: q[0], y: q[1], edge: true }); });
+      });
+    });
 
     var W = cv.width, H = cv.height, PAD = 54;
     var fit = Math.min((W - PAD * 2) / Math.max(maxx - minx, 1e-6),
@@ -1684,8 +1693,39 @@
            minx: minx, miny: miny, maxx: maxx, maxy: maxy, fit: fit,
            sc: fit, ox: (W - (maxx - minx) * fit) / 2, oy: (H - (maxy - miny) * fit) / 2 };
     drawPreview();
-    document.getElementById('pb-pv-pos').innerHTML = '&nbsp;';
+    pvReport(null);
     modal.style.display = 'flex';
+  }
+
+  // Bottom line of the 2D preview - the running report the 3D box already
+  // shows, so a finished measurement stays readable after the cursor leaves.
+  function pvReport(snap, cx, cy) {
+    var el = document.getElementById('pb-pv-pos');
+    if (!el) return;
+    if (!pv) { el.innerHTML = '&nbsp;'; return; }
+    var f = function (n) { return (Math.round(n * 100) / 100).toString(); };
+    var at = function (q) { return '(' + f(q.x) + ', ' + f(q.y) + ')'; };
+    var where = snap
+      ? '<span style="color:#f0c674">snap ' + esc(snap.p.name) + '</span> ' + at(snap.p)
+      : (cx === undefined ? ''
+         : '<span style="color:#8a93a0">cursor ' + at({ x: cx, y: cy }) + '</span>');
+    if (!measurePv) { el.innerHTML = where || '&nbsp;'; return; }
+    var tail = ' &nbsp; <span style="color:#5b6472">right click to clear</span>';
+    if (!pvMeas.length) {
+      el.innerHTML = '<span style="color:#6fb3e8">measure</span> \u2014 click a corner, ' +
+                     'an edge or a hole centre' + (where ? ' &nbsp;&nbsp; ' + where : '');
+    } else if (pvMeas.length === 1) {
+      el.innerHTML = '<span style="color:#ffe81f">P1</span> ' + at(pvMeas[0]) +
+                     ' &nbsp; \u2014 click the second point' +
+                     (where ? ' &nbsp;&nbsp; ' + where : '') + tail;
+    } else {
+      var a = pvMeas[0], b = pvMeas[1];
+      el.innerHTML =
+        '<span style="color:#e05c4f">\u0394X ' + f(b.x - a.x) + '</span> &nbsp; ' +
+        '<span style="color:#6fc36f">\u0394Y ' + f(b.y - a.y) + '</span> &nbsp;&nbsp; ' +
+        '<span style="color:#ffe81f">dist ' + f(Math.hypot(b.x - a.x, b.y - a.y)) +
+        '</span>' + tail;
+    }
   }
 
   function pvFit() {                                  // reset zoom/pan to fit
@@ -1763,6 +1803,7 @@
     ctx.textAlign = 'left';
     var seen = {};
     pvPts.forEach(function (p) {
+      if (p.edge) return;                          // too many to mark; the hover ring finds them
       var x = mx(p.x), y = my(p.y);
       ctx.strokeStyle = p.cut ? '#7f8b9c' : '#f0c674';
       ctx.lineWidth = 1;
@@ -3007,6 +3048,7 @@
       if (!d || d.moved || !pv || pvModuleId || !measurePv) return;
       if (d.btn === 2) {                           // right click clears the span
         if (pvMeas.length) { pvMeas = []; drawPreview(); }
+        pvReport(null);
         return;
       }
       if (d.btn !== 0) return;
@@ -3015,6 +3057,7 @@
       if (pvMeas.length >= 2) pvMeas = [];
       pvMeas.push({ x: snap.p.x, y: snap.p.y });
       drawPreview();
+      pvReport(snap);
     });
     pvCv.addEventListener('dblclick', function () { pvFit(); });
     pvCv.addEventListener('mousemove', function (e) {
@@ -3047,21 +3090,10 @@
         ctx2.arc(snap.px, snap.py, 2.5, 0, Math.PI * 2);
         ctx2.fill();
       }
-      var el = document.getElementById('pb-pv-pos');
-      el.innerHTML = (snap
-        ? '<span style="color:#f0c674">snap ' + snap.p.name + '</span> &nbsp;X <b style="color:#f0c674">' +
-          snap.p.x.toFixed(1) + '</b> &nbsp; Y <b style="color:#f0c674">' + snap.p.y.toFixed(1) + '</b> mm'
-        : 'cursor &nbsp;X <b style="color:#d8dce2">' + x.toFixed(1) +
-          '</b> &nbsp; Y <b style="color:#d8dce2">' + y.toFixed(1) + '</b> mm') +
-        (measurePv
-          ? ' &nbsp;&nbsp;<span style="color:#5b6472">measure: ' +
-            (pvMeas.length === 1 ? 'click the second point'
-             : pvMeas.length ? 'right click to clear' : 'click a snap point') + '</span>'
-          : '');
+      pvReport(snap, x, y);
     });
     pvCv.addEventListener('mouseleave', function () {
-      var el = document.getElementById('pb-pv-pos');
-      if (el) el.innerHTML = '&nbsp;';
+      pvReport(null);                              // a finished span stays on screen
       if (pvBase && pvX) {
         var c2 = pvCv.getContext('2d');
         c2.clearRect(0, 0, pvX.W, pvX.H);
@@ -3263,6 +3295,7 @@
     if (pvModuleId) { if (measPv) measPv.enable(measurePv); return; }
     pvMeas = [];
     drawPreview();
+    pvReport(null);
   }
 
   function setFaces(on) {
