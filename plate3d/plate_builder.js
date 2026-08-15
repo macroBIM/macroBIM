@@ -75,6 +75,8 @@
     '  border-bottom:1px solid #2c323b; }',
     '#pb-side .gname { color:#eef1f6; font-size:13px; }',
     '#pb-side .plname.subname { color:#aab4c2; font-size:11px; }',
+    '#pb-side .plname.nolink { cursor:default; }',
+    '#pb-side .plname.nolink:hover { color:#aab4c2; text-decoration:none; }',
     '#pb-side tr.none td { color:#6b7480; font-size:11px; font-style:italic; }',
     '#pb-side .chip { display:inline-block; width:11px; height:11px; border-radius:2px;',
     '  margin-right:5px; vertical-align:-1px; }',
@@ -330,11 +332,16 @@
                                                old Y-up frame - put it above MODULE/ASSY)
        ASSY  ID SOURCE ADD  G.X G.Y G.Z [ROT.X ROT.Y ROT.Z]
                                               (ID = the assembly being created, SOURCE =
-                                               the MODULE, PLATE or earlier ASSY it is
-                                               built from. Its reference point - a
-                                               module's BASE, a plate's bc, an assembly's
-                                               own origin - lands on global G.X/G.Y/G.Z,
-                                               then ROT.X/Y/Z about that point)
+                                               the MODULE, PLATE, BAR or earlier ASSY it
+                                               is built from. Its reference point - a
+                                               module's BASE, a plate's bc, a bar's start,
+                                               an assembly's own origin - lands on global
+                                               G.X/G.Y/G.Z, then ROT.X/Y/Z about it)
+                                              (ADD rows sharing an ID build one assembly
+                                               together, the way MODULE rows do. The first
+                                               row anchors it; the rest still take absolute
+                                               G.X/G.Y/G.Z, and the whole assembly moves as
+                                               one when a later row places it again)
        ASSY  ID SOURCE MIR  G.X G.Y G.Z PLANE (reflect SOURCE where it stands, about the
                                                XY / YZ / XZ plane through G.X/G.Y/G.Z.
                                                One result, so it takes ID as it is)
@@ -747,11 +754,14 @@
             continue;
           }
           arow.RX = num(v[w + 3], 0); arow.RY = num(v[w + 4], 0); arow.RZ = num(v[w + 5], 0);
-          arow.NO = uniqueAssyId(aid);
-          assyIds[arow.NO] = true;
-          arow.GROUP = arow.NO;
+          // ADD rows that repeat an ID build one assembly together, the way
+          // MODULE rows accumulate. The id is claimed once, so a later MIR/COPY/
+          // ROT that reuses it still gets a suffix instead of colliding.
+          if (!assyIds[aid]) { counter[aid] = (counter[aid] || 0) + 1; counts.assy++; }
+          arow.NO = aid;
+          assyIds[aid] = true;
+          arow.GROUP = aid;
           assy.push(arow);
-          counts.assy++;
           continue;
         }
         // legacy: ASSY <module/plate id> PLANE Ref.Pt L.X L.Y L.ROT OFFSET
@@ -1441,6 +1451,12 @@
 
     var assyDefs = {};                 // ASSY id -> members in that assembly's own frame
     var assyAt = {};                   // ASSY id -> where that assembly was placed
+    var usedNo = {};                   // instance names taken, so two copies of one
+    function instName(aid, no) {       // source inside one assembly stay apart
+      var k = aid + '/' + no;
+      usedNo[k] = (usedNo[k] || 0) + 1;
+      return usedNo[k] > 1 ? k + '#' + usedNo[k] : k;
+    }
 
     // members of an ASSY source, positioned so its reference point is at the origin
     function assySource(row) {
@@ -1498,15 +1514,24 @@
                 .multiply(rotXYZ(row.RX, row.RY, row.RZ));
         }
         // the definition keeps its own reference point at the origin, so a later
-        // ASSY row that reuses this id places it by the same G.X/G.Y/G.Z rule
-        assyDefs[row.NO] = src.map(function (L) {
+        // ASSY row that reuses this id places it by the same G.X/G.Y/G.Z rule.
+        // A second ADD row for an assembly that already exists joins it: the
+        // first row anchors the assembly, and since the later row's G.X/G.Y/G.Z
+        // are still absolute, its parts are stored relative to that anchor so
+        // the whole assembly can be re-placed as one thing.
+        var joins = row.CMD === 'ADD' && assyDefs[row.NO];
+        var anchor = joins ? assyAt[row.NO] : G;
+        var rel = joins ? new THREE.Matrix4().copy(anchor).invert().multiply(G) : null;
+        var made = src.map(function (L) {
           var ml = pre ? pre.clone().multiply(L.mloc) : L.mloc.clone();
+          if (rel) ml = rel.clone().multiply(ml);
           return { spec: L.spec, no: L.no, moduleId: L.moduleId, memberKey: L.memberKey,
                    flip: flipAll ? !L.flip : L.flip, mloc: ml };
         });
-        assyAt[row.NO] = G;
-        assyDefs[row.NO].forEach(function (L) {
-          buildInstance(L.spec, G.clone().multiply(L.mloc), row.NO + '/' + L.no,
+        assyDefs[row.NO] = joins ? assyDefs[row.NO].concat(made) : made;
+        if (!joins) assyAt[row.NO] = G;
+        made.forEach(function (L) {
+          buildInstance(L.spec, anchor.clone().multiply(L.mloc), instName(row.NO, L.no),
                         row.NO, '', false, L.moduleId, L.memberKey, L.flip);
         });
         return;
@@ -2556,9 +2581,10 @@
                              : resolveColor({ plateId: r.plateId }, r.items[0].baseColor);
         var cscope = r.moduleId ? 'module' : 'plate';
         var ckey = r.moduleId || r.plateId;
+        var isBar = !r.moduleId && isBarSpec(lastPlates[r.plateId]);
         var open = r.moduleId
           ? 'plateBuilder.previewModule(\'' + r.moduleId + '\')'
-          : 'plateBuilder.preview(\'' + r.plateId + '\')';
+          : isBar ? '' : 'plateBuilder.preview(\'' + r.plateId + '\')';
         var tr = document.createElement('tr');
         tr.innerHTML =
           '<td class="sty"><input type="checkbox" id="pb-ib' + ri + '"' +
@@ -2569,7 +2595,8 @@
           '" title="colour of this ' + cscope +
           '" onclick="plateBuilder.openPalette(event,\'' + cscope + '\',\'' + ckey + '\',this)">' +
           '</span></td>' +
-          '<td><span class="plname subname" onclick="' + open + '">' +
+          '<td><span class="plname subname' + (open ? '' : ' nolink') + '"' +
+          (open ? ' onclick="' + open + '"' : '') + '>' +
           esc(r.moduleId || r.plateId) + '</span>' +
           '<div class="dims">' + (r.moduleId ? 'members ' + r.n : r.items[0].dims) +
           ' · ' + r.mass.toFixed(3) + 'kg' +
