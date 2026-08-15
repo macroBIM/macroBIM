@@ -244,6 +244,7 @@
   var pvX = null, pvPts = [], pvBase = null, pv = null;   // 2D preview state
   var pvMeas = [];                                       // 2D measure picks
   var pvRszWired = false;
+  var showShadow = true;          // one extra pass; cheap on a GPU, not on software GL
   var CENTER = null, VDIST = 1200;                // set from model bbox in run()
   var items = [];
   var runToken = 0;                               // distinguishes re-runs
@@ -1570,7 +1571,7 @@
       }
       var groupObj = new THREE.Group();
       var mat = new THREE.MeshPhongMaterial({ color: colors[spec.ID], shininess: 28,
-                                              side: THREE.DoubleSide });
+                        side: flatMode ? THREE.DoubleSide : THREE.FrontSide });
       var edgeMat = new THREE.LineBasicMaterial({ color: 0x0e1013 });
       outers.forEach(function (ring, i) {
         var shape = new THREE.Shape(ring.map(function (q) { return new THREE.Vector2(q[0], q[1]); }));
@@ -1579,6 +1580,7 @@
         });
         var geo = plateGeom(shape, thk);
         var mesh = new THREE.Mesh(geo, mat);
+        mesh.castShadow = mesh.receiveShadow = !flatMode;
         mesh.matrixAutoUpdate = false;
         mesh.matrix.copy(world);
         mesh.userData = { shape: shape, thk: thk };
@@ -2627,6 +2629,33 @@
     return { W: Math.round(960 * s), H: Math.round(540 * s) };
   }
 
+  // One light casts, with its shadow camera sized to the model so the map is not
+  // spent on empty space. The floor is invisible except where a shadow lands.
+  function fitSunShadow(sun, sc, bbox, size) {
+    var rr = Math.max(size, 1);
+    var c = bbox.isEmpty() ? new THREE.Vector3() : bbox.getCenter(new THREE.Vector3());
+    sun.castShadow = true;
+    sun.shadow.mapSize.set(1024, 1024);
+    sun.target.position.copy(c);
+    sc.add(sun.target);
+    sun.position.copy(c).add(new THREE.Vector3(0.45, -0.6, 0.9).multiplyScalar(rr));
+    var cam = sun.shadow.camera;
+    cam.left = -rr * 0.75; cam.right = rr * 0.75;
+    cam.top = rr * 0.75; cam.bottom = -rr * 0.75;
+    cam.near = rr * 0.02; cam.far = rr * 3;
+    cam.updateProjectionMatrix();
+    sun.shadow.bias = -0.0004;
+    sun.shadow.normalBias = Math.max(0.4, rr * 0.0012);
+  }
+  function shadowFloor(sc, z, span) {           // catches the shadow, draws nothing else
+    var f = new THREE.Mesh(new THREE.PlaneGeometry(span, span),
+                           new THREE.ShadowMaterial({ opacity: 0.2 }));
+    f.position.set(0, 0, z);
+    f.receiveShadow = true;
+    sc.add(f);
+    return f;
+  }
+
   function pvGetRenderer(host, W, H) {
     if (pvRenderer) {
       var gl = pvRenderer.getContext();
@@ -2639,7 +2668,9 @@
         console.error('[plateBuilder] preview renderer: ' + e.message);
         return null;
       }
-      pvRenderer.setPixelRatio(window.devicePixelRatio || 1);
+      pvRenderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+      pvRenderer.shadowMap.enabled = showShadow;
+      pvRenderer.shadowMap.type = THREE.PCFSoftShadowMap;
     }
     pvRenderer.setSize(W, H);
     if (pvRenderer.domElement.parentNode !== host) host.appendChild(pvRenderer.domElement);
@@ -2740,7 +2771,7 @@
       var pop = resolveOpac({ plateId: row.PLATE, moduleId: id, memberKey: id + '/' + row.NO });
       var mat = new THREE.MeshPhongMaterial({
         color: resolveColor({ plateId: row.PLATE }, lastColors[row.PLATE] || 0x999999),
-        shininess: 28, side: THREE.DoubleSide,
+        shininess: 28, side: flatMode ? THREE.DoubleSide : THREE.FrontSide,
         transparent: pop < 1, opacity: pop, depthWrite: pop >= 1 });
       g2d.outers.forEach(function (ring, i) {
         var shape = new THREE.Shape(ring.map(function (q) { return new THREE.Vector2(q[0], q[1]); }));
@@ -2749,6 +2780,7 @@
         });
         var geo = plateGeom(shape, spec.THK);
         var mesh = new THREE.Mesh(geo, mat);
+        mesh.castShadow = mesh.receiveShadow = !flatMode && pop >= 1;
         mesh.matrixAutoUpdate = false;
         mesh.matrix.copy(m);
         mg.add(mesh);
@@ -2803,10 +2835,12 @@
       Math.abs(mn.x), Math.abs(mx3.x), Math.abs(mn.y), Math.abs(mx3.y), size * 0.3);
     var gspan = Math.ceil(reach * 2 / 100) * 100;
     var gz = (bbox.isEmpty() ? 0 : Math.min(0, mn.z)) - Math.max(1, size * 0.02);
-    var grid = new THREE.GridHelper(gspan, Math.max(4, Math.round(gspan / 50)), 0x5b6472, 0x242a31);
+    var grid = new THREE.GridHelper(gspan, Math.max(4, Math.round(gspan / 50)), 0x7d8796, 0x39414c);
     grid.rotation.x = Math.PI / 2;               // GridHelper is XZ by default, lay it on XY
     grid.position.set(0, 0, gz);
     sc.add(grid);
+    fitSunShadow(sun, sc, bbox, size);
+    shadowFloor(sc, gz, gspan);
 
     // module-local origin: the point L.X/L.Y/L.Z are measured from. Drawn on top
     // of the plates so it stays readable, with a drop line onto the grid centre.
@@ -3237,6 +3271,8 @@
       '    <input type="file" id="pb-file" accept=".xlsx,.xls" style="display:none">' +
       '    <label class="chk"><input type="checkbox" id="pb-flat"' +
       '      onchange="plateBuilder.setFlat(this.checked)"> surface only</label>' +
+      '    <label class="chk"><input type="checkbox" id="pb-shadow" checked' +
+      '      onchange="plateBuilder.setShadow(this.checked)"> shadow</label>' +
       '    <label class="chk"><input type="checkbox" id="pb-axes"' +
       '      onchange="plateBuilder.setAxes(this.checked)"> local axes</label>' +
       '    <label class="chk"><input type="checkbox" id="pb-faces"' +
@@ -3442,7 +3478,9 @@
     camera.up.set(0, 0, 1);                      // Z-up world
     renderer = new THREE.WebGLRenderer({ antialias: true, preserveDrawingBuffer: true });
     renderer.setSize(w, h);
-    renderer.setPixelRatio(window.devicePixelRatio || 1);
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+    renderer.shadowMap.enabled = showShadow;
+    renderer.shadowMap.type = THREE.PCFSoftShadowMap;
     container.appendChild(renderer.domElement);
 
     var hemi = new THREE.HemisphereLight(0xf4f6fa, 0x2a2d33, 0.95);
@@ -3466,11 +3504,14 @@
     sceneSize = size;
     VDIST = size * 1.5 + 200;
 
-    var grid = new THREE.GridHelper(Math.ceil(size / 400) * 800, 32, 0x39424d, 0x242a31);
+    var gspanMain = Math.ceil(size / 400) * 800;
+    var grid = new THREE.GridHelper(gspanMain, 32, 0x5e6875, 0x333b45);
     grid.rotation.x = Math.PI / 2;               // GridHelper is XZ by default, lay it on XY
     grid.position.z = Math.min(-1, bbox.isEmpty() ? -1
                                  : bbox.min.z - Math.max(1, size * 0.004));
     scene.add(grid);
+    fitSunShadow(sun, scene, bbox, size);
+    shadowFloor(scene, grid.position.z, gspanMain);
 
     var gz = buildGizmo();
     var axesScene = gz.scene, axesCamera = gz.camera;
@@ -3487,6 +3528,7 @@
     try { buildList(colors); } catch (e) { console.error('[plateBuilder] placed list: ' + e.message); }
     try { buildModuleList(); } catch (e) { console.error('[plateBuilder] module list: ' + e.message); }
     if (flatMode) document.getElementById('pb-flat').checked = true;
+    document.getElementById('pb-shadow').checked = showShadow;
     if (showAxes) { document.getElementById('pb-axes').checked = true; updateSceneAxes(); }
     if (showFaces) { document.getElementById('pb-faces').checked = true; updateSceneFaces(); }
     if (showIds) { document.getElementById('pb-ids').checked = true; updateSceneIds(); }
@@ -3663,6 +3705,18 @@
     });
     scene.add(sceneAxes);
   }
+  function setShadow(on) {
+    showShadow = !!on;
+    var cb = document.getElementById('pb-shadow');
+    if (cb) cb.checked = showShadow;
+    [renderer, pvRenderer].forEach(function (r) {
+      if (!r) return;
+      r.shadowMap.enabled = showShadow;
+      r.shadowMap.needsUpdate = true;
+    });
+    if (pvScene) pvScene.traverse(function (o) { if (o.material) o.material.needsUpdate = true; });
+    if (scene) scene.traverse(function (o) { if (o.material) o.material.needsUpdate = true; });
+  }
   function setAxes(on) {
     showAxes = !!on;
     var cb = document.getElementById('pb-axes');
@@ -3701,6 +3755,11 @@
         var geo = plateGeom(d.shape, d.thk);
         obj.geometry.dispose();
         obj.geometry = obj.isMesh ? geo : new THREE.EdgesGeometry(geo, 25);
+        if (obj.isMesh) {                          // a flat sheet has no inside
+          obj.castShadow = obj.receiveShadow = !flatMode;
+          obj.material.side = flatMode ? THREE.DoubleSide : THREE.FrontSide;
+          obj.material.needsUpdate = true;
+        }
       });
     });
     updateSceneFaces();
@@ -3722,7 +3781,7 @@
     setIds: setIds, setIdsPv: setIdsPv, setFacesPv: setFacesPv,
     openPalette: openPalette, pickColor: pickColor, regenPreview: regenPreview,
     exportModuleSTL: exportModuleSTL, exportModuleIFC: exportModuleIFC,
-    setAxes: setAxes, setFaces: setFaces,
+    setAxes: setAxes, setFaces: setFaces, setShadow: setShadow,
     toggleMemberAxis: toggleMemberAxis
   };
 
