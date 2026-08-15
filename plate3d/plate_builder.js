@@ -2362,11 +2362,12 @@
     // hollow ring, drawn as a camera-facing sprite so it reads as a circle
     // from any angle and never hides the point it marks
     function dot(p, color, d) {
+      var g = pxGroup(p);
       var m = new THREE.Sprite(new THREE.SpriteMaterial({
         map: ringTexture(), color: color, depthTest: false, transparent: true }));
-      m.position.copy(p);
       m.scale.set(d, d, 1);
-      return m;
+      g.add(m);
+      return g;
     }
     function seg(a, b, color, r) {
       var g = new THREE.BufferGeometry().setFromPoints([a, b]);
@@ -2377,7 +2378,7 @@
     function redraw() {
       clear();
       if (!M.on) { report(); return; }
-      var g = new THREE.Group(), r = cfg.size() * 0.016;
+      var g = new THREE.Group(), r = 13;             // px
       if (M.hover && M.picks.length < 2) g.add(dot(M.hover, 0xffff7a, r * 1.3));
       M.picks.forEach(function (p) { g.add(dot(p, 0xffe81f, r)); });
       if (M.picks.length === 2) {
@@ -2389,9 +2390,9 @@
         g.add(seg(c1, c2, 0x6fc36f));
         g.add(seg(c2, b, 0x5c9bd1));
         var mid = a.clone().add(b).multiplyScalar(0.5);
-        var lb = makeLabel(fmt(a.distanceTo(b)), '#ffe81f', cfg.size() * 0.045);
-        lb.position.copy(mid);
-        g.add(lb);
+        var lg = pxGroup(mid);
+        lg.add(makeLabel(fmt(a.distanceTo(b)), '#ffe81f', 15));
+        g.add(lg);
       }
       M.grp = g;
       cfg.scene.add(g);
@@ -2524,6 +2525,30 @@
     rn.autoClear = true;
   }
 
+  // Screen-sized annotations. Children are laid out in pixels and the group is
+  // rescaled every frame from the camera, so a marker or a label keeps its size
+  // however far in you zoom. Works for either camera type.
+  var _pxV = new THREE.Vector3();
+  function pxGroup(pos) {
+    var g = new THREE.Group();
+    g.userData.px = true;
+    if (pos) g.position.copy(pos);
+    return g;
+  }
+  function worldPerPixel(cam, viewH, pos) {
+    var h = Math.max(viewH || 0, 1);
+    if (cam.isOrthographicCamera) return (cam.top - cam.bottom) / (cam.zoom || 1) / h;
+    return 2 * cam.position.distanceTo(pos) * Math.tan(cam.fov * Math.PI / 360) / h;
+  }
+  function tickPx(root, cam, viewH) {
+    if (!root || !cam) return;
+    root.traverse(function (o) {
+      if (!o.userData || !o.userData.px) return;
+      o.getWorldPosition(_pxV);
+      o.scale.setScalar(worldPerPixel(cam, viewH, _pxV));
+    });
+  }
+
   function makeLabel(text, color, h) {          // canvas text as a camera-facing sprite
     var pad = 6, fs = 42;
     var cv = document.createElement('canvas');
@@ -2586,15 +2611,17 @@
   // outline centroid. The thickness axis is drawn both ways and labelled, so
   // which side is +Z can be read straight off the model.
   function plateTriad(spec, matrix, len, org, name) {
-    var g = new THREE.Group();
+    var outer = new THREE.Group();
     var c = org;
     if (!c) {
       var pc = (namedPoints(spec, false).mc) || [0, 0];
       c = new THREE.Vector3(pc[0], pc[1], 0);
     }
-    g.matrixAutoUpdate = false;
-    g.matrix.copy(matrix.clone().multiply(
+    outer.matrixAutoUpdate = false;
+    outer.matrix.copy(matrix.clone().multiply(
       new THREE.Matrix4().makeTranslation(c.x, c.y, c.z)));
+    var g = pxGroup();                           // len is in pixels
+    outer.add(g);
     var o = new THREE.Vector3();
     g.add(new THREE.ArrowHelper(new THREE.Vector3(1, 0, 0), o, len, 0xe05c4f, len * 0.26, len * 0.15));
     g.add(new THREE.ArrowHelper(new THREE.Vector3(0, 1, 0), o, len, 0x6fc36f, len * 0.26, len * 0.15));
@@ -2615,7 +2642,7 @@
       lb.position.set(-len * 0.52, -len * 0.36, 0);
       g.add(lb);
     }
-    return g;
+    return outer;
   }
   // sized off the plate, but never so small it is unreadable in a big model
   function ringsCenter(rings) {
@@ -2625,10 +2652,6 @@
     });
     var c = bb.getCenter(new THREE.Vector2());
     return new THREE.Vector3(c.x, c.y, 0);
-  }
-  function triadLen(spec, min) {
-    var w = spec.SHAPE === 'CIRC' ? num(spec.D, 100) : Math.max(num(spec.WB, 0), num(spec.WT, 0));
-    return Math.max(20, min || 0, Math.min(w, num(spec.H, 100)) * 0.3);
   }
 
   // One WebGL context for the preview, reused across opens. Building a new
@@ -2823,12 +2846,12 @@
     var size = bbox.isEmpty() ? 500 : bbox.getSize(new THREE.Vector3()).length();
     var mn = bbox.min, mx3 = bbox.max;
     axRows.forEach(function (a) {
-      a.g.add(plateTriad(a.spec, a.m, triadLen(a.spec, size * 0.1), a.rp.p, a.rp.name));
+      a.g.add(plateTriad(a.spec, a.m, 34, a.rp.p, a.rp.name));   // 34 px arms
     });
     idRows.forEach(function (d) {
-      var lb = makeLabel(d.text, '#dfe6f0', size * 0.045);
-      lb.position.copy(d.pos);
-      d.g.add(lb);
+      var lg = pxGroup(d.pos);
+      lg.add(makeLabel(d.text, '#dfe6f0', 14));
+      d.g.add(lg);
     });
 
     // Module base point. Everything in here is laid out in pixels and the whole
@@ -2836,8 +2859,7 @@
     // the same size on screen however far in you zoom.
     var baseGrp = null;
     if (basePt) {
-      baseGrp = new THREE.Group();
-      baseGrp.position.copy(basePt);
+      baseGrp = pxGroup(basePt);
       var bmat = new THREE.MeshBasicMaterial({ color: 0xf0c674, depthTest: false });
       var mk = new THREE.Mesh(new THREE.SphereGeometry(4, 16, 12), bmat);
       baseGrp.add(mk);
@@ -2873,14 +2895,15 @@
     // module-local origin: the point L.X/L.Y/L.Z are measured from. Just the
     // axis triad - a label here collides with the BASE one whenever the two
     // points are close, which is most of the time.
-    var oLen = size * 0.13;
-    [[new THREE.Vector3(oLen, 0, 0), 0xe05c4f],
-     [new THREE.Vector3(0, oLen, 0), 0x6fc36f],
-     [new THREE.Vector3(0, 0, oLen), 0x5c9bd1]].forEach(function (a) {
-      sc.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints(
+    var org = pxGroup();                         // 30 px arms, whatever the zoom
+    [[new THREE.Vector3(30, 0, 0), 0xe05c4f],
+     [new THREE.Vector3(0, 30, 0), 0x6fc36f],
+     [new THREE.Vector3(0, 0, 30), 0x5c9bd1]].forEach(function (a) {
+      org.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints(
         [new THREE.Vector3(0, 0, 0), a[0]]),
         new THREE.LineBasicMaterial({ color: a[1], depthTest: false })));
     });
+    sc.add(org);
 
     var ctr = new THREE.OrbitControls(cam, rn.domElement);
     pvCtrl = ctr;
@@ -2918,11 +2941,7 @@
       if (token !== pvToken) return;
       requestAnimationFrame(loop);
       ctr.update();
-      if (baseGrp) {                              // one pixel of screen -> world
-        var perPx = 2 * cam.position.distanceTo(baseGrp.position) *
-                    Math.tan(cam.fov * Math.PI / 360) / Math.max(H, 1);
-        baseGrp.scale.setScalar(perPx);
-      }
+      tickPx(sc, cam, H);
       rn.render(sc, cam);
       drawGizmo(rn, pgz, cam, ctr.target, W, H, 74);
     })();
@@ -3599,6 +3618,7 @@
       requestAnimationFrame(animate);
       fitRenderer();                              // panes can be resized without a window event
       controls.update();
+      tickPx(scene, camera, fitH);                 // keep labels/axes a fixed pixel size
       renderer.render(scene, camera);
 
       if (fitW && fitH) {
@@ -3696,9 +3716,9 @@
     sceneIds = new THREE.Group();
     items.forEach(function (it) {
       if (!it.groupObj.visible) return;
-      var lb = makeLabel(it.no, '#dfe6f0', sceneSize * 0.02);
-      lb.position.copy(ringsCenter(it.rings).applyMatrix4(it.matrix));
-      sceneIds.add(lb);
+      var lg = pxGroup(ringsCenter(it.rings).applyMatrix4(it.matrix));
+      lg.add(makeLabel(it.no, '#dfe6f0', 13));
+      sceneIds.add(lg);
     });
     scene.add(sceneIds);
   }
@@ -3729,8 +3749,7 @@
         var row = part && part.pos.filter(function (q) { return q.NO === no; })[0];
         if (row) rp = memberRef(it.spec, row);
       }
-      sceneAxes.add(plateTriad(it.spec, it.matrix, triadLen(it.spec, sceneSize * 0.045),
-                               rp && rp.p, rp && rp.name));
+      sceneAxes.add(plateTriad(it.spec, it.matrix, 34, rp && rp.p, rp && rp.name));
     });
     scene.add(sceneAxes);
   }
