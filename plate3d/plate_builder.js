@@ -96,7 +96,8 @@
     '#pb-side .caret:hover { color:#d8dce2; }',
     '#pb-side .dims { color:#8a93a0; font-size:11px; }',
     // BARS: a plain read-only table, so its rows are tighter than the click lists
-    '#pb-bars { display:none; }',
+    '#pb-bars, #pb-sects { display:none; }',
+    '#pb-sects td { padding:3px 6px 3px 2px; font-size:12px; }',
     '#pb-side tr.chead td { color:#6b7480; font-size:10px; letter-spacing:.5px;',
     '  padding:3px 6px 3px 2px; border-bottom:1px solid #2c323b; }',
     '#pb-bars td { padding:3px 6px 3px 2px; font-size:12px; }',
@@ -284,6 +285,19 @@
                                               (BASE.pt = which of the 9 named points is
                                                the shape's own origin (0,0). Blank -> bc
                                                for a plate, mc for a circle or a HOLE)
+       SECT  ID MAT Length TYPE BASE.pt  h b tw tf r r2 [b2 tf2]
+                                              (rolled section, TYPE = H / C / L.
+                                               One field set for all three: what a
+                                               shape does not need mirrors its partner,
+                                               so an H gets a symmetric bottom flange
+                                               (b2=b, tf2=tf) and an L equal legs
+                                               (b=h, tf=tw) unless the cells are filled
+                                               in. r = root fillet, r2 = toe radius -
+                                               both drawn, not approximated; dropping
+                                               them costs ~2.6% of the area. A row that
+                                               fails its checks is reported and skipped,
+                                               never repaired. Placed like a BAR: no
+                                               Ref.Pt, held by its starting face)
        BAR   ID MAT Dia Length                (straight round bar. Listed in its own
                                                BARS table on the left - id, diameter,
                                                length, material - and placed by MODULE
@@ -434,7 +448,7 @@
       return uniqueAssyId(base + '.' + ('000' + assySeq[base]).slice(-3));
     }
     var palias = PLANE_ALIAS, yup = false;   // switched by a COORD row
-    var counts = { plate: 0, hole: 0, bar: 0, cut: 0, module: 0, assy: 0 };
+    var counts = { plate: 0, hole: 0, bar: 0, sect: 0, cut: 0, module: 0, assy: 0 };
     var current = null, currentPart = null, counter = {};
     function warn(m) { log.push(m); console.error('[plateBuilder] ' + m); }
     function resolvePlate(pid) {          // exact id, or instance suffix PL.C1_2 → PL.C1
@@ -536,6 +550,46 @@
         if (holes[idb]) warn('row ' + (r + 1) + ': BAR ' + idb + ' reuses a HOLE id');
         current = idb;
         counts.bar++;
+      } else if (kw === 'SECT') {
+        // SECT ID MAT Length TYPE BASE.pt  h b tw tf r r2 [b2 tf2]
+        // One field set for H, C and L. What a shape does not need mirrors its
+        // partner: an H gets a symmetric bottom flange, an L equal legs.
+        var ids = str(v[0]).toUpperCase();
+        if (!ids) continue;
+        var st = str(v[3]).toUpperCase();
+        if (st === 'I') st = 'H';
+        if (st !== 'H' && st !== 'C' && st !== 'L') {
+          warn('row ' + (r + 1) + ': SECT ' + ids + ' — TYPE must be H, C or L, found ' +
+               (str(v[3]) || '(blank)'));
+          continue;
+        }
+        var sp = { ID: ids, SHAPE: 'SECT', SECT: st, __bar: true, __sect: true,
+                   MAT: str(v[1]), THK: num(v[2], 0),
+                   h: num(v[5], 0), tw: num(v[7], 0), r: num(v[9], 0), r2: num(v[10], 0) };
+        sp.b  = str(v[6]) === '' && st === 'L' ? sp.h  : num(v[6], 0);   // equal angle
+        sp.tf = str(v[8]) === '' && st === 'L' ? sp.tw : num(v[8], 0);
+        if (st === 'H') {                              // symmetric unless told otherwise
+          sp.b2  = str(v[11]) === '' ? sp.b  : num(v[11], 0);
+          sp.tf2 = str(v[12]) === '' ? sp.tf : num(v[12], 0);
+        }
+        var serr = sectErrors(sp);
+        if (serr.length) {
+          serr.forEach(function (m) {
+            warn('row ' + (r + 1) + ': SECT ' + ids + ' — ' + m);
+          });
+          continue;                                    // refused, not repaired
+        }
+        var sbp = str(v[4]);
+        if (sbp && !knownPoint(sbp)) {
+          warn('row ' + (r + 1) + ': SECT ' + ids + ' — unknown BASE.pt "' + sbp +
+               '" (use tl/tc/tr, ml/mc/mr, bl/bc/br)');
+          continue;
+        }
+        sp.BASEPT = sbp ? normPoint(sbp) : 'bc';
+        if (holes[ids]) warn('row ' + (r + 1) + ': SECT ' + ids + ' reuses a HOLE id');
+        plates[ids] = sp;
+        current = ids;
+        counts.sect++;
       } else if (kw === 'CUT') {          // CUT [plateID] [refPt] TYPE ...
         function isCutType(x) { return x === 'RECT' || x === 'CIRC' || x === 'PLATE'; }
         var sub = str(v[0]).toUpperCase();
@@ -854,6 +908,7 @@
             'plates ' + c.plate +
             (c.hole ? ' &middot; holes ' + c.hole : '') +
             (c.bar ? ' &middot; bars ' + c.bar : '') +
+            (c.sect ? ' &middot; sections ' + c.sect : '') +
             ' &middot; cuts ' + c.cut +
             ' &middot; modules ' + (c.module || 0) +
             ' &middot; assy ' + c.assy + ' &rarr; placed ' + placed;
@@ -961,6 +1016,136 @@
     return spec;
   }
 
+
+  /* ---------------- rolled sections: H / C / L ----------------
+     One field set for all three - h b tw tf r r2 (+ b2 tf2 for an
+     asymmetric H). Anything a shape does not need mirrors another value, so
+     an equal angle needs no extra columns and an unequal one just fills them
+     in. A fillet is an arc tessellated into the ring: the root fillet is
+     concave and adds material, a toe radius is convex and takes it away.
+     Dropping the fillets costs about 2.6% of the area on an H-400x200x8x13,
+     so they are drawn, not approximated. */
+  var SECT_SEG = 8;                 // arc segments per 90 deg: area within 0.06%
+  function arcInto(ring, cx, cy, r, a0, a1, seg) {
+    for (var i = 0; i <= seg; i++) {
+      var a = (a0 + (a1 - a0) * i / seg) * Math.PI / 180;
+      ring.push([cx + r * Math.cos(a), cy + r * Math.sin(a)]);
+    }
+  }
+  function cleanRing(ring) {                     // drop points repeated in a row
+    var out = [];
+    ring.forEach(function (q) {
+      var p = out[out.length - 1];
+      if (!p || Math.abs(q[0] - p[0]) > 1e-9 || Math.abs(q[1] - p[1]) > 1e-9) out.push(q);
+    });
+    while (out.length > 1) {
+      var a = out[0], b = out[out.length - 1];
+      if (Math.abs(a[0] - b[0]) < 1e-9 && Math.abs(a[1] - b[1]) < 1e-9) out.pop(); else break;
+    }
+    return out;
+  }
+  // H / I - origin bottom centre, y up, CCW
+  function outlineH(d) {
+    var seg = SECT_SEG, h = d.h, bt = d.b, bb = d.b2, tw = d.tw, tft = d.tf, tfb = d.tf2,
+        r = d.r || 0, r2 = d.r2 || 0, yT = h - tft, yB = tfb, xw = tw / 2, g = [];
+    g.push([-bb / 2, 0], [bb / 2, 0]);
+    if (r2 > 0) { g.push([bb / 2, yB - r2]); arcInto(g, bb / 2 - r2, yB - r2, r2, 0, 90, seg); }
+    else g.push([bb / 2, yB]);
+    if (r > 0) { g.push([xw + r, yB]); arcInto(g, xw + r, yB + r, r, 270, 180, seg);
+                 arcInto(g, xw + r, yT - r, r, 180, 90, seg); }
+    else g.push([xw, yB], [xw, yT]);
+    if (r2 > 0) { g.push([bt / 2 - r2, yT]); arcInto(g, bt / 2 - r2, yT + r2, r2, 270, 360, seg); }
+    else g.push([bt / 2, yT]);
+    g.push([bt / 2, h], [-bt / 2, h]);
+    if (r2 > 0) { g.push([-bt / 2, yT + r2]); arcInto(g, -bt / 2 + r2, yT + r2, r2, 180, 270, seg); }
+    else g.push([-bt / 2, yT]);
+    if (r > 0) { g.push([-xw - r, yT]); arcInto(g, -xw - r, yT - r, r, 90, 0, seg);
+                 arcInto(g, -xw - r, yB + r, r, 0, -90, seg); }
+    else g.push([-xw, yT], [-xw, yB]);
+    if (r2 > 0) { g.push([-bb / 2 + r2, yB]); arcInto(g, -bb / 2 + r2, yB - r2, r2, 90, 180, seg); }
+    else g.push([-bb / 2, yB]);
+    return cleanRing(g);
+  }
+  // C - origin bottom left (web outer face), y up, flanges to +x, CCW
+  function outlineC(d) {
+    var seg = SECT_SEG, h = d.h, b = d.b, tw = d.tw, tf = d.tf,
+        r = d.r || 0, r2 = d.r2 || 0, g = [];
+    g.push([0, 0], [b, 0]);
+    if (r2 > 0) { g.push([b, tf - r2]); arcInto(g, b - r2, tf - r2, r2, 0, 90, seg); }
+    else g.push([b, tf]);
+    if (r > 0) { g.push([tw + r, tf]); arcInto(g, tw + r, tf + r, r, 270, 180, seg);
+                 arcInto(g, tw + r, h - tf - r, r, 180, 90, seg); }
+    else g.push([tw, tf], [tw, h - tf]);
+    if (r2 > 0) { g.push([b - r2, h - tf]); arcInto(g, b - r2, h - tf + r2, r2, 270, 360, seg); }
+    else g.push([b, h - tf]);
+    g.push([b, h], [0, h]);
+    return cleanRing(g);
+  }
+  // L - origin at the heel, legs along +x (b) and +y (h), CCW
+  function outlineL(d) {
+    var seg = SECT_SEG, h = d.h, b = d.b, tw = d.tw, tf = d.tf,
+        r = d.r || 0, r2 = d.r2 || 0, g = [];
+    g.push([0, 0], [b, 0]);
+    if (r2 > 0) { g.push([b, tf - r2]); arcInto(g, b - r2, tf - r2, r2, 0, 90, seg); }
+    else g.push([b, tf]);
+    if (r > 0) { g.push([tw + r, tf]); arcInto(g, tw + r, tf + r, r, 270, 180, seg); }
+    else g.push([tw, tf]);
+    if (r2 > 0) { g.push([tw, h - r2]); arcInto(g, tw - r2, h - r2, r2, 0, 90, seg); }
+    else g.push([tw, h]);
+    g.push([0, h]);
+    return cleanRing(g);
+  }
+  function sectRing(spec) {                      // raw profile, before BASE.pt
+    if (spec.__ring) return spec.__ring;
+    spec.__ring = spec.SECT === 'C' ? outlineC(spec)
+                : spec.SECT === 'L' ? outlineL(spec) : outlineH(spec);
+    return spec.__ring;
+  }
+  // Everything the sheet has to get right before a section can be built. The
+  // row is refused, not silently repaired - a fillet that does not fit draws a
+  // plausible looking profile with the wrong area.
+  function sectErrors(d) {
+    var e = [], t = d.SECT;
+    ['h', 'b', 'tw', 'tf'].forEach(function (k) {
+      if (!(num(d[k], 0) > 0)) e.push(k + ' is blank or not a positive number');
+    });
+    if (!(num(d.THK, 0) > 0)) e.push('Length must be greater than 0');
+    if (num(d.r, 0) < 0 || num(d.r2, 0) < 0) e.push('r and r2 cannot be negative');
+    if (e.length) return e;
+    var h = d.h, b = d.b, tw = d.tw, tf = d.tf, r = num(d.r, 0), r2 = num(d.r2, 0);
+    if (t === 'H') {
+      var b2 = d.b2, tf2 = d.tf2, bmin = Math.min(b, b2);
+      if (tf + tf2 >= h) e.push('flanges do not fit: tf + tf2 (' + (tf + tf2) + ') >= h (' + h + ')');
+      if (tw >= bmin) e.push('web is wider than the flange: tw (' + tw + ') >= b (' + bmin + ')');
+      if (r && r > (h - tf - tf2) / 2) e.push('r ' + r + ' too big for the clear web depth — max ' + ((h - tf - tf2) / 2).toFixed(1));
+      if (r && r > (bmin - tw) / 2) e.push('r ' + r + ' does not fit under the flange — max ' + ((bmin - tw) / 2).toFixed(1));
+      if (r2 && r2 > Math.min(tf, tf2)) e.push('r2 ' + r2 + ' is bigger than the flange thickness — max ' + Math.min(tf, tf2));
+    } else if (t === 'C') {
+      if (2 * tf >= h) e.push('flanges do not fit: 2 x tf (' + 2 * tf + ') >= h (' + h + ')');
+      if (tw >= b) e.push('web is wider than the flange: tw (' + tw + ') >= b (' + b + ')');
+      if (r && r > (h - 2 * tf) / 2) e.push('r ' + r + ' too big for the clear web depth — max ' + ((h - 2 * tf) / 2).toFixed(1));
+      if (r && r > b - tw) e.push('r ' + r + ' does not fit along the flange — max ' + (b - tw));
+      if (r2 && r2 > tf) e.push('r2 ' + r2 + ' is bigger than the flange thickness — max ' + tf);
+    } else {
+      if (tf >= h) e.push('leg too short: tf (' + tf + ') >= h (' + h + ')');
+      if (tw >= b) e.push('leg too short: tw (' + tw + ') >= b (' + b + ')');
+      if (r && r > Math.min(h - tf, b - tw)) e.push('r ' + r + ' does not fit in the corner — max ' + Math.min(h - tf, b - tw));
+      if (r2 && r2 > Math.min(tw, tf)) e.push('r2 ' + r2 + ' is bigger than the leg thickness — max ' + Math.min(tw, tf));
+    }
+    return e;
+  }
+  function sectLabel(spec) {
+    var n = function (v) { return String(+num(v, 0).toFixed(3)); };
+    var t = spec.SECT + '-' + n(spec.h) + '\u00d7' + n(spec.b) + '\u00d7' + n(spec.tw);
+    if (!(spec.SECT === 'L' && spec.tf === spec.tw)) t += '\u00d7' + n(spec.tf);
+    if (spec.SECT === 'H' && (spec.b2 !== spec.b || spec.tf2 !== spec.tf)) {
+      t += ' / ' + n(spec.b2) + '\u00d7' + n(spec.tf2);
+    }
+    if (num(spec.r, 0)) t += ' r' + n(spec.r);
+    if (num(spec.r2, 0)) t += '/' + n(spec.r2);
+    return t;
+  }
+
   // A shape is first laid out with its bottom edge centred on the origin, then
   // slid so that its BASE.pt sits at (0,0). BASE.pt defaults to bc for a
   // plate, mc for a circle, mc for a HOLE (cut shapes read from their centre).
@@ -981,7 +1166,16 @@
     return { bl: [spec.OFF_B - d, 0], br: [spec.OFF_B + spec.WB - d, 0],
              tr: [spec.OFF_T + spec.WT - d, spec.H], tl: [spec.OFF_T - d, spec.H] };
   }
+  function bboxCorners(ring) {
+    var x0 = 1e18, y0 = 1e18, x1 = -1e18, y1 = -1e18;
+    ring.forEach(function (q) {
+      if (q[0] < x0) x0 = q[0]; if (q[0] > x1) x1 = q[0];
+      if (q[1] < y0) y0 = q[1]; if (q[1] > y1) y1 = q[1];
+    });
+    return { bl: [x0, y0], br: [x1, y0], tr: [x1, y1], tl: [x0, y1] };
+  }
   function rawPoints(spec) {
+    if (spec.SHAPE === 'SECT') return nineFrom(bboxCorners(sectRing(spec)));
     if (spec.SHAPE === 'CIRC') {
       var r = num(spec.D, 0) / 2;
       var p = { mc: [0, 0], tc: [0, r], bc: [0, -r], ml: [-r, 0], mr: [r, 0] };
@@ -1000,12 +1194,20 @@
     return spec.__bo;
   }
   function cornersOf(spec) {
+    if (spec.SHAPE === 'SECT') {                 // bbox, so EDGE refs still work
+      var q = bboxCorners(sectRing(spec)), ob = baseOffset(spec);
+      function t(v) { return [v[0] - ob[0], v[1] - ob[1]]; }
+      return { bl: t(q.bl), br: t(q.br), tr: t(q.tr), tl: t(q.tl) };
+    }
     var c = rawCorners(spec), o = baseOffset(spec);
     function s(q) { return [q[0] - o[0], q[1] - o[1]]; }
     return { bl: s(c.bl), br: s(c.br), tr: s(c.tr), tl: s(c.tl) };
   }
   function outlineOf(spec) {                       // CCW
     var o = baseOffset(spec);
+    if (spec.SHAPE === 'SECT') {
+      return sectRing(spec).map(function (q) { return [q[0] - o[0], q[1] - o[1]]; });
+    }
     if (spec.SHAPE === 'CIRC') return circleOutline(spec.D, -o[0], -o[1], 48);
     var c = cornersOf(spec);
     if (spec.WT <= 0) return [c.bl, c.br, c.tl];
@@ -1028,6 +1230,10 @@
   }
   function mirrorAxisOf(spec) {                    // bbox center ×2 (for x → m − x)
     var o = baseOffset(spec);
+    if (spec.SHAPE === 'SECT') {
+      var q = bboxCorners(sectRing(spec));
+      return q.bl[0] + q.br[0] - 2 * o[0];
+    }
     if (spec.SHAPE === 'CIRC') return -2 * o[0];   // symmetric about its own centre
     var d = xShift(spec) + o[0];
     var lo = Math.min(spec.OFF_B, spec.OFF_T) - d;
@@ -1158,6 +1364,7 @@
 
   /* ------- named points/edges (uncut outline, MIRROR applied) ------- */
   function namedPoints(spec, mirror) {
+    if (spec.SHAPE === 'SECT') return nineFrom(cornersOf(spec));
     if (spec.SHAPE === 'CIRC') {
       var o = baseOffset(spec), raw = rawPoints(spec), p = {};
       POINT_KEYS.forEach(function (k) { p[k] = [raw[k][0] - o[0], raw[k][1] - o[1]]; });
@@ -1249,7 +1456,8 @@
     var p = namedPoints(spec, false), a = p[pt] || p.bl;
     return [a[0], a[1], (face || 0) * thk / 2];
   }
-  function isBarSpec(spec) { return !!(spec && spec.__bar); }
+  function isBarSpec(spec) { return !!(spec && spec.__bar && !spec.__sect); }
+  function isSectSpec(spec) { return !!(spec && spec.__sect); }
 
   function memberMatrix(row, pts, thk) {
     if (!row.__xyz) return planeMatrixAnchor(row, pts, thk);
@@ -1368,7 +1576,9 @@
         groupObj.add(edge);
       });
       scene.add(groupObj);
-      var dims = spec.SHAPE === 'CIRC'
+      var dims = spec.SHAPE === 'SECT'
+        ? sectLabel(spec) + ' L' + thk
+        : spec.SHAPE === 'CIRC'
         ? 'D' + spec.D + '×' + thk
         : (spec.WT === spec.WB && spec.OFF_T === spec.OFF_B
             ? spec.WB + '×' + spec.H + '×' + thk + 'T'
@@ -1614,7 +1824,7 @@
     var tbl = document.getElementById('pb-bars');
     if (!tbl) return;
     tbl.innerHTML = '';
-    var ids = Object.keys(lastPlates).filter(function (id) { return lastPlates[id].__bar; });
+    var ids = Object.keys(lastPlates).filter(function (id) { return isBarSpec(lastPlates[id]); });
     if (!ids.length) { tbl.style.display = 'none'; return; }
     tbl.style.display = 'table';
     sectionRow(tbl, 'ghead', 'BARS', 4);
@@ -1633,6 +1843,32 @@
     });
   }
   function trim(v) { return String(+num(v, 0).toFixed(3)); }
+
+  // Rolled sections. Unlike a bar these do have something to look at, so the id
+  // opens the same 2D drawing a plate does - profile, grid, measure.
+  function buildSectList() {
+    var tbl = document.getElementById('pb-sects');
+    if (!tbl) return;
+    tbl.innerHTML = '';
+    var ids = Object.keys(lastPlates).filter(function (id) { return isSectSpec(lastPlates[id]); });
+    if (!ids.length) { tbl.style.display = 'none'; return; }
+    tbl.style.display = 'table';
+    sectionRow(tbl, 'ghead', 'SECTIONS — click to preview', 3);
+    var hr = document.createElement('tr');
+    hr.className = 'chead';
+    hr.innerHTML = '<td>ID</td><td class="num">LENGTH</td><td>MAT</td>';
+    tbl.appendChild(hr);
+    ids.forEach(function (id) {
+      var spec = lastPlates[id];
+      var tr = document.createElement('tr');
+      tr.innerHTML =
+        '<td class="bid"><span class="plname" onclick="plateBuilder.preview(\'' + id + '\')">' +
+        esc(id) + '</span><div class="dims">' + esc(sectLabel(spec)) + '</div></td>' +
+        '<td class="num">' + trim(spec.THK) + '</td>' +
+        '<td class="mat">' + esc(spec.MAT || '\u2014') + '</td>';
+      tbl.appendChild(tr);
+    });
+  }
 
   function preview(id) {
     var spec = lastPlates[id];
@@ -1896,7 +2132,9 @@
       }
     }
 
-    var dims = spec.SHAPE === 'CIRC'
+    var dims = spec.SHAPE === 'SECT'
+      ? sectLabel(spec) + '  ·  L ' + spec.THK
+      : spec.SHAPE === 'CIRC'
       ? 'D' + spec.D + ' × THK ' + spec.THK
       : (spec.WT === spec.WB && spec.OFF_T === spec.OFF_B
           ? spec.WB + ' × ' + spec.H + ' × ' + spec.THK + 'T'
@@ -3001,6 +3239,7 @@
       '  <div id="pb-result"></div>' +
       '  <table id="pb-plates"></table>' +
       '  <table id="pb-bars"></table>' +
+      '  <table id="pb-sects"></table>' +
       '  <table id="pb-modules"></table>' +
       '  <table id="pb-list"></table>' +
       '  <div id="pb-total"></div>' +
@@ -3230,6 +3469,7 @@
     // the sidebar must never be able to take the 3D view down with it
     try { buildPlateList(colors); } catch (e) { console.error('[plateBuilder] plate list: ' + e.message); }
     try { buildBarList(); } catch (e) { console.error('[plateBuilder] bar list: ' + e.message); }
+    try { buildSectList(); } catch (e) { console.error('[plateBuilder] section list: ' + e.message); }
     try { buildList(colors); } catch (e) { console.error('[plateBuilder] placed list: ' + e.message); }
     try { buildModuleList(); } catch (e) { console.error('[plateBuilder] module list: ' + e.message); }
     if (flatMode) document.getElementById('pb-flat').checked = true;

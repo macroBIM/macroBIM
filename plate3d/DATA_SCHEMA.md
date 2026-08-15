@@ -211,6 +211,7 @@ FOLD=180 (이어붙임)          FOLD=90 (직각 세움)
 | HOLE | ID, **TRAP**, BASE.pt, WB, WT, H, OFF_T | 재사용할 빼기 형상 |
 | HOLE | ID, **RECT**, BASE.pt, B, H | 〃 |
 | HOLE | ID, **CIRC**, BASE.pt, D | 〃 |
+| SECT | ID, MAT, Length, **TYPE**, BASE.pt, h, b, tw, tf, r, r2, [b2, tf2] | 압연 형강. TYPE = **H / C / L**. 세 타입이 **같은 입력 칸**을 쓰고, 그 형상에 필요 없는 값은 짝이 되는 값을 따라간다 — H는 하부 플랜지가 상부와 같고(b2=b, tf2=tf), L은 등변(b=h, tf=tw). 채워 넣으면 비대칭 조립보·부등변 앵글이 된다. `r`=루트 필렛, `r2`=토 라운딩 (실제로 원호를 그림 — 생략하면 면적이 약 2.6% 부족). 왼쪽 **SECTIONS** 표에 모이고 클릭하면 단면 도면이 열린다. 배치는 BAR와 동일(Ref.Pt 없음, 시점부 단면 기준) |
 | BAR | ID, MAT, Dia, Length | 직선 환봉. 왼쪽 **BARS** 표(ID·직경·길이·재질)에 따로 모이고, 배치는 MODULE/ASSY로 판과 동일. 예전 `ID, Dia, Length` 순서도 인식 |
 | CUT | 판ID, L.X, L.Y, **형상ID**, dx, dy, repeat | 형상ID(HOLE 또는 다른 PLATE)를 그 판에서 빼기 |
 | **MODULE** | ID, PLATE/BAR.ID, Ref.Pt, L.X, L.Y, L.Z, PLANE, ROT.X, ROT.Y, ROT.Z | 모듈에 부재 1개 배치. 판의 Ref.Pt가 **모듈 로컬 (L.X, L.Y, L.Z)** 에 오고, PLANE은 그 판이 놓일 평면, ROT.X/Y/Z는 그 점을 중심으로 한 회전(도). 행마다 모듈 ID 반복 — 같은 ID 행들이 한 모듈로 누적. PART도 별칭 인식 |
@@ -249,6 +250,10 @@ FOLD=180 (이어붙임)          FOLD=90 (직각 세움)
   `ASSY as.comb bar.pt3m ADD 1000 1000 0` 을 쓰면 조립체는 **as.comb 하나**이고 그 아래에
   모듈과 봉이 함께 들어간다. 첫 행이 조립체의 기준점을 정하고, 이후 행의 G.X/G.Y/G.Z도
   절대좌표 그대로. MIR/COPY/ROT는 결과를 새로 만드는 명령이라 계속 새 ID를 받는다.
+- **SECT 입력값 검증** — 아래를 어기면 그 행은 **경고만 출력하고 만들지 않는다** (억지로 고치지 않음).
+  h·b·tw·tf·Length가 0 이하 / 플랜지가 h를 넘음 / tw ≥ b / r이 웹 순높이나 플랜지 내민 길이를 넘음 /
+  r2가 플랜지(다리) 두께를 넘음 / r·r2 음수 / TYPE이 H·C·L이 아님 / BASE.pt 이름 오류.
+- **SECT에 CUT을 걸면 길이 전체가 잘린다** — 판의 구멍과 의미가 다르니 주의.
 - **BAR 부재는 Ref.Pt를 비운다.** 봉은 항상 **시점부 원형 중심**이 기준이고, 거기서 그 평면의
   두께 축 방향으로 Length만큼 뻗는다. XY면 +Z, XZ면 −Y, YZ면 +X.
   예: `MODULE md.tower bar.pt3m (빈칸) 0 0 0 XY` = 원점에서 위로 3000mm 서는 봉.
