@@ -579,6 +579,9 @@
   function parseExcelRows(rows) {
     var plates = {}, holes = {}, parts = {}, cuts = [], assy = [], log = [];
     var assyIds = {};                    // ASSY ids already defined (can be referenced again)
+    // MIR / COPY / ROT mint a new id, but the result is still the same assembly
+    // moved about, so the list groups them under the one they came from.
+    var assyRoot = {};                   // assembly id -> the id it was derived from
     function uniqueAssyId(id) {          // a repeated id gets -2, -3, ...
       counter[id] = (counter[id] || 0) + 1;
       return counter[id] > 1 ? id + '-' + counter[id] : id;
@@ -894,7 +897,7 @@
             arow.MPLANE = mp;
             arow.NO = uniqueAssyId(aid);
             assyIds[arow.NO] = true;
-            arow.GROUP = arow.NO;
+            arow.GROUP = assyRoot[arow.NO] = assyIds[aref] ? (assyRoot[aref] || aref) : arow.NO;
             assy.push(arow);
             counts.assy++;
             continue;
@@ -918,7 +921,8 @@
             for (var ri = 1; ri <= rrep; ri++) {
               var rno = seqAssyId(aid);
               assyIds[rno] = true;
-              assy.push({ __xl: true, __g: true, CMD: 'ROT', REF: aref, NO: rno, GROUP: rno,
+              assyRoot[rno] = assyIds[aref] ? (assyRoot[aref] || aref) : rno;
+              assy.push({ __xl: true, __g: true, CMD: 'ROT', REF: aref, NO: rno, GROUP: assyRoot[rno],
                           GX: arow.GX, GY: arow.GY, GZ: arow.GZ,
                           AXIS: rax, ANG: rang * ri, REMARK: '', MIRROR: '' });
               counts.assy++;
@@ -938,7 +942,8 @@
             for (var ci = 1; ci <= rep; ci++) {
               var cno = seqAssyId(aid);
               assyIds[cno] = true;
-              assy.push({ __xl: true, __g: true, CMD: 'COPY', REF: aref, NO: cno, GROUP: cno,
+              assyRoot[cno] = assyIds[aref] ? (assyRoot[aref] || aref) : cno;
+              assy.push({ __xl: true, __g: true, CMD: 'COPY', REF: aref, NO: cno, GROUP: assyRoot[cno],
                           GX: arow.GX * ci, GY: arow.GY * ci, GZ: arow.GZ * ci,
                           REMARK: '', MIRROR: '' });
               counts.assy++;
@@ -952,7 +957,7 @@
           if (!assyIds[aid]) { counter[aid] = (counter[aid] || 0) + 1; counts.assy++; }
           arow.NO = aid;
           assyIds[aid] = true;
-          arow.GROUP = aid;
+          arow.GROUP = assyRoot[aid] = aid;
           assy.push(arow);
           continue;
         }
@@ -1718,7 +1723,7 @@
     function buildErr(m) { buildLog.push(m); console.error('[plateBuilder] ' + m); }
 
     // create geometry for one plate instance with a final world matrix
-    function buildInstance(spec, matrix, no, group, remark, mirror, moduleId, memberKey, flip) {
+    function buildInstance(spec, matrix, no, group, remark, mirror, moduleId, memberKey, flip, assyId) {
       var world = yupFix(matrix);        // EDGE chaining keeps using the raw matrix
       var thk = spec.THK;
       var g2d = buildPlate2D(spec, cuts, plates);
@@ -1765,9 +1770,14 @@
             ? spec.WB + '×' + spec.H + '×' + thk + 'T'
             : spec.WT + '/' + spec.WB + '×' + spec.H + '×' + thk + 'T');
       var gname = group || '-';
-      var it = { no: no, plateId: spec.ID, group: gname, moduleId: moduleId || null,
+      // A copy, a mirror or a rotation lands in its parent's group but keeps its
+      // own id, and the list folds all of it into one row - so the row key is
+      // the derived id rather than the member inside it.
+      var aid = assyId || gname;
+      var it = { no: no, plateId: spec.ID, group: gname, assyId: aid,
+                 moduleId: moduleId || null,
                  memberKey: memberKey || null,
-                 instKey: gname + '/' + (moduleId || '#' + spec.ID),
+                 instKey: aid === gname ? gname + '/' + (moduleId || '#' + spec.ID) : aid,
                  groupObj: groupObj, mass: g2d.area * thk * RHO,
                  dims: dims, remark: remark || '',
                  spec: spec, thk: thk, matrix: world, mat: mat, edgeMat: edgeMat,
@@ -1924,7 +1934,7 @@
         if (!joins) assyAt[row.NO] = G;
         made.forEach(function (L) {
           buildInstance(L.spec, anchor.clone().multiply(L.mloc), instName(row.NO, L.no),
-                        row.NO, '', false, L.moduleId, L.memberKey, L.flip);
+                        row.GROUP || row.NO, '', false, L.moduleId, L.memberKey, L.flip, row.NO);
         });
         return;
       }
@@ -3398,10 +3408,13 @@
       var r = g.rmap[it.instKey];
       if (!r) {
         r = g.rmap[it.instKey] = { key: it.instKey, group: it.group, moduleId: it.moduleId,
-                                   plateId: it.plateId, n: 0, mass: 0, items: [] };
+                                   plateId: it.plateId,
+                                   derived: it.assyId === it.group ? null : it.assyId,
+                                   mods: {}, n: 0, mass: 0, items: [] };
         g.rows.push(r);
       }
       r.n++; r.mass += it.mass; r.items.push(it);
+      if (it.moduleId) r.mods[it.moduleId] = 1;
     });
 
     groups.forEach(function (g) {
@@ -3426,13 +3439,21 @@
       g.rows.forEach(function (r) {
         var ri = listRows.length;
         listRows.push(r);
-        var col = r.moduleId ? moduleColor(r.moduleId)
+        // A derived row stands for a whole copy/mirror/rotation, so it names the
+        // assembly rather than a member, and carries no colour of its own - the
+        // copy is the original, and recolouring one recolours the source.
+        var nmod = Object.keys(r.mods).length;
+        var nloose = r.items.filter(function (it) { return !it.moduleId; }).length;
+        var made = [];
+        if (nmod) made.push(nmod + (nmod > 1 ? ' modules' : ' module'));
+        if (nloose) made.push(nloose + (nloose > 1 ? ' parts' : ' part'));
+        var col = r.derived ? 0 : r.moduleId ? moduleColor(r.moduleId)
                              : resolveColor({ plateId: r.plateId }, r.items[0].baseColor);
         var cscope = r.moduleId ? 'module' : 'plate';
         var ckey = r.moduleId || r.plateId;
         var isBar = !r.moduleId && isBarSpec(lastPlates[r.plateId]);
-        var open = r.moduleId
-          ? 'plateBuilder.previewModule(\'' + r.moduleId + '\')'
+        var open = r.derived ? ''
+          : r.moduleId ? 'plateBuilder.previewModule(\'' + r.moduleId + '\')'
           : isBar ? '' : 'plateBuilder.preview(\'' + r.plateId + '\')';
         var tr = document.createElement('tr');
         tr.innerHTML =
@@ -3440,18 +3461,21 @@
           (r.items.some(function (it) { return it.groupObj.visible; }) ? ' checked' : '') + ' ' +
           'data-grp="' + esc(r.group) + '" ' +
           'onchange="plateBuilder.toggleInst(' + ri + ',this.checked)">' +
-          '<span class="sw" style="margin-left:5px;background:' + int2hex(col) +
-          '" title="colour of this ' + cscope +
-          '" onclick="plateBuilder.openPalette(event,\'' + cscope + '\',\'' + ckey + '\',this)">' +
-          '</span>' +
+          (r.derived ? ''
+            : '<span class="sw" style="margin-left:5px;background:' + int2hex(col) +
+              '" title="colour of this ' + cscope +
+              '" onclick="plateBuilder.openPalette(event,\'' + cscope + '\',\'' + ckey + '\',this)">' +
+              '</span>') +
           '<input type="range" min="10" max="100" step="5" value="' +
           Math.round(resolveOpac(r.items[0]) * 100) +
           '" title="opacity of this placement" ' +
           'oninput="plateBuilder.setOpacity(\'inst\',\'' + r.key + '\',this.value)"></td>' +
           '<td><span class="plname subname' + (open ? '' : ' nolink') + '"' +
           (open ? ' onclick="' + open + '"' : '') + '>' +
-          esc(r.moduleId || r.plateId) + '</span>' +
-          '<div class="dims">' + (r.moduleId ? 'members ' + r.n : r.items[0].dims) +
+          esc(r.derived || r.moduleId || r.plateId) + '</span>' +
+          '<div class="dims">' +
+          (r.derived ? (made.join(' + ') || r.n + ' members')
+                     : r.moduleId ? 'members ' + r.n : r.items[0].dims) +
           ' · ' + r.mass.toFixed(3) + 'kg</div></td>';
         tbl.appendChild(tr);
       });
@@ -4292,6 +4316,10 @@
     ' a bare point name (<code>bc</code>) uses the module&rsquo;s bounding box, and',
     ' <code>member.point</code> (<code>pl.C2_1.tc+</code>) picks a point on one of its parts.</p>',
     '<p><code>repeat</code> counts <b>extra</b> copies, not including the original.</p>',
+    '<p>A copy, a mirror or a rotation gets its own id, but it is still the same assembly',
+    ' moved about - so the list on the left keeps <b>one group per assembly</b> and folds',
+    ' every derived one into a single row inside it. Ticking the group header hides the',
+    ' whole family at once; each row still hides its own copy.</p>',
 
     '<h2>Reading the screen</h2>',
     '<h3>Moving around</h3>',
