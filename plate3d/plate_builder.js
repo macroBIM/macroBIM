@@ -2323,11 +2323,7 @@
       tr.innerHTML =
         '<td class="sty"><span class="sw" style="background:' + int2hex(moduleColor(id)) +
         '" title="colour of this module in the assembly view"' +
-        ' onclick="plateBuilder.openPalette(event,\'module\',\'' + id + '\',this)"></span>' +
-        '<input type="range" min="10" max="100" step="5" value="' +
-        Math.round((ovOpac.module[id] !== undefined ? ovOpac.module[id] : 1) * 100) +
-        '" title="opacity of the whole module" ' +
-        'oninput="plateBuilder.setOpacity(\'module\',\'' + id + '\',this.value)"></td>' +
+        ' onclick="plateBuilder.openPalette(event,\'module\',\'' + id + '\',this)"></span></td>' +
         '<td><span class="plname" onclick="plateBuilder.previewModule(\'' + id + '\')">' +
         esc(id) + '</span>' +
         '<div class="dims">members ' + part.pos.length +
@@ -3383,17 +3379,16 @@
           '<span class="sw" style="margin-left:5px;background:' + int2hex(col) +
           '" title="colour of this ' + cscope +
           '" onclick="plateBuilder.openPalette(event,\'' + cscope + '\',\'' + ckey + '\',this)">' +
-          '</span></td>' +
+          '</span>' +
+          '<input type="range" min="10" max="100" step="5" value="' +
+          Math.round(resolveOpac(r.items[0]) * 100) +
+          '" title="opacity of this placement" ' +
+          'oninput="plateBuilder.setOpacity(\'inst\',\'' + r.key + '\',this.value)"></td>' +
           '<td><span class="plname subname' + (open ? '' : ' nolink') + '"' +
           (open ? ' onclick="' + open + '"' : '') + '>' +
           esc(r.moduleId || r.plateId) + '</span>' +
           '<div class="dims">' + (r.moduleId ? 'members ' + r.n : r.items[0].dims) +
-          ' · ' + r.mass.toFixed(3) + 'kg' +
-          '<input type="range" min="10" max="100" step="5" value="' +
-          Math.round(resolveOpac(r.items[0]) * 100) +
-          '" title="opacity of this placement" ' +
-          'oninput="plateBuilder.setOpacity(\'inst\',\'' + r.key + '\',this.value)">' +
-          '</div></td>';
+          ' · ' + r.mass.toFixed(3) + 'kg</div></td>';
         tbl.appendChild(tr);
       });
     });
@@ -3758,6 +3753,18 @@
   // the page around the viewer already says what it is - but the data file may
   // still carry them, so the signature stays put.
   function buildDOM(title, subtitle, note) {
+    // The stylesheet asks for Inter, the face the macroBIM pages use. The host
+    // page may already carry it, but a link-only embed - or this viewer in its
+    // own frame - would silently fall back to the system UI face and look like
+    // a different application, so fetch it here when nobody else has.
+    if (!document.getElementById('pb-font') &&
+        !document.querySelector('link[href*="family=Inter"]')) {
+      var lk = document.createElement('link');
+      lk.id = 'pb-font';
+      lk.rel = 'stylesheet';
+      lk.href = 'https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap';
+      document.head.appendChild(lk);
+    }
     if (!document.getElementById('pb-style')) {
       var style = document.createElement('style');
       style.id = 'pb-style';

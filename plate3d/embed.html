@@ -11,8 +11,14 @@
   laid out against 100vw/100vh, which inside a frame means the frame itself.
   Empty start; the user loads a sheet with the Load Excel button.
 -->
+<!-- Inter up front, the same face the macroBIM pages use. The engine injects
+     this itself when nobody has, but asking for it here starts the fetch a
+     round trip earlier, so the panel does not repaint in the fallback face. -->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 <style>
-  html, body { margin:0; padding:0; height:100%; background:#15181c; overflow:hidden; }
+  html, body { margin:0; padding:0; height:100%; background:#f8fafc; overflow:hidden; }
 </style>
 </head>
 <body>
@@ -20,6 +26,6 @@
 <script src="https://unpkg.com/three@0.147.0/examples/js/controls/OrbitControls.js"></script>
 <script src="https://unpkg.com/polybooljs@1.1.0/dist/polybool.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/exceljs/4.3.0/exceljs.min.js"></script>
-<script src="plate_builder.js?v=4"></script>
+<script src="plate_builder.js?v=5"></script>
 </body>
 </html>
