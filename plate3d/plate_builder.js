@@ -275,7 +275,14 @@
     '  border:1px solid #bfdbfe; border-radius:8px; padding:7px 12px; font-size:12px;',
     '  font-weight:700; color:#1d4ed8; }',
     '#pb-help .flow small { font-weight:400; font-size:10.5px; color:#64748b; }',
-    '#pb-help .flow i { color:#94a3b8; font-style:normal; font-size:13px; }'
+    '#pb-help .flow i { color:#94a3b8; font-style:normal; font-size:13px; }',
+    '#pb-help .lede { font-size:15px; font-weight:600; color:#0f172a; margin:10px 0 6px; }',
+    '#pb-help .props { display:grid; grid-template-columns:1fr 1fr; gap:10px; margin:14px 0 4px; }',
+    '@media(max-width:720px){ #pb-help .props { grid-template-columns:1fr; } }',
+    '#pb-help .props div { background:#f8fafc; border:1px solid var(--hair); border-radius:8px;',
+    '  padding:10px 13px; font-size:12px; line-height:1.6; }',
+    '#pb-help .props b { display:block; color:#1d4ed8; font-size:12.5px; margin-bottom:2px; }',
+    '#pb-help h3.warnhead { color:#b45309; }'
   ].join('\n');
 
   var onResize = null;                  // the one live window-resize handler
@@ -3950,23 +3957,110 @@
     return note ? h + '<p class="xlsnote">' + note + '</p>' : h;
   }
 
+  var GUIDE_SVG_TIERS =
+    '<figure><svg class="gsvg" viewBox="0 0 520 250" role="img">' +
+    '<g font-size="11" font-weight="700" fill="#1d4ed8">' +
+    '<text x="14" y="40">PART</text><text x="14" y="120">MODULE</text>' +
+    '<text x="14" y="208">ASSEMBLY</text></g>' +
+    '<g stroke="#e2e8f0" stroke-width="1"><path d="M14 62 H506 M14 150 H506"/></g>' +
+    // --- part tier
+    '<g fill="#dbeafe" stroke="#2563eb" stroke-width="1.2">' +
+    '<rect x="96" y="18" width="66" height="28" rx="5"/>' +
+    '<rect x="188" y="18" width="66" height="28" rx="5" fill="#fff" stroke-dasharray="4 3"/>' +
+    '<rect x="308" y="18" width="66" height="28" rx="5"/>' +
+    '<rect x="392" y="18" width="66" height="28" rx="5"/></g>' +
+    '<g font-size="11" font-weight="600" fill="#1d4ed8" text-anchor="middle">' +
+    '<text x="129" y="37">PLATE</text><text x="221" y="37">HOLE</text>' +
+    '<text x="341" y="37">SECT</text><text x="425" y="37">BAR</text></g>' +
+    '<g stroke="#94a3b8" stroke-width="1.2" fill="none" marker-end="url(#tarr)">' +
+    '<path d="M186 32 H168"/></g>' +
+    '<text x="177" y="14" font-size="9.5" fill="#94a3b8" text-anchor="middle">cut</text>' +
+    '<defs><marker id="tarr" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="6" markerHeight="6"' +
+    ' orient="auto"><path d="M0 1 L7 4 L0 7 Z" fill="#94a3b8"/></marker></defs>' +
+    // --- module tier
+    '<g fill="none" stroke="#2563eb" stroke-width="1.4" stroke-dasharray="5 3">' +
+    '<rect x="96" y="76" width="150" height="58" rx="7"/></g>' +
+    '<g fill="#93c5fd" stroke="#2563eb" stroke-width="1">' +
+    '<rect x="112" y="90" width="42" height="10"/><rect x="112" y="106" width="10" height="20"/>' +
+    '<rect x="168" y="90" width="10" height="36"/><rect x="196" y="92" width="34" height="8"/>' +
+    '<rect x="208" y="100" width="10" height="26"/></g>' +
+    '<text x="171" y="150" font-size="10" fill="#94a3b8" text-anchor="middle">md.tower</text>' +
+    '<text x="270" y="100" font-size="11" fill="#64748b">parts placed together,</text>' +
+    '<text x="270" y="116" font-size="11" fill="#64748b">on the module&#8217;s own origin</text>' +
+    // --- assembly tier
+    '<g fill="none" stroke="#93c5fd" stroke-width="1.2" stroke-dasharray="4 3">' +
+    '<rect x="96" y="166" width="74" height="42" rx="6"/>' +
+    '<rect x="182" y="166" width="74" height="42" rx="6"/>' +
+    '<rect x="268" y="166" width="74" height="42" rx="6"/></g>' +
+    '<g fill="#93c5fd" stroke="#2563eb" stroke-width="0.9">' +
+    '<rect x="108" y="176" width="30" height="7"/><rect x="108" y="188" width="7" height="14"/>' +
+    '<rect x="194" y="176" width="30" height="7"/><rect x="194" y="188" width="7" height="14"/>' +
+    '<rect x="280" y="176" width="30" height="7"/><rect x="280" y="188" width="7" height="14"/></g>' +
+    '<g stroke="#cbd5e1" stroke-width="1"><path d="M96 222 H342"/></g>' +
+    '<text x="219" y="236" font-size="10" fill="#94a3b8" text-anchor="middle">world origin</text>' +
+    '<text x="360" y="184" font-size="11" font-weight="600" fill="#1d4ed8">the main window</text>' +
+    '<text x="360" y="200" font-size="11" fill="#64748b">shows this, and only this</text>' +
+    '</svg>' +
+    '<figcaption>Three tiers. A part is a shape; a module is parts placed together; an' +
+    ' assembly is modules placed in the world.</figcaption></figure>';
+
   /* ---------------- user guide ----------------
      Draft. Kept in the engine rather than a side file so a link-only embed
      still has its manual. English only, like the rest of the interface. */
   var GUIDE = [
-    '<h2>What it builds</h2>',
-    '<p>You describe flat parts and where they go; the viewer cuts, assembles and',
-    ' weighs them, and writes STL and IFC. Nothing is drawn by hand - every line',
-    ' below is one row of a spreadsheet.</p>',
-    '<div class="flow">',
-    '  <span>PLATE<small>a real part</small></span><i>+</i>',
-    '  <span>HOLE<small>a shape to remove</small></span><i>&#8594;</i>',
-    '  <span>CUT<small>remove it</small></span><i>&#8594;</i>',
-    '  <span>MODULE<small>parts into a unit</small></span><i>&#8594;</i>',
-    '  <span>ASSY<small>units into the model</small></span>',
+    '<h2>What PLATE3D is</h2>',
+    '<p class="lede">A spreadsheet that builds a steel structure.</p>',
+    '<p>You type the parts and where they go. PLATE3D cuts them, stands them up,',
+    ' weighs them and writes <b>STL</b> and <b>IFC</b>. There is nothing to draw, nothing',
+    ' to drag into place, and no modelling licence between you and a solid you can',
+    ' hand to a fabricator or a renderer.</p>',
+    '<div class="props">',
+    '<div><b>Fast to try</b>A dozen rows is a structure you can orbit. Roughing out a',
+    ' bracket or a pier cap takes minutes, not an afternoon of picking geometry.</div>',
+    '<div><b>Built for revision</b>Change a cell, load the file again, and the whole model',
+    ' rebuilds. This is where a spreadsheet beats a drawing: a thickness or a hole pitch',
+    ' that appears in twenty places is one cell, and every copy follows it.</div>',
+    '<div><b>The file is the model</b>Your .xlsx <i>is</i> the source. Keep it, mail it,',
+    ' diff it, put it under version control. Find it again in two years and the model comes',
+    ' straight back - and the parts in it are worth lifting into the next job.</div>',
+    '<div><b>Nothing to install</b>It runs in the browser. The sheet and this page are the',
+    ' whole toolchain.</div>',
     '</div>',
-    '<p><b>BAR</b> (round bar) and <b>SECT</b> (rolled section) are members too -',
-    ' they skip CUT and go straight into a MODULE or an ASSY.</p>',
+
+    '<h2>Part, module, assembly</h2>',
+    '<p>Everything is built in three tiers, the way a shop actually works: cut the parts,',
+    ' weld them into units, then set the units out on site.</p>',
+    GUIDE_SVG_TIERS,
+    '<table class="gt"><thead><tr><th>tier</th><th>what it is</th><th>keywords</th></tr></thead><tbody>',
+    '<tr><td><b>PART</b></td><td>one piece of steel, defined once and used as often as you',
+    ' like. A <b>PLATE</b> is a flat outline; a <b>SECT</b> is a rolled H, C or L; a',
+    ' <b>BAR</b> is a round bar. A <b>HOLE</b> is not a part at all - it is a shape you',
+    ' subtract from a plate with <b>CUT</b>, which is how holes, notches and slots are made.</td>',
+    '<td><code>PLATE</code> <code>HOLE</code> <code>CUT</code> <code>SECT</code> <code>BAR</code></td></tr>',
+    '<tr><td><b>MODULE</b></td><td>parts placed relative to each other - a column, a bracket,',
+    ' a diaphragm. Plates, sections and bars all go in the same way. The module carries its',
+    ' own origin (its <b>BASE</b>) so it can be set down anywhere later.</td>',
+    '<td><code>MODULE</code></td></tr>',
+    '<tr><td><b>ASSEMBLY</b></td><td>modules placed in the world, and assemblies of',
+    ' assemblies. This is where mirroring, arraying and rotating happen, so one module can',
+    ' become forty without another row of geometry.</td><td><code>ASSY</code></td></tr>',
+    '</tbody></table>',
+    '<p>The point of the middle tier is leverage. Define a column once; place it eight times.',
+    ' Change its plate thickness and all eight change with it.</p>',
+
+    '<h3 class="warnhead">Nothing appears until you assemble it</h3>',
+    '<p class="warn">A part or a module that no <b>ASSY</b> row places is defined but not',
+    ' built - it will not be in the main window, the weight or the exported files. This is',
+    ' deliberate: the library and the structure are separate things.</p>',
+    '<table class="gt"><thead><tr><th>you wrote</th><th>where you see it</th></tr></thead><tbody>',
+    '<tr><td><code>PLATE</code>, <code>SECT</code></td><td>the list on the left. <b>Click the',
+    ' id</b> for a 2D drawing of that part - it never appears in the main window on its own</td></tr>',
+    '<tr><td><code>BAR</code></td><td>the list only. Four numbers say everything a drawing would</td></tr>',
+    '<tr><td><code>MODULE</code></td><td>the list. <b>Click the id</b> for a 3D preview of that',
+    ' module by itself</td></tr>',
+    '<tr><td><code>ASSY</code></td><td><b>the main window.</b> Only assembled members are drawn,',
+    ' weighed and exported</td></tr>',
+    '</tbody></table>',
 
     '<h2>The sheet</h2>',
     '<p>One sheet, read top to bottom. Column <b>A</b> holds the keyword; the columns',
