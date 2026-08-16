@@ -48,136 +48,167 @@
                  0x7cb342, 0xba68c8, 0xf06292, 0x4dd0e1, 0x9575cd, 0xe8c84a,
                  0x81c784, 0x64b5f6, 0xffb74d, 0xa1887f];
 
+  // Palette and controls follow the PSCBOX page so the viewer reads as part of
+  // the macroBIM site rather than a black box dropped into it: Inter, slate ink
+  // on white cards, #2563eb for anything primary, #cbd5e1 / #e2e8f0 for rules.
+  // The two canvases stay dark - they are the graphics area, and a dark
+  // viewport framed in a light shell is the point, not an oversight.
   var CSS = [
     '#pb-app * { margin:0; padding:0; box-sizing:border-box; }',
-    'body { background:#15181c; overflow:hidden; }',
-    '#pb-app { display:flex; flex-direction:column; width:100vw; height:100vh; color:#d8dce2;',
-    "  font-family:'Segoe UI','Helvetica Neue',Arial,sans-serif; font-size:13px; }",
-    // menu bar across the top: the views, the exports and every toggle. It wraps
-    // to a second row on a narrow window rather than scrolling sideways - a
-    // control the user cannot see is worse than a bar one row taller.
-    '#pb-bar { display:flex; flex-wrap:wrap; align-items:center; gap:6px; flex:0 0 auto;',
-    '  background:#1c2026; border-bottom:1px solid #2c323b; padding:8px 12px; }',
-    '#pb-bar .brand { color:#fff; font-size:14px; font-weight:600; margin-right:4px; }',
-    '#pb-bar .sub { color:#8a93a0; font-size:11px; margin-right:8px; }',
-    '#pb-bar .sep { width:1px; height:20px; background:#2c323b; margin:0 4px; flex:0 0 auto; }',
-    '#pb-body { display:flex; flex:1 1 auto; min-height:0; }',
-    '#pb-side { width:380px; min-width:380px; height:100%; overflow-y:auto; background:#1c2026;',
-    '  border-right:1px solid #2c323b; padding:14px; }',
-    // the 3D pane is held at 16:9 and centred in whatever room is left
-    '#pb-viewwrap { flex:1 1 auto; min-width:0; height:100%; display:flex;',
-    '  align-items:center; justify-content:center; padding:10px; }',
+    'body { background:#f8fafc; overflow:hidden; }',
+    '#pb-app { --dim:#2563eb; --line:#cbd5e1; --hair:#e2e8f0; --ink:#182430;',
+    '  display:flex; flex-direction:column; width:100vw; height:100vh; color:var(--ink);',
+    '  background:#f8fafc; font-size:13px;',
+    "  font-family:'Inter',system-ui,-apple-system,'Segoe UI',Roboto,sans-serif; }",
+
+    /* ---- menu bar: the views, the exports and every toggle. Wraps to a second
+       row on a narrow window - a control the user cannot see is worse than a
+       bar one row taller. ---- */
+    '#pb-bar { display:flex; flex-wrap:wrap; align-items:center; gap:8px; flex:0 0 auto;',
+    '  background:#fff; border:1px solid var(--hair); border-radius:10px;',
+    '  padding:8px 12px; margin:12px 12px 0; }',
+    '#pb-bar .sep { width:1px; height:20px; background:var(--hair); margin:0 2px; flex:0 0 auto; }',
+    '#pb-bar button { font:inherit; font-size:10.5px; font-weight:700; letter-spacing:.06em;',
+    '  text-transform:uppercase; color:#334155; background:#fff; border:1px solid var(--line);',
+    '  border-radius:6px; padding:5px 12px; cursor:pointer; flex:0 0 auto;',
+    '  transition:background .12s,border-color .12s,box-shadow .12s,transform .06s; }',
+    '#pb-bar button:hover { background:#f1f5f9; box-shadow:0 2px 6px rgba(15,23,42,.12); }',
+    '#pb-bar button:active { transform:translateY(1px) scale(.97); box-shadow:none; }',
+    '#pb-bar button.accent { background:var(--dim); border-color:var(--dim); color:#fff; }',
+    '#pb-bar button.accent:hover { background:#1d4ed8; border-color:#1d4ed8;',
+    '  box-shadow:0 2px 8px rgba(37,99,235,.35); }',
+    // the view buttons behave as a radio set: the one you are looking through fills in
+    '#pb-bar button.vw.active { background:var(--dim); border-color:var(--dim); color:#fff; }',
+    '#pb-bar button.vw.active:hover { background:#1d4ed8; border-color:#1d4ed8; }',
+    '#pb-bar .chk { display:inline-flex; align-items:center; gap:5px; font-size:12px;',
+    '  color:#475569; cursor:pointer; padding:5px 9px; border:1px solid var(--line);',
+    '  border-radius:6px; background:#fff; flex:0 0 auto; transition:background .12s; }',
+    '#pb-bar .chk:hover { background:#f1f5f9; }',
+    '#pb-bar input[type=checkbox] { accent-color:var(--dim); cursor:pointer; margin:0; }',
+
+    /* ---- body: list panel + 16:9 graphics pane ---- */
+    '#pb-body { display:flex; flex:1 1 auto; min-height:0; gap:12px; padding:12px; }',
+    '#pb-side { width:380px; min-width:380px; overflow-y:auto; background:#fff;',
+    '  border:1px solid var(--line); border-radius:10px; padding:12px 14px; }',
+    '#pb-side::-webkit-scrollbar { width:6px; }',
+    '#pb-side::-webkit-scrollbar-thumb { background:#cbd5e1; border-radius:4px; }',
+    '#pb-viewwrap { flex:1 1 auto; min-width:0; display:flex;',
+    '  align-items:center; justify-content:center; }',
     // outline, not border: it draws the frame without eating into the box, so
     // the canvas fills the 16:9 pane exactly instead of losing a pixel each side
     '#pb-view { flex:0 0 auto; position:relative; background:#15181c;',
-    '  outline:1px solid #2c323b; border-radius:4px; overflow:hidden; }',
+    '  outline:1px solid var(--line); border-radius:10px; overflow:hidden; }',
     '#pb-view canvas { display:block; }',
-    '#pb-bar button { background:#2a3038; color:#d8dce2; border:1px solid #3a424d;',
-    '  border-radius:4px; padding:5px 10px; cursor:pointer; font-size:12px; flex:0 0 auto; }',
-    '#pb-bar button:hover { background:#39424d; }',
-    '#pb-bar button.accent { background:#2b5c8a; border-color:#3a76ad; color:#fff; }',
-    '#pb-bar .chk { display:inline-flex; align-items:center; gap:4px; font-size:12px;',
-    '  color:#8a93a0; cursor:pointer; padding:5px 7px; border:1px solid #3a424d;',
-    '  border-radius:4px; flex:0 0 auto; }',
-    '#pb-bar .chk:hover { color:#d8dce2; }',
-    '#pb-bar input[type=checkbox] { accent-color:#3a76ad; cursor:pointer; margin:0; }',
+    '#pb-hud { position:absolute; left:12px; bottom:10px; color:#64748b; font-size:11px;',
+    '  pointer-events:none; }',
+    '#pb-meas-out { position:absolute; left:12px; top:10px; font-size:12px; color:#334155;',
+    '  background:rgba(255,255,255,.92); border:1px solid var(--line); border-radius:6px;',
+    '  padding:5px 10px; pointer-events:none; display:none; }',
+
+    /* ---- list panel ---- */
     '#pb-side table { width:100%; border-collapse:collapse; margin-bottom:10px; }',
-    '#pb-side td { padding:4px 2px; border-bottom:1px solid #23272e;',
-    '  vertical-align:middle; color:#d8dce2; }',
-    // section title (PLATES / MODULES / ASSEMBLY) - always visible
-    '#pb-side tr.ghead td { color:#f0c674; font-size:11px; font-weight:600;',
-    '  letter-spacing:.4px; padding-top:12px; border-bottom:1px solid #3a424d; }',
+    '#pb-side td { padding:5px 4px; border-bottom:1px solid #f1f5f9;',
+    '  vertical-align:middle; color:#334155; }',
+    // section title (PLATES / MODULES / ASSEMBLY), styled like a PSCBOX card title
+    '#pb-side tr.ghead td { color:#0f172a; font-size:12px; font-weight:600;',
+    '  padding:14px 0 6px; border-bottom:1px solid var(--hair); }',
+    '#pb-side tr.ghead td::before { content:""; display:inline-block; width:4px; height:12px;',
+    '  border-radius:2px; background:var(--dim); margin-right:8px; vertical-align:-1px; }',
+    '#pb-side tr.ghead:first-child td { padding-top:2px; }',
     // group header inside the assembly list
-    '#pb-side tr.gsub td { color:#cdd6e2; font-size:12px; padding-top:9px;',
-    '  border-bottom:1px solid #2c323b; }',
-    '#pb-side .gname { color:#eef1f6; font-size:13px; }',
-    '#pb-side .plname.subname { color:#aab4c2; font-size:11px; }',
-    '#pb-side .plname.nolink { cursor:default; }',
-    '#pb-side .plname.nolink:hover { color:#aab4c2; text-decoration:none; }',
-    '#pb-side tr.none td { color:#6b7480; font-size:11px; font-style:italic; }',
+    '#pb-side tr.gsub td { color:#334155; font-size:12px; padding-top:9px;',
+    '  border-bottom:1px solid var(--hair); }',
+    '#pb-side .gname { color:#0f172a; font-size:13px; font-weight:600; }',
+    '#pb-side .plname { color:#1d4ed8; cursor:pointer; }',
+    '#pb-side .plname:hover { color:#1e40af; text-decoration:underline; }',
+    '#pb-side .plname.subname { color:#475569; font-size:11px; }',
+    '#pb-side .plname.nolink { cursor:default; color:#334155; }',
+    '#pb-side .plname.nolink:hover { color:#334155; text-decoration:none; }',
+    '#pb-side tr.none td { color:#94a3b8; font-size:11px; font-style:italic; }',
     '#pb-side .chip { display:inline-block; width:11px; height:11px; border-radius:2px;',
     '  margin-right:5px; vertical-align:-1px; }',
-    '#pb-side .sw { display:inline-block; width:17px; height:17px; border:1px solid #3a424d;',
-    '  border-radius:3px; cursor:pointer; vertical-align:middle; }',
-    '#pb-side .sw:hover { border-color:#8a93a0; }',
-    '#pb-pal { display:none; position:fixed; z-index:60; grid-template-columns:repeat(4,20px);',
-    '  gap:4px; padding:7px; background:#22262d; border:1px solid #3a424d; border-radius:6px;',
-    '  box-shadow:0 6px 20px rgba(0,0,0,.5); }',
-    '#pb-pal i { width:20px; height:20px; border-radius:3px; cursor:pointer;',
-    '  border:1px solid rgba(255,255,255,.15); display:block; }',
-    '#pb-pal i:hover { outline:2px solid #6fb3e8; }',
+    '#pb-side .sw { display:inline-block; width:17px; height:17px; border:1px solid var(--line);',
+    '  border-radius:4px; cursor:pointer; vertical-align:middle; }',
+    '#pb-side .sw:hover { border-color:#94a3b8; }',
     '#pb-side input[type=range] { width:42px; height:12px; vertical-align:middle;',
-    '  margin-left:4px; accent-color:#3a76ad; cursor:pointer; }',
+    '  margin-left:4px; accent-color:var(--dim); cursor:pointer; }',
+    '#pb-side input[type=checkbox] { accent-color:var(--dim); cursor:pointer; }',
     '#pb-side td.sty { white-space:nowrap; width:70px; }',
-    '#pb-side .caret { color:#8a93a0; cursor:pointer; font-size:10px; }',
-    '#pb-side .caret:hover { color:#d8dce2; }',
-    '#pb-side .dims { color:#8a93a0; font-size:11px; }',
-    // BARS: a plain read-only table, so its rows are tighter than the click lists
-    '#pb-bars td, #pb-sects td { padding:3px 6px 3px 2px; font-size:12px; }',
-    '#pb-side tr.chead td { color:#6b7480; font-size:10px; letter-spacing:.5px;',
-    '  padding:3px 6px 3px 2px; border-bottom:1px solid #2c323b; }',
-    '#pb-side td.num { text-align:right; white-space:nowrap; color:#cdd6e2; }',
-    '#pb-side td.bid { color:#eef1f6; }',
-    '#pb-side td.mat { color:#8a93a0; font-size:11px; white-space:nowrap; }',
-    '#pb-side .chk { display:flex; align-items:center; gap:4px; font-size:12px;',
-    '  color:#8a93a0; cursor:pointer; padding:5px 6px; border:1px solid #3a424d;',
-    '  border-radius:4px; }',
-    '#pb-side .chk:hover { color:#d8dce2; }',
-    '#pb-total { color:#fff; font-size:12px; margin:6px 0 12px; }',
+    '#pb-side .caret { color:#94a3b8; cursor:pointer; font-size:10px; }',
+    '#pb-side .caret:hover { color:#334155; }',
+    '#pb-side .dims { color:#94a3b8; font-size:11px; }',
+    // BARS / SECTIONS: plain read-only tables, so their rows are tighter
+    '#pb-bars td, #pb-sects td { padding:4px 8px 4px 4px; font-size:12px; }',
+    '#pb-side tr.chead td { color:#64748b; font-size:10px; letter-spacing:.06em;',
+    '  text-transform:uppercase; background:#f1f5f9; padding:5px 8px 5px 4px;',
+    '  border-bottom:1px solid var(--hair); }',
+    '#pb-side td.num { text-align:right; white-space:nowrap; color:#334155; }',
+    '#pb-side td.bid { color:#0f172a; font-weight:600; }',
+    '#pb-side td.mat { color:#94a3b8; font-size:11px; white-space:nowrap; }',
+    '#pb-total { color:#0f172a; font-size:12px; font-weight:600; margin:6px 0 12px; }',
     '#pb-prog { display:none; margin:0 0 10px; }',
-    '#pb-prog-label { font-size:11px; color:#8a93a0; margin-bottom:4px; }',
-    '.pb-track { height:8px; background:#242a31; border-radius:4px; overflow:hidden; }',
-    '#pb-prog-bar { height:100%; width:0; background:#3a76ad; transition:width .15s; }',
-    '#pb-result { display:none; border:1px solid; border-radius:5px; padding:8px;',
-    '  font-size:11px; line-height:1.5; margin-bottom:10px; word-break:break-all; }',
-    '#pb-result.ok { border-color:#2e6b3a; background:#12281a; color:#8ec99a; }',
-    '#pb-result.warn { border-color:#8a6d1a; background:#2a2312; color:#f0c674; }',
-    '#pb-result.err { border-color:#a03a3a; background:#2a1414; color:#f09a9a; }',
+    '#pb-prog-label { font-size:11px; color:#64748b; margin-bottom:4px; }',
+    '.pb-track { height:8px; background:#e2e8f0; border-radius:4px; overflow:hidden; }',
+    '#pb-prog-bar { height:100%; width:0; background:var(--dim); transition:width .15s; }',
+    '#pb-result { display:none; border:1px solid; border-radius:8px; padding:9px 11px;',
+    '  font-size:11px; line-height:1.55; margin-bottom:10px; word-break:break-all; }',
+    '#pb-result.ok { border-color:#a7f3d0; background:#ecfdf5; color:#047857; }',
+    '#pb-result.warn { border-color:#fde68a; background:#fffbeb; color:#b45309; }',
+    '#pb-result.err { border-color:#fecaca; background:#fef2f2; color:#b91c1c; }',
     '#pb-result ul { margin:6px 0 0 16px; }',
-    '#pb-note { background:#22262d; border:1px solid #2c323b; border-radius:5px; padding:8px;',
-    '  font-size:11px; color:#9aa3b0; line-height:1.55; }',
-    '#pb-hud { position:absolute; left:10px; bottom:8px; color:#5b6472; font-size:11px;',
-    '  pointer-events:none; }',
-    '#pb-meas-out { position:absolute; left:10px; top:8px; font-size:12px; color:#8a93a0;',
-    '  background:rgba(21,24,28,.82); border:1px solid #2c323b; border-radius:4px;',
-    '  padding:5px 9px; pointer-events:none; display:none; }',
-    '#pb-side .plname { color:#eef1f6; cursor:pointer; }',
-    '#pb-side .plname:hover { color:#6fb3e8; text-decoration:underline; }',
-    '#pb-modal { position:fixed; left:0; top:0; right:0; bottom:0; background:rgba(0,0,0,.35);',
+    '#pb-note { background:#f8fafc; border:1px solid var(--hair); border-radius:8px;',
+    '  padding:9px 11px; font-size:11px; color:#64748b; line-height:1.6; }',
+
+    /* ---- colour palette popover ---- */
+    '#pb-pal { display:none; position:fixed; z-index:60; grid-template-columns:repeat(4,20px);',
+    '  gap:4px; padding:8px; background:#fff; border:1px solid var(--line); border-radius:8px;',
+    '  box-shadow:0 8px 24px rgba(15,23,42,.16); }',
+    '#pb-pal i { width:20px; height:20px; border-radius:4px; cursor:pointer;',
+    '  border:1px solid rgba(15,23,42,.12); display:block; }',
+    '#pb-pal i:hover { outline:2px solid var(--dim); }',
+
+    /* ---- preview modal ---- */
+    '#pb-modal { position:fixed; left:0; top:0; right:0; bottom:0; background:rgba(15,23,42,.35);',
     '  display:none; z-index:50; align-items:center; justify-content:center;',
     '  pointer-events:none; }',
-    '#pb-modal .box { pointer-events:auto; background:#1c2026; border:1px solid #3a424d;',
-    '  border-radius:8px; max-width:97vw; max-height:96vh; overflow:auto;',
-    '  padding:14px; box-shadow:0 8px 30px rgba(0,0,0,.5); }',
-    '#pb-modal h2 { font-size:14px; color:#fff; margin:0 0 8px; }',
-    '#pb-modal .close { float:right; cursor:pointer; color:#8a93a0; padding:0 4px; }',
-    '#pb-modal .pvchk { float:right; font-size:11px; font-weight:normal; color:#8a93a0;',
-    '  cursor:pointer; margin-right:12px; display:flex; align-items:center; gap:4px; }',
-    '#pb-modal .pvchk:hover { color:#d8dce2; }',
-    '#pb-modal .pvbtn { float:right; margin-right:8px; background:#2a3038; color:#d8dce2;',
-    '  border:1px solid #3a424d; border-radius:4px; padding:2px 9px; font-size:11px;',
-    '  cursor:pointer; }',
-    '#pb-modal .pvbtn:hover { background:#39424d; }',
-    '#pb-modal .close:hover { color:#fff; }',
-    '#pb-modal canvas { background:#15181c; border:1px solid #2c323b; border-radius:4px;',
+    '#pb-modal .box { pointer-events:auto; background:#fff; border:1px solid var(--line);',
+    '  border-radius:10px; max-width:97vw; max-height:96vh; overflow:auto;',
+    '  padding:14px; box-shadow:0 12px 40px rgba(15,23,42,.24); }',
+    '#pb-modal h2 { font-size:15px; font-weight:600; color:#0f172a; margin:0 0 10px; }',
+    '#pb-modal .close { float:right; cursor:pointer; color:#94a3b8; padding:0 4px; }',
+    '#pb-modal .close:hover { color:#0f172a; }',
+    '#pb-modal .pvchk { float:right; font-size:11px; font-weight:normal; color:#475569;',
+    '  cursor:pointer; margin-right:10px; display:flex; align-items:center; gap:5px;',
+    '  padding:3px 8px; border:1px solid var(--line); border-radius:6px; }',
+    '#pb-modal .pvchk:hover { background:#f1f5f9; }',
+    '#pb-modal .pvchk input[type=checkbox] { accent-color:var(--dim); cursor:pointer; margin:0; }',
+    '#pb-modal .pvbtn { float:right; margin-right:8px; font:inherit; font-size:10px;',
+    '  font-weight:700; letter-spacing:.06em; text-transform:uppercase; color:#334155;',
+    '  background:#fff; border:1px solid var(--line); border-radius:6px; padding:4px 10px;',
+    '  cursor:pointer; transition:background .12s,box-shadow .12s; }',
+    '#pb-modal .pvbtn:hover { background:#f1f5f9; box-shadow:0 2px 6px rgba(15,23,42,.12); }',
+    '#pb-modal canvas { background:#15181c; border:1px solid var(--line); border-radius:8px;',
     '  display:block; cursor:crosshair; }',
-    '#pb-modal .meta { color:#8a93a0; font-size:11px; margin-top:8px; }',
+    '#pb-modal .meta { color:#64748b; font-size:11px; margin-top:9px; }',
     '#pb-modal .pvbody { display:flex; gap:10px; align-items:flex-start; }',
+    '#pb-pv3d { border:1px solid var(--line); border-radius:8px; }',
     '#pb-pv-tree { display:none; width:196px; max-height:542px; overflow-y:auto;',
-    '  background:#191d23; border:1px solid #2c323b; border-radius:4px; padding:6px 4px; }',
+    '  background:#fff; border:1px solid var(--line); border-radius:8px; padding:6px 8px; }',
     '#pb-pv-tree table { width:100%; border-collapse:collapse; }',
-    '#pb-pv-tree td { padding:3px 2px; vertical-align:middle; color:#d8dce2;',
-    '  border-bottom:1px solid #22262d; }',
-    '#pb-pv-tree tr.thead td { color:#f0c674; font-size:10px; font-weight:600;',
-    '  letter-spacing:.4px; padding-bottom:5px; border-bottom:1px solid #3a424d; }',
-    '#pb-pv-tree tr.off td { opacity:.4; }',
-    '#pb-pv-tree .nm { font-size:11px; color:#eef1f6; }',
-    '#pb-pv-tree .dims { color:#8a93a0; font-size:10px; }',
+    '#pb-pv-tree td { padding:4px 2px; vertical-align:middle; color:#334155;',
+    '  border-bottom:1px solid #f1f5f9; }',
+    '#pb-pv-tree tr.thead td { color:#0f172a; font-size:10px; font-weight:700;',
+    '  letter-spacing:.06em; text-transform:uppercase; padding-bottom:6px;',
+    '  border-bottom:1px solid var(--hair); }',
+    '#pb-pv-tree tr.off td { opacity:.45; }',
+    '#pb-pv-tree .nm { font-size:11px; color:#0f172a; font-weight:600; }',
+    '#pb-pv-tree .dims { color:#94a3b8; font-size:10px; }',
     '#pb-pv-tree input[type=range] { width:38px; height:11px; vertical-align:middle;',
-    '  accent-color:#3a76ad; cursor:pointer; }',
-    '#pb-pv-tree input[type=checkbox] { margin:0 3px 0 0; vertical-align:middle; }',
-    '#pb-pv-tree .sw { display:inline-block; width:12px; height:12px; border:1px solid #3a424d;',
-    '  border-radius:2px; cursor:pointer; vertical-align:middle; margin-right:3px; }'
+    '  accent-color:var(--dim); cursor:pointer; }',
+    '#pb-pv-tree input[type=checkbox] { margin:0 3px 0 0; vertical-align:middle;',
+    '  accent-color:var(--dim); }',
+    '#pb-pv-tree .sw { display:inline-block; width:12px; height:12px; border:1px solid var(--line);',
+    '  border-radius:3px; cursor:pointer; vertical-align:middle; margin-right:3px; }'
   ].join('\n');
 
   var onResize = null;                  // the one live window-resize handler
@@ -3662,7 +3693,12 @@
     return c;
   }
 
+  var VIEWS = ['iso', 'front', 'side', 'top'];
   function setView(v) {
+    var btns = document.querySelectorAll('#pb-bar button.vw');
+    for (var i = 0; i < btns.length; i++) {      // mark the one being looked through
+      btns[i].className = 'vw' + (VIEWS[i] === v ? ' active' : '');
+    }
     var d = VDIST;                               // Z-up: front looks north, top looks down
     if (v === 'front') camera.position.set(CENTER.x, CENTER.y - d, CENTER.z);
     if (v === 'side')  camera.position.set(CENTER.x + d, CENTER.y, CENTER.z);
@@ -3707,6 +3743,9 @@
   }
 
   /* ---------------- DOM + init ---------------- */
+  // title/subtitle are no longer painted - the bar starts with Load Excel, and
+  // the page around the viewer already says what it is - but the data file may
+  // still carry them, so the signature stays put.
   function buildDOM(title, subtitle, note) {
     if (!document.getElementById('pb-style')) {
       var style = document.createElement('style');
@@ -3720,23 +3759,21 @@
     app.id = 'pb-app';
     app.innerHTML =
       '<div id="pb-bar">' +
-      '  <span class="brand"></span><span class="sub"></span>' +
-      '  <span class="sep"></span>' +
-      '  <button class="accent" onclick="plateBuilder.setView(\'iso\')">ISO</button>' +
-      '  <button onclick="plateBuilder.setView(\'front\')">Front</button>' +
-      '  <button onclick="plateBuilder.setView(\'side\')">Side</button>' +
-      '  <button onclick="plateBuilder.setView(\'top\')">Top</button>' +
-      '  <span class="sep"></span>' +
       '  <button class="accent" onclick="plateBuilder.pickExcel()">&#8682; Load Excel</button>' +
       '  <button onclick="plateBuilder.exportSTL()">Save STL</button>' +
       '  <button onclick="plateBuilder.exportIFC()">Save IFC</button>' +
       '  <input type="file" id="pb-file" accept=".xlsx,.xls" style="display:none">' +
       '  <span class="sep"></span>' +
+      '  <button class="vw active" onclick="plateBuilder.setView(\'iso\')">ISO</button>' +
+      '  <button class="vw" onclick="plateBuilder.setView(\'front\')">Front</button>' +
+      '  <button class="vw" onclick="plateBuilder.setView(\'side\')">Side</button>' +
+      '  <button class="vw" onclick="plateBuilder.setView(\'top\')">Top</button>' +
+      '  <span class="sep"></span>' +
       '  <label class="chk"><input type="checkbox" id="pb-ortho"' +
       '    onchange="plateBuilder.setOrtho(this.checked)"> ortho</label>' +
       '  <label class="chk"><input type="checkbox" id="pb-clash"' +
       '    onchange="plateBuilder.setClash(this.checked)">' +
-      '    <span style="color:#ff6b63">clash</span></label>' +
+      '    <span style="color:#dc2626">clash</span></label>' +
       '  <label class="chk"><input type="checkbox" id="pb-flat"' +
       '    onchange="plateBuilder.setFlat(this.checked)"> surface only</label>' +
       '  <label class="chk"><input type="checkbox" id="pb-shadow"' +
@@ -3745,7 +3782,7 @@
       '    onchange="plateBuilder.setAxes(this.checked)"> local axes</label>' +
       '  <label class="chk"><input type="checkbox" id="pb-faces"' +
       '    onchange="plateBuilder.setFaces(this.checked)">' +
-      '    <span style="color:#ffb45a">+</span>/<span style="color:#5aa0ff">&#8722;</span>' +
+      '    <span style="color:#c2410c">+</span>/<span style="color:#1d4ed8">&#8722;</span>' +
       '    face</label>' +
       '  <label class="chk"><input type="checkbox" id="pb-ids"' +
       '    onchange="plateBuilder.setIds(this.checked)"> id</label>' +
@@ -3783,7 +3820,7 @@
       '        onchange="plateBuilder.setIdsPv(this.checked)"> id</label>' +
       '      <label class="pvchk"><input type="checkbox" id="pb-pv-faces"' +
       '        onchange="plateBuilder.setFacesPv(this.checked)">' +
-      '        <span style="color:#ffb45a">+</span>/<span style="color:#5aa0ff">&#8722;</span>' +
+      '        <span style="color:#c2410c">+</span>/<span style="color:#1d4ed8">&#8722;</span>' +
       '        surface</label>' +
       '      <label class="pvchk"><input type="checkbox" id="pb-pv-flat"' +
       '        onchange="plateBuilder.setFlat(this.checked)"> surface only</label>' +
@@ -3791,7 +3828,7 @@
       '        onchange="plateBuilder.setOrthoPv(this.checked)"> ortho</label>' +
       '      <label class="pvchk"><input type="checkbox" id="pb-pv-clash"' +
       '        onchange="plateBuilder.setClashPv(this.checked)">' +
-      '        <span style="color:#ff6b63">clash</span></label>' +
+      '        <span style="color:#dc2626">clash</span></label>' +
       '      <span id="pb-pv-title"></span></h2>' +
       '  <div class="pvbody">' +
       '    <div id="pb-pv-tree"></div>' +
@@ -3920,8 +3957,6 @@
         c2.drawImage(pvBase, 0, 0);
       }
     });
-    app.querySelector('.brand').textContent = title;
-    app.querySelector('.sub').textContent = subtitle;
     var noteEl = document.getElementById('pb-note');
     if (note) noteEl.textContent = note; else noteEl.style.display = 'none';
   }
@@ -3941,7 +3976,7 @@
 
     var empty = data.__parsed ? !data.__parsed.assy.length : data.ASSY.length <= 1;
     buildDOM(data.title || 'PLATE3D',
-             data.subtitle || 'PLATE / CUT / ASSY data · unit: mm',
+             data.subtitle || '',
              data.note || (empty
                ? 'No data. Define PLATE/CUT/ASSY arrays as window.PLATE_DATA ' +
                  'or pass them to plateBuilder.run({...}) to display a model.'
