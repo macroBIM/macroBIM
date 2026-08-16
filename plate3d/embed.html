@@ -1,0 +1,25 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>PLATE3D</title>
+<!--
+  Embed target for the macroBIM site: the layout drops this page into an
+  iframe under the Pier menu. It lives in its own document on purpose - the
+  engine wants three.js r147 while the host page runs r0.128, and #pb-app is
+  laid out against 100vw/100vh, which inside a frame means the frame itself.
+  Empty start; the user loads a sheet with the Load Excel button.
+-->
+<style>
+  html, body { margin:0; padding:0; height:100%; background:#15181c; overflow:hidden; }
+</style>
+</head>
+<body>
+<script src="https://unpkg.com/three@0.147.0/build/three.min.js"></script>
+<script src="https://unpkg.com/three@0.147.0/examples/js/controls/OrbitControls.js"></script>
+<script src="https://unpkg.com/polybooljs@1.1.0/dist/polybool.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/exceljs/4.3.0/exceljs.min.js"></script>
+<script src="plate_builder.js"></script>
+</body>
+</html>
