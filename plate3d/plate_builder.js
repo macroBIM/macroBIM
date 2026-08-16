@@ -2757,6 +2757,30 @@
     sun.shadow.bias = -0.0004;
     sun.shadow.normalBias = Math.max(0.4, rr * 0.0012);
   }
+  /* ---- floor grid ----
+     The cell used to be a flat 50 mm in the preview, so a 6 m member drew 240
+     of them across: a moire that cost hundreds of lines and read as nothing.
+     The step now comes off the 1/2/5 ladder, sized from the model, so the cell
+     count stays near GRID_CELLS whether the part is a 200 mm bracket or a 60 m
+     truss - and because the step is a round number, every crossing reads a
+     round X/Y off the origin the centre cross sits on. */
+  var GRID_STEPS = [1, 2, 5, 10, 20, 25, 50, 100, 200, 250, 500, 1000, 2000,
+                    5000, 10000, 20000, 50000, 100000];
+  var GRID_CELLS = 32;
+  function niceStep(want) {
+    for (var i = 0; i < GRID_STEPS.length; i++) if (GRID_STEPS[i] >= want) return GRID_STEPS[i];
+    return GRID_STEPS[GRID_STEPS.length - 1];
+  }
+  function makeGrid(sc, span, c1, c2) {
+    var step = niceStep(Math.max(span, 1) / GRID_CELLS);
+    var n = Math.min(40, Math.max(6, Math.round(span / step)));
+    var g = new THREE.GridHelper(step * n, n, c1, c2);
+    g.rotation.x = Math.PI / 2;                 // GridHelper is XZ by default, lay it on XY
+    backdrop(g);                                // on z = 0, drawn behind the solids
+    sc.add(g);
+    return g;
+  }
+
   function shadowFloor(sc, z, span) {           // catches the shadow, draws nothing else
     var f = new THREE.Mesh(new THREE.PlaneGeometry(span, span),
                            new THREE.ShadowMaterial({ opacity: 0.2 }));
@@ -2953,14 +2977,11 @@
     // Floor grid, on z = 0 so its centre cross is the coordinate origin.
     var reach = bbox.isEmpty() ? 500 : Math.max(
       Math.abs(mn.x), Math.abs(mx3.x), Math.abs(mn.y), Math.abs(mx3.y), size * 0.3);
-    var gspan = Math.ceil(reach * 2 / 100) * 100;
     var floorZ = (bbox.isEmpty() ? 0 : Math.min(0, mn.z)) - Math.max(1, size * 0.02);
-    var grid = new THREE.GridHelper(gspan, Math.max(4, Math.round(gspan / 50)), 0x7d8796, 0x39414c);
-    grid.rotation.x = Math.PI / 2;               // GridHelper is XZ by default, lay it on XY
-    backdrop(grid);
-    sc.add(grid);
+    var gspan = Math.ceil(reach * 2 / 100) * 100;
+    makeGrid(sc, gspan, 0x7d8796, 0x39414c);
     fitSunShadow(sun, sc, bbox, size);
-    shadowFloor(sc, floorZ, gspan);              // shadows land under the model, not on z = 0
+    shadowFloor(sc, floorZ, gspan);              // under the model, not on z = 0
 
     // module-local origin: the point L.X/L.Y/L.Z are measured from. Just the
     // axis triad - a label here collides with the BASE one whenever the two
@@ -3720,10 +3741,7 @@
     VDIST = size * 1.5 + 200;
 
     var gspanMain = Math.ceil(size / 400) * 800;
-    var grid = new THREE.GridHelper(gspanMain, 32, 0x5e6875, 0x333b45);
-    grid.rotation.x = Math.PI / 2;               // GridHelper is XZ by default, lay it on XY
-    backdrop(grid);                              // stays on z = 0, marks the origin
-    scene.add(grid);
+    makeGrid(scene, gspanMain, 0x5e6875, 0x333b45);
     var floorZ = Math.min(-1, bbox.isEmpty() ? -1
                              : bbox.min.z - Math.max(1, size * 0.004));
     fitSunShadow(sun, scene, bbox, size);
