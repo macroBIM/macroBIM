@@ -1402,24 +1402,29 @@
       region = PolyBool.difference(region, { regions: [cu], inverted: false });
     });
 
-    // classify rings: even containment depth = outer, odd = hole
-    var rings = region.regions.filter(function (r) { return r.length >= 3; });
+    var c = classifyRings(region.regions);
+    var area = 0;
+    c.outers.forEach(function (r) { area += Math.abs(ringArea(r)); });
+    c.holes.forEach(function (hs) {
+      hs.forEach(function (r) { area -= Math.abs(ringArea(r)); });
+    });
+
+    return { outers: c.outers, holes: c.holes, feats: feats, area: area };
+  }
+  // even containment depth = outer ring, odd = hole; each hole filed under the
+  // outer that contains it
+  function classifyRings(regions) {
+    var rings = regions.filter(function (r) { return r.length >= 3; });
     var outers = [], holes = [];
     rings.forEach(function (r) {
       var depth = 0;
       rings.forEach(function (s) { if (s !== r && pointInRing(r[0], s)) depth++; });
       (depth % 2 ? holes : outers).push(r);
     });
-    var area = 0;
-    outers.forEach(function (r) { area += Math.abs(ringArea(r)); });
-    holes.forEach(function (r) { area -= Math.abs(ringArea(r)); });
-
     return { outers: outers,
              holes: outers.map(function (o) {
                return holes.filter(function (h) { return pointInRing(h[0], o); });
-             }),
-             feats: feats,
-             area: area };
+             }) };
   }
 
   /* ------- named points/edges (uncut outline, MIRROR applied) ------- */
@@ -1938,7 +1943,7 @@
     stopPreview3D();
     pvModuleId = null;
     document.getElementById('pb-pv-tree').style.display = 'none';
-    ['pb-pv-flat', 'pb-pv-ids', 'pb-pv-faces', 'pb-pv-ortho'].forEach(function (q) {
+    ['pb-pv-flat', 'pb-pv-ids', 'pb-pv-faces', 'pb-pv-ortho', 'pb-pv-clash'].forEach(function (q) {
       document.getElementById(q).parentNode.style.display = 'none';
     });
     document.getElementById('pb-pv-meas').parentNode.style.display = 'flex';
@@ -2784,6 +2789,207 @@
     return g;
   }
 
+  /* ---------------- interference ----------------
+     Steel members are meant to touch: a butt joint shares a face, a box column
+     is four plates meeting along their edges. So a clash is not "they touch",
+     it is "one bit into the other by more than CLASH_TOL".
+
+     Every member is a prism - a polygon pushed through its thickness. When two
+     prisms have parallel extrusion axes, which is most of a plate assembly, the
+     overlap is exact and cheap: intersect the outlines in the shared plane and
+     multiply by the overlap of the two thickness ranges. Skewed pairs fall back
+     to their oriented boxes, so a deeply notched plate crossing another at an
+     angle can report a clash the solids do not really have. */
+  var showClash = false, showClashPv = false;
+  var CLASH_TOL = 0.5;                          // mm of bite before it counts
+  var CLASH_COL = 0xff3b30;
+
+  function itemBox3(it) {                       // world AABB, for the broad phase
+    if (it.__cbox) return it.__cbox;
+    var b = new THREE.Box3(), h = (it.thk || 0) / 2, v = new THREE.Vector3();
+    it.rings.outers.forEach(function (r) {
+      r.forEach(function (q) {
+        b.expandByPoint(v.set(q[0], q[1], -h).applyMatrix4(it.matrix));
+        b.expandByPoint(v.set(q[0], q[1], h).applyMatrix4(it.matrix));
+      });
+    });
+    it.__cbox = b;
+    return b;
+  }
+  function ringsRegion(rings, map) {            // polybool region, outers and holes alike
+    var rs = [];
+    rings.outers.forEach(function (r, i) {
+      rs.push(map ? r.map(map) : r);
+      (rings.holes[i] || []).forEach(function (h) { rs.push(map ? h.map(map) : h); });
+    });
+    return { regions: rs, inverted: false };
+  }
+  function localBox2(rings) {
+    var b = { x0: 1e30, y0: 1e30, x1: -1e30, y1: -1e30 };
+    rings.outers.forEach(function (r) {
+      r.forEach(function (q) {
+        if (q[0] < b.x0) b.x0 = q[0]; if (q[0] > b.x1) b.x1 = q[0];
+        if (q[1] < b.y0) b.y0 = q[1]; if (q[1] > b.y1) b.y1 = q[1];
+      });
+    });
+    return b;
+  }
+
+  // Exact path. Returns geometry in a's local frame, or null when the axes are
+  // not parallel or the two do not bite deep enough into each other.
+  function prismClash(a, b) {
+    var M = new THREE.Matrix4().copy(a.matrix).invert().multiply(b.matrix);
+    var e = M.elements;
+    if (Math.abs(e[8]) > 1e-4 || Math.abs(e[9]) > 1e-4 || Math.abs(e[10]) < 0.9999) return null;
+    var ha = (a.thk || 0) / 2, hb = (b.thk || 0) / 2, cz = e[14];
+    var lo = Math.max(-ha, cz - hb), hi = Math.min(ha, cz + hb);
+    if (hi - lo <= CLASH_TOL) return null;
+    var v = new THREE.Vector3();
+    var flat = PolyBool.intersect(ringsRegion(a.rings),
+      ringsRegion(b.rings, function (q) {
+        v.set(q[0], q[1], 0).applyMatrix4(M);     // z drops out, the axes align
+        return [v.x, v.y];
+      }));
+    var c = classifyRings(flat.regions);
+    if (!c.outers.length) return null;
+    var area = 0;
+    c.outers.forEach(function (r) { area += Math.abs(ringArea(r)); });
+    if (area <= CLASH_TOL * CLASH_TOL) return null;
+    var geos = [];
+    c.outers.forEach(function (ring, i) {
+      var sh = new THREE.Shape(ring.map(function (q) { return new THREE.Vector2(q[0], q[1]); }));
+      (c.holes[i] || []).forEach(function (h) {
+        sh.holes.push(new THREE.Path(h.map(function (q) { return new THREE.Vector2(q[0], q[1]); })));
+      });
+      var g = new THREE.ExtrudeGeometry(sh, { depth: hi - lo, bevelEnabled: false });
+      g.translate(0, 0, lo);
+      geos.push(g);
+    });
+    return geos;
+  }
+
+  /* ---- oriented boxes, for the pairs the exact path cannot take ---- */
+  function obbOf(it) {
+    if (it.__obb) return it.__obb;
+    var bb = localBox2(it.rings), m = it.matrix.elements;
+    var u = [new THREE.Vector3(m[0], m[1], m[2]).normalize(),
+             new THREE.Vector3(m[4], m[5], m[6]).normalize(),
+             new THREE.Vector3(m[8], m[9], m[10]).normalize()];
+    it.__obb = { c: new THREE.Vector3((bb.x0 + bb.x1) / 2, (bb.y0 + bb.y1) / 2, 0)
+                        .applyMatrix4(it.matrix),
+                 u: u,
+                 e: [(bb.x1 - bb.x0) / 2, (bb.y1 - bb.y0) / 2, (it.thk || 0) / 2] };
+    return it.__obb;
+  }
+  // smallest overlap over the 15 separating axes; <= 0 means they are apart
+  function obbBite(A, B) {
+    var axes = [], i, j;
+    for (i = 0; i < 3; i++) axes.push(A.u[i], B.u[i]);
+    for (i = 0; i < 3; i++) for (j = 0; j < 3; j++) {
+      var x = new THREE.Vector3().crossVectors(A.u[i], B.u[j]);
+      if (x.lengthSq() > 1e-8) axes.push(x.normalize());
+    }
+    var d = new THREE.Vector3().subVectors(B.c, A.c), best = Infinity;
+    for (i = 0; i < axes.length; i++) {
+      var n = axes[i], ra = 0, rb = 0;
+      for (j = 0; j < 3; j++) {
+        ra += A.e[j] * Math.abs(A.u[j].dot(n));
+        rb += B.e[j] * Math.abs(B.u[j].dot(n));
+      }
+      var gap = ra + rb - Math.abs(d.dot(n));
+      if (gap <= 0) return 0;
+      if (gap < best) best = gap;
+    }
+    return best;
+  }
+  function obbFaces(O) {                        // six world-space quads
+    var out = [];
+    [0, 1, 2].forEach(function (i) {
+      var j = (i + 1) % 3, k = (i + 2) % 3;
+      [1, -1].forEach(function (s) {
+        var mid = O.c.clone().addScaledVector(O.u[i], s * O.e[i]);
+        out.push([[-1, -1], [1, -1], [1, 1], [-1, 1]].map(function (t) {
+          return mid.clone().addScaledVector(O.u[j], t[0] * O.e[j])
+                            .addScaledVector(O.u[k], t[1] * O.e[k]);
+        }));
+      });
+    });
+    return out;
+  }
+  function clipPoly(poly, pt, n) {              // keep the side the normal points away from
+    var out = [];
+    for (var i = 0; i < poly.length; i++) {
+      var p = poly[i], q = poly[(i + 1) % poly.length];
+      var dp = p.clone().sub(pt).dot(n), dq = q.clone().sub(pt).dot(n);
+      if (dp <= 0) out.push(p);
+      if ((dp < 0) !== (dq < 0)) out.push(p.clone().lerp(q, dp / (dp - dq)));
+    }
+    return out;
+  }
+  function clipToObb(poly, O) {
+    for (var i = 0; i < 3 && poly.length > 2; i++) {
+      poly = clipPoly(poly, O.c.clone().addScaledVector(O.u[i], O.e[i]), O.u[i]);
+      if (poly.length > 2)
+        poly = clipPoly(poly, O.c.clone().addScaledVector(O.u[i], -O.e[i]), O.u[i].clone().negate());
+    }
+    return poly;
+  }
+  // The boundary of two intersecting convex boxes is exactly the part of each
+  // one's faces that lies inside the other - so no hull is needed.
+  function obbClash(a, b) {
+    var A = obbOf(a), B = obbOf(b);
+    if (obbBite(A, B) <= CLASH_TOL) return null;
+    var tris = [];
+    function add(faces, other) {
+      faces.forEach(function (f) {
+        var p = clipToObb(f, other);
+        for (var i = 1; i + 1 < p.length; i++) tris.push(p[0], p[i], p[i + 1]);
+      });
+    }
+    add(obbFaces(A), B);
+    add(obbFaces(B), A);
+    if (tris.length < 3) return null;
+    var pos = [];
+    tris.forEach(function (p) { pos.push(p.x, p.y, p.z); });
+    var g = new THREE.BufferGeometry();
+    g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+    g.computeVertexNormals();
+    return [g];                                  // already world space
+  }
+
+  // Red solids marking where members share volume. Drawn without depth testing
+  // so a clash buried inside a member still shows.
+  function buildClash(sc, list) {
+    var mat = new THREE.MeshBasicMaterial({ color: CLASH_COL, transparent: true,
+      opacity: 0.72, depthTest: false, depthWrite: false, side: THREE.DoubleSide });
+    var grp = new THREE.Group();
+    grp.renderOrder = 3;
+    var n = 0;
+    for (var i = 0; i < list.length; i++) {
+      for (var j = i + 1; j < list.length; j++) {
+        var a = list[i], b = list[j];
+        if (!itemBox3(a).intersectsBox(itemBox3(b))) continue;
+        var geos, world = false;
+        try {
+          geos = prismClash(a, b);
+          if (!geos) { geos = obbClash(a, b); world = true; }
+        } catch (err) { geos = null; }
+        if (!geos) continue;
+        n++;
+        geos.forEach(function (g) {
+          var mesh = new THREE.Mesh(g, mat);
+          if (!world) { mesh.matrixAutoUpdate = false; mesh.matrix.copy(a.matrix); }
+          mesh.renderOrder = 3;
+          grp.add(mesh);
+        });
+      }
+    }
+    if (!n) { grp.traverse(function (o) { if (o.geometry) o.geometry.dispose(); });
+              mat.dispose(); return null; }
+    sc.add(grp);
+    return grp;
+  }
+
   function shadowFloor(sc, z, span) {           // catches the shadow, draws nothing else
     var f = new THREE.Mesh(new THREE.PlaneGeometry(span, span),
                            new THREE.ShadowMaterial({ opacity: 0.2 }));
@@ -2840,7 +3046,7 @@
     stopPreview3D();
     pvModuleId = id;
     document.getElementById('pb-pv-flat').checked = flatMode;
-    ['pb-pv-flat', 'pb-pv-meas', 'pb-pv-ids', 'pb-pv-faces', 'pb-pv-ortho'].forEach(function (q) {
+    ['pb-pv-flat', 'pb-pv-meas', 'pb-pv-ids', 'pb-pv-faces', 'pb-pv-ortho', 'pb-pv-clash'].forEach(function (q) {
       document.getElementById(q).parentNode.style.display = 'flex';
     });
     document.getElementById('pb-pv-stl').style.display = 'block';
@@ -2883,7 +3089,7 @@
     sc.add(sun);
 
     var bbox = new THREE.Box3(), mass = 0, basePt = null, bad = [], pvSnaps = [], axRows = [],
-        idRows = [];
+        idRows = [], clashRows = [];
     pvMemberObj = {};
     part.pos.forEach(function (row) {
      try {
@@ -2910,6 +3116,8 @@
       if (mg.visible) {
         pvSnaps = pvSnaps.concat(
           snapPointsOf({ outers: g2d.outers, holes: g2d.holes }, spec.THK, m, spec));
+        clashRows.push({ rings: { outers: g2d.outers, holes: g2d.holes },
+                         thk: spec.THK, matrix: m });
       }
       var pop = resolveOpac({ plateId: row.PLATE, moduleId: id, memberKey: id + '/' + row.NO });
       var mat = new THREE.MeshPhongMaterial({
@@ -2981,6 +3189,7 @@
     var reach = bbox.isEmpty() ? 500 : Math.max(
       Math.abs(mn.x), Math.abs(mx3.x), Math.abs(mn.y), Math.abs(mx3.y), size * 0.3);
     var floorZ = (bbox.isEmpty() ? 0 : Math.min(0, mn.z)) - Math.max(1, size * 0.02);
+    if (showClashPv) buildClash(sc, clashRows);
     var gspan = Math.ceil(reach * 2 / 100) * 100;
     makeGrid(sc, gspan, 0x7d8796, 0x39414c);
     fitSunShadow(sun, sc, bbox, size);
@@ -3032,6 +3241,7 @@
     document.getElementById('pb-pv-ids').checked = showIdsPv;
     document.getElementById('pb-pv-faces').checked = showFacesPv;
     document.getElementById('pb-pv-ortho').checked = orthoPv;
+    document.getElementById('pb-pv-clash').checked = showClashPv;
     measPv.enable(measurePv);
 
     var pgz = buildGizmo();
@@ -3145,11 +3355,13 @@
     updateSceneAxes();
     updateSceneFaces();
     updateSceneIds();
+    updateSceneClash();
     syncMeasureSnaps();
   }
   function toggleItem(i, on) {
     items[i].groupObj.visible = on;
-    updateSceneAxes(); updateSceneFaces(); updateSceneIds(); syncMeasureSnaps();
+    updateSceneAxes(); updateSceneFaces(); updateSceneIds(); updateSceneClash();
+    syncMeasureSnaps();
   }
   function toggleGroup(g, on) {
     items.forEach(function (it) { if (it.group === g) it.groupObj.visible = on; });
@@ -3161,6 +3373,7 @@
     updateSceneAxes();
     updateSceneFaces();
     updateSceneIds();
+    updateSceneClash();
     syncMeasureSnaps();
   }
   function syncMeasureSnaps() {
@@ -3502,6 +3715,9 @@
       '    <input type="file" id="pb-file" accept=".xlsx,.xls" style="display:none">' +
       '    <label class="chk"><input type="checkbox" id="pb-ortho"' +
       '      onchange="plateBuilder.setOrtho(this.checked)"> ortho</label>' +
+      '    <label class="chk"><input type="checkbox" id="pb-clash"' +
+      '      onchange="plateBuilder.setClash(this.checked)">' +
+      '      <span style="color:#ff6b63">clash</span></label>' +
       '    <label class="chk"><input type="checkbox" id="pb-flat"' +
       '      onchange="plateBuilder.setFlat(this.checked)"> surface only</label>' +
       '    <label class="chk"><input type="checkbox" id="pb-shadow"' +
@@ -3549,6 +3765,9 @@
       '        onchange="plateBuilder.setFlat(this.checked)"> surface only</label>' +
       '      <label class="pvchk"><input type="checkbox" id="pb-pv-ortho"' +
       '        onchange="plateBuilder.setOrthoPv(this.checked)"> ortho</label>' +
+      '      <label class="pvchk"><input type="checkbox" id="pb-pv-clash"' +
+      '        onchange="plateBuilder.setClashPv(this.checked)">' +
+      '        <span style="color:#ff6b63">clash</span></label>' +
       '      <span id="pb-pv-title"></span></h2>' +
       '  <div class="pvbody">' +
       '    <div id="pb-pv-tree"></div>' +
@@ -3766,10 +3985,12 @@
     try { buildModuleList(); } catch (e) { console.error('[plateBuilder] module list: ' + e.message); }
     if (flatMode) document.getElementById('pb-flat').checked = true;
     document.getElementById('pb-ortho').checked = orthoView;
+    document.getElementById('pb-clash').checked = showClash;
     document.getElementById('pb-shadow').checked = showShadow;
     if (showAxes) { document.getElementById('pb-axes').checked = true; updateSceneAxes(); }
     if (showFaces) { document.getElementById('pb-faces').checked = true; updateSceneFaces(); }
     if (showIds) { document.getElementById('pb-ids').checked = true; updateSceneIds(); }
+    if (showClash) updateSceneClash();
 
     // Excel loading: file picker + drag & drop anywhere on the app
     var fileInput = document.getElementById('pb-file');
@@ -3885,6 +4106,25 @@
     pvMeas = [];
     drawPreview();
     pvReport(null);
+  }
+
+  var sceneClash = null;
+  function updateSceneClash() {
+    if (sceneClash) { disposeScene(sceneClash); scene.remove(sceneClash); sceneClash = null; }
+    if (!showClash) return;
+    sceneClash = buildClash(scene, items.filter(function (it) { return it.groupObj.visible; }));
+  }
+  function setClash(on) {
+    showClash = !!on;
+    var cb = document.getElementById('pb-clash');
+    if (cb) cb.checked = showClash;
+    updateSceneClash();
+  }
+  function setClashPv(on) {
+    showClashPv = !!on;
+    var cb = document.getElementById('pb-pv-clash');
+    if (cb) cb.checked = showClashPv;
+    refreshPreview();
   }
 
   function setFaces(on) {
@@ -4027,6 +4267,7 @@
     exportModuleSTL: exportModuleSTL, exportModuleIFC: exportModuleIFC,
     setAxes: setAxes, setFaces: setFaces, setShadow: setShadow,
     setOrtho: setOrtho, setOrthoPv: setOrthoPv,
+    setClash: setClash, setClashPv: setClashPv,
     toggleMemberAxis: toggleMemberAxis
   };
 
