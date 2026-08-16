@@ -51,19 +51,36 @@
   var CSS = [
     '#pb-app * { margin:0; padding:0; box-sizing:border-box; }',
     'body { background:#15181c; overflow:hidden; }',
-    '#pb-app { display:flex; width:100vw; height:100vh; color:#d8dce2;',
+    '#pb-app { display:flex; flex-direction:column; width:100vw; height:100vh; color:#d8dce2;',
     "  font-family:'Segoe UI','Helvetica Neue',Arial,sans-serif; font-size:13px; }",
-    '#pb-side { width:300px; min-width:300px; height:100%; overflow-y:auto; background:#1c2026;',
+    // menu bar across the top: the views, the exports and every toggle. It wraps
+    // to a second row on a narrow window rather than scrolling sideways - a
+    // control the user cannot see is worse than a bar one row taller.
+    '#pb-bar { display:flex; flex-wrap:wrap; align-items:center; gap:6px; flex:0 0 auto;',
+    '  background:#1c2026; border-bottom:1px solid #2c323b; padding:8px 12px; }',
+    '#pb-bar .brand { color:#fff; font-size:14px; font-weight:600; margin-right:4px; }',
+    '#pb-bar .sub { color:#8a93a0; font-size:11px; margin-right:8px; }',
+    '#pb-bar .sep { width:1px; height:20px; background:#2c323b; margin:0 4px; flex:0 0 auto; }',
+    '#pb-body { display:flex; flex:1 1 auto; min-height:0; }',
+    '#pb-side { width:380px; min-width:380px; height:100%; overflow-y:auto; background:#1c2026;',
     '  border-right:1px solid #2c323b; padding:14px; }',
-    '#pb-view { flex:1; height:100%; position:relative; }',
+    // the 3D pane is held at 16:9 and centred in whatever room is left
+    '#pb-viewwrap { flex:1 1 auto; min-width:0; height:100%; display:flex;',
+    '  align-items:center; justify-content:center; padding:10px; }',
+    // outline, not border: it draws the frame without eating into the box, so
+    // the canvas fills the 16:9 pane exactly instead of losing a pixel each side
+    '#pb-view { flex:0 0 auto; position:relative; background:#15181c;',
+    '  outline:1px solid #2c323b; border-radius:4px; overflow:hidden; }',
     '#pb-view canvas { display:block; }',
-    '#pb-side h1 { font-size:15px; color:#fff; margin-bottom:2px; }',
-    '#pb-side .sub { color:#8a93a0; font-size:11px; margin-bottom:12px; }',
-    '#pb-side .btnrow { display:flex; gap:5px; flex-wrap:wrap; margin-bottom:12px; }',
-    '#pb-side button { background:#2a3038; color:#d8dce2; border:1px solid #3a424d;',
-    '  border-radius:4px; padding:5px 10px; cursor:pointer; font-size:12px; }',
-    '#pb-side button:hover { background:#39424d; }',
-    '#pb-side button.accent { background:#2b5c8a; border-color:#3a76ad; color:#fff; }',
+    '#pb-bar button { background:#2a3038; color:#d8dce2; border:1px solid #3a424d;',
+    '  border-radius:4px; padding:5px 10px; cursor:pointer; font-size:12px; flex:0 0 auto; }',
+    '#pb-bar button:hover { background:#39424d; }',
+    '#pb-bar button.accent { background:#2b5c8a; border-color:#3a76ad; color:#fff; }',
+    '#pb-bar .chk { display:inline-flex; align-items:center; gap:4px; font-size:12px;',
+    '  color:#8a93a0; cursor:pointer; padding:5px 7px; border:1px solid #3a424d;',
+    '  border-radius:4px; flex:0 0 auto; }',
+    '#pb-bar .chk:hover { color:#d8dce2; }',
+    '#pb-bar input[type=checkbox] { accent-color:#3a76ad; cursor:pointer; margin:0; }',
     '#pb-side table { width:100%; border-collapse:collapse; margin-bottom:10px; }',
     '#pb-side td { padding:4px 2px; border-bottom:1px solid #23272e;',
     '  vertical-align:middle; color:#d8dce2; }',
@@ -3702,37 +3719,41 @@
     var app = document.createElement('div');
     app.id = 'pb-app';
     app.innerHTML =
+      '<div id="pb-bar">' +
+      '  <span class="brand"></span><span class="sub"></span>' +
+      '  <span class="sep"></span>' +
+      '  <button class="accent" onclick="plateBuilder.setView(\'iso\')">ISO</button>' +
+      '  <button onclick="plateBuilder.setView(\'front\')">Front</button>' +
+      '  <button onclick="plateBuilder.setView(\'side\')">Side</button>' +
+      '  <button onclick="plateBuilder.setView(\'top\')">Top</button>' +
+      '  <span class="sep"></span>' +
+      '  <button class="accent" onclick="plateBuilder.pickExcel()">&#8682; Load Excel</button>' +
+      '  <button onclick="plateBuilder.exportSTL()">Save STL</button>' +
+      '  <button onclick="plateBuilder.exportIFC()">Save IFC</button>' +
+      '  <input type="file" id="pb-file" accept=".xlsx,.xls" style="display:none">' +
+      '  <span class="sep"></span>' +
+      '  <label class="chk"><input type="checkbox" id="pb-ortho"' +
+      '    onchange="plateBuilder.setOrtho(this.checked)"> ortho</label>' +
+      '  <label class="chk"><input type="checkbox" id="pb-clash"' +
+      '    onchange="plateBuilder.setClash(this.checked)">' +
+      '    <span style="color:#ff6b63">clash</span></label>' +
+      '  <label class="chk"><input type="checkbox" id="pb-flat"' +
+      '    onchange="plateBuilder.setFlat(this.checked)"> surface only</label>' +
+      '  <label class="chk"><input type="checkbox" id="pb-shadow"' +
+      '    onchange="plateBuilder.setShadow(this.checked)"> shadow</label>' +
+      '  <label class="chk"><input type="checkbox" id="pb-axes"' +
+      '    onchange="plateBuilder.setAxes(this.checked)"> local axes</label>' +
+      '  <label class="chk"><input type="checkbox" id="pb-faces"' +
+      '    onchange="plateBuilder.setFaces(this.checked)">' +
+      '    <span style="color:#ffb45a">+</span>/<span style="color:#5aa0ff">&#8722;</span>' +
+      '    face</label>' +
+      '  <label class="chk"><input type="checkbox" id="pb-ids"' +
+      '    onchange="plateBuilder.setIds(this.checked)"> id</label>' +
+      '  <label class="chk"><input type="checkbox" id="pb-meas"' +
+      '    onchange="plateBuilder.setMeasure(this.checked)"> measure</label>' +
+      '</div>' +
+      '<div id="pb-body">' +
       '<div id="pb-side">' +
-      '  <h1></h1><div class="sub"></div>' +
-      '  <div class="btnrow">' +
-      '    <button class="accent" onclick="plateBuilder.setView(\'iso\')">ISO</button>' +
-      '    <button onclick="plateBuilder.setView(\'front\')">Front</button>' +
-      '    <button onclick="plateBuilder.setView(\'side\')">Side</button>' +
-      '    <button onclick="plateBuilder.setView(\'top\')">Top</button>' +
-      '    <button onclick="plateBuilder.exportSTL()">Save STL</button>' +
-      '    <button onclick="plateBuilder.exportIFC()">Save IFC</button>' +
-      '    <button class="accent" onclick="plateBuilder.pickExcel()">&#8682; Load Excel</button>' +
-      '    <input type="file" id="pb-file" accept=".xlsx,.xls" style="display:none">' +
-      '    <label class="chk"><input type="checkbox" id="pb-ortho"' +
-      '      onchange="plateBuilder.setOrtho(this.checked)"> ortho</label>' +
-      '    <label class="chk"><input type="checkbox" id="pb-clash"' +
-      '      onchange="plateBuilder.setClash(this.checked)">' +
-      '      <span style="color:#ff6b63">clash</span></label>' +
-      '    <label class="chk"><input type="checkbox" id="pb-flat"' +
-      '      onchange="plateBuilder.setFlat(this.checked)"> surface only</label>' +
-      '    <label class="chk"><input type="checkbox" id="pb-shadow"' +
-      '      onchange="plateBuilder.setShadow(this.checked)"> shadow</label>' +
-      '    <label class="chk"><input type="checkbox" id="pb-axes"' +
-      '      onchange="plateBuilder.setAxes(this.checked)"> local axes</label>' +
-      '    <label class="chk"><input type="checkbox" id="pb-faces"' +
-      '      onchange="plateBuilder.setFaces(this.checked)">' +
-      '      <span style="color:#ffb45a">+</span>/<span style="color:#5aa0ff">&#8722;</span>' +
-      '      face</label>' +
-      '    <label class="chk"><input type="checkbox" id="pb-ids"' +
-      '      onchange="plateBuilder.setIds(this.checked)"> id</label>' +
-      '    <label class="chk"><input type="checkbox" id="pb-meas"' +
-      '      onchange="plateBuilder.setMeasure(this.checked)"> measure</label>' +
-      '  </div>' +
       '  <div id="pb-prog"><div id="pb-prog-label"></div>' +
       '    <div class="pb-track"><div id="pb-prog-bar"></div></div></div>' +
       '  <div id="pb-result"></div>' +
@@ -3744,8 +3765,11 @@
       '  <div id="pb-total"></div>' +
       '  <div id="pb-note"></div>' +
       '</div>' +
-      '<div id="pb-view"><div id="pb-hud">Drag: rotate · Wheel: zoom · Right-drag: pan</div>' +
-      '  <div id="pb-meas-out">&nbsp;</div></div>' +
+      '<div id="pb-viewwrap">' +
+      '  <div id="pb-view"><div id="pb-hud">Drag: rotate · Wheel: zoom · Right-drag: pan</div>' +
+      '    <div id="pb-meas-out">&nbsp;</div></div>' +
+      '</div>' +
+      '</div>' +
       '<div id="pb-pal"></div>' +
       '<div id="pb-modal"><div class="box">' +
       '  <h2><span class="close" onclick="plateBuilder.closePreview()">&#10005;</span>' +
@@ -3896,7 +3920,7 @@
         c2.drawImage(pvBase, 0, 0);
       }
     });
-    app.querySelector('h1').textContent = title;
+    app.querySelector('.brand').textContent = title;
     app.querySelector('.sub').textContent = subtitle;
     var noteEl = document.getElementById('pb-note');
     if (note) noteEl.textContent = note; else noteEl.style.display = 'none';
@@ -4010,11 +4034,23 @@
     if (showMeasure) { document.getElementById('pb-meas').checked = true; }
     setMeasure(showMeasure);
 
+    // The view is held at 16:9 and centred in the space the menu bar and the
+    // list panel leave, so the framing is the same shape as the module preview
+    // and does not shift when the window does.
+    var wrap = document.getElementById('pb-viewwrap');
+    var wcs = getComputedStyle(wrap);             // clientWidth counts the padding in
+    var wpx = parseFloat(wcs.paddingLeft) + parseFloat(wcs.paddingRight);
+    var wpy = parseFloat(wcs.paddingTop) + parseFloat(wcs.paddingBottom);
     var fitW = 0, fitH = 0;
     function fitRenderer() {                      // no-op while the pane has no size yet
-      var cw = container.clientWidth, ch = container.clientHeight;
-      if (!cw || !ch || (cw === fitW && ch === fitH)) return;
+      var aw = wrap.clientWidth - wpx, ah = wrap.clientHeight - wpy;
+      if (!(aw > 0) || !(ah > 0)) return;
+      var cw = Math.floor(Math.min(aw, ah * 16 / 9));
+      var ch = Math.floor(cw * 9 / 16);
+      if (cw < 2 || ch < 2 || (cw === fitW && ch === fitH)) return;
       fitW = cw; fitH = ch;
+      container.style.width = cw + 'px';
+      container.style.height = ch + 'px';
       mainAspect = cw / ch;
       applyMainCam();
       renderer.setSize(cw, ch);
