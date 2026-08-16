@@ -124,6 +124,17 @@
     '#pb-side tr.gsub td { color:#334155; font-size:12px; padding-top:9px;',
     '  border-bottom:1px solid var(--hair); }',
     '#pb-side .gname { color:#0f172a; font-size:13px; font-weight:600; }',
+    // the assembly a row belongs to: a stripe down the left of the whole block,
+    // plus a chip on its header. List identity only - never the 3D, where a
+    // colour means the module or the plate.
+    '#pb-side td.band { border-left:3px solid transparent; padding-left:6px; }',
+    '#pb-side tr.gsub td.band { border-left-width:3px; }',
+    '#pb-side .gchip { display:inline-block; width:9px; height:9px; border-radius:2px;',
+    '  margin-right:6px; vertical-align:1px; }',
+    '#pb-side .gcount { color:#94a3b8; font-size:11px; font-weight:400; margin-left:6px; }',
+    '#pb-side .fold { display:inline-block; width:13px; font-size:10px; color:#94a3b8;',
+    '  cursor:pointer; user-select:none; -webkit-user-select:none; }',
+    '#pb-side .fold:hover { color:#0f172a; }',
     '#pb-side .plname { color:#1d4ed8; cursor:pointer; }',
     '#pb-side .plname:hover { color:#1e40af; text-decoration:underline; }',
     '#pb-side .plname.subname { color:#475569; font-size:11px; }',
@@ -3436,6 +3447,24 @@
   // row per module placed in it (a plate placed on its own gets its own row).
   // Individual plates live in the MODULE list and its preview.
   var listRows = [], listGroups = [];   // display order, for checkbox syncing
+  // Identity colours for the assembly list. They say which rows belong to which
+  // ASSY id and nothing else - the 3D keeps using the module and plate colours,
+  // so these are deliberately darker and more saturated than the part palette
+  // and cannot be mistaken for a member swatch.
+  var ASSY_TINT = ['#2563eb', '#e11d48', '#059669', '#d97706', '#7c3aed',
+                   '#0891b2', '#be185d', '#4d7c0f', '#c2410c', '#4338ca'];
+  var folded = {};                      // ASSY id -> members collapsed. Keyed by
+                                        // name so it survives a list rebuild.
+  function toggleFold(gi) {
+    var g = listGroups[gi], tbl = document.getElementById('pb-list');
+    if (!g || !tbl) return;
+    var shut = folded[g.name] = !folded[g.name];
+    [].forEach.call(tbl.querySelectorAll('tr[data-gi="' + gi + '"]'), function (tr) {
+      tr.style.display = shut ? 'none' : '';
+    });
+    var head = tbl.querySelector('tr[data-gh="' + gi + '"] .fold');
+    if (head) head.textContent = shut ? '▸' : '▾';
+  }
   function buildList(colors) {
     var tbl = document.getElementById('pb-list');
     var total = 0;
@@ -3464,20 +3493,30 @@
     groups.forEach(function (g) {
       var gi = listGroups.length;
       listGroups.push(g);
+      var band = ASSY_TINT[gi % ASSY_TINT.length];
+      var shut = !!folded[g.name];
       var gtr = document.createElement('tr');
       gtr.className = 'gsub';
+      gtr.setAttribute('data-gh', gi);
       var gOn = g.rows.some(function (r) {
         return r.items.some(function (it) { return it.groupObj.visible; });
       });
-      gtr.innerHTML = '<td class="sty"><input type="checkbox" id="pb-gb' + gi + '"' +
+      gtr.innerHTML = '<td class="sty band" style="border-left-color:' + band + '">' +
+        '<input type="checkbox" id="pb-gb' + gi + '"' +
         (gOn ? ' checked' : '') + ' ' +
         'onchange="plateBuilder.toggleGroup(\'' + g.name + '\',this.checked)">' +
         '<input type="range" min="10" max="100" step="5" value="' +
         Math.round((ovOpac.group[g.name] !== undefined ? ovOpac.group[g.name] : 1) * 100) +
         '" title="opacity of this assembly" ' +
         'oninput="plateBuilder.setOpacity(\'group\',\'' + g.name + '\',this.value)"></td>' +
-        '<td>\u25be <span class="gname">' +
-        (g.name === '-' ? 'single plates' : esc(g.name)) + '</span></td>';
+        '<td><span class="fold" onclick="plateBuilder.toggleFold(' + gi + ')"' +
+        ' title="show or hide the members of this assembly">' +
+        (shut ? '\u25b8' : '\u25be') + '</span>' +
+        '<span class="gchip" style="background:' + band + '"></span>' +
+        '<span class="gname">' +
+        (g.name === '-' ? 'single plates' : esc(g.name)) + '</span>' +
+        '<span class="gcount">' + g.rows.length +
+        (g.rows.length > 1 ? ' members' : ' member') + '</span></td>';
       tbl.appendChild(gtr);
 
       g.rows.forEach(function (r) {
@@ -3502,8 +3541,11 @@
         var open = soleMod ? 'plateBuilder.previewModule(\'' + soleMod + '\')'
           : solePlate && !isBar ? 'plateBuilder.preview(\'' + solePlate + '\')' : '';
         var tr = document.createElement('tr');
+        tr.setAttribute('data-gi', gi);
+        if (shut) tr.style.display = 'none';
         tr.innerHTML =
-          '<td class="sty"><input type="checkbox" id="pb-ib' + ri + '"' +
+          '<td class="sty band" style="border-left-color:' + band + '">' +
+          '<input type="checkbox" id="pb-ib' + ri + '"' +
           (r.items.some(function (it) { return it.groupObj.visible; }) ? ' checked' : '') + ' ' +
           'data-grp="' + esc(r.group) + '" ' +
           'onchange="plateBuilder.toggleInst(' + ri + ',this.checked)">' +
@@ -4411,8 +4453,13 @@
     ' <code>member.point</code> (<code>pl.C2_1.tc+</code>) picks a point on one of its parts.</p>',
     '<p><code>repeat</code> counts <b>extra</b> copies, not including the original.</p>',
     '<p>In the list on the left the assembly id is the group header and each member id is a',
-    ' row under it. Ticking the header hides the whole assembly; each row still hides its own',
-    ' member, and carries the colour of the module or plate it holds.</p>',
+    ' row under it. Every assembly gets its own stripe colour down the left of its block, so',
+    ' you can see at a glance where one ends and the next begins - that stripe is a list',
+    ' label only and never reaches the 3D, where a colour still means the module or the',
+    ' plate. Click the <b>&#9662;</b> on a header to fold the assembly away and',
+    ' <b>&#9656;</b> to open it again; the header keeps its member count either way.</p>',
+    '<p>Ticking the header hides the whole assembly; each row still hides its own member, and',
+    ' carries the colour of the module or plate it holds.</p>',
 
     '<h2>Reading the screen</h2>',
     '<h3>Moving around</h3>',
@@ -5084,6 +5131,7 @@
   window.plateBuilder = {
     run: run, setView: setView, exportSTL: exportSTL, exportIFC: exportIFC,
     toggleItem: toggleItem, toggleGroup: toggleGroup, toggleInst: toggleInst,
+    toggleFold: toggleFold,
     pickExcel: pickExcel, loadExcelFile: loadExcelFile,
     preview: preview, previewModule: previewModule, closePreview: closePreview,
     setFlat: setFlat, setColor: setColor, setOpacity: setOpacity, fitPreview: pvFit,
