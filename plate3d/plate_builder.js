@@ -161,9 +161,9 @@
     '#pb-result { display:none; border:1px solid; border-radius:8px; padding:9px 11px;',
     '  font-size:11px; line-height:1.55; margin-bottom:10px; word-break:break-all; }',
     '#pb-result.ok { border-color:#a7f3d0; background:#ecfdf5; color:#047857; }',
-    '#pb-result.warn { border-color:#fde68a; background:#fffbeb; color:#b45309; }',
     '#pb-result.err { border-color:#fecaca; background:#fef2f2; color:#b91c1c; }',
     '#pb-result ul { margin:6px 0 0 16px; }',
+    '#pb-result li.n { color:#b45309; }',       /* an aside, in either panel */
     '#pb-note { background:#f8fafc; border:1px solid var(--hair); border-radius:8px;',
     '  padding:9px 11px; font-size:11px; color:#64748b; line-height:1.6; }',
 
@@ -382,7 +382,6 @@
   var pvX = null, pvPts = [], pvBase = null, pv = null;   // 2D preview state
   var pvMeas = [];                                       // 2D measure picks
   var pvRszWired = false;
-  var showShadow = false;         // one extra pass; off unless the checkbox asks for it
   var CENTER = null, VDIST = 1200;                // set from model bbox in run()
   var items = [];
   var runToken = 0;                               // distinguishes re-runs
@@ -594,7 +593,12 @@
     var palias = PLANE_ALIAS, yup = false;   // switched by a COORD row
     var counts = { plate: 0, hole: 0, bar: 0, sect: 0, cut: 0, module: 0, assy: 0 };
     var current = null, currentPart = null, counter = {};
-    function warn(m) { log.push(m); console.error('[plateBuilder] ' + m); }
+    // Two severities. warn() is a row the parser could not honour - skipped, or
+    // a name that did not resolve - so what lands on screen is not what the
+    // sheet asked for. hint() is a row that built exactly as written but reads
+    // like a slip. Only warn() turns the result panel red.
+    function warn(m) { log.push({ s: 'e', m: m }); console.error('[plateBuilder] ' + m); }
+    function hint(m) { log.push({ s: 'w', m: m }); console.warn('[plateBuilder] ' + m); }
     function resolvePlate(pid) {          // exact id, or instance suffix PL.C1_2 → PL.C1
       if (plates[pid]) return pid;
       var sfx = pid.match(/^(.+?)[_-]\d+$/);
@@ -755,7 +759,7 @@
           c.DX = num(v[3], 0); c.DY = num(v[4], 0); c.REP = num(v[5], 0);
           c.ANG = 0; c.__org = true;
           if ((c.DX || c.DY) && c.REP < 1) {
-            warn('row ' + (r + 1) + ': CUT on ' + target + ' has dx/dy but repeat is 0/empty' +
+            hint('row ' + (r + 1) + ': CUT on ' + target + ' has dx/dy but repeat is 0/empty' +
                  ' — no copy is made (repeat = how many extra copies)');
           }
           cuts.push(c);
@@ -782,7 +786,7 @@
             continue;
           }
           if ((c.DX || c.DY) && c.REP < 1) {
-            warn('row ' + (r + 1) + ': CUT on ' + target + ' has dx/dy but repeat is 0/empty' +
+            hint('row ' + (r + 1) + ': CUT on ' + target + ' has dx/dy but repeat is 0/empty' +
                  ' — no copy is made (repeat = how many extra copies)');
           }
           cuts.push(c);
@@ -803,7 +807,7 @@
           c.DX = num(v[5], 0); c.DY = num(v[6], 0); c.REP = num(v[7], 0);
         } else { warn('row ' + (r + 1) + ': unknown CUT type ' + sub); continue; }
         if ((num(c.DX, 0) || num(c.DY, 0)) && num(c.REP, 0) < 1) {
-          warn('row ' + (r + 1) + ': CUT on ' + target + ' has dx/dy but repeat is 0/empty' +
+          hint('row ' + (r + 1) + ': CUT on ' + target + ' has dx/dy but repeat is 0/empty' +
                ' — no copy is made. Check the column alignment (CIRC/PLATE rows have one ' +
                'parameter less than RECT, so dx/dy/repeat shift one column left)');
         }
@@ -916,7 +920,7 @@
               continue;
             }
             if (!rang) {
-              warn('row ' + (r + 1) + ': ASSY ROT has Angle 0 — the copies land on the original');
+              hint('row ' + (r + 1) + ': ASSY ROT has Angle 0 — the copies land on the original');
             }
             for (var ri = 1; ri <= rrep; ri++) {
               var rno = seqAssyId(aid);
@@ -937,7 +941,7 @@
               continue;
             }
             if (!num(v[w], 0) && !num(v[w + 1], 0) && !num(v[w + 2], 0)) {
-              warn('row ' + (r + 1) + ': ASSY COPY has d.X/d.Y/d.Z all 0 — the copies land on the original');
+              hint('row ' + (r + 1) + ': ASSY COPY has d.X/d.Y/d.Z all 0 — the copies land on the original');
             }
             for (var ci = 1; ci <= rep; ci++) {
               var cno = seqAssyId(aid);
@@ -997,15 +1001,15 @@
     });
     Object.keys(holes).forEach(function (id) {
       if (!cuts.some(function (c) { return c.REF === id; }))
-        warn('HOLE ' + id + ': defined but never used in a CUT row');
+        hint('HOLE ' + id + ': defined but never used in a CUT row');
     });
+    // A MODULE no ASSY row picks up is not reported: a sheet is a library as
+    // much as a model, and keeping spare modules around is normal practice.
     Object.keys(parts).forEach(function (id) {
-      if (!parts[id].pos.length) warn('MODULE ' + id + ': has no POS rows');
-      else if (!parts[id].base) warn('MODULE ' + id + ': BASE not defined — using local origin (0,0)');
+      if (!parts[id].pos.length) hint('MODULE ' + id + ': has no POS rows');
+      else if (!parts[id].base) hint('MODULE ' + id + ': BASE not defined — using local origin (0,0)');
       else if (!parts[id].pos.some(function (p) { return p.NO === parts[id].base.inst; }))
-        warn('MODULE ' + id + ': BASE instance ' + parts[id].base.inst + ' not found among POS rows — using local origin');
-      if (assy.length && !assy.some(function (a) { return a.PART === id || a.REF === id; }))
-        warn('MODULE ' + id + ': defined but never used in an ASSY row');
+        hint('MODULE ' + id + ': BASE instance ' + parts[id].base.inst + ' not found among POS rows — using local origin');
     });
     return { plates: plates, holes: holes, parts: parts, cuts: cuts, assy: assy,
              log: log, counts: counts, yup: yup };
@@ -1021,7 +1025,7 @@
     return c;
   }
 
-  var buildLog = [];                      // scene-build errors, shown in the result panel
+  var buildLog = [];                      // scene-build messages, shown in the result panel
   function esc(s) {
     return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
   }
@@ -1038,15 +1042,21 @@
     if (!el) return;
     if (fatal) {
       el.className = 'err';
-      el.innerHTML = '<b>&#9888; ' + esc(fname) + '</b><br>' + esc(fatal);
+      el.innerHTML = '<b>&#9888; Failed</b> &middot; ' + esc(fname) + '<br>' + esc(fatal);
       el.style.display = 'block';
       return;
     }
     var log = (parsed.log || []).concat(buildLog);
+    var bad = log.filter(function (e) { return e.s === 'e'; });
     var c = parsed.counts;
     var placed = items.length;
-    el.className = log.length ? 'warn' : 'ok';
-    var h = '<b>' + (log.length ? '&#9888; ' : '&#10003; ') + esc(fname) + '</b><br>' +
+    // Only a real error reddens the panel. An aside means the model on screen
+    // is what the sheet asked for, so the headline still reads Succeed and the
+    // asides ride along underneath it.
+    el.className = bad.length ? 'err' : 'ok';
+    var h = '<b>' + (bad.length ? '&#9888; ' + bad.length + (bad.length > 1 ? ' errors' : ' error')
+                                : '&#10003; Succeed') +
+            '</b> &middot; ' + esc(fname) + '<br>' +
             'plates ' + c.plate +
             (c.hole ? ' &middot; holes ' + c.hole : '') +
             (c.bar ? ' &middot; bars ' + c.bar : '') +
@@ -1055,7 +1065,10 @@
             ' &middot; modules ' + (c.module || 0) +
             ' &middot; assy ' + c.assy + ' &rarr; placed ' + placed;
     if (log.length) {
-      h += '<ul>' + log.slice(0, 10).map(function (m) { return '<li>' + esc(m) + '</li>'; }).join('') +
+      var ranked = bad.concat(log.filter(function (e) { return e.s !== 'e'; }));
+      h += '<ul>' + ranked.slice(0, 10).map(function (e) {
+             return '<li class="' + (e.s === 'e' ? 'e' : 'n') + '">' + esc(e.m) + '</li>';
+           }).join('') +
            (log.length > 10 ? '<li>... ' + (log.length - 10) + ' more (see console)</li>' : '') + '</ul>';
     }
     el.innerHTML = h;
@@ -1720,7 +1733,8 @@
     var inst = {};                       // NO → {matrix, pts, thk} for EDGE references
     var bbox = new THREE.Box3();
 
-    function buildErr(m) { buildLog.push(m); console.error('[plateBuilder] ' + m); }
+    function buildErr(m) { buildLog.push({ s: 'e', m: m }); console.error('[plateBuilder] ' + m); }
+    function buildHint(m) { buildLog.push({ s: 'w', m: m }); console.warn('[plateBuilder] ' + m); }
 
     // create geometry for one plate instance with a final world matrix
     function buildInstance(spec, matrix, no, group, remark, mirror, moduleId, memberKey, flip, assyId) {
@@ -1748,7 +1762,6 @@
         });
         var geo = plateGeom(shape, thk);
         var mesh = new THREE.Mesh(geo, mat);
-        mesh.castShadow = mesh.receiveShadow = !flatMode;
         mesh.matrixAutoUpdate = false;
         mesh.matrix.copy(world);
         mesh.userData = { shape: shape, thk: thk };
@@ -1824,7 +1837,7 @@
                      .applyMatrix4(pl.locals[i].mloc);
           }
         }
-        buildErr('part ref point ' + s + ' not found — using BASE');
+        buildHint('part ref point ' + s + ' not found — using BASE');
         return pl.base;
       }
       // plain 9-point name → part bbox (X/Y per name, Z centered)
@@ -2873,23 +2886,14 @@
     return { W: Math.round(960 * s), H: Math.round(540 * s) };
   }
 
-  // One light casts, with its shadow camera sized to the model so the map is not
-  // spent on empty space. The floor is invisible except where a shadow lands.
-  function fitSunShadow(sun, sc, bbox, size) {
+  // The key light aims at the model rather than at the world origin, so a part
+  // parked far off centre is lit from the same angle as one sitting on 0,0,0.
+  function placeSun(sun, sc, bbox, size) {
     var rr = Math.max(size, 1);
     var c = bbox.isEmpty() ? new THREE.Vector3() : bbox.getCenter(new THREE.Vector3());
-    sun.castShadow = true;
-    sun.shadow.mapSize.set(1024, 1024);
     sun.target.position.copy(c);
     sc.add(sun.target);
     sun.position.copy(c).add(new THREE.Vector3(0.45, -0.6, 0.9).multiplyScalar(rr));
-    var cam = sun.shadow.camera;
-    cam.left = -rr * 0.75; cam.right = rr * 0.75;
-    cam.top = rr * 0.75; cam.bottom = -rr * 0.75;
-    cam.near = rr * 0.02; cam.far = rr * 3;
-    cam.updateProjectionMatrix();
-    sun.shadow.bias = -0.0004;
-    sun.shadow.normalBias = Math.max(0.4, rr * 0.0012);
   }
   /* ---- floor grid ----
      The cell used to be a flat 50 mm in the preview, so a 6 m member drew 240
@@ -3119,15 +3123,6 @@
     return grp;
   }
 
-  function shadowFloor(sc, z, span) {           // catches the shadow, draws nothing else
-    var f = new THREE.Mesh(new THREE.PlaneGeometry(span, span),
-                           new THREE.ShadowMaterial({ opacity: 0.2 }));
-    f.position.set(0, 0, z);
-    f.receiveShadow = true;
-    sc.add(f);
-    return f;
-  }
-
   function pvGetRenderer(host, W, H) {
     if (pvRenderer) {
       var gl = pvRenderer.getContext();
@@ -3141,8 +3136,6 @@
         return null;
       }
       pvRenderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
-      pvRenderer.shadowMap.enabled = showShadow;
-      pvRenderer.shadowMap.type = THREE.PCFSoftShadowMap;
     }
     pvRenderer.setSize(W, H);
     if (pvRenderer.domElement.parentNode !== host) host.appendChild(pvRenderer.domElement);
@@ -3260,7 +3253,6 @@
         });
         var geo = plateGeom(shape, spec.THK);
         var mesh = new THREE.Mesh(geo, mat);
-        mesh.castShadow = mesh.receiveShadow = !flatMode && pop >= 1;
         mesh.matrixAutoUpdate = false;
         mesh.matrix.copy(m);
         mg.add(mesh);
@@ -3317,12 +3309,10 @@
     // Floor grid, on z = 0 so its centre cross is the coordinate origin.
     var reach = bbox.isEmpty() ? 500 : Math.max(
       Math.abs(mn.x), Math.abs(mx3.x), Math.abs(mn.y), Math.abs(mx3.y), size * 0.3);
-    var floorZ = (bbox.isEmpty() ? 0 : Math.min(0, mn.z)) - Math.max(1, size * 0.02);
     if (showClashPv) buildClash(sc, clashRows);
     var gspan = Math.ceil(reach * 2 / 100) * 100;
     makeGrid(sc, gspan, 0x7d8796, 0x39414c);
-    fitSunShadow(sun, sc, bbox, size);
-    shadowFloor(sc, floorZ, gspan);              // under the model, not on z = 0
+    placeSun(sun, sc, bbox, size);
 
     // module-local origin: the point L.X/L.Y/L.Z are measured from. Just the
     // axis triad - a label here collides with the BASE one whenever the two
@@ -4346,7 +4336,6 @@
     '<tr><td><b>clash</b></td><td>draws the volume two members share, in red. Faces touching',
     ' - a butt joint, a box column - are not a clash; biting in by more than 0.5&nbsp;mm is</td></tr>',
     '<tr><td><b>surface only</b></td><td>drop the thickness and draw parts as surfaces</td></tr>',
-    '<tr><td><b>shadow</b></td><td>members cast and receive shadows</td></tr>',
     '<tr><td><b>local axes</b></td><td>the local frame at each part&rsquo;s Ref.Pt, with the',
     ' + and &#8722; thickness directions labelled</td></tr>',
     '<tr><td><b>+ / &#8722; face</b></td><td>tint the two faces so you can see which way the',
@@ -4438,8 +4427,6 @@
       '    <span style="color:#dc2626">clash</span></label>' +
       '  <label class="chk"><input type="checkbox" id="pb-flat"' +
       '    onchange="plateBuilder.setFlat(this.checked)"> surface only</label>' +
-      '  <label class="chk"><input type="checkbox" id="pb-shadow"' +
-      '    onchange="plateBuilder.setShadow(this.checked)"> shadow</label>' +
       '  <label class="chk"><input type="checkbox" id="pb-axes"' +
       '    onchange="plateBuilder.setAxes(this.checked)"> local axes</label>' +
       '  <label class="chk"><input type="checkbox" id="pb-faces"' +
@@ -4665,8 +4652,6 @@
     renderer = new THREE.WebGLRenderer({ antialias: true, preserveDrawingBuffer: true });
     renderer.setSize(w, h);
     renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
-    renderer.shadowMap.enabled = showShadow;
-    renderer.shadowMap.type = THREE.PCFSoftShadowMap;
     container.appendChild(renderer.domElement);
 
     var hemi = new THREE.HemisphereLight(0xf4f6fa, 0x2a2d33, 0.95);
@@ -4692,10 +4677,7 @@
 
     var gspanMain = Math.ceil(size / 400) * 800;
     makeGrid(scene, gspanMain, 0x5e6875, 0x333b45);
-    var floorZ = Math.min(-1, bbox.isEmpty() ? -1
-                             : bbox.min.z - Math.max(1, size * 0.004));
-    fitSunShadow(sun, scene, bbox, size);
-    shadowFloor(scene, floorZ, gspanMain);
+    placeSun(sun, scene, bbox, size);
 
     var gz = buildGizmo();
     var axesScene = gz.scene, axesCamera = gz.camera;
@@ -4714,7 +4696,6 @@
     if (flatMode) document.getElementById('pb-flat').checked = true;
     document.getElementById('pb-ortho').checked = orthoView;
     document.getElementById('pb-clash').checked = showClash;
-    document.getElementById('pb-shadow').checked = showShadow;
     if (showAxes) { document.getElementById('pb-axes').checked = true; updateSceneAxes(); }
     if (showFaces) { document.getElementById('pb-faces').checked = true; updateSceneFaces(); }
     if (showIds) { document.getElementById('pb-ids').checked = true; updateSceneIds(); }
@@ -4924,18 +4905,6 @@
     });
     scene.add(sceneAxes);
   }
-  function setShadow(on) {
-    showShadow = !!on;
-    var cb = document.getElementById('pb-shadow');
-    if (cb) cb.checked = showShadow;
-    [renderer, pvRenderer].forEach(function (r) {
-      if (!r) return;
-      r.shadowMap.enabled = showShadow;
-      r.shadowMap.needsUpdate = true;
-    });
-    if (pvScene) pvScene.traverse(function (o) { if (o.material) o.material.needsUpdate = true; });
-    if (scene) scene.traverse(function (o) { if (o.material) o.material.needsUpdate = true; });
-  }
   function setAxes(on) {
     showAxes = !!on;
     var cb = document.getElementById('pb-axes');
@@ -4980,7 +4949,6 @@
         obj.geometry.dispose();
         obj.geometry = obj.isMesh ? geo : new THREE.EdgesGeometry(geo, 25);
         if (obj.isMesh) {                          // a flat sheet has no inside
-          obj.castShadow = obj.receiveShadow = !flatMode;
           obj.material.side = flatMode ? THREE.DoubleSide : THREE.FrontSide;
           obj.material.needsUpdate = true;
         }
@@ -5013,7 +4981,7 @@
     setIds: setIds, setIdsPv: setIdsPv, setFacesPv: setFacesPv,
     openPalette: openPalette, pickColor: pickColor, regenPreview: regenPreview,
     exportModuleSTL: exportModuleSTL, exportModuleIFC: exportModuleIFC,
-    setAxes: setAxes, setFaces: setFaces, setShadow: setShadow,
+    setAxes: setAxes, setFaces: setFaces,
     setOrtho: setOrtho, setOrthoPv: setOrthoPv,
     setClash: setClash, setClashPv: setClashPv,
     openGuide: openGuide, closeGuide: closeGuide,
