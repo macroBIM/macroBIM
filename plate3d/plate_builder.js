@@ -85,6 +85,10 @@
     '  color:#1d4ed8; border-color:#bfdbfe; background:#eff6ff; }',
     '#pb-bar button.guide svg { flex:0 0 auto; }',
     '#pb-bar button.guide:hover { background:#dbeafe; border-color:#93c5fd; }',
+    // Guide takes the auto margin that pushes the pair right; Example follows it
+    '#pb-bar button.guide.ex { margin-left:0; color:#047857; border-color:#a7f3d0;',
+    '  background:#ecfdf5; }',
+    '#pb-bar button.guide.ex:hover { background:#d1fae5; border-color:#6ee7b7; }',
     '#pb-bar .chk { display:inline-flex; align-items:center; gap:5px; font-size:12px;',
     '  color:#475569; cursor:pointer; padding:5px 9px; border:1px solid var(--line);',
     '  border-radius:6px; background:#fff; flex:0 0 auto; transition:background .12s; }',
@@ -129,12 +133,15 @@
     // colour means the module or the plate.
     '#pb-side td.band { border-left:3px solid transparent; padding-left:6px; }',
     '#pb-side tr.gsub td.band { border-left-width:3px; }',
-    '#pb-side .gchip { display:inline-block; width:9px; height:9px; border-radius:2px;',
-    '  margin-right:6px; vertical-align:1px; }',
     '#pb-side .gcount { color:#94a3b8; font-size:11px; font-weight:400; margin-left:6px; }',
-    '#pb-side .fold { display:inline-block; width:13px; font-size:10px; color:#94a3b8;',
-    '  cursor:pointer; user-select:none; -webkit-user-select:none; }',
-    '#pb-side .fold:hover { color:#0f172a; }',
+    // the fold control leads the assembly id and carries that assembly's colour,
+    // so it doubles as the group chip. Sized to the id next to it, not to a
+    // caret - a 6px triangle was there to be hunted for.
+    '#pb-side .fold { display:inline-block; margin-right:7px; vertical-align:-4px;',
+    '  cursor:pointer; transition:transform .13s; }',
+    '#pb-side .fold svg { display:block; }',
+    '#pb-side .fold:hover { opacity:.72; }',
+    '#pb-side .fold.shut { transform:rotate(-90deg); }',
     '#pb-side .plname { color:#1d4ed8; cursor:pointer; }',
     '#pb-side .plname:hover { color:#1e40af; text-decoration:underline; }',
     '#pb-side .plname.subname { color:#475569; font-size:11px; }',
@@ -386,6 +393,13 @@
   var MAIN_FOV = 40, mainAspect = 1.6;
   var lastPlates = {}, lastCuts = [], lastColors = {}, lastParts = {};  // for preview modals
   var shapeLib = {};        // HOLE definitions - cut shapes, never members
+  /* ---- the example workbook ----
+     It sits next to this file, so the button works from wherever the engine was
+     loaded - the macroBIM server, GitHub Pages, jsDelivr - without any of them
+     being written down here. document.currentScript is only readable while the
+     script is running, so it is taken now rather than at click time. */
+  var SAMPLE_XLSX = 'PLATE3D_SAMPLE.xlsx';
+  var engineSrc = (document.currentScript && document.currentScript.src) || '';
   var pvToken = 0, pvRenderer = null, pvModuleId = null;   // 3D preview lifecycle
   var pvCtrl = null, pvScene = null, pvHome = null;   // pvHome = the preview's opening view
   var pvCamP = null, pvCamO = null, pvCam = null;     // the preview's two cameras
@@ -2060,6 +2074,39 @@
     return tr;
   }
 
+  // Cut shapes. They are never members, so they carry no colour and no weight -
+  // what you want to know is the size and whether any CUT row actually used it.
+  function buildHoleList() {
+    var tbl = document.getElementById('pb-holes');
+    if (!tbl) return;
+    tbl.innerHTML = '';
+    var ids = Object.keys(shapeLib);
+    sectionRow(tbl, 'ghead', 'HOLES — click to preview', 3);
+    if (!ids.length) { sectionRow(tbl, 'none', 'no HOLE row', 3); return; }
+    var hr = document.createElement('tr');
+    hr.className = 'chead';
+    hr.innerHTML = '<td>ID</td><td class="num">SIZE</td><td class="num">USED</td>';
+    tbl.appendChild(hr);
+    ids.forEach(function (id) {
+      var used = lastCuts.filter(function (c) { return c.REF === id; }).length;
+      var tr = document.createElement('tr');
+      tr.innerHTML =
+        '<td class="bid"><span class="plname" onclick="plateBuilder.preview(\'' + id + '\')">' +
+        esc(id) + '</span></td>' +
+        '<td class="num">' + specSize(shapeLib[id]) + '</td>' +
+        '<td class="num">' + (used || '—') + '</td>';
+      tbl.appendChild(tr);
+    });
+  }
+
+  function specSize(spec) {
+    if (!spec) return '—';
+    if (spec.SHAPE === 'CIRC') return 'Ø' + trim(spec.D);
+    return spec.WT === spec.WB && spec.OFF_T === spec.OFF_B
+      ? trim(spec.WB) + '×' + trim(spec.H)
+      : trim(spec.WT) + '/' + trim(spec.WB) + '×' + trim(spec.H);
+  }
+
   /* -------- plate definition list + 2D preview modal -------- */
   function buildPlateList(colors) {
     var tbl = document.getElementById('pb-plates');
@@ -2075,10 +2122,7 @@
     tbl.appendChild(hr);
     ids.forEach(function (id) {
       var spec = lastPlates[id];
-      var size = spec.SHAPE === 'CIRC' ? 'Ø' + trim(spec.D)
-        : (spec.WT === spec.WB && spec.OFF_T === spec.OFF_B
-            ? trim(spec.WB) + '×' + trim(spec.H)
-            : trim(spec.WT) + '/' + trim(spec.WB) + '×' + trim(spec.H));
+      var size = specSize(spec);
       var ncut = lastCuts.filter(function (c) { return c.PLATE === id; }).length;
       var tr = document.createElement('tr');
       tr.innerHTML =
@@ -2147,7 +2191,7 @@
   }
 
   function preview(id) {
-    var spec = lastPlates[id];
+    var spec = lastPlates[id] || shapeLib[id];   // a HOLE draws like any outline
     if (!spec) return;
     var modal = document.getElementById('pb-modal');
     var cv = document.getElementById('pb-pv-canvas');
@@ -2419,19 +2463,26 @@
       }
     }
 
+    // a HOLE is an outline, not a part: no thickness, so no weight and no cuts
+    // of its own - saying "0T / 0.000 kg" would only read as a mistake
+    var isHole = !lastPlates[pv.id] && !!shapeLib[pv.id];
     var dims = spec.SHAPE === 'SECT'
       ? sectLabel(spec) + '  ·  L ' + spec.THK
       : spec.SHAPE === 'CIRC'
-      ? 'D' + spec.D + ' × THK ' + spec.THK
+      ? 'D' + spec.D + (isHole ? '' : ' × THK ' + spec.THK)
       : (spec.WT === spec.WB && spec.OFF_T === spec.OFF_B
-          ? spec.WB + ' × ' + spec.H + ' × ' + spec.THK + 'T'
-          : 'WT ' + spec.WT + ' / WB ' + spec.WB + ' × H ' + spec.H + ' × ' + spec.THK + 'T');
+          ? spec.WB + ' × ' + spec.H + (isHole ? '' : ' × ' + spec.THK + 'T')
+          : 'WT ' + spec.WT + ' / WB ' + spec.WB + ' × H ' + spec.H +
+            (isHole ? '' : ' × ' + spec.THK + 'T'));
     var ncut = lastCuts.filter(function (c) { return c.PLATE === pv.id; }).length;
-    document.getElementById('pb-pv-title').textContent = pv.id;
+    var used = lastCuts.filter(function (c) { return c.REF === pv.id; }).length;
+    document.getElementById('pb-pv-title').textContent = pv.id + (isHole ? '  (hole)' : '');
     document.getElementById('pb-pv-meta').innerHTML =
-      esc(dims) + ' &middot; cuts ' + ncut +
-      (spec.MAT ? ' &middot; ' + esc(spec.MAT) : '') +
-      ' &middot; ' + (g.area * spec.THK * RHO).toFixed(3) + ' kg' +
+      esc(dims) +
+      (isHole ? ' &middot; used by ' + used + (used === 1 ? ' cut' : ' cuts')
+              : ' &middot; cuts ' + ncut +
+                (spec.MAT ? ' &middot; ' + esc(spec.MAT) : '') +
+                ' &middot; ' + (g.area * spec.THK * RHO).toFixed(3) + ' kg') +
       ' &nbsp;&nbsp;<span style="color:#5b6472">grid ' + step + 'mm &middot; ' +
       Math.round(sc / pv.fit * 100) + '% &middot; wheel: zoom, drag: pan, dbl-click: fit</span>';
 
@@ -3455,6 +3506,13 @@
                    '#0891b2', '#be185d', '#4d7c0f', '#c2410c', '#4338ca'];
   var folded = {};                      // ASSY id -> members collapsed. Keyed by
                                         // name so it survives a list rebuild.
+  // a chevron in a ring, drawn rather than fetched - the viewer runs in its own
+  // document and one circle plus one polyline costs less than an icon font
+  var ICON_FOLD =
+    '<svg viewBox="0 0 16 16" width="15" height="15" fill="none" aria-hidden="true">' +
+    '<circle cx="8" cy="8" r="6.9" stroke="currentColor" stroke-width="1.25"/>' +
+    '<path d="M5.1 6.7 8 9.6l2.9-2.9" stroke="currentColor" stroke-width="1.75"' +
+    ' stroke-linecap="round" stroke-linejoin="round"/></svg>';
   function toggleFold(gi) {
     var g = listGroups[gi], tbl = document.getElementById('pb-list');
     if (!g || !tbl) return;
@@ -3463,7 +3521,7 @@
       tr.style.display = shut ? 'none' : '';
     });
     var head = tbl.querySelector('tr[data-gh="' + gi + '"] .fold');
-    if (head) head.textContent = shut ? '▸' : '▾';
+    if (head) head.className = 'fold' + (shut ? ' shut' : '');
   }
   function buildList(colors) {
     var tbl = document.getElementById('pb-list');
@@ -3509,10 +3567,9 @@
         Math.round((ovOpac.group[g.name] !== undefined ? ovOpac.group[g.name] : 1) * 100) +
         '" title="opacity of this assembly" ' +
         'oninput="plateBuilder.setOpacity(\'group\',\'' + g.name + '\',this.value)"></td>' +
-        '<td><span class="fold" onclick="plateBuilder.toggleFold(' + gi + ')"' +
-        ' title="show or hide the members of this assembly">' +
-        (shut ? '\u25b8' : '\u25be') + '</span>' +
-        '<span class="gchip" style="background:' + band + '"></span>' +
+        '<td><span class="fold' + (shut ? ' shut' : '') + '" style="color:' + band + '"' +
+        ' onclick="plateBuilder.toggleFold(' + gi + ')"' +
+        ' title="show or hide the members of this assembly">' + ICON_FOLD + '</span>' +
         '<span class="gname">' +
         (g.name === '-' ? 'single plates' : esc(g.name)) + '</span>' +
         '<span class="gcount">' + g.rows.length +
@@ -4124,6 +4181,13 @@
   // Bootstrap Icons "question-circle", MIT, inlined. The macroBIM pages use that
   // set, but the viewer runs in its own document where the icon font is absent -
   // and one path pair costs less than a font file either way.
+  // Bootstrap Icons "download", MIT, inlined for the same reason as the help one.
+  var ICON_DL =
+    '<svg viewBox="0 0 16 16" width="14" height="14" fill="currentColor" aria-hidden="true">' +
+    '<path d="M.5 9.9a.5.5 0 0 1 .5.5v2.5a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-2.5a.5.5 0 0 1 1 0v2.5' +
+    'a2 2 0 0 1-2 2H2a2 2 0 0 1-2-2v-2.5a.5.5 0 0 1 .5-.5z"/>' +
+    '<path d="M7.646 11.854a.5.5 0 0 0 .708 0l3-3a.5.5 0 0 0-.708-.708L8.5 10.293V1.5a.5.5 0 0 0-1 0' +
+    'v8.793L5.354 8.146a.5.5 0 1 0-.708.708l3 3z"/></svg>';
   var ICON_HELP =
     '<svg viewBox="0 0 16 16" width="14" height="14" fill="currentColor" aria-hidden="true">' +
     '<path d="M8 15A7 7 0 1 1 8 1a7 7 0 0 1 0 14zm0 1A8 8 0 1 0 8 0a8 8 0 0 0 0 16z"/>' +
@@ -4231,6 +4295,8 @@
     '</ul>',
     '<p>Load it with <b>Load Excel</b>, or drop the .xlsx anywhere on the window.',
     ' Edit the file and load it again to update.</p>',
+    '<p><b>Example</b> in the menu bar downloads a worked sheet - the tab, the END row and',
+    ' every keyword below, already filled in. Quicker to start from than a blank page.</p>',
 
     '<h2>Coordinates</h2>',
     '<p><b>Z is up.</b> X east, Y north, Z height - the same right-handed frame as IFC,',
@@ -4495,7 +4561,7 @@
     ' Snaps to the origin, the nine points, hole centres and every corner of a cut outline.',
     ' A bar snaps at its two end centres only</td></tr>',
     '</tbody></table>',
-    '<p>Click a <b>PLATE</b> or <b>SECTION</b> id for its 2D drawing - grid, named points,',
+    '<p>Click a <b>HOLE</b>, <b>PLATE</b> or <b>SECTION</b> id for its 2D drawing - grid, named points,',
     ' &#216; on holes, R on fillets, and measure. Click a <b>MODULE</b> for a 3D preview with a',
     ' per-member hide / colour / opacity panel. <b>regen</b> puts either back to the view it',
     ' opened with.</p>',
@@ -4596,12 +4662,16 @@
       '    onchange="plateBuilder.setMeasure(this.checked)"> measure</label>' +
       '  <button class="guide" onclick="plateBuilder.openGuide()"' +
       '    title="how to write the spreadsheet">' + ICON_HELP + 'Guide</button>' +
+      '  <button class="guide ex" onclick="plateBuilder.getSample()"' +
+      '    title="download ' + SAMPLE_XLSX + ' - a worked sheet to start from">' +
+      ICON_DL + 'Example</button>' +
       '</div>' +
       '<div id="pb-body">' +
       '<div id="pb-side">' +
       '  <div id="pb-prog"><div id="pb-prog-label"></div>' +
       '    <div class="pb-track"><div id="pb-prog-bar"></div></div></div>' +
       '  <div id="pb-result"></div>' +
+      '  <table id="pb-holes"></table>' +
       '  <table id="pb-plates"></table>' +
       '  <table id="pb-bars"></table>' +
       '  <table id="pb-sects"></table>' +
@@ -4845,6 +4915,7 @@
     setView('iso');
 
     // the sidebar must never be able to take the 3D view down with it
+    try { buildHoleList(); } catch (e) { console.error('[plateBuilder] hole list: ' + e.message); }
     try { buildPlateList(colors); } catch (e) { console.error('[plateBuilder] plate list: ' + e.message); }
     try { buildBarList(); } catch (e) { console.error('[plateBuilder] bar list: ' + e.message); }
     try { buildSectList(); } catch (e) { console.error('[plateBuilder] section list: ' + e.message); }
@@ -5115,6 +5186,33 @@
     refreshPreview();      // keep an open preview in sync
   }
 
+  function sampleUrl() {
+    var cut = engineSrc.lastIndexOf('/');
+    return cut > 0 ? engineSrc.slice(0, cut + 1) + SAMPLE_XLSX : SAMPLE_XLSX;
+  }
+  // Fetched into a blob rather than linked: a plain <a download> across origins
+  // has its filename ignored and can open the sheet in the browser instead of
+  // saving it. GitHub Pages, jsDelivr and same-origin all allow the fetch.
+  function getSample() {
+    var url = sampleUrl();
+    fetch(url).then(function (r) {
+      if (!r.ok) throw new Error('HTTP ' + r.status);
+      return r.blob();
+    }).then(function (b) {
+      var href = URL.createObjectURL(b);
+      var a = document.createElement('a');
+      a.href = href;
+      a.download = SAMPLE_XLSX;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      setTimeout(function () { URL.revokeObjectURL(href); }, 8000);
+    }).catch(function (e) {
+      alert('Could not download the example.\n\n' + url + '\n' + e.message +
+            '\n\nOpen that address directly to save it.');
+    });
+  }
+
   function openGuide() {
     var el = document.getElementById('pb-help');
     if (el) { el.style.display = 'flex'; el.querySelector('.doc').scrollTop = 0; }
@@ -5142,7 +5240,7 @@
     setAxes: setAxes, setFaces: setFaces,
     setOrtho: setOrtho, setOrthoPv: setOrthoPv,
     setClash: setClash, setClashPv: setClashPv,
-    openGuide: openGuide, closeGuide: closeGuide,
+    openGuide: openGuide, closeGuide: closeGuide, getSample: getSample,
     toggleMemberAxis: toggleMemberAxis
   };
 
