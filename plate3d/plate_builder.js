@@ -1117,6 +1117,34 @@
                 : spec.SECT === 'L' ? outlineL(spec) : outlineH(spec);
     return spec.__ring;
   }
+  // Where to hang an R dimension. One leader per distinct radius - an H section
+  // has four identical root fillets and four identical toes, and eight arrows
+  // saying the same number is not a drawing. Each entry is the point on the arc
+  // the arrow touches plus the direction the leader leaves in: a root fillet is
+  // concave, so its open side is towards the arc centre and the leader heads
+  // that way; a toe is convex and the leader heads out.
+  function sectFillets(spec) {
+    var o = baseOffset(spec), out = [], seen = {};
+    function add(cx, cy, r, deg, dir) {
+      if (!(r > 0) || seen[r]) return;
+      seen[r] = 1;
+      var a = deg * Math.PI / 180, cs = Math.cos(a), sn = Math.sin(a);
+      out.push({ x: cx + r * cs - o[0], y: cy + r * sn - o[1], r: r,
+                 ux: dir * cs, uy: dir * sn });
+    }
+    if (spec.SECT === 'C') {
+      add(spec.tw + spec.rw, spec.tf + spec.rw, spec.rw, 225, -1);          // web root
+      add(spec.b - spec.rf, spec.h - spec.tf + spec.rf, spec.rf, 315, 1);   // flange toe
+    } else if (spec.SECT === 'L') {
+      add(spec.t2 + spec.r1, spec.t1 + spec.r1, spec.r1, 225, -1);          // heel root
+      add(spec.a - spec.r2, spec.t1 - spec.r2, spec.r2, 45, 1);             // a-leg toe
+    } else {
+      var xw = spec.tw / 2;
+      add(-xw - spec.r1, spec.tf1 + spec.r1, spec.r1, -45, -1);             // web root
+      add(spec.bb / 2 - spec.r2, spec.tf1 - spec.r2, spec.r2, 45, 1);       // flange toe
+    }
+    return out;
+  }
   // Every value the sheet has to get right. The row is refused, not repaired -
   // a fillet that does not fit still draws a plausible profile with the wrong
   // area, which is worse than no section at all.
@@ -1963,6 +1991,7 @@
     var fit = Math.min((W - PAD * 2) / Math.max(maxx - minx, 1e-6),
                        (H - PAD * 2) / Math.max(maxy - miny, 1e-6));
     pv = { id: id, spec: spec, g: g, pts: pts, W: W, H: H,
+           rads: spec.SHAPE === 'SECT' ? sectFillets(spec) : [],
            minx: minx, miny: miny, maxx: maxx, maxy: maxy, fit: fit,
            sc: fit, ox: (W - (maxx - minx) * fit) / 2, oy: (H - (maxy - miny) * fit) / 2 };
     drawPreview();
@@ -2117,29 +2146,36 @@
       ctx.fillText(seen[k].n.join('/'), seen[k].x + 5, seen[k].y - 5);
     });
 
-    // round holes carry their diameter on a leader, arrow touching the circle
+    // \u00d8 on every round hole, R on the section fillets. Arrowhead on the curve,
+    // one elbow out along (ux,uy), then a horizontal shoulder carrying the text.
     ctx.strokeStyle = '#9fb4cc';
     ctx.fillStyle = '#9fb4cc';
     ctx.font = '11px sans-serif';
     ctx.lineWidth = 1;
-    pvPts.forEach(function (p) {
-      if (!p.dia) return;
-      var cxp = mx(p.x), cyp = my(p.y), r = p.dia / 2 * sc;
-      var ux = Math.SQRT1_2, uy = -Math.SQRT1_2;         // 45 deg, up-right on screen
-      var ax = cxp + ux * r, ay = cyp + uy * r;          // on the circle
-      var kx = cxp + ux * (r + 16), ky = cyp + uy * (r + 16);
-      var sx2 = kx + 16;                                  // horizontal shoulder
+    function leader(ax, ay, ux, uy, text) {
+      var kx = ax + ux * 16, ky = ay + uy * 16;
+      var right = ux >= 0, sx2 = kx + (right ? 16 : -16);
       ctx.beginPath();
       ctx.moveTo(ax, ay); ctx.lineTo(kx, ky); ctx.lineTo(sx2, ky);
       ctx.stroke();
-      var ah = 5, aw = 2.2;                               // arrowhead pointing at the circle
+      var ah = 5, aw = 2.2;                               // arrowhead, back at the curve
       ctx.beginPath();
       ctx.moveTo(ax, ay);
       ctx.lineTo(ax + ux * ah - uy * aw, ay + uy * ah + ux * aw);
       ctx.lineTo(ax + ux * ah + uy * aw, ay + uy * ah - ux * aw);
       ctx.closePath();
       ctx.fill();
-      ctx.fillText('\u00d8' + p.dia, sx2 + 3, ky - 3);
+      ctx.textAlign = right ? 'left' : 'right';
+      ctx.fillText(text, sx2 + (right ? 3 : -3), ky - 3);
+      ctx.textAlign = 'left';
+    }
+    pvPts.forEach(function (p) {
+      if (!p.dia) return;
+      var u = Math.SQRT1_2, r = p.dia / 2 * sc;           // 45 deg, up-right on screen
+      leader(mx(p.x) + u * r, my(p.y) - u * r, u, -u, '\u00d8' + p.dia);
+    });
+    (pv.rads || []).forEach(function (f) {                 // model +y is screen -y
+      leader(mx(f.x), my(f.y), f.ux, -f.uy, 'R' + f.r);
     });
 
     if (pvMeas.length) {                           // measurement in progress / done
