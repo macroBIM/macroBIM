@@ -575,20 +575,29 @@
     return t;
   }
 
-  function parseExcelRows(rows) {
+  // fellBack = the name of the sheet read when the workbook had no "input" tab
+  function parseExcelRows(rows, fellBack) {
     var plates = {}, holes = {}, parts = {}, cuts = [], assy = [], log = [];
     var assyIds = {};                    // ASSY ids already defined (can be referenced again)
-    // MIR / COPY / ROT mint a new id, but the result is still the same assembly
-    // moved about, so the list groups them under the one they came from.
-    var assyRoot = {};                   // assembly id -> the id it was derived from
-    function uniqueAssyId(id) {          // a repeated id gets -2, -3, ...
-      counter[id] = (counter[id] || 0) + 1;
-      return counter[id] > 1 ? id + '-' + counter[id] : id;
-    }
-    var assySeq = {};                    // ID given to COPY/ROT -> results numbered so far
-    function seqAssyId(base) {           // ID.001, ID.002, ... in the order they are made
-      assySeq[base] = (assySeq[base] || 0) + 1;
-      return uniqueAssyId(base + '.' + ('000' + assySeq[base]).slice(-3));
+    /* ---- naming inside an assembly ----
+       The ID column is taken exactly as written and never suffixed: every row
+       carrying that id builds the one assembly, so the list shows one group per
+       id. What gets a new name is the thing being put in - the source id plus
+       the command that placed it:
+           ADD  -> MD.TOWER.A       MIR  -> MD.TOWER.M
+           COPY -> MD.TOWER.C001    ROT  -> MD.TOWER.R001   (up to 999)
+       ADD and MIR place one each, so they stay unnumbered until a second row
+       of the same command on the same source forces the issue. */
+    var CMD_SFX = { ADD: 'A', MIR: 'M', COPY: 'C', ROT: 'R' };
+    var MAX_REP = 999;                   // .c001 ... .c999
+    var memSeq = {};                     // assembly + source + command -> made so far
+    function memberId(aid, ref, cmd) {
+      var sfx = CMD_SFX[cmd] || 'a';
+      var k = aid + ' ' + ref + ' ' + sfx;
+      var n = memSeq[k] = (memSeq[k] || 0) + 1;
+      var numbered = cmd === 'COPY' || cmd === 'ROT' || n > 1;
+      return ref + '.' + sfx +
+             (numbered ? (n < 1000 ? ('000' + n).slice(-3) : String(n)) : '');
     }
     var palias = PLANE_ALIAS, yup = false;   // switched by a COORD row
     var counts = { plate: 0, hole: 0, bar: 0, sect: 0, cut: 0, module: 0, assy: 0 };
@@ -605,11 +614,27 @@
       if (sfx && plates[sfx[1]]) return sfx[1];
       return null;
     }
+    /* ---- where the block sits ----
+       The keyword column does not have to be A. When the sheet has an END row,
+       the column END sits in is taken as the keyword column for the whole sheet
+       and every column left of it is left alone - headings, notes, a working
+       calculation - so the input can live beside the arithmetic that produced
+       it. A row with that column empty is skipped rather than misread. Without
+       an END row each row falls back to its own first filled cell. */
+    var kcol = -1;
+    for (var q = 0; q < rows.length && kcol < 0; q++) {
+      var qrow = rows[q] || [];
+      for (var qc = 0; qc < qrow.length; qc++) {
+        if (str(qrow[qc]) === '') continue;
+        if (str(qrow[qc]).toUpperCase() === 'END') kcol = qc;
+        break;                            // only the first filled cell counts
+      }
+    }
     for (var r = 0; r < rows.length; r++) {
       var row = rows[r] || [];
-      var k = 0;
-      while (k < row.length && str(row[k]) === '') k++;
-      if (k >= row.length) continue;
+      var k = kcol >= 0 ? kcol : 0;
+      if (kcol < 0) while (k < row.length && str(row[k]) === '') k++;
+      if (k >= row.length || str(row[k]) === '') continue;
       var kw = str(row[k]).toUpperCase();
       if (kw.charAt(0) === '#' || kw.charAt(0) === '!') continue;
       var v = row.slice(k + 1);
@@ -872,12 +897,11 @@
         var hasCmd = acmd === 'ADD' || acmd === 'MIR' || acmd === 'COPY' || acmd === 'ROT';
         if (hasCmd || !palias[str(v[1]).toUpperCase()]) {
           //  ASSY <id> <MODULE/ASSY/PLATE> ADD  G.X G.Y G.Z [ROT.X ROT.Y ROT.Z]
-          //  ASSY <id> <MODULE/ASSY/PLATE> MIR  G.X G.Y G.Z  PLANE      -> <id>
-          //  ASSY <id> <MODULE/ASSY/PLATE> COPY d.X d.Y d.Z  repeat     -> <id>001, <id>002...
+          //  ASSY <id> <MODULE/ASSY/PLATE> MIR  G.X G.Y G.Z  PLANE
+          //  ASSY <id> <MODULE/ASSY/PLATE> COPY d.X d.Y d.Z  repeat
           //  ASSY <id> <MODULE/ASSY/PLATE> ROT  C.X C.Y C.Z  AXIS angle repeat
-          //                                                             -> <id>001, <id>002...
-          //  (the ID column names the result; COPY and ROT number theirs in the
-          //   order they are generated, MIR makes only one so it takes the ID as is)
+          //  (the ID column names the assembly and is used as written on all
+          //   four; the source picks up .a / .m / .c001 / .r001 - see memberId)
           var aid = str(v[0]).toUpperCase();
           var asrc = str(v[1]).toUpperCase();
           if (!aid) { warn('row ' + (r + 1) + ': ASSY without ID'); continue; }
@@ -888,7 +912,7 @@
           }
           if (!hasCmd) acmd = 'ADD';                     // pre-command sheets
           var w = hasCmd ? 3 : 2;                        // first coordinate column
-          var arow = { __xl: true, __g: true, CMD: acmd, REF: aref,
+          var arow = { __xl: true, __g: true, CMD: acmd, REF: aref, SEQ: r,
                        GX: num(v[w], 0), GY: num(v[w + 1], 0), GZ: num(v[w + 2], 0),
                        REMARK: '', MIRROR: '' };
           if (acmd === 'MIR') {
@@ -899,11 +923,11 @@
               continue;
             }
             arow.MPLANE = mp;
-            arow.NO = uniqueAssyId(aid);
-            assyIds[arow.NO] = true;
-            arow.GROUP = assyRoot[arow.NO] = assyIds[aref] ? (assyRoot[aref] || aref) : arow.NO;
+            arow.NO = arow.GROUP = aid;
+            arow.MEMBER = memberId(aid, aref, 'MIR');
+            if (!assyIds[aid]) counts.assy++;
+            assyIds[aid] = true;
             assy.push(arow);
-            counts.assy++;
             continue;
           }
           if (acmd === 'ROT') {
@@ -922,14 +946,18 @@
             if (!rang) {
               hint('row ' + (r + 1) + ': ASSY ROT has Angle 0 — the copies land on the original');
             }
+            if (rrep > MAX_REP) {
+              warn('row ' + (r + 1) + ': ASSY ROT repeat ' + rrep + ' is past the ' + MAX_REP +
+                   ' limit — only ' + MAX_REP + ' are made');
+              rrep = MAX_REP;
+            }
             for (var ri = 1; ri <= rrep; ri++) {
-              var rno = seqAssyId(aid);
-              assyIds[rno] = true;
-              assyRoot[rno] = assyIds[aref] ? (assyRoot[aref] || aref) : rno;
-              assy.push({ __xl: true, __g: true, CMD: 'ROT', REF: aref, NO: rno, GROUP: assyRoot[rno],
+              if (!assyIds[aid]) counts.assy++;
+              assyIds[aid] = true;
+              assy.push({ __xl: true, __g: true, CMD: 'ROT', REF: aref, NO: aid, GROUP: aid,
+                          SEQ: r, MEMBER: memberId(aid, aref, 'ROT'),
                           GX: arow.GX, GY: arow.GY, GZ: arow.GZ,
                           AXIS: rax, ANG: rang * ri, REMARK: '', MIRROR: '' });
-              counts.assy++;
             }
             continue;
           }
@@ -943,25 +971,28 @@
             if (!num(v[w], 0) && !num(v[w + 1], 0) && !num(v[w + 2], 0)) {
               hint('row ' + (r + 1) + ': ASSY COPY has d.X/d.Y/d.Z all 0 — the copies land on the original');
             }
+            if (rep > MAX_REP) {
+              warn('row ' + (r + 1) + ': ASSY COPY repeat ' + rep + ' is past the ' + MAX_REP +
+                   ' limit — only ' + MAX_REP + ' are made');
+              rep = MAX_REP;
+            }
             for (var ci = 1; ci <= rep; ci++) {
-              var cno = seqAssyId(aid);
-              assyIds[cno] = true;
-              assyRoot[cno] = assyIds[aref] ? (assyRoot[aref] || aref) : cno;
-              assy.push({ __xl: true, __g: true, CMD: 'COPY', REF: aref, NO: cno, GROUP: assyRoot[cno],
+              if (!assyIds[aid]) counts.assy++;
+              assyIds[aid] = true;
+              assy.push({ __xl: true, __g: true, CMD: 'COPY', REF: aref, NO: aid, GROUP: aid,
+                          SEQ: r, MEMBER: memberId(aid, aref, 'COPY'),
                           GX: arow.GX * ci, GY: arow.GY * ci, GZ: arow.GZ * ci,
                           REMARK: '', MIRROR: '' });
-              counts.assy++;
             }
             continue;
           }
           arow.RX = num(v[w + 3], 0); arow.RY = num(v[w + 4], 0); arow.RZ = num(v[w + 5], 0);
           // ADD rows that repeat an ID build one assembly together, the way
-          // MODULE rows accumulate. The id is claimed once, so a later MIR/COPY/
-          // ROT that reuses it still gets a suffix instead of colliding.
-          if (!assyIds[aid]) { counter[aid] = (counter[aid] || 0) + 1; counts.assy++; }
-          arow.NO = aid;
+          // MODULE rows accumulate - and so do MIR / COPY / ROT rows on that id.
+          arow.NO = arow.GROUP = aid;
+          arow.MEMBER = memberId(aid, aref, 'ADD');
+          if (!assyIds[aid]) counts.assy++;
           assyIds[aid] = true;
-          arow.GROUP = assyRoot[aid] = aid;
           assy.push(arow);
           continue;
         }
@@ -990,6 +1021,9 @@
       } else {
         warn('row ' + (r + 1) + ': unknown keyword ' + kw);
       }
+    }
+    if (fellBack) {
+      hint('no sheet named "input" — read the first sheet, "' + fellBack + '", instead');
     }
     if (!assy.length && (Object.keys(plates).length || Object.keys(parts).length)) {
       warn('no ASSY row — nothing is placed. Add e.g. "ASSY <assy id> <module or plate id> 0 0 0"');
@@ -1096,12 +1130,25 @@
         var wb = new ExcelJS.Workbook();
         wb.xlsx.load(reader.result).then(function (wb2) {
           pbProgress(70, 'Parsing data');
-          var ws = wb2.worksheets[0];
+          // The model is read from the sheet named "input". A workbook usually
+          // grows other tabs - working calculations, a drawing list, a copy of
+          // an older revision - and picking the first tab would quietly read
+          // whichever one happened to be leftmost.
+          var ws = wb2.worksheets.filter(function (s) {
+            return String(s.name || '').trim().toLowerCase() === 'input';
+          })[0];
+          var named = !!ws;
+          if (!ws) ws = wb2.worksheets[0];
+          if (!ws) {
+            pbProgress(null);
+            showResult(file.name, null, 'The workbook has no worksheet.');
+            return;
+          }
           var rows = [];
           ws.eachRow({ includeEmpty: true }, function (r) {
             rows.push((r.values || []).slice(1).map(cellVal));
           });
-          var parsed = parseExcelRows(rows);
+          var parsed = parseExcelRows(rows, named ? null : ws.name);
           pbProgress(90, 'Building model');
           setTimeout(function () {
             buildLog = [];
@@ -1737,7 +1784,7 @@
     function buildHint(m) { buildLog.push({ s: 'w', m: m }); console.warn('[plateBuilder] ' + m); }
 
     // create geometry for one plate instance with a final world matrix
-    function buildInstance(spec, matrix, no, group, remark, mirror, moduleId, memberKey, flip, assyId) {
+    function buildInstance(spec, matrix, no, group, remark, mirror, moduleId, memberKey, flip, member) {
       var world = yupFix(matrix);        // EDGE chaining keeps using the raw matrix
       var thk = spec.THK;
       var g2d = buildPlate2D(spec, cuts, plates);
@@ -1783,14 +1830,14 @@
             ? spec.WB + '×' + spec.H + '×' + thk + 'T'
             : spec.WT + '/' + spec.WB + '×' + spec.H + '×' + thk + 'T');
       var gname = group || '-';
-      // A copy, a mirror or a rotation lands in its parent's group but keeps its
-      // own id, and the list folds all of it into one row - so the row key is
-      // the derived id rather than the member inside it.
-      var aid = assyId || gname;
-      var it = { no: no, plateId: spec.ID, group: gname, assyId: aid,
+      // One list row per member of the assembly - the id the ASSY row minted for
+      // what it placed (md.tower.c001). A legacy row names no member, so it
+      // falls back to the module, keeping one row per module in the group.
+      var mem = member || null;
+      var it = { no: no, plateId: spec.ID, group: gname, member: mem,
                  moduleId: moduleId || null,
                  memberKey: memberKey || null,
-                 instKey: aid === gname ? gname + '/' + (moduleId || '#' + spec.ID) : aid,
+                 instKey: gname + '/' + (mem || moduleId || '#' + spec.ID),
                  groupObj: groupObj, mass: g2d.area * thk * RHO,
                  dims: dims, remark: remark || '',
                  spec: spec, thk: thk, matrix: world, mat: mat, edgeMat: edgeMat,
@@ -1866,6 +1913,7 @@
 
     var assyDefs = {};                 // ASSY id -> members in that assembly's own frame
     var assyAt = {};                   // ASSY id -> where that assembly was placed
+    var srcSnap = {};                  // sheet row -> the source it started from
     var usedNo = {};                   // instance names taken, so two copies of one
     function instName(aid, no) {       // source inside one assembly stay apart
       var k = aid + '/' + no;
@@ -1899,9 +1947,16 @@
     }
 
     assyRows.forEach(function (row) {
-      if (row.__g) {                     // ADD / MIR / COPY
+      if (row.__g) {                     // ADD / MIR / COPY / ROT
+        // Every copy the one sheet row makes works from the same source. A
+        // self-referencing row - ASSY as.a as.a COPY, the "mirror me to finish
+        // me" idiom - grows the definition as its copies land, so re-reading it
+        // per copy would double the work each time round the loop.
         var src;
-        try { src = assySource(row); } catch (err) { buildErr(err.message); return; }
+        try {
+          src = row.SEQ !== undefined && srcSnap[row.SEQ] ? srcSnap[row.SEQ] : assySource(row);
+        } catch (err) { buildErr(err.message); return; }
+        if (row.SEQ !== undefined) srcSnap[row.SEQ] = src;
         var at = assyAt[row.REF] || new THREE.Matrix4();
         var G, pre = null, flipAll = false;
         if (row.CMD === 'MIR') {         // reflect the source where it already stands
@@ -1930,11 +1985,11 @@
         }
         // the definition keeps its own reference point at the origin, so a later
         // ASSY row that reuses this id places it by the same G.X/G.Y/G.Z rule.
-        // A second ADD row for an assembly that already exists joins it: the
-        // first row anchors the assembly, and since the later row's G.X/G.Y/G.Z
-        // are still absolute, its parts are stored relative to that anchor so
-        // the whole assembly can be re-placed as one thing.
-        var joins = row.CMD === 'ADD' && assyDefs[row.NO];
+        // Every row after the first for one id joins it, whatever the command:
+        // the first row anchors the assembly, and since the later rows' G values
+        // are still absolute, their parts are stored relative to that anchor so
+        // the whole assembly - copies and mirrors included - re-places as one.
+        var joins = !!assyDefs[row.NO];
         var anchor = joins ? assyAt[row.NO] : G;
         var rel = joins ? new THREE.Matrix4().copy(anchor).invert().multiply(G) : null;
         var made = src.map(function (L) {
@@ -1946,8 +2001,8 @@
         assyDefs[row.NO] = joins ? assyDefs[row.NO].concat(made) : made;
         if (!joins) assyAt[row.NO] = G;
         made.forEach(function (L) {
-          buildInstance(L.spec, anchor.clone().multiply(L.mloc), instName(row.NO, L.no),
-                        row.GROUP || row.NO, '', false, L.moduleId, L.memberKey, L.flip, row.NO);
+          buildInstance(L.spec, anchor.clone().multiply(L.mloc), instName(row.MEMBER || row.NO, L.no),
+                        row.GROUP || row.NO, '', false, L.moduleId, L.memberKey, L.flip, row.MEMBER);
         });
         return;
       }
@@ -3398,8 +3453,7 @@
       var r = g.rmap[it.instKey];
       if (!r) {
         r = g.rmap[it.instKey] = { key: it.instKey, group: it.group, moduleId: it.moduleId,
-                                   plateId: it.plateId,
-                                   derived: it.assyId === it.group ? null : it.assyId,
+                                   plateId: it.plateId, member: it.member,
                                    mods: {}, n: 0, mass: 0, items: [] };
         g.rows.push(r);
       }
@@ -3429,43 +3483,47 @@
       g.rows.forEach(function (r) {
         var ri = listRows.length;
         listRows.push(r);
-        // A derived row stands for a whole copy/mirror/rotation, so it names the
-        // assembly rather than a member, and carries no colour of its own - the
-        // copy is the original, and recolouring one recolours the source.
-        var nmod = Object.keys(r.mods).length;
+        // A row that holds exactly one module - or one lone plate - can carry
+        // that thing's colour and open its drawing. A row standing for a whole
+        // assembly put inside this one is a mixture, so it just counts.
+        var mods = Object.keys(r.mods);
+        var nmod = mods.length;
         var nloose = r.items.filter(function (it) { return !it.moduleId; }).length;
         var made = [];
         if (nmod) made.push(nmod + (nmod > 1 ? ' modules' : ' module'));
         if (nloose) made.push(nloose + (nloose > 1 ? ' parts' : ' part'));
-        var col = r.derived ? 0 : r.moduleId ? moduleColor(r.moduleId)
-                             : resolveColor({ plateId: r.plateId }, r.items[0].baseColor);
-        var cscope = r.moduleId ? 'module' : 'plate';
-        var ckey = r.moduleId || r.plateId;
-        var isBar = !r.moduleId && isBarSpec(lastPlates[r.plateId]);
-        var open = r.derived ? ''
-          : r.moduleId ? 'plateBuilder.previewModule(\'' + r.moduleId + '\')'
-          : isBar ? '' : 'plateBuilder.preview(\'' + r.plateId + '\')';
+        var soleMod = nmod === 1 && !nloose ? mods[0] : null;
+        var solePlate = !nmod && nloose === 1 ? r.plateId : null;
+        var col = soleMod ? moduleColor(soleMod)
+                : solePlate ? resolveColor({ plateId: solePlate }, r.items[0].baseColor) : 0;
+        var cscope = soleMod ? 'module' : 'plate';
+        var ckey = soleMod || solePlate;
+        var isBar = solePlate && isBarSpec(lastPlates[solePlate]);
+        var open = soleMod ? 'plateBuilder.previewModule(\'' + soleMod + '\')'
+          : solePlate && !isBar ? 'plateBuilder.preview(\'' + solePlate + '\')' : '';
         var tr = document.createElement('tr');
         tr.innerHTML =
           '<td class="sty"><input type="checkbox" id="pb-ib' + ri + '"' +
           (r.items.some(function (it) { return it.groupObj.visible; }) ? ' checked' : '') + ' ' +
           'data-grp="' + esc(r.group) + '" ' +
           'onchange="plateBuilder.toggleInst(' + ri + ',this.checked)">' +
-          (r.derived ? ''
-            : '<span class="sw" style="margin-left:5px;background:' + int2hex(col) +
+          (ckey
+            ? '<span class="sw" style="margin-left:5px;background:' + int2hex(col) +
               '" title="colour of this ' + cscope +
               '" onclick="plateBuilder.openPalette(event,\'' + cscope + '\',\'' + ckey + '\',this)">' +
-              '</span>') +
+              '</span>'
+            : '') +
           '<input type="range" min="10" max="100" step="5" value="' +
           Math.round(resolveOpac(r.items[0]) * 100) +
           '" title="opacity of this placement" ' +
           'oninput="plateBuilder.setOpacity(\'inst\',\'' + r.key + '\',this.value)"></td>' +
           '<td><span class="plname subname' + (open ? '' : ' nolink') + '"' +
           (open ? ' onclick="' + open + '"' : '') + '>' +
-          esc(r.derived || r.moduleId || r.plateId) + '</span>' +
+          esc(r.member || r.moduleId || r.plateId) + '</span>' +
           '<div class="dims">' +
-          (r.derived ? (made.join(' + ') || r.n + ' members')
-                     : r.moduleId ? 'members ' + r.n : r.items[0].dims) +
+          (soleMod ? 'members ' + r.n
+                   : solePlate ? r.items[0].dims
+                   : (made.join(' + ') || r.n + ' members')) +
           ' · ' + r.mass.toFixed(3) + 'kg</div></td>';
         tbl.appendChild(tr);
       });
@@ -3951,18 +4009,20 @@
   // Every example here is spreadsheet rows, so it is drawn as a spreadsheet -
   // column letters, row numbers, cell borders. A black code block made the
   // input look like a text file being piped somewhere, which is the wrong idea.
-  function sheet(rows, note) {
-    var cols = 0, i;
+  // kw = the column holding the keyword, so an example can show a block that
+  // does not start at A
+  function sheet(rows, note, kw) {
+    var cols = 0, i, k = kw || 0;
     rows.forEach(function (r) { if (r.length > cols) cols = r.length; });
     var h = '<div class="xlswrap"><table class="xls"><thead><tr><th class="rn"></th>';
     for (i = 0; i < cols; i++) h += '<th>' + String.fromCharCode(65 + i) + '</th>';
     h += '</tr></thead><tbody>';
     rows.forEach(function (r, n) {
-      var cmt = String(r[0] === undefined ? '' : r[0]).charAt(0) === '#';
+      var cmt = String(r[k] === undefined ? '' : r[k]).charAt(0) === '#';
       h += '<tr' + (cmt ? ' class="cmt"' : '') + '><td class="rn">' + (n + 1) + '</td>';
       for (i = 0; i < cols; i++) {
         var v = (r[i] === undefined || r[i] === null) ? '' : String(r[i]);
-        var cls = cmt ? '' : (i === 0 && v !== '' ? ' class="kw"'
+        var cls = cmt ? '' : (i === k && v !== '' ? ' class="kw"'
                 : (/^-?[\d.]+$/.test(v) ? ' class="n"' : ''));
         h += '<td' + cls + '>' + esc(v) + '</td>';
       }
@@ -4091,18 +4151,41 @@
     '</tbody></table>',
 
     '<h2>The sheet</h2>',
-    '<p>One sheet, read top to bottom. Column <b>A</b> holds the keyword; the columns',
-    ' after it are that keyword&rsquo;s fields, in order.</p>',
+    '<p><b>Name the tab <code>input</code>.</b> That is the tab the model is read from,',
+    ' and it is the one thing you have to get right - a workbook grows other tabs',
+    ' (a working calculation, a drawing list, last month&rsquo;s revision) and only',
+    ' <code>input</code> is read. Any others are left alone.</p>',
+    '<p>The tab is read top to bottom. One column holds the keyword; the columns after',
+    ' it are that keyword&rsquo;s fields, in order.</p>',
     sheet([['# PLATE', 'id', 'mat', 'thk', 'shape', 'base.pt', '...'],
            ['PLATE', 'pl.T1', 'SM400', 10, 'RECT', 'bc', 350, 300]],
           'Row 1 starts with <code>#</code>, so it is a comment - use those for your' +
           ' column headings. Row 2 is the data the viewer reads.'),
+
+    '<h3>The block does not have to start at column A</h3>',
+    '<p>Close the block with an <b>END</b> row, and the column <b>END</b> sits in becomes',
+    ' the keyword column for the whole tab. Everything to the left of it is yours:',
+    ' headings, notes, the arithmetic that produced the numbers, or just white space to',
+    ' let the block breathe. A row whose keyword cell is empty is skipped, so those',
+    ' columns can hold whatever you like without disturbing the model.</p>',
+    sheet([['tower frame', '', '# PLATE', 'id', 'mat', 'thk', 'shape', 'base.pt', '...'],
+           ['deck to soffit', '=B4-B3', 'PLATE', 'pl.T1', 'SM400', 10, 'RECT', 'bc', 350],
+           ['', '', 'PLATE', 'pl.C1', 'SM400', 10, 'RECT', 'bc', 100],
+           ['', '', 'END']],
+          'The keyword column is <b>C</b>, because that is where <b>END</b> is. Columns' +
+          ' <b>A</b> and <b>B</b> are ignored entirely - a heading and a live formula here,' +
+          ' and neither reaches the model.', 2),
+    '<p>Without an END row each line falls back to its own first filled cell, so a block',
+    ' that starts at A still reads - but then a note in column A <i>would</i> be taken for',
+    ' a keyword. Write the END row and the question does not come up.</p>',
     '<ul>',
     '<li>A row starting with <code>#</code> or <code>!</code> is ignored.</li>',
     '<li>Case does not matter: <code>plate</code>, <code>PLATE</code> and <code>Plate</code> are the same.</li>',
     '<li>Blank cells fall back to the default listed for that field - they do not shift the columns.</li>',
     '<li>A target must be defined <i>above</i> the row that uses it. CUT needs its plate first;',
     '    ASSY needs its module first.</li>',
+    '<li>Keep the columns <i>right</i> of a keyword for that keyword&rsquo;s fields. Notes',
+    '    belong left of the block, or on their own <code>#</code> row.</li>',
     '</ul>',
     '<p>Load it with <b>Load Excel</b>, or drop the .xlsx anywhere on the window.',
     ' Edit the file and load it again to update.</p>',
@@ -4282,34 +4365,54 @@
           '<code>ref</code> is a MODULE, another ASSY, or a lone PLATE / BAR / SECT.' +
           ' Leave column D blank and it reads as ADD.'),
     '<table class="gt"><thead><tr><th>command</th><th>what it does</th><th>coordinates</th>',
-    '<th>ids it makes</th></tr></thead><tbody>',
+    '<th>member id</th></tr></thead><tbody>',
     '<tr><td><b>ADD</b></td><td>place it, ref&rsquo;s base point landing on G</td>',
-    '<td><b>absolute</b></td><td>the id you wrote</td></tr>',
+    '<td><b>absolute</b></td><td><code>ref.A</code></td></tr>',
     '<tr><td><b>MIR</b></td><td>mirror it where it stands, about the XY / YZ / XZ plane through G</td>',
-    '<td><b>absolute</b> - a point on the mirror plane</td><td>the id you wrote</td></tr>',
+    '<td><b>absolute</b> - a point on the mirror plane</td><td><code>ref.M</code></td></tr>',
     '<tr><td><b>COPY</b></td><td>shift copies off where it stands</td>',
-    '<td><b>relative</b> - the step</td><td><code>id.001</code>, <code>id.002</code> &hellip;</td></tr>',
+    '<td><b>relative</b> - the step</td>',
+    '<td><code>ref.C001</code>, <code>ref.C002</code> &hellip;</td></tr>',
     '<tr><td><b>ROT</b></td><td>rotate copies about the world X, Y or Z axis through C, angle',
     ' accumulating</td><td><b>absolute</b> - a point on the axis</td>',
-    '<td><code>id.001</code>, <code>id.002</code> &hellip;</td></tr>',
+    '<td><code>ref.R001</code>, <code>ref.R002</code> &hellip;</td></tr>',
     '</tbody></table>',
-    '<p><b>Rows sharing an id accumulate</b>, the same way MODULE rows do, so a module and a',
-    ' bar can join one assembly. Every G is still absolute; move the assembly later and the',
-    ' whole thing travels.</p>',
-    sheet([['# ASSY', 'id', 'ref', 'cmd', 'G.X', 'G.Y', 'G.Z'],
+
+    '<h3>What gets named</h3>',
+    '<p><b>The id you write in column B is the assembly, and it is used exactly as written</b>',
+    ' - no command ever changes it. One id, one assembly, one group in the list on the left.</p>',
+    '<p>What picks up a new name is the thing being put in: <code>ref</code> plus the command',
+    ' that placed it. ADD and MIR place one each so they stay unnumbered; COPY and ROT number',
+    ' theirs from <code>001</code> up to <code>999</code>.</p>',
+    sheet([['# ASSY', 'id', 'ref', 'cmd', 'G / d / C', '', '', 'extra'],
            ['ASSY', 'as.comb', 'md.tower', 'ADD', 0, 0, 0],
-           ['ASSY', 'as.comb', 'bar.pt3m', 'ADD', 1000, 1000, 0],
-           ['ASSY', 'as.big', 'as.comb', 'ADD', 0, 0, 900]],
-          'Rows 2 and 3 build <b>one</b> assembly; row 4 places that assembly inside a bigger one.'),
+           ['ASSY', 'as.comb', 'bar.pt3m', 'ADD', 0, 0, 0],
+           ['ASSY', 'as.comb.cp', 'md.tower', 'COPY', 0, 800, 0, 4],
+           ['ASSY', 'as.comb.rot', 'md.tower', 'ROT', -2000, 0, 0, 'Z', 30, 3],
+           ['', '', '', '', '', '', '', ''],
+           ['END']],
+          'Three groups come out of this: <b>AS.COMB</b> holding <code>MD.TOWER.A</code> and' +
+          ' <code>BAR.PT3M.A</code>, <b>AS.COMB.CP</b> holding <code>MD.TOWER.C001</code> to' +
+          ' <code>C004</code>, and <b>AS.COMB.ROT</b> holding <code>MD.TOWER.R001</code> to' +
+          ' <code>R003</code>.'),
+    '<p><b>Rows sharing an id accumulate</b>, the same way MODULE rows do - and that goes for',
+    ' all four commands, not just ADD. So a module and a bar join one assembly, and',
+    ' <code>ASSY as.a as.a MIR &hellip;</code> mirrors an assembly into itself to finish it.',
+    ' Every G is still absolute; move the assembly later and the whole thing travels.</p>',
+    sheet([['# ASSY', 'id', 'ref', 'cmd', 'G.X', 'G.Y', 'G.Z', 'PLANE'],
+           ['ASSY', 'as.half', 'md.tower', 'ADD', 0, 0, 0],
+           ['ASSY', 'as.half', 'as.half', 'MIR', 900, 0, 0, 'YZ'],
+           ['ASSY', 'as.big', 'as.half', 'ADD', 0, 0, 900]],
+          'Row 3 mirrors <b>AS.HALF</b> about a plane at x = 900 and keeps the result in it,' +
+          ' so row 4 places both halves - the assembly as it now stands.'),
     '<p>Which point of <code>ref</code> lands on G: a MODULE uses its <b>BASE</b> point, a lone',
     ' plate uses <code>bc</code>, another ASSY uses its own origin. A MODULE can be overridden -',
     ' a bare point name (<code>bc</code>) uses the module&rsquo;s bounding box, and',
     ' <code>member.point</code> (<code>pl.C2_1.tc+</code>) picks a point on one of its parts.</p>',
     '<p><code>repeat</code> counts <b>extra</b> copies, not including the original.</p>',
-    '<p>A copy, a mirror or a rotation gets its own id, but it is still the same assembly',
-    ' moved about - so the list on the left keeps <b>one group per assembly</b> and folds',
-    ' every derived one into a single row inside it. Ticking the group header hides the',
-    ' whole family at once; each row still hides its own copy.</p>',
+    '<p>In the list on the left the assembly id is the group header and each member id is a',
+    ' row under it. Ticking the header hides the whole assembly; each row still hides its own',
+    ' member, and carries the colour of the module or plate it holds.</p>',
 
     '<h2>Reading the screen</h2>',
     '<h3>Moving around</h3>',
@@ -4353,6 +4456,7 @@
     ' reads a round coordinate straight off.</p>',
 
     '<h2>A whole sheet</h2>',
+    '<p>On a tab named <code>input</code>, closed with <b>END</b>.</p>',
     sheet([['# PLATE', 'id', 'mat', 'thk', 'shape', 'base.pt', 'p1', 'p2'],
            ['PLATE', 'pl.T1', 'SM400', 10, 'RECT', 'bc', 350, 300],
            ['PLATE', 'pl.C1', 'SM400', 10, 'RECT', 'bc', 100, 300],
@@ -4369,11 +4473,17 @@
            ['MODULE', 'md.tower', 'BASE', 'pl.T1', 'bc-'],
            ['# ASSY', 'id', 'ref', 'cmd', 'G.X', 'G.Y', 'G.Z', 'repeat'],
            ['ASSY', 'as.comb', 'md.tower', 'ADD', 0, 0, 0],
-           ['ASSY', 'as.comb', 'md.tower', 'COPY', 2000, 0, 0, 2]]),
+           ['ASSY', 'as.comb', 'md.tower', 'COPY', 2000, 0, 0, 2],
+           ['END']],
+          'One group, <b>AS.COMB</b>, holding <code>MD.TOWER.A</code> and the two copies' +
+          ' <code>MD.TOWER.C001</code>, <code>MD.TOWER.C002</code>.'),
 
     '<h2>When something does not appear</h2>',
     '<ul>',
-    '<li>Read the panel at the top of the list - every refused row is listed there with its row number.</li>',
+    '<li>Read the panel at the top of the list. Green with a &#10003; means it built;',
+    '    red lists every refused row with its row number.</li>',
+    '<li>Nothing at all loaded? Check the tab is named <code>input</code> - the panel says',
+    '    so if it had to fall back to another tab.</li>',
     '<li>A member with no ASSY row is defined but never placed. Nothing is drawn until an ASSY row places it.</li>',
     '<li>A CUT above its plate, or an ASSY above its module, cannot find its target.</li>',
     '<li>A SECT row with a dimension that does not fit is skipped on purpose - the warning says which.</li>',
