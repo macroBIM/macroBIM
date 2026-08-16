@@ -80,6 +80,10 @@
     // the view buttons behave as a radio set: the one you are looking through fills in
     '#pb-bar button.vw.active { background:var(--dim); border-color:var(--dim); color:#fff; }',
     '#pb-bar button.vw.active:hover { background:#1d4ed8; border-color:#1d4ed8; }',
+    '#pb-bar button.guide { margin-left:auto; text-transform:none; letter-spacing:0;',
+    '  font-size:12px; font-weight:600; color:#1d4ed8; border-color:#bfdbfe;',
+    '  background:#eff6ff; }',
+    '#pb-bar button.guide:hover { background:#dbeafe; border-color:#93c5fd; }',
     '#pb-bar .chk { display:inline-flex; align-items:center; gap:5px; font-size:12px;',
     '  color:#475569; cursor:pointer; padding:5px 9px; border:1px solid var(--line);',
     '  border-radius:6px; background:#fff; flex:0 0 auto; transition:background .12s; }',
@@ -211,7 +215,56 @@
     '#pb-pv-tree input[type=checkbox] { margin:0 3px 0 0; vertical-align:middle;',
     '  accent-color:var(--dim); }',
     '#pb-pv-tree .sw { display:inline-block; width:12px; height:12px; border:1px solid var(--line);',
-    '  border-radius:3px; cursor:pointer; vertical-align:middle; margin-right:3px; }'
+    '  border-radius:3px; cursor:pointer; vertical-align:middle; margin-right:3px; }',
+
+    /* ---- user guide ---- */
+    '#pb-help { position:fixed; left:0; top:0; right:0; bottom:0; background:rgba(15,23,42,.45);',
+    '  display:none; z-index:70; align-items:center; justify-content:center; }',
+    '#pb-help .box { background:#fff; border:1px solid var(--line); border-radius:10px;',
+    '  width:min(1000px,94vw); max-height:92vh; display:flex; flex-direction:column;',
+    '  box-shadow:0 12px 40px rgba(15,23,42,.24); overflow:hidden; }',
+    '#pb-help header { display:flex; align-items:center; justify-content:space-between;',
+    '  padding:12px 18px; border-bottom:1px solid var(--hair); background:#f1f5f9; }',
+    '#pb-help header b { font-size:15px; font-weight:600; color:#0f172a; }',
+    '#pb-help header span { cursor:pointer; color:#94a3b8; font-size:16px; padding:0 4px; }',
+    '#pb-help header span:hover { color:#0f172a; }',
+    '#pb-help .doc { overflow-y:auto; padding:4px 22px 26px; line-height:1.65; color:#334155; }',
+    '#pb-help .doc::-webkit-scrollbar { width:8px; }',
+    '#pb-help .doc::-webkit-scrollbar-thumb { background:#cbd5e1; border-radius:4px; }',
+    '#pb-help h2 { font-size:15px; font-weight:600; color:#0f172a; margin:26px 0 8px;',
+    '  display:flex; align-items:center; }',
+    '#pb-help h2::before { content:""; display:inline-block; width:4px; height:15px;',
+    '  border-radius:2px; background:var(--dim); margin-right:9px; flex-shrink:0; }',
+    '#pb-help h3 { font-size:13px; font-weight:700; color:#0f172a; margin:20px 0 6px;',
+    '  letter-spacing:.02em; }',
+    '#pb-help p { margin:7px 0; font-size:12.5px; }',
+    '#pb-help ul { margin:7px 0 7px 18px; font-size:12.5px; }',
+    '#pb-help li { margin:3px 0; }',
+    '#pb-help code { font-family:ui-monospace,Menlo,Consolas,monospace; font-size:11.5px;',
+    '  background:#f1f5f9; border-radius:4px; padding:1px 5px; color:#0f172a; }',
+    '#pb-help pre { font-family:ui-monospace,Menlo,Consolas,monospace; font-size:11.5px;',
+    '  background:#0f172a; color:#e2e8f0; border-radius:8px; padding:11px 14px;',
+    '  overflow-x:auto; margin:9px 0; line-height:1.6; }',
+    '#pb-help pre b { color:#7dd3fc; font-weight:600; }',
+    '#pb-help table.gt { width:100%; border-collapse:collapse; font-size:12px; margin:9px 0; }',
+    '#pb-help table.gt th { background:#1e293b; color:#fff; font-weight:600; text-align:left;',
+    '  padding:6px 10px; border-right:1px solid #334155; }',
+    '#pb-help table.gt th:last-child { border-right:none; }',
+    '#pb-help table.gt td { padding:5px 10px; border-bottom:1px solid var(--hair);',
+    '  vertical-align:top; }',
+    '#pb-help table.gt tbody tr:nth-child(even) td { background:#f8fafc; }',
+    '#pb-help .warn { background:#fffbeb; border:1px solid #fde68a; border-radius:8px;',
+    '  padding:8px 12px; color:#b45309; }',
+    '#pb-help figure { margin:12px 0; }',
+    '#pb-help .gsvg { display:block; width:100%; max-width:560px; height:auto;',
+    '  margin:0 auto; background:#f8fafc; border:1px solid var(--hair); border-radius:8px; }',
+    '#pb-help figcaption { font-size:11.5px; color:#94a3b8; margin-top:5px; }',
+    '#pb-help .flow { display:flex; flex-wrap:wrap; align-items:center; gap:8px; margin:12px 0; }',
+    '#pb-help .flow span { display:flex; flex-direction:column; background:#eff6ff;',
+    '  border:1px solid #bfdbfe; border-radius:8px; padding:7px 12px; font-size:12px;',
+    '  font-weight:700; color:#1d4ed8; }',
+    '#pb-help .flow small { font-weight:400; font-size:10.5px; color:#64748b; }',
+    '#pb-help .flow i { color:#94a3b8; font-style:normal; font-size:13px; }'
   ].join('\n');
 
   var onResize = null;                  // the one live window-resize handler
@@ -3499,17 +3552,34 @@
     return out;
   }
 
+  // An empty model still writes a syntactically valid STL and IFC - a file with
+  // no solids in it - so the browser downloads something that looks fine and is
+  // not. Say so instead.
+  function nothing(list, what) {
+    if (list.length) return false;
+    alert('Nothing to export' + (what ? ' from ' + what : '') + '.\n\n' +
+          'Load a sheet with Load Excel, or tick at least one member back on.');
+    return true;
+  }
+  function visibleItems() {
+    return items.filter(function (it) { return it.groupObj.visible; });
+  }
   function exportSTL() {
-    download(buildSTL(items.filter(function (it) { return it.groupObj.visible; }), 'plate_builder'),
-             'plate_builder.stl');
+    var list = visibleItems();
+    if (nothing(list)) return;
+    download(buildSTL(list, 'plate_builder'), 'plate_builder.stl');
   }
   function exportModuleSTL() {
     if (!pvModuleId) return;
-    download(buildSTL(moduleItems(pvModuleId), pvModuleId), pvModuleId + '.stl');
+    var list = moduleItems(pvModuleId);
+    if (nothing(list, pvModuleId)) return;
+    download(buildSTL(list, pvModuleId), pvModuleId + '.stl');
   }
   function exportModuleIFC() {
     if (!pvModuleId) return;
-    download(buildIFC(moduleItems(pvModuleId), pvModuleId), pvModuleId + '.ifc');
+    var list = moduleItems(pvModuleId);
+    if (nothing(list, pvModuleId)) return;
+    download(buildIFC(list, pvModuleId), pvModuleId + '.ifc');
   }
 
   /* -------- IFC export (IFC2X3, parametric extrusions) --------
@@ -3517,8 +3587,9 @@
      geometry is the exact 2D profile (with hole voids) extruded by the
      thickness — real BIM solids, not triangle meshes. */
   function exportIFC() {
-    download(buildIFC(items.filter(function (it) { return it.groupObj.visible; }), 'plate_builder'),
-             'plate_builder.ifc');
+    var list = visibleItems();
+    if (nothing(list)) return;
+    download(buildIFC(list, 'plate_builder'), 'plate_builder.ifc');
   }
 
   function buildIFC(list, projName) {
@@ -3749,6 +3820,391 @@
   }
 
   /* ---------------- DOM + init ---------------- */
+  /* Diagrams for the guide. Plain inline SVG - no library, no fetch, and they
+     scale with the panel. Ink and rule colours match the page. */
+  var GUIDE_SVG_9PT =
+    '<figure><svg class="gsvg" viewBox="0 0 520 200" role="img">' +
+    '<g fill="none" stroke="#334155" stroke-width="1.6">' +
+    '<path d="M150 30 L370 30 L410 150 L110 150 Z"/></g>' +
+    '<g fill="#2563eb">' +
+    '<circle cx="150" cy="30" r="4"/><circle cx="260" cy="30" r="4"/><circle cx="370" cy="30" r="4"/>' +
+    '<circle cx="130" cy="90" r="4"/><circle cx="260" cy="94" r="4"/><circle cx="390" cy="90" r="4"/>' +
+    '<circle cx="110" cy="150" r="4"/><circle cx="260" cy="150" r="4"/><circle cx="410" cy="150" r="4"/>' +
+    '</g>' +
+    '<g font-size="12" font-weight="600" fill="#1d4ed8" text-anchor="middle">' +
+    '<text x="150" y="20">tl</text><text x="260" y="20">tc</text><text x="370" y="20">tr</text>' +
+    '<text x="112" y="86">ml</text><text x="260" y="86">mc</text><text x="408" y="86">mr</text>' +
+    '<text x="110" y="170">bl</text><text x="260" y="170">bc</text><text x="410" y="170">br</text>' +
+    '</g>' +
+    '<g font-size="11" fill="#94a3b8">' +
+    '<text x="262" y="46" text-anchor="middle">et</text>' +
+    '<text x="262" y="142" text-anchor="middle">eb</text>' +
+    '<text x="128" y="112">el</text><text x="378" y="112">er</text>' +
+    '<text x="20" y="96">edges</text><text x="20" y="112">carry an</text><text x="20" y="128">e prefix</text>' +
+    '</g></svg>' +
+    '<figcaption>Nine points on a trapezoid. On a rectangle they sit where you expect;' +
+    ' <code>ml</code> and <code>mr</code> always follow the real sloping side.</figcaption></figure>';
+
+  var GUIDE_SVG_TRAP =
+    '<figure><svg class="gsvg" viewBox="0 0 520 200" role="img">' +
+    '<g fill="none" stroke="#334155" stroke-width="1.6">' +
+    '<path d="M170 40 L390 40 L430 140 L90 140 Z"/></g>' +
+    '<g stroke="#94a3b8" stroke-width="1" stroke-dasharray="4 3">' +
+    '<path d="M90 140 L90 175 M430 140 L430 175 M170 40 L170 20 M390 40 L390 20"/>' +
+    '<path d="M90 40 L90 20 M60 40 L60 140"/></g>' +
+    '<g stroke="#2563eb" stroke-width="1.2" marker-start="url(#ga)" marker-end="url(#ga)">' +
+    '<path d="M92 168 L428 168"/><path d="M172 28 L388 28"/>' +
+    '<path d="M92 28 L168 28"/><path d="M62 42 L62 138"/></g>' +
+    '<defs><marker id="ga" viewBox="0 0 8 8" refX="4" refY="4" markerWidth="6" markerHeight="6"' +
+    ' orient="auto"><path d="M0 4 L8 1.6 L8 6.4 Z" fill="#2563eb"/></marker></defs>' +
+    '<g font-size="12" font-weight="600" fill="#1d4ed8">' +
+    '<text x="252" y="184" text-anchor="middle">WB</text>' +
+    '<text x="276" y="20" text-anchor="middle">WT</text>' +
+    '<text x="118" y="20" text-anchor="middle">OFF_T</text>' +
+    '<text x="44" y="94" text-anchor="middle">H</text></g>' +
+    '</svg>' +
+    '<figcaption>One shape covers all three: <code>WT = WB</code> is a rectangle,' +
+    ' <code>WT = 0</code> a triangle, <code>OFF_T</code> shifts the top edge sideways.' +
+    ' Thickness <code>THK</code> is added either side of the plane you see here.</figcaption></figure>';
+
+  var GUIDE_SVG_FACE =
+    '<figure><svg class="gsvg" viewBox="0 0 520 150" role="img">' +
+    '<g stroke="#cbd5e1" stroke-width="1" stroke-dasharray="4 3">' +
+    '<path d="M60 20 L60 130 M250 20 L250 130 M440 20 L440 130"/></g>' +
+    '<g fill="#dbeafe" stroke="#2563eb" stroke-width="1.4">' +
+    '<rect x="44" y="46" width="32" height="58"/>' +
+    '<rect x="218" y="46" width="32" height="58"/>' +
+    '<rect x="440" y="46" width="32" height="58"/></g>' +
+    '<g font-size="12" font-weight="600" fill="#1d4ed8" text-anchor="middle">' +
+    '<text x="60" y="126">bc</text><text x="250" y="126">bc+</text><text x="440" y="126">bc-</text></g>' +
+    '<g font-size="11" fill="#64748b" text-anchor="middle">' +
+    '<text x="60" y="36">straddles</text><text x="250" y="36">+ face lands here</text>' +
+    '<text x="440" y="36">&#8722; face lands here</text></g>' +
+    '</svg>' +
+    '<figcaption>Seen edge on, local +Z to the right. The dashed line is the coordinate you' +
+    ' typed; adding <code>+</code> or <code>&#8722;</code> puts a face on it instead of the' +
+    ' mid-plane, so you can enter the dimension the drawing gives.</figcaption></figure>';
+
+  var GUIDE_SVG_SECT =
+    '<figure><svg class="gsvg" viewBox="0 0 520 180" role="img">' +
+    // H
+    '<g fill="#dbeafe" stroke="#2563eb" stroke-width="1.4">' +
+    '<path d="M40 30 H140 V44 H98 V116 H140 V130 H40 V116 H82 V44 H40 Z"/></g>' +
+    '<g font-size="10" fill="#64748b">' +
+    '<text x="86" y="26" text-anchor="middle">bt</text>' +
+    '<text x="86" y="146" text-anchor="middle">bb</text>' +
+    '<text x="146" y="40">tf2</text><text x="146" y="128">tf1</text>' +
+    '<text x="60" y="84">tw</text><text x="103" y="60">r1</text></g>' +
+    '<text x="90" y="168" font-size="12" font-weight="700" fill="#0f172a" text-anchor="middle">H</text>' +
+    // C
+    '<g fill="#dbeafe" stroke="#2563eb" stroke-width="1.4">' +
+    '<path d="M215 30 H300 V44 H229 V116 H300 V130 H215 Z"/></g>' +
+    '<g font-size="10" fill="#64748b">' +
+    '<text x="258" y="26" text-anchor="middle">b</text>' +
+    '<text x="306" y="40">tf</text><text x="222" y="84">tw</text>' +
+    '<text x="234" y="60">rw</text><text x="288" y="56">rf</text></g>' +
+    '<text x="258" y="168" font-size="12" font-weight="700" fill="#0f172a" text-anchor="middle">C</text>' +
+    // L
+    '<g fill="#dbeafe" stroke="#2563eb" stroke-width="1.4">' +
+    '<path d="M390 30 V130 H480 V116 H404 V30 Z"/></g>' +
+    '<g font-size="10" fill="#64748b">' +
+    '<text x="436" y="146" text-anchor="middle">a</text>' +
+    '<text x="378" y="84">b</text><text x="486" y="128">t1</text>' +
+    '<text x="396" y="26" text-anchor="middle">t2</text>' +
+    '<text x="410" y="108">r1</text></g>' +
+    '<text x="436" y="168" font-size="12" font-weight="700" fill="#0f172a" text-anchor="middle">L</text>' +
+    '</svg>' +
+    '<figcaption>Height is <code>h</code> on H and C; on L the legs are <code>a</code>' +
+    ' (along x) and <code>b</code> (along y). Each leg of an L carries its own thickness.</figcaption></figure>';
+
+  /* ---------------- user guide ----------------
+     Draft. Kept in the engine rather than a side file so a link-only embed
+     still has its manual. English only, like the rest of the interface. */
+  var GUIDE = [
+    '<h2>What it builds</h2>',
+    '<p>You describe flat parts and where they go; the viewer cuts, assembles and',
+    ' weighs them, and writes STL and IFC. Nothing is drawn by hand - every line',
+    ' below is one row of a spreadsheet.</p>',
+    '<div class="flow">',
+    '  <span>PLATE<small>a real part</small></span><i>+</i>',
+    '  <span>HOLE<small>a shape to remove</small></span><i>&#8594;</i>',
+    '  <span>CUT<small>remove it</small></span><i>&#8594;</i>',
+    '  <span>MODULE<small>parts into a unit</small></span><i>&#8594;</i>',
+    '  <span>ASSY<small>units into the model</small></span>',
+    '</div>',
+    '<p><b>BAR</b> (round bar) and <b>SECT</b> (rolled section) are members too -',
+    ' they skip CUT and go straight into a MODULE or an ASSY.</p>',
+
+    '<h2>The sheet</h2>',
+    '<p>One sheet, one keyword per row, read top to bottom. The first cell is the',
+    ' keyword; the cells after it are that keyword&rsquo;s fields, in order.</p>',
+    '<ul>',
+    '<li>A row starting with <code>#</code> or <code>!</code> is a comment. Use it for column headings.</li>',
+    '<li>Reading stops at <code>END</code>.</li>',
+    '<li>Case does not matter: <code>plate</code>, <code>PLATE</code> and <code>Plate</code> are the same.</li>',
+    '<li>Blank cells fall back to the default listed for that field - they do not shift the columns.</li>',
+    '<li>A target must be defined <i>above</i> the row that uses it. CUT needs its plate first;',
+    '    ASSY needs its module first.</li>',
+    '</ul>',
+    '<p>Load it with <b>Load Excel</b>, or drop the .xlsx anywhere on the window.',
+    ' Edit the file and load it again to update.</p>',
+
+    '<h2>Coordinates</h2>',
+    '<p><b>Z is up.</b> X east, Y north, Z height - the same right-handed frame as IFC,',
+    ' AutoCAD, Revit and Tekla. The screen, the STL and the IFC all use it, with no',
+    ' conversion anywhere.</p>',
+    '<p>A part is always drawn flat on its own local XY, then laid onto one of three',
+    ' world planes:</p>',
+    '<table class="gt"><thead><tr><th>PLANE</th><th>local x goes to</th><th>local y goes to</th>',
+    '<th>thickness (+ face)</th><th>reads as</th></tr></thead><tbody>',
+    '<tr><td><code>XY</code></td><td>X</td><td>Y</td><td>+Z (up)</td><td>plan</td></tr>',
+    '<tr><td><code>XZ</code></td><td>X</td><td>Z</td><td>&#8722;Y</td><td>front elevation</td></tr>',
+    '<tr><td><code>YZ</code></td><td>Y</td><td>Z</td><td>+X</td><td>side elevation</td></tr>',
+    '</tbody></table>',
+    '<p>A sheet written for the old Y-up convention still reads: put one',
+    ' <code>COORD YUP</code> row above the MODULE and ASSY rows.</p>',
+
+    '<h2>The nine points</h2>',
+    '<p>Every shape carries nine named points, <b>t/m/b</b> (top, middle, bottom) crossed',
+    ' with <b>l/c/r</b> (left, centre, right). You use them to say where a shape&rsquo;s origin',
+    ' is and where it sits.</p>',
+    GUIDE_SVG_9PT,
+    '<table class="gt"><thead><tr><th>point</th><th>where</th></tr></thead><tbody>',
+    '<tr><td><code>tl tr bl br</code></td><td>the real corners of the outline</td></tr>',
+    '<tr><td><code>tc bc ml mr</code></td><td>edge midpoints. On a trapezoid <code>ml</code> and',
+    ' <code>mr</code> are the midpoints of the sloping sides, not of a bounding box</td></tr>',
+    '<tr><td><code>mc</code></td><td>the centroid</td></tr>',
+    '</tbody></table>',
+    '<ul>',
+    '<li><b>A circle has five</b>: <code>mc</code> plus the quadrant points',
+    '    <code>tc ml mr bc</code>. A corner name falls back to <code>tc</code> or <code>bc</code>.</li>',
+    '<li>Points are taken from the <b>uncut</b> outline, so a notch cannot move',
+    '    <code>bl</code> out from under an assembly that was built on it.</li>',
+    '<li>Old spellings still read: <code>pbl pcc plm prm</code> and <code>lm cc rm</code>.</li>',
+    '</ul>',
+
+    '<h3>BASE.pt - a shape&rsquo;s own origin</h3>',
+    '<p>Pick one of the nine and that point becomes <code>(0,0)</code> for the shape. Every',
+    ' later number - a CUT position, a MODULE placement - is measured from it. Leave it',
+    ' blank and a plate uses <code>bc</code>, a circle or a HOLE uses <code>mc</code>.</p>',
+
+    '<h3>Ref.Pt and the &plusmn; faces</h3>',
+    '<p>Thickness normally straddles the point: half each side. Add <code>+</code> or',
+    ' <code>&#8722;</code> to the point name and a <i>face</i> lands on the coordinate instead,',
+    ' so you can type the dimension the drawing gives you.</p>',
+    GUIDE_SVG_FACE,
+    '<table class="gt"><thead><tr><th>written</th><th>what lands on the coordinate</th>',
+    '<th>the part occupies</th></tr></thead><tbody>',
+    '<tr><td><code>bc</code></td><td>mid-thickness</td><td>C &#8722; T/2 &hellip; C + T/2</td></tr>',
+    '<tr><td><code>bc+</code></td><td>the + face (local +Z side)</td><td>C &#8722; T &hellip; C</td></tr>',
+    '<tr><td><code>bc-</code></td><td>the &#8722; face</td><td>C &hellip; C + T</td></tr>',
+    '</tbody></table>',
+    '<p>Not sure which side is +? Tick <b>local axes</b> or <b>+/&#8722; face</b> in the menu bar.</p>',
+
+    '<h2>Keywords</h2>',
+
+    '<h3>PLATE - a real part</h3>',
+    '<p>Mass, colour, STL and IFC all come from these rows.</p>',
+    '<pre>PLATE  id  mat  thk  <b>TRAP</b>  base.pt  WB  WT  H  OFF_T\n' +
+    'PLATE  id  mat  thk  <b>RECT</b>  base.pt  B   H\n' +
+    'PLATE  id  mat  thk  <b>CIRC</b>  base.pt  D</pre>',
+    '<p>The shape keyword sits in a <b>fixed cell</b>, so the columns before it never',
+    ' shift even though TRAP takes four numbers and CIRC takes one. A material called',
+    ' <code>400</code> will not be mistaken for a dimension.</p>',
+    GUIDE_SVG_TRAP,
+    '<table class="gt"><thead><tr><th>field</th><th>meaning</th><th>blank means</th></tr></thead><tbody>',
+    '<tr><td><code>id</code></td><td>your name for the part. Same outline, different holes = different id</td><td>required</td></tr>',
+    '<tr><td><code>mat</code></td><td>material, shown in the list</td><td>&mdash;</td></tr>',
+    '<tr><td><code>thk</code></td><td>thickness</td><td>10</td></tr>',
+    '<tr><td><code>base.pt</code></td><td>which of the nine points is the origin</td><td><code>bc</code>, or <code>mc</code> for CIRC</td></tr>',
+    '<tr><td><code>WB</code></td><td>bottom width</td><td>0</td></tr>',
+    '<tr><td><code>WT</code></td><td>top width. <code>WT = WB</code> is a rectangle, <code>WT = 0</code> a triangle</td><td>0</td></tr>',
+    '<tr><td><code>H</code></td><td>height</td><td>0</td></tr>',
+    '<tr><td><code>OFF_T</code></td><td>how far the top edge is shifted right</td><td>0 (symmetric)</td></tr>',
+    '<tr><td><code>B</code></td><td>width (RECT)</td><td>0</td></tr>',
+    '<tr><td><code>D</code></td><td>diameter (CIRC)</td><td>0</td></tr>',
+    '</tbody></table>',
+
+    '<h3>HOLE - a shape to remove</h3>',
+    '<pre>HOLE  id  <b>TRAP</b>  base.pt  WB  WT  H  OFF_T\n' +
+    'HOLE  id  <b>RECT</b>  base.pt  B   H\n' +
+    'HOLE  id  <b>CIRC</b>  base.pt  D</pre>',
+    '<p>The same fields as PLATE minus <b>thickness and material</b>, and that is the whole',
+    ' point: a HOLE cannot become a real part by accident, and placing one in a MODULE is',
+    ' refused. Depth is not a property of the shape - the same &#216;22 is a through hole in',
+    ' one plate and a counterbore in another - so it belongs to the CUT, not here.</p>',
+    '<p>PLATE and HOLE share one namespace, because a CUT may point at either. A duplicate',
+    ' id is warned about.</p>',
+
+    '<h3>CUT - remove it</h3>',
+    '<pre>CUT  plate.id  L.X  L.Y  shape.id  dx  dy  repeat</pre>',
+    '<p>Reads as: <i>take this shape and subtract it from that plate, with the shape&rsquo;s own',
+    ' BASE.pt landing at (L.X, L.Y) measured from the plate&rsquo;s origin.</i></p>',
+    '<table class="gt"><thead><tr><th>field</th><th>meaning</th></tr></thead><tbody>',
+    '<tr><td><code>plate.id</code></td><td>the part to cut. Must be defined further up the sheet</td></tr>',
+    '<tr><td><code>L.X L.Y</code></td><td>where the shape goes, from the plate&rsquo;s BASE.pt</td></tr>',
+    '<tr><td><code>shape.id</code></td><td>a HOLE, or another PLATE whose outline you want to borrow</td></tr>',
+    '<tr><td><code>dx dy repeat</code></td><td>array copies. <code>repeat</code> is how many',
+    ' <i>extra</i> - blank or 0 gives one hole, 1 gives two</td></tr>',
+    '</tbody></table>',
+    '<p>Inside the outline it is a hole; straddling the edge it is a notch. It may run off',
+    ' the plate entirely - only the overlap is removed. Rows apply in order, so cuts can',
+    ' overlap each other.</p>',
+    '<p><code>CUT pl.T1 -110 90 h.M22 0 220 1</code> &rarr; two &#216;22 holes, at',
+    ' (&#8722;110, 90) and (&#8722;110, 310).</p>',
+    '<p class="warn">A CUT on a SECT cuts the whole length, not a hole in the web.</p>',
+
+    '<h3>BAR - a round bar</h3>',
+    '<pre>BAR  id  mat  dia  length</pre>',
+    '<p>Listed, not drawn - four numbers say everything a preview would. Placed in a MODULE',
+    ' or an ASSY like any part, except that <b>Ref.Pt is left blank</b>: a bar is always',
+    ' anchored at the centre of its starting face and runs the length along the plane&rsquo;s',
+    ' thickness axis (XY&rarr;+Z, XZ&rarr;&#8722;Y, YZ&rarr;+X).</p>',
+    '<p><code>MODULE md.tower bar.pt3m &nbsp; 0 0 0 XY</code> &rarr; a bar standing 3000 up from',
+    ' the origin.</p>',
+
+    '<h3>SECT - a rolled section</h3>',
+    '<pre>SECT  id  mat  length  <b>TYPE</b>  base.pt  &lt;values&gt;</pre>',
+    '<p>TYPE is <b>H</b>, <b>C</b> or <b>L</b>. The values follow in order with',
+    ' <b>no blank cells between them</b> - each type has its own list.</p>',
+    GUIDE_SVG_SECT,
+    '<table class="gt"><thead><tr><th>TYPE</th><th>values, in order</th></tr></thead><tbody>',
+    '<tr><td><b>H</b></td><td><code>h bb bt tw tf1 tf2 r1 r2</code><br>' +
+    'overall depth &middot; bottom flange width &middot; top flange width &middot; web thickness &middot;',
+    ' <b>bottom</b> flange thickness &middot; <b>top</b> flange thickness &middot; root fillet &middot; toe radius</td></tr>',
+    '<tr><td><b>C</b></td><td><code>h b tw tf rw rf</code><br>' +
+    'depth &middot; flange width &middot; web thickness &middot; flange thickness &middot;',
+    ' web/flange root fillet &middot; flange toe radius</td></tr>',
+    '<tr><td><b>L</b></td><td><code>a b t1 t2 r1 r2</code><br>' +
+    'leg along x &middot; leg along y &middot; <b>thickness of the a leg</b> &middot;',
+    ' <b>thickness of the b leg</b> &middot; root fillet &middot; toe radius</td></tr>',
+    '</tbody></table>',
+    '<p>C and L take the same <i>number</i> of values but they mean different things, so the',
+    ' type decides how they are read. An equal angle still writes all four:',
+    ' <code>100 100 10 10</code>.</p>',
+    '<p>Fillets are drawn as real arcs (eight segments per quarter, area within 0.06%).',
+    ' Leaving them out of an H-400&times;200&times;8&times;13 loses about 2.6% of the area. Put',
+    ' <b>0</b> or leave the cell blank and that corner comes out square - no error.</p>',
+    '<p class="warn">A SECT row is <b>refused, not repaired</b>. If a dimension is missing or',
+    ' zero, a flange is deeper than the section, the web is thicker than the flange, a fillet',
+    ' does not fit, or a radius is negative, the row is skipped with a warning. A plausible',
+    ' profile with the wrong area is worse than none.</p>',
+
+    '<h3>MODULE - parts into a unit</h3>',
+    '<pre>MODULE  id  member.id  Ref.Pt  L.X  L.Y  L.Z  PLANE  ROT.X  ROT.Y  ROT.Z\n' +
+    'MODULE  id  <b>BASE</b>  member.no  point</pre>',
+    '<p>Reads as: <i>put this member&rsquo;s Ref.Pt at (L.X, L.Y, L.Z) in module coordinates, lay',
+    ' it on PLANE, then spin it about that point by ROT.X, ROT.Y, ROT.Z degrees</i> (applied',
+    ' X, then Y, then Z).</p>',
+    '<p>One row per member; repeat the module id on every row and they accumulate into one',
+    ' module. The <b>BASE</b> row names the module&rsquo;s own origin - one of the nine points of',
+    ' one of its members, <code>+</code>/<code>&#8722;</code> allowed. Miss it and you get a warning',
+    ' and the local origin.</p>',
+    '<pre>#MODULE  id        member    Ref.Pt  L.X  L.Y  L.Z  PLANE\n' +
+    'MODULE   md.tower  pl.T1     bc+     140    0    0  XZ\n' +
+    'MODULE   md.tower  pl.C1_1   bc        0    0    0  XY\n' +
+    'MODULE   md.tower  pl.C2_1   bc      -60    0   60  YZ\n' +
+    'MODULE   md.tower  BASE      pl.T1   bc-</pre>',
+    '<p>An <code>_1</code>, <code>_2</code> suffix marks repeated instances of the same part.</p>',
+
+    '<h3>ASSY - units into the model</h3>',
+    '<p>Four commands. The third cell picks which.</p>',
+    '<pre>ASSY  id  ref  <b>ADD</b>   G.X  G.Y  G.Z  ROT.X  ROT.Y  ROT.Z\n' +
+    'ASSY  id  ref  <b>MIR</b>   G.X  G.Y  G.Z  PLANE\n' +
+    'ASSY  id  ref  <b>COPY</b>  d.X  d.Y  d.Z  repeat\n' +
+    'ASSY  id  ref  <b>ROT</b>   C.X  C.Y  C.Z  AXIS  angle  repeat</pre>',
+    '<p><code>ref</code> is a MODULE, another ASSY, or a lone PLATE / BAR / SECT.',
+    ' Leave the command cell blank and it reads as ADD.</p>',
+    '<table class="gt"><thead><tr><th>command</th><th>what it does</th><th>coordinates</th>',
+    '<th>ids it makes</th></tr></thead><tbody>',
+    '<tr><td><b>ADD</b></td><td>place it, ref&rsquo;s base point landing on G</td>',
+    '<td><b>absolute</b></td><td>the id you wrote</td></tr>',
+    '<tr><td><b>MIR</b></td><td>mirror it where it stands, about the XY / YZ / XZ plane through G</td>',
+    '<td><b>absolute</b> - a point on the mirror plane</td><td>the id you wrote</td></tr>',
+    '<tr><td><b>COPY</b></td><td>shift copies off where it stands</td>',
+    '<td><b>relative</b> - the step</td><td><code>id.001</code>, <code>id.002</code> &hellip;</td></tr>',
+    '<tr><td><b>ROT</b></td><td>rotate copies about the world X, Y or Z axis through C, angle',
+    ' accumulating</td><td><b>absolute</b> - a point on the axis</td>',
+    '<td><code>id.001</code>, <code>id.002</code> &hellip;</td></tr>',
+    '</tbody></table>',
+    '<p><b>Rows sharing an id accumulate</b>, the same way MODULE rows do, so a module and a',
+    ' bar can join one assembly. Every G is still absolute; move the assembly later and the',
+    ' whole thing travels.</p>',
+    '<pre>ASSY  as.comb  md.tower   ADD  0     0     0\n' +
+    'ASSY  as.comb  bar.pt3m   ADD  1000  1000  0     &lt;- same assembly\n' +
+    'ASSY  as.big   as.comb    ADD  0     0     900   &lt;- assemblies nest</pre>',
+    '<p>Which point of <code>ref</code> lands on G: a MODULE uses its <b>BASE</b> point, a lone',
+    ' plate uses <code>bc</code>, another ASSY uses its own origin. A MODULE can be overridden -',
+    ' a bare point name (<code>bc</code>) uses the module&rsquo;s bounding box, and',
+    ' <code>member.point</code> (<code>pl.C2_1.tc+</code>) picks a point on one of its parts.</p>',
+    '<p><code>repeat</code> counts <b>extra</b> copies, not including the original.</p>',
+
+    '<h3>COORD, END</h3>',
+    '<pre>COORD  ZUP   (default)\nCOORD  YUP    (read this sheet as the old Y-up convention)\nEND</pre>',
+
+    '<h2>Reading the screen</h2>',
+    '<table class="gt"><thead><tr><th>control</th><th>what it does</th></tr></thead><tbody>',
+    '<tr><td><b>ISO / Front / Side / Top</b></td><td>standard views. The one you are looking',
+    ' through fills in</td></tr>',
+    '<tr><td><b>ortho</b></td><td>parallel projection - Front, Side and Top become true',
+    ' elevations and plans. The framing is kept across the switch</td></tr>',
+    '<tr><td><b>clash</b></td><td>draws the volume two members share, in red. Faces touching',
+    ' - a butt joint, a box column - are not a clash; biting in by more than 0.5&nbsp;mm is</td></tr>',
+    '<tr><td><b>surface only</b></td><td>drop the thickness and draw parts as surfaces</td></tr>',
+    '<tr><td><b>shadow</b></td><td>members cast and receive shadows</td></tr>',
+    '<tr><td><b>local axes</b></td><td>the local frame at each part&rsquo;s Ref.Pt, with the',
+    ' + and &#8722; thickness directions labelled</td></tr>',
+    '<tr><td><b>+ / &#8722; face</b></td><td>tint the two faces so you can see which way the',
+    ' thickness went</td></tr>',
+    '<tr><td><b>id</b></td><td>name every placed member</td></tr>',
+    '<tr><td><b>measure</b></td><td>click two points for &#916;X, &#916;Y, &#916;Z and the distance.',
+    ' Snaps to the origin, the nine points, hole centres and every corner of a cut outline.',
+    ' A bar snaps at its two end centres only. Right-click clears</td></tr>',
+    '</tbody></table>',
+    '<p>Click a <b>PLATE</b> or <b>SECTION</b> id for its 2D drawing - grid, named points,',
+    ' &#216; on holes, R on fillets, and measure. Click a <b>MODULE</b> for a 3D preview with a',
+    ' per-member hide / colour / opacity panel. <b>regen</b> puts either back to the view it',
+    ' opened with.</p>',
+    '<p>The floor grid lies on z = 0 and its centre cross is the origin, so a grid crossing',
+    ' reads a round coordinate straight off.</p>',
+
+    '<h2>A whole sheet</h2>',
+    '<pre># PLATE  id      mat     thk  shape  base.pt  ...\n' +
+    'PLATE    pl.T1   SM400   10   RECT   bc       350  300\n' +
+    'PLATE    pl.C1   SM400   10   RECT   bc       100  300\n' +
+    '\n' +
+    '# HOLE   id      shape   base.pt  d\n' +
+    'HOLE     h.M22   CIRC    mc       22\n' +
+    '\n' +
+    '# CUT    plate   L.X     L.Y   shape   dx   dy   repeat\n' +
+    'CUT      pl.T1   -110    90    h.M22   220  0    1\n' +
+    '\n' +
+    '# BAR    id        mat       dia  length\n' +
+    'BAR      bar.pt3m  SAS1030   28   3000\n' +
+    '\n' +
+    '# MODULE id        member    Ref.Pt  L.X  L.Y  L.Z  PLANE\n' +
+    'MODULE   md.tower  pl.T1     bc+     140  0    0    XZ\n' +
+    'MODULE   md.tower  pl.C1     bc      0    0    0    XY\n' +
+    'MODULE   md.tower  bar.pt3m          0    0    0    XY\n' +
+    'MODULE   md.tower  BASE      pl.T1   bc-\n' +
+    '\n' +
+    '# ASSY   id        ref       cmd  G.X  G.Y  G.Z\n' +
+    'ASSY     as.comb   md.tower  ADD  0    0    0\n' +
+    'ASSY     as.comb   md.tower  COPY 2000 0    0    2\n' +
+    'END</pre>',
+
+    '<h2>When something does not appear</h2>',
+    '<ul>',
+    '<li>Read the panel under the menu bar - every refused row is listed there with its row number.</li>',
+    '<li>A member with no ASSY row is defined but never placed. Nothing is drawn until an ASSY row places it.</li>',
+    '<li>A CUT above its plate, or an ASSY above its module, cannot find its target.</li>',
+    '<li>A SECT row with a dimension that does not fit is skipped on purpose - the warning says which.</li>',
+    '<li>Placed the part but it is somewhere unexpected? Tick <b>local axes</b> and check the',
+    '    Ref.Pt, then <b>+ / &#8722; face</b> to check which way the thickness went.</li>',
+    '</ul>'
+  ].join('\n');
+
+
   // title/subtitle are no longer painted - the bar starts with Load Excel, and
   // the page around the viewer already says what it is - but the data file may
   // still carry them, so the signature stays put.
@@ -3806,6 +4262,8 @@
       '    onchange="plateBuilder.setIds(this.checked)"> id</label>' +
       '  <label class="chk"><input type="checkbox" id="pb-meas"' +
       '    onchange="plateBuilder.setMeasure(this.checked)"> measure</label>' +
+      '  <button class="guide" onclick="plateBuilder.openGuide()"' +
+      '    title="how to write the spreadsheet">? Guide</button>' +
       '</div>' +
       '<div id="pb-body">' +
       '<div id="pb-side">' +
@@ -3826,6 +4284,11 @@
       '</div>' +
       '</div>' +
       '<div id="pb-pal"></div>' +
+      '<div id="pb-help" onclick="if(event.target===this)plateBuilder.closeGuide()">' +
+      '  <div class="box"><header><b>PLATE3D &mdash; how to use</b>' +
+      '    <span onclick="plateBuilder.closeGuide()" title="close">&#10005;</span></header>' +
+      '    <div class="doc">' + GUIDE + '</div>' +
+      '  </div></div>' +
       '<div id="pb-modal"><div class="box">' +
       '  <h2><span class="close" onclick="plateBuilder.closePreview()">&#10005;</span>' +
       '      <button class="pvbtn" onclick="plateBuilder.regenPreview()"' +
@@ -4339,6 +4802,14 @@
     refreshPreview();      // keep an open preview in sync
   }
 
+  function openGuide() {
+    var el = document.getElementById('pb-help');
+    if (el) { el.style.display = 'flex'; el.querySelector('.doc').scrollTop = 0; }
+  }
+  function closeGuide() {
+    var el = document.getElementById('pb-help');
+    if (el) el.style.display = 'none';
+  }
   function pickExcel() {
     var el = document.getElementById('pb-file');
     if (el) el.click();
@@ -4357,6 +4828,7 @@
     setAxes: setAxes, setFaces: setFaces, setShadow: setShadow,
     setOrtho: setOrtho, setOrthoPv: setOrthoPv,
     setClash: setClash, setClashPv: setClashPv,
+    openGuide: openGuide, closeGuide: closeGuide,
     toggleMemberAxis: toggleMemberAxis
   };
 
