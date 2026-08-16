@@ -2301,7 +2301,7 @@
       var m;
       try { m = yupFix(memberMatrix(row, namedPoints(spec, false), spec.THK)); } catch (e) { return; }
       var g2 = buildPlate2D(spec, lastCuts, lastPlates);
-      out = out.concat(snapPointsOf({ outers: g2.outers, holes: g2.holes }, spec.THK, m));
+      out = out.concat(snapPointsOf({ outers: g2.outers, holes: g2.holes }, spec.THK, m, spec));
     });
     var bp = pvBasePoint(id);
     if (bp) out.push(bp);
@@ -2323,9 +2323,18 @@
   /* ---------------- measure tool ---------------- */
   // Snap targets: every vertex of a plate's cut outline on both faces, plus the
   // centre of every hole (both faces and mid-thickness).
-  function snapPointsOf(rings, thk, matrix) {
+  function snapPointsOf(rings, thk, matrix, spec) {
     var out = [], half = flatMode ? 0 : thk / 2;
     function push(x, y, z) { out.push(new THREE.Vector3(x, y, z).applyMatrix4(matrix)); }
+    // A round bar's outline is a 48-gon. Those rim vertices are not measuring
+    // points, and 96 of them per bar crowd out everything else within snapping
+    // range of an end. The two end-face centres are what a bar is measured by.
+    if (isBarSpec(spec)) {
+      var c = (namedPoints(spec, false) || {}).mc || [0, 0];
+      push(c[0], c[1], half);
+      if (half) push(c[0], c[1], -half);
+      return out;
+    }
     rings.outers.forEach(function (ring, i) {
       ring.forEach(function (q) {
         push(q[0], q[1], half);
@@ -2823,7 +2832,8 @@
                                  pos: ringsCenter({ outers: g2d.outers }).applyMatrix4(m), g: mg });
       if (showFacesPv) mg.add(faceTint({ outers: g2d.outers, holes: g2d.holes }, spec.THK, m));
       if (mg.visible) {
-        pvSnaps = pvSnaps.concat(snapPointsOf({ outers: g2d.outers, holes: g2d.holes }, spec.THK, m));
+        pvSnaps = pvSnaps.concat(
+          snapPointsOf({ outers: g2d.outers, holes: g2d.holes }, spec.THK, m, spec));
       }
       var pop = resolveOpac({ plateId: row.PLATE, moduleId: id, memberKey: id + '/' + row.NO });
       var mat = new THREE.MeshPhongMaterial({
@@ -3782,7 +3792,7 @@
     var out = [];
     items.forEach(function (it) {
       if (!it.groupObj.visible) return;
-      out = out.concat(snapPointsOf(it.rings, it.thk, it.matrix));
+      out = out.concat(snapPointsOf(it.rings, it.thk, it.matrix, it.spec));
     });
     return out;
   }
