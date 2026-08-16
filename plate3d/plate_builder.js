@@ -128,12 +128,11 @@
     '#pb-side tr.gsub td { color:#334155; font-size:12px; padding-top:9px;',
     '  border-bottom:1px solid var(--hair); }',
     '#pb-side .gname { color:#0f172a; font-size:13px; font-weight:600; }',
-    // the assembly a row belongs to: a stripe down the left of the whole block,
-    // plus a chip on its header. List identity only - never the 3D, where a
-    // colour means the module or the plate.
-    '#pb-side td.band { border-left:3px solid transparent; padding-left:6px; }',
-    '#pb-side tr.gsub td.band { border-left-width:3px; }',
     '#pb-side .gcount { color:#94a3b8; font-size:11px; font-weight:400; margin-left:6px; }',
+    // the row picked in the list, shown against the same cyan as its outline
+    // in the 3D view so the two read as one selection
+    '#pb-side tr.sel td { background:#ecfeff; }',
+    '#pb-side tr.sel .plname { color:#0e7490; font-weight:600; }',
     // the fold control leads the assembly id and carries that assembly's colour,
     // so it doubles as the group chip. Sized to the id next to it, not to a
     // caret - a 6px triangle was there to be hunted for.
@@ -3506,6 +3505,49 @@
                    '#0891b2', '#be185d', '#4d7c0f', '#c2410c', '#4338ca'];
   var folded = {};                      // ASSY id -> members collapsed. Keyed by
                                         // name so it survives a list rebuild.
+  /* ---- picking a member from the list ----
+     Clicking a member says "show me this one in the model" - it does not open
+     the module drawing, which is what the MODULES list above is for. The item
+     glows, its edges turn cyan and a box is thrown round it so it can be found
+     among a hundred others; clicking the same row again drops the selection. */
+  var SEL_COL = 0x0891b2, SEL_GLOW = 0x06262f;   // enough to pick out, not to bleach
+  var selKey = null;                    // instKey of the picked row
+  var selBox = null;                    // its outline in the main scene
+  function clearSelBox() {
+    if (!selBox) return;
+    if (selBox.parent) selBox.parent.remove(selBox);
+    if (selBox.geometry) selBox.geometry.dispose();
+    if (selBox.material) selBox.material.dispose();
+    selBox = null;
+  }
+  function drawSelBox() {
+    clearSelBox();
+    if (!selKey || !scene) return;
+    var box = new THREE.Box3();
+    items.forEach(function (it) {
+      if (it.instKey === selKey && it.groupObj.visible) box.expandByObject(it.groupObj);
+    });
+    if (box.isEmpty()) return;
+    var pad = Math.max(6, box.getSize(new THREE.Vector3()).length() * 0.02);
+    box.expandByScalar(pad);
+    selBox = new THREE.Box3Helper(box, new THREE.Color(SEL_COL));
+    selBox.material.depthTest = false;     // readable even when buried in the model
+    selBox.material.transparent = true;
+    selBox.renderOrder = 997;
+    scene.add(selBox);
+  }
+  function selectRow(ri) {
+    var r = listRows[ri];
+    if (!r) return;
+    selKey = selKey === r.key ? null : r.key;    // the same row again clears it
+    restyleAll();
+    drawSelBox();
+    var tbl = document.getElementById('pb-list');
+    if (!tbl) return;
+    [].forEach.call(tbl.querySelectorAll('tr[data-row]'), function (tr) {
+      tr.className = tr.getAttribute('data-key') === selKey ? 'sel' : '';
+    });
+  }
   // a chevron in a ring, drawn rather than fetched - the viewer runs in its own
   // document and one circle plus one polyline costs less than an icon font
   var ICON_FOLD =
@@ -3559,7 +3601,7 @@
       var gOn = g.rows.some(function (r) {
         return r.items.some(function (it) { return it.groupObj.visible; });
       });
-      gtr.innerHTML = '<td class="sty band" style="border-left-color:' + band + '">' +
+      gtr.innerHTML = '<td class="sty">' +
         '<input type="checkbox" id="pb-gb' + gi + '"' +
         (gOn ? ' checked' : '') + ' ' +
         'onchange="plateBuilder.toggleGroup(\'' + g.name + '\',this.checked)">' +
@@ -3580,8 +3622,8 @@
         var ri = listRows.length;
         listRows.push(r);
         // A row that holds exactly one module - or one lone plate - can carry
-        // that thing's colour and open its drawing. A row standing for a whole
-        // assembly put inside this one is a mixture, so it just counts.
+        // that thing's colour. A row standing for a whole assembly put inside
+        // this one is a mixture, so it just counts.
         var mods = Object.keys(r.mods);
         var nmod = mods.length;
         var nloose = r.items.filter(function (it) { return !it.moduleId; }).length;
@@ -3594,14 +3636,14 @@
                 : solePlate ? resolveColor({ plateId: solePlate }, r.items[0].baseColor) : 0;
         var cscope = soleMod ? 'module' : 'plate';
         var ckey = soleMod || solePlate;
-        var isBar = solePlate && isBarSpec(lastPlates[solePlate]);
-        var open = soleMod ? 'plateBuilder.previewModule(\'' + soleMod + '\')'
-          : solePlate && !isBar ? 'plateBuilder.preview(\'' + solePlate + '\')' : '';
         var tr = document.createElement('tr');
         tr.setAttribute('data-gi', gi);
+        tr.setAttribute('data-row', ri);
+        tr.setAttribute('data-key', r.key);
+        if (r.key === selKey) tr.className = 'sel';
         if (shut) tr.style.display = 'none';
         tr.innerHTML =
-          '<td class="sty band" style="border-left-color:' + band + '">' +
+          '<td class="sty">' +
           '<input type="checkbox" id="pb-ib' + ri + '"' +
           (r.items.some(function (it) { return it.groupObj.visible; }) ? ' checked' : '') + ' ' +
           'data-grp="' + esc(r.group) + '" ' +
@@ -3616,8 +3658,8 @@
           Math.round(resolveOpac(r.items[0]) * 100) +
           '" title="opacity of this placement" ' +
           'oninput="plateBuilder.setOpacity(\'inst\',\'' + r.key + '\',this.value)"></td>' +
-          '<td><span class="plname subname' + (open ? '' : ' nolink') + '"' +
-          (open ? ' onclick="' + open + '"' : '') + '>' +
+          '<td><span class="plname subname" title="highlight this one in the model"' +
+          ' onclick="plateBuilder.selectRow(' + ri + ')">' +
           esc(r.member || r.moduleId || r.plateId) + '</span>' +
           '<div class="dims">' +
           (soleMod ? 'members ' + r.n
@@ -3646,11 +3688,13 @@
     updateSceneIds();
     updateSceneClash();
     syncMeasureSnaps();
+    drawSelBox();                                 // a hidden member loses its box
   }
   function toggleItem(i, on) {
     items[i].groupObj.visible = on;
     updateSceneAxes(); updateSceneFaces(); updateSceneIds(); updateSceneClash();
     syncMeasureSnaps();
+    drawSelBox();
   }
   function toggleGroup(g, on) {
     items.forEach(function (it) { if (it.group === g) it.groupObj.visible = on; });
@@ -3664,6 +3708,7 @@
     updateSceneIds();
     updateSceneClash();
     syncMeasureSnaps();
+    drawSelBox();
   }
   function syncMeasureSnaps() {
     if (measMain && showMeasure) measMain.setSnaps(mainSnaps());
@@ -4519,11 +4564,15 @@
     ' <code>member.point</code> (<code>pl.C2_1.tc+</code>) picks a point on one of its parts.</p>',
     '<p><code>repeat</code> counts <b>extra</b> copies, not including the original.</p>',
     '<p>In the list on the left the assembly id is the group header and each member id is a',
-    ' row under it. Every assembly gets its own stripe colour down the left of its block, so',
-    ' you can see at a glance where one ends and the next begins - that stripe is a list',
-    ' label only and never reaches the 3D, where a colour still means the module or the',
-    ' plate. Click the <b>&#9662;</b> on a header to fold the assembly away and',
-    ' <b>&#9656;</b> to open it again; the header keeps its member count either way.</p>',
+    ' row under it. The ring in front of each id is the fold control - click it to put the',
+    ' assembly away and again to open it, the member count on the header staying either way.',
+    ' Each assembly gets its own colour for that ring, so the groups stay apart at a glance;',
+    ' it is a list label only and never reaches the 3D, where a colour still means the module',
+    ' or the plate.</p>',
+    '<p><b>Clicking a member name highlights that one in the model</b> - it glows, its edges',
+    ' turn cyan and a box is drawn round it, so you can tell which of forty identical copies',
+    ' the row stands for. Click it again to let go. It does not open a drawing: to look at a',
+    ' module on its own, click it in the <b>MODULES</b> list above.</p>',
     '<p>Ticking the header hides the whole assembly; each row still hides its own member, and',
     ' carries the colour of the module or plate it holds.</p>',
 
@@ -4564,7 +4613,8 @@
     '<p>Click a <b>HOLE</b>, <b>PLATE</b> or <b>SECTION</b> id for its 2D drawing - grid, named points,',
     ' &#216; on holes, R on fillets, and measure. Click a <b>MODULE</b> for a 3D preview with a',
     ' per-member hide / colour / opacity panel. <b>regen</b> puts either back to the view it',
-    ' opened with.</p>',
+    ' opened with. A row in <b>ASSEMBLY</b> is a placement rather than a definition, so it',
+    ' highlights in the model instead of opening a drawing.</p>',
     '<p>The floor grid lies on z = 0 and its centre cross is the origin, so a grid crossing',
     ' reads a round coordinate straight off.</p>',
 
@@ -4856,6 +4906,8 @@
     runToken++;
     var token = runToken;
     items = [];
+    selKey = null;                       // a new model, so nothing is picked yet
+    selBox = null;                       // the old scene took the helper with it
 
     var empty = data.__parsed ? !data.__parsed.assy.length : data.ASSY.length <= 1;
     buildDOM(data.title || 'PLATE3D',
@@ -4991,11 +5043,14 @@
   function styleItem(it) {
     var col = resolveColor(it, it.baseColor);
     var op = resolveOpac(it);
+    var on = !!selKey && it.instKey === selKey;
     it.mat.color.setHex(col);
+    it.mat.emissive.setHex(on ? SEL_GLOW : 0x000000);
     it.mat.opacity = op;
     it.mat.transparent = op < 1;
     it.mat.depthWrite = op >= 1;
     it.mat.needsUpdate = true;
+    it.edgeMat.color.setHex(on ? SEL_COL : 0x0e1013);
     it.edgeMat.transparent = op < 1;
     it.edgeMat.opacity = Math.min(1, op + 0.15);
   }
@@ -5229,7 +5284,7 @@
   window.plateBuilder = {
     run: run, setView: setView, exportSTL: exportSTL, exportIFC: exportIFC,
     toggleItem: toggleItem, toggleGroup: toggleGroup, toggleInst: toggleInst,
-    toggleFold: toggleFold,
+    toggleFold: toggleFold, selectRow: selectRow,
     pickExcel: pickExcel, loadExcelFile: loadExcelFile,
     preview: preview, previewModule: previewModule, closePreview: closePreview,
     setFlat: setFlat, setColor: setColor, setOpacity: setOpacity, fitPreview: pvFit,
