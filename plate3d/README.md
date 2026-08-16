@@ -45,7 +45,10 @@
     좌측 목록판(폭 380px) + **16:9 고정 3D 창**. 창 크기가 좁으면 메뉴바가 두 줄로 접힘
   - 화면 스타일은 macroBIM 사이트(PSCBOX 페이지)와 통일 — Inter 서체, 흰 카드 + `#cbd5e1` 테두리,
     파랑 `#2563eb` 강조. 3D·2D 캔버스만 어두운 색으로 남김(그래픽 영역)
-  - 좌측 목록: PLATES(클릭 → 2D 도면 팝업) · **BARS**(ID·직경·길이·재질 표) · **SECTIONS**(클릭 → 단면 도면) · MODULES(클릭 → 3D 미리보기) · ASSEMBLY(조립체·모듈)
+  - 좌측 목록 — 부재 정의는 전부 **한 줄 = 한 부재**인 표:
+    **PLATES**(색·ID·SIZE·THK·CUTS·MAT, ID 클릭 → 2D 도면 팝업) ·
+    **BARS**(ID·직경·길이·재질) · **SECTIONS**(ID·SECTION·LENGTH·MAT, ID 클릭 → 단면 도면).
+    그 아래 MODULES(클릭 → 3D 미리보기) · ASSEMBLY(조립체·모듈)
   - 모듈 미리보기 왼쪽 패널: 구성 판별 hide/show · 색상 · 투명도 · local axes
 - **`data_bracket.js`** — 서포트 브래킷 예제 데이터 (`window.PLATE_DATA` 정의) — 데이터 파일의 표본
 - `codepen_empty.html` — **CodePen용 · 빈 시작** (링크 4줄: 라이브러리 3 + 엔진)

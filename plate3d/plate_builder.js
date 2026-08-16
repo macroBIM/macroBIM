@@ -137,8 +137,11 @@
     '#pb-side .caret { color:#94a3b8; cursor:pointer; font-size:10px; }',
     '#pb-side .caret:hover { color:#334155; }',
     '#pb-side .dims { color:#94a3b8; font-size:11px; }',
-    // BARS / SECTIONS: plain read-only tables, so their rows are tighter
-    '#pb-bars td, #pb-sects td { padding:4px 8px 4px 4px; font-size:12px; }',
+    // PLATES / BARS / SECTIONS are data tables: one member per row, every value
+    // in its own cell, so the columns line up down the panel
+    '#pb-plates td, #pb-bars td, #pb-sects td { padding:4px 8px 4px 4px; font-size:12px; }',
+    '#pb-plates td.sty { width:26px; padding-right:2px; }',
+    '#pb-sects td.sect { color:#475569; font-size:11px; white-space:nowrap; }',
     '#pb-side tr.chead td { color:#64748b; font-size:10px; letter-spacing:.06em;',
     '  text-transform:uppercase; background:#f1f5f9; padding:5px 8px 5px 4px;',
     '  border-bottom:1px solid var(--hair); }',
@@ -1910,24 +1913,31 @@
     if (!tbl) return;
     tbl.innerHTML = '';
     var ids = Object.keys(lastPlates).filter(function (id) { return !lastPlates[id].__bar; });
-    sectionRow(tbl, 'ghead', 'PLATES — click to preview');
-    if (!ids.length) { sectionRow(tbl, 'none', 'no PLATE row'); return; }
+    sectionRow(tbl, 'ghead', 'PLATES — click to preview', 6);
+    if (!ids.length) { sectionRow(tbl, 'none', 'no PLATE row', 6); return; }
+    var hr = document.createElement('tr');
+    hr.className = 'chead';
+    hr.innerHTML = '<td></td><td>ID</td><td class="num">SIZE</td><td class="num">THK</td>' +
+                   '<td class="num">CUTS</td><td>MAT</td>';
+    tbl.appendChild(hr);
     ids.forEach(function (id) {
       var spec = lastPlates[id];
-      var dims = spec.SHAPE === 'CIRC'
-        ? 'D' + spec.D + '×' + spec.THK
+      var size = spec.SHAPE === 'CIRC' ? 'Ø' + trim(spec.D)
         : (spec.WT === spec.WB && spec.OFF_T === spec.OFF_B
-            ? spec.WB + '×' + spec.H + '×' + spec.THK + 'T'
-            : spec.WT + '/' + spec.WB + '×' + spec.H + '×' + spec.THK + 'T');
+            ? trim(spec.WB) + '×' + trim(spec.H)
+            : trim(spec.WT) + '/' + trim(spec.WB) + '×' + trim(spec.H));
       var ncut = lastCuts.filter(function (c) { return c.PLATE === id; }).length;
       var tr = document.createElement('tr');
       tr.innerHTML =
         '<td class="sty"><span class="sw" style="background:' +
         int2hex(resolveColor({ plateId: id }, colors[id] || 0x999999)) +
         '" onclick="plateBuilder.openPalette(event,\'plate\',\'' + id + '\',this)"></span></td>' +
-        '<td><span class="plname" onclick="plateBuilder.preview(\'' + id + '\')">' + esc(id) + '</span>' +
-        '<div class="dims">' + dims + (ncut ? ' · cuts ' + ncut : '') +
-        (spec.MAT ? ' · ' + esc(spec.MAT) : '') + '</div></td>';
+        '<td class="bid"><span class="plname" onclick="plateBuilder.preview(\'' + id + '\')">' +
+        esc(id) + '</span></td>' +
+        '<td class="num">' + size + '</td>' +
+        '<td class="num">' + trim(spec.THK) + '</td>' +
+        '<td class="num">' + (ncut || '—') + '</td>' +
+        '<td class="mat">' + esc(spec.MAT || '—') + '</td>';
       tbl.appendChild(tr);
     });
   }
@@ -1964,18 +1974,19 @@
     if (!tbl) return;
     tbl.innerHTML = '';
     var ids = Object.keys(lastPlates).filter(function (id) { return isSectSpec(lastPlates[id]); });
-    sectionRow(tbl, 'ghead', 'SECTIONS — click to preview', 3);
-    if (!ids.length) { sectionRow(tbl, 'none', 'no SECT row', 3); return; }
+    sectionRow(tbl, 'ghead', 'SECTIONS — click to preview', 4);
+    if (!ids.length) { sectionRow(tbl, 'none', 'no SECT row', 4); return; }
     var hr = document.createElement('tr');
     hr.className = 'chead';
-    hr.innerHTML = '<td>ID</td><td class="num">LENGTH</td><td>MAT</td>';
+    hr.innerHTML = '<td>ID</td><td>SECTION</td><td class="num">LENGTH</td><td>MAT</td>';
     tbl.appendChild(hr);
     ids.forEach(function (id) {
       var spec = lastPlates[id];
       var tr = document.createElement('tr');
       tr.innerHTML =
         '<td class="bid"><span class="plname" onclick="plateBuilder.preview(\'' + id + '\')">' +
-        esc(id) + '</span><div class="dims">' + esc(sectLabel(spec)) + '</div></td>' +
+        esc(id) + '</span></td>' +
+        '<td class="sect">' + esc(sectLabel(spec)) + '</td>' +
         '<td class="num">' + trim(spec.THK) + '</td>' +
         '<td class="mat">' + esc(spec.MAT || '\u2014') + '</td>';
       tbl.appendChild(tr);
