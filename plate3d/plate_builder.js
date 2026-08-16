@@ -242,10 +242,21 @@
     '#pb-help li { margin:3px 0; }',
     '#pb-help code { font-family:ui-monospace,Menlo,Consolas,monospace; font-size:11.5px;',
     '  background:#f1f5f9; border-radius:4px; padding:1px 5px; color:#0f172a; }',
-    '#pb-help pre { font-family:ui-monospace,Menlo,Consolas,monospace; font-size:11.5px;',
-    '  background:#0f172a; color:#e2e8f0; border-radius:8px; padding:11px 14px;',
-    '  overflow-x:auto; margin:9px 0; line-height:1.6; }',
-    '#pb-help pre b { color:#7dd3fc; font-weight:600; }',
+    // examples are spreadsheet rows, so they are drawn as a spreadsheet
+    '#pb-help .xlswrap { overflow-x:auto; margin:10px 0 4px; border:1px solid #b7c0cb;',
+    '  border-radius:6px; }',
+    '#pb-help table.xls { border-collapse:collapse; background:#fff; min-width:100%;',
+    '  font-family:ui-monospace,Menlo,Consolas,monospace; font-size:11.5px; }',
+    '#pb-help table.xls th { background:#eef1f5; color:#7c8899; font-weight:600;',
+    '  text-align:center; padding:3px 9px; border:1px solid #cbd5e1; font-size:10.5px; }',
+    '#pb-help table.xls td { padding:4px 9px; border:1px solid #dde3ea; color:#0f172a;',
+    '  white-space:nowrap; }',
+    '#pb-help table.xls .rn { background:#eef1f5; color:#94a3b8; text-align:center;',
+    '  width:26px; font-weight:600; font-size:10.5px; border-color:#cbd5e1; }',
+    '#pb-help table.xls td.kw { color:#1d4ed8; font-weight:700; }',
+    '#pb-help table.xls td.n { text-align:right; }',
+    '#pb-help table.xls tr.cmt td { color:#94a3b8; font-style:italic; background:#f8fafc; }',
+    '#pb-help .xlsnote { font-size:11.5px; color:#94a3b8; margin:0 0 10px; }',
     '#pb-help table.gt { width:100%; border-collapse:collapse; font-size:12px; margin:9px 0; }',
     '#pb-help table.gt th { background:#1e293b; color:#fff; font-weight:600; text-align:left;',
     '  padding:6px 10px; border-right:1px solid #334155; }',
@@ -3917,6 +3928,30 @@
     '<figcaption>Height is <code>h</code> on H and C; on L the legs are <code>a</code>' +
     ' (along x) and <code>b</code> (along y). Each leg of an L carries its own thickness.</figcaption></figure>';
 
+  // Every example here is spreadsheet rows, so it is drawn as a spreadsheet -
+  // column letters, row numbers, cell borders. A black code block made the
+  // input look like a text file being piped somewhere, which is the wrong idea.
+  function sheet(rows, note) {
+    var cols = 0, i;
+    rows.forEach(function (r) { if (r.length > cols) cols = r.length; });
+    var h = '<div class="xlswrap"><table class="xls"><thead><tr><th class="rn"></th>';
+    for (i = 0; i < cols; i++) h += '<th>' + String.fromCharCode(65 + i) + '</th>';
+    h += '</tr></thead><tbody>';
+    rows.forEach(function (r, n) {
+      var cmt = String(r[0] === undefined ? '' : r[0]).charAt(0) === '#';
+      h += '<tr' + (cmt ? ' class="cmt"' : '') + '><td class="rn">' + (n + 1) + '</td>';
+      for (i = 0; i < cols; i++) {
+        var v = (r[i] === undefined || r[i] === null) ? '' : String(r[i]);
+        var cls = cmt ? '' : (i === 0 && v !== '' ? ' class="kw"'
+                : (/^-?[\d.]+$/.test(v) ? ' class="n"' : ''));
+        h += '<td' + cls + '>' + esc(v) + '</td>';
+      }
+      h += '</tr>';
+    });
+    h += '</tbody></table></div>';
+    return note ? h + '<p class="xlsnote">' + note + '</p>' : h;
+  }
+
   /* ---------------- user guide ----------------
      Draft. Kept in the engine rather than a side file so a link-only embed
      still has its manual. English only, like the rest of the interface. */
@@ -3936,11 +3971,14 @@
     ' they skip CUT and go straight into a MODULE or an ASSY.</p>',
 
     '<h2>The sheet</h2>',
-    '<p>One sheet, one keyword per row, read top to bottom. The first cell is the',
-    ' keyword; the cells after it are that keyword&rsquo;s fields, in order.</p>',
+    '<p>One sheet, read top to bottom. Column <b>A</b> holds the keyword; the columns',
+    ' after it are that keyword&rsquo;s fields, in order.</p>',
+    sheet([['# PLATE', 'id', 'mat', 'thk', 'shape', 'base.pt', '...'],
+           ['PLATE', 'pl.T1', 'SM400', 10, 'RECT', 'bc', 350, 300]],
+          'Row 1 starts with <code>#</code>, so it is a comment - use those for your' +
+          ' column headings. Row 2 is the data the viewer reads.'),
     '<ul>',
-    '<li>A row starting with <code>#</code> or <code>!</code> is a comment. Use it for column headings.</li>',
-    '<li>Reading stops at <code>END</code>.</li>',
+    '<li>A row starting with <code>#</code> or <code>!</code> is ignored.</li>',
     '<li>Case does not matter: <code>plate</code>, <code>PLATE</code> and <code>Plate</code> are the same.</li>',
     '<li>Blank cells fall back to the default listed for that field - they do not shift the columns.</li>',
     '<li>A target must be defined <i>above</i> the row that uses it. CUT needs its plate first;',
@@ -3961,8 +3999,6 @@
     '<tr><td><code>XZ</code></td><td>X</td><td>Z</td><td>&#8722;Y</td><td>front elevation</td></tr>',
     '<tr><td><code>YZ</code></td><td>Y</td><td>Z</td><td>+X</td><td>side elevation</td></tr>',
     '</tbody></table>',
-    '<p>A sheet written for the old Y-up convention still reads: put one',
-    ' <code>COORD YUP</code> row above the MODULE and ASSY rows.</p>',
 
     '<h2>The nine points</h2>',
     '<p>Every shape carries nine named points, <b>t/m/b</b> (top, middle, bottom) crossed',
@@ -4005,12 +4041,12 @@
 
     '<h3>PLATE - a real part</h3>',
     '<p>Mass, colour, STL and IFC all come from these rows.</p>',
-    '<pre>PLATE  id  mat  thk  <b>TRAP</b>  base.pt  WB  WT  H  OFF_T\n' +
-    'PLATE  id  mat  thk  <b>RECT</b>  base.pt  B   H\n' +
-    'PLATE  id  mat  thk  <b>CIRC</b>  base.pt  D</pre>',
-    '<p>The shape keyword sits in a <b>fixed cell</b>, so the columns before it never',
-    ' shift even though TRAP takes four numbers and CIRC takes one. A material called',
-    ' <code>400</code> will not be mistaken for a dimension.</p>',
+    sheet([['PLATE', 'id', 'mat', 'thk', 'TRAP', 'base.pt', 'WB', 'WT', 'H', 'OFF_T'],
+           ['PLATE', 'id', 'mat', 'thk', 'RECT', 'base.pt', 'B', 'H'],
+           ['PLATE', 'id', 'mat', 'thk', 'CIRC', 'base.pt', 'D']],
+          'The shape keyword sits in a <b>fixed column</b> (E), so the columns before it' +
+          ' never shift even though TRAP takes four numbers and CIRC takes one. A material' +
+          ' called <code>400</code> will not be mistaken for a dimension.'),
     GUIDE_SVG_TRAP,
     '<table class="gt"><thead><tr><th>field</th><th>meaning</th><th>blank means</th></tr></thead><tbody>',
     '<tr><td><code>id</code></td><td>your name for the part. Same outline, different holes = different id</td><td>required</td></tr>',
@@ -4026,9 +4062,9 @@
     '</tbody></table>',
 
     '<h3>HOLE - a shape to remove</h3>',
-    '<pre>HOLE  id  <b>TRAP</b>  base.pt  WB  WT  H  OFF_T\n' +
-    'HOLE  id  <b>RECT</b>  base.pt  B   H\n' +
-    'HOLE  id  <b>CIRC</b>  base.pt  D</pre>',
+    sheet([['HOLE', 'id', 'TRAP', 'base.pt', 'WB', 'WT', 'H', 'OFF_T'],
+           ['HOLE', 'id', 'RECT', 'base.pt', 'B', 'H'],
+           ['HOLE', 'id', 'CIRC', 'base.pt', 'D']]),
     '<p>The same fields as PLATE minus <b>thickness and material</b>, and that is the whole',
     ' point: a HOLE cannot become a real part by accident, and placing one in a MODULE is',
     ' refused. Depth is not a property of the shape - the same &#216;22 is a through hole in',
@@ -4037,7 +4073,7 @@
     ' id is warned about.</p>',
 
     '<h3>CUT - remove it</h3>',
-    '<pre>CUT  plate.id  L.X  L.Y  shape.id  dx  dy  repeat</pre>',
+    sheet([['CUT', 'plate.id', 'L.X', 'L.Y', 'shape.id', 'dx', 'dy', 'repeat']]),
     '<p>Reads as: <i>take this shape and subtract it from that plate, with the shape&rsquo;s own',
     ' BASE.pt landing at (L.X, L.Y) measured from the plate&rsquo;s origin.</i></p>',
     '<table class="gt"><thead><tr><th>field</th><th>meaning</th></tr></thead><tbody>',
@@ -4050,22 +4086,28 @@
     '<p>Inside the outline it is a hole; straddling the edge it is a notch. It may run off',
     ' the plate entirely - only the overlap is removed. Rows apply in order, so cuts can',
     ' overlap each other.</p>',
-    '<p><code>CUT pl.T1 -110 90 h.M22 0 220 1</code> &rarr; two &#216;22 holes, at',
-    ' (&#8722;110, 90) and (&#8722;110, 310).</p>',
+    sheet([['# HOLE', 'id', 'shape', 'base.pt', 'd'],
+           ['HOLE', 'h.M22', 'CIRC', 'mc', 22],
+           ['# CUT', 'plate', 'L.X', 'L.Y', 'shape', 'dx', 'dy', 'repeat'],
+           ['CUT', 'pl.T1', -110, 90, 'h.M22', 0, 220, 1]],
+          'Two &#216;22 holes, at (&#8722;110, 90) and (&#8722;110, 310).'),
     '<p class="warn">A CUT on a SECT cuts the whole length, not a hole in the web.</p>',
 
     '<h3>BAR - a round bar</h3>',
-    '<pre>BAR  id  mat  dia  length</pre>',
+    sheet([['BAR', 'id', 'mat', 'dia', 'length']]),
     '<p>Listed, not drawn - four numbers say everything a preview would. Placed in a MODULE',
     ' or an ASSY like any part, except that <b>Ref.Pt is left blank</b>: a bar is always',
     ' anchored at the centre of its starting face and runs the length along the plane&rsquo;s',
     ' thickness axis (XY&rarr;+Z, XZ&rarr;&#8722;Y, YZ&rarr;+X).</p>',
-    '<p><code>MODULE md.tower bar.pt3m &nbsp; 0 0 0 XY</code> &rarr; a bar standing 3000 up from',
-    ' the origin.</p>',
+    sheet([['# BAR', 'id', 'mat', 'dia', 'length'],
+           ['BAR', 'bar.pt3m', 'SAS1030', 28, 3000],
+           ['# MODULE', 'id', 'member', 'Ref.Pt', 'L.X', 'L.Y', 'L.Z', 'PLANE'],
+           ['MODULE', 'md.tower', 'bar.pt3m', '', 0, 0, 0, 'XY']],
+          'Column D is left empty on purpose - the bar stands 3000 up from the origin.'),
 
     '<h3>SECT - a rolled section</h3>',
-    '<pre>SECT  id  mat  length  <b>TYPE</b>  base.pt  &lt;values&gt;</pre>',
-    '<p>TYPE is <b>H</b>, <b>C</b> or <b>L</b>. The values follow in order with',
+    sheet([['SECT', 'id', 'mat', 'length', 'TYPE', 'base.pt', 'v1', 'v2', 'v3', '...']]),
+    '<p>TYPE is <b>H</b>, <b>C</b> or <b>L</b>. The values follow from column G in order with',
     ' <b>no blank cells between them</b> - each type has its own list.</p>',
     GUIDE_SVG_SECT,
     '<table class="gt"><thead><tr><th>TYPE</th><th>values, in order</th></tr></thead><tbody>',
@@ -4079,6 +4121,10 @@
     'leg along x &middot; leg along y &middot; <b>thickness of the a leg</b> &middot;',
     ' <b>thickness of the b leg</b> &middot; root fillet &middot; toe radius</td></tr>',
     '</tbody></table>',
+    sheet([['# SECT', 'id', 'mat', 'length', 'TYPE', 'base.pt', 'v1', 'v2', 'v3', 'v4', 'v5', 'v6', 'v7', 'v8'],
+           ['SECT', 's.H', 'SM490', 6000, 'H', 'bc', 400, 200, 200, 8, 13, 13, 16, 0],
+           ['SECT', 's.C', 'SS275', 3000, 'C', 'bc', 300, 90, 12, 16, 19, 9],
+           ['SECT', 's.L', 'SS275', 2400, 'L', 'bc', 90, 75, 9, 9, 8.5, 6]]),
     '<p>C and L take the same <i>number</i> of values but they mean different things, so the',
     ' type decides how they are read. An equal angle still writes all four:',
     ' <code>100 100 10 10</code>.</p>',
@@ -4091,8 +4137,8 @@
     ' profile with the wrong area is worse than none.</p>',
 
     '<h3>MODULE - parts into a unit</h3>',
-    '<pre>MODULE  id  member.id  Ref.Pt  L.X  L.Y  L.Z  PLANE  ROT.X  ROT.Y  ROT.Z\n' +
-    'MODULE  id  <b>BASE</b>  member.no  point</pre>',
+    sheet([['MODULE', 'id', 'member.id', 'Ref.Pt', 'L.X', 'L.Y', 'L.Z', 'PLANE', 'ROT.X', 'ROT.Y', 'ROT.Z'],
+           ['MODULE', 'id', 'BASE', 'member.no', 'point']]),
     '<p>Reads as: <i>put this member&rsquo;s Ref.Pt at (L.X, L.Y, L.Z) in module coordinates, lay',
     ' it on PLANE, then spin it about that point by ROT.X, ROT.Y, ROT.Z degrees</i> (applied',
     ' X, then Y, then Z).</p>',
@@ -4100,21 +4146,21 @@
     ' module. The <b>BASE</b> row names the module&rsquo;s own origin - one of the nine points of',
     ' one of its members, <code>+</code>/<code>&#8722;</code> allowed. Miss it and you get a warning',
     ' and the local origin.</p>',
-    '<pre>#MODULE  id        member    Ref.Pt  L.X  L.Y  L.Z  PLANE\n' +
-    'MODULE   md.tower  pl.T1     bc+     140    0    0  XZ\n' +
-    'MODULE   md.tower  pl.C1_1   bc        0    0    0  XY\n' +
-    'MODULE   md.tower  pl.C2_1   bc      -60    0   60  YZ\n' +
-    'MODULE   md.tower  BASE      pl.T1   bc-</pre>',
-    '<p>An <code>_1</code>, <code>_2</code> suffix marks repeated instances of the same part.</p>',
+    sheet([['# MODULE', 'id', 'member', 'Ref.Pt', 'L.X', 'L.Y', 'L.Z', 'PLANE'],
+           ['MODULE', 'md.tower', 'pl.T1', 'bc+', 140, 0, 0, 'XZ'],
+           ['MODULE', 'md.tower', 'pl.C1_1', 'bc', 0, 0, 0, 'XY'],
+           ['MODULE', 'md.tower', 'pl.C2_1', 'bc', -60, 0, 60, 'YZ'],
+           ['MODULE', 'md.tower', 'BASE', 'pl.T1', 'bc-']],
+          'An <code>_1</code>, <code>_2</code> suffix marks repeated instances of the same part.'),
 
     '<h3>ASSY - units into the model</h3>',
-    '<p>Four commands. The third cell picks which.</p>',
-    '<pre>ASSY  id  ref  <b>ADD</b>   G.X  G.Y  G.Z  ROT.X  ROT.Y  ROT.Z\n' +
-    'ASSY  id  ref  <b>MIR</b>   G.X  G.Y  G.Z  PLANE\n' +
-    'ASSY  id  ref  <b>COPY</b>  d.X  d.Y  d.Z  repeat\n' +
-    'ASSY  id  ref  <b>ROT</b>   C.X  C.Y  C.Z  AXIS  angle  repeat</pre>',
-    '<p><code>ref</code> is a MODULE, another ASSY, or a lone PLATE / BAR / SECT.',
-    ' Leave the command cell blank and it reads as ADD.</p>',
+    '<p>Four commands. Column D picks which.</p>',
+    sheet([['ASSY', 'id', 'ref', 'ADD', 'G.X', 'G.Y', 'G.Z', 'ROT.X', 'ROT.Y', 'ROT.Z'],
+           ['ASSY', 'id', 'ref', 'MIR', 'G.X', 'G.Y', 'G.Z', 'PLANE'],
+           ['ASSY', 'id', 'ref', 'COPY', 'd.X', 'd.Y', 'd.Z', 'repeat'],
+           ['ASSY', 'id', 'ref', 'ROT', 'C.X', 'C.Y', 'C.Z', 'AXIS', 'angle', 'repeat']],
+          '<code>ref</code> is a MODULE, another ASSY, or a lone PLATE / BAR / SECT.' +
+          ' Leave column D blank and it reads as ADD.'),
     '<table class="gt"><thead><tr><th>command</th><th>what it does</th><th>coordinates</th>',
     '<th>ids it makes</th></tr></thead><tbody>',
     '<tr><td><b>ADD</b></td><td>place it, ref&rsquo;s base point landing on G</td>',
@@ -4130,19 +4176,34 @@
     '<p><b>Rows sharing an id accumulate</b>, the same way MODULE rows do, so a module and a',
     ' bar can join one assembly. Every G is still absolute; move the assembly later and the',
     ' whole thing travels.</p>',
-    '<pre>ASSY  as.comb  md.tower   ADD  0     0     0\n' +
-    'ASSY  as.comb  bar.pt3m   ADD  1000  1000  0     &lt;- same assembly\n' +
-    'ASSY  as.big   as.comb    ADD  0     0     900   &lt;- assemblies nest</pre>',
+    sheet([['# ASSY', 'id', 'ref', 'cmd', 'G.X', 'G.Y', 'G.Z'],
+           ['ASSY', 'as.comb', 'md.tower', 'ADD', 0, 0, 0],
+           ['ASSY', 'as.comb', 'bar.pt3m', 'ADD', 1000, 1000, 0],
+           ['ASSY', 'as.big', 'as.comb', 'ADD', 0, 0, 900]],
+          'Rows 2 and 3 build <b>one</b> assembly; row 4 places that assembly inside a bigger one.'),
     '<p>Which point of <code>ref</code> lands on G: a MODULE uses its <b>BASE</b> point, a lone',
     ' plate uses <code>bc</code>, another ASSY uses its own origin. A MODULE can be overridden -',
     ' a bare point name (<code>bc</code>) uses the module&rsquo;s bounding box, and',
     ' <code>member.point</code> (<code>pl.C2_1.tc+</code>) picks a point on one of its parts.</p>',
     '<p><code>repeat</code> counts <b>extra</b> copies, not including the original.</p>',
 
-    '<h3>COORD, END</h3>',
-    '<pre>COORD  ZUP   (default)\nCOORD  YUP    (read this sheet as the old Y-up convention)\nEND</pre>',
-
     '<h2>Reading the screen</h2>',
+    '<h3>Moving around</h3>',
+    '<table class="gt"><thead><tr><th>where</th><th>mouse</th><th>what happens</th></tr></thead><tbody>',
+    '<tr><td rowspan="4">3D views<br><small>main window and module preview</small></td>',
+    '<td><b>drag</b></td><td>orbit around the point you are looking at</td></tr>',
+    '<tr><td><b>wheel</b></td><td>zoom in and out</td></tr>',
+    '<tr><td><b>right-drag</b></td><td>pan - slide the model sideways without turning it</td></tr>',
+    '<tr><td><b>regen</b> / a view button</td><td>back to a known framing</td></tr>',
+    '<tr><td rowspan="3">2D drawings<br><small>a plate or a section</small></td>',
+    '<td><b>drag</b></td><td>pan</td></tr>',
+    '<tr><td><b>wheel</b></td><td>zoom about the cursor</td></tr>',
+    '<tr><td><b>double-click</b></td><td>fit the drawing to the window</td></tr>',
+    '</tbody></table>',
+    '<p>With <b>measure</b> on, dragging still orbits and pans - only a click without a drag',
+    ' picks a point, and a right-click clears the picks.</p>',
+
+    '<h3>The menu bar</h3>',
     '<table class="gt"><thead><tr><th>control</th><th>what it does</th></tr></thead><tbody>',
     '<tr><td><b>ISO / Front / Side / Top</b></td><td>standard views. The one you are looking',
     ' through fills in</td></tr>',
@@ -4159,7 +4220,7 @@
     '<tr><td><b>id</b></td><td>name every placed member</td></tr>',
     '<tr><td><b>measure</b></td><td>click two points for &#916;X, &#916;Y, &#916;Z and the distance.',
     ' Snaps to the origin, the nine points, hole centres and every corner of a cut outline.',
-    ' A bar snaps at its two end centres only. Right-click clears</td></tr>',
+    ' A bar snaps at its two end centres only</td></tr>',
     '</tbody></table>',
     '<p>Click a <b>PLATE</b> or <b>SECTION</b> id for its 2D drawing - grid, named points,',
     ' &#216; on holes, R on fillets, and measure. Click a <b>MODULE</b> for a 3D preview with a',
@@ -4169,33 +4230,27 @@
     ' reads a round coordinate straight off.</p>',
 
     '<h2>A whole sheet</h2>',
-    '<pre># PLATE  id      mat     thk  shape  base.pt  ...\n' +
-    'PLATE    pl.T1   SM400   10   RECT   bc       350  300\n' +
-    'PLATE    pl.C1   SM400   10   RECT   bc       100  300\n' +
-    '\n' +
-    '# HOLE   id      shape   base.pt  d\n' +
-    'HOLE     h.M22   CIRC    mc       22\n' +
-    '\n' +
-    '# CUT    plate   L.X     L.Y   shape   dx   dy   repeat\n' +
-    'CUT      pl.T1   -110    90    h.M22   220  0    1\n' +
-    '\n' +
-    '# BAR    id        mat       dia  length\n' +
-    'BAR      bar.pt3m  SAS1030   28   3000\n' +
-    '\n' +
-    '# MODULE id        member    Ref.Pt  L.X  L.Y  L.Z  PLANE\n' +
-    'MODULE   md.tower  pl.T1     bc+     140  0    0    XZ\n' +
-    'MODULE   md.tower  pl.C1     bc      0    0    0    XY\n' +
-    'MODULE   md.tower  bar.pt3m          0    0    0    XY\n' +
-    'MODULE   md.tower  BASE      pl.T1   bc-\n' +
-    '\n' +
-    '# ASSY   id        ref       cmd  G.X  G.Y  G.Z\n' +
-    'ASSY     as.comb   md.tower  ADD  0    0    0\n' +
-    'ASSY     as.comb   md.tower  COPY 2000 0    0    2\n' +
-    'END</pre>',
+    sheet([['# PLATE', 'id', 'mat', 'thk', 'shape', 'base.pt', 'p1', 'p2'],
+           ['PLATE', 'pl.T1', 'SM400', 10, 'RECT', 'bc', 350, 300],
+           ['PLATE', 'pl.C1', 'SM400', 10, 'RECT', 'bc', 100, 300],
+           ['# HOLE', 'id', 'shape', 'base.pt', 'd'],
+           ['HOLE', 'h.M22', 'CIRC', 'mc', 22],
+           ['# CUT', 'plate', 'L.X', 'L.Y', 'shape', 'dx', 'dy', 'repeat'],
+           ['CUT', 'pl.T1', -110, 90, 'h.M22', 220, 0, 1],
+           ['# BAR', 'id', 'mat', 'dia', 'length'],
+           ['BAR', 'bar.pt3m', 'SAS1030', 28, 3000],
+           ['# MODULE', 'id', 'member', 'Ref.Pt', 'L.X', 'L.Y', 'L.Z', 'PLANE'],
+           ['MODULE', 'md.tower', 'pl.T1', 'bc+', 140, 0, 0, 'XZ'],
+           ['MODULE', 'md.tower', 'pl.C1', 'bc', 0, 0, 0, 'XY'],
+           ['MODULE', 'md.tower', 'bar.pt3m', '', 0, 0, 0, 'XY'],
+           ['MODULE', 'md.tower', 'BASE', 'pl.T1', 'bc-'],
+           ['# ASSY', 'id', 'ref', 'cmd', 'G.X', 'G.Y', 'G.Z', 'repeat'],
+           ['ASSY', 'as.comb', 'md.tower', 'ADD', 0, 0, 0],
+           ['ASSY', 'as.comb', 'md.tower', 'COPY', 2000, 0, 0, 2]]),
 
     '<h2>When something does not appear</h2>',
     '<ul>',
-    '<li>Read the panel under the menu bar - every refused row is listed there with its row number.</li>',
+    '<li>Read the panel at the top of the list - every refused row is listed there with its row number.</li>',
     '<li>A member with no ASSY row is defined but never placed. Nothing is drawn until an ASSY row places it.</li>',
     '<li>A CUT above its plate, or an ASSY above its module, cannot find its target.</li>',
     '<li>A SECT row with a dimension that does not fit is skipped on purpose - the warning says which.</li>',
@@ -4203,7 +4258,6 @@
     '    Ref.Pt, then <b>+ / &#8722; face</b> to check which way the thickness went.</li>',
     '</ul>'
   ].join('\n');
-
 
   // title/subtitle are no longer painted - the bar starts with Load Excel, and
   // the page around the viewer already says what it is - but the data file may
