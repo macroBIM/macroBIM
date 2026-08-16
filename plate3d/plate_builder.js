@@ -230,6 +230,15 @@
     if (o.plateId && ovOpac.plate[o.plateId] !== undefined) return ovOpac.plate[o.plateId];
     return 1;
   }
+  // The floor grid sits on z = 0, so its centre cross is the coordinate origin
+  // and every line crossing reads a round X/Y. A plate lying on that same plane
+  // is coplanar with it, which used to z-fight, so the grid is drawn first and
+  // writes no depth: solids simply paint over it instead of arguing about it.
+  function backdrop(o) {
+    o.renderOrder = -1;
+    [].concat(o.material).forEach(function (m) { m.depthWrite = false; });
+    return o;
+  }
   function plateGeom(shape, thk) {      // local plane = mid-thickness
     if (flatMode) return new THREE.ShapeGeometry(shape);
     var g = new THREE.ExtrudeGeometry(shape, { depth: thk, bevelEnabled: false, curveSegments: 24 });
@@ -2905,19 +2914,17 @@
       sc.add(baseGrp);
     }
 
-    // Floor grid. Its centre lines still mark X=0 / Z=0, but it hangs below the
-    // model instead of sitting on the Y=0 plane - a plate lying on that plane is
-    // coplanar with it and the grid bleeds through the plate.
+    // Floor grid, on z = 0 so its centre cross is the coordinate origin.
     var reach = bbox.isEmpty() ? 500 : Math.max(
       Math.abs(mn.x), Math.abs(mx3.x), Math.abs(mn.y), Math.abs(mx3.y), size * 0.3);
     var gspan = Math.ceil(reach * 2 / 100) * 100;
-    var gz = (bbox.isEmpty() ? 0 : Math.min(0, mn.z)) - Math.max(1, size * 0.02);
+    var floorZ = (bbox.isEmpty() ? 0 : Math.min(0, mn.z)) - Math.max(1, size * 0.02);
     var grid = new THREE.GridHelper(gspan, Math.max(4, Math.round(gspan / 50)), 0x7d8796, 0x39414c);
     grid.rotation.x = Math.PI / 2;               // GridHelper is XZ by default, lay it on XY
-    grid.position.set(0, 0, gz);
+    backdrop(grid);
     sc.add(grid);
     fitSunShadow(sun, sc, bbox, size);
-    shadowFloor(sc, gz, gspan);
+    shadowFloor(sc, floorZ, gspan);              // shadows land under the model, not on z = 0
 
     // module-local origin: the point L.X/L.Y/L.Z are measured from. Just the
     // axis triad - a label here collides with the BASE one whenever the two
@@ -3679,11 +3686,12 @@
     var gspanMain = Math.ceil(size / 400) * 800;
     var grid = new THREE.GridHelper(gspanMain, 32, 0x5e6875, 0x333b45);
     grid.rotation.x = Math.PI / 2;               // GridHelper is XZ by default, lay it on XY
-    grid.position.z = Math.min(-1, bbox.isEmpty() ? -1
-                                 : bbox.min.z - Math.max(1, size * 0.004));
+    backdrop(grid);                              // stays on z = 0, marks the origin
     scene.add(grid);
+    var floorZ = Math.min(-1, bbox.isEmpty() ? -1
+                             : bbox.min.z - Math.max(1, size * 0.004));
     fitSunShadow(sun, scene, bbox, size);
-    shadowFloor(scene, grid.position.z, gspanMain);
+    shadowFloor(scene, floorZ, gspanMain);
 
     var gz = buildGizmo();
     var axesScene = gz.scene, axesCamera = gz.camera;
