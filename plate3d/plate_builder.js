@@ -1924,11 +1924,14 @@
     });
     if (minx > maxx) { minx = miny = 0; maxx = maxy = 1; }
 
-    // Snap points: the 9 reference points, the centre of every cut, and every
-    // vertex of the finished outline - which is what a notch corner or a hole
-    // edge becomes once the cut has been subtracted. Named points are pushed
-    // first, so where a corner coincides with one the name still wins.
-    pvPts = [];
+    // Snap points: the drawing origin, the 9 reference points, the centre of
+    // every cut, and every vertex of the finished outline - which is what a
+    // notch corner or a hole edge becomes once the cut has been subtracted.
+    // Named points are pushed early, so where a corner coincides with one the
+    // name still wins. The origin goes first: BASE.pt always lands on it, and
+    // reading "origin" there is more use than reading the point's own name -
+    // both end up on the drawing anyway, the marker label joins them.
+    pvPts = [{ name: 'origin', x: 0, y: 0 }];
     POINT_KEYS.forEach(function (k) {
       var a = pts[k];
       if (a) pvPts.push({ name: k, x: a[0], y: a[1] });
@@ -2305,6 +2308,7 @@
     });
     var bp = pvBasePoint(id);
     if (bp) out.push(bp);
+    out.push(new THREE.Vector3(0, 0, 0));          // the module-local origin, where the triad is
     return out;
   }
 
@@ -2955,6 +2959,7 @@
                              out: 'pb-pv-pos', size: function () { return size; } });
     buildPvTree(id);
     if (basePt) pvSnaps.push(basePt.clone());    // the datum snaps too
+    pvSnaps.push(new THREE.Vector3(0, 0, 0));    // and so does the local origin
     measPv.setSnaps(pvSnaps);
     document.getElementById('pb-pv-meas').checked = measurePv;
     document.getElementById('pb-pv-ids').checked = showIdsPv;
@@ -3794,6 +3799,7 @@
       if (!it.groupObj.visible) return;
       out = out.concat(snapPointsOf(it.rings, it.thk, it.matrix, it.spec));
     });
+    out.push(new THREE.Vector3(0, 0, 0));          // the global origin measures too
     return out;
   }
   function setMeasure(on) {
