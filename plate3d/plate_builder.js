@@ -1176,24 +1176,17 @@
   // H / I - origin bottom centre, y up, CCW.  h bb bt tw tf1 tf2 r1 r2
   function outlineH(d) {
     var seg = SECT_SEG, h = d.h, bb = d.bb, bt = d.bt, tw = d.tw,
-        tf1 = d.tf1, tf2 = d.tf2, r1 = d.r1 || 0, r2 = d.r2 || 0,
+        tf1 = d.tf1, tf2 = d.tf2, r1 = d.r1 || 0,
         yT = h - tf2, yB = tf1, xw = tw / 2, g = [];
-    g.push([-bb / 2, 0], [bb / 2, 0]);
-    if (r2 > 0) { g.push([bb / 2, yB - r2]); arcInto(g, bb / 2 - r2, yB - r2, r2, 0, 90, seg); }
-    else g.push([bb / 2, yB]);
+    g.push([-bb / 2, 0], [bb / 2, 0], [bb / 2, yB]);
     if (r1 > 0) { g.push([xw + r1, yB]); arcInto(g, xw + r1, yB + r1, r1, 270, 180, seg);
                   arcInto(g, xw + r1, yT - r1, r1, 180, 90, seg); }
     else g.push([xw, yB], [xw, yT]);
-    if (r2 > 0) { g.push([bt / 2 - r2, yT]); arcInto(g, bt / 2 - r2, yT + r2, r2, 270, 360, seg); }
-    else g.push([bt / 2, yT]);
-    g.push([bt / 2, h], [-bt / 2, h]);
-    if (r2 > 0) { g.push([-bt / 2, yT + r2]); arcInto(g, -bt / 2 + r2, yT + r2, r2, 180, 270, seg); }
-    else g.push([-bt / 2, yT]);
+    g.push([bt / 2, yT], [bt / 2, h], [-bt / 2, h], [-bt / 2, yT]);
     if (r1 > 0) { g.push([-xw - r1, yT]); arcInto(g, -xw - r1, yT - r1, r1, 90, 0, seg);
                   arcInto(g, -xw - r1, yB + r1, r1, 0, -90, seg); }
     else g.push([-xw, yT], [-xw, yB]);
-    if (r2 > 0) { g.push([-bb / 2 + r2, yB]); arcInto(g, -bb / 2 + r2, yB - r2, r2, 90, 180, seg); }
-    else g.push([-bb / 2, yB]);
+    g.push([-bb / 2, yB]);
     return cleanRing(g);
   }
   // C - origin bottom left (web outer face), flanges to +x, CCW.  h b tw tf rw rf
@@ -1256,34 +1249,33 @@
     } else {
       var xw = spec.tw / 2;
       add(-xw - spec.r1, spec.tf1 + spec.r1, spec.r1, -45, -1);             // web root
-      add(spec.bb / 2 - spec.r2, spec.tf1 - spec.r2, spec.r2, 45, 1);       // flange toe
     }
     return out;
   }
   // Every value the sheet has to get right. The row is refused, not repaired -
   // a fillet that does not fit still draws a plausible profile with the wrong
   // area, which is worse than no section at all.
-  var SECT_FIELDS = { H: ['h', 'bb', 'bt', 'tw', 'tf1', 'tf2', 'r1', 'r2'],
+  var SECT_FIELDS = { H: ['h', 'bb', 'bt', 'tw', 'tf1', 'tf2', 'r1'],
                       C: ['h', 'b', 'tw', 'tf', 'rw', 'rf'],
                       L: ['a', 'b', 't1', 't2', 'r1', 'r2'] };
+  var SECT_RADII = { H: 1, C: 2, L: 2 };       // trailing fields allowed to be 0
   function sectErrors(d) {
-    var e = [], t = d.SECT, f = SECT_FIELDS[t];
-    f.slice(0, f.length - 2).forEach(function (k) {          // the radii may be 0
+    var e = [], t = d.SECT, f = SECT_FIELDS[t], nr = SECT_RADII[t];
+    f.slice(0, f.length - nr).forEach(function (k) {         // the radii may be 0
       if (!(num(d[k], 0) > 0)) e.push(k + ' is blank or not a positive number');
     });
     if (!(num(d.THK, 0) > 0)) e.push('Length must be greater than 0');
-    f.slice(f.length - 2).forEach(function (k) {
+    f.slice(f.length - nr).forEach(function (k) {
       if (num(d[k], 0) < 0) e.push(k + ' cannot be negative');
     });
     if (e.length) return e;
     if (t === 'H') {
       var h = d.h, bb = d.bb, bt = d.bt, tw = d.tw, tf1 = d.tf1, tf2 = d.tf2,
-          r1 = d.r1, r2 = d.r2, bmin = Math.min(bb, bt);
+          r1 = d.r1, bmin = Math.min(bb, bt);
       if (tf1 + tf2 >= h) e.push('flanges do not fit: tf1 + tf2 (' + (tf1 + tf2) + ') >= h (' + h + ')');
       if (tw >= bmin) e.push('web is wider than the flange: tw (' + tw + ') >= ' + bmin);
       if (r1 && r1 > (h - tf1 - tf2) / 2) e.push('r1 ' + r1 + ' too big for the clear web depth — max ' + ((h - tf1 - tf2) / 2).toFixed(1));
       if (r1 && r1 > (bmin - tw) / 2) e.push('r1 ' + r1 + ' does not fit under the flange — max ' + ((bmin - tw) / 2).toFixed(1));
-      if (r2 && r2 > Math.min(tf1, tf2)) e.push('r2 ' + r2 + ' is bigger than the flange thickness — max ' + Math.min(tf1, tf2));
     } else if (t === 'C') {
       if (2 * d.tf >= d.h) e.push('flanges do not fit: 2 x tf (' + 2 * d.tf + ') >= h (' + d.h + ')');
       if (d.tw >= d.b) e.push('web is wider than the flange: tw (' + d.tw + ') >= b (' + d.b + ')');
@@ -1318,7 +1310,7 @@
     }
     var t = 'H-' + n(spec.h) + X + n(spec.bb) + X + n(spec.tw) + X + n(spec.tf1);
     if (spec.bt !== spec.bb || spec.tf2 !== spec.tf1) t += ' / ' + n(spec.bt) + X + n(spec.tf2);
-    return t + radLabel(spec.r1, spec.r2);
+    return t + radLabel(spec.r1, 0);
   }
 
   // A shape is first laid out with its bottom edge centred on the origin, then
@@ -3920,13 +3912,19 @@
     '<path d="M390 30 V130 H480 V116 H404 V30 Z"/></g>' +
     '<g font-size="10" fill="#64748b">' +
     '<text x="436" y="146" text-anchor="middle">a</text>' +
-    '<text x="378" y="84">b</text><text x="486" y="128">t1</text>' +
-    '<text x="396" y="26" text-anchor="middle">t2</text>' +
-    '<text x="410" y="108">r1</text></g>' +
+    '<text x="378" y="84">b</text><text x="490" y="128">t1</text>' +
+    '<text x="396" y="24" text-anchor="middle">t2</text>' +
+    '<text x="412" y="110">r1</text><text x="466" y="110">r2</text>' +
+    '<text x="418" y="42">r2</text></g>' +
+    '<g stroke="#94a3b8" stroke-width="0.8" fill="none">' +
+    '<path d="M420 106 L406 114"/><path d="M470 106 L478 114"/>' +
+    '<path d="M416 38 L406 32"/></g>' +
     '<text x="436" y="168" font-size="12" font-weight="700" fill="#0f172a" text-anchor="middle">L</text>' +
     '</svg>' +
     '<figcaption>Height is <code>h</code> on H and C; on L the legs are <code>a</code>' +
-    ' (along x) and <code>b</code> (along y). Each leg of an L carries its own thickness.</figcaption></figure>';
+    ' (along x) and <code>b</code> (along y), each with its own thickness.' +
+    ' <b>r1</b> is always the fillet in the corner, <b>r2</b> the rounding at the' +
+    ' free ends.</figcaption></figure>';
 
   // Every example here is spreadsheet rows, so it is drawn as a spreadsheet -
   // column letters, row numbers, cell borders. A black code block made the
@@ -4111,9 +4109,9 @@
     ' <b>no blank cells between them</b> - each type has its own list.</p>',
     GUIDE_SVG_SECT,
     '<table class="gt"><thead><tr><th>TYPE</th><th>values, in order</th></tr></thead><tbody>',
-    '<tr><td><b>H</b></td><td><code>h bb bt tw tf1 tf2 r1 r2</code><br>' +
+    '<tr><td><b>H</b></td><td><code>h bb bt tw tf1 tf2 r1</code><br>' +
     'overall depth &middot; bottom flange width &middot; top flange width &middot; web thickness &middot;',
-    ' <b>bottom</b> flange thickness &middot; <b>top</b> flange thickness &middot; root fillet &middot; toe radius</td></tr>',
+    ' <b>bottom</b> flange thickness &middot; <b>top</b> flange thickness &middot; root fillet</td></tr>',
     '<tr><td><b>C</b></td><td><code>h b tw tf rw rf</code><br>' +
     'depth &middot; flange width &middot; web thickness &middot; flange thickness &middot;',
     ' web/flange root fillet &middot; flange toe radius</td></tr>',
@@ -4121,13 +4119,13 @@
     'leg along x &middot; leg along y &middot; <b>thickness of the a leg</b> &middot;',
     ' <b>thickness of the b leg</b> &middot; root fillet &middot; toe radius</td></tr>',
     '</tbody></table>',
-    sheet([['# SECT', 'id', 'mat', 'length', 'TYPE', 'base.pt', 'v1', 'v2', 'v3', 'v4', 'v5', 'v6', 'v7', 'v8'],
-           ['SECT', 's.H', 'SM490', 6000, 'H', 'bc', 400, 200, 200, 8, 13, 13, 16, 0],
+    sheet([['# SECT', 'id', 'mat', 'length', 'TYPE', 'base.pt', 'v1', 'v2', 'v3', 'v4', 'v5', 'v6', 'v7'],
+           ['SECT', 's.H', 'SM490', 6000, 'H', 'bc', 400, 200, 200, 8, 13, 13, 16],
            ['SECT', 's.C', 'SS275', 3000, 'C', 'bc', 300, 90, 12, 16, 19, 9],
            ['SECT', 's.L', 'SS275', 2400, 'L', 'bc', 90, 75, 9, 9, 8.5, 6]]),
-    '<p>C and L take the same <i>number</i> of values but they mean different things, so the',
-    ' type decides how they are read. An equal angle still writes all four:',
-    ' <code>100 100 10 10</code>.</p>',
+    '<p>An H takes seven values, C and L six. C and L take the same <i>number</i> but they',
+    ' mean different things, so the type decides how they are read. An equal angle still',
+    ' writes all four: <code>100 100 10 10</code>.</p>',
     '<p>Fillets are drawn as real arcs (eight segments per quarter, area within 0.06%).',
     ' Leaving them out of an H-400&times;200&times;8&times;13 loses about 2.6% of the area. Put',
     ' <b>0</b> or leave the cell blank and that corner comes out square - no error.</p>',

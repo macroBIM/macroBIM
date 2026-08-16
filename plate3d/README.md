@@ -13,7 +13,7 @@
   - 9점 이름은 **tl tc tr / ml mc mr / bl bc br** (예전 `pbl`·`cc` 표기도 계속 인식)
   - BAR(환봉)는 MODULE/ASSY에 판과 똑같이 배치. Ref.Pt는 비워둠 — **시점부 원형 중심**이 기준
   - **SECT(형강 H/C/L)** — 값은 중간 공백 없이 순차 입력, 타입별 목록:
-    `H: h bb bt tw tf1 tf2 r1 r2` · `C: h b tw tf rw rf` · `L: a b t1 t2 r1 r2`
+    `H: h bb bt tw tf1 tf2 r1` · `C: h b tw tf rw rf` · `L: a b t1 t2 r1 r2`
     필렛을 실제 원호로 작도(면적 오차 0.06%), r=0이면 각진 모서리. 배치는 BAR와 동일
   - 2D 도면의 지시선: 원형 구멍은 **Ø지름**, 형강 필렛은 **R반지름**.
     필렛은 값이 다른 것만 하나씩 표기(H형강 루트 4개에 R16을 네 번 쓰지 않음)
