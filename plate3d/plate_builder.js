@@ -2771,9 +2771,12 @@
     for (var i = 0; i < GRID_STEPS.length; i++) if (GRID_STEPS[i] >= want) return GRID_STEPS[i];
     return GRID_STEPS[GRID_STEPS.length - 1];
   }
+  // The count has to be even. GridHelper tints the centre pair at index
+  // divisions/2, so an odd count has no line on the axes at all - no cross on
+  // the origin, and nothing for it to colour.
   function makeGrid(sc, span, c1, c2) {
     var step = niceStep(Math.max(span, 1) / GRID_CELLS);
-    var n = Math.min(40, Math.max(6, Math.round(span / step)));
+    var n = Math.min(40, Math.max(6, Math.round(span / step / 2) * 2));
     var g = new THREE.GridHelper(step * n, n, c1, c2);
     g.rotation.x = Math.PI / 2;                 // GridHelper is XZ by default, lay it on XY
     backdrop(g);                                // on z = 0, drawn behind the solids
