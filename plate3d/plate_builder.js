@@ -3503,8 +3503,13 @@
   // and cannot be mistaken for a member swatch.
   var ASSY_TINT = ['#2563eb', '#e11d48', '#059669', '#d97706', '#7c3aed',
                    '#0891b2', '#be185d', '#4d7c0f', '#c2410c', '#4338ca'];
-  var folded = {};                      // ASSY id -> members collapsed. Keyed by
-                                        // name so it survives a list rebuild.
+  /* ---- folding ----
+     Keyed by assembly id rather than by row, so recolouring a module - which
+     rebuilds the list - does not throw open everything the user had put away.
+     An id not in here yet starts folded: the list opens as a table of contents,
+     one line per assembly, and you open the one you are actually after. A fresh
+     sheet clears the map, so a load always starts from that state. */
+  var folded = {};                      // ASSY id -> members collapsed
   /* ---- picking a member from the list ----
      Clicking a member says "show me this one in the model" - it does not open
      the module drawing, which is what the MODULES list above is for. The item
@@ -3594,7 +3599,8 @@
       var gi = listGroups.length;
       listGroups.push(g);
       var band = ASSY_TINT[gi % ASSY_TINT.length];
-      var shut = !!folded[g.name];
+      if (folded[g.name] === undefined) folded[g.name] = true;   // new: start put away
+      var shut = folded[g.name];
       var gtr = document.createElement('tr');
       gtr.className = 'gsub';
       gtr.setAttribute('data-gh', gi);
@@ -4564,11 +4570,12 @@
     ' <code>member.point</code> (<code>pl.C2_1.tc+</code>) picks a point on one of its parts.</p>',
     '<p><code>repeat</code> counts <b>extra</b> copies, not including the original.</p>',
     '<p>In the list on the left the assembly id is the group header and each member id is a',
-    ' row under it. The ring in front of each id is the fold control - click it to put the',
-    ' assembly away and again to open it, the member count on the header staying either way.',
-    ' Each assembly gets its own colour for that ring, so the groups stay apart at a glance;',
-    ' it is a list label only and never reaches the 3D, where a colour still means the module',
-    ' or the plate.</p>',
+    ' row under it. <b>A sheet opens with every assembly folded</b> - a contents page, one',
+    ' line and a member count each - so a model with forty copies in it still fits on screen.',
+    ' The ring in front of an id opens that one; click it again to put it back. Each assembly',
+    ' gets its own colour for that ring, so the groups stay apart at a glance; it is a list',
+    ' label only and never reaches the 3D, where a colour still means the module or the',
+    ' plate.</p>',
     '<p><b>Clicking a member name highlights that one in the model</b> - it glows, its edges',
     ' turn cyan and a box is drawn round it, so you can tell which of forty identical copies',
     ' the row stands for. Click it again to let go. It does not open a drawing: to look at a',
@@ -4908,6 +4915,7 @@
     items = [];
     selKey = null;                       // a new model, so nothing is picked yet
     selBox = null;                       // the old scene took the helper with it
+    folded = {};                         // and every assembly starts folded again
 
     var empty = data.__parsed ? !data.__parsed.assy.length : data.ASSY.length <= 1;
     buildDOM(data.title || 'PLATE3D',
