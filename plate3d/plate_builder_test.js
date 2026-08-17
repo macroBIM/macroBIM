@@ -4131,10 +4131,19 @@
       var key = k + '|' + spec.ID + '|' + vals.join(',');
       var e = map[key];
       if (!e) {
+        // The engine's own area, back out of the mass it already computed, so a
+        // sheet formula built on it lands on the same figure. A plate's is its
+        // face in m² (what you paint and what you buy); a bar's or a section's is
+        // the profile in mm², which is also where its kg/m comes from. Neither is
+        // the textbook number: circles are polygons here and fillets are eight
+        // segments a quarter, so the take-off matches the solid, not a handbook.
         var thk = num(spec.THK, 0);
+        var aMM = thk ? it.mass / (thk * RHO) : 0;
         e = map[key] = { kind: k, id: spec.ID, mat: spec.MAT || '—', vals: vals,
-                         area: def.area && thk ? it.mass / (thk * RHO) / 1e6 : null,
+                         area: def.area ? aMM / 1e6 : null,
                          cuts: def.area ? cutCount(spec.ID) : null,
+                         areaMM: def.area ? null : aMM,
+                         kgm: def.area ? null : aMM * RHO * 1000,
                          unit: it.mass, qty: 0, wt: 0 };
         keys.push(key);
       }
@@ -4228,6 +4237,27 @@
     return row;
   }
   function plural(n, w) { return n + ' ' + w + (n === 1 ? '' : 's'); }
+  function colL(i) {                             // 1 -> A, 27 -> AA
+    var s = '';
+    while (i > 0) { var m = (i - 1) % 26; s = String.fromCharCode(65 + m) + s; i = (i - m - 1) / 26; }
+    return s;
+  }
+  /* Every weight in the book is a formula, not a number: the cached result is
+     written alongside so a reader that does not recalculate still shows a figure,
+     but open it in Excel and the chain is live all the way down -
+        UNIT kg   = area x thickness x density   (or kg/m x length for a section)
+        WEIGHT kg = UNIT kg x QTY
+        subtotal  = SUM of the lines above it
+        module    = SUM of its block subtotals, x how many units
+        assembly  = SUM of its module lines
+        grand     = SUM of the assemblies
+     Change a thickness in the sheet and everything above it moves, which is what
+     a take-off is for. Nothing is a dead value except the dimensions themselves
+     and the counts the model measured. */
+  function fx(formula, result) { return { formula: formula, result: result }; }
+  function fxSum(cells, result) {
+    return cells.length ? fx(cells.join('+'), result) : result;
+  }
   /* A block is a title, its own header naming the input fields it was written
      with, its lines, and a subtotal. Columns are described rather than counted,
      so a shape with five fields and a shape with eight both format correctly
@@ -4238,68 +4268,104 @@
      take-off mistake this sheet exists to prevent. */
   function bqBlock(ws, kind, rows, mode) {
     var def = BOQ_KIND[kind];
+    function ref(ix, name, rn) { return colL(ix[name]) + rn; }
     var cols = [{ h: 'ID', k: function (r) { return r.id; } },
                 { h: 'MAT', k: function (r) { return r.mat; } }];
     def.f.forEach(function (p, i) {
       cols.push({ h: p[0], f: BQ_DIM_FMT, k: function (r) { return r.vals[i]; } });
     });
-    if (def.area) {
+    if (def.area) {                                // a plate: face area, thickness
       cols.push({ h: 'AREA m²', f: BQ_AREA, k: function (r) { return r.area; } });
       cols.push({ h: 'CUTS', f: '#,##0', k: function (r) { return r.cuts; } });
+      cols.push({ h: 'UNIT kg', f: BQ_WT, k: function (r) { return r.unit; },
+                 fm: function (rn, ix) {
+                   return ref(ix, 'AREA m²', rn) + '*' + ref(ix, 'THK', rn) + '*7.85'; } });
+    } else {                                       // a bar or a section: profile, kg/m
+      cols.push({ h: 'AREA mm²', f: '#,##0.0', k: function (r) { return r.areaMM; } });
+      cols.push({ h: 'kg/m', f: '#,##0.000', k: function (r) { return r.kgm; },
+                 fm: function (rn, ix) { return ref(ix, 'AREA mm²', rn) + '*0.00785'; } });
+      cols.push({ h: 'UNIT kg', f: BQ_WT, k: function (r) { return r.unit; },
+                 fm: function (rn, ix) {
+                   return ref(ix, 'kg/m', rn) + '*' + ref(ix, 'LENGTH', rn) + '/1000'; } });
     }
-    cols.push({ h: 'UNIT kg', f: BQ_WT, k: function (r) { return r.unit; } });
     if (mode === 'module') {
       cols.push({ h: 'QTY / UNIT', f: BQ_QTY, sum: 1, k: function (r) { return r.per; } });
-      cols.push({ h: 'kg / UNIT', f: BQ_WT, sum: 1, k: function (r) { return r.unit * r.per; } });
+      cols.push({ h: 'kg / UNIT', f: BQ_WT, sum: 1, k: function (r) { return r.unit * r.per; },
+                 fm: function (rn, ix) {
+                   return ref(ix, 'UNIT kg', rn) + '*' + ref(ix, 'QTY / UNIT', rn); } });
       cols.push({ h: 'TOTAL QTY', f: '#,##0', sum: 1, k: function (r) { return r.qty; } });
-      cols.push({ h: 'TOTAL kg', f: BQ_WT, sum: 1, k: function (r) { return r.wt; } });
+      cols.push({ h: 'TOTAL kg', f: BQ_WT, sum: 1, k: function (r) { return r.wt; },
+                 fm: function (rn, ix) {
+                   return ref(ix, 'UNIT kg', rn) + '*' + ref(ix, 'TOTAL QTY', rn); } });
     } else {
       cols.push({ h: 'QTY', f: '#,##0', sum: 1, k: function (r) { return r.qty; } });
-      cols.push({ h: 'WEIGHT kg', f: BQ_WT, sum: 1, k: function (r) { return r.wt; } });
+      cols.push({ h: 'WEIGHT kg', f: BQ_WT, sum: 1, k: function (r) { return r.wt; },
+                 fm: function (rn, ix) {
+                   return ref(ix, 'UNIT kg', rn) + '*' + ref(ix, 'QTY', rn); } });
     }
+    var ix = {};
+    cols.forEach(function (c, i) { ix[c.h] = i + 1; });
+
     bqStyle(ws.addRow([def.t]), { bold: true, size: 11, color: 'FF1D4ED8' });
     bqStyle(ws.addRow(cols.map(function (c) { return c.h; })),
             { bold: true, size: 9, color: 'FFFFFFFF', fill: BQ_INK });
     var sums = cols.map(function () { return 0; });
+    var first = null, last = null;
     rows.forEach(function (r) {
       var row = ws.addRow(cols.map(function (c) { return c.k(r); }));
+      if (first === null) first = row.number;
+      last = row.number;
       bqStyle(row, {});
       cols.forEach(function (c, i) {
+        var cell = row.getCell(i + 1);
+        if (c.fm) cell.value = fx(c.fm(row.number, ix), num(c.k(r), 0));
         if (!c.f) return;
-        row.getCell(i + 1).numFmt = c.f;
-        row.getCell(i + 1).alignment = { horizontal: 'right' };
+        cell.numFmt = c.f;
+        cell.alignment = { horizontal: 'right' };
         if (c.sum) sums[i] += num(c.k(r), 0);
       });
     });
     var sub = ws.addRow(cols.map(function (c, i) {
-      return i === 0 ? 'subtotal — ' + plural(rows.length, 'item') : c.sum ? sums[i] : null;
+      return i === 0 ? 'subtotal — ' + plural(rows.length, 'item') : null;
     }));
     bqStyle(sub, { bold: true, top: 'thin' });
+    var at = {};
     cols.forEach(function (c, i) {
       if (!c.sum) return;
+      var L = colL(i + 1);
+      sub.getCell(i + 1).value = fx('SUM(' + L + first + ':' + L + last + ')', sums[i]);
       sub.getCell(i + 1).numFmt = c.f;
       sub.getCell(i + 1).alignment = { horizontal: 'right' };
+      at[c.h] = L + sub.number;
     });
     ws.addRow([]);
-    return sums;
+    return { kind: kind, n: rows.length, sums: sums, at: at };
   }
+  // Each block reports where its subtotals landed, so the sheet total can add
+  // those cells up instead of restating a number nobody can trace.
   function bqBlocks(ws, agg, mode) {
-    var any = false;
+    var out = [];
     BOQ_ORDER.forEach(function (k) {
       var rows = agg.rows.filter(function (r) { return r.kind === k; });
-      if (!rows.length) return;
-      bqBlock(ws, k, rows, mode);
-      any = true;
+      if (rows.length) out.push(bqBlock(ws, k, rows, mode));
     });
-    if (!any) bqStyle(ws.addRow(['no members']), { italic: true, color: BQ_DIM });
+    if (!out.length) bqStyle(ws.addRow(['no members']), { italic: true, color: BQ_DIM });
+    return out;
+  }
+  function bqPick(blocks, name) {                  // subtotal cells for one column
+    return blocks.map(function (b) { return b.at[name]; })
+                 .filter(function (a) { return !!a; });
   }
   function bqWidths(ws, list) {
     list.forEach(function (w, i) { ws.getColumn(i + 1).width = w; });
   }
   // Blocks are different widths, so a total that tried to line up under one of
-  // them would sit under blank cells on the others. Label each figure instead.
-  function bqTotal(ws, label, n, wt) {
-    var row = ws.addRow([label, 'members', n, 'weight kg', wt]);
+  // them would sit under blank cells on the others. Label each figure instead,
+  // and add the block subtotals by cell so the arithmetic stays visible.
+  function bqTotal(ws, label, qtyCells, n, wtCells, wt) {
+    var row = ws.addRow([label, 'members', null, 'weight kg', null]);
+    row.getCell(3).value = fxSum(qtyCells, n);
+    row.getCell(5).value = fxSum(wtCells, wt);
     bqStyle(row, { bold: true, size: 11, top: 'medium' });
     row.getCell(3).numFmt = '#,##0';
     row.getCell(5).numFmt = BQ_WT;
@@ -4310,40 +4376,173 @@
   function buildBOQ(list, fname) {
     var wb = new ExcelJS.Workbook();
     wb.creator = 'PLATE3D';
+    wb.calcProperties = { fullCalcOnLoad: true };   // recalculate the chain on open
     var agg = boqAgg(list), mods = boqModules(list), asm = boqAssemblies(list);
     var hidden = items.length - list.length;
     var stamp = new Date();
     var when = stamp.getFullYear() + '-' + ('0' + (stamp.getMonth() + 1)).slice(-2) + '-' +
                ('0' + stamp.getDate()).slice(-2) + ' ' +
                ('0' + stamp.getHours()).slice(-2) + ':' + ('0' + stamp.getMinutes()).slice(-2);
-
-    /* ---- SUMMARY ---- */
+    // SUMMARY is added first so it opens first, but its figures point at cells on
+    // the other three sheets, so its tables are appended once those exist.
     var s1 = wb.addWorksheet('SUMMARY');
     bqWidths(s1, [26, 16, 14, 16, 16]);
     bqStyle(s1.addRow(['PLATE3D — BILL OF QUANTITIES']), { bold: true, size: 14 });
     bqStyle(s1.addRow(['source', fname]), { color: BQ_DIM });
     bqStyle(s1.addRow(['generated', when]), { color: BQ_DIM });
     bqStyle(s1.addRow(['units', 'mm · kg — steel at 7.85 t/m³']), { color: BQ_DIM });
-    if (hidden) bqStyle(s1.addRow(['scope', 'visible members only — ' + hidden +
-                       ' hidden member' + (hidden > 1 ? 's' : '') + ' excluded']),
-                       { color: 'FFB45309' });
+    if (hidden) bqStyle(s1.addRow(['scope', 'visible members only — ' +
+                       plural(hidden, 'hidden member') + ' excluded']), { color: 'FFB45309' });
     else bqStyle(s1.addRow(['scope', 'every placed member']), { color: BQ_DIM });
+    bqStyle(s1.addRow(['weights', 'live formulas — area × thickness × density, up through ' +
+                       'every subtotal. Edit a dimension and the book follows.']),
+            { color: BQ_DIM });
     s1.addRow([]);
 
+    /* ---- PART LIST ---- */
+    var s2 = wb.addWorksheet('PART LIST');
+    bqWidths(s2, [17, 10, 9, 9, 9, 9, 9, 9, 9, 11, 9, 11, 9, 13]);
+    bqStyle(s2.addRow(['PART LIST — every distinct part in the model']),
+            { bold: true, size: 12 });
+    bqStyle(s2.addRow(['Grouped by the input fields it was written with, so one section ' +
+                       'definition cut to several lengths gives one line per length. ' +
+                       'UNIT kg is a formula on the dimensions to its left.']),
+            { italic: true, color: BQ_DIM });
+    s2.addRow([]);
+    var pb = bqBlocks(s2, agg, 'part');
+    bqTotal(s2, 'PART TOTAL', bqPick(pb, 'QTY'), list.length,
+            bqPick(pb, 'WEIGHT kg'), agg.total);
+    s2.views = [{ state: 'frozen', ySplit: 3 }];
+
+    /* ---- MODULES ---- */
+    var s3 = wb.addWorksheet('MODULES');
+    bqWidths(s3, [17, 13, 9, 13, 9, 10, 11, 10, 11, 9, 11, 11, 11, 11, 11]);
+    bqStyle(s3.addRow(['MODULES — one block per module type']), { bold: true, size: 12 });
+    bqStyle(s3.addRow(['QTY / UNIT is how many of that part go into one module; kg / UNIT and ' +
+                       'TOTAL kg are formulas on it. The banner adds its blocks up and ' +
+                       'multiplies by how many units the model holds.']),
+            { italic: true, color: BQ_DIM });
+    s3.addRow([]);
+    var modTotCells = [];
+    mods.order.forEach(function (id) {
+      var m = mods.mods[id];
+      var h = s3.addRow(['MODULE  ' + id, 'members / unit', m.members, 'units in model',
+                         m.count, 'kg / unit', null, 'TOTAL kg', null]);
+      bqStyle(h, { bold: true, size: 11, fill: 'FFEFF6FF' });
+      [3, 5].forEach(function (c) { h.getCell(c).numFmt = BQ_QTY; });
+      [7, 9].forEach(function (c) { h.getCell(c).numFmt = BQ_WT; });
+      var blocks = bqBlocks(s3, m.agg, 'module');
+      h.getCell(7).value = fxSum(bqPick(blocks, 'kg / UNIT'), m.unitWt);
+      h.getCell(9).value = fx('G' + h.number + '*E' + h.number, m.totalWt);
+      modTotCells.push('I' + h.number);
+    });
+    if (mods.loose.length) {
+      bqStyle(s3.addRow(['NOT IN A MODULE', plural(mods.loose.length, 'member') +
+                         ' placed straight by an ASSY row']),
+              { bold: true, size: 11, fill: 'FFFEF3C7' });
+      var lb = bqBlocks(s3, boqAgg(mods.loose), 'part');
+      modTotCells = modTotCells.concat(bqPick(lb, 'WEIGHT kg'));
+    }
+    bqTotal(s3, 'MODULE TOTAL', [], list.length, modTotCells, agg.total);
+    s3.views = [{ state: 'frozen', ySplit: 3 }];
+
+    /* ---- ASSEMBLY ---- */
+    var s4 = wb.addWorksheet('ASSEMBLY');
+    bqWidths(s4, [24, 16, 10, 11, 14, 15]);
+    bqStyle(s4.addRow(['ASSEMBLY — modules only, no part detail']), { bold: true, size: 12 });
+    bqStyle(s4.addRow(['Part detail lives on MODULES. Here a module is one line: how many of ' +
+                       'it this assembly holds, what one weighs, what they come to.']),
+            { italic: true, color: BQ_DIM });
+    s4.addRow([]);
+    var grand = 0, subCells = [], nCells = [];
+    asm.order.forEach(function (g) {
+      var a = asm.gs[g];
+      var h = s4.addRow(['ASSEMBLY  ' + g, plural(a.n, 'member'), null, null, null, null]);
+      bqStyle(h, { bold: true, size: 11, fill: 'FFEFF6FF' });
+      h.getCell(6).numFmt = BQ_WT;
+      bqStyle(s4.addRow(['MODULE', 'MEMBERS / UNIT', 'QTY', 'MEMBERS', 'UNIT kg', 'WEIGHT kg']),
+              { bold: true, size: 9, color: 'FFFFFFFF', fill: BQ_INK });
+      var first = null, last = null;
+      a.modOrder.forEach(function (mid) {
+        var m = a.mods[mid];
+        var row = s4.addRow([mid, m.members, m.count, null, m.unitWt, null]);
+        var rn = row.number;
+        if (first === null) first = rn;
+        last = rn;
+        row.getCell(4).value = fx('B' + rn + '*C' + rn, m.n);
+        row.getCell(6).value = fx('E' + rn + '*C' + rn, m.wt);
+        bqStyle(row, {});
+        row.getCell(2).numFmt = BQ_QTY; row.getCell(3).numFmt = '#,##0';
+        row.getCell(4).numFmt = '#,##0';
+        row.getCell(5).numFmt = BQ_WT; row.getCell(6).numFmt = BQ_WT;
+        for (var c = 2; c <= 6; c++) row.getCell(c).alignment = { horizontal: 'right' };
+      });
+      if (a.loose.length) {
+        var lr = s4.addRow(['(parts placed directly)', null, a.loose.length, a.loose.length,
+                            null, a.looseWt]);
+        if (first === null) first = lr.number;
+        last = lr.number;
+        bqStyle(lr, { italic: true });
+        lr.getCell(3).numFmt = '#,##0'; lr.getCell(4).numFmt = '#,##0';
+        lr.getCell(6).numFmt = BQ_WT;
+      }
+      var sub = s4.addRow(['subtotal  ' + g, null, null, null, null, null]);
+      if (first !== null) {
+        sub.getCell(4).value = fx('SUM(D' + first + ':D' + last + ')', a.n);
+        sub.getCell(6).value = fx('SUM(F' + first + ':F' + last + ')', a.wt);
+      }
+      bqStyle(sub, { bold: true, top: 'thin' });
+      sub.getCell(4).numFmt = '#,##0'; sub.getCell(6).numFmt = BQ_WT;
+      sub.getCell(4).alignment = { horizontal: 'right' };
+      sub.getCell(6).alignment = { horizontal: 'right' };
+      h.getCell(6).value = fx('F' + sub.number, a.wt);
+      subCells.push('F' + sub.number);
+      nCells.push('D' + sub.number);
+      s4.addRow([]);
+      grand += a.wt;
+    });
+    var gr = s4.addRow(['GRAND TOTAL — all assemblies', null, asm.order.length, null, null, null]);
+    gr.getCell(4).value = fxSum(nCells, list.length);
+    gr.getCell(6).value = fxSum(subCells, grand);
+    bqStyle(gr, { bold: true, size: 12, top: 'medium' });
+    gr.getCell(3).numFmt = '#,##0'; gr.getCell(4).numFmt = '#,##0';
+    gr.getCell(6).numFmt = BQ_WT;
+    for (var c2 = 3; c2 <= 6; c2++) gr.getCell(c2).alignment = { horizontal: 'right' };
+    s4.views = [{ state: 'frozen', ySplit: 3 }];
+
+    /* ---- back to SUMMARY, now that there is something to point at ---- */
     bqStyle(s1.addRow(['BY CATEGORY', 'ITEMS', 'QTY', 'WEIGHT kg', 'SHARE']),
             { bold: true, size: 9, color: 'FFFFFFFF', fill: BQ_INK });
+    var catRows = [];
     ['PLATE', 'BAR', 'SECT'].forEach(function (cat) {
-      var rows = agg.rows.filter(function (r) { return BOQ_CAT[r.kind] === cat; });
-      if (!rows.length) return;
-      var q = 0, w = 0;
-      rows.forEach(function (r) { q += r.qty; w += r.wt; });
-      var row = s1.addRow([cat, rows.length, q, w, agg.total ? w / agg.total : 0]);
+      var blocks = pb.filter(function (b) { return BOQ_CAT[b.kind] === cat; });
+      if (!blocks.length) return;
+      var q = 0, w = 0, nItem = 0;
+      blocks.forEach(function (b) {
+        nItem += b.n;
+        agg.rows.forEach(function (r) { if (r.kind === b.kind) { q += r.qty; w += r.wt; } });
+      });
+      var pre = function (a) { return "'PART LIST'!" + a; };
+      var row = s1.addRow([cat, nItem, null, null, null]);
+      row.getCell(3).value = fxSum(bqPick(blocks, 'QTY').map(pre), q);
+      row.getCell(4).value = fxSum(bqPick(blocks, 'WEIGHT kg').map(pre), w);
       bqStyle(row, {});
+      catRows.push({ n: row.number, w: w });
       row.getCell(2).numFmt = '#,##0'; row.getCell(3).numFmt = '#,##0';
       row.getCell(4).numFmt = BQ_WT; row.getCell(5).numFmt = '0.0%';
       for (var c = 2; c <= 5; c++) row.getCell(c).alignment = { horizontal: 'right' };
     });
-    var tot = s1.addRow(['TOTAL', agg.rows.length, list.length, agg.total, 1]);
+    var tot = s1.addRow(['TOTAL', agg.rows.length, null, null, null]);
+    if (catRows.length) {
+      var lo = catRows[0].n, hi = catRows[catRows.length - 1].n;
+      tot.getCell(3).value = fx('SUM(C' + lo + ':C' + hi + ')', list.length);
+      tot.getCell(4).value = fx('SUM(D' + lo + ':D' + hi + ')', agg.total);
+    }
+    tot.getCell(5).value = fx('D' + tot.number + '/D' + tot.number, 1);
+    catRows.forEach(function (cr) {
+      s1.getRow(cr.n).getCell(5).value = fx('D' + cr.n + '/D' + tot.number,
+        agg.total ? cr.w / agg.total : 0);
+    });
     bqStyle(tot, { bold: true, top: 'thin' });
     tot.getCell(2).numFmt = '#,##0'; tot.getCell(3).numFmt = '#,##0';
     tot.getCell(4).numFmt = BQ_WT; tot.getCell(5).numFmt = '0.0%';
@@ -4360,93 +4559,6 @@
       row.getCell(2).alignment = { horizontal: 'right' };
     });
     s1.views = [{ state: 'frozen', ySplit: 1 }];
-
-    /* ---- PART LIST ---- */
-    var s2 = wb.addWorksheet('PART LIST');
-    bqWidths(s2, [17, 10, 9, 9, 9, 9, 9, 9, 9, 11, 8, 11, 12]);
-    bqStyle(s2.addRow(['PART LIST — every distinct part in the model']),
-            { bold: true, size: 12 });
-    bqStyle(s2.addRow(['Grouped by the input fields it was written with, so one section ' +
-                       'definition cut to several lengths gives one line per length.']),
-            { italic: true, color: BQ_DIM });
-    s2.addRow([]);
-    bqBlocks(s2, agg, 'part');
-    bqTotal(s2, 'PART TOTAL', list.length, agg.total);
-    s2.views = [{ state: 'frozen', ySplit: 3 }];
-
-    /* ---- MODULES ---- */
-    var s3 = wb.addWorksheet('MODULES');
-    bqWidths(s3, [17, 12, 9, 9, 9, 9, 9, 9, 9, 9, 11, 11, 11, 11, 11]);
-    bqStyle(s3.addRow(['MODULES — one block per module type']), { bold: true, size: 12 });
-    bqStyle(s3.addRow(['QTY / UNIT is how many of that part go into one module. ' +
-                       'The module header carries what one weighs and how many are in the model.']),
-            { italic: true, color: BQ_DIM });
-    s3.addRow([]);
-    mods.order.forEach(function (id) {
-      var m = mods.mods[id];
-      var h = s3.addRow(['MODULE  ' + id, 'members / unit', m.members, 'units in model',
-                         m.count, 'kg / unit', m.unitWt, 'TOTAL kg', m.totalWt]);
-      bqStyle(h, { bold: true, size: 11, fill: 'FFEFF6FF' });
-      [3, 5].forEach(function (c) { h.getCell(c).numFmt = BQ_QTY; });
-      [7, 9].forEach(function (c) { h.getCell(c).numFmt = BQ_WT; });
-      bqBlocks(s3, m.agg, 'module');
-    });
-    if (mods.loose.length) {
-      bqStyle(s3.addRow(['NOT IN A MODULE', plural(mods.loose.length, 'member') +
-                         ' placed straight by an ASSY row']),
-              { bold: true, size: 11, fill: 'FFFEF3C7' });
-      bqBlocks(s3, boqAgg(mods.loose), 'part');
-    }
-    bqTotal(s3, 'MODULE TOTAL', list.length, agg.total);
-    s3.views = [{ state: 'frozen', ySplit: 3 }];
-
-    /* ---- ASSEMBLY ---- */
-    var s4 = wb.addWorksheet('ASSEMBLY');
-    bqWidths(s4, [22, 22, 12, 12, 15, 16]);
-    bqStyle(s4.addRow(['ASSEMBLY — modules only, no part detail']), { bold: true, size: 12 });
-    bqStyle(s4.addRow(['Part detail lives on MODULES. Here a module is one line: how many ' +
-                       'of it this assembly holds, what one weighs, what they come to.']),
-            { italic: true, color: BQ_DIM });
-    s4.addRow([]);
-    var grand = 0;
-    asm.order.forEach(function (g) {
-      var a = asm.gs[g];
-      var h = s4.addRow(['ASSEMBLY  ' + g, plural(a.n, 'member'), null, null, null, a.wt]);
-      bqStyle(h, { bold: true, size: 11, fill: 'FFEFF6FF' });
-      h.getCell(6).numFmt = BQ_WT;
-      bqStyle(s4.addRow(['MODULE', 'MEMBERS / UNIT', 'QTY', 'MEMBERS', 'UNIT kg', 'WEIGHT kg']),
-              { bold: true, size: 9, color: 'FFFFFFFF', fill: BQ_INK });
-      a.modOrder.forEach(function (mid) {
-        var m = a.mods[mid];
-        var row = s4.addRow([mid, m.members, m.count, m.n, m.unitWt, m.wt]);
-        bqStyle(row, {});
-        row.getCell(2).numFmt = BQ_QTY; row.getCell(3).numFmt = '#,##0';
-        row.getCell(4).numFmt = '#,##0';
-        row.getCell(5).numFmt = BQ_WT; row.getCell(6).numFmt = BQ_WT;
-        for (var c = 2; c <= 6; c++) row.getCell(c).alignment = { horizontal: 'right' };
-      });
-      if (a.loose.length) {
-        var lr = s4.addRow(['(parts placed directly)', null, a.loose.length, a.loose.length,
-                            null, a.looseWt]);
-        bqStyle(lr, { italic: true });
-        lr.getCell(3).numFmt = '#,##0'; lr.getCell(4).numFmt = '#,##0';
-        lr.getCell(6).numFmt = BQ_WT;
-      }
-      var sub = s4.addRow(['subtotal  ' + g, null, null, a.n, null, a.wt]);
-      bqStyle(sub, { bold: true, top: 'thin' });
-      sub.getCell(4).numFmt = '#,##0'; sub.getCell(6).numFmt = BQ_WT;
-      sub.getCell(4).alignment = { horizontal: 'right' };
-      sub.getCell(6).alignment = { horizontal: 'right' };
-      s4.addRow([]);
-      grand += a.wt;
-    });
-    var gr = s4.addRow(['GRAND TOTAL — all assemblies', null, asm.order.length,
-                        list.length, null, grand]);
-    bqStyle(gr, { bold: true, size: 12, top: 'medium' });
-    gr.getCell(3).numFmt = '#,##0'; gr.getCell(4).numFmt = '#,##0';
-    gr.getCell(6).numFmt = BQ_WT;
-    for (var c2 = 3; c2 <= 6; c2++) gr.getCell(c2).alignment = { horizontal: 'right' };
-    s4.views = [{ state: 'frozen', ySplit: 3 }];
     return wb;
   }
 
@@ -5356,6 +5468,28 @@
     '<h3>Save BOQ - the take-off</h3>',
     '<p>A workbook of four sheets, written from the model on screen. Weights are computed',
     ' from the real cut area, so every hole and notch is already out of them.</p>',
+    '<p><b>Every weight in the book is a formula, not a number.</b> Open it in Excel and the',
+    ' chain is live the whole way down:</p>',
+    '<table class="gt"><thead><tr><th>cell</th><th>formula</th></tr></thead><tbody>',
+    '<tr><td>UNIT kg, a plate</td><td><code>= AREA m&sup2; &times; THK &times; 7.85</code></td></tr>',
+    '<tr><td>kg/m, a bar or section</td><td><code>= AREA mm&sup2; &times; 0.00785</code></td></tr>',
+    '<tr><td>UNIT kg, a bar or section</td><td><code>= kg/m &times; LENGTH / 1000</code></td></tr>',
+    '<tr><td>WEIGHT kg</td><td><code>= UNIT kg &times; QTY</code></td></tr>',
+    '<tr><td>kg / UNIT, TOTAL kg</td><td><code>= UNIT kg &times; QTY / UNIT</code>,',
+    ' <code>&times; TOTAL QTY</code></td></tr>',
+    '<tr><td>every subtotal</td><td><code>= SUM(</code>the lines above it<code>)</code></td></tr>',
+    '<tr><td>a module banner</td><td>its block subtotals added, then <code>&times;</code> how many',
+    ' units the model holds</td></tr>',
+    '<tr><td>an assembly subtotal</td><td><code>= SUM(</code>its module lines<code>)</code></td></tr>',
+    '<tr><td>GRAND TOTAL, SUMMARY</td><td>the assembly subtotals added; the category lines point',
+    ' straight at the PART LIST cells</td></tr>',
+    '</tbody></table>',
+    '<p>So a thickness typed over in the sheet moves the part, its module, its assembly and the',
+    ' grand total with it - which is the point of a take-off rather than a printout. The only',
+    ' dead values are the ones nothing can derive: the dimensions themselves, the counts the',
+    ' model measured, and <b>AREA</b> - a cut outline is not something a cell can integrate,',
+    ' so the engine hands over the area it already used for the solid. Edit an area and the',
+    ' weights follow it; edit a dimension and the area does not, so re-export instead.</p>',
     '<table class="gt"><thead><tr><th>sheet</th><th>what is on it</th></tr></thead><tbody>',
     '<tr><td><b>SUMMARY</b></td><td>weight by category with each one&rsquo;s share, and the counts',
     ' - assemblies, module types, distinct parts, placed members</td></tr>',
