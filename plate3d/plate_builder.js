@@ -184,6 +184,17 @@
     '#pb-note { background:#f8fafc; border:1px solid var(--hair); border-radius:8px;',
     '  padding:9px 11px; font-size:11px; color:#64748b; line-height:1.6; }',
 
+    /* ---- example workbook menu, hung under the Example button ---- */
+    '#pb-ex { display:none; position:fixed; z-index:60; padding:6px; background:#fff;',
+    '  border:1px solid var(--line); border-radius:10px; min-width:280px;',
+    '  box-shadow:0 12px 40px rgba(15,23,42,.18); }',
+    '#pb-ex button { display:block; width:100%; text-align:left; border:0; background:none;',
+    '  font:inherit; text-transform:none; letter-spacing:0; padding:8px 10px;',
+    '  border-radius:7px; cursor:pointer; }',
+    '#pb-ex button:hover { background:#ecfdf5; }',
+    '#pb-ex .exn { display:block; font-size:12.5px; font-weight:600; color:#0f172a; }',
+    '#pb-ex .exd { display:block; font-size:11px; color:#64748b; margin-top:2px; }',
+
     /* ---- colour palette popover ---- */
     '#pb-pal { display:none; position:fixed; z-index:60; grid-template-columns:repeat(4,20px);',
     '  gap:4px; padding:8px; background:#fff; border:1px solid var(--line); border-radius:8px;',
@@ -4367,8 +4378,12 @@
     '</ul>',
     '<p>Load it with <b>Load Excel</b>, or drop the .xlsx anywhere on the window.',
     ' Edit the file and load it again to update.</p>',
-    '<p><b>Example</b> in the menu bar downloads a worked sheet - the tab, the END row and',
-    ' every keyword below, already filled in. Quicker to start from than a blank page.</p>',
+    '<p>The viewer opens on a <b>tower crane</b> that is built into it, so there is something',
+    ' to turn around before you have written anything. Load a sheet and it is replaced.</p>',
+    '<p><b>Example</b> in the menu bar lists the worked sheets - the crane you are looking at,',
+    ' a small annotated one with every keyword in it, and two drawn from real drawing sets.',
+    ' Pick one and it downloads: the tab, the END row and every keyword below, already filled',
+    ' in. Quicker to start from than a blank page.</p>',
 
     '<h2>Coordinates</h2>',
     '<p><b>Z is up.</b> X east, Y north, Z height - the same right-handed frame as IFC,',
@@ -4742,8 +4757,8 @@
       '    onchange="plateBuilder.setMeasure(this.checked)"> measure</label>' +
       '  <button class="guide" onclick="plateBuilder.openGuide()"' +
       '    title="how to write the spreadsheet">' + ICON_HELP + 'Guide</button>' +
-      '  <button class="guide ex" onclick="plateBuilder.getSample()"' +
-      '    title="download ' + SAMPLE_XLSX + ' - a worked sheet to start from">' +
+      '  <button class="guide ex" onclick="plateBuilder.openSamples(event)"' +
+      '    title="download a worked sheet to start from">' +
       ICON_DL + 'Example</button>' +
       '</div>' +
       '<div id="pb-body">' +
@@ -4766,6 +4781,7 @@
       '</div>' +
       '</div>' +
       '<div id="pb-pal"></div>' +
+      '<div id="pb-ex"></div>' +
       '<div id="pb-help" onclick="if(event.target===this)plateBuilder.closeGuide()">' +
       '  <div class="box"><header><b>PLATE3D &mdash; how to use</b>' +
       '    <span onclick="plateBuilder.closeGuide()" title="close">&#10005;</span></header>' +
@@ -4805,6 +4821,11 @@
       '  <div class="meta" id="pb-pv-pos">&nbsp;</div>' +
       '</div></div>';
     document.body.appendChild(app);
+    document.getElementById('pb-ex').innerHTML = SAMPLES.map(function (s, i) {
+      return '<button onclick="plateBuilder.getSample(' + i + ')" title="' + esc(s.f) + '">' +
+             '<span class="exn">' + esc(s.n) + '</span>' +
+             '<span class="exd">' + esc(s.d) + '</span></button>';
+    }).join('');
     var pal = document.getElementById('pb-pal');
     pal.innerHTML = SWATCHES.map(function (c) {
       return '<i style="background:' + c + '" onclick="plateBuilder.pickColor(\'' + c + '\')"></i>';
@@ -4819,6 +4840,8 @@
     }
     window.addEventListener('mousedown', function (e) {
       if (palPending && !document.getElementById('pb-pal').contains(e.target)) closePalette();
+      if (exOpen && !document.getElementById('pb-ex').contains(e.target) &&
+          !(e.target.closest && e.target.closest('#pb-bar button.ex'))) closeSamples();
     });
     var modal = document.getElementById('pb-modal');
     var pvCv = document.getElementById('pb-pv-canvas');
@@ -5273,15 +5296,48 @@
     refreshPreview();      // keep an open preview in sync
   }
 
-  function sampleUrl() {
+  function sampleUrl(file) {
     var cut = engineSrc.lastIndexOf('/');
-    return cut > 0 ? engineSrc.slice(0, cut + 1) + SAMPLE_XLSX : SAMPLE_XLSX;
+    return cut > 0 ? engineSrc.slice(0, cut + 1) + file : file;
+  }
+  // Example workbooks, all sitting next to this file. Add a row to put another
+  // one on the menu; nothing else needs touching.
+  var SAMPLES = [
+    { f: 'PLATE3D_SAMPLE.xlsx', n: 'Sample',
+      d: 'every keyword once, annotated — start here' },
+    { f: 'PLATE3D_CRANE.xlsx', n: 'Tower crane',
+      d: '286 members off two lattice bays and COPY' },
+    { f: 'PLATE3D_TANK.xlsx', n: 'Tank',
+      d: 'drawn from a five-sheet A4 set' },
+    { f: 'PLATE3D_TURRET.xlsx', n: 'Turret',
+      d: 'a machined part, and where a prism stops' }
+  ];
+  var exOpen = false;
+  function closeSamples() {
+    var el = document.getElementById('pb-ex');
+    if (el) el.style.display = 'none';
+    exOpen = false;
+  }
+  function openSamples(ev) {
+    ev.stopPropagation();
+    var el = document.getElementById('pb-ex');
+    if (!el) return;
+    if (exOpen) { closeSamples(); return; }
+    el.style.display = 'block';
+    exOpen = true;
+    var r = ev.currentTarget.getBoundingClientRect();
+    var w = el.offsetWidth, h = el.offsetHeight;
+    el.style.left = Math.max(8, Math.min(window.innerWidth - w - 8, r.right - w)) + 'px';
+    el.style.top = Math.min(window.innerHeight - h - 8, r.bottom + 6) + 'px';
   }
   // Fetched into a blob rather than linked: a plain <a download> across origins
   // has its filename ignored and can open the sheet in the browser instead of
   // saving it. GitHub Pages, jsDelivr and same-origin all allow the fetch.
-  function getSample() {
-    var url = sampleUrl();
+  function getSample(i) {
+    closeSamples();
+    var s = SAMPLES[i];
+    if (!s) return;
+    var url = sampleUrl(s.f);
     fetch(url).then(function (r) {
       if (!r.ok) throw new Error('HTTP ' + r.status);
       return r.blob();
@@ -5289,13 +5345,13 @@
       var href = URL.createObjectURL(b);
       var a = document.createElement('a');
       a.href = href;
-      a.download = SAMPLE_XLSX;
+      a.download = s.f;
       document.body.appendChild(a);
       a.click();
       a.remove();
       setTimeout(function () { URL.revokeObjectURL(href); }, 8000);
     }).catch(function (e) {
-      alert('Could not download the example.\n\n' + url + '\n' + e.message +
+      alert('Could not download ' + s.f + '.\n\n' + url + '\n' + e.message +
             '\n\nOpen that address directly to save it.');
     });
   }
@@ -5327,13 +5383,130 @@
     setAxes: setAxes, setFaces: setFaces,
     setOrtho: setOrtho, setOrthoPv: setOrthoPv,
     setClash: setClash, setClashPv: setClashPv,
-    openGuide: openGuide, closeGuide: closeGuide, getSample: getSample,
+    openGuide: openGuide, closeGuide: closeGuide,
+    openSamples: openSamples, getSample: getSample,
     toggleMemberAxis: toggleMemberAxis
   };
 
   /* ---- auto-run: use window.PLATE_DATA if present, else empty default.
      Skipped when plateBuilder.run() was already called directly. ---- */
-  function autorun() { if (!runToken) run(window.PLATE_DATA || {}); }
+  /* ---- the model the viewer opens with ----
+     PLATE3D_CRANE.xlsx as plain rows, so it takes the identical parse path an
+     .xlsx does - no second grammar to keep in step. A host page that sets
+     window.PLATE_DATA still wins, and loading a sheet replaces it. */
+  var DEMO_ROWS = [
+    ["BAR","bar.leg","SM490",120,2000],
+    ["BAR","bar.tie","SM490",76,1200],
+    ["BAR","bar.dia","SM490",60,2332],
+    ["BAR","bar.chord","SM490",100,2000],
+    ["BAR","bar.web","SM490",60,1342],
+    ["BAR","bar.jtie","SM490",60,1200],
+    ["BAR","bar.jdia","SM490",50,2332],
+    ["BAR","bar.aleg","SM490",90,5802],
+    ["BAR","bar.atie","SM490",60,3000],
+    ["BAR","bar.penj","SS275",40,13984],
+    ["BAR","bar.penc","SS275",40,8412],
+    ["BAR","bar.rope","SS275",24,12800],
+    ["PLATE","pl.base","SM400",40,"RECT","mc",3600,3600],
+    ["PLATE","pl.gus","SM400",20,"TRAP","bl",1000,0,900,0],
+    ["PLATE","pl.plat","SM400",15,"RECT","mc",3000,2200],
+    ["PLATE","pl.cabs","SM400",6,"RECT","mc",1500,1600],
+    ["PLATE","pl.cabf","SM400",6,"RECT","mc",1300,1600],
+    ["PLATE","pl.cabt","SM400",6,"RECT","mc",1500,1300],
+    ["PLATE","pl.cw","SM400",220,"RECT","mc",2200,1400],
+    ["PLATE","pl.trly","SM400",20,"RECT","mc",900,700],
+    ["PLATE","pl.hook","SM400",30,"RECT","mc",700,520],
+    ["SECT","sc.H300","SM490",3000,"H","bc",300,150,150,6.5,9,9,13],
+    ["MODULE","md.mast","bar.leg","",0,0,0,"XY"],
+    ["MODULE","md.mast","bar.leg","",1200,0,0,"XY"],
+    ["MODULE","md.mast","bar.leg","",1200,1200,0,"XY"],
+    ["MODULE","md.mast","bar.leg","",0,1200,0,"XY"],
+    ["MODULE","md.mast","bar.tie","",0,0,2000,"YZ"],
+    ["MODULE","md.mast","bar.tie","",0,1200,2000,"YZ"],
+    ["MODULE","md.mast","bar.tie","",0,1200,2000,"XZ"],
+    ["MODULE","md.mast","bar.tie","",1200,1200,2000,"XZ"],
+    ["MODULE","md.mast","bar.dia","",0,0,0,"XY",0,30.964],
+    ["MODULE","md.mast","bar.dia","",1200,0,0,"XY",0,-30.964],
+    ["MODULE","md.mast","bar.dia","",0,1200,0,"XY",0,30.964],
+    ["MODULE","md.mast","bar.dia","",1200,1200,0,"XY",0,-30.964],
+    ["MODULE","md.mast","bar.dia","",0,0,0,"XY",-30.964,0],
+    ["MODULE","md.mast","bar.dia","",0,1200,0,"XY",30.964,0],
+    ["MODULE","md.mast","bar.dia","",1200,0,0,"XY",-30.964,0],
+    ["MODULE","md.mast","bar.dia","",1200,1200,0,"XY",30.964,0],
+    ["MODULE","md.mast","BASE","bar.leg","mc"],
+    ["MODULE","md.jib","bar.chord","",0,0,0,"YZ"],
+    ["MODULE","md.jib","bar.chord","",0,1200,0,"YZ"],
+    ["MODULE","md.jib","bar.chord","",0,600,1200,"YZ"],
+    ["MODULE","md.jib","bar.jtie","",0,1200,0,"XZ"],
+    ["MODULE","md.jib","bar.web","",0,1200,0,"XY",26.565,0],
+    ["MODULE","md.jib","bar.web","",0,0,0,"XY",-26.565,0],
+    ["MODULE","md.jib","bar.jdia","",0,0,0,"XY",-30.964,90],
+    ["MODULE","md.jib","BASE","bar.chord","mc"],
+    ["MODULE","md.base","pl.base","mc",0,0,0,"XY"],
+    ["MODULE","md.base","pl.gus","bl",600,0,20,"XZ"],
+    ["MODULE","md.base","pl.gus","bl",-600,0,20,"XZ",0,0,180],
+    ["MODULE","md.base","pl.gus","bl",0,600,20,"YZ"],
+    ["MODULE","md.base","pl.gus","bl",0,-600,20,"YZ",0,0,180],
+    ["MODULE","md.base","BASE","pl.base","mc"],
+    ["MODULE","md.cab","pl.cabs","mc",0,-650,800,"XZ"],
+    ["MODULE","md.cab","pl.cabs","mc",0,650,800,"XZ"],
+    ["MODULE","md.cab","pl.cabf","mc",750,0,800,"YZ"],
+    ["MODULE","md.cab","pl.cabt","mc",0,0,0,"XY"],
+    ["MODULE","md.cab","pl.cabt","mc",0,0,1600,"XY"],
+    ["MODULE","md.cab","BASE","pl.cabt","mc"],
+    ["MODULE","md.top","sc.H300","bc",-1500,-700,-320,"YZ"],
+    ["MODULE","md.top","sc.H300","bc",-1500,700,-320,"YZ"],
+    ["MODULE","md.top","pl.plat","mc",0,0,0,"XY"],
+    ["MODULE","md.top","BASE","pl.plat","mc"],
+    ["MODULE","md.afr","bar.aleg","",0,0,0,"XY",-14.984,15.524],
+    ["MODULE","md.afr","bar.aleg","",3000,0,0,"XY",-14.984,-15.524],
+    ["MODULE","md.afr","bar.aleg","",3000,3000,0,"XY",14.984,-15.524],
+    ["MODULE","md.afr","bar.aleg","",0,3000,0,"XY",14.984,15.524],
+    ["MODULE","md.afr","bar.atie","",0,0,0,"YZ"],
+    ["MODULE","md.afr","bar.atie","",0,3000,0,"YZ"],
+    ["MODULE","md.afr","bar.atie","",0,3000,0,"XZ"],
+    ["MODULE","md.afr","bar.atie","",3000,3000,0,"XZ"],
+    ["MODULE","md.afr","BASE","bar.aleg","mc"],
+    ["MODULE","md.cwt","pl.cw","mc",0,0,0,"YZ"],
+    ["MODULE","md.cwt","pl.cw","mc",260,0,0,"YZ"],
+    ["MODULE","md.cwt","pl.cw","mc",520,0,0,"YZ"],
+    ["MODULE","md.cwt","BASE","pl.cw","mc"],
+    ["MODULE","md.hook","pl.trly","mc",0,0,0,"XY"],
+    ["MODULE","md.hook","bar.rope","",0,-260,-400,"XY",180,0],
+    ["MODULE","md.hook","bar.rope","",0,260,-400,"XY",180,0],
+    ["MODULE","md.hook","pl.hook","mc",0,0,-13460,"XZ"],
+    ["MODULE","md.hook","BASE","pl.trly","mc"],
+    ["ASSY","as.mast","md.mast","ADD",-600,-600,0],
+    ["ASSY","as.mast","as.mast","COPY",0,0,2000,8],
+    ["ASSY","as.base","md.base","ADD",0,0,0],
+    ["ASSY","as.top","md.top","ADD",0,0,18000],
+    ["ASSY","as.top","md.afr","ADD",-1500,-1500,18200],
+    ["ASSY","as.top","md.cab","ADD",1500,0,16100],
+    ["ASSY","as.jib","md.jib","ADD",1400,-600,18400],
+    ["ASSY","as.jib","as.jib","COPY",2000,0,0,11],
+    ["ASSY","as.cjib","md.jib","ADD",-1400,600,18400,0,0,180],
+    ["ASSY","as.cjib","as.cjib","COPY",-2000,0,0,3],
+    ["ASSY","as.cwt","md.cwt","ADD",-9000,0,18700],
+    ["ASSY","as.pend","bar.penj","ADD",0,0,23600,0,106.621,0],
+    ["ASSY","as.pend","bar.penc","ADD",0,0,23600,0,-118.393,0],
+    ["ASSY","as.hook","md.hook","ADD",12000,0,18100],
+    ["END"]
+  ];
+
+  function autorun() {
+    if (runToken) return;
+    if (window.PLATE_DATA) { run(window.PLATE_DATA); return; }
+    var parsed;
+    try { parsed = parseExcelRows(DEMO_ROWS); }
+    catch (e) { run({}); return; }              // never let the demo cost a viewer
+    buildLog = [];
+    run({ title: 'PLATE3D',
+          subtitle: 'PLATE3D_CRANE · PLATE/CUT/ASSY · unit: mm',
+          note: 'Built-in example. Load Excel opens your own sheet; ' +
+                'Example downloads this one and three others to start from.',
+          __parsed: parsed });
+    showResult('PLATE3D_CRANE (built in)', parsed);
+  }
   if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', autorun);
   } else {

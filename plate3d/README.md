@@ -78,9 +78,16 @@
     아니기 때문. `MODULE BASE` 누락/미해결, ASSY의 Ref.Pt 미해결이 여기 해당한다
   - **`? Guide` 버튼**(메뉴바 오른쪽 끝): 사용설명서 패널. 명령어 체계·필드별 문법·좌표계·9점·
     SECT 타입별 입력값·전체 시트 예제·화면 조작을 도해(SVG)와 함께 정리 (영문)
-  - **`Example` 버튼**(Guide 옆): 예제 시트 `PLATE3D_SAMPLE.xlsx` 다운로드. `plate_builder.js`가
-    로드된 **같은 폴더**에서 받아오므로 macroBIM 서버·GitHub Pages·jsDelivr 어디서 띄우든 동작한다
-    (fetch → blob 방식이라 교차 출처에서도 파일명 그대로 저장됨)
+  - **`Example` 버튼**(Guide 옆): 누르면 **예제 목록이 열리고** 골라서 받는다 —
+    `PLATE3D_SAMPLE`(모든 키워드 1회, 주석) · `PLATE3D_CRANE`(타워크레인) ·
+    `PLATE3D_TANK` · `PLATE3D_TURRET`. `plate_builder.js`가 로드된 **같은 폴더**에서
+    받아오므로 macroBIM 서버·GitHub Pages·jsDelivr 어디서 띄우든 동작한다
+    (fetch → blob 방식이라 교차 출처에서도 파일명 그대로 저장됨).
+    예제를 추가하려면 엔진의 `SAMPLES` 배열에 한 줄만 넣으면 된다
+  - **기본 모델 내장** — 아무것도 로딩하지 않아도 **타워크레인이 화면에 나온다**.
+    엑셀과 똑같은 행 배열을 코드에 넣어(`DEMO_ROWS`, 4.8 KB) **동일한 파싱 경로**를 타므로
+    문법이 두 벌이 되지 않는다. 호스트 페이지가 `window.PLATE_DATA`를 정의했으면 그쪽이 우선하고,
+    시트를 불러오면 교체된다
   - 배치된 부재가 없으면 STL/IFC 출력은 **경고 후 중단** — 빈 파일이 내려받아지지 않음
   - 화면 구성: **상단 메뉴바**(Load Excel · Save STL/IFC · 뷰포트 ISO/Front/Side/Top · 체크박스 7종) +
     좌측 목록판(폭 380px) + **16:9 고정 3D 창**. 창 크기가 좁으면 메뉴바가 두 줄로 접힘
