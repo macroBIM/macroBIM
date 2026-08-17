@@ -3002,6 +3002,20 @@
     return { W: Math.round(960 * s), H: Math.round(540 * s) };
   }
 
+  /* The clip planes have to follow the model. They used to be a fixed 1 .. 50000
+     mm, which is fine for a bracket and deletes a tower crane: the camera backs
+     off to size * 1.5, so anything past about 33 m across sat beyond the far
+     plane and the screen came up empty with no error to explain it. */
+  function setClip(cams, size, dist) {
+    var far = Math.max(50000, (dist || size * 1.5) * 4 + size);
+    var near = Math.max(0.5, size / 5000);
+    cams.forEach(function (c) {
+      if (!c) return;
+      c.near = near; c.far = far;
+      c.updateProjectionMatrix();
+    });
+  }
+
   // The key light aims at the model rather than at the world origin, so a part
   // parked far off centre is lit from the same angle as one sitting on 0,0,0.
   function placeSun(sun, sc, bbox, size) {
@@ -3388,6 +3402,7 @@
 
     var center = bbox.isEmpty() ? new THREE.Vector3() : bbox.getCenter(new THREE.Vector3());
     var size = bbox.isEmpty() ? 500 : bbox.getSize(new THREE.Vector3()).length();
+    setClip([pvCamP, pvCamO], size);
     var mn = bbox.min, mx3 = bbox.max;
     axRows.forEach(function (a) {
       a.g.add(plateTriad(a.spec, a.m, 34, a.rp.p, a.rp.name));   // 34 px arms
@@ -4961,6 +4976,7 @@
     if (!isFinite(size) || size <= 0) size = 900;
     sceneSize = size;
     VDIST = size * 1.5 + 200;
+    setClip([camPersp, camOrtho], size, VDIST);
 
     var gspanMain = Math.ceil(size / 400) * 800;
     makeGrid(scene, gspanMain, 0x5e6875, 0x333b45);
