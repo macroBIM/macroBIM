@@ -181,19 +181,59 @@
     '#pb-result.err { border-color:#fecaca; background:#fef2f2; color:#b91c1c; }',
     '#pb-result ul { margin:6px 0 0 16px; }',
     '#pb-result li.n { color:#b45309; }',       /* an aside, in either panel */
+    '.rf { color:#94a3b8; font-size:9px; margin-left:4px; letter-spacing:.02em; }',
     '#pb-note { background:#f8fafc; border:1px solid var(--hair); border-radius:8px;',
     '  padding:9px 11px; font-size:11px; color:#64748b; line-height:1.6; }',
 
-    /* ---- example workbook menu, hung under the Example button ---- */
-    '#pb-ex { display:none; position:fixed; z-index:60; padding:6px; background:#fff;',
-    '  border:1px solid var(--line); border-radius:10px; min-width:280px;',
-    '  box-shadow:0 12px 40px rgba(15,23,42,.18); }',
-    '#pb-ex button { display:block; width:100%; text-align:left; border:0; background:none;',
-    '  font:inherit; text-transform:none; letter-spacing:0; padding:8px 10px;',
-    '  border-radius:7px; cursor:pointer; }',
-    '#pb-ex button:hover { background:#ecfdf5; }',
-    '#pb-ex .exn { display:block; font-size:12.5px; font-weight:600; color:#0f172a; }',
-    '#pb-ex .exd { display:block; font-size:11px; color:#64748b; margin-top:2px; }',
+    /* ---- the sheet cannot be built at all: covers everything until dismissed ---- */
+    '#pb-fatal { position:fixed; top:0; right:0; bottom:0; left:0; z-index:99999;',
+    '  background:rgba(15,23,42,.55); display:flex; align-items:center;',
+    '  justify-content:center; padding:24px; }',
+    '#pb-fatal .box { background:#fff; border-radius:12px; max-width:560px; width:100%;',
+    '  padding:20px 22px; box-shadow:0 18px 50px rgba(15,23,42,.35); font-size:13px;',
+    '  color:#334155; line-height:1.6; }',
+    '#pb-fatal h4 { margin:0 0 6px; font-size:15px; color:#b91c1c; }',
+    '#pb-fatal .f { margin:0 0 10px; font-weight:600; color:#0f172a; }',
+    '#pb-fatal ul { margin:0 0 12px 18px; padding:0; }',
+    '#pb-fatal li { margin:0 0 7px; }',
+    '#pb-fatal .n { margin:0 0 14px; color:#64748b; font-size:12px; }',
+    '#pb-fatal button { border:0; border-radius:7px; background:#b91c1c; color:#fff;',
+    '  padding:7px 20px; font-family:inherit; font-size:13px; font-weight:600;',
+    '  cursor:pointer; float:right; }',
+    '#pb-fatal:after { content:""; display:block; clear:both; }',
+
+    /* ---- example workbook picker: a window, like the plate preview ---- */
+    '#pb-ex { display:none; position:fixed; left:0; top:0; right:0; bottom:0; z-index:55;',
+    '  background:rgba(15,23,42,.35); align-items:center; justify-content:center;',
+    '  padding:20px; }',
+    '#pb-ex .box { background:#fff; border:1px solid var(--line); border-radius:10px;',
+    '  width:540px; max-width:96vw; max-height:92vh; overflow:auto; padding:14px;',
+    '  box-shadow:0 12px 40px rgba(15,23,42,.24); }',
+    '#pb-ex h2 { font-size:15px; font-weight:600; color:#0f172a; margin:0 0 7px; }',
+    '#pb-ex .close { float:right; cursor:pointer; color:#94a3b8; padding:0 4px; }',
+    '#pb-ex .close:hover { color:#0f172a; }',
+    '#pb-ex .exi { margin:0 0 13px; font-size:11.5px; color:#64748b; line-height:1.6; }',
+    '#pb-ex button { display:block; width:100%; text-align:left; position:relative;',
+    '  border:1px solid var(--hair); background:#fff; font:inherit; text-transform:none;',
+    '  letter-spacing:0; padding:11px 108px 11px 13px; border-radius:9px; cursor:pointer;',
+    '  margin-bottom:7px; transition:background .12s,border-color .12s,box-shadow .12s; }',
+    '#pb-ex button:hover { background:#f0fdf4; border-color:#6ee7b7;',
+    '  box-shadow:0 3px 10px rgba(15,23,42,.08); }',
+    '#pb-ex .exn { display:block; font-size:13px; font-weight:600; color:#0f172a; }',
+    '#pb-ex .exn i { font-style:normal; font-weight:400; font-size:10.5px; color:#94a3b8;',
+    '  margin-left:8px; }',
+    '#pb-ex .exd { display:block; font-size:11.5px; color:#475569; margin-top:3px;',
+    '  line-height:1.5; }',
+    '#pb-ex .exs { display:block; font-size:10.5px; color:#94a3b8; margin-top:4px; }',
+    '#pb-ex .exb { position:absolute; right:13px; top:50%; transform:translateY(-50%);',
+    '  font-size:10px; font-weight:700; letter-spacing:.06em; text-transform:uppercase;',
+    '  color:#047857; border:1px solid #a7f3d0; background:#ecfdf5; border-radius:6px;',
+    '  padding:5px 10px; min-width:62px; text-align:center; }',
+    '#pb-ex button:hover .exb { background:#047857; color:#fff; border-color:#047857; }',
+    '#pb-ex .exb.ok, #pb-ex button:hover .exb.ok { background:#047857; color:#fff;',
+    '  border-color:#047857; }',
+    '#pb-ex .exb.bad, #pb-ex button:hover .exb.bad { background:#fef2f2; color:#b91c1c;',
+    '  border-color:#fecaca; }',
 
     /* ---- colour palette popover ---- */
     '#pb-pal { display:none; position:fixed; z-index:60; grid-template-columns:repeat(4,20px);',
@@ -506,9 +546,24 @@
                                                Legacy order PLANE REF.PT L.X L.Y L.ROT
                                                OFFSET is still read - detected from
                                                whether column 3 is a plane name)
+       MODULE ID BAR/SECT.ID REF.PT LX1 LY1 LZ1 LX2 LY2 LZ2 [OFF_B OFF_E ALPHA]
+                                              (the same row with a number where the
+                                               plane name would be: a bar or a section
+                                               stretched from (LX1,LY1,LZ1) to
+                                               (LX2,LY2,LZ2), its length taken from that
+                                               distance - the Length on the BAR/SECT row
+                                               becomes a reference value. OFF_B/OFF_E
+                                               trim each end, negative to run past it;
+                                               ALPHA rolls the section about its own
+                                               axis; REF.PT names the point that rides
+                                               the axis line, blank = the BASE.pt.
+                                               BAR/SECT only - a plate has no axis)
        MODULE ID BASE INSTANCE POINT          (module reference point = one of the
                                                9 points of a member plate;
                                                missing BASE -> warning + local origin)
+       -- member ids are unique inside their module: two rows sharing one id is
+          a fatal, since BASE, hiding and the member list all address members by
+          that name. Reuse a definition as ID_1, ID_2, ... instead.
        -- a BAR member leaves REF.PT blank: a bar is always held by the centre of
           its starting face and grows along the plane's thickness axis, so a bar
           on XY at 0,0,0 runs from z=0 up to z=Length
@@ -601,6 +656,13 @@
     return role;
   }
   function memberDesc(row) {                    // one module member, for the preview panel
+    if (row.__ax) {                             // start/end placement
+      var t2 = 'A\u2192B \u00b7 (' + row.X1 + ', ' + row.Y1 + ', ' + row.Z1 + ') \u2192 (' +
+               row.X2 + ', ' + row.Y2 + ', ' + row.Z2 + ') \u00b7 L' + rnd(row.LEN);
+      if (row.OFB || row.OFE) t2 += ' \u00b7 off ' + row.OFB + '/' + row.OFE;
+      if (row.ALPHA) t2 += ' \u00b7 \u03b1 ' + row.ALPHA;
+      return t2;
+    }
     var t = (row.PL_IN || planeLabel(row.PLANE)) + ' \u00b7 ' +
             (row.__bar ? 'start' : row.REFPT + faceMark(row.FACE)) + ' \u00b7 ';
     t += row.__xyz ? '(' + row.LX + ', ' + row.LY + ', ' + row.LZ + ')'
@@ -609,6 +671,7 @@
     if (rot[0] || rot[1] || rot[2]) t += ' \u00b7 rot ' + rot.join('/');
     return t;
   }
+  function rnd(x) { return Math.round(x * 100) / 100; }
 
   // fellBack = the name of the sheet read when the workbook had no "input" tab
   function parseExcelRows(rows, fellBack) {
@@ -643,11 +706,78 @@
     // like a slip. Only warn() turns the result panel red.
     function warn(m) { log.push({ s: 'e', m: m }); console.error('[plateBuilder] ' + m); }
     function hint(m) { log.push({ s: 'w', m: m }); console.warn('[plateBuilder] ' + m); }
+    // A fault the sheet cannot be built around at all. Everything else skips the
+    // offending row and carries on; a fatal stops the load before anything is
+    // drawn, because a model built from it would be quietly wrong rather than
+    // visibly short.
+    var fatals = [];
+    function fatal(m) { fatals.push(m); log.push({ s: 'e', m: m }); console.error('[plateBuilder] ' + m); }
+    // Member ids are unique inside their module: "md.frame/pl.web" names exactly
+    // one member, and hiding, BASE and the preview all address members by that
+    // name. Two rows sharing one id would make those references ambiguous, so
+    // reusing a section means giving each use its own id - pl.web_1, pl.web_2 -
+    // which resolvePlate maps back onto the one definition.
+    var memSeen = {};
+    function addMember(part, row, r) {
+      var k = part.ID + '/' + row.NO;
+      if (memSeen[k]) {
+        fatal('MODULE ' + part.ID + ': member id ' + row.NO + ' is used twice (sheet rows ' +
+              memSeen[k] + ' and ' + (r + 1) + '). Every member of a module needs its own id — ' +
+              'to use one section more than once, add a suffix: ' + row.NO + '_1, ' +
+              row.NO + '_2, ... (they all still read the ' + row.PLATE + ' definition).');
+        return;
+      }
+      memSeen[k] = r + 1;
+      part.pos.push(row);
+    }
     function resolvePlate(pid) {          // exact id, or instance suffix PL.C1_2 → PL.C1
       if (plates[pid]) return pid;
       var sfx = pid.match(/^(.+?)[_-]\d+$/);
       if (sfx && plates[sfx[1]]) return sfx[1];
       return null;
+    }
+    /* ---- a bar or a section stretched between two points ----
+       The two end points are module-local and constant, so the member's real
+       length is known here, at parse time. The Length on the BAR/SECT row is
+       left as the reference value it was written as; what gets built is the
+       distance between the points, trimmed by OFF_B at the start and OFF_E at
+       the end. Those two are signed: positive pulls the member back from the
+       point (clearance at a joint), negative runs it past (a brace lapping into
+       a gusset, a column embedded in its base). */
+    function axialRow(no, pid, v, r) {
+      var sp = plates[pid];
+      if (!sp.__bar) {
+        warn('row ' + (r + 1) + ': ' + no + ' — start/end coordinates place a BAR or a SECT only. ' +
+             'A plate is placed with Ref.Pt, L.X, L.Y, L.Z and a PLANE, because stretching it ' +
+             'would stretch its thickness.');
+        return null;
+      }
+      var x1 = num(v[3], 0), y1 = num(v[4], 0), z1 = num(v[5], 0);
+      var x2 = num(v[6], 0), y2 = num(v[7], 0), z2 = num(v[8], 0);
+      var dx = x2 - x1, dy = y2 - y1, dz = z2 - z1;
+      var L0 = Math.sqrt(dx * dx + dy * dy + dz * dz);
+      if (L0 < 1e-9) {
+        warn('row ' + (r + 1) + ': ' + no + ' — start and end are the same point (' +
+             x1 + ', ' + y1 + ', ' + z1 + '), so the member has no length and no direction');
+        return null;
+      }
+      var ob = num(v[9], 0), oe = num(v[10], 0);
+      var len = L0 - ob - oe;
+      if (len <= 1e-9) {
+        warn('row ' + (r + 1) + ': ' + no + ' — OFF_B ' + ob + ' and OFF_E ' + oe +
+             ' cut away all ' + rnd(L0) + ' of the member. Positive offsets trim, ' +
+             'negative offsets extend; their sum has to stay under the end-to-end length.');
+        return null;
+      }
+      var ux = dx / L0, uy = dy / L0, uz = dz / L0;
+      sp.__axused = true;                 // its Length row is a reference value now
+      var rp = str(v[2]);                 // blank = the section's own BASE.pt rides the axis
+      return { __ax: true, __bar: true, NO: no, PLATE: pid, __spec: axSpec(sp, len),
+               REFPT: rp ? normPoint(rp) : '', FACE: 0,
+               X1: x1, Y1: y1, Z1: z1, X2: x2, Y2: y2, Z2: z2,
+               AX: x1 + ux * ob, AY: y1 + uy * ob, AZ: z1 + uz * ob,
+               UX: ux, UY: uy, UZ: uz,
+               LEN: len, L0: L0, OFB: ob, OFE: oe, ALPHA: num(v[11], 0) };
     }
     /* ---- where the block sits ----
        The keyword column does not have to be A. When the sheet has an END row,
@@ -891,25 +1021,35 @@
         var mplate = resolvePlate(msub);
         if (!mplate) { warn('row ' + (r + 1) + ': MODULE row with undefined plate ' + msub); continue; }
         if (palias[str(v[2]).toUpperCase()]) {   // legacy: <plate> PLANE Ref.Pt L.X L.Y L.ROT OFFSET
-          currentPart.pos.push({ NO: msub, PLATE: mplate, PLANE: palias[str(v[2]).toUpperCase()],
-                                 PL_IN: str(v[2]).toUpperCase(), __bar: !!plates[mplate].__bar,
-                                 REFPT: normPoint(v[3]), FACE: faceOf(v[3]),
-                                 LX: num(v[4], 0), LY: num(v[5], 0),
-                                 ROT: num(v[6], 0), OFFSET: num(v[7], 0) });
+          addMember(currentPart, { NO: msub, PLATE: mplate, PLANE: palias[str(v[2]).toUpperCase()],
+                                   PL_IN: str(v[2]).toUpperCase(), __bar: !!plates[mplate].__bar,
+                                   REFPT: normPoint(v[3]), FACE: faceOf(v[3]),
+                                   LX: num(v[4], 0), LY: num(v[5], 0),
+                                   ROT: num(v[6], 0), OFFSET: num(v[7], 0) }, r);
           continue;
         }
         // <plate> Ref.Pt L.X L.Y L.Z PLANE [ROT.X ROT.Y ROT.Z]
         var mplane = str(v[6]).toUpperCase();
-        if (!palias[mplane]) {
-          warn('row ' + (r + 1) + ': unknown PLANE ' + (str(v[6]) || '(blank)') +
-               ' (use XY/YZ/XZ — column order is plate, Ref.Pt, L.X, L.Y, L.Z, PLANE)');
+        if (palias[mplane]) {
+          addMember(currentPart, { __xyz: true, NO: msub, PLATE: mplate, PLANE: palias[mplane],
+                                   PL_IN: mplane, __bar: !!plates[mplate].__bar,
+                                   REFPT: normPoint(v[2]), FACE: faceOf(v[2]),
+                                   LX: num(v[3], 0), LY: num(v[4], 0), LZ: num(v[5], 0),
+                                   RX: num(v[7], 0), RY: num(v[8], 0), RZ: num(v[9], 0) }, r);
           continue;
         }
-        currentPart.pos.push({ __xyz: true, NO: msub, PLATE: mplate, PLANE: palias[mplane],
-                               PL_IN: mplane, __bar: !!plates[mplate].__bar,
-                               REFPT: normPoint(v[2]), FACE: faceOf(v[2]),
-                               LX: num(v[3], 0), LY: num(v[4], 0), LZ: num(v[5], 0),
-                               RX: num(v[7], 0), RY: num(v[8], 0), RZ: num(v[9], 0) });
+        // <bar/sect> Ref.Pt LX1 LY1 LZ1 LX2 LY2 LZ2 [OFF_B OFF_E Alpha]
+        // The PLANE cell holds a number instead of a plane name, so the member is
+        // stretched between two module-local points. All three end coordinates
+        // are tested: a column standing straight up leaves LX2 and LY2 blank.
+        if (isNum(v[6]) || isNum(v[7]) || isNum(v[8])) {
+          var axr = axialRow(msub, mplate, v, r);
+          if (axr) addMember(currentPart, axr, r);
+          continue;
+        }
+        warn('row ' + (r + 1) + ': unknown PLANE ' + (str(v[6]) || '(blank)') +
+             ' (use XY/YZ/XZ — column order is member, Ref.Pt, L.X, L.Y, L.Z, PLANE;' +
+             ' for a bar or a section stretched between two points, put LX2 there instead)');
       } else if (kw === 'POS') {          // place a plate inside the current part
         if (!currentPart) { warn('row ' + (r + 1) + ': POS outside of a MODULE'); continue; }
         var ppid = str(v[0]).toUpperCase();
@@ -917,11 +1057,11 @@
         if (!pplate) { warn('row ' + (r + 1) + ': POS of undefined plate ' + ppid); continue; }
         var pplane = str(v[1]).toUpperCase();
         if (!palias[pplane]) { warn('row ' + (r + 1) + ': unknown PLANE ' + pplane + ' (use XY/YZ/XZ)'); continue; }
-        currentPart.pos.push({ NO: ppid, PLATE: pplate, PLANE: palias[pplane],
-                               PL_IN: pplane, __bar: !!plates[pplate].__bar,
-                               REFPT: normPoint(v[2]), FACE: faceOf(v[2]),
-                               LX: num(v[3], 0), LY: num(v[4], 0),
-                               ROT: num(v[5], 0), OFFSET: num(v[6], 0) });
+        addMember(currentPart, { NO: ppid, PLATE: pplate, PLANE: palias[pplane],
+                                 PL_IN: pplane, __bar: !!plates[pplate].__bar,
+                                 REFPT: normPoint(v[2]), FACE: faceOf(v[2]),
+                                 LX: num(v[3], 0), LY: num(v[4], 0),
+                                 ROT: num(v[5], 0), OFFSET: num(v[6], 0) }, r);
       } else if (kw === 'BASE') {         // BASE INSTANCE POINT — part reference point
         if (!currentPart) { warn('row ' + (r + 1) + ': BASE outside of a MODULE'); continue; }
         currentPart.base = { inst: str(v[0]).toUpperCase(), pt: normPoint(v[1]),
@@ -1088,7 +1228,8 @@
              ' not found among its members — falling back to the local origin (0,0,0)');
     });
     return { plates: plates, holes: holes, parts: parts, cuts: cuts, assy: assy,
-             log: log, counts: counts, yup: yup };
+             log: log, counts: counts, yup: yup,
+             fatal: fatals.length ? fatals : null };
   }
 
   function cellVal(c) {
@@ -1151,6 +1292,32 @@
     el.style.display = 'block';
   }
 
+  /* A fatal is not a row the parser skipped — it is a sheet no correct model can
+     come out of, so the load stops rather than drawing something that merely
+     looks finished. The scene is emptied, the dialog states what is wrong, and
+     the app sits on the failure until another sheet is loaded. */
+  function fatalStop(fname, msgs) {
+    pbProgress(null);
+    buildLog = [];
+    run({});                                     // clear the scene, rebuild the panel DOM
+    showResult(fname, null, msgs.join('  |  '));
+    var old = document.getElementById('pb-fatal');
+    if (old && old.parentNode) old.parentNode.removeChild(old);
+    var wrap = document.createElement('div');
+    wrap.id = 'pb-fatal';
+    wrap.innerHTML =
+      '<div class="box" role="alertdialog" aria-modal="true">' +
+      '<h4>&#9888; Cannot build this sheet</h4>' +
+      '<p class="f">' + esc(fname) + '</p>' +
+      '<ul>' + msgs.map(function (m) { return '<li>' + esc(m) + '</li>'; }).join('') + '</ul>' +
+      '<p class="n">Nothing was drawn. Correct the sheet and load it again.</p>' +
+      '<button type="button">OK</button></div>';
+    document.body.appendChild(wrap);
+    var btn = wrap.querySelector('button');
+    btn.onclick = function () { if (wrap.parentNode) wrap.parentNode.removeChild(wrap); };
+    btn.focus();
+  }
+
   function loadExcelFile(file) {
     if (typeof ExcelJS === 'undefined') {
       alert('ExcelJS library is missing. Add this line before plate_builder.js:\n' +
@@ -1191,6 +1358,7 @@
             rows.push((r.values || []).slice(1).map(cellVal));
           });
           var parsed = parseExcelRows(rows, named ? null : ws.name);
+          if (parsed.fatal) { fatalStop(file.name, parsed.fatal); return; }
           pbProgress(90, 'Building model');
           setTimeout(function () {
             buildLog = [];
@@ -1745,8 +1913,52 @@
   }
   function isBarSpec(spec) { return !!(spec && spec.__bar && !spec.__sect); }
   function isSectSpec(spec) { return !!(spec && spec.__sect); }
+  // A stretched member is the same section at a different length, so it gets its
+  // own copy of the definition with the length written in. Everything downstream
+  // reads the length off the spec - the extrusion, the mass, the list entry, the
+  // exports - so nothing else has to know the member was placed by coordinates.
+  // The id is kept, which is what keeps its colour and its CUT rows.
+  function axSpec(spec, len) {
+    var c = {};
+    for (var k in spec) if (Object.prototype.hasOwnProperty.call(spec, k)) c[k] = spec[k];
+    c.THK = len;
+    return c;
+  }
+  function specOf(row, lib) { return row.__spec || lib[row.PLATE]; }
+
+  /* Frame of a member placed by its two end points. ez runs from start to end;
+     ey is world up projected onto the section plane, so the section stands the
+     same way it would on a PLANE - checked against all three:
+         along +Z  ->  x→X, y→Y   = XY      along −Y  ->  x→X, y→Z  = XZ
+         along +X  ->  x→Y, y→Z   = YZ
+     which means an existing PLANE row rewritten with coordinates comes out
+     identical at Alpha 0. A member parallel to up has no such projection, so it
+     falls back to the same pair XY uses. */
+  function axisBasis(ux, uy, uz) {
+    var ez = new THREE.Vector3(ux, uy, uz).normalize();
+    var up = yupSheet ? new THREE.Vector3(0, 1, 0) : new THREE.Vector3(0, 0, 1);
+    var ey = up.clone().sub(ez.clone().multiplyScalar(up.dot(ez)));
+    if (ey.lengthSq() < 1e-12) ey = yupSheet ? new THREE.Vector3(0, 0, -1)
+                                             : new THREE.Vector3(0, 1, 0);
+    ey.normalize();
+    return { ex: ey.clone().cross(ez), ey: ey, ez: ez };
+  }
+  // Ref.Pt names the point of the section that rides the axis line; left blank
+  // it is the section's own BASE.pt. Alpha then rolls the section about that
+  // line, so the roll never moves the member off the two points it was given.
+  function axialMatrix(row, pts, thk) {
+    var b = axisBasis(row.UX, row.UY, row.UZ);
+    var m = new THREE.Matrix4().makeTranslation(row.AX, row.AY, row.AZ);
+    m.multiply(new THREE.Matrix4().makeBasis(b.ex, b.ey, b.ez));
+    if (row.ALPHA) m.multiply(new THREE.Matrix4().makeRotationZ(row.ALPHA * Math.PI / 180));
+    var a = row.REFPT ? pts[row.REFPT] : null;
+    if (a) m.multiply(new THREE.Matrix4().makeTranslation(-a[0], -a[1], 0));
+    m.multiply(new THREE.Matrix4().makeTranslation(0, 0, (thk || 0) / 2));
+    return m;
+  }
 
   function memberMatrix(row, pts, thk) {
+    if (row.__ax) return axialMatrix(row, pts, thk);
     if (!row.__xyz) return planeMatrixAnchor(row, pts, thk);
     var b = planeBasis(row.PLANE);
     if (!b) throw new Error(row.NO + ': PLANE=' + row.PLANE + ' (use XY/YZ/XZ)');
@@ -1892,7 +2104,7 @@
     // part-local placements + base point (3D, part-local)
     function partLocals(part) {
       var locals = part.pos.map(function (p) {
-        var spec = plates[p.PLATE];
+        var spec = specOf(p, plates);
         var pts = namedPoints(spec, false);
         return { row: p, spec: spec, pts: pts, mloc: memberMatrix(p, pts, spec.THK) };
       });
@@ -2173,12 +2385,16 @@
       var tr = document.createElement('tr');
       tr.innerHTML = '<td class="bid">' + esc(id) + '</td>' +
                      '<td class="num">&#216;' + trim(spec.D) + '</td>' +
-                     '<td class="num">' + trim(spec.THK) + '</td>' +
+                     '<td class="num">' + trim(spec.THK) + refMark(spec) + '</td>' +
                      '<td class="mat">' + esc(spec.MAT || '\u2014') + '</td>';
       tbl.appendChild(tr);
     });
   }
   function trim(v) { return String(+num(v, 0).toFixed(3)); }
+  // Once a section is placed between two points its own Length column stops
+  // deciding anything, so the table says so rather than quietly disagreeing
+  // with the member list.
+  function refMark(spec) { return spec.__axused ? '<span class="rf">ref</span>' : ''; }
 
   // Rolled sections. Unlike a bar these do have something to look at, so the id
   // opens the same 2D drawing a plate does - profile, grid, measure.
@@ -2200,7 +2416,7 @@
         '<td class="bid"><span class="plname" onclick="plateBuilder.preview(\'' + id + '\')">' +
         esc(id) + '</span></td>' +
         '<td class="sect">' + esc(sectLabel(spec)) + '</td>' +
-        '<td class="num">' + trim(spec.THK) + '</td>' +
+        '<td class="num">' + trim(spec.THK) + refMark(spec) + '</td>' +
         '<td class="mat">' + esc(spec.MAT || '\u2014') + '</td>';
       tbl.appendChild(tr);
     });
@@ -2608,7 +2824,7 @@
     for (var i = 0; i < part.pos.length; i++) {
       var row = part.pos[i];
       if (row.NO !== part.base.inst) continue;
-      var spec = lastPlates[row.PLATE];
+      var spec = specOf(row, lastPlates);
       if (!spec) return null;
       try {
         var m = yupFix(memberMatrix(row, namedPoints(spec, false), spec.THK));
@@ -2624,7 +2840,7 @@
     if (!part) return out;
     part.pos.forEach(function (row) {
       if (memberHidden[id + '/' + row.NO]) return;
-      var spec = lastPlates[row.PLATE];
+      var spec = specOf(row, lastPlates);
       if (!spec) return;
       var m;
       try { m = yupFix(memberMatrix(row, namedPoints(spec, false), spec.THK)); } catch (e) { return; }
@@ -3362,7 +3578,7 @@
     pvMemberObj = {};
     part.pos.forEach(function (row) {
      try {
-      var spec = lastPlates[row.PLATE];
+      var spec = specOf(row, lastPlates);
       if (!spec) { bad.push(row.NO); return; }
       var pts = namedPoints(spec, false);
       var m;
@@ -3805,7 +4021,7 @@
     var out = [];
     part.pos.forEach(function (row) {
       if (memberHidden[id + '/' + row.NO]) return;      // export what the preview shows
-      var spec = lastPlates[row.PLATE];
+      var spec = specOf(row, lastPlates);
       if (!spec) return;
       var m;
       try { m = yupFix(memberMatrix(row, namedPoints(spec, false), spec.THK)); } catch (e) { return; }
@@ -4502,6 +4718,10 @@
            ['# MODULE', 'id', 'member', 'Ref.Pt', 'L.X', 'L.Y', 'L.Z', 'PLANE'],
            ['MODULE', 'md.tower', 'bar.pt3m', '', 0, 0, 0, 'XY']],
           'Column D is left empty on purpose - the bar stands 3000 up from the origin.'),
+    '<p>That is one of <b>two</b> ways to place it. The other gives the bar its two end points',
+    ' instead of a plane and a length - see <b>MODULE by coordinates</b> below. Written that way',
+    ' the <code>length</code> above becomes a reference value and the two points decide it, so',
+    ' one <code>BAR</code> row covers every anchor bolt in the model whatever its length.</p>',
 
     '<h3>SECT - a rolled section</h3>',
     sheet([['SECT', 'id', 'mat', 'length', 'TYPE', 'base.pt', 'v1', 'v2', 'v3', '...']]),
@@ -4533,6 +4753,12 @@
     ' zero, a flange is deeper than the section, the web is thicker than the flange, a fillet',
     ' does not fit, or a radius is negative, the row is skipped with a warning. A plausible',
     ' profile with the wrong area is worse than none.</p>',
+    '<p>Placed exactly like a bar - blank Ref.Pt, laid on a plane, running its length along that',
+    ' plane&rsquo;s thickness axis. And like a bar it has the second option: <b>MODULE by',
+    ' coordinates</b> below stretches it between two points, takes the length from the distance,',
+    ' and rolls the profile about its own axis with <code>Alpha</code>. That is the one to reach',
+    ' for on bracing - <code>length</code> becomes the stock length and a single SECT row serves',
+    ' every member cut from it.</p>',
 
     '<h3>MODULE - parts into a unit</h3>',
     sheet([['MODULE', 'id', 'member.id', 'Ref.Pt', 'L.X', 'L.Y', 'L.Z', 'PLANE', 'ROT.X', 'ROT.Y', 'ROT.Z'],
@@ -4552,6 +4778,66 @@
            ['MODULE', 'md.tower', 'pl.C2_1', 'bc', -60, 0, 60, 'YZ'],
            ['MODULE', 'md.tower', 'BASE', 'pl.T1', 'bc-']],
           'An <code>_1</code>, <code>_2</code> suffix marks repeated instances of the same part.'),
+    '<p class="warn"><b>Every member of a module needs its own id.</b> That id is how the sheet',
+    ' and the app both address it - the BASE row names one, the module preview hides one, the',
+    ' assembly list shows one per row. Two rows carrying the same id inside one module leave',
+    ' every one of those references ambiguous, so the sheet is <b>refused outright</b>: a dialog',
+    ' names the two rows and nothing is drawn. To use one part or one section more than once,',
+    ' add a suffix - <code>pl.C1_1</code>, <code>pl.C1_2</code>, ... - which the engine strips',
+    ' back to <code>pl.C1</code> to find the definition. One definition, as many members as',
+    ' you like, each with a name of its own.</p>',
+
+    '<h3>MODULE by coordinates - a bar or a section between two points</h3>',
+    sheet([['MODULE', 'id', 'member.id', 'Ref.Pt', 'LX1', 'LY1', 'LZ1',
+            'LX2', 'LY2', 'LZ2', 'OFF_B', 'OFF_E', 'Alpha']]),
+    '<p>Same keyword, same first four columns. What tells the two apart is the <b>PLANE cell</b>:',
+    ' a plane name there means the row above, a <b>number</b> means this one. The member is then',
+    ' stretched from <b>(LX1, LY1, LZ1)</b> to <b>(LX2, LY2, LZ2)</b> in module coordinates and',
+    ' takes its length from the distance between them.</p>',
+    '<p>Which means <b>the Length on the BAR or SECT row stops deciding anything</b>. It stays as',
+    ' the reference value it was written as - the SECTIONS table marks it <span class="rf">ref',
+    '</span> - and what gets built is the distance between the two points. So one',
+    ' <code>sect.L65x6</code> definition can serve every brace in the model, each at its own',
+    ' length. Draw the work lines, read off the node coordinates, and the steel follows.</p>',
+    '<table class="gt"><thead><tr><th>column</th><th>what it does</th></tr></thead><tbody>',
+    '<tr><td><b>OFF_B</b><br><b>OFF_E</b></td><td>Trim at the start and at the end, along the',
+    ' member&rsquo;s own axis. <b>Signed:</b> positive pulls the end back from the point',
+    ' (clearance at a joint), <b>negative runs it past</b> - a brace lapping into a gusset, a',
+    ' column embedded in its base plate, a spigot standing proud. Blank is 0.<br>' +
+    'Real length = <code>|B&minus;A| &minus; OFF_B &minus; OFF_E</code>, and it has to stay',
+    ' above zero.</td></tr>',
+    '<tr><td><b>Alpha</b></td><td>Roll, in degrees, about the member&rsquo;s own axis - which way',
+    ' the web faces, which way a channel opens. The roll turns the section about the axis line,',
+    ' so it never moves the member off the two points it was given. Blank is 0.</td></tr>',
+    '<tr><td><b>Ref.Pt</b></td><td>Which of the nine points of the section rides the axis line.',
+    ' <b>Leave it blank</b> and that is the section&rsquo;s own BASE.pt, which is what you want',
+    ' almost always. <code>mc</code> puts the centroid on the line instead.</td></tr>',
+    '</tbody></table>',
+    '<p><b>Which way up?</b> Two points give a direction but not a roll, so the section stands',
+    ' with its local <i>y</i> as near to world up as it can - the same way the planes already do.',
+    ' A member laid along an axis therefore comes out <i>exactly</i> as the matching PLANE would',
+    ' have placed it, and an existing row rewritten with coordinates does not move:</p>',
+    '<table class="gt"><thead><tr><th>the member runs</th><th>it stands as if laid on',
+    '</th></tr></thead><tbody>',
+    '<tr><td>+Z (straight up)</td><td><code>XY</code></td></tr>',
+    '<tr><td>&#8722;Y</td><td><code>XZ</code></td></tr>',
+    '<tr><td>+X</td><td><code>YZ</code></td></tr>',
+    '</tbody></table>',
+    sheet([['# SECT', 'id', 'mat', 'length', 'TYPE', 'base.pt', 'v1', 'v2', 'v3', 'v4', 'v5', 'v6'],
+           ['SECT', 's.brc', 'SS275', 6000, 'L', 'bc', 65, 65, 6, 6, 8, 4],
+           ['# MODULE', 'id', 'member', 'Ref.Pt', 'LX1', 'LY1', 'LZ1', 'LX2', 'LY2', 'LZ2',
+            'OFF_B', 'OFF_E', 'Alpha'],
+           ['MODULE', 'md.bay', 's.brc_1', '', 0, 0, 0, 1200, 0, 1800, -40, -40],
+           ['MODULE', 'md.bay', 's.brc_2', '', 1200, 0, 0, 0, 0, 1800, -40, -40],
+           ['MODULE', 'md.bay', 's.brc_3', '', 0, 0, 1800, 1200, 0, 1800, 30, 30, 90],
+           ['MODULE', 'md.bay', 'BASE', 's.brc_1', 'bc']],
+          'One L-65&times;65&times;6 definition, three members. The diagonals cross a ' +
+          '1200&times;1800 bay - 2163 node to node, built 2243 so each end laps 40 past its ' +
+          'node. The top strut is held 30 clear at both ends and rolled 90&deg;. The Length ' +
+          'cell says 6000 because that is the stock length - nothing reads it.'),
+    '<p class="warn">Coordinates place a <b>BAR or a SECT only</b>. A plate is placed with Ref.Pt,',
+    ' L.X, L.Y, L.Z and a PLANE, because stretching a plate would stretch its thickness. Two',
+    ' identical points, or offsets that eat the whole member, are reported and the row is skipped.</p>',
 
     '<h3>ASSY - units into the model</h3>',
     '<p>Four commands. Column D picks which.</p>',
@@ -4674,17 +4960,25 @@
            ['CUT', 'pl.T1', -110, 90, 'h.M22', 220, 0, 1],
            ['# BAR', 'id', 'mat', 'dia', 'length'],
            ['BAR', 'bar.pt3m', 'SAS1030', 28, 3000],
+           ['# SECT', 'id', 'mat', 'length', 'TYPE', 'base.pt', 'v1', 'v2', 'v3', 'v4', 'v5', 'v6'],
+           ['SECT', 'sc.brc', 'SS275', 6000, 'L', 'bc', 65, 65, 6, 6, 8, 4],
            ['# MODULE', 'id', 'member', 'Ref.Pt', 'L.X', 'L.Y', 'L.Z', 'PLANE'],
            ['MODULE', 'md.tower', 'pl.T1', 'bc+', 140, 0, 0, 'XZ'],
            ['MODULE', 'md.tower', 'pl.C1', 'bc', 0, 0, 0, 'XY'],
            ['MODULE', 'md.tower', 'bar.pt3m', '', 0, 0, 0, 'XY'],
+           ['# MODULE', 'id', 'member', 'Ref.Pt', 'LX1', 'LY1', 'LZ1',
+            'LX2', 'LY2', 'LZ2', 'OFF_B', 'OFF_E'],
+           ['MODULE', 'md.tower', 'sc.brc_1', '', 300, 0, 0, 0, 0, 2600, 60, 60],
            ['MODULE', 'md.tower', 'BASE', 'pl.T1', 'bc-'],
            ['# ASSY', 'id', 'ref', 'cmd', 'G.X', 'G.Y', 'G.Z', 'repeat'],
            ['ASSY', 'as.comb', 'md.tower', 'ADD', 0, 0, 0],
            ['ASSY', 'as.comb', 'md.tower', 'COPY', 2000, 0, 0, 2],
            ['END']],
-          'One group, <b>AS.COMB</b>, holding <code>MD.TOWER.A</code> and the two copies' +
-          ' <code>MD.TOWER.C001</code>, <code>MD.TOWER.C002</code>.'),
+          'Both MODULE grammars in one block: three members on a plane, then a brace ' +
+          'stretched from (300, 0, 0) to (0, 0, 2600) - 2617 between the points, built 2497 ' +
+          'because each end is held 60 clear. The result is one group, <b>AS.COMB</b>, ' +
+          'holding <code>MD.TOWER.A</code> and the two copies <code>MD.TOWER.C001</code>, ' +
+          '<code>MD.TOWER.C002</code>.'),
 
     '<h2>When something does not appear</h2>',
     '<ul>',
@@ -4781,7 +5075,15 @@
       '</div>' +
       '</div>' +
       '<div id="pb-pal"></div>' +
-      '<div id="pb-ex"></div>' +
+      '<div id="pb-ex" onclick="if(event.target===this)plateBuilder.closeSamples()">' +
+      '  <div class="box">' +
+      '    <h2><span class="close" onclick="plateBuilder.closeSamples()"' +
+      '      title="close">&#10005;</span>Example workbooks</h2>' +
+      '    <p class="exi">Pick one to save it. Open it in Excel, edit the sheet named' +
+      '      <b>input</b>, then <b>Load Excel</b> to see the change. Every row is' +
+      '      annotated in the column left of the keywords.</p>' +
+      '    <div id="pb-exlist"></div>' +
+      '  </div></div>' +
       '<div id="pb-help" onclick="if(event.target===this)plateBuilder.closeGuide()">' +
       '  <div class="box"><header><b>PLATE3D &mdash; how to use</b>' +
       '    <span onclick="plateBuilder.closeGuide()" title="close">&#10005;</span></header>' +
@@ -4821,10 +5123,12 @@
       '  <div class="meta" id="pb-pv-pos">&nbsp;</div>' +
       '</div></div>';
     document.body.appendChild(app);
-    document.getElementById('pb-ex').innerHTML = SAMPLES.map(function (s, i) {
+    document.getElementById('pb-exlist').innerHTML = SAMPLES.map(function (s, i) {
       return '<button onclick="plateBuilder.getSample(' + i + ')" title="' + esc(s.f) + '">' +
-             '<span class="exn">' + esc(s.n) + '</span>' +
-             '<span class="exd">' + esc(s.d) + '</span></button>';
+             '<span class="exn">' + esc(s.n) + '<i>' + esc(s.f) + '</i></span>' +
+             '<span class="exd">' + esc(s.d) + '</span>' +
+             (s.s ? '<span class="exs">' + esc(s.s) + '</span>' : '') +
+             '<span class="exb" id="pb-exb' + i + '">download</span></button>';
     }).join('');
     var pal = document.getElementById('pb-pal');
     pal.innerHTML = SWATCHES.map(function (c) {
@@ -4840,8 +5144,11 @@
     }
     window.addEventListener('mousedown', function (e) {
       if (palPending && !document.getElementById('pb-pal').contains(e.target)) closePalette();
-      if (exOpen && !document.getElementById('pb-ex').contains(e.target) &&
-          !(e.target.closest && e.target.closest('#pb-bar button.ex'))) closeSamples();
+    });
+    // The example window covers the viewport, so its own backdrop click closes
+    // it; Escape is the other way out people reach for.
+    window.addEventListener('keydown', function (e) {
+      if (exOpen && (e.key === 'Escape' || e.keyCode === 27)) closeSamples();
     });
     var modal = document.getElementById('pb-modal');
     var pvCv = document.getElementById('pb-pv-canvas');
@@ -5303,41 +5610,56 @@
   // Example workbooks, all sitting next to this file. Add a row to put another
   // one on the menu; nothing else needs touching.
   var SAMPLES = [
-    { f: 'PLATE3D_SAMPLE.xlsx', n: 'Sample',
-      d: 'every keyword once, annotated — start here' },
-    { f: 'PLATE3D_CRANE.xlsx', n: 'Tower crane',
-      d: '286 members off two lattice bays and COPY' },
-    { f: 'PLATE3D_TANK.xlsx', n: 'Tank',
-      d: 'drawn from a five-sheet A4 set' },
-    { f: 'PLATE3D_TURRET.xlsx', n: 'Turret',
-      d: 'a machined part, and where a prism stops' }
+    { f: 'PLATE3D_BASIC.xlsx', n: 'Basic', s: '76 rows → 94 members · 1.71 t',
+      d: 'A pipe-support bent, three of them. Every keyword in the guide appears ' +
+         'once in a real model — both MODULE grammars, all three plate shapes, ' +
+         'H/C/L sections, and all four ASSY commands in one assembly. Start here.' },
+    { f: 'PLATE3D_SAMPLE.xlsx', n: 'Sample', s: '38 rows → 48 members · 803 kg',
+      d: 'One box unit, then ADD / MIR / COPY / ROT each on its own assembly. ' +
+         'A dictionary rather than a model — read it when one command is unclear.' },
+    { f: 'PLATE3D_CRANE.xlsx', n: 'Tower crane', s: '124 rows → 286 members · 43.2 t',
+      d: 'Two lattice bays and a COPY row become a whole mast. What the ' +
+         'MODULE → ASSY split is for.' },
+    { f: 'PLATE3D_TANK.xlsx', n: 'Tank', s: '54 rows → 16 members · 4.9 kg',
+      d: 'Reverse-engineered from a five-sheet A4 drawing set — hull, treads, ' +
+         'turret and cannon.' },
+    { f: 'PLATE3D_TURRET.xlsx', n: 'Turret', s: '56 rows → 12 members · 0.65 kg',
+      d: 'A machined part: octagons built from a band plus two trapezoids, and ' +
+         'a channel rolled about its own axis.' }
   ];
   var exOpen = false;
+  /* The picker is a window rather than a dropdown, so each example has room for
+     what it actually demonstrates and how big it is - which is the thing that
+     decides which one you want. It stays open after a download: reading the
+     list, people usually take two. */
   function closeSamples() {
     var el = document.getElementById('pb-ex');
     if (el) el.style.display = 'none';
     exOpen = false;
   }
   function openSamples(ev) {
-    ev.stopPropagation();
+    if (ev && ev.stopPropagation) ev.stopPropagation();
     var el = document.getElementById('pb-ex');
     if (!el) return;
     if (exOpen) { closeSamples(); return; }
-    el.style.display = 'block';
+    el.style.display = 'flex';
+    el.querySelector('.box').scrollTop = 0;
     exOpen = true;
-    var r = ev.currentTarget.getBoundingClientRect();
-    var w = el.offsetWidth, h = el.offsetHeight;
-    el.style.left = Math.max(8, Math.min(window.innerWidth - w - 8, r.right - w)) + 'px';
-    el.style.top = Math.min(window.innerHeight - h - 8, r.bottom + 6) + 'px';
+  }
+  function exState(i, txt, cls) {
+    var b = document.getElementById('pb-exb' + i);
+    if (!b) return;
+    b.textContent = txt;
+    b.className = 'exb' + (cls ? ' ' + cls : '');
   }
   // Fetched into a blob rather than linked: a plain <a download> across origins
   // has its filename ignored and can open the sheet in the browser instead of
   // saving it. GitHub Pages, jsDelivr and same-origin all allow the fetch.
   function getSample(i) {
-    closeSamples();
     var s = SAMPLES[i];
     if (!s) return;
     var url = sampleUrl(s.f);
+    exState(i, '…');
     fetch(url).then(function (r) {
       if (!r.ok) throw new Error('HTTP ' + r.status);
       return r.blob();
@@ -5350,7 +5672,10 @@
       a.click();
       a.remove();
       setTimeout(function () { URL.revokeObjectURL(href); }, 8000);
+      exState(i, 'saved', 'ok');
+      setTimeout(function () { exState(i, 'download'); }, 2600);
     }).catch(function (e) {
+      exState(i, 'failed', 'bad');
       alert('Could not download ' + s.f + '.\n\n' + url + '\n' + e.message +
             '\n\nOpen that address directly to save it.');
     });
@@ -5384,7 +5709,7 @@
     setOrtho: setOrtho, setOrthoPv: setOrthoPv,
     setClash: setClash, setClashPv: setClashPv,
     openGuide: openGuide, closeGuide: closeGuide,
-    openSamples: openSamples, getSample: getSample,
+    openSamples: openSamples, closeSamples: closeSamples, getSample: getSample,
     toggleMemberAxis: toggleMemberAxis
   };
 
@@ -5417,63 +5742,63 @@
     ["PLATE","pl.trly","SM400",20,"RECT","mc",900,700],
     ["PLATE","pl.hook","SM400",30,"RECT","mc",700,520],
     ["SECT","sc.H300","SM490",3000,"H","bc",300,150,150,6.5,9,9,13],
-    ["MODULE","md.mast","bar.leg","",0,0,0,"XY"],
-    ["MODULE","md.mast","bar.leg","",1200,0,0,"XY"],
-    ["MODULE","md.mast","bar.leg","",1200,1200,0,"XY"],
-    ["MODULE","md.mast","bar.leg","",0,1200,0,"XY"],
-    ["MODULE","md.mast","bar.tie","",0,0,2000,"YZ"],
-    ["MODULE","md.mast","bar.tie","",0,1200,2000,"YZ"],
-    ["MODULE","md.mast","bar.tie","",0,1200,2000,"XZ"],
-    ["MODULE","md.mast","bar.tie","",1200,1200,2000,"XZ"],
-    ["MODULE","md.mast","bar.dia","",0,0,0,"XY",0,30.964],
-    ["MODULE","md.mast","bar.dia","",1200,0,0,"XY",0,-30.964],
-    ["MODULE","md.mast","bar.dia","",0,1200,0,"XY",0,30.964],
-    ["MODULE","md.mast","bar.dia","",1200,1200,0,"XY",0,-30.964],
-    ["MODULE","md.mast","bar.dia","",0,0,0,"XY",-30.964,0],
-    ["MODULE","md.mast","bar.dia","",0,1200,0,"XY",30.964,0],
-    ["MODULE","md.mast","bar.dia","",1200,0,0,"XY",-30.964,0],
-    ["MODULE","md.mast","bar.dia","",1200,1200,0,"XY",30.964,0],
-    ["MODULE","md.mast","BASE","bar.leg","mc"],
-    ["MODULE","md.jib","bar.chord","",0,0,0,"YZ"],
-    ["MODULE","md.jib","bar.chord","",0,1200,0,"YZ"],
-    ["MODULE","md.jib","bar.chord","",0,600,1200,"YZ"],
+    ["MODULE","md.mast","bar.leg_1","",0,0,0,"XY"],
+    ["MODULE","md.mast","bar.leg_2","",1200,0,0,"XY"],
+    ["MODULE","md.mast","bar.leg_3","",1200,1200,0,"XY"],
+    ["MODULE","md.mast","bar.leg_4","",0,1200,0,"XY"],
+    ["MODULE","md.mast","bar.tie_1","",0,0,2000,"YZ"],
+    ["MODULE","md.mast","bar.tie_2","",0,1200,2000,"YZ"],
+    ["MODULE","md.mast","bar.tie_3","",0,1200,2000,"XZ"],
+    ["MODULE","md.mast","bar.tie_4","",1200,1200,2000,"XZ"],
+    ["MODULE","md.mast","bar.dia_1","",0,0,0,"XY",0,30.964],
+    ["MODULE","md.mast","bar.dia_2","",1200,0,0,"XY",0,-30.964],
+    ["MODULE","md.mast","bar.dia_3","",0,1200,0,"XY",0,30.964],
+    ["MODULE","md.mast","bar.dia_4","",1200,1200,0,"XY",0,-30.964],
+    ["MODULE","md.mast","bar.dia_5","",0,0,0,"XY",-30.964,0],
+    ["MODULE","md.mast","bar.dia_6","",0,1200,0,"XY",30.964,0],
+    ["MODULE","md.mast","bar.dia_7","",1200,0,0,"XY",-30.964,0],
+    ["MODULE","md.mast","bar.dia_8","",1200,1200,0,"XY",30.964,0],
+    ["MODULE","md.mast","BASE","bar.leg_1","mc"],
+    ["MODULE","md.jib","bar.chord_1","",0,0,0,"YZ"],
+    ["MODULE","md.jib","bar.chord_2","",0,1200,0,"YZ"],
+    ["MODULE","md.jib","bar.chord_3","",0,600,1200,"YZ"],
     ["MODULE","md.jib","bar.jtie","",0,1200,0,"XZ"],
-    ["MODULE","md.jib","bar.web","",0,1200,0,"XY",26.565,0],
-    ["MODULE","md.jib","bar.web","",0,0,0,"XY",-26.565,0],
+    ["MODULE","md.jib","bar.web_1","",0,1200,0,"XY",26.565,0],
+    ["MODULE","md.jib","bar.web_2","",0,0,0,"XY",-26.565,0],
     ["MODULE","md.jib","bar.jdia","",0,0,0,"XY",-30.964,90],
-    ["MODULE","md.jib","BASE","bar.chord","mc"],
+    ["MODULE","md.jib","BASE","bar.chord_1","mc"],
     ["MODULE","md.base","pl.base","mc",0,0,0,"XY"],
-    ["MODULE","md.base","pl.gus","bl",600,0,20,"XZ"],
-    ["MODULE","md.base","pl.gus","bl",-600,0,20,"XZ",0,0,180],
-    ["MODULE","md.base","pl.gus","bl",0,600,20,"YZ"],
-    ["MODULE","md.base","pl.gus","bl",0,-600,20,"YZ",0,0,180],
+    ["MODULE","md.base","pl.gus_1","bl",600,0,20,"XZ"],
+    ["MODULE","md.base","pl.gus_2","bl",-600,0,20,"XZ",0,0,180],
+    ["MODULE","md.base","pl.gus_3","bl",0,600,20,"YZ"],
+    ["MODULE","md.base","pl.gus_4","bl",0,-600,20,"YZ",0,0,180],
     ["MODULE","md.base","BASE","pl.base","mc"],
-    ["MODULE","md.cab","pl.cabs","mc",0,-650,800,"XZ"],
-    ["MODULE","md.cab","pl.cabs","mc",0,650,800,"XZ"],
+    ["MODULE","md.cab","pl.cabs_1","mc",0,-650,800,"XZ"],
+    ["MODULE","md.cab","pl.cabs_2","mc",0,650,800,"XZ"],
     ["MODULE","md.cab","pl.cabf","mc",750,0,800,"YZ"],
-    ["MODULE","md.cab","pl.cabt","mc",0,0,0,"XY"],
-    ["MODULE","md.cab","pl.cabt","mc",0,0,1600,"XY"],
-    ["MODULE","md.cab","BASE","pl.cabt","mc"],
-    ["MODULE","md.top","sc.H300","bc",-1500,-700,-320,"YZ"],
-    ["MODULE","md.top","sc.H300","bc",-1500,700,-320,"YZ"],
+    ["MODULE","md.cab","pl.cabt_1","mc",0,0,0,"XY"],
+    ["MODULE","md.cab","pl.cabt_2","mc",0,0,1600,"XY"],
+    ["MODULE","md.cab","BASE","pl.cabt_1","mc"],
+    ["MODULE","md.top","sc.H300_1","bc",-1500,-700,-320,"YZ"],
+    ["MODULE","md.top","sc.H300_2","bc",-1500,700,-320,"YZ"],
     ["MODULE","md.top","pl.plat","mc",0,0,0,"XY"],
     ["MODULE","md.top","BASE","pl.plat","mc"],
-    ["MODULE","md.afr","bar.aleg","",0,0,0,"XY",-14.984,15.524],
-    ["MODULE","md.afr","bar.aleg","",3000,0,0,"XY",-14.984,-15.524],
-    ["MODULE","md.afr","bar.aleg","",3000,3000,0,"XY",14.984,-15.524],
-    ["MODULE","md.afr","bar.aleg","",0,3000,0,"XY",14.984,15.524],
-    ["MODULE","md.afr","bar.atie","",0,0,0,"YZ"],
-    ["MODULE","md.afr","bar.atie","",0,3000,0,"YZ"],
-    ["MODULE","md.afr","bar.atie","",0,3000,0,"XZ"],
-    ["MODULE","md.afr","bar.atie","",3000,3000,0,"XZ"],
-    ["MODULE","md.afr","BASE","bar.aleg","mc"],
-    ["MODULE","md.cwt","pl.cw","mc",0,0,0,"YZ"],
-    ["MODULE","md.cwt","pl.cw","mc",260,0,0,"YZ"],
-    ["MODULE","md.cwt","pl.cw","mc",520,0,0,"YZ"],
-    ["MODULE","md.cwt","BASE","pl.cw","mc"],
+    ["MODULE","md.afr","bar.aleg_1","",0,0,0,"XY",-14.984,15.524],
+    ["MODULE","md.afr","bar.aleg_2","",3000,0,0,"XY",-14.984,-15.524],
+    ["MODULE","md.afr","bar.aleg_3","",3000,3000,0,"XY",14.984,-15.524],
+    ["MODULE","md.afr","bar.aleg_4","",0,3000,0,"XY",14.984,15.524],
+    ["MODULE","md.afr","bar.atie_1","",0,0,0,"YZ"],
+    ["MODULE","md.afr","bar.atie_2","",0,3000,0,"YZ"],
+    ["MODULE","md.afr","bar.atie_3","",0,3000,0,"XZ"],
+    ["MODULE","md.afr","bar.atie_4","",3000,3000,0,"XZ"],
+    ["MODULE","md.afr","BASE","bar.aleg_1","mc"],
+    ["MODULE","md.cwt","pl.cw_1","mc",0,0,0,"YZ"],
+    ["MODULE","md.cwt","pl.cw_2","mc",260,0,0,"YZ"],
+    ["MODULE","md.cwt","pl.cw_3","mc",520,0,0,"YZ"],
+    ["MODULE","md.cwt","BASE","pl.cw_1","mc"],
     ["MODULE","md.hook","pl.trly","mc",0,0,0,"XY"],
-    ["MODULE","md.hook","bar.rope","",0,-260,-400,"XY",180,0],
-    ["MODULE","md.hook","bar.rope","",0,260,-400,"XY",180,0],
+    ["MODULE","md.hook","bar.rope_1","",0,-260,-400,"XY",180,0],
+    ["MODULE","md.hook","bar.rope_2","",0,260,-400,"XY",180,0],
     ["MODULE","md.hook","pl.hook","mc",0,0,-13460,"XZ"],
     ["MODULE","md.hook","BASE","pl.trly","mc"],
     ["ASSY","as.mast","md.mast","ADD",-600,-600,0],
@@ -5499,6 +5824,7 @@
     var parsed;
     try { parsed = parseExcelRows(DEMO_ROWS); }
     catch (e) { run({}); return; }              // never let the demo cost a viewer
+    if (parsed.fatal) { run({}); return; }
     buildLog = [];
     run({ title: 'PLATE3D',
           subtitle: 'PLATE3D_CRANE · PLATE/CUT/ASSY · unit: mm',
