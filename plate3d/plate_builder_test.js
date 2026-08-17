@@ -202,16 +202,38 @@
     '  cursor:pointer; float:right; }',
     '#pb-fatal:after { content:""; display:block; clear:both; }',
 
-    /* ---- example workbook menu, hung under the Example button ---- */
-    '#pb-ex { display:none; position:fixed; z-index:60; padding:6px; background:#fff;',
-    '  border:1px solid var(--line); border-radius:10px; min-width:280px;',
-    '  box-shadow:0 12px 40px rgba(15,23,42,.18); }',
-    '#pb-ex button { display:block; width:100%; text-align:left; border:0; background:none;',
-    '  font:inherit; text-transform:none; letter-spacing:0; padding:8px 10px;',
-    '  border-radius:7px; cursor:pointer; }',
-    '#pb-ex button:hover { background:#ecfdf5; }',
-    '#pb-ex .exn { display:block; font-size:12.5px; font-weight:600; color:#0f172a; }',
-    '#pb-ex .exd { display:block; font-size:11px; color:#64748b; margin-top:2px; }',
+    /* ---- example workbook picker: a window, like the plate preview ---- */
+    '#pb-ex { display:none; position:fixed; left:0; top:0; right:0; bottom:0; z-index:55;',
+    '  background:rgba(15,23,42,.35); align-items:center; justify-content:center;',
+    '  padding:20px; }',
+    '#pb-ex .box { background:#fff; border:1px solid var(--line); border-radius:10px;',
+    '  width:540px; max-width:96vw; max-height:92vh; overflow:auto; padding:14px;',
+    '  box-shadow:0 12px 40px rgba(15,23,42,.24); }',
+    '#pb-ex h2 { font-size:15px; font-weight:600; color:#0f172a; margin:0 0 7px; }',
+    '#pb-ex .close { float:right; cursor:pointer; color:#94a3b8; padding:0 4px; }',
+    '#pb-ex .close:hover { color:#0f172a; }',
+    '#pb-ex .exi { margin:0 0 13px; font-size:11.5px; color:#64748b; line-height:1.6; }',
+    '#pb-ex button { display:block; width:100%; text-align:left; position:relative;',
+    '  border:1px solid var(--hair); background:#fff; font:inherit; text-transform:none;',
+    '  letter-spacing:0; padding:11px 108px 11px 13px; border-radius:9px; cursor:pointer;',
+    '  margin-bottom:7px; transition:background .12s,border-color .12s,box-shadow .12s; }',
+    '#pb-ex button:hover { background:#f0fdf4; border-color:#6ee7b7;',
+    '  box-shadow:0 3px 10px rgba(15,23,42,.08); }',
+    '#pb-ex .exn { display:block; font-size:13px; font-weight:600; color:#0f172a; }',
+    '#pb-ex .exn i { font-style:normal; font-weight:400; font-size:10.5px; color:#94a3b8;',
+    '  margin-left:8px; }',
+    '#pb-ex .exd { display:block; font-size:11.5px; color:#475569; margin-top:3px;',
+    '  line-height:1.5; }',
+    '#pb-ex .exs { display:block; font-size:10.5px; color:#94a3b8; margin-top:4px; }',
+    '#pb-ex .exb { position:absolute; right:13px; top:50%; transform:translateY(-50%);',
+    '  font-size:10px; font-weight:700; letter-spacing:.06em; text-transform:uppercase;',
+    '  color:#047857; border:1px solid #a7f3d0; background:#ecfdf5; border-radius:6px;',
+    '  padding:5px 10px; min-width:62px; text-align:center; }',
+    '#pb-ex button:hover .exb { background:#047857; color:#fff; border-color:#047857; }',
+    '#pb-ex .exb.ok, #pb-ex button:hover .exb.ok { background:#047857; color:#fff;',
+    '  border-color:#047857; }',
+    '#pb-ex .exb.bad, #pb-ex button:hover .exb.bad { background:#fef2f2; color:#b91c1c;',
+    '  border-color:#fecaca; }',
 
     /* ---- colour palette popover ---- */
     '#pb-pal { display:none; position:fixed; z-index:60; grid-template-columns:repeat(4,20px);',
@@ -5035,7 +5057,15 @@
       '</div>' +
       '</div>' +
       '<div id="pb-pal"></div>' +
-      '<div id="pb-ex"></div>' +
+      '<div id="pb-ex" onclick="if(event.target===this)plateBuilder.closeSamples()">' +
+      '  <div class="box">' +
+      '    <h2><span class="close" onclick="plateBuilder.closeSamples()"' +
+      '      title="close">&#10005;</span>Example workbooks</h2>' +
+      '    <p class="exi">Pick one to save it. Open it in Excel, edit the sheet named' +
+      '      <b>input</b>, then <b>Load Excel</b> to see the change. Every row is' +
+      '      annotated in the column left of the keywords.</p>' +
+      '    <div id="pb-exlist"></div>' +
+      '  </div></div>' +
       '<div id="pb-help" onclick="if(event.target===this)plateBuilder.closeGuide()">' +
       '  <div class="box"><header><b>PLATE3D &mdash; how to use</b>' +
       '    <span onclick="plateBuilder.closeGuide()" title="close">&#10005;</span></header>' +
@@ -5075,10 +5105,12 @@
       '  <div class="meta" id="pb-pv-pos">&nbsp;</div>' +
       '</div></div>';
     document.body.appendChild(app);
-    document.getElementById('pb-ex').innerHTML = SAMPLES.map(function (s, i) {
+    document.getElementById('pb-exlist').innerHTML = SAMPLES.map(function (s, i) {
       return '<button onclick="plateBuilder.getSample(' + i + ')" title="' + esc(s.f) + '">' +
-             '<span class="exn">' + esc(s.n) + '</span>' +
-             '<span class="exd">' + esc(s.d) + '</span></button>';
+             '<span class="exn">' + esc(s.n) + '<i>' + esc(s.f) + '</i></span>' +
+             '<span class="exd">' + esc(s.d) + '</span>' +
+             (s.s ? '<span class="exs">' + esc(s.s) + '</span>' : '') +
+             '<span class="exb" id="pb-exb' + i + '">download</span></button>';
     }).join('');
     var pal = document.getElementById('pb-pal');
     pal.innerHTML = SWATCHES.map(function (c) {
@@ -5094,8 +5126,11 @@
     }
     window.addEventListener('mousedown', function (e) {
       if (palPending && !document.getElementById('pb-pal').contains(e.target)) closePalette();
-      if (exOpen && !document.getElementById('pb-ex').contains(e.target) &&
-          !(e.target.closest && e.target.closest('#pb-bar button.ex'))) closeSamples();
+    });
+    // The example window covers the viewport, so its own backdrop click closes
+    // it; Escape is the other way out people reach for.
+    window.addEventListener('keydown', function (e) {
+      if (exOpen && (e.key === 'Escape' || e.keyCode === 27)) closeSamples();
     });
     var modal = document.getElementById('pb-modal');
     var pvCv = document.getElementById('pb-pv-canvas');
@@ -5557,43 +5592,56 @@
   // Example workbooks, all sitting next to this file. Add a row to put another
   // one on the menu; nothing else needs touching.
   var SAMPLES = [
-    { f: 'PLATE3D_BASIC.xlsx', n: 'Basic',
-      d: 'a pipe rack that uses every keyword — start here' },
-    { f: 'PLATE3D_SAMPLE.xlsx', n: 'Sample',
-      d: 'one annotated row per keyword, nothing else' },
-    { f: 'PLATE3D_CRANE.xlsx', n: 'Tower crane',
-      d: '286 members off two lattice bays and COPY' },
-    { f: 'PLATE3D_TANK.xlsx', n: 'Tank',
-      d: 'drawn from a five-sheet A4 set' },
-    { f: 'PLATE3D_TURRET.xlsx', n: 'Turret',
-      d: 'a machined part, and where a prism stops' }
+    { f: 'PLATE3D_BASIC.xlsx', n: 'Basic', s: '76 rows → 94 members · 1.71 t',
+      d: 'A pipe-support bent, three of them. Every keyword in the guide appears ' +
+         'once in a real model — both MODULE grammars, all three plate shapes, ' +
+         'H/C/L sections, and all four ASSY commands in one assembly. Start here.' },
+    { f: 'PLATE3D_SAMPLE.xlsx', n: 'Sample', s: '38 rows → 48 members · 803 kg',
+      d: 'One box unit, then ADD / MIR / COPY / ROT each on its own assembly. ' +
+         'A dictionary rather than a model — read it when one command is unclear.' },
+    { f: 'PLATE3D_CRANE.xlsx', n: 'Tower crane', s: '124 rows → 286 members · 43.2 t',
+      d: 'Two lattice bays and a COPY row become a whole mast. What the ' +
+         'MODULE → ASSY split is for.' },
+    { f: 'PLATE3D_TANK.xlsx', n: 'Tank', s: '54 rows → 16 members · 4.9 kg',
+      d: 'Reverse-engineered from a five-sheet A4 drawing set — hull, treads, ' +
+         'turret and cannon.' },
+    { f: 'PLATE3D_TURRET.xlsx', n: 'Turret', s: '56 rows → 12 members · 0.65 kg',
+      d: 'A machined part: octagons built from a band plus two trapezoids, and ' +
+         'a channel rolled about its own axis.' }
   ];
   var exOpen = false;
+  /* The picker is a window rather than a dropdown, so each example has room for
+     what it actually demonstrates and how big it is - which is the thing that
+     decides which one you want. It stays open after a download: reading the
+     list, people usually take two. */
   function closeSamples() {
     var el = document.getElementById('pb-ex');
     if (el) el.style.display = 'none';
     exOpen = false;
   }
   function openSamples(ev) {
-    ev.stopPropagation();
+    if (ev && ev.stopPropagation) ev.stopPropagation();
     var el = document.getElementById('pb-ex');
     if (!el) return;
     if (exOpen) { closeSamples(); return; }
-    el.style.display = 'block';
+    el.style.display = 'flex';
+    el.querySelector('.box').scrollTop = 0;
     exOpen = true;
-    var r = ev.currentTarget.getBoundingClientRect();
-    var w = el.offsetWidth, h = el.offsetHeight;
-    el.style.left = Math.max(8, Math.min(window.innerWidth - w - 8, r.right - w)) + 'px';
-    el.style.top = Math.min(window.innerHeight - h - 8, r.bottom + 6) + 'px';
+  }
+  function exState(i, txt, cls) {
+    var b = document.getElementById('pb-exb' + i);
+    if (!b) return;
+    b.textContent = txt;
+    b.className = 'exb' + (cls ? ' ' + cls : '');
   }
   // Fetched into a blob rather than linked: a plain <a download> across origins
   // has its filename ignored and can open the sheet in the browser instead of
   // saving it. GitHub Pages, jsDelivr and same-origin all allow the fetch.
   function getSample(i) {
-    closeSamples();
     var s = SAMPLES[i];
     if (!s) return;
     var url = sampleUrl(s.f);
+    exState(i, '…');
     fetch(url).then(function (r) {
       if (!r.ok) throw new Error('HTTP ' + r.status);
       return r.blob();
@@ -5606,7 +5654,10 @@
       a.click();
       a.remove();
       setTimeout(function () { URL.revokeObjectURL(href); }, 8000);
+      exState(i, 'saved', 'ok');
+      setTimeout(function () { exState(i, 'download'); }, 2600);
     }).catch(function (e) {
+      exState(i, 'failed', 'bad');
       alert('Could not download ' + s.f + '.\n\n' + url + '\n' + e.message +
             '\n\nOpen that address directly to save it.');
     });
@@ -5640,7 +5691,7 @@
     setOrtho: setOrtho, setOrthoPv: setOrthoPv,
     setClash: setClash, setClashPv: setClashPv,
     openGuide: openGuide, closeGuide: closeGuide,
-    openSamples: openSamples, getSample: getSample,
+    openSamples: openSamples, closeSamples: closeSamples, getSample: getSample,
     toggleMemberAxis: toggleMemberAxis
   };
 

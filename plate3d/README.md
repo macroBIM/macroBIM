@@ -127,9 +127,12 @@ cp plate3d/plate_builder_test.js plate3d/plate_builder.js   # 엔진 복사
     아니기 때문. `MODULE BASE` 누락/미해결, ASSY의 Ref.Pt 미해결이 여기 해당한다
   - **`? Guide` 버튼**(메뉴바 오른쪽 끝): 사용설명서 패널. 명령어 체계·필드별 문법·좌표계·9점·
     SECT 타입별 입력값·전체 시트 예제·화면 조작을 도해(SVG)와 함께 정리 (영문)
-  - **`Example` 버튼**(Guide 옆): 누르면 **예제 목록이 열리고** 골라서 받는다 —
+  - **`Example` 버튼**(Guide 옆): 누르면 **창이 하나 떠서** 골라 받는다 — 판 미리보기와 같은
+    모달 방식. 각 항목에 파일명·설명·규모(행 수 → 부재 수 → 중량)가 함께 나오고, 받으면
+    그 행이 `SAVED` 로 바뀌며 **창은 닫히지 않는다**(보통 두 개를 받는다). 배경 클릭 또는
+    `Esc` 로 닫는다. 목록은 —
     **`PLATE3D_BASIC`(모든 키워드가 하나의 실모델에 — 여기서 시작)** ·
-    `PLATE3D_SAMPLE`(키워드별 1행, 주석) · `PLATE3D_CRANE`(타워크레인) ·
+    `PLATE3D_SAMPLE`(명령어별 최소 예시, 사전용) · `PLATE3D_CRANE`(타워크레인) ·
     `PLATE3D_TANK` · `PLATE3D_TURRET`. `plate_builder.js`가 로드된 **같은 폴더**에서
     받아오므로 macroBIM 서버·GitHub Pages·jsDelivr 어디서 띄우든 동작한다
     (fetch → blob 방식이라 교차 출처에서도 파일명 그대로 저장됨).
