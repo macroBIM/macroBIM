@@ -226,7 +226,7 @@ A열에 메모를 적으면 그게 키워드로 읽혀 버린다 — `END` 행�
 | BAR | ID, MAT, Dia, Length | 직선 환봉. 왼쪽 **BARS** 표(ID·직경·길이·재질)에 따로 모이고, 배치는 MODULE/ASSY로 판과 동일. 예전 `ID, Dia, Length` 순서도 인식 |
 | CUT | 판ID, L.X, L.Y, **형상ID**, dx, dy, repeat | 형상ID(HOLE 또는 다른 PLATE)를 그 판에서 빼기 |
 | **MODULE** | ID, PLATE/BAR.ID, Ref.Pt, L.X, L.Y, L.Z, PLANE, ROT.X, ROT.Y, ROT.Z | 모듈에 부재 1개 배치. 판의 Ref.Pt가 **모듈 로컬 (L.X, L.Y, L.Z)** 에 오고, PLANE은 그 판이 놓일 평면, ROT.X/Y/Z는 그 점을 중심으로 한 회전(도). 행마다 모듈 ID 반복 — 같은 ID 행들이 한 모듈로 누적. PART도 별칭 인식 |
-| **MODULE** | ID, **BASE**, 판인스턴스, 점이름 | 모듈 기준점 = 구성 판의 9점 중 하나(`bc+`처럼 면 지정 가능). **누락 시 참고 표시**(초록 유지) + 로컬 원점 사용 |
+| **MODULE** | ID, **BASE**, 판인스턴스, 점이름 | 모듈 기준점 = 구성 판의 9점 중 하나(`bc+`처럼 면 지정 가능). **필수 — 누락하면 오류**(빨강). 모든 ASSY 행이 이 점을 기준으로 모듈을 배치하므로, 없으면 모듈이 어디 놓일지가 우연히 정해진다. 화면은 로컬 원점 기준으로 그려 주지만 그건 시트가 지시한 위치가 아니다 |
 | **COORD** | ZUP (기본) / YUP | 이 시트를 어느 좌표계로 읽을지. `YUP` 이면 예전 Y-up 기준으로 조립한 뒤 한 번만 세워 배치 — MODULE/ASSY 행보다 **위**에 둘 것 |
 | **ASSY** | ID, ref MOD/ASSY/BAR, **ADD**, G.X, G.Y, G.Z, ROT.X, ROT.Y, ROT.Z | **생성할 조립체 ID** 와 **참조할 MODULE / 다른 ASSY / 낱장 PLATE·BAR**. **같은 ID의 ADD 행은 MODULE처럼 누적되어 조립체 하나**가 된다 (첫 행이 기준점을 잡고, 뒤 행도 G는 절대좌표. 나중에 그 조립체를 다시 배치하면 통째로 움직임). 참조 대상의 기준점이 **글로벌 (G.X, G.Y, G.Z)** 에 오고, ROT.X/Y/Z로 3축 회전 |
 | **ASSY** | ID, ref MOD/ASSY, **MIR**, G.X, G.Y, G.Z, PLANE | 참조 대상을 **있는 자리에서** (G.X, G.Y, G.Z)를 지나는 XY/YZ/XZ 평면 기준으로 반사. 구성원 ID = **`ref.M`** |

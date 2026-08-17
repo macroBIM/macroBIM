@@ -1063,11 +1063,18 @@
     });
     // A MODULE no ASSY row picks up is not reported: a sheet is a library as
     // much as a model, and keeping spare modules around is normal practice.
+    // An unresolved BASE is an error, not an aside: the module's reference point
+    // is what every ASSY row places it by, so without one the module lands
+    // wherever its members happen to have been drawn rather than where the sheet
+    // asked. The fallback keeps the model on screen to look at; it does not make
+    // the sheet right.
     Object.keys(parts).forEach(function (id) {
       if (!parts[id].pos.length) hint('MODULE ' + id + ': has no POS rows');
-      else if (!parts[id].base) hint('MODULE ' + id + ': BASE not defined — using local origin (0,0)');
+      else if (!parts[id].base) warn('MODULE ' + id + ': BASE not defined — add "MODULE ' + id +
+                                     ' BASE <member> <point>". Falling back to the local origin (0,0,0)');
       else if (!parts[id].pos.some(function (p) { return p.NO === parts[id].base.inst; }))
-        hint('MODULE ' + id + ': BASE instance ' + parts[id].base.inst + ' not found among POS rows — using local origin');
+        warn('MODULE ' + id + ': BASE instance ' + parts[id].base.inst +
+             ' not found among its members — falling back to the local origin (0,0,0)');
     });
     return { plates: plates, holes: holes, parts: parts, cuts: cuts, assy: assy,
              log: log, counts: counts, yup: yup };
@@ -1805,7 +1812,6 @@
     var bbox = new THREE.Box3();
 
     function buildErr(m) { buildLog.push({ s: 'e', m: m }); console.error('[plateBuilder] ' + m); }
-    function buildHint(m) { buildLog.push({ s: 'w', m: m }); console.warn('[plateBuilder] ' + m); }
 
     // create geometry for one plate instance with a final world matrix
     function buildInstance(spec, matrix, no, group, remark, mirror, moduleId, memberKey, flip, member) {
@@ -1908,7 +1914,7 @@
                      .applyMatrix4(pl.locals[i].mloc);
           }
         }
-        buildHint('part ref point ' + s + ' not found — using BASE');
+        buildErr('part ref point ' + s + ' not found — falling back to BASE');
         return pl.base;
       }
       // plain 9-point name → part bbox (X/Y per name, Z centered)
@@ -4521,8 +4527,10 @@
     ' X, then Y, then Z).</p>',
     '<p>One row per member; repeat the module id on every row and they accumulate into one',
     ' module. The <b>BASE</b> row names the module&rsquo;s own origin - one of the nine points of',
-    ' one of its members, <code>+</code>/<code>&#8722;</code> allowed. Miss it and you get a warning',
-    ' and the local origin.</p>',
+    ' one of its members, <code>+</code>/<code>&#8722;</code> allowed. <b>It is not optional</b>:',
+    ' it is the point every ASSY row places the module by, so leaving it out is an error.',
+    ' The model still draws, off the module&rsquo;s local origin, so you can see what you have -',
+    ' but where it landed is an accident rather than something the sheet asked for.</p>',
     sheet([['# MODULE', 'id', 'member', 'Ref.Pt', 'L.X', 'L.Y', 'L.Z', 'PLANE'],
            ['MODULE', 'md.tower', 'pl.T1', 'bc+', 140, 0, 0, 'XZ'],
            ['MODULE', 'md.tower', 'pl.C1_1', 'bc', 0, 0, 0, 'XY'],
