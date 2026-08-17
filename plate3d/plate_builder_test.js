@@ -4718,6 +4718,10 @@
            ['# MODULE', 'id', 'member', 'Ref.Pt', 'L.X', 'L.Y', 'L.Z', 'PLANE'],
            ['MODULE', 'md.tower', 'bar.pt3m', '', 0, 0, 0, 'XY']],
           'Column D is left empty on purpose - the bar stands 3000 up from the origin.'),
+    '<p>That is one of <b>two</b> ways to place it. The other gives the bar its two end points',
+    ' instead of a plane and a length - see <b>MODULE by coordinates</b> below. Written that way',
+    ' the <code>length</code> above becomes a reference value and the two points decide it, so',
+    ' one <code>BAR</code> row covers every anchor bolt in the model whatever its length.</p>',
 
     '<h3>SECT - a rolled section</h3>',
     sheet([['SECT', 'id', 'mat', 'length', 'TYPE', 'base.pt', 'v1', 'v2', 'v3', '...']]),
@@ -4749,6 +4753,12 @@
     ' zero, a flange is deeper than the section, the web is thicker than the flange, a fillet',
     ' does not fit, or a radius is negative, the row is skipped with a warning. A plausible',
     ' profile with the wrong area is worse than none.</p>',
+    '<p>Placed exactly like a bar - blank Ref.Pt, laid on a plane, running its length along that',
+    ' plane&rsquo;s thickness axis. And like a bar it has the second option: <b>MODULE by',
+    ' coordinates</b> below stretches it between two points, takes the length from the distance,',
+    ' and rolls the profile about its own axis with <code>Alpha</code>. That is the one to reach',
+    ' for on bracing - <code>length</code> becomes the stock length and a single SECT row serves',
+    ' every member cut from it.</p>',
 
     '<h3>MODULE - parts into a unit</h3>',
     sheet([['MODULE', 'id', 'member.id', 'Ref.Pt', 'L.X', 'L.Y', 'L.Z', 'PLANE', 'ROT.X', 'ROT.Y', 'ROT.Z'],
@@ -4950,17 +4960,25 @@
            ['CUT', 'pl.T1', -110, 90, 'h.M22', 220, 0, 1],
            ['# BAR', 'id', 'mat', 'dia', 'length'],
            ['BAR', 'bar.pt3m', 'SAS1030', 28, 3000],
+           ['# SECT', 'id', 'mat', 'length', 'TYPE', 'base.pt', 'v1', 'v2', 'v3', 'v4', 'v5', 'v6'],
+           ['SECT', 'sc.brc', 'SS275', 6000, 'L', 'bc', 65, 65, 6, 6, 8, 4],
            ['# MODULE', 'id', 'member', 'Ref.Pt', 'L.X', 'L.Y', 'L.Z', 'PLANE'],
            ['MODULE', 'md.tower', 'pl.T1', 'bc+', 140, 0, 0, 'XZ'],
            ['MODULE', 'md.tower', 'pl.C1', 'bc', 0, 0, 0, 'XY'],
            ['MODULE', 'md.tower', 'bar.pt3m', '', 0, 0, 0, 'XY'],
+           ['# MODULE', 'id', 'member', 'Ref.Pt', 'LX1', 'LY1', 'LZ1',
+            'LX2', 'LY2', 'LZ2', 'OFF_B', 'OFF_E'],
+           ['MODULE', 'md.tower', 'sc.brc_1', '', 300, 0, 0, 0, 0, 2600, 60, 60],
            ['MODULE', 'md.tower', 'BASE', 'pl.T1', 'bc-'],
            ['# ASSY', 'id', 'ref', 'cmd', 'G.X', 'G.Y', 'G.Z', 'repeat'],
            ['ASSY', 'as.comb', 'md.tower', 'ADD', 0, 0, 0],
            ['ASSY', 'as.comb', 'md.tower', 'COPY', 2000, 0, 0, 2],
            ['END']],
-          'One group, <b>AS.COMB</b>, holding <code>MD.TOWER.A</code> and the two copies' +
-          ' <code>MD.TOWER.C001</code>, <code>MD.TOWER.C002</code>.'),
+          'Both MODULE grammars in one block: three members on a plane, then a brace ' +
+          'stretched from (300, 0, 0) to (0, 0, 2600) - 2617 between the points, built 2497 ' +
+          'because each end is held 60 clear. The result is one group, <b>AS.COMB</b>, ' +
+          'holding <code>MD.TOWER.A</code> and the two copies <code>MD.TOWER.C001</code>, ' +
+          '<code>MD.TOWER.C002</code>.'),
 
     '<h2>When something does not appear</h2>',
     '<ul>',
