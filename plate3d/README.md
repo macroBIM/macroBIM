@@ -29,6 +29,30 @@
 > 각각 2D 도면 / 3D 미리보기로 뜬다. 어떤 ASSY 행도 배치하지 않은 부재·모듈은 정의만 된 상태라
 > 메인 화면·중량·출력 파일 어디에도 들어가지 않는다. 라이브러리와 구조물을 분리한 의도적 설계.
 
+## 테스트본 / 운영본 분리
+
+저장소의 다른 모듈(`bim_box1cell_test.js` ↔ `bim_box1cell.js`)과 같은 방식이다.
+**엔진 파일이 두 벌**이고, 각각 자기 embed 페이지가 물려 있다.
+
+| | 엔진 | embed 페이지 | 레이아웃 |
+|---|---|---|---|
+| **테스트** | `plate_builder_test.js` | `embed_test.html` | `layout_body_test.js` |
+| **운영** | `plate_builder.js` | `embed.html` | `layout_body.js` |
+
+**수정은 항상 `plate_builder_test.js` 에 먼저** 넣는다. 테스트 레이아웃에서 확인이 끝나면
+아래 두 줄로 운영에 올린다 (**동기화 = 파일 복사 + 캐시값 올리기**):
+
+```bash
+cp plate3d/plate_builder_test.js plate3d/plate_builder.js   # 엔진 복사
+# plate3d/embed.html 의 ?v= 를 올리고, design/layout_body.js 의 ?v= 도 같이 올린다
+```
+
+`embed_test.html` 은 **오른쪽 아래에 빨간 `TEST BUILD` 배지**를 띄운다 — 어느 쪽을 보고 있는지
+헷갈릴 일이 없도록. embed 두 개는 이 배지와 로드하는 엔진 파일 이름만 다르다.
+
+예제 `.xlsx` 는 나누지 않는다 — 두 엔진이 같은 폴더에서 같은 파일을 받아간다.
+새 예제를 추가하면 테스트 엔진의 `SAMPLES` 배열에만 먼저 들어가고, 동기화할 때 운영으로 넘어간다.
+
 ## 파일
 
 - **`plate_builder.js`** — 뷰어 엔진 (DATA_SCHEMA.md 구현). HTML에는 링크만 걸면 됨

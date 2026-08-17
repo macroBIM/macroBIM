@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>PLATE3D (test)</title>
+<!--
+  The development twin of embed.html. Identical but for the engine it loads:
+  this one takes plate_builder_test.js, which is where changes land first. The
+  macroBIM site's test layout points here, the live layout points at embed.html,
+  so an engine change can be tried without touching what visitors see.
+  Promote by copying plate_builder_test.js over plate_builder.js and bumping
+  embed.html's ?v= - see plate3d/README.md.
+-->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  html, body { margin:0; padding:0; height:100%; background:#f8fafc; overflow:hidden; }
+  /* so you can never be in doubt which build you are looking at */
+  #pb-build { position:fixed; right:8px; bottom:6px; z-index:9999; pointer-events:none;
+    font:600 10px/1 Inter,system-ui,sans-serif; letter-spacing:.08em; color:#b91c1c;
+    background:rgba(254,242,242,.92); border:1px solid #fecaca; border-radius:5px;
+    padding:4px 7px; }
+</style>
+</head>
+<body>
+<div id="pb-build">TEST BUILD</div>
+<script src="https://unpkg.com/three@0.147.0/build/three.min.js"></script>
+<script src="https://unpkg.com/three@0.147.0/examples/js/controls/OrbitControls.js"></script>
+<script src="https://unpkg.com/polybooljs@1.1.0/dist/polybool.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/exceljs/4.3.0/exceljs.min.js"></script>
+<script src="plate_builder_test.js?v=19"></script>
+</body>
+</html>
