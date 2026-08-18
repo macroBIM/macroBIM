@@ -207,33 +207,43 @@
     '  background:rgba(15,23,42,.35); align-items:center; justify-content:center;',
     '  padding:20px; }',
     '#pb-ex .box { background:#fff; border:1px solid var(--line); border-radius:10px;',
-    '  width:540px; max-width:96vw; max-height:92vh; overflow:auto; padding:14px;',
+    '  width:880px; max-width:96vw; max-height:92vh; overflow:auto; padding:14px;',
     '  box-shadow:0 12px 40px rgba(15,23,42,.24); }',
     '#pb-ex h2 { font-size:15px; font-weight:600; color:#0f172a; margin:0 0 7px; }',
     '#pb-ex .close { float:right; cursor:pointer; color:#94a3b8; padding:0 4px; }',
     '#pb-ex .close:hover { color:#0f172a; }',
-    '#pb-ex .exi { margin:0 0 13px; font-size:11.5px; color:#64748b; line-height:1.6; }',
-    '#pb-ex button { display:block; width:100%; text-align:left; position:relative;',
-    '  border:1px solid var(--hair); background:#fff; font:inherit; text-transform:none;',
-    '  letter-spacing:0; padding:11px 108px 11px 13px; border-radius:9px; cursor:pointer;',
-    '  margin-bottom:7px; transition:background .12s,border-color .12s,box-shadow .12s; }',
-    '#pb-ex button:hover { background:#f0fdf4; border-color:#6ee7b7;',
-    '  box-shadow:0 3px 10px rgba(15,23,42,.08); }',
-    '#pb-ex .exn { display:block; font-size:13px; font-weight:600; color:#0f172a; }',
-    '#pb-ex .exn i { font-style:normal; font-weight:400; font-size:10.5px; color:#94a3b8;',
-    '  margin-left:8px; }',
-    '#pb-ex .exd { display:block; font-size:11.5px; color:#475569; margin-top:3px;',
-    '  line-height:1.5; }',
-    '#pb-ex .exs { display:block; font-size:10.5px; color:#94a3b8; margin-top:4px; }',
-    '#pb-ex .exb { position:absolute; right:13px; top:50%; transform:translateY(-50%);',
-    '  font-size:10px; font-weight:700; letter-spacing:.06em; text-transform:uppercase;',
-    '  color:#047857; border:1px solid #a7f3d0; background:#ecfdf5; border-radius:6px;',
-    '  padding:5px 10px; min-width:62px; text-align:center; }',
-    '#pb-ex button:hover .exb { background:#047857; color:#fff; border-color:#047857; }',
-    '#pb-ex .exb.ok, #pb-ex button:hover .exb.ok { background:#047857; color:#fff;',
+    '#pb-ex .exi { margin:0 0 11px; font-size:11.5px; color:#64748b; line-height:1.6; }',
+    /* a table, one row per example: five of them compare at a glance */
+    '#pb-ex .ext { width:100%; border-collapse:collapse; table-layout:fixed; }',
+    '#pb-ex .ext th { font-size:10px; font-weight:600; letter-spacing:.06em;',
+    '  text-transform:uppercase; color:#94a3b8; text-align:left; padding:0 10px 6px;',
+    '  border-bottom:1px solid var(--line); }',
+    '#pb-ex .ext th.sz { text-align:right; }',
+    '#pb-ex .ext td { padding:9px 10px; border-bottom:1px solid var(--hair);',
+    '  vertical-align:middle; overflow:hidden; text-overflow:ellipsis;',
+    '  white-space:nowrap; }',
+    '#pb-ex .ext tbody tr { cursor:pointer; transition:background .12s; }',
+    '#pb-ex .ext tbody tr:hover { background:#f0fdf4; }',
+    '#pb-ex .ext tbody tr:last-child td { border-bottom:none; }',
+    '#pb-ex .ext col.cn { width:170px; }  #pb-ex .ext col.cs { width:214px; }',
+'#pb-ex .ext col.cb { width:96px; }',
+'#pb-ex .exn { font-size:13px; font-weight:600; color:#0f172a; }',
+    '#pb-ex .exn i { display:block; font-style:normal; font-weight:400; font-size:10px;',
+    '  color:#94a3b8; margin-top:2px; }',
+    '#pb-ex .exd { font-size:11.5px; color:#475569; }',
+    '#pb-ex .exs { font-size:10.5px; color:#94a3b8; text-align:right; }',
+    '#pb-ex .exbc { text-align:right; }',
+    '#pb-ex .exb { display:inline-block; font-size:10px; font-weight:700;',
+    '  letter-spacing:.06em; text-transform:uppercase; color:#047857;',
+    '  border:1px solid #a7f3d0; background:#ecfdf5; border-radius:6px;',
+    '  padding:5px 9px; min-width:62px; text-align:center; }',
+    '#pb-ex .ext tbody tr:hover .exb { background:#047857; color:#fff;',
     '  border-color:#047857; }',
-    '#pb-ex .exb.bad, #pb-ex button:hover .exb.bad { background:#fef2f2; color:#b91c1c;',
-    '  border-color:#fecaca; }',
+    '#pb-ex .exb.ok, #pb-ex .ext tbody tr:hover .exb.ok { background:#047857;',
+    '  color:#fff; border-color:#047857; }',
+    '#pb-ex .exb.bad, #pb-ex .ext tbody tr:hover .exb.bad { background:#fef2f2;',
+    '  color:#b91c1c; border-color:#fecaca; }',
+    '@media (max-width:640px) { #pb-ex .exd, #pb-ex .exs { display:none; } }',
 
     /* ---- colour palette popover ---- */
     '#pb-pal { display:none; position:fixed; z-index:60; grid-template-columns:repeat(4,20px);',
@@ -1907,9 +1917,18 @@
   // by the centre of its starting face - the circle it grows from - so its
   // Ref.Pt cell is not read at all; a plate uses its named point and the +/-
   // face suffix.
-  function refAnchor(spec, pt, face) {
+  /* `row` is passed only when this anchor is a module's BASE datum, and only
+     then does OFF_B come into it. A member placed by coordinates is anchored on
+     the work point the sheet wrote - LX1/LY1/LZ1 - not on the end OFF_B left
+     behind. OFF trims steel; it does not move the member. Anchoring on the
+     trimmed end drags the whole module along the member's own axis, which draws
+     a model that looks right and is not: PLATE3D_BASIC's braced bay sat 106 mm
+     out in x and 108 in z that way, and only the clash check ever said so.
+     The offset is subtracted in member-local coords so the caller's matrix -
+     yupFix included - still carries it into the right frame. */
+  function refAnchor(spec, pt, face, row) {
     var thk = num(spec.THK, 0);
-    if (spec.__bar) return [0, 0, -thk / 2];
+    if (spec.__bar) return [0, 0, -thk / 2 - (row && row.__ax ? num(row.OFB, 0) : 0)];
     var p = namedPoints(spec, false), a = p[pt] || p.bl;
     return [a[0], a[1], (face || 0) * thk / 2];
   }
@@ -2114,7 +2133,7 @@
       if (part.base) {
         for (var i = 0; i < locals.length; i++) {
           if (locals[i].row.NO === part.base.inst) {
-            var a = refAnchor(locals[i].spec, part.base.pt, part.base.face);
+            var a = refAnchor(locals[i].spec, part.base.pt, part.base.face, locals[i].row);
             base = new THREE.Vector3(a[0], a[1], a[2]).applyMatrix4(locals[i].mloc);
             break;
           }
@@ -2830,7 +2849,7 @@
       if (!spec) return null;
       try {
         var m = yupFix(memberMatrix(row, namedPoints(spec, false), spec.THK));
-        var a = refAnchor(spec, part.base.pt, part.base.face);
+        var a = refAnchor(spec, part.base.pt, part.base.face, row);
         return new THREE.Vector3(a[0], a[1], a[2]).applyMatrix4(m);
       } catch (e) { return null; }
     }
@@ -3592,7 +3611,7 @@
       var m;
       try { m = yupFix(memberMatrix(row, pts, spec.THK)); } catch (e) { return; }
       if (part.base && row.NO === part.base.inst) {
-        var a = refAnchor(spec, part.base.pt, part.base.face);
+        var a = refAnchor(spec, part.base.pt, part.base.face, row);
         basePt = new THREE.Vector3(a[0], a[1], a[2]).applyMatrix4(m);
       }
       var g2d = buildPlate2D(spec, lastCuts, lastPlates);
@@ -5290,6 +5309,13 @@
     ' it is the point every ASSY row places the module by, so leaving it out is an error.',
     ' The model still draws, off the module&rsquo;s local origin, so you can see what you have -',
     ' but where it landed is an accident rather than something the sheet asked for.</p>',
+    '<p class="warn"><b>The BASE point is a datum, not the origin.</b> Read where it actually',
+    ' sits in module coordinates, then write that same place in the ASSY row. Name a member',
+    ' whose point is at (0, 0, 0) and the ASSY row reads as the position of the module; name',
+    ' one sitting 150 off the centre line and the ASSY row has to say 150 too, or everything',
+    ' shifts by the difference. On a member placed by coordinates the datum is the',
+    ' <b>work point</b> - <code>LX1</code>, <code>LY1</code>, <code>LZ1</code> - not wherever',
+    ' <code>OFF_B</code> cut the steel back to. OFF trims the member; it never moves it.</p>',
     sheet([['# MODULE', 'id', 'member', 'Ref.Pt', 'L.X', 'L.Y', 'L.Z', 'PLANE'],
            ['MODULE', 'md.tower', 'pl.T1', 'bc+', 140, 0, 0, 'XZ'],
            ['MODULE', 'md.tower', 'pl.C1_1', 'bc', 0, 0, 0, 'XY'],
@@ -5695,13 +5721,19 @@
       '  <div class="meta" id="pb-pv-pos">&nbsp;</div>' +
       '</div></div>';
     document.body.appendChild(app);
-    document.getElementById('pb-exlist').innerHTML = SAMPLES.map(function (s, i) {
-      return '<button onclick="plateBuilder.getSample(' + i + ')" title="' + esc(s.f) + '">' +
-             '<span class="exn">' + esc(s.n) + '<i>' + esc(s.f) + '</i></span>' +
-             '<span class="exd">' + esc(s.d) + '</span>' +
-             (s.s ? '<span class="exs">' + esc(s.s) + '</span>' : '') +
-             '<span class="exb" id="pb-exb' + i + '">download</span></button>';
-    }).join('');
+    document.getElementById('pb-exlist').innerHTML =
+      '<table class="ext">' +
+      '<colgroup><col class="cn"><col class="cd"><col class="cs"><col class="cb"></colgroup>' +
+      '<thead><tr><th>example</th><th>what it shows</th>' +
+      '<th class="sz">size</th><th></th></tr></thead><tbody>' +
+      SAMPLES.map(function (s, i) {
+        return '<tr onclick="plateBuilder.getSample(' + i + ')" title="' + esc(s.f) + '">' +
+               '<td class="exn">' + esc(s.n) + '<i>' + esc(s.f) + '</i></td>' +
+               '<td class="exd">' + esc(s.d) + '</td>' +
+               '<td class="exs">' + esc(s.s || '') + '</td>' +
+               '<td class="exbc"><span class="exb" id="pb-exb' + i + '">download</span></td>' +
+               '</tr>';
+      }).join('') + '</tbody></table>';
     var pal = document.getElementById('pb-pal');
     pal.innerHTML = SWATCHES.map(function (c) {
       return '<i style="background:' + c + '" onclick="plateBuilder.pickColor(\'' + c + '\')"></i>';
@@ -6181,23 +6213,20 @@
   }
   // Example workbooks, all sitting next to this file. Add a row to put another
   // one on the menu; nothing else needs touching.
+  /* One row each. `d` is a single line and is not allowed to wrap - the point of
+     the list is to compare five examples at a glance and pick one, not to read
+     five paragraphs. The long version is the model itself. */
   var SAMPLES = [
-    { f: 'PLATE3D_BASIC.xlsx', n: 'Basic', s: '76 rows → 94 members · 1.71 t',
-      d: 'A pipe-support bent, three of them. Every keyword in the guide appears ' +
-         'once in a real model — both MODULE grammars, all three plate shapes, ' +
-         'H/C/L sections, and all four ASSY commands in one assembly. Start here.' },
+    { f: 'PLATE3D_BASIC.xlsx', n: 'Basic', s: '76 rows → 90 members · 1.70 t',
+      d: 'Every keyword once, in one real model. Start here.' },
     { f: 'PLATE3D_SAMPLE.xlsx', n: 'Sample', s: '38 rows → 48 members · 803 kg',
-      d: 'One box unit, then ADD / MIR / COPY / ROT each on its own assembly. ' +
-         'A dictionary rather than a model — read it when one command is unclear.' },
-    { f: 'PLATE3D_CRANE.xlsx', n: 'Tower crane', s: '124 rows → 286 members · 43.2 t',
-      d: 'Two lattice bays and a COPY row become a whole mast. What the ' +
-         'MODULE → ASSY split is for.' },
+      d: 'ADD / MIR / COPY / ROT, one command per assembly.' },
+    { f: 'PLATE3D_TOWER.xlsx', n: 'Tower crane', s: '347 rows → 575 members · 73.6 t',
+      d: 'One mast panel and one jib bay become a whole crane.' },
     { f: 'PLATE3D_TANK.xlsx', n: 'Tank', s: '54 rows → 16 members · 4.9 kg',
-      d: 'Reverse-engineered from a five-sheet A4 drawing set — hull, treads, ' +
-         'turret and cannon.' },
+      d: 'Reverse-engineered from a five-sheet A4 drawing set.' },
     { f: 'PLATE3D_TURRET.xlsx', n: 'Turret', s: '56 rows → 12 members · 0.65 kg',
-      d: 'A machined part: octagons built from a band plus two trapezoids, and ' +
-         'a channel rolled about its own axis.' }
+      d: 'A machined part: octagons, and a channel rolled on its axis.' }
   ];
   var exOpen = false;
   /* The picker is a window rather than a dropdown, so each example has room for
@@ -6289,105 +6318,287 @@
   /* ---- auto-run: use window.PLATE_DATA if present, else empty default.
      Skipped when plateBuilder.run() was already called directly. ---- */
   /* ---- the model the viewer opens with ----
-     PLATE3D_CRANE.xlsx as plain rows, so it takes the identical parse path an
-     .xlsx does - no second grammar to keep in step. A host page that sets
-     window.PLATE_DATA still wins, and loading a sheet replaces it. */
+     PLATE3D_TOWER.xlsx as plain rows, so it takes the identical parse path an
+     .xlsx does - no second grammar to keep in step. The rows are read back out
+     of the shipped workbook rather than typed again, so the model a visitor
+     opens with and the file they download cannot drift apart. A host page that
+     sets window.PLATE_DATA still wins, and loading a sheet replaces it. */
   var DEMO_ROWS = [
-    ["BAR","bar.leg","SM490",120,2000],
-    ["BAR","bar.tie","SM490",76,1200],
-    ["BAR","bar.dia","SM490",60,2332],
-    ["BAR","bar.chord","SM490",100,2000],
-    ["BAR","bar.web","SM490",60,1342],
-    ["BAR","bar.jtie","SM490",60,1200],
-    ["BAR","bar.jdia","SM490",50,2332],
-    ["BAR","bar.aleg","SM490",90,5802],
-    ["BAR","bar.atie","SM490",60,3000],
-    ["BAR","bar.penj","SS275",40,13984],
-    ["BAR","bar.penc","SS275",40,8412],
-    ["BAR","bar.rope","SS275",24,12800],
-    ["PLATE","pl.base","SM400",40,"RECT","mc",3600,3600],
-    ["PLATE","pl.gus","SM400",20,"TRAP","bl",1000,0,900,0],
-    ["PLATE","pl.plat","SM400",15,"RECT","mc",3000,2200],
-    ["PLATE","pl.cabs","SM400",6,"RECT","mc",1500,1600],
-    ["PLATE","pl.cabf","SM400",6,"RECT","mc",1300,1600],
-    ["PLATE","pl.cabt","SM400",6,"RECT","mc",1500,1300],
-    ["PLATE","pl.cw","SM400",220,"RECT","mc",2200,1400],
-    ["PLATE","pl.trly","SM400",20,"RECT","mc",900,700],
-    ["PLATE","pl.hook","SM400",30,"RECT","mc",700,520],
-    ["SECT","sc.H300","SM490",3000,"H","bc",300,150,150,6.5,9,9,13],
-    ["MODULE","md.mast","bar.leg_1","",0,0,0,"XY"],
-    ["MODULE","md.mast","bar.leg_2","",1200,0,0,"XY"],
-    ["MODULE","md.mast","bar.leg_3","",1200,1200,0,"XY"],
-    ["MODULE","md.mast","bar.leg_4","",0,1200,0,"XY"],
-    ["MODULE","md.mast","bar.tie_1","",0,0,2000,"YZ"],
-    ["MODULE","md.mast","bar.tie_2","",0,1200,2000,"YZ"],
-    ["MODULE","md.mast","bar.tie_3","",0,1200,2000,"XZ"],
-    ["MODULE","md.mast","bar.tie_4","",1200,1200,2000,"XZ"],
-    ["MODULE","md.mast","bar.dia_1","",0,0,0,"XY",0,30.964],
-    ["MODULE","md.mast","bar.dia_2","",1200,0,0,"XY",0,-30.964],
-    ["MODULE","md.mast","bar.dia_3","",0,1200,0,"XY",0,30.964],
-    ["MODULE","md.mast","bar.dia_4","",1200,1200,0,"XY",0,-30.964],
-    ["MODULE","md.mast","bar.dia_5","",0,0,0,"XY",-30.964,0],
-    ["MODULE","md.mast","bar.dia_6","",0,1200,0,"XY",30.964,0],
-    ["MODULE","md.mast","bar.dia_7","",1200,0,0,"XY",-30.964,0],
-    ["MODULE","md.mast","bar.dia_8","",1200,1200,0,"XY",30.964,0],
-    ["MODULE","md.mast","BASE","bar.leg_1","mc"],
-    ["MODULE","md.jib","bar.chord_1","",0,0,0,"YZ"],
-    ["MODULE","md.jib","bar.chord_2","",0,1200,0,"YZ"],
-    ["MODULE","md.jib","bar.chord_3","",0,600,1200,"YZ"],
-    ["MODULE","md.jib","bar.jtie","",0,1200,0,"XZ"],
-    ["MODULE","md.jib","bar.web_1","",0,1200,0,"XY",26.565,0],
-    ["MODULE","md.jib","bar.web_2","",0,0,0,"XY",-26.565,0],
-    ["MODULE","md.jib","bar.jdia","",0,0,0,"XY",-30.964,90],
-    ["MODULE","md.jib","BASE","bar.chord_1","mc"],
-    ["MODULE","md.base","pl.base","mc",0,0,0,"XY"],
-    ["MODULE","md.base","pl.gus_1","bl",600,0,20,"XZ"],
-    ["MODULE","md.base","pl.gus_2","bl",-600,0,20,"XZ",0,0,180],
-    ["MODULE","md.base","pl.gus_3","bl",0,600,20,"YZ"],
-    ["MODULE","md.base","pl.gus_4","bl",0,-600,20,"YZ",0,0,180],
-    ["MODULE","md.base","BASE","pl.base","mc"],
-    ["MODULE","md.cab","pl.cabs_1","mc",0,-650,800,"XZ"],
-    ["MODULE","md.cab","pl.cabs_2","mc",0,650,800,"XZ"],
-    ["MODULE","md.cab","pl.cabf","mc",750,0,800,"YZ"],
-    ["MODULE","md.cab","pl.cabt_1","mc",0,0,0,"XY"],
-    ["MODULE","md.cab","pl.cabt_2","mc",0,0,1600,"XY"],
-    ["MODULE","md.cab","BASE","pl.cabt_1","mc"],
-    ["MODULE","md.top","sc.H300_1","bc",-1500,-700,-320,"YZ"],
-    ["MODULE","md.top","sc.H300_2","bc",-1500,700,-320,"YZ"],
-    ["MODULE","md.top","pl.plat","mc",0,0,0,"XY"],
-    ["MODULE","md.top","BASE","pl.plat","mc"],
-    ["MODULE","md.afr","bar.aleg_1","",0,0,0,"XY",-14.984,15.524],
-    ["MODULE","md.afr","bar.aleg_2","",3000,0,0,"XY",-14.984,-15.524],
-    ["MODULE","md.afr","bar.aleg_3","",3000,3000,0,"XY",14.984,-15.524],
-    ["MODULE","md.afr","bar.aleg_4","",0,3000,0,"XY",14.984,15.524],
-    ["MODULE","md.afr","bar.atie_1","",0,0,0,"YZ"],
-    ["MODULE","md.afr","bar.atie_2","",0,3000,0,"YZ"],
-    ["MODULE","md.afr","bar.atie_3","",0,3000,0,"XZ"],
-    ["MODULE","md.afr","bar.atie_4","",3000,3000,0,"XZ"],
-    ["MODULE","md.afr","BASE","bar.aleg_1","mc"],
-    ["MODULE","md.cwt","pl.cw_1","mc",0,0,0,"YZ"],
-    ["MODULE","md.cwt","pl.cw_2","mc",260,0,0,"YZ"],
-    ["MODULE","md.cwt","pl.cw_3","mc",520,0,0,"YZ"],
-    ["MODULE","md.cwt","BASE","pl.cw_1","mc"],
-    ["MODULE","md.hook","pl.trly","mc",0,0,0,"XY"],
-    ["MODULE","md.hook","bar.rope_1","",0,-260,-400,"XY",180,0],
-    ["MODULE","md.hook","bar.rope_2","",0,260,-400,"XY",180,0],
-    ["MODULE","md.hook","pl.hook","mc",0,0,-13460,"XZ"],
-    ["MODULE","md.hook","BASE","pl.trly","mc"],
-    ["ASSY","as.mast","md.mast","ADD",-600,-600,0],
-    ["ASSY","as.mast","as.mast","COPY",0,0,2000,8],
-    ["ASSY","as.base","md.base","ADD",0,0,0],
-    ["ASSY","as.top","md.top","ADD",0,0,18000],
-    ["ASSY","as.top","md.afr","ADD",-1500,-1500,18200],
-    ["ASSY","as.top","md.cab","ADD",1500,0,16100],
-    ["ASSY","as.jib","md.jib","ADD",1400,-600,18400],
-    ["ASSY","as.jib","as.jib","COPY",2000,0,0,11],
-    ["ASSY","as.cjib","md.jib","ADD",-1400,600,18400,0,0,180],
-    ["ASSY","as.cjib","as.cjib","COPY",-2000,0,0,3],
-    ["ASSY","as.cwt","md.cwt","ADD",-9000,0,18700],
-    ["ASSY","as.pend","bar.penj","ADD",0,0,23600,0,106.621,0],
-    ["ASSY","as.pend","bar.penc","ADD",0,0,23600,0,-118.393,0],
-    ["ASSY","as.hook","md.hook","ADD",12000,0,18100],
+    ["SECT","sc.mch","SM490",2400,"L","bl",150,150,14,14,14,7],
+    ["SECT","sc.jch","SM490",3000,"L","bl",120,120,12,12,12,6],
+    ["SECT","sc.cch","SM490",2600,"L","bl",110,110,10,10,10,5],
+    ["SECT","sc.hlg","SM490",9500,"L","bl",130,130,12,12,12,6],
+    ["SECT","sc.main","SM490",4600,"H","mc",700,300,300,14,22,22,24],
+    ["SECT","sc.bfr","SM490",4800,"H","mc",600,250,250,12,19,19,22],
+    ["SECT","sc.bcr","SM490",1400,"H","mc",400,200,200,9,14,14,16],
+    ["BAR","bar.mh","SM490",70,1600],
+    ["BAR","bar.md","SM490",60,2885],
+    ["BAR","bar.lst","SS275",34,2400],
+    ["BAR","bar.lrg","SS275",22,400],
+    ["BAR","bar.strut","SM490",130,4300],
+    ["BAR","bar.anb","SS400",48,180],
+    ["BAR","bar.jbc","SM490",100,3000],
+    ["BAR","bar.jth","SM490",70,1300],
+    ["BAR","bar.jw","SM490",60,2200],
+    ["BAR","bar.jpl","SM490",55,3300],
+    ["BAR","bar.cbc","SM490",110,2600],
+    ["BAR","bar.ch","SM490",65,1300],
+    ["BAR","bar.cw","SM490",60,2000],
+    ["BAR","bar.ht","SM490",70,1600],
+    ["BAR","bar.hd","SM490",60,2400],
+    ["BAR","bar.pen","SS540",70,26000],
+    ["BAR","bar.hang","SM490",80,800],
+    ["BAR","bar.rope","SS275",26,26000],
+    ["BAR","bar.rail","SS275",34,4800],
+    ["BAR","bar.post","SS275",40,1050],
+    ["BAR","bar.shk","SM490",150,700],
+    ["BAR","bar.axle","SM490",90,900],
+    ["BAR","bar.barrel","SM490",420,1300],
+    ["PLATE","pl.bped","SM490",50,"RECT","mc",1900,1900],
+    ["PLATE","pl.fpl","SM490",60,"RECT","mc",900,900],
+    ["PLATE","pl.ring","SM490",120,"CIRC","mc",2400],
+    ["PLATE","pl.rinn","SM490",120,"CIRC","mc",1900],
+    ["PLATE","pl.dk","SM490",30,"RECT","mc",3800,2600],
+    ["PLATE","pl.gbx","SM490",350,"RECT","mc",650,500],
+    ["PLATE","pl.hcap","SM490",40,"RECT","mc",900,900],
+    ["PLATE","pl.hear","SM490",30,"TRAP","bl",1000,320,760,340],
+    ["PLATE","pl.pap","SM490",40,"RECT","mc",900,500],
+    ["PLATE","pl.jrt","SM490",25,"TRAP","bl",2050,900,1450,0],
+    ["PLATE","pl.crt","SM490",25,"TRAP","bl",1750,800,1250,0],
+    ["PLATE","pl.cwt","SM490",150,"RECT","mc",2100,1500],
+    ["PLATE","pl.cwh","SM490",30,"RECT","mc",1300,900],
+    ["PLATE","pl.mdk","SM490",10,"RECT","mc",5200,2000],
+    ["PLATE","pl.dfl","SM490",50,"CIRC","mc",900],
+    ["PLATE","pl.mot","SM490",380,"RECT","mc",650,550],
+    ["PLATE","pl.cabf","SS275",6,"RECT","mc",1900,2080],
+    ["PLATE","pl.cabs","SS275",6,"RECT","mc",1900,2180],
+    ["PLATE","pl.cabg","GLASS",8,"RECT","mc",2080,2180],
+    ["PLATE","pl.tfr","SM490",25,"RECT","mc",1400,1600],
+    ["PLATE","pl.twh","SM490",90,"CIRC","mc",320],
+    ["PLATE","pl.hbk","SM490",30,"TRAP","bl",1200,700,1000,250],
+    ["PLATE","pl.shv","SM490",50,"CIRC","mc",620],
+    ["PLATE","pl.hk","SM490",90,"TRAP","bl",900,250,1200,325],
+    ["HOLE","ho.race","CIRC","mc",1700],
+    ["HOLE","ho.bore","CIRC","mc",1500],
+    ["HOLE","ho.anb","CIRC","mc",52],
+    ["HOLE","ho.axle","CIRC","mc",95],
+    ["HOLE","ho.pin","CIRC","mc",130],
+    ["CUT","pl.ring",0,0,"ho.race"],
+    ["CUT","pl.rinn",0,0,"ho.bore"],
+    ["CUT","pl.fpl",-280,-280,"ho.anb",560,0,1],
+    ["CUT","pl.fpl",-280,280,"ho.anb",560,0,1],
+    ["CUT","pl.twh",0,0,"ho.axle"],
+    ["CUT","pl.shv",0,0,"ho.axle"],
+    ["CUT","pl.hear",760,420,"ho.pin"],
+    ["CUT","pl.pap",0,0,"ho.pin"],
+    ["MODULE","md.mast","sc.mch_1","",-800,-800,0,-800,-800,2400],
+    ["MODULE","md.mast","sc.mch_2","",800,-800,0,800,-800,2400,"","",90],
+    ["MODULE","md.mast","sc.mch_3","",800,800,0,800,800,2400,"","",180],
+    ["MODULE","md.mast","sc.mch_4","",-800,800,0,-800,800,2400,"","",270],
+    ["MODULE","md.mast","bar.mh_1","",-800,-850,2400,800,-850,2400],
+    ["MODULE","md.mast","bar.mh_2","",850,-800,2400,850,800,2400],
+    ["MODULE","md.mast","bar.mh_3","",800,850,2400,-800,850,2400],
+    ["MODULE","md.mast","bar.mh_4","",-850,800,2400,-850,-800,2400],
+    ["MODULE","md.mast","bar.md_1","",-800,-850,0,800,-850,2400,95,95],
+    ["MODULE","md.mast","bar.md_2","",850,-800,0,850,800,2400,95,95],
+    ["MODULE","md.mast","bar.md_3","",800,850,0,-800,850,2400,95,95],
+    ["MODULE","md.mast","bar.md_4","",-850,800,0,-850,-800,2400,95,95],
+    ["MODULE","md.mast","bar.lst_1","",520,-220,0,520,-220,2400],
+    ["MODULE","md.mast","bar.lst_2","",520,220,0,520,220,2400],
+    ["MODULE","md.mast","bar.lrg_1","",520,-220,400,520,220,400,25,25],
+    ["MODULE","md.mast","bar.lrg_2","",520,-220,1200,520,220,1200,25,25],
+    ["MODULE","md.mast","bar.lrg_3","",520,-220,2000,520,220,2000,25,25],
+    ["MODULE","md.mast","BASE","sc.mch_1","bl"],
+    ["MODULE","md.base","pl.bped","mc+",0,0,0,"XY"],
+    ["MODULE","md.base","sc.bfr_1","",-2400,-2400,-400,2400,-2400,-400],
+    ["MODULE","md.base","sc.bfr_3","",-2400,2400,-400,2400,2400,-400],
+    ["MODULE","md.base","sc.bfr_2","",2400,-2400,-400,2400,2400,-400,140,140],
+    ["MODULE","md.base","sc.bfr_4","",-2400,-2400,-400,-2400,2400,-400,140,140],
+    ["MODULE","md.base","sc.bcr_1","",1000,0,-400,2400,0,-400,"",140],
+    ["MODULE","md.base","sc.bcr_2","",0,1000,-400,0,2400,-400,"",140],
+    ["MODULE","md.base","sc.bcr_3","",-1000,0,-400,-2400,0,-400,"",140],
+    ["MODULE","md.base","sc.bcr_4","",0,-1000,-400,0,-2400,-400,"",140],
+    ["MODULE","md.base","bar.strut_1","",-2400,-2400,0,-800,-800,3240,"",350],
+    ["MODULE","md.base","bar.strut_2","",2400,-2400,0,800,-800,3240,"",350],
+    ["MODULE","md.base","bar.strut_3","",2400,2400,0,800,800,3240,"",350],
+    ["MODULE","md.base","bar.strut_4","",-2400,2400,0,-800,800,3240,"",350],
+    ["MODULE","md.base","pl.fpl_1","mc+",-2400,-2400,-700,"XY"],
+    ["MODULE","md.base","pl.fpl_2","mc+",2400,-2400,-700,"XY"],
+    ["MODULE","md.base","pl.fpl_3","mc+",2400,2400,-700,"XY"],
+    ["MODULE","md.base","pl.fpl_4","mc+",-2400,2400,-700,"XY"],
+    ["MODULE","md.base","bar.anb_1","",-2680,-2680,-790,-2680,-2680,-670],
+    ["MODULE","md.base","bar.anb_2","",-2120,-2680,-790,-2120,-2680,-670],
+    ["MODULE","md.base","bar.anb_3","",-2680,-2120,-790,-2680,-2120,-670],
+    ["MODULE","md.base","bar.anb_4","",-2120,-2120,-790,-2120,-2120,-670],
+    ["MODULE","md.base","bar.anb_5","",2120,-2680,-790,2120,-2680,-670],
+    ["MODULE","md.base","bar.anb_6","",2680,-2680,-790,2680,-2680,-670],
+    ["MODULE","md.base","bar.anb_7","",2120,-2120,-790,2120,-2120,-670],
+    ["MODULE","md.base","bar.anb_8","",2680,-2120,-790,2680,-2120,-670],
+    ["MODULE","md.base","bar.anb_9","",2120,2120,-790,2120,2120,-670],
+    ["MODULE","md.base","bar.anb_10","",2680,2120,-790,2680,2120,-670],
+    ["MODULE","md.base","bar.anb_11","",2120,2680,-790,2120,2680,-670],
+    ["MODULE","md.base","bar.anb_12","",2680,2680,-790,2680,2680,-670],
+    ["MODULE","md.base","bar.anb_13","",-2680,2120,-790,-2680,2120,-670],
+    ["MODULE","md.base","bar.anb_14","",-2120,2120,-790,-2120,2120,-670],
+    ["MODULE","md.base","bar.anb_15","",-2680,2680,-790,-2680,2680,-670],
+    ["MODULE","md.base","bar.anb_16","",-2120,2680,-790,-2120,2680,-670],
+    ["MODULE","md.base","BASE","pl.bped","mc+"],
+    ["MODULE","md.slew","pl.ring","mc-",0,0,0,"XY"],
+    ["MODULE","md.slew","pl.rinn","mc-",0,0,120,"XY"],
+    ["MODULE","md.slew","pl.dk","mc-",0,0,240,"XY"],
+    ["MODULE","md.slew","sc.main_1","",-2300,-1150,620,2300,-1150,620],
+    ["MODULE","md.slew","sc.main_2","",-2300,1150,620,2300,1150,620],
+    ["MODULE","md.slew","pl.gbx","mc",-1500,0,590,"XY"],
+    ["MODULE","md.slew","BASE","pl.ring","mc-"],
+    ["MODULE","md.head","sc.hlg_1","",-800,-800,0,-250,-250,9630,"","",225],
+    ["MODULE","md.head","sc.hlg_2","",800,-800,0,250,-250,9630,"","",225],
+    ["MODULE","md.head","sc.hlg_3","",800,800,0,250,250,9630,"","",225],
+    ["MODULE","md.head","sc.hlg_4","",-800,800,0,-250,250,9630,"","",225],
+    ["MODULE","md.head","bar.ht_1","",-646,-796,2696.4,646,-796,2696.4,80,80],
+    ["MODULE","md.head","bar.ht_2","",796,-646,2696.4,796,646,2696.4,80,80],
+    ["MODULE","md.head","bar.ht_3","",646,796,2696.4,-646,796,2696.4,80,80],
+    ["MODULE","md.head","bar.ht_4","",-796,646,2696.4,-796,-646,2696.4,80,80],
+    ["MODULE","md.head","bar.ht_5","",-497.5,-647.5,5296.5,497.5,-647.5,5296.5,80,80],
+    ["MODULE","md.head","bar.ht_6","",647.5,-497.5,5296.5,647.5,497.5,5296.5,80,80],
+    ["MODULE","md.head","bar.ht_7","",497.5,647.5,5296.5,-497.5,647.5,5296.5,80,80],
+    ["MODULE","md.head","bar.ht_8","",-647.5,497.5,5296.5,-647.5,-497.5,5296.5,80,80],
+    ["MODULE","md.head","bar.ht_9","",-360,-510,7704,360,-510,7704,80,80],
+    ["MODULE","md.head","bar.ht_10","",510,-360,7704,510,360,7704,80,80],
+    ["MODULE","md.head","bar.ht_11","",360,510,7704,-360,510,7704,80,80],
+    ["MODULE","md.head","bar.ht_12","",-510,360,7704,-510,-360,7704,80,80],
+    ["MODULE","md.head","bar.hd_1","",-800,-950,0,646,-796,2696.4,90,110],
+    ["MODULE","md.head","bar.hd_2","",950,-800,0,796,646,2696.4,90,110],
+    ["MODULE","md.head","bar.hd_3","",800,950,0,-646,796,2696.4,90,110],
+    ["MODULE","md.head","bar.hd_4","",-950,800,0,-796,-646,2696.4,90,110],
+    ["MODULE","md.head","bar.hd_5","",-646,-796,2696.4,497.5,-647.5,5296.5,110,110],
+    ["MODULE","md.head","bar.hd_6","",796,-646,2696.4,647.5,497.5,5296.5,110,110],
+    ["MODULE","md.head","bar.hd_7","",646,796,2696.4,-497.5,647.5,5296.5,110,110],
+    ["MODULE","md.head","bar.hd_8","",-796,646,2696.4,-647.5,-497.5,5296.5,110,110],
+    ["MODULE","md.head","bar.hd_9","",-497.5,-647.5,5296.5,360,-510,7704,110,110],
+    ["MODULE","md.head","bar.hd_10","",647.5,-497.5,5296.5,510,360,7704,110,110],
+    ["MODULE","md.head","bar.hd_11","",497.5,647.5,5296.5,-360,510,7704,110,110],
+    ["MODULE","md.head","bar.hd_12","",-647.5,497.5,5296.5,-510,-360,7704,110,110],
+    ["MODULE","md.head","bar.hd_13","",-360,-510,7704,250,-400,9630,110,90],
+    ["MODULE","md.head","bar.hd_14","",510,-360,7704,400,250,9630,110,90],
+    ["MODULE","md.head","bar.hd_15","",360,510,7704,-250,400,9630,110,90],
+    ["MODULE","md.head","bar.hd_16","",-510,360,7704,-400,-250,9630,110,90],
+    ["MODULE","md.head","pl.hcap","mc-",0,0,9690,"XY"],
+    ["MODULE","md.head","pl.hear_1","bl",-500,-220,9730,"XZ"],
+    ["MODULE","md.head","pl.hear_2","bl",-500,220,9730,"XZ"],
+    ["MODULE","md.head","pl.jrt_1","bl",150,-480,820,"XZ"],
+    ["MODULE","md.head","pl.jrt_2","bl",150,480,820,"XZ"],
+    ["MODULE","md.head","pl.crt_1","bl",-150,-480,820,"XZ",0,0,180],
+    ["MODULE","md.head","pl.crt_2","bl",-150,480,820,"XZ",0,0,180],
+    ["MODULE","md.head","bar.axle_1","",1750,-410,890,1750,410,890],
+    ["MODULE","md.head","bar.axle_2","",-1600,-410,890,-1600,410,890],
+    ["MODULE","md.head","BASE","sc.hlg_1","bl"],
+    ["MODULE","md.jib","sc.jch_1","",0,650,1380,3000,650,1380,"","",90],
+    ["MODULE","md.jib","sc.jch_2","",0,-650,1380,3000,-650,1380],
+    ["MODULE","md.jib","bar.jbc","",0,0,0,3000,0,0],
+    ["MODULE","md.jib","bar.jth","",3000,-650,1555,3000,650,1555],
+    ["MODULE","md.jib","bar.jw_1","",0,650,1380,3000,0,0,90,200],
+    ["MODULE","md.jib","bar.jw_2","",0,-650,1380,3000,0,0,90,200],
+    ["MODULE","md.jib","bar.jw_3","",3000,650,1380,3000,0,0,60,110],
+    ["MODULE","md.jib","bar.jw_4","",3000,-650,1380,3000,0,0,60,110],
+    ["MODULE","md.jib","bar.jpl","",0,650,1555,3000,-650,1555,130,130],
+    ["MODULE","md.jib","BASE","bar.jbc","mc"],
+    ["MODULE","md.jtip","sc.jch_1","",0,650,1380,1600,160,1380,90,40,90],
+    ["MODULE","md.jtip","sc.jch_2","",0,-650,1380,1600,-160,1380,90,40],
+    ["MODULE","md.jtip","bar.jbc","",0,0,0,1600,0,1310,"",150],
+    ["MODULE","md.jtip","bar.jw_1","",0,650,1380,880,0,720.5,90,190],
+    ["MODULE","md.jtip","bar.jw_2","",0,-650,1380,880,0,720.5,90,190],
+    ["MODULE","md.jtip","BASE","bar.jbc","mc"],
+    ["MODULE","md.cjib","sc.cch_1","",0,650,1090,2600,650,1090,"","",90],
+    ["MODULE","md.cjib","sc.cch_2","",0,-650,1090,2600,-650,1090],
+    ["MODULE","md.cjib","bar.cbc","",0,0,0,2600,0,0],
+    ["MODULE","md.cjib","bar.ch_1","",2600,-650,1250,2600,650,1250],
+    ["MODULE","md.cjib","bar.cw_1","",0,650,1090,2600,0,0,90,280],
+    ["MODULE","md.cjib","bar.cw_2","",0,-650,1090,2600,0,0,90,280],
+    ["MODULE","md.cjib","bar.cw_3","",2600,650,1090,2600,0,0,60,110],
+    ["MODULE","md.cjib","bar.cw_4","",2600,-650,1090,2600,0,0,60,110],
+    ["MODULE","md.cjib","BASE","bar.cbc","mc"],
+    ["MODULE","md.mach","pl.mdk","mc+",0,0,0,"XY"],
+    ["MODULE","md.mach","bar.barrel","",-1370,0,620,-130,0,620],
+    ["MODULE","md.mach","pl.dfl_1","mc",-1400,0,620,"YZ"],
+    ["MODULE","md.mach","pl.dfl_2","mc",-100,0,620,"YZ"],
+    ["MODULE","md.mach","pl.mot","mc",900,0,360,"YZ"],
+    ["MODULE","md.mach","bar.post_1","",-2400,-950,0,-2400,-950,1050],
+    ["MODULE","md.mach","bar.post_2","",-900,-950,0,-900,-950,1050],
+    ["MODULE","md.mach","bar.post_3","",700,-950,0,700,-950,1050],
+    ["MODULE","md.mach","bar.post_4","",2200,-950,0,2200,-950,1050],
+    ["MODULE","md.mach","bar.rail_1","",-2400,-995,1020,2200,-995,1020],
+    ["MODULE","md.mach","bar.rail_2","",-2400,-995,560,2200,-995,560],
+    ["MODULE","md.mach","bar.post_5","",-2400,950,0,-2400,950,1050],
+    ["MODULE","md.mach","bar.post_6","",-900,950,0,-900,950,1050],
+    ["MODULE","md.mach","bar.post_7","",700,950,0,700,950,1050],
+    ["MODULE","md.mach","bar.post_8","",2200,950,0,2200,950,1050],
+    ["MODULE","md.mach","bar.rail_3","",-2400,995,1020,2200,995,1020],
+    ["MODULE","md.mach","bar.rail_4","",-2400,995,560,2200,995,560],
+    ["MODULE","md.mach","BASE","pl.mdk","mc+"],
+    ["MODULE","md.cwt","pl.cwt_1","mc",0,0,0,"YZ"],
+    ["MODULE","md.cwt","pl.cwt_2","mc",180,0,0,"YZ"],
+    ["MODULE","md.cwt","pl.cwt_3","mc",360,0,0,"YZ"],
+    ["MODULE","md.cwt","pl.cwt_4","mc",540,0,0,"YZ"],
+    ["MODULE","md.cwt","pl.cwt_5","mc",720,0,0,"YZ"],
+    ["MODULE","md.cwt","pl.cwh_1","mc",360,-790,1240,"XZ"],
+    ["MODULE","md.cwt","pl.cwh_2","mc",360,790,1240,"XZ"],
+    ["MODULE","md.cwt","bar.hang_1","",-40,-880,790,-40,-880,1600],
+    ["MODULE","md.cwt","bar.hang_2","",760,-880,790,760,-880,1600],
+    ["MODULE","md.cwt","bar.hang_3","",-40,880,790,-40,880,1600],
+    ["MODULE","md.cwt","bar.hang_4","",760,880,790,760,880,1600],
+    ["MODULE","md.cwt","BASE","pl.cwt_1","mc"],
+    ["MODULE","md.cab","pl.cabf_1","mc",0,0,0,"XY"],
+    ["MODULE","md.cab","pl.cabf_2","mc",0,0,2200,"XY"],
+    ["MODULE","md.cab","pl.cabs_1","mc",0,-1050,1100,"XZ"],
+    ["MODULE","md.cab","pl.cabs_2","mc",0,1050,1100,"XZ"],
+    ["MODULE","md.cab","pl.cabg_1","mc",950,0,1100,"YZ"],
+    ["MODULE","md.cab","pl.cabg_2","mc",-950,0,1100,"YZ"],
+    ["MODULE","md.cab","BASE","pl.cabf_1","mc"],
+    ["MODULE","md.trly","pl.tfr","mc",0,0,0,"XY"],
+    ["MODULE","md.trly","pl.twh_1","mc",-480,-720,-200,"XZ"],
+    ["MODULE","md.trly","pl.twh_2","mc",-480,720,-200,"XZ"],
+    ["MODULE","md.trly","pl.twh_3","mc",480,-720,-200,"XZ"],
+    ["MODULE","md.trly","pl.twh_4","mc",480,720,-200,"XZ"],
+    ["MODULE","md.trly","bar.axle_1","",-480,-800,-200,-480,800,-200],
+    ["MODULE","md.trly","bar.axle_2","",480,-800,-200,480,800,-200],
+    ["MODULE","md.trly","BASE","pl.tfr","mc"],
+    ["MODULE","md.hook","bar.shk","",0,0,0,0,0,-700],
+    ["MODULE","md.hook","pl.hbk_1","bl",-600,-230,20,"XZ"],
+    ["MODULE","md.hook","pl.hbk_2","bl",-600,230,20,"XZ"],
+    ["MODULE","md.hook","pl.shv_1","mc",0,-150,520,"XZ"],
+    ["MODULE","md.hook","pl.shv_2","mc",0,0,520,"XZ"],
+    ["MODULE","md.hook","pl.shv_3","mc",0,150,520,"XZ"],
+    ["MODULE","md.hook","bar.axle_1","",0,-205,520,0,205,520],
+    ["MODULE","md.hook","pl.hk","bl",-450,0,-1910,"XZ"],
+    ["MODULE","md.hook","bar.rope_1","",-380,-75,520,-380,-75,26020,300,60],
+    ["MODULE","md.hook","bar.rope_2","",380,-75,520,380,-75,26020,300,60],
+    ["MODULE","md.hook","bar.rope_3","",-380,75,520,-380,75,26020,300,60],
+    ["MODULE","md.hook","bar.rope_4","",380,75,520,380,75,26020,300,60],
+    ["MODULE","md.hook","BASE","bar.shk","mc"],
+    ["MODULE","md.pend","pl.pap","mc",0,0,0,"XZ"],
+    ["MODULE","md.pend","bar.pen_1","",0,-130,0,21400,-650,-7320,150,70],
+    ["MODULE","md.pend","bar.pen_2","",0,130,0,21400,650,-7320,150,70],
+    ["MODULE","md.pend","bar.pen_3","",21400,-650,-7320,45400,-650,-7320],
+    ["MODULE","md.pend","bar.pen_4","",21400,650,-7320,45400,650,-7320],
+    ["MODULE","md.pend","bar.pen_5","",0,-130,0,-13700,-650,-7830,150],
+    ["MODULE","md.pend","bar.pen_6","",0,130,0,-13700,650,-7830,150],
+    ["MODULE","md.pend","BASE","pl.pap","mc"],
+    ["ASSY","as.base","md.base","ADD",0,0,1000],
+    ["ASSY","as.mast","md.mast","ADD",-800,-800,1000],
+    ["ASSY","as.mast","as.mast","COPY",0,0,2400,14],
+    ["ASSY","as.turn","md.slew","ADD",0,0,37060],
+    ["ASSY","as.turn","md.head","ADD",-800,-800,37370],
+    ["ASSY","as.turn","md.cab","ADD",2400,0,35060],
+    ["ASSY","as.jib","md.jib","ADD",1900,0,38140],
+    ["ASSY","as.jib","as.jib","COPY",3000,0,0,14],
+    ["ASSY","as.jib","md.jtip","ADD",46990,0,38140],
+    ["ASSY","as.cjib","md.cjib","ADD",-1900,0,38140,0,0,180],
+    ["ASSY","as.cjib","as.cjib","COPY",-2600,0,0,4],
+    ["ASSY","as.cjib","md.mach","ADD",-7800,0,39470],
+    ["ASSY","as.cjib","md.cwt","ADD",-13900,0,36540],
+    ["ASSY","as.tie","md.pend","ADD",0,0,47520],
+    ["ASSY","as.hoist","md.trly","ADD",30000,0,40020],
+    ["ASSY","as.hoist","md.hook","ADD",30000,0,14000],
     ["END"]
   ];
 
@@ -6400,11 +6611,11 @@
     if (parsed.fatal) { run({}); return; }
     buildLog = [];
     run({ title: 'PLATE3D',
-          subtitle: 'PLATE3D_CRANE · PLATE/CUT/ASSY · unit: mm',
+          subtitle: 'PLATE3D_TOWER · PLATE/CUT/ASSY · unit: mm',
           note: 'Built-in example. Load Excel opens your own sheet; ' +
-                'Example downloads this one and three others to start from.',
+                'Example downloads this one and the others to start from.',
           __parsed: parsed });
-    showResult('PLATE3D_CRANE (built in)', parsed);
+    showResult('PLATE3D_TOWER (built in)', parsed);
   }
   if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', autorun);
