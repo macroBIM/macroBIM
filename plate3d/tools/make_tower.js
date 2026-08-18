@@ -13,7 +13,7 @@
 //     up at every joint.
 const ExcelJS = require('/tmp/claude-0/-home-user/2c32e469-0690-5fe7-bd2b-b7fdc61d0d9a/scratchpad/node_modules/exceljs');
 const OUT = process.argv[2] ||
-  '/tmp/claude-0/-home-user/2c32e469-0690-5fe7-bd2b-b7fdc61d0d9a/scratchpad/PLATE3D_CRANE2.xlsx';
+  '/tmp/claude-0/-home-user/2c32e469-0690-5fe7-bd2b-b7fdc61d0d9a/scratchpad/PLATE3D_TOWER.xlsx';
 
 /* ===================== dimensions ===================== */
 const MW = 1600, MH = MW / 2;      // mast: 1600 square, chord heels on the corners
@@ -22,7 +22,7 @@ const Z0 = 1000;                   // mast foot, on top of the base frame
 const MTOP = Z0 + MB * NM;         // 37000
 const BR = MH + 50;                // 850 - bracing plane, clear outside the chords
 
-const RINGT = 150;                 // slew bearing
+const RINGT = 120;                 // slew bearing
 const SLEWZ = MTOP + 60;           // 37060 - underside of the outer race
 const DKT = SLEWZ + RINGT * 2 + 30; // 37390 - top face of the turntable deck
 const MAINH = 700;                 // the two main beams that carry jib and tail
@@ -97,9 +97,9 @@ push('BAR', 'bar.mh', 'SM490', 70, MW);        // mast panel horizontal
 push('BAR', 'bar.md', 'SM490', 60, 2885);      // mast panel diagonal
 push('BAR', 'bar.lst', 'SS275', 34, MB);       // ladder stringer
 push('BAR', 'bar.lrg', 'SS275', 22, 400);      // ladder rung
-push('BAR', 'bar.strut', 'SM490', 160, 4300);  // splayed base strut
+push('BAR', 'bar.strut', 'SM490', 130, 4300);  // splayed base strut
 push('BAR', 'bar.anb', 'SS400', 48, 180);      // anchor bolt
-push('BAR', 'bar.jbc', 'SM490', 120, JBAY);    // jib bottom chord
+push('BAR', 'bar.jbc', 'SM490', 100, JBAY);    // jib bottom chord
 push('BAR', 'bar.jth', 'SM490', 70, 1300);     // jib top tie
 push('BAR', 'bar.jw', 'SM490', 60, 2200);      // jib web
 push('BAR', 'bar.jpl', 'SM490', 55, 3300);     // jib plan brace
@@ -115,7 +115,7 @@ push('BAR', 'bar.rail', 'SS275', 34, 4800);    // handrail
 push('BAR', 'bar.post', 'SS275', 40, 1050);    // handrail post
 push('BAR', 'bar.shk', 'SM490', 150, 700);     // hook shank
 push('BAR', 'bar.axle', 'SM490', 90, 900);     // trolley / sheave axle
-push('BAR', 'bar.barrel', 'SM490', 620, 1300); // hoist drum barrel
+push('BAR', 'bar.barrel', 'SM490', 420, 1300); // hoist drum barrel
 blank();
 
 push('# PLATE', 'id', 'mat', 'thk', 'shape', 'base.pt', 'p1', 'p2', 'p3', 'p4');
@@ -124,30 +124,30 @@ push('PLATE', 'pl.fpl', 'SM490', 60, 'RECT', 'mc', 900, 900);       // foot plat
 push('PLATE', 'pl.ring', 'SM490', RINGT, 'CIRC', 'mc', 2400);       // slew ring
 push('PLATE', 'pl.rinn', 'SM490', RINGT, 'CIRC', 'mc', 1900);       // inner race
 push('PLATE', 'pl.dk', 'SM490', 30, 'RECT', 'mc', 3800, 2600);      // turntable deck
-push('PLATE', 'pl.gbx', 'SM490', 600, 'RECT', 'mc', 800, 700);      // slew gearbox
+push('PLATE', 'pl.gbx', 'SM490', 350, 'RECT', 'mc', 650, 500);      // slew gearbox
 push('PLATE', 'pl.hcap', 'SM490', 40, 'RECT', 'mc', 900, 900);      // apex cap
 push('PLATE', 'pl.hear', 'SM490', 30, 'TRAP', 'bl', 1000, 320, 760, 340); // apex ear
 push('PLATE', 'pl.pap', 'SM490', 40, 'RECT', 'mc', 900, 500);       // tie-bar pin plate
 push('PLATE', 'pl.jrt', 'SM490', 25, 'TRAP', 'bl', 2050, 900, 1450, 0);   // jib root
 push('PLATE', 'pl.crt', 'SM490', 25, 'TRAP', 'bl', 1750, 800, 1250, 0);   // c-jib root
-push('PLATE', 'pl.cwt', 'SM490', 190, 'RECT', 'mc', 2100, 1500);    // counterweight
+push('PLATE', 'pl.cwt', 'SM490', 150, 'RECT', 'mc', 2100, 1500);    // counterweight
 push('PLATE', 'pl.cwh', 'SM490', 30, 'RECT', 'mc', 1300, 900);      // cwt hanger
 push('PLATE', 'pl.mdk', 'SM490', 10, 'RECT', 'mc', 5200, 2000);     // machinery deck
-push('PLATE', 'pl.dfl', 'SM490', 60, 'CIRC', 'mc', 1000);           // drum flange
-push('PLATE', 'pl.mot', 'SM490', 700, 'RECT', 'mc', 800, 700);      // hoist motor
+push('PLATE', 'pl.dfl', 'SM490', 50, 'CIRC', 'mc', 900);           // drum flange
+push('PLATE', 'pl.mot', 'SM490', 380, 'RECT', 'mc', 650, 550);      // hoist motor
 push('PLATE', 'pl.cabf', 'SS275', 6, 'RECT', 'mc', 1900, 2080);     // cab floor / roof
 push('PLATE', 'pl.cabs', 'SS275', 6, 'RECT', 'mc', 1900, 2180);     // cab side
 push('PLATE', 'pl.cabg', 'GLASS', 8, 'RECT', 'mc', 2080, 2180);     // cab glazing
 push('PLATE', 'pl.tfr', 'SM490', 25, 'RECT', 'mc', 1400, 1600);     // trolley frame
 push('PLATE', 'pl.twh', 'SM490', 90, 'CIRC', 'mc', 320);            // trolley wheel
-push('PLATE', 'pl.hbk', 'SM490', 45, 'TRAP', 'bl', 1200, 700, 1000, 250); // hook cheek
-push('PLATE', 'pl.shv', 'SM490', 70, 'CIRC', 'mc', 620);            // sheave
-push('PLATE', 'pl.hk', 'SM490', 130, 'TRAP', 'bl', 900, 250, 1200, 325); // the hook
+push('PLATE', 'pl.hbk', 'SM490', 30, 'TRAP', 'bl', 1200, 700, 1000, 250); // hook cheek
+push('PLATE', 'pl.shv', 'SM490', 50, 'CIRC', 'mc', 620);            // sheave
+push('PLATE', 'pl.hk', 'SM490', 90, 'TRAP', 'bl', 900, 250, 1200, 325); // the hook
 blank();
 
 push('# HOLE', 'id', 'shape', 'base.pt', 'd');
 push('HOLE', 'ho.race', 'CIRC', 'mc', 1700);
-push('HOLE', 'ho.bore', 'CIRC', 'mc', 1300);
+push('HOLE', 'ho.bore', 'CIRC', 'mc', 1500);
 push('HOLE', 'ho.anb', 'CIRC', 'mc', 52);
 push('HOLE', 'ho.axle', 'CIRC', 'mc', 95);
 push('HOLE', 'ho.pin', 'CIRC', 'mc', 130);
@@ -181,7 +181,7 @@ const FACE = [
   { p: [[-BR, MH, MB], [-BR, -MH, MB]], d: [[-BR, MH, 0], [-BR, -MH, MB]] }
 ];
 FACE.forEach((f, i) => A('md.mast', 'bar.mh_' + (i + 1), f.p[0], f.p[1]));
-FACE.forEach((f, i) => A('md.mast', 'bar.md_' + (i + 1), f.d[0], f.d[1], 150, 150));
+FACE.forEach((f, i) => A('md.mast', 'bar.md_' + (i + 1), f.d[0], f.d[1], 95, 95));
 A('md.mast', 'bar.lst_1', [520, -220, 0], [520, -220, MB]);
 A('md.mast', 'bar.lst_2', [520, 220, 0], [520, 220, MB]);
 [400, 1200, 2000].forEach((z, i) =>
@@ -246,9 +246,9 @@ function hp(sx, sy, t, n) {
 let hn = 0, hd = 0;
 HLEV.forEach(t => HFACE.forEach(f =>
   A('md.head', 'bar.ht_' + (++hn), hp(f.c[0][0], f.c[0][1], t, f.n),
-    hp(f.c[1][0], f.c[1][1], t, f.n), 120, 120)));
-[[0, HLEV[0], 90, 190], [HLEV[0], HLEV[1], 190, 190],
- [HLEV[1], HLEV[2], 190, 190], [HLEV[2], 1, 190, 90]].forEach(sg =>
+    hp(f.c[1][0], f.c[1][1], t, f.n), 80, 80)));
+[[0, HLEV[0], 90, 110], [HLEV[0], HLEV[1], 110, 110],
+ [HLEV[1], HLEV[2], 110, 110], [HLEV[2], 1, 110, 90]].forEach(sg =>
   HFACE.forEach(f => A('md.head', 'bar.hd_' + (++hd),
                        hp(f.c[0][0], f.c[0][1], sg[0], f.n),
                        hp(f.c[1][0], f.c[1][1], sg[1], f.n), sg[2], sg[3])));
@@ -271,10 +271,10 @@ A('md.jib', 'sc.jch_1', [0, JY, JHEEL], [JBAY, JY, JHEEL], 0, 0, 90);
 A('md.jib', 'sc.jch_2', [0, -JY, JHEEL], [JBAY, -JY, JHEEL], 0, 0, 0);
 A('md.jib', 'bar.jbc', [0, 0, 0], [JBAY, 0, 0]);
 A('md.jib', 'bar.jth', [JBAY, -JY, JD + 55], [JBAY, JY, JD + 55]);
-A('md.jib', 'bar.jw_1', [0, JY, JHEEL], [JBAY, 0, 0], 190, 380);
-A('md.jib', 'bar.jw_2', [0, -JY, JHEEL], [JBAY, 0, 0], 190, 380);
-A('md.jib', 'bar.jw_3', [JBAY, JY, JHEEL], [JBAY, 0, 0], 190, 210);
-A('md.jib', 'bar.jw_4', [JBAY, -JY, JHEEL], [JBAY, 0, 0], 190, 210);
+A('md.jib', 'bar.jw_1', [0, JY, JHEEL], [JBAY, 0, 0], 90, 200);
+A('md.jib', 'bar.jw_2', [0, -JY, JHEEL], [JBAY, 0, 0], 90, 200);
+A('md.jib', 'bar.jw_3', [JBAY, JY, JHEEL], [JBAY, 0, 0], 60, 110);
+A('md.jib', 'bar.jw_4', [JBAY, -JY, JHEEL], [JBAY, 0, 0], 60, 110);
 A('md.jib', 'bar.jpl', [0, JY, JD + 55], [JBAY, -JY, JD + 55], 130, 130);
 BASE('md.jib', 'bar.jbc', 'mc');
 blank();
@@ -284,8 +284,8 @@ const TL = JTIP - JEND;
 A('md.jtip', 'sc.jch_1', [0, JY, JHEEL], [TL, 160, JHEEL], 90, 40, 90);
 A('md.jtip', 'sc.jch_2', [0, -JY, JHEEL], [TL, -160, JHEEL], 90, 40, 0);
 A('md.jtip', 'bar.jbc', [0, 0, 0], [TL, 0, JHEEL - 70], 0, 150);
-A('md.jtip', 'bar.jw_1', [0, JY, JHEEL], [TL * 0.55, 0, (JHEEL - 70) * 0.55], 190, 210);
-A('md.jtip', 'bar.jw_2', [0, -JY, JHEEL], [TL * 0.55, 0, (JHEEL - 70) * 0.55], 190, 210);
+A('md.jtip', 'bar.jw_1', [0, JY, JHEEL], [TL * 0.55, 0, (JHEEL - 70) * 0.55], 90, 190);
+A('md.jtip', 'bar.jw_2', [0, -JY, JHEEL], [TL * 0.55, 0, (JHEEL - 70) * 0.55], 90, 190);
 BASE('md.jtip', 'bar.jbc', 'mc');
 blank();
 
@@ -295,10 +295,10 @@ A('md.cjib', 'sc.cch_1', [0, CY, CHEEL], [CBAY, CY, CHEEL], 0, 0, 90);
 A('md.cjib', 'sc.cch_2', [0, -CY, CHEEL], [CBAY, -CY, CHEEL], 0, 0, 0);
 A('md.cjib', 'bar.cbc', [0, 0, 0], [CBAY, 0, 0]);
 A('md.cjib', 'bar.ch_1', [CBAY, -CY, CD + 50], [CBAY, CY, CD + 50]);
-A('md.cjib', 'bar.cw_1', [0, CY, CHEEL], [CBAY, 0, 0], 180, 330);
-A('md.cjib', 'bar.cw_2', [0, -CY, CHEEL], [CBAY, 0, 0], 180, 330);
-A('md.cjib', 'bar.cw_3', [CBAY, CY, CHEEL], [CBAY, 0, 0], 180, 200);
-A('md.cjib', 'bar.cw_4', [CBAY, -CY, CHEEL], [CBAY, 0, 0], 180, 200);
+A('md.cjib', 'bar.cw_1', [0, CY, CHEEL], [CBAY, 0, 0], 90, 280);
+A('md.cjib', 'bar.cw_2', [0, -CY, CHEEL], [CBAY, 0, 0], 90, 280);
+A('md.cjib', 'bar.cw_3', [CBAY, CY, CHEEL], [CBAY, 0, 0], 60, 110);
+A('md.cjib', 'bar.cw_4', [CBAY, -CY, CHEEL], [CBAY, 0, 0], 60, 110);
 BASE('md.cjib', 'bar.cbc', 'mc');
 blank();
 
@@ -323,10 +323,10 @@ blank();
 // Local (0,0,0) is the centre of the first slab; the hangers reach up to the
 // counter-jib bottom chord, so the ASSY row places the slab, not the bracket.
 [0, 1, 2, 3, 4].forEach(i =>
-  M('md.cwt', 'pl.cwt_' + (i + 1), 'mc', i * 220, 0, 0, 'YZ'));
-M('md.cwt', 'pl.cwh_1', 'mc', 440, -790, 1240, 'XZ');
-M('md.cwt', 'pl.cwh_2', 'mc', 440, 790, 1240, 'XZ');
-[[-40, -880], [920, -880], [-40, 880], [920, 880]].forEach((o, i) =>
+  M('md.cwt', 'pl.cwt_' + (i + 1), 'mc', i * 180, 0, 0, 'YZ'));
+M('md.cwt', 'pl.cwh_1', 'mc', 360, -790, 1240, 'XZ');
+M('md.cwt', 'pl.cwh_2', 'mc', 360, 790, 1240, 'XZ');
+[[-40, -880], [760, -880], [-40, 880], [760, 880]].forEach((o, i) =>
   A('md.cwt', 'bar.hang_' + (i + 1), [o[0], o[1], 790], [o[0], o[1], 1600]));
 BASE('md.cwt', 'pl.cwt_1', 'mc');
 blank();
