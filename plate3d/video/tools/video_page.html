@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8"><title>PLATE3D capture</title></head><body>
+<script src="https://unpkg.com/three@0.147.0/build/three.min.js"></script>
+<script src="https://unpkg.com/three@0.147.0/examples/js/controls/OrbitControls.js"></script>
+<script src="https://unpkg.com/polybooljs@1.1.0/dist/polybool.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/exceljs/4.3.0/exceljs.min.js"></script>
+<script>
+/* Capture harness. The engine is untouched; this only keeps handles on what it
+   builds and forces preserveDrawingBuffer so the canvas can be read back.
+
+   Playwright's page.screenshot on this page costs ~2.8 s a frame - it drags the
+   whole compositor through a software rasteriser. Reading the drawing buffer
+   straight out of the canvas skips all of that, which is the difference between
+   a render that finishes in minutes and one that finishes in an hour. */
+(function () {
+  var ctls = [];
+  var OC = THREE.OrbitControls;
+  THREE.OrbitControls = function (c, d) { var o = new OC(c, d); ctls.push(o); return o; };
+  THREE.OrbitControls.prototype = OC.prototype;
+
+  var WR = THREE.WebGLRenderer;
+  THREE.WebGLRenderer = function (p) {
+    p = p || {};
+    p.preserveDrawingBuffer = true;      // <- so toDataURL is not a black frame
+    var o = new WR(p), orig = o.render.bind(o);
+    o.render = function (sc, cm) {
+      var v = document.getElementById('pb-view');
+      if (sc && sc.background && v && o.domElement && v.contains(o.domElement)) {
+        window.__pbR = o; window.__pbS = sc; window.__pbCam = cm;
+        window.__pbCanvas = o.domElement;
+        for (var i = 0; i < ctls.length; i++) if (ctls[i].object === cm) window.__pbCtl = ctls[i];
+      }
+      return orig(sc, cm);
+    };
+    return o;
+  };
+  THREE.WebGLRenderer.prototype = WR.prototype;
+
+  window.__pbDraw = function () {
+    if (window.__pbR) window.__pbR.render(window.__pbS, window.__pbCam);
+  };
+  // One frame: draw, then hand the pixels back as a JPEG data URL.
+  window.__grab = function (q) {
+    if (!window.__pbCanvas) return null;
+    window.__pbDraw();
+    return window.__pbCanvas.toDataURL('image/jpeg', q || 0.92);
+  };
+  /* Aim the camera in spherical coordinates about a target, in millimetres and
+     degrees, because that is how a shot is described: stand here, look there. */
+  window.__aim = function (tx, ty, tz, dist, az, el) {
+    var c = window.__pbCam, ctl = window.__pbCtl;
+    if (!c || !ctl) return false;
+    var a = az * Math.PI / 180, e = el * Math.PI / 180;
+    c.position.set(tx + dist * Math.cos(e) * Math.cos(a),
+                   ty + dist * Math.cos(e) * Math.sin(a),
+                   tz + dist * Math.sin(e));
+    ctl.target.set(tx, ty, tz);
+    c.near = Math.max(1, dist / 400); c.far = dist * 30;
+    c.updateProjectionMatrix();
+    ctl.update();
+    return true;
+  };
+  /* Bring the model up a piece at a time, lowest first, so a structure can be
+     watched being built instead of just appearing. Nothing here reaches into the
+     engine: a member is a Group hanging off the scene with something drawable in
+     it, and the order is its own height off the ground. */
+  window.__reveal = function (frac) {
+    var s = window.__pbS;
+    if (!s) return 0;
+    if (!window.__order || window.__orderFor !== s.uuid) {
+      var box = new THREE.Box3(), list = [];
+      s.children.forEach(function (o) {
+        if (o.type !== 'Group' || !o.children.length) return;
+        box.setFromObject(o);
+        if (box.isEmpty()) return;
+        list.push({ o: o, z: box.min.z });
+      });
+      list.sort(function (a, b) { return a.z - b.z; });
+      window.__order = list;
+      window.__orderFor = s.uuid;
+    }
+    var n = window.__order.length, k = Math.round(frac * n);
+    window.__order.forEach(function (e, i) { e.o.visible = i < k; });
+    return n;
+  };
+  window.__revealAll = function () {
+    if (window.__order) window.__order.forEach(function (e) { e.o.visible = true; });
+  };
+  // What the engine framed by itself, so a shot can start from its view and
+  // then be pushed around rather than guessed from scratch.
+  window.__cam = function () {
+    var c = window.__pbCam, ctl = window.__pbCtl;
+    if (!c || !ctl) return null;
+    var t = ctl.target, p = c.position;
+    var dx = p.x - t.x, dy = p.y - t.y, dz = p.z - t.z;
+    var d = Math.sqrt(dx * dx + dy * dy + dz * dz);
+    return { tx: t.x, ty: t.y, tz: t.z, dist: d,
+             az: Math.atan2(dy, dx) * 180 / Math.PI,
+             el: Math.asin(dz / d) * 180 / Math.PI };
+  };
+})();
+</script>
+<script src="/home/user/macroBIM/plate3d/plate_builder_test.js"></script>
+</body></html>
