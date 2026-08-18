@@ -467,7 +467,7 @@
   var pvX = null, pvPts = [], pvBase = null, pv = null;   // 2D preview state
   var pvMeas = [];                                       // 2D measure picks
   var pvRszWired = false;
-  var CENTER = null, VDIST = 1200;                // set from model bbox in run()
+  var CENTER = null, VDIST = 1200, sceneBox = null, sceneCloud = null;  // set in run()
   var items = [];
   var runToken = 0;                               // distinguishes re-runs
 
@@ -4745,6 +4745,74 @@
   // (userData.viewH) and the pane's aspect. Zoom is left alone - OrbitControls
   // dollies an ortho camera by changing camera.zoom, not by moving it.
   function fovHeight(d) { return 2 * d * Math.tan(MAIN_FOV * Math.PI / 360); }
+  // Unit offset from the model to the camera, per view button. Z-up: front
+  // looks north, top looks down (with a hair of Y so the up vector still works).
+  var VIEWDIR = { front: [0, -1, 0], side: [1, 0, 0], top: [0, -0.0001, 1],
+                  iso: [0.58, -0.65, 0.5] };
+  /* Where a view should aim and how far back it should stand.
+     Two things were wrong with one and a half box diagonals. It is generous on
+     a compact part and far too generous on a long thin one. And the box itself
+     lies: the corner that drives the fit is usually empty air. A tower crane's
+     box has a corner 47 m up at the far end of the jib, where there is nothing
+     but sky, and the view backs off far enough to keep that nothing in frame.
+     So fit the members, not the box - the eight corners of each member's own
+     extent - and aim at the middle of what actually lands on screen rather than
+     the middle of the box. Two passes over a few thousand points, once per view
+     change, which costs nothing and is the difference between a model that
+     fills the frame and one adrift in the middle of it. */
+  function fitView(pts, dir, up, fov, aspect, fallback) {
+    var ez = dir.clone().normalize();                    // camera -> model
+    var ex = new THREE.Vector3().crossVectors(ez, up);
+    if (ex.lengthSq() < 1e-9) ex.set(1, 0, 0);
+    ex.normalize();
+    var ey = new THREE.Vector3().crossVectors(ex, ez).normalize();
+    if (!pts || !pts.length) return { target: fallback.clone(), dist: VDIST };
+    var xlo = 1e30, xhi = -1e30, ylo = 1e30, yhi = -1e30, zlo = 1e30, zhi = -1e30;
+    var i, p, x, y, z;
+    for (i = 0; i < pts.length; i++) {
+      p = pts[i]; x = p.dot(ex); y = p.dot(ey); z = p.dot(ez);
+      if (x < xlo) xlo = x; if (x > xhi) xhi = x;
+      if (y < ylo) ylo = y; if (y > yhi) yhi = y;
+      if (z < zlo) zlo = z; if (z > zhi) zhi = z;
+    }
+    var cx = (xlo + xhi) / 2, cy = (ylo + yhi) / 2, cz = (zlo + zhi) / 2;
+    var target = new THREE.Vector3().addScaledVector(ex, cx)
+                                    .addScaledVector(ey, cy).addScaledVector(ez, cz);
+    var tv = Math.tan((fov || MAIN_FOV) * Math.PI / 360), th = tv * (aspect || 1), d = 0;
+    for (i = 0; i < pts.length; i++) {
+      p = pts[i]; z = p.dot(ez) - cz;
+      d = Math.max(d, Math.abs(p.dot(ex) - cx) / th - z, Math.abs(p.dot(ey) - cy) / tv - z);
+    }
+    d = d + 1;
+    /* That distance is safe but not tight, and the aim is off, because a point
+       far from the camera projects nearer the middle than its distance from the
+       axis says. So settle it in the picture instead of in space: project, shift
+       the aim to the middle of what came out, scale the distance by how much of
+       the frame is filled, repeat. Four passes is well past converged. */
+    var cam = new THREE.Vector3(), q = new THREE.Vector3(), k, w, nx, ny;
+    for (k = 0; k < 4; k++) {
+      cam.copy(target).addScaledVector(ez, -d);
+      var nx0 = 1e30, nx1 = -1e30, ny0 = 1e30, ny1 = -1e30, ok = true;
+      for (i = 0; i < pts.length; i++) {
+        q.copy(pts[i]).sub(cam);
+        w = q.dot(ez);
+        if (!(w > 1e-6)) { ok = false; break; }       // behind the eye - back off
+        nx = q.dot(ex) / (th * w); ny = q.dot(ey) / (tv * w);
+        if (nx < nx0) nx0 = nx; if (nx > nx1) nx1 = nx;
+        if (ny < ny0) ny0 = ny; if (ny > ny1) ny1 = ny;
+      }
+      if (!ok) { d *= 1.6; continue; }
+      target.addScaledVector(ex, (nx0 + nx1) / 2 * th * d)
+            .addScaledVector(ey, (ny0 + ny1) / 2 * tv * d);
+      d *= Math.max((nx1 - nx0) / 2, (ny1 - ny0) / 2) * 1.05;
+      if (!(d > 0) || !isFinite(d)) return { target: fallback.clone(), dist: VDIST };
+    }
+    return { target: target, dist: d };
+  }
+  function viewOffset(v) {
+    var o = VIEWDIR[v] || VIEWDIR.iso;
+    return new THREE.Vector3(o[0], o[1], o[2]).normalize();
+  }
   function fitCam(cam, aspect) {
     if (!cam) return;
     if (cam.isOrthographicCamera) {
@@ -4794,13 +4862,13 @@
     for (var i = 0; i < btns.length; i++) {      // mark the one being looked through
       btns[i].className = 'vw' + (VIEWS[i] === v ? ' active' : '');
     }
-    var d = VDIST;                               // Z-up: front looks north, top looks down
-    if (v === 'front') camera.position.set(CENTER.x, CENTER.y - d, CENTER.z);
-    if (v === 'side')  camera.position.set(CENTER.x + d, CENTER.y, CENTER.z);
-    if (v === 'top')   camera.position.set(CENTER.x, CENTER.y - 0.01, CENTER.z + d);
-    if (v === 'iso')   camera.position.set(CENTER.x + d * 0.58, CENTER.y - d * 0.65, CENTER.z + d * 0.5);
-    controls.target.copy(CENTER);
-    frameCam(camera, CENTER, camera.position.clone(), VDIST);
+    // each view gets its own distance - the same model is not the same size
+    // seen down its length as it is across it
+    var off = viewOffset(v);
+    var f = fitView(sceneCloud, off.clone().negate(), camera.up, MAIN_FOV, mainAspect, CENTER);
+    camera.position.copy(f.target).addScaledVector(off, f.dist);
+    controls.target.copy(f.target);
+    frameCam(camera, f.target, camera.position.clone(), f.dist);
     applyMainCam();
     controls.update();
   }
@@ -5917,7 +5985,29 @@
     var size = bbox.isEmpty() ? 900 : bbox.getSize(new THREE.Vector3()).length();
     if (!isFinite(size) || size <= 0) size = 900;
     sceneSize = size;
+    sceneBox = bbox.isEmpty() ? null : bbox.clone();
+    // the corners of every member's own extent - what the views are fitted to
+    sceneCloud = [];
+    items.forEach(function (it) {
+      var b;
+      try { b = itemBox3(it); } catch (e) { return; }
+      if (!b || b.isEmpty()) return;
+      for (var i = 0; i < 8; i++)
+        sceneCloud.push(new THREE.Vector3(i & 1 ? b.max.x : b.min.x,
+                                          i & 2 ? b.max.y : b.min.y,
+                                          i & 4 ? b.max.z : b.min.z));
+    });
+    if (!sceneCloud.length) sceneCloud = null;
+    // VDIST is the fallback distance and what the clip planes are cut for, so
+    // it has to cover the farthest of the four views, not just the one on show
     VDIST = size * 1.5 + 200;
+    if (sceneCloud) {
+      VDIST = 0;
+      Object.keys(VIEWDIR).forEach(function (k) {
+        VDIST = Math.max(VDIST, fitView(sceneCloud, viewOffset(k).negate(),
+                                        camPersp.up, MAIN_FOV, mainAspect, CENTER).dist);
+      });
+    }
     setClip([camPersp, camOrtho], size, VDIST);
 
     var gspanMain = Math.ceil(size / 400) * 800;
