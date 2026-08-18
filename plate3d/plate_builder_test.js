@@ -1907,9 +1907,18 @@
   // by the centre of its starting face - the circle it grows from - so its
   // Ref.Pt cell is not read at all; a plate uses its named point and the +/-
   // face suffix.
-  function refAnchor(spec, pt, face) {
+  /* `row` is passed only when this anchor is a module's BASE datum, and only
+     then does OFF_B come into it. A member placed by coordinates is anchored on
+     the work point the sheet wrote - LX1/LY1/LZ1 - not on the end OFF_B left
+     behind. OFF trims steel; it does not move the member. Anchoring on the
+     trimmed end drags the whole module along the member's own axis, which draws
+     a model that looks right and is not: PLATE3D_BASIC's braced bay sat 106 mm
+     out in x and 108 in z that way, and only the clash check ever said so.
+     The offset is subtracted in member-local coords so the caller's matrix -
+     yupFix included - still carries it into the right frame. */
+  function refAnchor(spec, pt, face, row) {
     var thk = num(spec.THK, 0);
-    if (spec.__bar) return [0, 0, -thk / 2];
+    if (spec.__bar) return [0, 0, -thk / 2 - (row && row.__ax ? num(row.OFB, 0) : 0)];
     var p = namedPoints(spec, false), a = p[pt] || p.bl;
     return [a[0], a[1], (face || 0) * thk / 2];
   }
@@ -2114,7 +2123,7 @@
       if (part.base) {
         for (var i = 0; i < locals.length; i++) {
           if (locals[i].row.NO === part.base.inst) {
-            var a = refAnchor(locals[i].spec, part.base.pt, part.base.face);
+            var a = refAnchor(locals[i].spec, part.base.pt, part.base.face, locals[i].row);
             base = new THREE.Vector3(a[0], a[1], a[2]).applyMatrix4(locals[i].mloc);
             break;
           }
@@ -2830,7 +2839,7 @@
       if (!spec) return null;
       try {
         var m = yupFix(memberMatrix(row, namedPoints(spec, false), spec.THK));
-        var a = refAnchor(spec, part.base.pt, part.base.face);
+        var a = refAnchor(spec, part.base.pt, part.base.face, row);
         return new THREE.Vector3(a[0], a[1], a[2]).applyMatrix4(m);
       } catch (e) { return null; }
     }
@@ -3592,7 +3601,7 @@
       var m;
       try { m = yupFix(memberMatrix(row, pts, spec.THK)); } catch (e) { return; }
       if (part.base && row.NO === part.base.inst) {
-        var a = refAnchor(spec, part.base.pt, part.base.face);
+        var a = refAnchor(spec, part.base.pt, part.base.face, row);
         basePt = new THREE.Vector3(a[0], a[1], a[2]).applyMatrix4(m);
       }
       var g2d = buildPlate2D(spec, lastCuts, lastPlates);
@@ -5290,6 +5299,13 @@
     ' it is the point every ASSY row places the module by, so leaving it out is an error.',
     ' The model still draws, off the module&rsquo;s local origin, so you can see what you have -',
     ' but where it landed is an accident rather than something the sheet asked for.</p>',
+    '<p class="warn"><b>The BASE point is a datum, not the origin.</b> Read where it actually',
+    ' sits in module coordinates, then write that same place in the ASSY row. Name a member',
+    ' whose point is at (0, 0, 0) and the ASSY row reads as the position of the module; name',
+    ' one sitting 150 off the centre line and the ASSY row has to say 150 too, or everything',
+    ' shifts by the difference. On a member placed by coordinates the datum is the',
+    ' <b>work point</b> - <code>LX1</code>, <code>LY1</code>, <code>LZ1</code> - not wherever',
+    ' <code>OFF_B</code> cut the steel back to. OFF trims the member; it never moves it.</p>',
     sheet([['# MODULE', 'id', 'member', 'Ref.Pt', 'L.X', 'L.Y', 'L.Z', 'PLANE'],
            ['MODULE', 'md.tower', 'pl.T1', 'bc+', 140, 0, 0, 'XZ'],
            ['MODULE', 'md.tower', 'pl.C1_1', 'bc', 0, 0, 0, 'XY'],
