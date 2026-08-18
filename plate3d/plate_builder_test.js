@@ -6223,6 +6223,8 @@
       d: 'ADD / MIR / COPY / ROT, one command per assembly.' },
     { f: 'PLATE3D_TOWER.xlsx', n: 'Tower crane', s: '347 rows → 575 members · 73.6 t',
       d: 'One mast panel and one jib bay become a whole crane.' },
+    { f: 'PLATE3D_PORTAL.xlsx', n: 'Portal frame', s: '116 rows → 297 members · 20.0 t',
+      d: 'Half a frame, mirrored and copied into a 30 m shed.' },
     { f: 'PLATE3D_NODE.xlsx', n: 'Bolted node', s: '59 rows → 46 members · 168 kg',
       d: 'A four-way beam connection: one arm, turned four ways.' },
     { f: 'PLATE3D_TANK.xlsx', n: 'Tank', s: '54 rows → 16 members · 4.9 kg',
