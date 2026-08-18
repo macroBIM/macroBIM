@@ -3335,13 +3335,19 @@
 
   // Exact path. Returns geometry in a's local frame, or null when the axes are
   // not parallel or the two do not bite deep enough into each other.
+  /* Two answers, not one. null means "these two are not both prisms on a shared
+     axis, so I cannot judge them" and the caller falls back to bounding boxes.
+     false means "I looked, and they do not touch" - which the caller must take
+     as final. Returning null for both is why a bolt sitting happily in its own
+     clearance hole came back red: the exact test cleared it, and then the box
+     test, which knows nothing about holes, condemned it. */
   function prismClash(a, b) {
     var M = new THREE.Matrix4().copy(a.matrix).invert().multiply(b.matrix);
     var e = M.elements;
     if (Math.abs(e[8]) > 1e-4 || Math.abs(e[9]) > 1e-4 || Math.abs(e[10]) < 0.9999) return null;
     var ha = (a.thk || 0) / 2, hb = (b.thk || 0) / 2, cz = e[14];
     var lo = Math.max(-ha, cz - hb), hi = Math.min(ha, cz + hb);
-    if (hi - lo <= CLASH_TOL) return null;
+    if (hi - lo <= CLASH_TOL) return false;
     var v = new THREE.Vector3();
     var flat = PolyBool.intersect(ringsRegion(a.rings),
       ringsRegion(b.rings, function (q) {
@@ -3349,10 +3355,10 @@
         return [v.x, v.y];
       }));
     var c = classifyRings(flat.regions);
-    if (!c.outers.length) return null;
+    if (!c.outers.length) return false;
     var area = 0;
     c.outers.forEach(function (r) { area += Math.abs(ringArea(r)); });
-    if (area <= CLASH_TOL * CLASH_TOL) return null;
+    if (area <= CLASH_TOL * CLASH_TOL) return false;
     var geos = [];
     c.outers.forEach(function (ring, i) {
       var sh = new THREE.Shape(ring.map(function (q) { return new THREE.Vector2(q[0], q[1]); }));
@@ -3470,7 +3476,7 @@
         var geos, world = false;
         try {
           geos = prismClash(a, b);
-          if (!geos) { geos = obbClash(a, b); world = true; }
+          if (geos === null) { geos = obbClash(a, b); world = true; }
         } catch (err) { geos = null; }
         if (!geos) continue;
         n++;
