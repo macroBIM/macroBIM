@@ -4466,13 +4466,22 @@
      assembly, then every distinct part once at its standard section with how
      many of it there are.
 
-     R12 rather than a later version, after a hand-written R2000 file was
-     rejected by AutoCAD. R2000 carries more of the dimension style, but it also
-     wants a CLASSES section, an OBJECTS section with the layout dictionary, and
-     an owner handle on every record - a whole second file to keep consistent,
-     and a file that is only nearly right does not open at all. R12 needs none of
-     it, every CAD reads it, and it still carries real DIMENSION entities and the
-     seven dimension variables this style actually sets, DIMSCALE included.
+     The file is built to the shape of macroBIM/bim_dxf.js, which is what the
+     site's other drawing tools already ship and what is known to open: AC1009,
+     $ACADVER and nothing else in the header, the LTYPE and LAYER tables and
+     nothing else in TABLES, then the entities. An earlier version of this
+     exporter wrote R2000 with VPORT, STYLE, APPID, DIMSTYLE and BLOCKS tables
+     filled in from memory, and AutoCAD refused the file outright. Anything
+     added past what bim_dxf.js proves is a guess, and a DXF that is only nearly
+     right does not open at all.
+
+     That costs the dimensions their identity: they are drawn from lines, a dot
+     at each end and a text, not DIMENSION entities, so the CAD cannot restyle
+     them and DIMSCALE cannot be changed after the fact. The geometry is
+     identical either way because dimStyle(scale) has already done the
+     multiplying. Adding DIMENSION entities back means adding a DIMSTYLE table
+     and a BLOCKS section - the two things most likely to have broken it - so it
+     is worth doing only once this base is confirmed to open.
 
      Geometry is written 1:1 in millimetres, the way a CAD drawing is always
      built. The scale you give is not applied to the steel - it is written into
@@ -4480,12 +4489,6 @@
      length by it when it draws. So the numbers registered in DIMSTYLE stay the
      size they were meant to be on paper, and changing the scale afterwards is
      one edit in the CAD rather than a re-export.
-
-     Dimensions are real DIMENSION entities, not lines pretending to be
-     dimensions. Each one carries its definition points and a reference to the
-     dimension style, and also an anonymous block holding the drawn result -
-     AutoCAD regenerates from the former, lighter viewers that do not regenerate
-     draw the latter, and both show the same thing.
 
      No hidden-line removal: the six views draw every member's outline, near and
      far. That is enough for a bracket and honest about what it is on a crane. */
@@ -4622,71 +4625,62 @@
     function g(code, v) { R.push(String(code), String(v)); }
     function gs(arr) { for (var i = 0; i < arr.length; i += 2) g(arr[i], arr[i + 1]); }
 
-    var blkDefs = [], ents = [], nDim = 0;
-
+    var ents = [];
+    /* The entity forms are the ones bim_dxf.js already writes and the site
+       already ships: layer, then the points, and no Z on a flat drawing.
+       TEXT names no style, because there is no STYLE table to name - the
+       reader falls back to its own STANDARD, which is the point of keeping
+       the file to what bim_dxf.js proves works. */
     function entHead(type, layer) { return ['0', type, '8', layer]; }
     function line(layer, a, b, buf) {
       (buf || ents).push(entHead('LINE', layer).concat(
-        ['10', dxfNum(a[0]), '20', dxfNum(a[1]), '30', '0',
-         '11', dxfNum(b[0]), '21', dxfNum(b[1]), '31', '0']));
+        ['10', dxfNum(a[0]), '20', dxfNum(a[1]),
+         '11', dxfNum(b[0]), '21', dxfNum(b[1])]));
     }
     function text(layer, at, hgt, s, centre, buf) {
-      var body = ['10', dxfNum(at[0]), '20', dxfNum(at[1]), '30', '0',
-                  '40', dxfNum(hgt), '1', dxfText(s), '7', 'PLATE3D'];
-      if (centre) body = body.concat(['72', '1', '11', dxfNum(at[0]),
-                                      '21', dxfNum(at[1]), '31', '0']);
+      var body = ['10', dxfNum(at[0]), '20', dxfNum(at[1]),
+                  '40', dxfNum(hgt), '1', dxfText(s)];
+      if (centre) body = body.concat(['72', '1',
+                                      '11', dxfNum(at[0]), '21', dxfNum(at[1])]);
       (buf || ents).push(entHead('TEXT', layer).concat(body));
     }
-    function solid(layer, c, r, buf) {          // a filled square, centred on c
-      (buf || ents).push(entHead('SOLID', layer).concat(
-        ['10', dxfNum(c[0] - r), '20', dxfNum(c[1] - r), '30', '0',
-         '11', dxfNum(c[0] + r), '21', dxfNum(c[1] - r), '31', '0',
-         '12', dxfNum(c[0] - r), '22', dxfNum(c[1] + r), '32', '0',
-         '13', dxfNum(c[0] + r), '23', dxfNum(c[1] + r), '33', '0']));
+    /* The arrowhead. A circle, not a filled SOLID: LINE, CIRCLE and ARC are the
+       entity types bim_dxf.js already ships, and after an R2000 file that would
+       not open, staying inside what is known to work is worth an unfilled dot.
+       Fill it once this opens. */
+    function circle(layer, c, r, buf) {
+      (buf || ents).push(entHead('CIRCLE', layer).concat(
+        ['10', dxfNum(c[0]), '20', dxfNum(c[1]), '40', dxfNum(r)]));
     }
 
-    /* A linear dimension: the entity that carries the measurement, and the
-       anonymous block that carries its picture. The block is drawn with the
-       scaled style values so a viewer that never regenerates still shows the
-       dimension at the right size. */
+    /* A linear dimension, drawn: two extension lines, the dimension line, a dot
+       at each end and the measurement above it. Not a DIMENSION entity - see the
+       note at the top of this module. Every length here comes from dimStyle(),
+       so the whole annotation is already at the scale that was asked for. */
     function dimLinear(p1, p2, off, vertical) {
-      var name = '*D' + (++nDim), buf = [];
       var A = D.arrow, EXO = D.origin, EXE = D.extend, GAP = D.textGap, TH = D.text.dim;
       var v = vertical;
       var val = Math.abs(v ? p2[1] - p1[1] : p2[0] - p1[0]);
-      if (!(val > 1e-9)) { nDim--; return; }
+      if (!(val > 1e-9)) return;
       // the dimension line sits `off` away, on the axis the measurement is not on
-      var dl = v ? off : off;
-      var q1 = v ? [dl, p1[1]] : [p1[0], dl];
-      var q2 = v ? [dl, p2[1]] : [p2[0], dl];
+      var q1 = v ? [off, p1[1]] : [p1[0], off];
+      var q2 = v ? [off, p2[1]] : [p2[0], off];
       // extension lines: start EXO clear of the point, finish EXE past the line
       function extLine(p, q) {
         var dx = q[0] - p[0], dy = q[1] - p[1], L = Math.hypot(dx, dy);
         if (L < 1e-9) return;
         var ux = dx / L, uy = dy / L;
         line('PL3D-DIM', [p[0] + ux * EXO, p[1] + uy * EXO],
-             [q[0] + ux * EXE, q[1] + uy * EXE], buf);
+             [q[0] + ux * EXE, q[1] + uy * EXE]);
       }
       extLine(p1, q1);
       extLine(p2, q2);
-      line('PL3D-DIM', q1, q2, buf);
-      solid('PL3D-DIM', q1, A / 2, buf);          // the dot arrowheads, drawn here
-      solid('PL3D-DIM', q2, A / 2, buf);
+      line('PL3D-DIM', q1, q2);
+      circle('PL3D-DIM', q1, A / 2);
+      circle('PL3D-DIM', q2, A / 2);
       var mid = [(q1[0] + q2[0]) / 2, (q1[1] + q2[1]) / 2];
       var tp = v ? [mid[0] - GAP - TH * 0.6, mid[1]] : [mid[0], mid[1] + GAP];
-      text('PL3D-DIM', tp, TH, String(Math.round(val)), true, buf);
-
-      blkDefs.push({ name: name, layer: 'PL3D-DIM', ents: buf });
-      // group order follows what AutoCAD itself writes: block, style, the two
-      // definition points, the flags, then the measured points and the rotation.
-      // 1 = "<>" is the text override that means "print the measurement".
-      ents.push(['0', 'DIMENSION', '8', 'PL3D-DIM', '2', name, '3', 'PLATE3D',
-                 '10', dxfNum(q1[0]), '20', dxfNum(q1[1]), '30', '0',
-                 '11', dxfNum(tp[0]), '21', dxfNum(tp[1]), '31', '0',
-                 '70', '32', '1', '<>',
-                 '13', dxfNum(p1[0]), '23', dxfNum(p1[1]), '33', '0',
-                 '14', dxfNum(p2[0]), '24', dxfNum(p2[1]), '34', '0',
-                 '50', v ? '90' : '0']);
+      text('PL3D-DIM', tp, TH, String(Math.round(val)), true);
     }
 
     /* ---- the drawing ---- */
@@ -4713,7 +4707,11 @@
     var colX = [GAP, 0, 0], rowY = [0, 0];
     colX[1] = colX[0] + colW[0] + GAP * 2;
     colX[2] = colX[1] + colW[1] + GAP * 2;
-    rowY[1] = rowY[0] - (rowH[0] + GAP * 3);
+    // views are drawn upward from their row's baseline, so the second row has to
+    // be dropped by its OWN height, not the first row's: a plan of a four-way
+    // node is far taller than the elevations above it and grew straight through
+    // them when this used rowH[0]
+    rowY[1] = rowY[0] - rowH[1] - GAP * 5;
     var sheetW = colX[2] + colW[2];
 
     function place(segs, box, ox, oy) {
@@ -4776,96 +4774,32 @@
     });
 
     /* ---- assemble the file ---- */
-    // the drawing's real extents, from where things were actually laid down
-    var ext = { x0: 0, y0: py - shelf - GAP * 4,
-                x1: sheetW + GAP, y1: rowY[0] + rowH[0] + GAP * 2 };
-
+    /* The file, in the shape bim_dxf.js writes and the site's other tools have
+       been shipping: AC1009, one header variable, the LTYPE and LAYER tables,
+       the entities. Nothing else. Everything I had added beyond that - VPORT,
+       STYLE, VIEW, UCS, APPID, DIMSTYLE, BLOCKS - was written from memory and
+       was what AutoCAD refused. */
     g(0, 'SECTION'); g(2, 'HEADER');
     g(9, '$ACADVER'); g(1, 'AC1009');
-    g(9, '$INSBASE'); g(10, '0'); g(20, '0'); g(30, '0');
-    g(9, '$EXTMIN'); g(10, dxfNum(ext.x0)); g(20, dxfNum(ext.y0)); g(30, '0');
-    g(9, '$EXTMAX'); g(10, dxfNum(ext.x1)); g(20, dxfNum(ext.y1)); g(30, '0');
-    g(9, '$LIMMIN'); g(10, dxfNum(ext.x0)); g(20, dxfNum(ext.y0));
-    g(9, '$LIMMAX'); g(10, dxfNum(ext.x1)); g(20, dxfNum(ext.y1));
-    g(9, '$MEASUREMENT'); g(70, 1);               // metric
-    g(9, '$DIMSCALE'); g(40, dxfNum(scale));
-    g(9, '$DIMSTYLE'); g(2, 'PLATE3D');
-    g(9, '$TEXTSTYLE'); g(7, 'PLATE3D');
-    g(9, '$LTSCALE'); g(40, dxfNum(scale));
     g(0, 'ENDSEC');
 
     g(0, 'SECTION'); g(2, 'TABLES');
-    function tbl(name, n, body) {
-      g(0, 'TABLE'); g(2, name); g(70, n);
-      body();
-      g(0, 'ENDTAB');
-    }
-    tbl('VPORT', 1, function () {
-      g(0, 'VPORT'); g(2, '*ACTIVE'); g(70, 0);
-      gs([10, '0', 20, '0', 11, '1', 21, '1',
-          12, dxfNum((ext.x0 + ext.x1) / 2), 22, dxfNum((ext.y0 + ext.y1) / 2),
-          13, '0', 23, '0', 14, '10', 24, '10', 15, '10', 25, '10',
-          16, '0', 26, '0', 36, '1', 17, '0', 27, '0', 37, '0',
-          40, dxfNum(Math.max(1, ext.y1 - ext.y0)), 41, '1.9', 42, '50',
-          43, '0', 44, '0', 50, '0', 51, '0', 71, '0', 72, '100', 73, '1',
-          74, '3', 75, '0', 76, '0', 77, '0', 78, '0']);
-    });
-    tbl('LTYPE', 1, function () {
-      g(0, 'LTYPE'); g(2, 'CONTINUOUS'); g(70, 64);
-      gs([3, 'Solid line', 72, '65', 73, '0', 40, '0']);
-    });
-    tbl('LAYER', DXF_LAYERS.length + 1, function () {
-      g(0, 'LAYER'); g(2, '0'); g(70, 0); g(62, 7); g(6, 'CONTINUOUS');
-      DXF_LAYERS.forEach(function (L) {
-        g(0, 'LAYER'); g(2, L[0]); g(70, 0); g(62, L[1]); g(6, 'CONTINUOUS');
-      });
-    });
-    tbl('STYLE', 1, function () {
-      g(0, 'STYLE'); g(2, 'PLATE3D'); g(70, 0);
-      gs([40, '0', 41, '1', 50, '0', 71, '0', 42, dxfNum(D.text.dim),
-          3, 'txt', 4, '']);
-    });
-    tbl('VIEW', 0, function () {});
-    tbl('UCS', 0, function () {});
-    tbl('APPID', 1, function () {
-      g(0, 'APPID'); g(2, 'ACAD'); g(70, 0);
-    });
-    tbl('DIMSTYLE', 1, function () {
-      g(0, 'DIMSTYLE'); g(2, 'PLATE3D'); g(70, 0);
-      /* The registered style, straight across. Only DIMSCALE carries the
-         drawing scale; every other value is the paper millimetre it was
-         registered as, and the CAD does the multiplying.
-         DIMBLK is left at the default: the dot is drawn into each dimension's
-         own block, and naming an arrowhead block here would mean shipping one. */
-      gs([40, dxfNum(scale),                 // DIMSCALE
-          41, dxfNum(DIMSTYLE.arrow),        // DIMASZ
-          42, dxfNum(DIMSTYLE.origin),       // DIMEXO
-          43, dxfNum(DIMSTYLE.stack),        // DIMDLI
-          44, dxfNum(DIMSTYLE.extend),       // DIMEXE
-          140, dxfNum(DIMSTYLE.text.dim),    // DIMTXT
-          147, dxfNum(DIMSTYLE.textGap),     // DIMGAP
-          73, '0',                           // DIMTIH - text stays horizontal
-          74, '0',                           // DIMTOH
-          77, '1',                           // DIMTAD - text above the line
-          78, '8',                           // DIMZIN - drop trailing zeros
-          172, '1']);                        // DIMTOFL - dim line even when text is out
-    });
-    g(0, 'ENDSEC');
+    g(0, 'TABLE'); g(2, 'LTYPE'); g(70, 4);
+    gs([0, 'LTYPE', 2, 'CONTINUOUS', 70, '0', 3, 'Solid', 72, '65', 73, '0', 40, '0.0']);
+    gs([0, 'LTYPE', 2, 'CENTER', 70, '0', 3, 'Center', 72, '65', 73, '2', 40, '2.0',
+        49, '1.25', 49, '-0.25']);
+    gs([0, 'LTYPE', 2, 'HIDDEN', 70, '0', 3, 'Hidden', 72, '65', 73, '2', 40, '1.0',
+        49, '0.5', 49, '-0.5']);
+    gs([0, 'LTYPE', 2, 'PHANTOM', 70, '0', 3, 'Phantom', 72, '65', 73, '2', 40, '2.5',
+        49, '1.25', 49, '-0.25']);
+    g(0, 'ENDTAB');
 
-    g(0, 'SECTION'); g(2, 'BLOCKS');
-    function blockDef(name, layer, anon, body) {
-      g(0, 'BLOCK'); g(8, layer); g(2, name); g(70, anon ? 1 : 0);
-      g(10, '0'); g(20, '0'); g(30, '0'); g(3, name); g(1, '');
-      body();
-      g(0, 'ENDBLK'); g(8, layer);
-    }
-    blkDefs.forEach(function (b) {
-      blockDef(b.name, b.layer, true, function () {
-        b.ents.forEach(function (e) {
-          for (var i = 0; i < e.length; i += 2) g(e[i], e[i + 1]);
-        });
-      });
+    g(0, 'TABLE'); g(2, 'LAYER'); g(70, DXF_LAYERS.length + 1);
+    g(0, 'LAYER'); g(2, '0'); g(70, 0); g(62, 7); g(6, 'CONTINUOUS');
+    DXF_LAYERS.forEach(function (L) {
+      g(0, 'LAYER'); g(2, L[0]); g(70, 0); g(62, L[1]); g(6, 'CONTINUOUS');
     });
+    g(0, 'ENDTAB');
     g(0, 'ENDSEC');
 
     g(0, 'SECTION'); g(2, 'ENTITIES');
