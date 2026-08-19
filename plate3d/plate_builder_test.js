@@ -85,8 +85,8 @@
        the bands and the Korean names for each. */
     text: {
       dim:     2.5,   // dimensions and dimension lines
-      note:    3.0,   // general notes                    2.5 - 3.5
-      member:  3.5,   // member names, main callouts
+      note:    2.5,   // general notes                    practice allows 2.5 - 3.5
+      member:  2.5,   // member names, main callouts      practice gives 3.5
       section: 5.0,   // section and detail titles
       heading: 6.0,   // major headings                   5 - 7
       title:   8.0    // sheet title                      7 - 10 and up
@@ -4805,15 +4805,11 @@
       });
       if (w > 0) dimLinear([ox, oy], [ox + w, oy], oy, false, 0);
       if (hgt > 0) dimLinear([ox, oy], [ox, oy + hgt], ox, true, 0);
-      /* Both lines of the label at one size. They were 3.5 and 3.0 - the
-         registered heights for a member name and for a note - and two lines of
-         the same label at two sizes reads as a mistake, whatever the table
-         says. D.text.dim is the same 2.5 the dimensions are set in. */
-      var LBL = D.text.dim;
-      var lblY = oy - D.origin - D.base - D.text.dim - LBL * 1.4;
-      text('PL3D-TEXT', [ox + w / 2, lblY], LBL,
+      // the name and the count, both 2.5 on the sheet - see DIMSTYLE.md
+      var lblY = oy - D.origin - D.base - D.text.dim - D.text.member * 1.4;
+      text('PL3D-TEXT', [ox + w / 2, lblY], D.text.member,
            p.it.plateId.toUpperCase() + ', ' + p.it.dims, true, 0);
-      text('PL3D-TEXT', [ox + w / 2, lblY - LBL * 1.6], LBL,
+      text('PL3D-TEXT', [ox + w / 2, lblY - D.text.member * 1.6], D.text.note,
            p.n + 'EA', true, 0);
     });
 
