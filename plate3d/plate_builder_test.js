@@ -4493,6 +4493,12 @@
      No hidden-line removal: the six views draw every member's outline, near and
      far. That is enough for a bracket and honest about what it is on a crane. */
 
+  /* The text style the drawing writes with. A TrueType name in the STYLE
+     table's font field is what gets Arial instead of the stick-figure txt.shx
+     every CAD falls back to, and Arial is the face the rest of PLATE3D's output
+     already uses - the take-off is set in it too. */
+  var DXF_STYLE = 'PLATE3D', DXF_FONT = 'arial.ttf';
+
   var DXF_LAYERS = [                      // name, AutoCAD colour index
     ['PL3D-OUTLINE', 7], ['PL3D-HOLE', 4], ['PL3D-DIM', 1],
     ['PL3D-TEXT', 7], ['PL3D-TITLE', 3]
@@ -4627,19 +4633,19 @@
 
     var ents = [];
     /* The entity forms are the ones bim_dxf.js already writes and the site
-       already ships: layer, then the points, and no Z on a flat drawing.
-       TEXT names no style, because there is no STYLE table to name - the
-       reader falls back to its own STANDARD, which is the point of keeping
-       the file to what bim_dxf.js proves works. */
+       already ships: layer, then the points, and no Z on a flat drawing. */
     function entHead(type, layer) { return ['0', type, '8', layer]; }
     function line(layer, a, b, buf) {
       (buf || ents).push(entHead('LINE', layer).concat(
         ['10', dxfNum(a[0]), '20', dxfNum(a[1]),
          '11', dxfNum(b[0]), '21', dxfNum(b[1])]));
     }
-    function text(layer, at, hgt, s, centre, buf) {
+    // rot is degrees anticlockwise - DXF group 50, which is how a dimension
+    // number comes to lie along its own dimension line instead of across it
+    function text(layer, at, hgt, s, centre, rot, buf) {
       var body = ['10', dxfNum(at[0]), '20', dxfNum(at[1]),
-                  '40', dxfNum(hgt), '1', dxfText(s)];
+                  '40', dxfNum(hgt), '1', dxfText(s), '7', DXF_STYLE];
+      if (rot) body = body.concat(['50', dxfNum(rot)]);
       if (centre) body = body.concat(['72', '1',
                                       '11', dxfNum(at[0]), '21', dxfNum(at[1])]);
       (buf || ents).push(entHead('TEXT', layer).concat(body));
@@ -4654,15 +4660,29 @@
     }
 
     /* A linear dimension, drawn: two extension lines, the dimension line, a dot
-       at each end and the measurement above it. Not a DIMENSION entity - see the
-       note at the top of this module. Every length here comes from dimStyle(),
-       so the whole annotation is already at the scale that was asked for. */
-    function dimLinear(p1, p2, off, vertical) {
-      var A = D.arrow, EXO = D.origin, EXE = D.extend, GAP = D.textGap, TH = D.text.dim;
+       at each end, and the measurement lying along the line. Not a DIMENSION
+       entity - see the note at the top of this module.
+
+       Every length is a registered DIMSTYLE value multiplied by the scale, and
+       nothing here is a number of my own:
+
+         D.base     how far off the measured edge the dimension line sits
+         D.stack    the step when dimensions are stacked one past another
+         D.origin   the gap the extension line leaves at the measured point
+         D.extend   how far the extension line runs past the dimension line
+         D.arrow    the dot
+         D.textGap  text to dimension line
+         D.text.dim the number's height
+
+       `level` is which stacked line this is, counting from the object out:
+       level 0 sits D.base away, level 1 a further D.stack, and so on. */
+    function dimLinear(p1, p2, at, vertical, level) {
+      var A = D.arrow, EXO = D.origin, EXE = D.extend, TG = D.textGap, TH = D.text.dim;
       var v = vertical;
       var val = Math.abs(v ? p2[1] - p1[1] : p2[0] - p1[0]);
       if (!(val > 1e-9)) return;
-      // the dimension line sits `off` away, on the axis the measurement is not on
+      // `at` is the edge being dimensioned; the line stands off it by the style
+      var off = at - D.base - D.stack * (level || 0);
       var q1 = v ? [off, p1[1]] : [p1[0], off];
       var q2 = v ? [off, p2[1]] : [p2[0], off];
       // extension lines: start EXO clear of the point, finish EXE past the line
@@ -4678,13 +4698,21 @@
       line('PL3D-DIM', q1, q2);
       circle('PL3D-DIM', q1, A / 2);
       circle('PL3D-DIM', q2, A / 2);
+      /* The number reads along its own dimension line: upright on a horizontal
+         one, turned 90 degrees on a vertical one. Rotated text grows away from
+         its baseline in the direction 90 degrees further round, so on a vertical
+         dimension the baseline sits TG to the left of the line and the glyphs
+         fill the space beyond it - the same clearance as the horizontal case. */
       var mid = [(q1[0] + q2[0]) / 2, (q1[1] + q2[1]) / 2];
-      var tp = v ? [mid[0] - GAP - TH * 0.6, mid[1]] : [mid[0], mid[1] + GAP];
-      text('PL3D-DIM', tp, TH, String(Math.round(val)), true);
+      var tp = v ? [mid[0] - TG, mid[1]] : [mid[0], mid[1] + TG];
+      text('PL3D-DIM', tp, TH, String(Math.round(val)), true, v ? 90 : 0);
     }
 
     /* ---- the drawing ---- */
-    var GAP = 25 * scale;                    // 25mm on the sheet between frames
+    /* Sheet layout gaps. Derived from the style rather than picked, so one
+       number governs the drawing: D.base is the dimension standoff, and frames
+       sit two and a half of those apart - 25mm on the sheet at any scale. */
+    var GAP = D.base * 2.5;
     var TXT_T = D.text.section, TXT_L = D.text.member, TXT_N = D.text.note;
 
     // six views, measured first so they can be laid out on a common grid
@@ -4724,9 +4752,9 @@
       var ox = colX[i % 3], oy = rowY[Math.floor(i / 3)];
       var w = v.box.x1 - v.box.x0, hgt = v.box.y1 - v.box.y0;
       place(v.segs, v.box, ox, oy);
-      text('PL3D-TITLE', [ox + w / 2, oy + hgt + GAP * 0.5], TXT_T, v.key + ' VIEW', true);
-      if (w > 0) dimLinear([ox, oy], [ox + w, oy], oy - GAP * 0.6, false);
-      if (hgt > 0) dimLinear([ox, oy], [ox, oy + hgt], ox - GAP * 0.6, true);
+      text('PL3D-TITLE', [ox + w / 2, oy + hgt + D.base], TXT_T, v.key + ' VIEW', true, 0);
+      if (w > 0) dimLinear([ox, oy], [ox + w, oy], oy, false, 0);
+      if (hgt > 0) dimLinear([ox, oy], [ox, oy + hgt], ox, true, 0);
     });
 
     // the parts, one standard section each, under the views
@@ -4765,11 +4793,13 @@
         line('PL3D-OUTLINE', [s[0][0] - p.box.x0 + ox, s[0][1] - p.box.y0 + oy],
              [s[1][0] - p.box.x0 + ox, s[1][1] - p.box.y0 + oy]);
       });
-      if (w > 0) dimLinear([ox, oy], [ox + w, oy], oy - GAP * 0.6, false);
-      if (hgt > 0) dimLinear([ox, oy], [ox, oy + hgt], ox - GAP * 0.6, true);
-      text('PL3D-TEXT', [ox + w / 2, oy - GAP * 1.5], TXT_L,
+      if (w > 0) dimLinear([ox, oy], [ox + w, oy], oy, false, 0);
+      if (hgt > 0) dimLinear([ox, oy], [ox, oy + hgt], ox, true, 0);
+      // clear of the dimension line under the part and of its number
+      var lblY = oy - D.base - D.text.dim - TXT_L * 1.4;
+      text('PL3D-TEXT', [ox + w / 2, lblY], TXT_L,
            p.it.plateId.toUpperCase() + ', ' + p.it.dims, true);
-      text('PL3D-TEXT', [ox + w / 2, oy - GAP * 1.5 - TXT_L * 1.6], TXT_N,
+      text('PL3D-TEXT', [ox + w / 2, lblY - TXT_L * 1.6], TXT_N,
            p.n + 'EA', true);
     });
 
@@ -4799,6 +4829,22 @@
     DXF_LAYERS.forEach(function (L) {
       g(0, 'LAYER'); g(2, L[0]); g(70, 0); g(62, L[1]); g(6, 'CONTINUOUS');
     });
+    g(0, 'ENDTAB');
+
+    /* One more table than bim_dxf.js writes, and the only one added back so far:
+       without a STYLE record there is no way to name a font, and the default
+       stick font is what the numbers were coming out in. Ten group codes, all
+       of them documented - not the forty-odd of the VPORT record that helped
+       sink the R2000 attempt. */
+    g(0, 'TABLE'); g(2, 'STYLE'); g(70, 1);
+    g(0, 'STYLE'); g(2, DXF_STYLE); g(70, 0);
+    gs([40, '0.0',                      // fixed height, 0 = set per text entity
+        41, '1.0',                      // width factor
+        50, '0.0',                      // oblique angle
+        71, '0',                        // generation flags: not mirrored
+        42, dxfNum(D.text.dim),         // last height used
+        3, DXF_FONT,                    // the font
+        4, '']);                        // no bigfont
     g(0, 'ENDTAB');
     g(0, 'ENDSEC');
 
