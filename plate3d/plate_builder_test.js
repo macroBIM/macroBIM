@@ -291,9 +291,9 @@
        Its width is set from the table's own width when the preview opens, so
        these rules only have to lay it out: a caption that stays put, and one
        scrolling area under it holding the rows. */
+    /* width and height are set when the preview opens - see pvModuleLayout */
     '#pb-pv-tree { display:none; flex-direction:column; overflow:hidden;',
-    '  max-height:542px; background:#fff; border:1px solid var(--line);',
-    '  border-radius:8px; }',
+    '  background:#fff; border:1px solid var(--line); border-radius:8px; }',
     '#pb-pv-tree .pvcap { flex:0 0 auto; color:#0f172a; font-size:10px; font-weight:700;',
     '  letter-spacing:.06em; text-transform:uppercase; padding:7px 9px 6px;',
     '  border-bottom:1px solid var(--hair); white-space:nowrap; overflow:hidden;',
@@ -311,6 +311,11 @@
     '  text-transform:uppercase; text-align:left;',
     '  border-bottom:1px solid var(--hair); }',
     '#pb-pv-tree th.num { text-align:right; }',
+    /* ... and the controls and the name stay put when the table slides sideways,
+       or you scroll to a coordinate with no way of telling whose it is */
+    '#pb-pv-tree .who { position:sticky; left:0; z-index:2; background:#fff;',
+    '  box-shadow:1px 0 0 var(--hair); }',
+    '#pb-pv-tree th.who { z-index:3; }',
     '#pb-pv-tree tr.off td { opacity:.45; }',
     '#pb-pv-tree .nm { font-size:11px; color:#0f172a; font-weight:600; }',
     '#pb-pv-tree .num { text-align:right; font-variant-numeric:tabular-nums; }',
@@ -2642,7 +2647,7 @@
       });
     });
 
-    var vs = pvViewSize(0);
+    var vs = pvViewSize();
     cv.width = vs.W; cv.height = vs.H;
     var W = vs.W, H = vs.H, PAD = Math.round(54 * vs.H / 540);
     var fit = Math.min((W - PAD * 2) / Math.max(maxx - minx, 1e-6),
@@ -2695,7 +2700,7 @@
     if (!pv) return;
     var cv = document.getElementById('pb-pv-canvas');
     if (!cv) return;
-    var vs = pvViewSize(0);
+    var vs = pvViewSize();
     if (vs.W === pv.W && vs.H === pv.H) return;
     var cxm = pv.minx + (pv.W / 2 - pv.ox) / pv.sc;
     var cym = pv.miny + (pv.H / 2 - pv.oy) / pv.sc;
@@ -2936,13 +2941,12 @@
 
   // The module's member plates, listed beside its preview: hide/show, local
   // axes and per-plate opacity for the module currently open.
-  // Returns the width the table wants. The caller decides how much of that the
-  // panel actually gets - see pvTreeWidth - so this never touches host.style.width.
+  // The panel's own size is fixed and set by the caller, so this only fills it.
   function buildPvTree(id, force) {
     var host = document.getElementById('pb-pv-tree');
-    if (!host) return 0;
+    if (!host) return;
     var part = lastParts[id];
-    if (!part) { host.style.display = 'none'; host.innerHTML = ''; pvTreeId = null; return 0; }
+    if (!part) { host.style.display = 'none'; host.innerHTML = ''; pvTreeId = null; return; }
     host.style.display = 'flex';
     // the preview rebuilds on every slider step - leave the panel's DOM alone
     // then, or the control being dragged is destroyed under the pointer
@@ -2952,7 +2956,7 @@
       var cols = PV_COLS.filter(function (c) {
         return cells.some(function (x) { return x[c.k]; });
       });
-      var html = '<tr><th></th><th>member</th>';
+      var html = '<tr><th class="who">member</th>';
       cols.forEach(function (c) {
         html += '<th' + (c.num ? ' class="num"' : '') + '>' + esc(c.h) + '</th>';
       });
@@ -2961,7 +2965,7 @@
         var key = id + '/' + row.NO;
         var on = !memberHidden[key];
         html += '<tr data-key="' + esc(key) + '"' + (on ? '' : ' class="off"') + '>' +
-          '<td>' +
+          '<td class="who">' +
           '<input type="checkbox" title="show / hide this plate"' + (on ? ' checked' : '') +
           ' onchange="plateBuilder.togglePvMember(\'' + id + '\',\'' + row.NO + '\',this.checked)">' +
           '<span class="sw" title="colour of this plate" style="background:' +
@@ -2970,8 +2974,8 @@
           '<input type="range" min="10" max="100" step="5" value="' +
           Math.round((ovOpac.member[key] !== undefined ? ovOpac.member[key] : 1) * 100) +
           '" title="opacity of this plate" ' +
-          'oninput="plateBuilder.setOpacity(\'member\',\'' + key + '\',this.value)"></td>' +
-          '<td><label class="nm" title="show local axes at its Ref.Pt">' +
+          'oninput="plateBuilder.setOpacity(\'member\',\'' + key + '\',this.value)">' +
+          '<label class="nm" title="show local axes at its Ref.Pt">' +
           '<input type="checkbox"' + (memberAxes[key] ? ' checked' : '') +
           ' onchange="plateBuilder.toggleMemberAxis(\'' + id + '\',\'' + row.NO + '\',this.checked)"> ' +
           esc(row.NO) + '</label></td>';
@@ -2986,10 +2990,6 @@
         ' <span>(' + part.pos.length + ')</span></div>' +
         '<div class="pvscroll"><table>' + html + '</table></div>';
     }
-    // the table is content-sized, so it reports its full width even while the
-    // panel around it is narrower and scrolling
-    var tbl = host.querySelector('table');
-    return tbl ? tbl.offsetWidth + 2 : 0;      // + the panel's two borders
   }
 
   // Where the module's BASE point ends up in preview coordinates. Recomputed
@@ -3415,43 +3415,41 @@
   // renderer per open exhausts the browser's context budget - the opacity and
   // axis controls reopen the preview on every input step - and once the budget
   // is gone the preview stays blank until the page is reloaded.
-  // The preview keeps 16:9 but never grows past what the window can show, so
-  // the modal does not need a scrollbar on a short screen. Chrome around the
-  // view: box padding+border, the title row, the two meta lines, and the member
-  // tree when the 3D box has one.
-  var PV_GAP = 10;                 // .pvbody's gap, between the panel and the view
-  var PV_MIN_3D = 720;             // the view never shrinks below this for the panel
-  var PV_MAX_3D = 1280;            // ... and never grows past this, however wide the window
-  var PV_MIN_TREE = 190;           // the panel is never narrower than this
+  /* The module preview is a fixed size. It used to be fitted - the panel took
+     the width its table wanted and the view took the rest - so every module
+     opened at a different size, and a module that looked bigger than the last
+     one might only have had a shorter member list. Two constants now, the same
+     on every module: you can tell one model from another by looking at it.
+
+     16:9 at 1000 wide is 562.5, so the view is 1000 x 563 - an aspect of 1.7762
+     against 1.7778, which no eye reads as out of square. The panel is 500 and
+     scrolls, both ways: a wide table (MD.HEAD's is 784) slides sideways, a long
+     one (MD.BASE has 33 members) slides down. */
+  var PV_VIEW_W = 1000, PV_VIEW_H = 563;   // the 3D view
+  var PV_TREE_W = 500;                     // the member panel beside it
+  var PV_GAP = 10;                         // .pvbody's gap between the two
   function pvRoom() {              // width inside the box, which is capped at 97vw
     return Math.floor(window.innerWidth * 0.97) - 36;
   }
-  /* The member table sets the panel's width, since nothing in it wraps. What it
-     may not do is eat the 3D view - that is what the window is for - so it stops
-     growing once the view would fall below PV_MIN_3D and scrolls sideways
-     instead. */
-  function pvTreeWidth(natural) {
-    return Math.max(PV_MIN_TREE,
-                    Math.min(natural, pvRoom() - PV_MIN_3D - PV_GAP));
+  function pvAvailH() {            // ... and at 96vh, less the title and meta rows
+    return Math.floor(window.innerHeight * 0.96) - 100;
   }
-  // treeW: the member panel's width in px, 0 when the view has no panel
-  function pvViewSize(treeW) {
-    // the box itself is capped at 97vw / 96vh, so measure against that, less the
-    // chrome: padding + borders (36), title row + the two meta lines (~100), and
-    // the member panel with its gap when the 3D box has one
-    var availW = pvRoom() - (treeW ? treeW + PV_GAP : 0);
-    var availH = Math.floor(window.innerHeight * 0.96) - 100;
-    /* The 3D module preview grows with the window, but only to PV_MAX_3D. Left
-       uncapped it took every pixel the member panel did not, so a three-member
-       module - a short panel - blew the view up to 1534 wide and the modal
-       became a wall. Leftover width is simply not used: the modal narrows and
-       stays centred.
-
-       The 2D plate drawing keeps the old 960 cap: its dimension text is set in
-       fixed pixels, so a bigger canvas would leave the numbers small against a
-       larger drawing rather than simply showing more. */
-    var s = Math.min(treeW ? PV_MAX_3D / 960 : 1, availW / 960, availH / 540);
+  /* Fixed means fixed on any screen that can hold it - 1594 x 691 and up. Below
+     that the whole body scales together rather than the modal growing a
+     scrollbar, so the panel and the view keep their proportions to each other. */
+  function pvModuleLayout() {
+    var s = Math.min(1, pvRoom() / (PV_TREE_W + PV_GAP + PV_VIEW_W),
+                     pvAvailH() / PV_VIEW_H);
     if (!(s > 0.3)) s = 0.3;                     // also catches NaN on odd hosts
+    return { tree: Math.round(PV_TREE_W * s),
+             W: Math.round(PV_VIEW_W * s), H: Math.round(PV_VIEW_H * s) };
+  }
+  /* The 2D plate drawing is its own thing and keeps the 960 cap: its dimension
+     text is set in fixed pixels, so a bigger canvas would leave the numbers
+     small against a larger drawing rather than simply showing more. */
+  function pvViewSize() {
+    var s = Math.min(1, pvRoom() / 960, pvAvailH() / 540);
+    if (!(s > 0.3)) s = 0.3;
     return { W: Math.round(960 * s), H: Math.round(540 * s) };
   }
 
@@ -3771,16 +3769,15 @@
     pvTitle.textContent = id + '  (module)';     // set first, so the box is never blank
     pvMeta.textContent = '';
 
-    // the panel has to exist before the view is sized: how wide its table wants
-    // to be is what decides how much width is left for the 16:9 box
-    var tree = document.getElementById('pb-pv-tree');
     // not forced: an opacity slider reopens the preview on every step, and a
     // rebuild would destroy the control under the pointer
-    var treeW = pvTreeWidth(buildPvTree(id));
-    var vs = pvViewSize(treeW);
-    var W = vs.W, H = vs.H;                      // 16:9, clipped to the window
+    buildPvTree(id);
+    var tree = document.getElementById('pb-pv-tree');
+    var vs = pvModuleLayout();
+    var W = vs.W, H = vs.H;                      // the fixed 1000 x 563, or scaled
     host.style.width = W + 'px'; host.style.height = H + 'px';
-    if (tree) { tree.style.width = treeW + 'px'; tree.style.maxHeight = (H + 2) + 'px'; }
+    // + the panel's two borders, so its outer edge lines up with the view's
+    if (tree) { tree.style.width = vs.tree + 'px'; tree.style.height = (H + 2) + 'px'; }
     var sc = new THREE.Scene();
     pvScene = sc;
     sc.background = new THREE.Color(0x15181c);
