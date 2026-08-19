@@ -4651,6 +4651,50 @@
   // because a rule that comes up short of its own text is the visible failure.
   function dxfTextWidth(s, h) { return String(s).length * h * 0.62; }
 
+  /* What a rolled section needs called out beyond its overall height and width:
+     the web, the flanges and the root radius. A reader given only H-700x300 has
+     to go and look the rest up; the profile is drawn from those numbers, so the
+     drawing may as well say them.
+
+     Points come back in coordinates measured from the section's own bounding box
+     - u right from its left edge, v up from its bottom - because that is what
+     the part layout can place without knowing how the profile was parametrised.
+     Each carries the direction its leader should run so it leaves the steel at
+     once rather than crossing it.
+
+     Field names are the sheet's own:
+       H   h bb bt tw tf1 tf2 r1 r2      tf1 bottom flange, tf2 top
+       C   h b tw tf rw rf               rw web root, rf flange toe
+       L   a b t1 t2 r1 r2               t1 the a leg, t2 the b leg           */
+  function sectCallouts(sp, w, h) {
+    var out = [], n = function (v) { return rnd(num(v, 0)); };
+    function add(u, v, txt, dx, dy) {
+      if (u == null || !isFinite(u) || !isFinite(v)) return;
+      out.push({ u: u, v: v, txt: txt, dx: dx, dy: dy });
+    }
+    if (sp.SECT === 'H') {
+      var cx = w / 2, tw = num(sp.tw, 0), t1 = num(sp.tf1, 0), t2 = num(sp.tf2, 0);
+      var r1 = num(sp.r1, 0);
+      add(cx + num(sp.bt, 0) / 4, h - t2 / 2, 'tf ' + n(t2), 1, 1);
+      // one call-out when the flanges match, two when they do not
+      if (Math.abs(t1 - t2) > 1e-6)
+        add(cx + num(sp.bb, 0) / 4, t1 / 2, 'tf ' + n(t1), 1, -1);
+      add(cx, h / 2, 'tw ' + n(tw), -1, 1);
+      if (r1 > 0) add(cx + tw / 2 + r1 * 0.3, h - t2 - r1 * 0.3, 'r ' + n(r1), 1, -1);
+    } else if (sp.SECT === 'C') {
+      var ctw = num(sp.tw, 0), ctf = num(sp.tf, 0), rw = num(sp.rw, 0);
+      add(ctw / 2, h / 2, 'tw ' + n(ctw), -1, 1);
+      add(w * 0.7, ctf / 2, 'tf ' + n(ctf), 1, -1);
+      if (rw > 0) add(ctw + rw * 0.3, ctf + rw * 0.3, 'r ' + n(rw), 1, 1);
+    } else if (sp.SECT === 'L') {
+      var la = num(sp.t1, 0), lb = num(sp.t2, 0), lr = num(sp.r1, 0);
+      add(la / 2, h * 0.7, 't ' + n(la), -1, 1);
+      if (Math.abs(la - lb) > 1e-6) add(w * 0.7, lb / 2, 't ' + n(lb), 1, -1);
+      if (lr > 0) add(la + lr * 0.3, lb + lr * 0.3, 'r ' + n(lr), 1, 1);
+    }
+    return out;
+  }
+
   function buildDXF(list, scale) {
     var D = dimStyle(scale);
     var R = [];
@@ -4705,21 +4749,26 @@
        The leader leaves the rim at 45 degrees, runs out, then turns horizontal
        for a shoulder the text sits on - the shoulder is as long as the text
        needs, so the text never overhangs it. */
-    function leaderDia(c, r, dia, dirX, dirY, step) {
+    function leaderAt(p0, s, dirX, dirY, step) {
       var TH = D.text.dim, TG = D.textGap, k = Math.SQRT1_2;
       var sx = dirX < 0 ? -1 : 1, sy = dirY < 0 ? -1 : 1;
-      var p0 = [c[0] + r * k * sx, c[1] + r * k * sy];
       // each further call runs out a step longer, so two callouts on one part
       // land on their own shoulders instead of crossing
       var run = (D.origin + D.base) * (1 + (step || 0) * 0.9);
       var p1 = [p0[0] + run * k * sx, p0[1] + run * k * sy];
-      var s = 'D' + rnd(dia * 2);
       var sh = Math.max(D.base, dxfTextWidth(s, TH));
       var p2 = [p1[0] + sh * sx, p1[1]];
       line('PL3D-DIM', p0, p1);
       line('PL3D-DIM', p1, p2);
       dot('PL3D-DIM', p0, D.arrow / 2);
       text('PL3D-DIM', [(p1[0] + p2[0]) / 2, p1[1] + TG], TH, s, true, 0);
+    }
+    // a circle's diameter, called out from a point on its rim at 45 degrees
+    function leaderDia(c, r, dia, dirX, dirY, step) {
+      var k = Math.SQRT1_2;
+      var sx = dirX < 0 ? -1 : 1, sy = dirY < 0 ? -1 : 1;
+      leaderAt([c[0] + r * k * sx, c[1] + r * k * sy],
+               'D' + rnd(dia * 2), sx, sy, step);
     }
 
     /* A linear dimension, drawn: two extension lines, the dimension line, a dot
@@ -4897,11 +4946,21 @@
             byDia[key] = { hc: hc, reach: reach };
         });
       });
-      Object.keys(byDia).forEach(function (k, i) {
+      var lead = 0;
+      Object.keys(byDia).forEach(function (k) {
         var hc = byDia[k].hc;
         leaderDia([hc.c[0] - p.box.x0 + ox, hc.c[1] - p.box.y0 + oy],
-                  hc.r, hc.r, 1, 1, i);
+                  hc.r, hc.r, 1, 1, lead++);
       });
+
+      /* A rolled section says what it is made of: web, flanges, root radius.
+         H-700x300 alone leaves the reader looking the rest up, and the profile
+         was drawn from those numbers in the first place. */
+      if (p.it.spec.SHAPE === 'SECT') {
+        sectCallouts(p.it.spec, w, hgt).forEach(function (c) {
+          leaderAt([ox + c.u, oy + c.v], c.txt, c.dx, c.dy, lead++);
+        });
+      }
 
       /* The label: the name, a rule under it, then how many. The rule is
          markLen long unless the name is longer, in which case it grows - a rule
