@@ -395,6 +395,18 @@
                   '#8ec96b', '#4caf50', '#2f9e8f', '#4dd0e1',
                   '#5c9bd1', '#3f6fb5', '#9575cd', '#c47ad0',
                   '#f06292', '#8d6e63', '#c9cdd3', '#6b7480'];
+  /* The measure colours were picked for the viewport, which is nearly black, and
+     there they are right: the picked dots, the line between them and its label
+     all read at a glance. The readout is a white box, and on white that yellow
+     is not a colour but a rumour - dist came out at about 1.1 : 1 against its own
+     background, which is to say invisible.
+
+     So the box gets darker settings of the same hues. X stays red, Y green, Z
+     blue - still the gizmo's colours, just legible - and dist stays the amber
+     one, so it still names the yellow line drawn in the view. The canvas keeps
+     the bright set; only the text moved. */
+  var MEAS_X = '#c2352a', MEAS_Y = '#1f7a33', MEAS_Z = '#2a6ca8',
+      MEAS_D = '#b45309', MEAS_P = '#a16207';
   var palPending = null;
   function openPalette(ev, scope, key, el) {
     ev.stopPropagation();
@@ -2572,16 +2584,16 @@
       el.innerHTML = '<span style="color:#6fb3e8">measure</span> \u2014 click a corner, ' +
                      'an edge or a hole centre' + (where ? ' &nbsp;&nbsp; ' + where : '');
     } else if (pvMeas.length === 1) {
-      el.innerHTML = '<span style="color:#ffe81f">P1</span> ' + at(pvMeas[0]) +
+      el.innerHTML = '<span style="color:' + MEAS_P + '">P1</span> ' + at(pvMeas[0]) +
                      ' &nbsp; \u2014 click the second point' +
                      (where ? ' &nbsp;&nbsp; ' + where : '') + tail;
     } else {
       var a = pvMeas[0], b = pvMeas[1];
       el.innerHTML =
-        '<span style="color:#e05c4f">\u0394X ' + f(b.x - a.x) + '</span> &nbsp; ' +
-        '<span style="color:#6fc36f">\u0394Y ' + f(b.y - a.y) + '</span> &nbsp;&nbsp; ' +
-        '<span style="color:#ffe81f">dist ' + f(Math.hypot(b.x - a.x, b.y - a.y)) +
-        '</span>' + tail;
+        '<span style="color:' + MEAS_X + '">\u0394X ' + f(b.x - a.x) + '</span> &nbsp; ' +
+        '<span style="color:' + MEAS_Y + '">\u0394Y ' + f(b.y - a.y) + '</span> &nbsp;&nbsp; ' +
+        '<span style="color:' + MEAS_D + ';font-weight:700">dist ' +
+        f(Math.hypot(b.x - a.x, b.y - a.y)) + '</span>' + tail;
     }
   }
 
@@ -2928,8 +2940,9 @@
 
 
   /* ---------------- measure tool ---------------- */
-  // Snap targets: every vertex of a plate's cut outline on both faces, plus the
-  // centre of every hole (both faces and mid-thickness).
+  // Snap targets: every vertex of a plate's cut outline on both faces, the
+  // centre of every hole (both faces and mid-thickness), and the nine named
+  // points the sheet is written with.
   function snapPointsOf(rings, thk, matrix, spec) {
     var out = [], half = flatMode ? 0 : thk / 2;
     function push(x, y, z) { out.push(new THREE.Vector3(x, y, z).applyMatrix4(matrix)); }
@@ -2953,6 +2966,23 @@
         if (half) { push(c[0], c[1], 0); push(c[0], c[1], -half); }
       });
     });
+    /* The nine points the sheet places parts by - bl bc br / ml mc mr / tl tc
+       tr - so a placement can be checked against the model using the same names
+       it was written with. The corners usually land on outline vertices that
+       were already here; what was missing was the four edge midpoints and mc,
+       which left the middle of a plate as the one obvious place you could not
+       measure from. mc also goes in at mid-thickness: the centre of the solid,
+       not of a face. */
+    var p9 = namedPoints(spec, false);
+    if (p9) {
+      POINT_KEYS.forEach(function (k) {
+        var q = p9[k];
+        if (!q) return;
+        push(q[0], q[1], half);
+        if (half) push(q[0], q[1], -half);
+      });
+      if (half && p9.mc) push(p9.mc[0], p9.mc[1], 0);
+    }
     return out;
   }
 
@@ -3032,17 +3062,18 @@
         return;
       }
       if (M.picks.length === 1) {
-        el.innerHTML = '<span style="color:#ffe81f">P1</span> ' + xyz(M.picks[0]) +
+        el.innerHTML = '<span style="color:' + MEAS_P + '">P1</span> ' + xyz(M.picks[0]) +
           ' &nbsp; — click the second point' +
           ' &nbsp; <span style="color:#5b6472">right click to clear</span>';
         return;
       }
       var a = M.picks[0], b = M.picks[1];
       el.innerHTML =
-        '<span style="color:#e05c4f">\u0394X ' + fmt(b.x - a.x) + '</span> &nbsp; ' +
-        '<span style="color:#6fc36f">\u0394Y ' + fmt(b.y - a.y) + '</span> &nbsp; ' +
-        '<span style="color:#5c9bd1">\u0394Z ' + fmt(b.z - a.z) + '</span> &nbsp;&nbsp; ' +
-        '<span style="color:#ffe81f">dist ' + fmt(a.distanceTo(b)) + '</span>' +
+        '<span style="color:' + MEAS_X + '">\u0394X ' + fmt(b.x - a.x) + '</span> &nbsp; ' +
+        '<span style="color:' + MEAS_Y + '">\u0394Y ' + fmt(b.y - a.y) + '</span> &nbsp; ' +
+        '<span style="color:' + MEAS_Z + '">\u0394Z ' + fmt(b.z - a.z) + '</span> &nbsp;&nbsp; ' +
+        '<span style="color:' + MEAS_D + ';font-weight:700">dist ' +
+        fmt(a.distanceTo(b)) + '</span>' +
         ' &nbsp; <span style="color:#5b6472">right click to clear</span>';
     }
     function xyz(p) { return '(' + fmt(p.x) + ', ' + fmt(p.y) + ', ' + fmt(p.z) + ')'; }
@@ -5667,7 +5698,8 @@
     ' thickness went</td></tr>',
     '<tr><td><b>id</b></td><td>name every placed member</td></tr>',
     '<tr><td><b>measure</b></td><td>click two points for &#916;X, &#916;Y, &#916;Z and the distance.',
-    ' Snaps to the origin, the nine points, hole centres and every corner of a cut outline.',
+    ' Snaps to the origin, every corner of a cut outline, hole centres, and the nine points',
+    ' each part was placed by &mdash; <b>mc</b>, the centre, on both faces and at mid-thickness.',
     ' A bar snaps at its two end centres only</td></tr>',
     '</tbody></table>',
     '<p>Click a <b>HOLE</b>, <b>PLATE</b> or <b>SECTION</b> id for its 2D drawing - grid, named points,',
