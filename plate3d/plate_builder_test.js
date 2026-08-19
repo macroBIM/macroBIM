@@ -3421,7 +3421,8 @@
   // tree when the 3D box has one.
   var PV_GAP = 10;                 // .pvbody's gap, between the panel and the view
   var PV_MIN_3D = 720;             // the view never shrinks below this for the panel
-  var PV_MIN_TREE = 190;           // ... and the panel is never narrower than this
+  var PV_MAX_3D = 1280;            // ... and never grows past this, however wide the window
+  var PV_MIN_TREE = 190;           // the panel is never narrower than this
   function pvRoom() {              // width inside the box, which is capped at 97vw
     return Math.floor(window.innerWidth * 0.97) - 36;
   }
@@ -3440,15 +3441,16 @@
     // the member panel with its gap when the 3D box has one
     var availW = pvRoom() - (treeW ? treeW + PV_GAP : 0);
     var availH = Math.floor(window.innerHeight * 0.96) - 100;
-    /* The 3D module preview grows into whatever room the window has, up to twice
-       its old size. It used to be capped at 1 - so on a wide screen it sat at
-       960x540 with half the page empty around it, which is the one place you go
-       to look closely at a joint.
+    /* The 3D module preview grows with the window, but only to PV_MAX_3D. Left
+       uncapped it took every pixel the member panel did not, so a three-member
+       module - a short panel - blew the view up to 1534 wide and the modal
+       became a wall. Leftover width is simply not used: the modal narrows and
+       stays centred.
 
-       The 2D plate drawing keeps the old cap: its dimension text is set in fixed
-       pixels, so a bigger canvas would leave the numbers small against a larger
-       drawing rather than simply showing more. */
-    var s = Math.min(treeW ? 2 : 1, availW / 960, availH / 540);
+       The 2D plate drawing keeps the old 960 cap: its dimension text is set in
+       fixed pixels, so a bigger canvas would leave the numbers small against a
+       larger drawing rather than simply showing more. */
+    var s = Math.min(treeW ? PV_MAX_3D / 960 : 1, availW / 960, availH / 540);
     if (!(s > 0.3)) s = 0.3;                     // also catches NaN on odd hosts
     return { W: Math.round(960 * s), H: Math.round(540 * s) };
   }
