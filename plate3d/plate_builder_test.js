@@ -3372,7 +3372,15 @@
     // the member tree with its gap (206) when the 3D box has one
     var availW = Math.floor(window.innerWidth * 0.97) - (36 + (withTree ? 206 : 0));
     var availH = Math.floor(window.innerHeight * 0.96) - 100;
-    var s = Math.min(1, availW / 960, availH / 540);
+    /* The 3D module preview grows into whatever room the window has, up to twice
+       its old size. It used to be capped at 1 - so on a wide screen it sat at
+       960x540 with half the page empty around it, which is the one place you go
+       to look closely at a joint.
+
+       The 2D plate drawing keeps the old cap: its dimension text is set in fixed
+       pixels, so a bigger canvas would leave the numbers small against a larger
+       drawing rather than simply showing more. */
+    var s = Math.min(withTree ? 2 : 1, availW / 960, availH / 540);
     if (!(s > 0.3)) s = 0.3;                     // also catches NaN on odd hosts
     return { W: Math.round(960 * s), H: Math.round(540 * s) };
   }
