@@ -2928,8 +2928,9 @@
 
 
   /* ---------------- measure tool ---------------- */
-  // Snap targets: every vertex of a plate's cut outline on both faces, plus the
-  // centre of every hole (both faces and mid-thickness).
+  // Snap targets: every vertex of a plate's cut outline on both faces, the
+  // centre of every hole (both faces and mid-thickness), and the nine named
+  // points the sheet is written with.
   function snapPointsOf(rings, thk, matrix, spec) {
     var out = [], half = flatMode ? 0 : thk / 2;
     function push(x, y, z) { out.push(new THREE.Vector3(x, y, z).applyMatrix4(matrix)); }
@@ -2953,6 +2954,23 @@
         if (half) { push(c[0], c[1], 0); push(c[0], c[1], -half); }
       });
     });
+    /* The nine points the sheet places parts by - bl bc br / ml mc mr / tl tc
+       tr - so a placement can be checked against the model using the same names
+       it was written with. The corners usually land on outline vertices that
+       were already here; what was missing was the four edge midpoints and mc,
+       which left the middle of a plate as the one obvious place you could not
+       measure from. mc also goes in at mid-thickness: the centre of the solid,
+       not of a face. */
+    var p9 = namedPoints(spec, false);
+    if (p9) {
+      POINT_KEYS.forEach(function (k) {
+        var q = p9[k];
+        if (!q) return;
+        push(q[0], q[1], half);
+        if (half) push(q[0], q[1], -half);
+      });
+      if (half && p9.mc) push(p9.mc[0], p9.mc[1], 0);
+    }
     return out;
   }
 
@@ -5667,7 +5685,8 @@
     ' thickness went</td></tr>',
     '<tr><td><b>id</b></td><td>name every placed member</td></tr>',
     '<tr><td><b>measure</b></td><td>click two points for &#916;X, &#916;Y, &#916;Z and the distance.',
-    ' Snaps to the origin, the nine points, hole centres and every corner of a cut outline.',
+    ' Snaps to the origin, every corner of a cut outline, hole centres, and the nine points',
+    ' each part was placed by &mdash; <b>mc</b>, the centre, on both faces and at mid-thickness.',
     ' A bar snaps at its two end centres only</td></tr>',
     '</tbody></table>',
     '<p>Click a <b>HOLE</b>, <b>PLATE</b> or <b>SECTION</b> id for its 2D drawing - grid, named points,',
