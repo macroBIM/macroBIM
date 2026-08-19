@@ -128,7 +128,7 @@ push('# MODULE', 'id', 'member', 'Ref.Pt', 'LX1', 'LY1', 'LZ1', 'LX2', 'LY2', 'L
      'OFF_B', 'OFF_E', 'Alpha');
 push('MODULE', 'md.bay', 'sc.brc_1', '', 0, -150, 0, SPAN, -150, COL_H, 170, 170);
 push('MODULE', 'md.bay', 'sc.brc_2', '', SPAN, 150, 0, 0, 150, COL_H, 170, 170);
-push('MODULE', 'md.bay', 'sc.str_1', '', 0, 0, 1500, SPAN, 0, 1500, 110, 110, 90);
+push('MODULE', 'md.bay', 'sc.str', '', 0, 0, 1500, SPAN, 0, 1500, 110, 110, 90);
 push('MODULE', 'md.bay', 'BASE', 'sc.brc_1', 'bc');
 blank();
 

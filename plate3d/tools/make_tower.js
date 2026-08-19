@@ -294,7 +294,7 @@ const CHEEL = CD - 110;
 A('md.cjib', 'sc.cch_1', [0, CY, CHEEL], [CBAY, CY, CHEEL], 0, 0, 90);
 A('md.cjib', 'sc.cch_2', [0, -CY, CHEEL], [CBAY, -CY, CHEEL], 0, 0, 0);
 A('md.cjib', 'bar.cbc', [0, 0, 0], [CBAY, 0, 0]);
-A('md.cjib', 'bar.ch_1', [CBAY, -CY, CD + 50], [CBAY, CY, CD + 50]);
+A('md.cjib', 'bar.ch', [CBAY, -CY, CD + 50], [CBAY, CY, CD + 50]);
 A('md.cjib', 'bar.cw_1', [0, CY, CHEEL], [CBAY, 0, 0], 90, 280);
 A('md.cjib', 'bar.cw_2', [0, -CY, CHEEL], [CBAY, 0, 0], 90, 280);
 A('md.cjib', 'bar.cw_3', [CBAY, CY, CHEEL], [CBAY, 0, 0], 60, 110);
@@ -359,7 +359,7 @@ M('md.hook', 'pl.hbk_1', 'bl', -600, -230, 20, 'XZ');
 M('md.hook', 'pl.hbk_2', 'bl', -600, 230, 20, 'XZ');
 [-150, 0, 150].forEach((y, i) =>
   M('md.hook', 'pl.shv_' + (i + 1), 'mc', 0, y, 520, 'XZ'));
-A('md.hook', 'bar.axle_1', [0, -205, 520], [0, 205, 520]);
+A('md.hook', 'bar.axle', [0, -205, 520], [0, 205, 520]);
 M('md.hook', 'pl.hk', 'bl', -450, 0, -1910, 'XZ');
 [[-380, -75], [380, -75], [-380, 75], [380, 75]].forEach((o, i) =>
   A('md.hook', 'bar.rope_' + (i + 1), [o[0], o[1], 520], [o[0], o[1], DROP], 300, 60));
