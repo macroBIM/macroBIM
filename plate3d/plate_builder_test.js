@@ -172,7 +172,10 @@
     '#pb-bar input[type=checkbox] { accent-color:var(--dim); cursor:pointer; margin:0; }',
 
     /* ---- body: list panel + 16:9 graphics pane ---- */
-    '#pb-body { display:flex; flex:1 1 auto; min-height:0; gap:12px; padding:12px; }',
+    // centred, not stretched: the list panel is given the view's height in
+    // fitRenderer, and both boxes then sit on the same middle line
+    '#pb-body { display:flex; flex:1 1 auto; min-height:0; gap:12px; padding:12px;',
+    '  align-items:center; }',
     '#pb-side { width:380px; min-width:380px; overflow-y:auto; background:#fff;',
     '  border:1px solid var(--line); border-radius:10px; padding:12px 14px; }',
     '#pb-side::-webkit-scrollbar { width:6px; }',
@@ -292,8 +295,14 @@
     '  cursor:pointer; float:right; }',
     '#pb-fatal:after { content:""; display:block; clear:both; }',
 
-    /* ---- File menu: one button, everything that reads or writes a file ---- */
+    /* ---- the two menu buttons: File and View, one size so they read as a pair
+       and the bar starts with a block rather than a row of loose buttons ---- */
     '.fmenu { position:relative; display:inline-block; }',
+    '#pb-bar .fmenu > button { min-width:92px; padding:9px 13px; font-size:11.5px; }',
+    // the view being looked through, marked in the list the way the row of
+    // buttons used to mark it
+    '#pb-bar .fmenu .drop button.vw.active { color:var(--dim); font-weight:700;',
+    '  background:#eff6ff; }',
     '.fmenu .car { font-size:9px; margin-left:3px; opacity:.85; }',
     '.fmenu .drop { display:none; position:absolute; left:0; top:calc(100% + 5px);',
     '  z-index:60; background:#fff; border:1px solid var(--line); border-radius:8px;',
@@ -5029,15 +5038,23 @@
   /* The File menu closes on the next click anywhere - including the item you
      just picked, so a save does not leave the menu hanging open over the model.
      Bound once, on the document, rather than per open. */
-  function toggleFileMenu(ev) {
+  function toggleMenu(id, ev) {
     if (ev && ev.stopPropagation) ev.stopPropagation();
-    var el = document.getElementById('pb-fmenu');
-    if (el) el.classList.toggle('open');
+    var el = document.getElementById(id);
+    if (!el) return;
+    var was = el.classList.contains('open');
+    closeMenus();                       // only one of them open at a time
+    if (!was) el.classList.add('open');
   }
-  function closeFileMenu() {
-    var el = document.getElementById('pb-fmenu');
-    if (el) el.classList.remove('open');
+  function closeMenus() {
+    ['pb-fmenu', 'pb-vmenu'].forEach(function (id) {
+      var el = document.getElementById(id);
+      if (el) el.classList.remove('open');
+    });
   }
+  function toggleFileMenu(ev) { toggleMenu('pb-fmenu', ev); }
+  function toggleViewMenu(ev) { toggleMenu('pb-vmenu', ev); }
+  function closeFileMenu() { closeMenus(); }
 
   var dxfScale = 20;                 // remembered between exports in this session
   function saveDXF() {
@@ -5876,6 +5893,7 @@
     for (var i = 0; i < btns.length; i++) {      // mark the one being looked through
       btns[i].className = 'vw' + (VIEWS[i] === v ? ' active' : '');
     }
+    closeMenus();
     // each view gets its own distance - the same model is not the same size
     // seen down its length as it is across it
     var off = viewOffset(v);
@@ -6725,11 +6743,16 @@
       '    </span>' +
       '  </span>' +
       '  <input type="file" id="pb-file" accept=".xlsx,.xls" style="display:none">' +
-      '  <span class="sep"></span>' +
-      '  <button class="vw active" onclick="plateBuilder.setView(\'iso\')">ISO</button>' +
-      '  <button class="vw" onclick="plateBuilder.setView(\'front\')">Front</button>' +
-      '  <button class="vw" onclick="plateBuilder.setView(\'side\')">Side</button>' +
-      '  <button class="vw" onclick="plateBuilder.setView(\'top\')">Top</button>' +
+      '  <span class="fmenu" id="pb-vmenu">' +
+      '    <button onclick="plateBuilder.toggleViewMenu(event)">' +
+      '      View <span class="car">&#9662;</span></button>' +
+      '    <span class="drop">' +
+      '      <button class="vw active" onclick="plateBuilder.setView(\'iso\')">ISO</button>' +
+      '      <button class="vw" onclick="plateBuilder.setView(\'front\')">Front</button>' +
+      '      <button class="vw" onclick="plateBuilder.setView(\'side\')">Side</button>' +
+      '      <button class="vw" onclick="plateBuilder.setView(\'top\')">Top</button>' +
+      '    </span>' +
+      '  </span>' +
       '  <span class="sep"></span>' +
       '  <label class="chk"><input type="checkbox" id="pb-ortho"' +
       '    onchange="plateBuilder.setOrtho(this.checked)"> ortho</label>' +
@@ -6863,10 +6886,9 @@
     }
     window.addEventListener('mousedown', function (e) {
       if (palPending && !document.getElementById('pb-pal').contains(e.target)) closePalette();
-      // the File menu shuts on the next click anywhere, its own items included
-      var fm = document.getElementById('pb-fmenu');
-      if (fm && fm.classList.contains('open') &&
-          !e.target.closest('#pb-fmenu > button')) setTimeout(closeFileMenu, 0);
+      // a menu shuts on the next click anywhere, its own items included
+      if (!e.target.closest('#pb-fmenu > button, #pb-vmenu > button'))
+        setTimeout(closeMenus, 0);
     });
     // The example window covers the viewport, so its own backdrop click closes
     // it; Escape is the other way out people reach for.
@@ -7126,6 +7148,12 @@
       mainAspect = cw / ch;
       applyMainCam();
       renderer.setSize(cw, ch);
+      /* The list panel matches the view. It is a flex item, so by default it
+         stretched to the full body height while the 16:9 view sat centred and
+         shorter - two boxes of different heights side by side, and the panel
+         scrolling because it thought it had more room than it was showing. */
+      var sd = document.getElementById('pb-side');
+      if (sd) sd.style.height = ch + 'px';
     }
     fitRenderer();
     if (onResize) window.removeEventListener('resize', onResize);
@@ -7462,7 +7490,8 @@
     openGuide: openGuide, closeGuide: closeGuide,
     openSamples: openSamples, closeSamples: closeSamples, getSample: getSample,
     toggleMemberAxis: toggleMemberAxis,
-    toggleFileMenu: toggleFileMenu, closeFileMenu: closeFileMenu,
+    toggleFileMenu: toggleFileMenu, toggleViewMenu: toggleViewMenu,
+    closeFileMenu: closeMenus,
     exportDXF: saveDXF, closeScaleAsk: closeScaleAsk, confirmScale: confirmScale,
     // the annotation style, at scale 1 and at any scale - see DIMSTYLE.md
     dimStyleBase: DIMSTYLE, dimStyle: dimStyle, buildDXF: buildDXF
