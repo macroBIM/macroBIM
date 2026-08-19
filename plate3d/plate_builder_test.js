@@ -287,17 +287,35 @@
     '#pb-modal .meta { color:#64748b; font-size:11px; margin-top:9px; }',
     '#pb-modal .pvbody { display:flex; gap:10px; align-items:flex-start; }',
     '#pb-pv3d { border:1px solid var(--line); border-radius:8px; }',
-    '#pb-pv-tree { display:none; width:196px; max-height:542px; overflow-y:auto;',
-    '  background:#fff; border:1px solid var(--line); border-radius:8px; padding:6px 8px; }',
-    '#pb-pv-tree table { width:100%; border-collapse:collapse; }',
-    '#pb-pv-tree td { padding:4px 2px; vertical-align:middle; color:#334155;',
+    /* The member panel is a table, and the table does not wrap - see PV_COLS.
+       Its width is set from the table's own width when the preview opens, so
+       these rules only have to lay it out: a caption that stays put, and one
+       scrolling area under it holding the rows. */
+    '#pb-pv-tree { display:none; flex-direction:column; overflow:hidden;',
+    '  max-height:542px; background:#fff; border:1px solid var(--line);',
+    '  border-radius:8px; }',
+    '#pb-pv-tree .pvcap { flex:0 0 auto; color:#0f172a; font-size:10px; font-weight:700;',
+    '  letter-spacing:.06em; text-transform:uppercase; padding:7px 9px 6px;',
+    '  border-bottom:1px solid var(--hair); white-space:nowrap; overflow:hidden;',
+    '  text-overflow:ellipsis; }',
+    '#pb-pv-tree .pvcap span { color:var(--dim); font-weight:500; }',
+    '#pb-pv-tree .pvscroll { flex:1 1 auto; min-height:0; overflow:auto; }',
+    '#pb-pv-tree table { border-collapse:collapse; }',
+    '#pb-pv-tree td, #pb-pv-tree th { padding:4px 9px 4px 0; white-space:nowrap;',
+    '  vertical-align:middle; color:#334155; font-size:11px;',
     '  border-bottom:1px solid #f1f5f9; }',
-    '#pb-pv-tree tr.thead td { color:#0f172a; font-size:10px; font-weight:700;',
-    '  letter-spacing:.06em; text-transform:uppercase; padding-bottom:6px;',
+    '#pb-pv-tree td:first-child, #pb-pv-tree th:first-child { padding-left:9px; }',
+    /* sticky, so the column names survive scrolling a 60-member module */
+    '#pb-pv-tree th { position:sticky; top:0; z-index:1; background:#fff;',
+    '  color:#64748b; font-size:9px; font-weight:700; letter-spacing:.06em;',
+    '  text-transform:uppercase; text-align:left;',
     '  border-bottom:1px solid var(--hair); }',
+    '#pb-pv-tree th.num { text-align:right; }',
     '#pb-pv-tree tr.off td { opacity:.45; }',
     '#pb-pv-tree .nm { font-size:11px; color:#0f172a; font-weight:600; }',
-    '#pb-pv-tree .dims { color:#94a3b8; font-size:10px; }',
+    '#pb-pv-tree .num { text-align:right; font-variant-numeric:tabular-nums; }',
+    '#pb-pv-tree .note { color:#b45309; font-size:9.5px; font-weight:700;',
+    '  letter-spacing:.05em; }',
     '#pb-pv-tree input[type=range] { width:38px; height:11px; vertical-align:middle;',
     '  accent-color:var(--dim); cursor:pointer; }',
     '#pb-pv-tree input[type=checkbox] { margin:0 3px 0 0; vertical-align:middle;',
@@ -686,21 +704,44 @@
     for (var i = 0; i < k.length; i++) if (map[k[i]] === role) return k[i];
     return role;
   }
-  function memberDesc(row) {                    // one module member, for the preview panel
+  /* One module member, broken into the cells of the preview panel's table.
+     It used to be one run-on line - "A\u2192B \u00b7 (-2400, -2400, -400) \u2192 (2400, -2400,
+     -400) \u00b7 L4800 \u00b7 off 140/140" - which in a 196px panel wrapped to four lines
+     per member and stopped being readable at all. A fact per column reads, and
+     coordinates in a column line up down the list.
+     A key is left out when the member has nothing to say there, and the panel
+     drops any column no member fills: a module of plates carries no empty
+     TO / LENGTH columns for the sake of a module of bars. */
+  var PV_COLS = [
+    { k: 'plane', h: 'plane' },
+    { k: 'ref',   h: 'ref.pt' },
+    { k: 'at',    h: 'at' },
+    { k: 'to',    h: 'to' },
+    { k: 'len',   h: 'length', num: true },
+    { k: 'rot',   h: 'rot',    num: true },
+    { k: 'off',   h: 'offset', num: true },
+    { k: 'ends',  h: 'end off', num: true },
+    { k: 'note',  h: '' }
+  ];
+  function pvCells(row, part) {
+    var c = {};
     if (row.__ax) {                             // start/end placement
-      var t2 = 'A\u2192B \u00b7 (' + row.X1 + ', ' + row.Y1 + ', ' + row.Z1 + ') \u2192 (' +
-               row.X2 + ', ' + row.Y2 + ', ' + row.Z2 + ') \u00b7 L' + rnd(row.LEN);
-      if (row.OFB || row.OFE) t2 += ' \u00b7 off ' + row.OFB + '/' + row.OFE;
-      if (row.ALPHA) t2 += ' \u00b7 \u03b1 ' + row.ALPHA;
-      return t2;
+      c.plane = 'A\u2192B';
+      c.at = '(' + row.X1 + ', ' + row.Y1 + ', ' + row.Z1 + ')';
+      c.to = '(' + row.X2 + ', ' + row.Y2 + ', ' + row.Z2 + ')';
+      c.len = String(rnd(row.LEN));
+      if (row.OFB || row.OFE) c.ends = row.OFB + ' / ' + row.OFE;
+      if (row.ALPHA) c.rot = '\u03b1 ' + row.ALPHA;
+    } else {
+      c.plane = row.PL_IN || planeLabel(row.PLANE);
+      c.ref = row.__bar ? 'start' : row.REFPT + faceMark(row.FACE);
+      if (row.__xyz) c.at = '(' + row.LX + ', ' + row.LY + ', ' + row.LZ + ')';
+      else c.off = String(row.OFFSET);
+      var rot = row.__xyz ? [row.RX, row.RY, row.RZ] : [0, 0, row.ROT];
+      if (rot[0] || rot[1] || rot[2]) c.rot = rot.join(' / ');
     }
-    var t = (row.PL_IN || planeLabel(row.PLANE)) + ' \u00b7 ' +
-            (row.__bar ? 'start' : row.REFPT + faceMark(row.FACE)) + ' \u00b7 ';
-    t += row.__xyz ? '(' + row.LX + ', ' + row.LY + ', ' + row.LZ + ')'
-                   : 'off ' + row.OFFSET;
-    var rot = row.__xyz ? [row.RX, row.RY, row.RZ] : [0, 0, row.ROT];
-    if (rot[0] || rot[1] || rot[2]) t += ' \u00b7 rot ' + rot.join('/');
-    return t;
+    if (part && part.base && part.base.inst === row.NO) c.note = 'BASE';
+    return c;
   }
   function rnd(x) { return Math.round(x * 100) / 100; }
 
@@ -2601,7 +2642,7 @@
       });
     });
 
-    var vs = pvViewSize(false);
+    var vs = pvViewSize(0);
     cv.width = vs.W; cv.height = vs.H;
     var W = vs.W, H = vs.H, PAD = Math.round(54 * vs.H / 540);
     var fit = Math.min((W - PAD * 2) / Math.max(maxx - minx, 1e-6),
@@ -2654,7 +2695,7 @@
     if (!pv) return;
     var cv = document.getElementById('pb-pv-canvas');
     if (!cv) return;
-    var vs = pvViewSize(false);
+    var vs = pvViewSize(0);
     if (vs.W === pv.W && vs.H === pv.H) return;
     var cxm = pv.minx + (pv.W / 2 - pv.ox) / pv.sc;
     var cym = pv.miny + (pv.H / 2 - pv.oy) / pv.sc;
@@ -2895,48 +2936,60 @@
 
   // The module's member plates, listed beside its preview: hide/show, local
   // axes and per-plate opacity for the module currently open.
+  // Returns the width the table wants. The caller decides how much of that the
+  // panel actually gets - see pvTreeWidth - so this never touches host.style.width.
   function buildPvTree(id, force) {
     var host = document.getElementById('pb-pv-tree');
-    if (!host) return;
+    if (!host) return 0;
     var part = lastParts[id];
-    if (!part) { host.style.display = 'none'; host.innerHTML = ''; pvTreeId = null; return; }
-    host.style.display = 'block';
+    if (!part) { host.style.display = 'none'; host.innerHTML = ''; pvTreeId = null; return 0; }
+    host.style.display = 'flex';
     // the preview rebuilds on every slider step - leave the panel's DOM alone
     // then, or the control being dragged is destroyed under the pointer
-    if (!force && pvTreeId === id) return;
-    pvTreeId = id;
-    var t = document.createElement('table');
-    var hr = document.createElement('tr');
-    hr.className = 'thead';
-    hr.innerHTML = '<td colspan="2">MEMBERS IN ' + esc(id) + '</td>';
-    t.appendChild(hr);
-    part.pos.forEach(function (row) {
-      var key = id + '/' + row.NO;
-      var on = !memberHidden[key];
-      var tr = document.createElement('tr');
-      tr.setAttribute('data-key', key);
-      if (!on) tr.className = 'off';
-      tr.innerHTML =
-        '<td style="width:74px;white-space:nowrap">' +
-        '<input type="checkbox" title="show / hide this plate"' + (on ? ' checked' : '') +
-        ' onchange="plateBuilder.togglePvMember(\'' + id + '\',\'' + row.NO + '\',this.checked)">' +
-        '<span class="sw" title="colour of this plate" style="background:' +
-        int2hex(resolveColor({ plateId: row.PLATE }, (lastColors && lastColors[row.PLATE]) || 0x999999)) +
-        '" onclick="plateBuilder.openPalette(event,\'plate\',\'' + row.PLATE + '\',this)"></span>' +
-        '<input type="range" min="10" max="100" step="5" value="' +
-        Math.round((ovOpac.member[key] !== undefined ? ovOpac.member[key] : 1) * 100) +
-        '" title="opacity of this plate" ' +
-        'oninput="plateBuilder.setOpacity(\'member\',\'' + key + '\',this.value)"></td>' +
-        '<td><label class="nm" title="show local axes at its Ref.Pt">' +
-        '<input type="checkbox"' + (memberAxes[key] ? ' checked' : '') +
-        ' onchange="plateBuilder.toggleMemberAxis(\'' + id + '\',\'' + row.NO + '\',this.checked)"> ' +
-        esc(row.NO) + '</label>' +
-        '<div class="dims">' + esc(memberDesc(row)) +
-        (part.base && part.base.inst === row.NO ? ' · BASE' : '') + '</div></td>';
-      t.appendChild(tr);
-    });
-    host.innerHTML = '';
-    host.appendChild(t);
+    if (force || pvTreeId !== id) {
+      pvTreeId = id;
+      var cells = part.pos.map(function (row) { return pvCells(row, part); });
+      var cols = PV_COLS.filter(function (c) {
+        return cells.some(function (x) { return x[c.k]; });
+      });
+      var html = '<tr><th></th><th>member</th>';
+      cols.forEach(function (c) {
+        html += '<th' + (c.num ? ' class="num"' : '') + '>' + esc(c.h) + '</th>';
+      });
+      html += '</tr>';
+      part.pos.forEach(function (row, i) {
+        var key = id + '/' + row.NO;
+        var on = !memberHidden[key];
+        html += '<tr data-key="' + esc(key) + '"' + (on ? '' : ' class="off"') + '>' +
+          '<td>' +
+          '<input type="checkbox" title="show / hide this plate"' + (on ? ' checked' : '') +
+          ' onchange="plateBuilder.togglePvMember(\'' + id + '\',\'' + row.NO + '\',this.checked)">' +
+          '<span class="sw" title="colour of this plate" style="background:' +
+          int2hex(resolveColor({ plateId: row.PLATE }, (lastColors && lastColors[row.PLATE]) || 0x999999)) +
+          '" onclick="plateBuilder.openPalette(event,\'plate\',\'' + row.PLATE + '\',this)"></span>' +
+          '<input type="range" min="10" max="100" step="5" value="' +
+          Math.round((ovOpac.member[key] !== undefined ? ovOpac.member[key] : 1) * 100) +
+          '" title="opacity of this plate" ' +
+          'oninput="plateBuilder.setOpacity(\'member\',\'' + key + '\',this.value)"></td>' +
+          '<td><label class="nm" title="show local axes at its Ref.Pt">' +
+          '<input type="checkbox"' + (memberAxes[key] ? ' checked' : '') +
+          ' onchange="plateBuilder.toggleMemberAxis(\'' + id + '\',\'' + row.NO + '\',this.checked)"> ' +
+          esc(row.NO) + '</label></td>';
+        cols.forEach(function (c) {
+          html += '<td class="' + (c.num ? 'num' : '') + (c.k === 'note' ? ' note' : '') +
+                  '">' + esc(cells[i][c.k] || '') + '</td>';
+        });
+        html += '</tr>';
+      });
+      host.innerHTML =
+        '<div class="pvcap">members in ' + esc(id) +
+        ' <span>(' + part.pos.length + ')</span></div>' +
+        '<div class="pvscroll"><table>' + html + '</table></div>';
+    }
+    // the table is content-sized, so it reports its full width even while the
+    // panel around it is narrower and scrolling
+    var tbl = host.querySelector('table');
+    return tbl ? tbl.offsetWidth + 2 : 0;      // + the panel's two borders
   }
 
   // Where the module's BASE point ends up in preview coordinates. Recomputed
@@ -3366,11 +3419,26 @@
   // the modal does not need a scrollbar on a short screen. Chrome around the
   // view: box padding+border, the title row, the two meta lines, and the member
   // tree when the 3D box has one.
-  function pvViewSize(withTree) {
+  var PV_GAP = 10;                 // .pvbody's gap, between the panel and the view
+  var PV_MIN_3D = 720;             // the view never shrinks below this for the panel
+  var PV_MIN_TREE = 190;           // ... and the panel is never narrower than this
+  function pvRoom() {              // width inside the box, which is capped at 97vw
+    return Math.floor(window.innerWidth * 0.97) - 36;
+  }
+  /* The member table sets the panel's width, since nothing in it wraps. What it
+     may not do is eat the 3D view - that is what the window is for - so it stops
+     growing once the view would fall below PV_MIN_3D and scrolls sideways
+     instead. */
+  function pvTreeWidth(natural) {
+    return Math.max(PV_MIN_TREE,
+                    Math.min(natural, pvRoom() - PV_MIN_3D - PV_GAP));
+  }
+  // treeW: the member panel's width in px, 0 when the view has no panel
+  function pvViewSize(treeW) {
     // the box itself is capped at 97vw / 96vh, so measure against that, less the
-    // chrome: padding + borders (34), title row + the two meta lines (~66), and
-    // the member tree with its gap (206) when the 3D box has one
-    var availW = Math.floor(window.innerWidth * 0.97) - (36 + (withTree ? 206 : 0));
+    // chrome: padding + borders (36), title row + the two meta lines (~100), and
+    // the member panel with its gap when the 3D box has one
+    var availW = pvRoom() - (treeW ? treeW + PV_GAP : 0);
     var availH = Math.floor(window.innerHeight * 0.96) - 100;
     /* The 3D module preview grows into whatever room the window has, up to twice
        its old size. It used to be capped at 1 - so on a wide screen it sat at
@@ -3380,7 +3448,7 @@
        The 2D plate drawing keeps the old cap: its dimension text is set in fixed
        pixels, so a bigger canvas would leave the numbers small against a larger
        drawing rather than simply showing more. */
-    var s = Math.min(withTree ? 2 : 1, availW / 960, availH / 540);
+    var s = Math.min(treeW ? 2 : 1, availW / 960, availH / 540);
     if (!(s > 0.3)) s = 0.3;                     // also catches NaN on odd hosts
     return { W: Math.round(960 * s), H: Math.round(540 * s) };
   }
@@ -3701,11 +3769,16 @@
     pvTitle.textContent = id + '  (module)';     // set first, so the box is never blank
     pvMeta.textContent = '';
 
-    var vs = pvViewSize(true);
+    // the panel has to exist before the view is sized: how wide its table wants
+    // to be is what decides how much width is left for the 16:9 box
+    var tree = document.getElementById('pb-pv-tree');
+    // not forced: an opacity slider reopens the preview on every step, and a
+    // rebuild would destroy the control under the pointer
+    var treeW = pvTreeWidth(buildPvTree(id));
+    var vs = pvViewSize(treeW);
     var W = vs.W, H = vs.H;                      // 16:9, clipped to the window
     host.style.width = W + 'px'; host.style.height = H + 'px';
-    var tree = document.getElementById('pb-pv-tree');
-    if (tree) tree.style.maxHeight = (H + 2) + 'px';
+    if (tree) { tree.style.width = treeW + 'px'; tree.style.maxHeight = (H + 2) + 'px'; }
     var sc = new THREE.Scene();
     pvScene = sc;
     sc.background = new THREE.Color(0x15181c);
@@ -3872,7 +3945,6 @@
     if (measPv) measPv.dispose();
     measPv = createMeasure({ scene: sc, camera: cam, dom: rn.domElement,
                              out: 'pb-pv-pos', size: function () { return size; } });
-    buildPvTree(id);
     if (basePt) pvSnaps.push(basePt.clone());    // the datum snaps too
     pvSnaps.push(new THREE.Vector3(0, 0, 0));    // and so does the local origin
     measPv.setSnaps(pvSnaps);
