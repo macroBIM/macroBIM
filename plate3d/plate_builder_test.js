@@ -4625,6 +4625,28 @@
     return order.map(function (k) { return by[k]; });
   }
 
+  /* Is this ring a circle? A hole is polygonised into 48 segments long before
+     it reaches here, so "circle" has to be decided from the geometry: every
+     vertex the same distance from the centroid, within a fraction of a percent.
+     Returns the centre and radius, or null for anything else. */
+  function ringCircle(pts) {
+    if (!pts || pts.length < 12) return null;
+    var n = pts.length, cx = 0, cy = 0, i;
+    for (i = 0; i < n; i++) { cx += pts[i][0]; cy += pts[i][1]; }
+    cx /= n; cy /= n;
+    var lo = Infinity, hi = 0;
+    for (i = 0; i < n; i++) {
+      var d = Math.hypot(pts[i][0] - cx, pts[i][1] - cy);
+      if (d < lo) lo = d;
+      if (d > hi) hi = d;
+    }
+    if (!(hi > 0) || (hi - lo) / hi > 0.02) return null;
+    return { c: [cx, cy], r: (lo + hi) / 2 };
+  }
+  // Arial has no fixed advance, so this is an estimate - deliberately generous,
+  // because a rule that comes up short of its own text is the visible failure.
+  function dxfTextWidth(s, h) { return String(s).length * h * 0.62; }
+
   function buildDXF(list, scale) {
     var D = dimStyle(scale);
     var R = [];
@@ -4650,15 +4672,50 @@
                                       '11', dxfNum(at[0]), '21', dxfNum(at[1])]);
       (buf || ents).push(entHead('TEXT', layer).concat(body));
     }
-    /* The arrowhead: a filled dot, which in DXF is a SOLID. Its four corners go
-       in the order 1-2-4-3, not round the quad - the third and fourth points
-       name the far edge. Getting that wrong draws a bowtie. */
+    function circle(layer, c, r, buf) {
+      (buf || ents).push(entHead('CIRCLE', layer).concat(
+        ['10', dxfNum(c[0]), '20', dxfNum(c[1]), '40', dxfNum(r)]));
+    }
+    /* The arrowhead: a round filled dot. R12 has no filled circle, so it is a
+       fan of SOLID triangles with a CIRCLE laid over the top to keep the rim
+       clean at any zoom. A SOLID's corners go 1-2-4-3, not round the shape -
+       repeating the third point is what makes it a triangle rather than a
+       bowtie. Twelve segments is smooth at 1.1mm and costs 12 entities. */
     function dot(layer, c, r, buf) {
-      (buf || ents).push(entHead('SOLID', layer).concat(
-        ['10', dxfNum(c[0] - r), '20', dxfNum(c[1] - r),
-         '11', dxfNum(c[0] + r), '21', dxfNum(c[1] - r),
-         '12', dxfNum(c[0] - r), '22', dxfNum(c[1] + r),
-         '13', dxfNum(c[0] + r), '23', dxfNum(c[1] + r)]));
+      var n = 12, prev = null, i, a, p;
+      for (i = 0; i <= n; i++) {
+        a = i * 2 * Math.PI / n;
+        p = [c[0] + r * Math.cos(a), c[1] + r * Math.sin(a)];
+        if (prev) (buf || ents).push(entHead('SOLID', layer).concat(
+          ['10', dxfNum(c[0]), '20', dxfNum(c[1]),
+           '11', dxfNum(prev[0]), '21', dxfNum(prev[1]),
+           '12', dxfNum(p[0]), '22', dxfNum(p[1]),
+           '13', dxfNum(p[0]), '23', dxfNum(p[1])]));
+        prev = p;
+      }
+      circle(layer, c, r, buf);
+    }
+    /* A diameter, called out on a leader rather than measured across. A circle
+       has no meaningful width and height, and two linear dimensions on one say
+       nothing a single D does not.
+       The leader leaves the rim at 45 degrees, runs out, then turns horizontal
+       for a shoulder the text sits on - the shoulder is as long as the text
+       needs, so the text never overhangs it. */
+    function leaderDia(c, r, dia, dirX, dirY, step) {
+      var TH = D.text.dim, TG = D.textGap, k = Math.SQRT1_2;
+      var sx = dirX < 0 ? -1 : 1, sy = dirY < 0 ? -1 : 1;
+      var p0 = [c[0] + r * k * sx, c[1] + r * k * sy];
+      // each further call runs out a step longer, so two callouts on one part
+      // land on their own shoulders instead of crossing
+      var run = (D.origin + D.base) * (1 + (step || 0) * 0.9);
+      var p1 = [p0[0] + run * k * sx, p0[1] + run * k * sy];
+      var s = 'D' + rnd(dia * 2);
+      var sh = Math.max(D.base, dxfTextWidth(s, TH));
+      var p2 = [p1[0] + sh * sx, p1[1]];
+      line('PL3D-DIM', p0, p1);
+      line('PL3D-DIM', p1, p2);
+      dot('PL3D-DIM', p0, D.arrow / 2);
+      text('PL3D-DIM', [(p1[0] + p2[0]) / 2, p1[1] + TG], TH, s, true, 0);
     }
 
     /* A linear dimension, drawn: two extension lines, the dimension line, a dot
@@ -4784,32 +4841,72 @@
     });
     /* Shelf packing rather than a grid: a 9m section and a 100mm gusset in the
        same list would otherwise both get a 9m cell. Parts fill a row until the
-       sheet width runs out, and the row is as tall as its tallest part. */
+       sheet width runs out, and the row is as tall as its tallest part.
+       A cell is as wide as the part OR its label rule, whichever is wider - the
+       rule is at least markLen and grows with the name, so on a small part it is
+       the label that decides the spacing, not the steel. */
     var partsTop = rowY[1] - GAP * 4;
     var px = GAP, py = partsTop, shelf = 0;
     parts.forEach(function (p) {
       var w = p.box.x1 - p.box.x0, hgt = p.box.y1 - p.box.y0;
-      if (px > GAP && px + w > sheetW) {
+      var nameStr = p.it.plateId.toUpperCase() + ', ' + p.it.dims;
+      var rule = Math.max(D.markLen, dxfTextWidth(nameStr, D.text.member));
+      var cell = Math.max(w, rule);
+      if (px > GAP && px + cell > sheetW) {
         py -= shelf + GAP * 4;
         px = GAP;
         shelf = 0;
       }
       // hangs down from the shelf line, never up: a part taller than the gap
       // would otherwise grow straight through the views above it
-      var ox = px, oy = py - hgt;
-      px += w + GAP * 2.5;
+      var ox = px + (cell - w) / 2, oy = py - hgt;
+      var mid = px + cell / 2;
+      px += cell + GAP * 2.5;
       shelf = Math.max(shelf, hgt);
       p.segs.forEach(function (s) {
         line('PL3D-OUTLINE', [s[0][0] - p.box.x0 + ox, s[0][1] - p.box.y0 + oy],
              [s[1][0] - p.box.x0 + ox, s[1][1] - p.box.y0 + oy]);
       });
-      if (w > 0) dimLinear([ox, oy], [ox + w, oy], oy, false, 0);
-      if (hgt > 0) dimLinear([ox, oy], [ox, oy + hgt], ox, true, 0);
-      // the name and the count, both 2.5 on the sheet - see DIMSTYLE.md
+
+      /* A round part gets a diameter, not a width and a height. Everything else
+         gets the two linear dimensions it has always had. */
+      var outerC = p.it.rings.outers.length === 1 && ringCircle(p.it.rings.outers[0]);
+      if (outerC) {
+        leaderDia([ox + w / 2, oy + hgt / 2], outerC.r, outerC.r, 1, 1);
+      } else {
+        if (w > 0) dimLinear([ox, oy], [ox + w, oy], oy, false, 0);
+        if (hgt > 0) dimLinear([ox, oy], [ox, oy + hgt], ox, true, 0);
+      }
+
+      /* Holes get their diameter on a 45 degree leader. One leader per distinct
+         size - four identical bolt holes want one D22, not four fighting over
+         the same space - and taken from the hole furthest up and to the right,
+         so the leader leaves the steel immediately instead of drawing a
+         diagonal across the part it is annotating. */
+      var byDia = {};
+      p.it.rings.outers.forEach(function (o, i) {
+        (p.it.rings.holes[i] || []).forEach(function (hole) {
+          var hc = ringCircle(hole);
+          if (!hc) return;
+          var key = Math.round(hc.r * 100), reach = hc.c[0] + hc.c[1];
+          if (!byDia[key] || reach > byDia[key].reach)
+            byDia[key] = { hc: hc, reach: reach };
+        });
+      });
+      Object.keys(byDia).forEach(function (k, i) {
+        var hc = byDia[k].hc;
+        leaderDia([hc.c[0] - p.box.x0 + ox, hc.c[1] - p.box.y0 + oy],
+                  hc.r, hc.r, 1, 1, i);
+      });
+
+      /* The label: the name, a rule under it, then how many. The rule is
+         markLen long unless the name is longer, in which case it grows - a rule
+         that stops short of its own text is the thing you notice. */
       var lblY = oy - D.origin - D.base - D.text.dim - D.text.member * 1.4;
-      text('PL3D-TEXT', [ox + w / 2, lblY], D.text.member,
-           p.it.plateId.toUpperCase() + ', ' + p.it.dims, true, 0);
-      text('PL3D-TEXT', [ox + w / 2, lblY - D.text.member * 1.6], D.text.note,
+      text('PL3D-TEXT', [mid, lblY], D.text.member, nameStr, true, 0);
+      var ruleY = lblY - D.text.member * 0.5;
+      line('PL3D-DIM', [mid - rule / 2, ruleY], [mid + rule / 2, ruleY]);
+      text('PL3D-TEXT', [mid, ruleY - D.text.note * 1.3], D.text.note,
            p.n + 'EA', true, 0);
     });
 
