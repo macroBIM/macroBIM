@@ -250,49 +250,123 @@ async function still(dur) {
   await browser.close();
 })().catch(e => { console.error('FAILED: ' + e.message); process.exit(1); });
 
-/* The exported workbook, rendered as two pages of the film. It is read back the
-   same way the input sheets are, so the numbers on screen are the numbers the
-   app wrote - including the formulas, which is why the cached result is taken. */
+/* The exported workbook, as two pages of the film.
+
+   Read back the way Excel reads it: the column widths, row heights, fonts,
+   fills, borders, alignments and number formats stored in the file, not a set
+   chosen here. The first cut of this film drew the take-off in the film's own
+   house style, and the moment the real export was restyled the two drifted
+   apart - a picture of a spreadsheet that no longer looked like the
+   spreadsheet. Now the only liberty taken is scale: the sheet is drawn at its
+   own size and then zoomed to fill the frame, the way you would zoom it on
+   screen to read it.
+
+   The row numbers and column letters are the same chrome the input sheet gets
+   earlier in the film, so both spreadsheet beats read as the same thing. */
 async function buildBoqPages(file) {
   const FONTCSS = fs.readFileSync(SP + '/v_font.css', 'utf8');
   const wb = new ExcelJS.Workbook();
   await wb.xlsx.readFile(file);
-  const val = v => v == null ? '' : (typeof v === 'object'
-    ? (v.result !== undefined ? v.result : (v.text !== undefined ? v.text : ''))
-    : v);
-  const fmt = v => typeof v === 'number'
-    ? (Math.abs(v) >= 1000 ? v.toLocaleString('en-US', { maximumFractionDigits: 3 })
-                           : String(Math.round(v * 1000) / 1000))
-    : String(v);
-  wb.worksheets.slice(0, 2).forEach((ws, i) => {
-    let rows = [];
-    ws.eachRow({ includeEmpty: true }, r => {
-      const a = [];
-      for (let cc = 1; cc <= 9; cc++) a.push(fmt(val(r.getCell(cc).value)));
-      rows.push(a);
+
+  const argb = (c, d) => (c && c.argb ? '#' + c.argb.slice(2) : d);
+  const colPx = w => Math.round((w || 8.43) * 7 + 5);     // Excel's own conversion
+  const ptPx = v => v * 96 / 72;
+  const esc2 = v => String(v).replace(/&/g, '&amp;').replace(/</g, '&lt;');
+  function cellText(v, f) {
+    if (v == null || v === '') return '';
+    if (typeof v === 'object') {
+      if (v.result !== undefined) v = v.result;
+      else if (v.text !== undefined) return v.text;
+      else if (v.richText) return v.richText.map(t => t.text).join('');
+      else return '';
+    }
+    if (typeof v !== 'number' || !f) return String(v);
+    if (/%/.test(f)) {
+      const dp = (f.match(/\.(0+)/) || [, ''])[1].length;
+      return (v * 100).toFixed(dp) + '%';
+    }
+    const m = f.match(/\.([0#]+)/);
+    let t;
+    if (m && /0/.test(m[1])) t = v.toFixed(m[1].length);
+    else if (m) { const k = Math.pow(10, m[1].length); t = String(Math.round(v * k) / k); }
+    else t = String(Math.round(v));
+    if (/#,##0/.test(f)) {
+      const q = t.split('.');
+      q[0] = q[0].replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+      t = q.join('.');
+    }
+    return t;
+  }
+
+  const PAGES = [[0, 22], [1, 24]];           // SUMMARY, PART LIST : sheet, rows
+  const L = 'ABCDEFGHIJKLMNOP'.split('');
+  PAGES.forEach(([si, nRow], pi) => {
+    const ws = wb.worksheets[si];
+    const nCol = Math.min(ws.columnCount || 8, si === 0 ? 5 : 12);
+    const widths = [];
+    for (let i = 1; i <= nCol; i++) widths.push(colPx(ws.getColumn(i).width));
+    const GUT = 54;
+    const natural = GUT + widths.reduce((a, b) => a + b, 0);
+    const scale = Math.min(2.6, (1920 - 96) / natural);   // zoom to fill, never past 2.6x
+
+    let body = '', r = 0;
+    ws.eachRow({ includeEmpty: true }, (row, idx) => {
+      if (r++ >= nRow) return;
+      const text = [];
+      for (let ci = 1; ci <= nCol + 1; ci++)
+        text.push(cellText(row.getCell(ci).value, row.getCell(ci).numFmt));
+      let tds = '<td class="rn">' + idx + '</td>';
+      for (let ci = 1; ci <= nCol; ci++) {
+        const c = row.getCell(ci);
+        const f = c.font || {}, b = c.border || {}, al = c.alignment || {};
+        const st = ['font-weight:' + (f.bold ? 700 : 400),
+                    'font-size:' + (f.size || 11) + 'pt',
+                    'color:' + argb(f.color, '#000')];
+        if (f.italic) st.push('font-style:italic');
+        // single quotes only: a double quote here would close the style attribute
+        if (f.name) st.push("font-family:'" + f.name + "',Arial,'Liberation Sans',sans-serif");
+        if (c.fill && c.fill.fgColor) st.push('background:' + argb(c.fill.fgColor, 'transparent'));
+        const edge = (e, side) => 'border-' + side + ':' +
+          (e.style === 'medium' ? '2px' : e.style === 'thick' ? '3px' : '1px') +
+          ' solid ' + argb(e.color, '#000');
+        if (b.top) st.push(edge(b.top, 'top'));
+        if (b.bottom) st.push(edge(b.bottom, 'bottom'));
+        const raw = c.value && c.value.result !== undefined ? c.value.result : c.value;
+        st.push('text-align:' + (al.horizontal || (typeof raw === 'number' ? 'right' : 'left')));
+        st.push('vertical-align:' + (al.vertical === 'middle' ? 'middle' : 'bottom'));
+        // a long entry runs on over an empty neighbour, the way Excel shows it
+        if (text[ci - 1] && !text[ci] && (al.horizontal || 'left') === 'left')
+          st.push('overflow:visible');
+        tds += '<td style="' + st.join(';') + '">' + esc2(cellText(c.value, c.numFmt)) + '</td>';
+      }
+      body += '<tr style="height:' + (row.height ? ptPx(row.height) : ptPx(15)).toFixed(1) +
+              'px">' + tds + '</tr>';
     });
-    rows = rows.slice(0, 26);
-    let h = '<table class="bq">';
-    rows.forEach((r, k) => {
-      h += '<tr>';
-      r.forEach((v, cx) => {
-        const num = /^-?[\d,]+(\.\d+)?$/.test(v) && v !== '';
-        h += '<td class="' + (k === 0 ? 'h0 ' : '') + (num ? 'n' : '') + '">' + v + '</td>';
-      });
-      h += '</tr>';
-    });
-    fs.writeFileSync(SP + '/v_boq_' + (i + 1) + '.html',
+
+    let head = '<tr class="hd"><th class="rn"></th>';
+    for (let i = 0; i < nCol; i++) head += '<th>' + L[i] + '</th>';
+    head += '</tr>';
+
+    fs.writeFileSync(SP + '/v_boq_' + (pi + 1) + '.html',
       '<meta charset="utf-8"><style>' + FONTCSS + `
       *{margin:0;padding:0;box-sizing:border-box}
       html,body{width:1920px;height:1080px;background:#fff;overflow:hidden}
-      body{font:400 21px/1.5 Inter,sans-serif;-webkit-font-smoothing:antialiased;padding:46px 60px}
-      .tt{font-size:26px;font-weight:700;color:#0f172a;margin-bottom:20px;letter-spacing:-.02em}
-      .tt span{color:#64748b;font-weight:500}
-      .bq{width:100%;border-collapse:collapse;table-layout:fixed}
-      .bq td{border-bottom:1px solid #e2e8f0;padding:8px 12px;white-space:nowrap;
-             overflow:hidden;text-overflow:ellipsis;color:#0f172a}
-      .bq td.n{text-align:right;font-variant-numeric:tabular-nums}
-      .bq td.h0{font-weight:700;color:#1d4ed8;border-bottom:2px solid #1d4ed8}
-      </style><div class="tt">` + ws.name + ' <span>&mdash; PLATE3D take-off, written by the app</span></div>' + h + '</table>');
+      body{-webkit-font-smoothing:antialiased}
+      .tab{font:600 20px/1 Inter,sans-serif;color:#0f172a;padding:20px 0 0 48px}
+      .tab i{color:#94a3b8;font-style:normal;font-weight:500;margin-left:14px}
+      .wrap{transform:scale(${scale.toFixed(3)});transform-origin:top left;
+            margin:14px 0 0 48px;width:${natural}px}
+      table{border-collapse:collapse;table-layout:fixed;width:${natural}px;
+            font-family:Arial,"Liberation Sans",sans-serif}
+      td{padding:0 5px;overflow:hidden;white-space:nowrap;position:relative}
+      th{background:#f1f5f9;color:#94a3b8;font:600 10pt Arial,sans-serif;height:22px;
+         border:1px solid #e2e8f0}
+      td.rn,th.rn{width:${GUT}px;background:#f1f5f9;color:#94a3b8;text-align:center;
+         font:600 9pt Arial,sans-serif;border:1px solid #e2e8f0}
+      </style><div class="tab">` + esc2(ws.name) +
+      '<i>' + esc2(wb.worksheets.map(w => w.name).join('  ·  ')) + '</i></div>' +
+      '<div class="wrap"><table><colgroup><col style="width:' + GUT + 'px">' +
+      widths.map(w => '<col style="width:' + w + 'px">').join('') +
+      '</colgroup>' + head + body + '</table></div>');
   });
 }
