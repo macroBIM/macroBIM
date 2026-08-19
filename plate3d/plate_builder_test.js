@@ -293,13 +293,20 @@
     '.fmenu .car { font-size:9px; margin-left:3px; opacity:.85; }',
     '.fmenu .drop { display:none; position:absolute; left:0; top:calc(100% + 5px);',
     '  z-index:60; background:#fff; border:1px solid var(--line); border-radius:8px;',
-    '  box-shadow:0 10px 28px rgba(15,23,42,.18); padding:5px; min-width:186px; }',
+    '  box-shadow:0 10px 28px rgba(15,23,42,.18); padding:6px; min-width:200px; }',
     '.fmenu.open .drop { display:block; }',
-    '.fmenu .drop button { display:block; width:100%; text-align:left; border:none;',
-    '  background:none; box-shadow:none; padding:7px 10px; border-radius:6px;',
-    '  font-size:12px; color:#334155; }',
-    '.fmenu .drop button:hover { background:#f1f5f9; color:#0f172a; }',
-    '.fmenu .drop i { display:block; height:1px; background:var(--hair); margin:4px 6px; }',
+    // a menu you reach for on every save, so the rows are a comfortable target
+    // rather than the tightest thing the text will fit in
+    // #pb-bar button carries an id, so these have to as well or the bar's own
+    // padding and 10.5px type win and the rows stay 24px tall
+    '#pb-bar .fmenu .drop button { display:block; width:100%; text-align:left;',
+    '  border:none; background:none; box-shadow:none; padding:11px 13px;',
+    '  border-radius:6px; font-size:12.5px; font-weight:600; letter-spacing:.02em;',
+    '  line-height:1.2; text-transform:none; color:#334155; }',
+    '#pb-bar .fmenu .drop button:hover { background:#f1f5f9; color:#0f172a;',
+    '  box-shadow:none; }',
+    '#pb-bar .fmenu .drop button:active { transform:none; }',
+    '.fmenu .drop i { display:block; height:1px; background:var(--hair); margin:5px 7px; }',
 
     /* ---- the scale question, asked before a drawing is written ---- */
     '#pb-scale { display:none; position:fixed; left:0; top:0; right:0; bottom:0;',
@@ -4454,10 +4461,18 @@
     download(buildIFC(list, 'plate_builder'), 'plate_builder.ifc');
   }
 
-  /* ================= DXF export (AC1015 / R2000) =================
+  /* ================= DXF export (AC1009 / R12) =================
      A drawing of what the ASSY rows placed: six orthographic views of the whole
      assembly, then every distinct part once at its standard section with how
      many of it there are.
+
+     R12 rather than a later version, after a hand-written R2000 file was
+     rejected by AutoCAD. R2000 carries more of the dimension style, but it also
+     wants a CLASSES section, an OBJECTS section with the layout dictionary, and
+     an owner handle on every record - a whole second file to keep consistent,
+     and a file that is only nearly right does not open at all. R12 needs none of
+     it, every CAD reads it, and it still carries real DIMENSION entities and the
+     seven dimension variables this style actually sets, DIMSCALE included.
 
      Geometry is written 1:1 in millimetres, the way a CAD drawing is always
      built. The scale you give is not applied to the steel - it is written into
@@ -4603,42 +4618,31 @@
 
   function buildDXF(list, scale) {
     var D = dimStyle(scale);
-    var HND = 0x100, R = [];
-    function h() { return (HND++).toString(16).toUpperCase(); }
+    var R = [];
     function g(code, v) { R.push(String(code), String(v)); }
     function gs(arr) { for (var i = 0; i < arr.length; i += 2) g(arr[i], arr[i + 1]); }
 
-    // handles that other records point at have to exist before those records
-    var TBL = {}, TN = ['VPORT', 'LTYPE', 'LAYER', 'STYLE', 'VIEW', 'UCS',
-                        'APPID', 'DIMSTYLE', 'BLOCK_RECORD'];
-    TN.forEach(function (n) { TBL[n] = h(); });
-    var hMS = h(), hPS = h(), hStyle = h(), hDimSty = h(), hDot = h();
-    var hRootDict = h(), hGroupDict = h();
+    var blkDefs = [], ents = [], nDim = 0;
 
-    var blkRecs = [], blkDefs = [], ents = [], nDim = 0;
-
-    function entHead(type, layer, extra) {
-      var a = ['0', type, '5', h(), '330', hMS, '100', 'AcDbEntity', '8', layer];
-      return a.concat(extra || []);
-    }
+    function entHead(type, layer) { return ['0', type, '8', layer]; }
     function line(layer, a, b, buf) {
       (buf || ents).push(entHead('LINE', layer).concat(
-        ['100', 'AcDbLine', '10', dxfNum(a[0]), '20', dxfNum(a[1]), '30', '0',
+        ['10', dxfNum(a[0]), '20', dxfNum(a[1]), '30', '0',
          '11', dxfNum(b[0]), '21', dxfNum(b[1]), '31', '0']));
     }
     function text(layer, at, hgt, s, centre, buf) {
-      var body = ['100', 'AcDbText', '10', dxfNum(at[0]), '20', dxfNum(at[1]), '30', '0',
-                  '40', dxfNum(hgt), '1', dxfText(s)];
+      var body = ['10', dxfNum(at[0]), '20', dxfNum(at[1]), '30', '0',
+                  '40', dxfNum(hgt), '1', dxfText(s), '7', 'PLATE3D'];
       if (centre) body = body.concat(['72', '1', '11', dxfNum(at[0]),
                                       '21', dxfNum(at[1]), '31', '0']);
-      body = body.concat(['7', 'PLATE3D', '100', 'AcDbText', '73', '0']);
       (buf || ents).push(entHead('TEXT', layer).concat(body));
     }
-    function insert(layer, blk, at, sc, buf) {
-      (buf || ents).push(entHead('INSERT', layer).concat(
-        ['100', 'AcDbBlockReference', '2', blk,
-         '10', dxfNum(at[0]), '20', dxfNum(at[1]), '30', '0',
-         '41', dxfNum(sc), '42', dxfNum(sc), '43', dxfNum(sc)]));
+    function solid(layer, c, r, buf) {          // a filled square, centred on c
+      (buf || ents).push(entHead('SOLID', layer).concat(
+        ['10', dxfNum(c[0] - r), '20', dxfNum(c[1] - r), '30', '0',
+         '11', dxfNum(c[0] + r), '21', dxfNum(c[1] - r), '31', '0',
+         '12', dxfNum(c[0] - r), '22', dxfNum(c[1] + r), '32', '0',
+         '13', dxfNum(c[0] + r), '23', dxfNum(c[1] + r), '33', '0']));
     }
 
     /* A linear dimension: the entity that carries the measurement, and the
@@ -4646,7 +4650,7 @@
        scaled style values so a viewer that never regenerates still shows the
        dimension at the right size. */
     function dimLinear(p1, p2, off, vertical) {
-      var name = '*D' + (++nDim), hRec = h(), buf = [];
+      var name = '*D' + (++nDim), buf = [];
       var A = D.arrow, EXO = D.origin, EXE = D.extend, GAP = D.textGap, TH = D.text.dim;
       var v = vertical;
       var val = Math.abs(v ? p2[1] - p1[1] : p2[0] - p1[0]);
@@ -4666,24 +4670,23 @@
       extLine(p1, q1);
       extLine(p2, q2);
       line('PL3D-DIM', q1, q2, buf);
-      insert('PL3D-DIM', '_DOT', q1, A, buf);
-      insert('PL3D-DIM', '_DOT', q2, A, buf);
+      solid('PL3D-DIM', q1, A / 2, buf);          // the dot arrowheads, drawn here
+      solid('PL3D-DIM', q2, A / 2, buf);
       var mid = [(q1[0] + q2[0]) / 2, (q1[1] + q2[1]) / 2];
       var tp = v ? [mid[0] - GAP - TH * 0.6, mid[1]] : [mid[0], mid[1] + GAP];
       text('PL3D-DIM', tp, TH, String(Math.round(val)), true, buf);
 
-      blkRecs.push({ name: name, handle: hRec, anon: true });
-      blkDefs.push({ name: name, handle: hRec, layer: 'PL3D-DIM', ents: buf });
-      ents.push(['0', 'DIMENSION', '5', h(), '330', hMS, '100', 'AcDbEntity',
-                 '8', 'PL3D-DIM', '100', 'AcDbDimension', '2', name,
+      blkDefs.push({ name: name, layer: 'PL3D-DIM', ents: buf });
+      // group order follows what AutoCAD itself writes: block, style, the two
+      // definition points, the flags, then the measured points and the rotation.
+      // 1 = "<>" is the text override that means "print the measurement".
+      ents.push(['0', 'DIMENSION', '8', 'PL3D-DIM', '2', name, '3', 'PLATE3D',
                  '10', dxfNum(q1[0]), '20', dxfNum(q1[1]), '30', '0',
                  '11', dxfNum(tp[0]), '21', dxfNum(tp[1]), '31', '0',
-                 '70', '32', '71', '5', '3', 'PLATE3D',
-                 '100', 'AcDbAlignedDimension',
+                 '70', '32', '1', '<>',
                  '13', dxfNum(p1[0]), '23', dxfNum(p1[1]), '33', '0',
                  '14', dxfNum(p2[0]), '24', dxfNum(p2[1]), '34', '0',
-                 '50', v ? '90' : '0',
-                 '100', 'AcDbRotatedDimension']);
+                 '50', v ? '90' : '0']);
     }
 
     /* ---- the drawing ---- */
@@ -4778,82 +4781,62 @@
                 x1: sheetW + GAP, y1: rowY[0] + rowH[0] + GAP * 2 };
 
     g(0, 'SECTION'); g(2, 'HEADER');
-    g(9, '$ACADVER'); g(1, 'AC1015');
-    g(9, '$INSUNITS'); g(70, 4);                 // millimetres
-    g(9, '$MEASUREMENT'); g(70, 1);              // metric
+    g(9, '$ACADVER'); g(1, 'AC1009');
+    g(9, '$INSBASE'); g(10, '0'); g(20, '0'); g(30, '0');
+    g(9, '$EXTMIN'); g(10, dxfNum(ext.x0)); g(20, dxfNum(ext.y0)); g(30, '0');
+    g(9, '$EXTMAX'); g(10, dxfNum(ext.x1)); g(20, dxfNum(ext.y1)); g(30, '0');
+    g(9, '$LIMMIN'); g(10, dxfNum(ext.x0)); g(20, dxfNum(ext.y0));
+    g(9, '$LIMMAX'); g(10, dxfNum(ext.x1)); g(20, dxfNum(ext.y1));
+    g(9, '$MEASUREMENT'); g(70, 1);               // metric
     g(9, '$DIMSCALE'); g(40, dxfNum(scale));
     g(9, '$DIMSTYLE'); g(2, 'PLATE3D');
     g(9, '$TEXTSTYLE'); g(7, 'PLATE3D');
-    g(9, '$EXTMIN'); g(10, dxfNum(ext.x0)); g(20, dxfNum(ext.y0)); g(30, '0');
-    g(9, '$EXTMAX'); g(10, dxfNum(ext.x1)); g(20, dxfNum(ext.y1)); g(30, '0');
-    g(9, '$HANDSEED'); g(5, (HND + 4096).toString(16).toUpperCase());
+    g(9, '$LTSCALE'); g(40, dxfNum(scale));
     g(0, 'ENDSEC');
 
     g(0, 'SECTION'); g(2, 'TABLES');
     function tbl(name, n, body) {
-      g(0, 'TABLE'); g(2, name); g(5, TBL[name]); g(330, '0');
-      g(100, 'AcDbSymbolTable'); g(70, n);
+      g(0, 'TABLE'); g(2, name); g(70, n);
       body();
       g(0, 'ENDTAB');
     }
-    function rec(type, name, hnd, cls, body) {
-      g(0, type);
-      g(type === 'DIMSTYLE' ? 105 : 5, hnd);
-      g(330, TBL[type]);
-      g(100, 'AcDbSymbolTableRecord'); g(100, cls);
-      g(2, name); g(70, 0);
-      body();
-    }
     tbl('VPORT', 1, function () {
-      rec('VPORT', '*Active', h(), 'AcDbViewportTableRecord', function () {
-        gs([10, '0', 20, '0', 11, '1', 21, '1',
-            12, dxfNum((ext.x0 + ext.x1) / 2), 22, dxfNum((ext.y0 + ext.y1) / 2),
-            13, '0', 23, '0', 14, '10', 24, '10', 15, '10', 25, '10',
-            16, '0', 26, '0', 36, '1', 17, '0', 27, '0', 37, '0',
-            40, dxfNum(Math.max(1, ext.y1 - ext.y0)), 41, '1.9', 42, '50', 43, '0',
-            44, '0', 50, '0', 51, '0', 71, '0', 72, '100', 73, '1', 74, '3',
-            75, '0', 76, '0', 77, '0', 78, '0', 281, '0', 65, '1',
-            110, '0', 120, '0', 130, '0', 111, '1', 121, '0', 131, '0',
-            112, '0', 122, '1', 132, '0', 79, '0', 146, '0']);
-      });
+      g(0, 'VPORT'); g(2, '*ACTIVE'); g(70, 0);
+      gs([10, '0', 20, '0', 11, '1', 21, '1',
+          12, dxfNum((ext.x0 + ext.x1) / 2), 22, dxfNum((ext.y0 + ext.y1) / 2),
+          13, '0', 23, '0', 14, '10', 24, '10', 15, '10', 25, '10',
+          16, '0', 26, '0', 36, '1', 17, '0', 27, '0', 37, '0',
+          40, dxfNum(Math.max(1, ext.y1 - ext.y0)), 41, '1.9', 42, '50',
+          43, '0', 44, '0', 50, '0', 51, '0', 71, '0', 72, '100', 73, '1',
+          74, '3', 75, '0', 76, '0', 77, '0', 78, '0']);
     });
-    var LT = ['ByBlock', 'ByLayer', 'Continuous'];
-    tbl('LTYPE', LT.length, function () {
-      LT.forEach(function (n) {
-        rec('LTYPE', n, h(), 'AcDbLinetypeTableRecord', function () {
-          gs([3, n === 'Continuous' ? 'Solid line' : '', 72, '65', 73, '0', 40, '0']);
-        });
-      });
+    tbl('LTYPE', 1, function () {
+      g(0, 'LTYPE'); g(2, 'CONTINUOUS'); g(70, 64);
+      gs([3, 'Solid line', 72, '65', 73, '0', 40, '0']);
     });
     tbl('LAYER', DXF_LAYERS.length + 1, function () {
-      rec('LAYER', '0', h(), 'AcDbLayerTableRecord', function () {
-        gs([62, '7', 6, 'Continuous', 370, '-3']);
-      });
+      g(0, 'LAYER'); g(2, '0'); g(70, 0); g(62, 7); g(6, 'CONTINUOUS');
       DXF_LAYERS.forEach(function (L) {
-        rec('LAYER', L[0], h(), 'AcDbLayerTableRecord', function () {
-          gs([62, String(L[1]), 6, 'Continuous', 370, '-3']);
-        });
+        g(0, 'LAYER'); g(2, L[0]); g(70, 0); g(62, L[1]); g(6, 'CONTINUOUS');
       });
     });
     tbl('STYLE', 1, function () {
-      g(0, 'STYLE'); g(5, hStyle); g(330, TBL.STYLE);
-      g(100, 'AcDbSymbolTableRecord'); g(100, 'AcDbTextStyleTableRecord');
-      g(2, 'PLATE3D'); g(70, 0);
+      g(0, 'STYLE'); g(2, 'PLATE3D'); g(70, 0);
       gs([40, '0', 41, '1', 50, '0', 71, '0', 42, dxfNum(D.text.dim),
           3, 'txt', 4, '']);
     });
     tbl('VIEW', 0, function () {});
     tbl('UCS', 0, function () {});
     tbl('APPID', 1, function () {
-      rec('APPID', 'ACAD', h(), 'AcDbRegAppTableRecord', function () {});
+      g(0, 'APPID'); g(2, 'ACAD'); g(70, 0);
     });
     tbl('DIMSTYLE', 1, function () {
-      g(0, 'DIMSTYLE'); g(105, hDimSty); g(330, TBL.DIMSTYLE);
-      g(100, 'AcDbSymbolTableRecord'); g(100, 'AcDbDimStyleTableRecord');
-      g(2, 'PLATE3D'); g(70, 0);
+      g(0, 'DIMSTYLE'); g(2, 'PLATE3D'); g(70, 0);
       /* The registered style, straight across. Only DIMSCALE carries the
          drawing scale; every other value is the paper millimetre it was
-         registered as, and the CAD does the multiplying. */
+         registered as, and the CAD does the multiplying.
+         DIMBLK is left at the default: the dot is drawn into each dimension's
+         own block, and naming an arrowhead block here would mean shipping one. */
       gs([40, dxfNum(scale),                 // DIMSCALE
           41, dxfNum(DIMSTYLE.arrow),        // DIMASZ
           42, dxfNum(DIMSTYLE.origin),       // DIMEXO
@@ -4861,51 +4844,25 @@
           44, dxfNum(DIMSTYLE.extend),       // DIMEXE
           140, dxfNum(DIMSTYLE.text.dim),    // DIMTXT
           147, dxfNum(DIMSTYLE.textGap),     // DIMGAP
-          73, '0', 74, '0',                  // text inside horizontal / outside
+          73, '0',                           // DIMTIH - text stays horizontal
+          74, '0',                           // DIMTOH
           77, '1',                           // DIMTAD - text above the line
           78, '8',                           // DIMZIN - drop trailing zeros
-          271, '0', 272, '0',                // DIMDEC / DIMTDEC
-          279, '0', 289, '3']);
-      g(340, hStyle);                        // DIMTXSTY
-      g(342, hDot);                          // DIMBLK - the dot arrowhead
-    });
-    tbl('BLOCK_RECORD', blkRecs.length + 3, function () {
-      [['*Model_Space', hMS], ['*Paper_Space', hPS], ['_DOT', hDot]]
-        .concat(blkRecs.map(function (b) { return [b.name, b.handle]; }))
-        .forEach(function (b) {
-          g(0, 'BLOCK_RECORD'); g(5, b[1]); g(330, TBL.BLOCK_RECORD);
-          g(100, 'AcDbSymbolTableRecord'); g(100, 'AcDbBlockTableRecord');
-          g(2, b[0]); g(70, 0); g(280, 1); g(281, 1);
-        });
+          172, '1']);                        // DIMTOFL - dim line even when text is out
     });
     g(0, 'ENDSEC');
 
     g(0, 'SECTION'); g(2, 'BLOCKS');
-    function blockDef(name, hnd, layer, body) {
-      g(0, 'BLOCK'); g(5, h()); g(330, hnd);
-      g(100, 'AcDbEntity'); g(8, layer); g(100, 'AcDbBlockBegin');
-      g(2, name); g(70, name.charAt(0) === '*' && name.charAt(1) === 'D' ? 1 : 0);
+    function blockDef(name, layer, anon, body) {
+      g(0, 'BLOCK'); g(8, layer); g(2, name); g(70, anon ? 1 : 0);
       g(10, '0'); g(20, '0'); g(30, '0'); g(3, name); g(1, '');
       body();
-      g(0, 'ENDBLK'); g(5, h()); g(330, hnd);
-      g(100, 'AcDbEntity'); g(8, layer); g(100, 'AcDbBlockEnd');
+      g(0, 'ENDBLK'); g(8, layer);
     }
-    blockDef('*Model_Space', hMS, '0', function () {});
-    blockDef('*Paper_Space', hPS, '0', function () {});
-    // the dot arrowhead, drawn once at unit size: a filled square is a dot at
-    // 1.1mm on paper, and it is one entity instead of a hatch
-    blockDef('_DOT', hDot, '0', function () {
-      g(0, 'SOLID'); g(5, h()); g(330, hDot);
-      g(100, 'AcDbEntity'); g(8, '0'); g(100, 'AcDbTrace');
-      gs([10, '-0.5', 20, '-0.5', 30, '0', 11, '0.5', 21, '-0.5', 31, '0',
-          12, '-0.5', 22, '0.5', 32, '0', 13, '0.5', 23, '0.5', 33, '0']);
-    });
     blkDefs.forEach(function (b) {
-      blockDef(b.name, b.handle, b.layer, function () {
+      blockDef(b.name, b.layer, true, function () {
         b.ents.forEach(function (e) {
-          // an entity inside a block is owned by that block record
-          for (var i = 0; i < e.length; i += 2)
-            g(e[i], e[i] === '330' ? b.handle : e[i + 1]);
+          for (var i = 0; i < e.length; i += 2) g(e[i], e[i + 1]);
         });
       });
     });
@@ -4913,14 +4870,6 @@
 
     g(0, 'SECTION'); g(2, 'ENTITIES');
     ents.forEach(function (e) { for (var i = 0; i < e.length; i += 2) g(e[i], e[i + 1]); });
-    g(0, 'ENDSEC');
-
-    g(0, 'SECTION'); g(2, 'OBJECTS');
-    g(0, 'DICTIONARY'); g(5, hRootDict); g(330, '0');
-    g(100, 'AcDbDictionary'); g(281, 1);
-    g(3, 'ACAD_GROUP'); g(350, hGroupDict);
-    g(0, 'DICTIONARY'); g(5, hGroupDict); g(330, hRootDict);
-    g(100, 'AcDbDictionary'); g(281, 1);
     g(0, 'ENDSEC');
     g(0, 'EOF');
 
