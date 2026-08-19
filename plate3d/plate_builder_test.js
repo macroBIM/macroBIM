@@ -129,6 +129,11 @@
     // group fold stays put away when the section is opened again
     '#pb-side tr.ghead[data-sect] td::before { display:none; }',
     '#pb-side table.sect-shut tr:not(.ghead) { display:none; }',
+    // the whole heading line is the fold target, so it has to look like one
+    '#pb-side tr.ghead td.sechd { cursor:pointer; -webkit-user-select:none;',
+    '  user-select:none; }',
+    '#pb-side tr.ghead td.sechd:hover .sname { color:#1d4ed8; }',
+    '#pb-side tr.ghead td.sechd:hover .fold { opacity:.72; }',
     '#pb-side .sname { color:#0f172a; }',
     '#pb-side .scount { color:var(--dim); font-weight:500; margin-left:5px; }',
     '#pb-side .shint { color:var(--dim); font-weight:400; font-size:11px; margin-left:7px; }',
@@ -2443,20 +2448,23 @@
   function sectionRow(tbl, cls, text, span, key, count) {
     var tr = document.createElement('tr');
     tr.className = cls;
-    var html = text;
+    var html = text, tdAttr = '';
     if (key) {
       if (sectFold[key] === undefined) sectFold[key] = true;
       var bit = String(text).split(' \u2014 ');
-      html = '<span class="fold' + (sectFold[key] ? ' shut' : '') + '"' +
-             ' onclick="plateBuilder.toggleSection(\'' + key + '\')"' +
-             ' title="show or hide this list">' + ICON_FOLD + '</span>' +
+      html = '<span class="fold' + (sectFold[key] ? ' shut' : '') + '">' + ICON_FOLD +
+             '</span>' +
              '<span class="sname">' + bit[0] + '</span>' +
              '<span class="scount">(' + (count || 0) + ')</span>' +
              (bit[1] ? '<span class="shint">\u2014 ' + bit[1] + '</span>' : '');
+      // the whole heading folds, not just the caret: a 14px triangle is a small
+      // thing to hit for something you do on every section, every load
+      tdAttr = ' class="sechd" onclick="plateBuilder.toggleSection(\'' + key + '\')"' +
+               ' title="show or hide this list"';
       tr.setAttribute('data-sect', key);
       tbl.className = sectFold[key] ? 'sect-shut' : '';
     }
-    tr.innerHTML = '<td colspan="' + (span || 2) + '">' + html + '</td>';
+    tr.innerHTML = '<td colspan="' + (span || 2) + '"' + tdAttr + '>' + html + '</td>';
     tbl.appendChild(tr);
     return tr;
   }
