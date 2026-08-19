@@ -288,6 +288,34 @@
     '  cursor:pointer; float:right; }',
     '#pb-fatal:after { content:""; display:block; clear:both; }',
 
+    /* ---- File menu: one button, everything that reads or writes a file ---- */
+    '.fmenu { position:relative; display:inline-block; }',
+    '.fmenu .car { font-size:9px; margin-left:3px; opacity:.85; }',
+    '.fmenu .drop { display:none; position:absolute; left:0; top:calc(100% + 5px);',
+    '  z-index:60; background:#fff; border:1px solid var(--line); border-radius:8px;',
+    '  box-shadow:0 10px 28px rgba(15,23,42,.18); padding:5px; min-width:186px; }',
+    '.fmenu.open .drop { display:block; }',
+    '.fmenu .drop button { display:block; width:100%; text-align:left; border:none;',
+    '  background:none; box-shadow:none; padding:7px 10px; border-radius:6px;',
+    '  font-size:12px; color:#334155; }',
+    '.fmenu .drop button:hover { background:#f1f5f9; color:#0f172a; }',
+    '.fmenu .drop i { display:block; height:1px; background:var(--hair); margin:4px 6px; }',
+
+    /* ---- the scale question, asked before a drawing is written ---- */
+    '#pb-scale { display:none; position:fixed; left:0; top:0; right:0; bottom:0;',
+    '  z-index:75; background:rgba(15,23,42,.35); align-items:center;',
+    '  justify-content:center; padding:20px; }',
+    '#pb-scale .box { background:#fff; border:1px solid var(--line); border-radius:10px;',
+    '  width:392px; max-width:94vw; padding:16px 17px;',
+    '  box-shadow:0 12px 40px rgba(15,23,42,.24); }',
+    '#pb-scale h2 { font-size:15px; font-weight:600; color:#0f172a; margin:0 0 7px; }',
+    '#pb-scale p { font-size:11.5px; color:#64748b; line-height:1.6; margin:0 0 12px; }',
+    '#pb-scale label { font-size:13px; font-weight:600; color:#0f172a;',
+    '  display:flex; align-items:center; }',
+    '#pb-scale input { font:inherit; font-size:14px; width:96px; padding:6px 9px;',
+    '  border:1px solid var(--line); border-radius:6px; color:#0f172a; }',
+    '#pb-scale .row { display:flex; justify-content:flex-end; gap:8px; margin-top:15px; }',
+
     /* ---- example workbook picker: a window, like the plate preview ---- */
     '#pb-ex { display:none; position:fixed; left:0; top:0; right:0; bottom:0; z-index:55;',
     '  background:rgba(15,23,42,.35); align-items:center; justify-content:center;',
@@ -4426,6 +4454,527 @@
     download(buildIFC(list, 'plate_builder'), 'plate_builder.ifc');
   }
 
+  /* ================= DXF export (AC1015 / R2000) =================
+     A drawing of what the ASSY rows placed: six orthographic views of the whole
+     assembly, then every distinct part once at its standard section with how
+     many of it there are.
+
+     Geometry is written 1:1 in millimetres, the way a CAD drawing is always
+     built. The scale you give is not applied to the steel - it is written into
+     the dimension style as DIMSCALE, and the CAD multiplies every annotation
+     length by it when it draws. So the numbers registered in DIMSTYLE stay the
+     size they were meant to be on paper, and changing the scale afterwards is
+     one edit in the CAD rather than a re-export.
+
+     Dimensions are real DIMENSION entities, not lines pretending to be
+     dimensions. Each one carries its definition points and a reference to the
+     dimension style, and also an anonymous block holding the drawn result -
+     AutoCAD regenerates from the former, lighter viewers that do not regenerate
+     draw the latter, and both show the same thing.
+
+     No hidden-line removal: the six views draw every member's outline, near and
+     far. That is enough for a bracket and honest about what it is on a crane. */
+
+  var DXF_LAYERS = [                      // name, AutoCAD colour index
+    ['PL3D-OUTLINE', 7], ['PL3D-HOLE', 4], ['PL3D-DIM', 1],
+    ['PL3D-TEXT', 7], ['PL3D-TITLE', 3]
+  ];
+  // the six views, each as the axes of its picture plane. `dir` points from the
+  // model towards the viewer, and is what decides which side of a member faces
+  // us - the silhouette test needs it.
+  var DXF_VIEWS = [
+    { key: 'FRONT',  right: [1, 0, 0],  up: [0, 0, 1], dir: [0, -1, 0] },
+    { key: 'BACK',   right: [-1, 0, 0], up: [0, 0, 1], dir: [0, 1, 0] },
+    { key: 'LEFT',   right: [0, -1, 0], up: [0, 0, 1], dir: [-1, 0, 0] },
+    { key: 'RIGHT',  right: [0, 1, 0],  up: [0, 0, 1], dir: [1, 0, 0] },
+    { key: 'TOP',    right: [1, 0, 0],  up: [0, 1, 0], dir: [0, 0, 1] },
+    { key: 'BOTTOM', right: [-1, 0, 0], up: [0, 1, 0], dir: [0, 0, -1] }
+  ];
+
+  // DXF is a code-page file, not UTF-8. Anything outside ASCII is transliterated
+  // rather than escaped, so a label reads the same in every CAD.
+  function dxfText(s) {
+    return String(s == null ? '' : s)
+      .replace(/[×]/g, 'x').replace(/[−–—]/g, '-')
+      .replace(/[°]/g, 'deg').replace(/[α]/g, 'a')
+      .replace(/[^\x20-\x7e]/g, '?');
+  }
+  function dxfNum(v) {
+    var n = Math.round(Number(v) * 1e6) / 1e6;
+    return isFinite(n) ? String(n) : '0';
+  }
+
+  /* One member, projected into one view, as the lines you would draw: both cap
+     rings, plus the side edges that are either a real corner or the silhouette.
+     Without the silhouette test a round bar seen from the side is two loose
+     lines with nothing joining them; without the corner test a plate loses its
+     four vertical edges. */
+  function dxfMemberEdges(it, view, segs) {
+    var m = it.matrix, half = (it.thk || 0) / 2;
+    var vd = new THREE.Vector3(view.dir[0], view.dir[1], view.dir[2]);
+    var R = new THREE.Vector3(view.right[0], view.right[1], view.right[2]);
+    var U = new THREE.Vector3(view.up[0], view.up[1], view.up[2]);
+    function proj(x, y, z) {
+      var p = new THREE.Vector3(x, y, z).applyMatrix4(m);
+      return [p.dot(R), p.dot(U)];
+    }
+    // the extrusion direction in world space, for the side-face normals
+    var e0 = new THREE.Vector3(0, 0, 0).applyMatrix4(m);
+    var ez = new THREE.Vector3(0, 0, 1).applyMatrix4(m).sub(e0).normalize();
+
+    function ring(pts) {
+      var n = pts.length;
+      if (n < 2) return;
+      var faceFront = [];
+      for (var i = 0; i < n; i++) {
+        var a = pts[i], b = pts[(i + 1) % n];
+        segs.push([proj(a[0], a[1], -half), proj(b[0], b[1], -half)]);
+        if (half) segs.push([proj(a[0], a[1], half), proj(b[0], b[1], half)]);
+        // side face i is spanned by edge a->b and the extrusion direction
+        var ea = new THREE.Vector3(b[0] - a[0], b[1] - a[1], 0)
+                   .applyMatrix4(new THREE.Matrix4().extractRotation(m));
+        var nrm = new THREE.Vector3().crossVectors(ea, ez);
+        faceFront[i] = nrm.dot(vd) > 0;
+      }
+      if (!half) return;
+      for (var j = 0; j < n; j++) {
+        var prev = pts[(j - 1 + n) % n], cur = pts[j], nxt = pts[(j + 1) % n];
+        var d1x = cur[0] - prev[0], d1y = cur[1] - prev[1];
+        var d2x = nxt[0] - cur[0], d2y = nxt[1] - cur[1];
+        var l1 = Math.hypot(d1x, d1y), l2 = Math.hypot(d2x, d2y);
+        var corner = false;
+        if (l1 > 1e-9 && l2 > 1e-9) {
+          var cosT = (d1x * d2x + d1y * d2y) / (l1 * l2);
+          corner = cosT < Math.cos(25 * Math.PI / 180);   // same 25 deg the 3D view creases at
+        }
+        var sil = faceFront[(j - 1 + n) % n] !== faceFront[j];
+        if (corner || sil) segs.push([proj(cur[0], cur[1], -half), proj(cur[0], cur[1], half)]);
+      }
+    }
+    it.rings.outers.forEach(function (o, i) {
+      ring(o);
+      (it.rings.holes[i] || []).forEach(ring);
+    });
+  }
+
+  // Two projections of the same plate land on the same line more often than not
+  // - both caps of a plate seen face on, every copy of a repeated member. One
+  // line each keeps the file a tenth of the size and the drawing readable.
+  function dxfDedupe(segs) {
+    var seen = {}, out = [];
+    segs.forEach(function (s) {
+      var a = s[0], b = s[1];
+      if (Math.abs(a[0] - b[0]) < 1e-6 && Math.abs(a[1] - b[1]) < 1e-6) return;
+      var k1 = dxfNum(a[0]) + ',' + dxfNum(a[1]), k2 = dxfNum(b[0]) + ',' + dxfNum(b[1]);
+      var k = k1 < k2 ? k1 + '|' + k2 : k2 + '|' + k1;
+      if (seen[k]) return;
+      seen[k] = 1;
+      out.push(s);
+    });
+    return out;
+  }
+
+  function segsBox(segs) {
+    var b = { x0: Infinity, y0: Infinity, x1: -Infinity, y1: -Infinity };
+    segs.forEach(function (s) {
+      s.forEach(function (p) {
+        if (p[0] < b.x0) b.x0 = p[0];
+        if (p[0] > b.x1) b.x1 = p[0];
+        if (p[1] < b.y0) b.y0 = p[1];
+        if (p[1] > b.y1) b.y1 = p[1];
+      });
+    });
+    if (!isFinite(b.x0)) return { x0: 0, y0: 0, x1: 0, y1: 0 };
+    return b;
+  }
+
+  /* The distinct parts, one entry each, with how many were placed. Grouped by
+     the part id together with its extruded length, because one SECT definition
+     placed at three lengths is three things to fabricate, not one. */
+  function dxfParts(list) {
+    var by = {}, order = [];
+    list.forEach(function (it) {
+      var k = it.plateId + '|' + it.thk;
+      if (!by[k]) { by[k] = { it: it, n: 0, key: k }; order.push(k); }
+      by[k].n++;
+    });
+    return order.map(function (k) { return by[k]; });
+  }
+
+  function buildDXF(list, scale) {
+    var D = dimStyle(scale);
+    var HND = 0x100, R = [];
+    function h() { return (HND++).toString(16).toUpperCase(); }
+    function g(code, v) { R.push(String(code), String(v)); }
+    function gs(arr) { for (var i = 0; i < arr.length; i += 2) g(arr[i], arr[i + 1]); }
+
+    // handles that other records point at have to exist before those records
+    var TBL = {}, TN = ['VPORT', 'LTYPE', 'LAYER', 'STYLE', 'VIEW', 'UCS',
+                        'APPID', 'DIMSTYLE', 'BLOCK_RECORD'];
+    TN.forEach(function (n) { TBL[n] = h(); });
+    var hMS = h(), hPS = h(), hStyle = h(), hDimSty = h(), hDot = h();
+    var hRootDict = h(), hGroupDict = h();
+
+    var blkRecs = [], blkDefs = [], ents = [], nDim = 0;
+
+    function entHead(type, layer, extra) {
+      var a = ['0', type, '5', h(), '330', hMS, '100', 'AcDbEntity', '8', layer];
+      return a.concat(extra || []);
+    }
+    function line(layer, a, b, buf) {
+      (buf || ents).push(entHead('LINE', layer).concat(
+        ['100', 'AcDbLine', '10', dxfNum(a[0]), '20', dxfNum(a[1]), '30', '0',
+         '11', dxfNum(b[0]), '21', dxfNum(b[1]), '31', '0']));
+    }
+    function text(layer, at, hgt, s, centre, buf) {
+      var body = ['100', 'AcDbText', '10', dxfNum(at[0]), '20', dxfNum(at[1]), '30', '0',
+                  '40', dxfNum(hgt), '1', dxfText(s)];
+      if (centre) body = body.concat(['72', '1', '11', dxfNum(at[0]),
+                                      '21', dxfNum(at[1]), '31', '0']);
+      body = body.concat(['7', 'PLATE3D', '100', 'AcDbText', '73', '0']);
+      (buf || ents).push(entHead('TEXT', layer).concat(body));
+    }
+    function insert(layer, blk, at, sc, buf) {
+      (buf || ents).push(entHead('INSERT', layer).concat(
+        ['100', 'AcDbBlockReference', '2', blk,
+         '10', dxfNum(at[0]), '20', dxfNum(at[1]), '30', '0',
+         '41', dxfNum(sc), '42', dxfNum(sc), '43', dxfNum(sc)]));
+    }
+
+    /* A linear dimension: the entity that carries the measurement, and the
+       anonymous block that carries its picture. The block is drawn with the
+       scaled style values so a viewer that never regenerates still shows the
+       dimension at the right size. */
+    function dimLinear(p1, p2, off, vertical) {
+      var name = '*D' + (++nDim), hRec = h(), buf = [];
+      var A = D.arrow, EXO = D.origin, EXE = D.extend, GAP = D.textGap, TH = D.text.dim;
+      var v = vertical;
+      var val = Math.abs(v ? p2[1] - p1[1] : p2[0] - p1[0]);
+      if (!(val > 1e-9)) { nDim--; return; }
+      // the dimension line sits `off` away, on the axis the measurement is not on
+      var dl = v ? off : off;
+      var q1 = v ? [dl, p1[1]] : [p1[0], dl];
+      var q2 = v ? [dl, p2[1]] : [p2[0], dl];
+      // extension lines: start EXO clear of the point, finish EXE past the line
+      function extLine(p, q) {
+        var dx = q[0] - p[0], dy = q[1] - p[1], L = Math.hypot(dx, dy);
+        if (L < 1e-9) return;
+        var ux = dx / L, uy = dy / L;
+        line('PL3D-DIM', [p[0] + ux * EXO, p[1] + uy * EXO],
+             [q[0] + ux * EXE, q[1] + uy * EXE], buf);
+      }
+      extLine(p1, q1);
+      extLine(p2, q2);
+      line('PL3D-DIM', q1, q2, buf);
+      insert('PL3D-DIM', '_DOT', q1, A, buf);
+      insert('PL3D-DIM', '_DOT', q2, A, buf);
+      var mid = [(q1[0] + q2[0]) / 2, (q1[1] + q2[1]) / 2];
+      var tp = v ? [mid[0] - GAP - TH * 0.6, mid[1]] : [mid[0], mid[1] + GAP];
+      text('PL3D-DIM', tp, TH, String(Math.round(val)), true, buf);
+
+      blkRecs.push({ name: name, handle: hRec, anon: true });
+      blkDefs.push({ name: name, handle: hRec, layer: 'PL3D-DIM', ents: buf });
+      ents.push(['0', 'DIMENSION', '5', h(), '330', hMS, '100', 'AcDbEntity',
+                 '8', 'PL3D-DIM', '100', 'AcDbDimension', '2', name,
+                 '10', dxfNum(q1[0]), '20', dxfNum(q1[1]), '30', '0',
+                 '11', dxfNum(tp[0]), '21', dxfNum(tp[1]), '31', '0',
+                 '70', '32', '71', '5', '3', 'PLATE3D',
+                 '100', 'AcDbAlignedDimension',
+                 '13', dxfNum(p1[0]), '23', dxfNum(p1[1]), '33', '0',
+                 '14', dxfNum(p2[0]), '24', dxfNum(p2[1]), '34', '0',
+                 '50', v ? '90' : '0',
+                 '100', 'AcDbRotatedDimension']);
+    }
+
+    /* ---- the drawing ---- */
+    var GAP = 25 * scale;                    // 25mm on the sheet between frames
+    var TXT_T = D.text.section, TXT_L = D.text.member, TXT_N = D.text.note;
+
+    // six views, measured first so they can be laid out on a common grid
+    var views = DXF_VIEWS.map(function (vw) {
+      var segs = [];
+      list.forEach(function (it) { dxfMemberEdges(it, vw, segs); });
+      segs = dxfDedupe(segs);
+      return { key: vw.key, segs: segs, box: segsBox(segs) };
+    });
+    /* Each column is as wide as the widest view in it, each row as tall as the
+       tallest. One cell size for all six sits every view in a box the size of
+       the front elevation, and a crane seen end-on is then 5m of drawing in a
+       63m box - most of the sheet empty. */
+    var colW = [0, 0, 0], rowH = [0, 0];
+    views.forEach(function (v, i) {
+      var c = i % 3, r = Math.floor(i / 3);
+      colW[c] = Math.max(colW[c], v.box.x1 - v.box.x0);
+      rowH[r] = Math.max(rowH[r], v.box.y1 - v.box.y0);
+    });
+    var colX = [GAP, 0, 0], rowY = [0, 0];
+    colX[1] = colX[0] + colW[0] + GAP * 2;
+    colX[2] = colX[1] + colW[1] + GAP * 2;
+    rowY[1] = rowY[0] - (rowH[0] + GAP * 3);
+    var sheetW = colX[2] + colW[2];
+
+    function place(segs, box, ox, oy) {
+      segs.forEach(function (s) {
+        line('PL3D-OUTLINE', [s[0][0] - box.x0 + ox, s[0][1] - box.y0 + oy],
+             [s[1][0] - box.x0 + ox, s[1][1] - box.y0 + oy]);
+      });
+    }
+    views.forEach(function (v, i) {
+      var ox = colX[i % 3], oy = rowY[Math.floor(i / 3)];
+      var w = v.box.x1 - v.box.x0, hgt = v.box.y1 - v.box.y0;
+      place(v.segs, v.box, ox, oy);
+      text('PL3D-TITLE', [ox + w / 2, oy + hgt + GAP * 0.5], TXT_T, v.key + ' VIEW', true);
+      if (w > 0) dimLinear([ox, oy], [ox + w, oy], oy - GAP * 0.6, false);
+      if (hgt > 0) dimLinear([ox, oy], [ox, oy + hgt], ox - GAP * 0.6, true);
+    });
+
+    // the parts, one standard section each, under the views
+    var parts = dxfParts(list).map(function (p) {
+      var segs = [];
+      p.it.rings.outers.forEach(function (o, i) {
+        for (var k = 0; k < o.length; k++)
+          segs.push([o[k], o[(k + 1) % o.length]]);
+        (p.it.rings.holes[i] || []).forEach(function (hole) {
+          for (var j = 0; j < hole.length; j++)
+            segs.push([hole[j], hole[(j + 1) % hole.length]]);
+        });
+      });
+      p.segs = segs;
+      p.box = segsBox(segs);
+      return p;
+    });
+    /* Shelf packing rather than a grid: a 9m section and a 100mm gusset in the
+       same list would otherwise both get a 9m cell. Parts fill a row until the
+       sheet width runs out, and the row is as tall as its tallest part. */
+    var partsTop = rowY[1] - GAP * 4;
+    var px = GAP, py = partsTop, shelf = 0;
+    parts.forEach(function (p) {
+      var w = p.box.x1 - p.box.x0, hgt = p.box.y1 - p.box.y0;
+      if (px > GAP && px + w > sheetW) {
+        py -= shelf + GAP * 4;
+        px = GAP;
+        shelf = 0;
+      }
+      // hangs down from the shelf line, never up: a part taller than the gap
+      // would otherwise grow straight through the views above it
+      var ox = px, oy = py - hgt;
+      px += w + GAP * 2.5;
+      shelf = Math.max(shelf, hgt);
+      p.segs.forEach(function (s) {
+        line('PL3D-OUTLINE', [s[0][0] - p.box.x0 + ox, s[0][1] - p.box.y0 + oy],
+             [s[1][0] - p.box.x0 + ox, s[1][1] - p.box.y0 + oy]);
+      });
+      if (w > 0) dimLinear([ox, oy], [ox + w, oy], oy - GAP * 0.6, false);
+      if (hgt > 0) dimLinear([ox, oy], [ox, oy + hgt], ox - GAP * 0.6, true);
+      text('PL3D-TEXT', [ox + w / 2, oy - GAP * 1.5], TXT_L,
+           p.it.plateId.toUpperCase() + ', ' + p.it.dims, true);
+      text('PL3D-TEXT', [ox + w / 2, oy - GAP * 1.5 - TXT_L * 1.6], TXT_N,
+           p.n + 'EA', true);
+    });
+
+    /* ---- assemble the file ---- */
+    // the drawing's real extents, from where things were actually laid down
+    var ext = { x0: 0, y0: py - shelf - GAP * 4,
+                x1: sheetW + GAP, y1: rowY[0] + rowH[0] + GAP * 2 };
+
+    g(0, 'SECTION'); g(2, 'HEADER');
+    g(9, '$ACADVER'); g(1, 'AC1015');
+    g(9, '$INSUNITS'); g(70, 4);                 // millimetres
+    g(9, '$MEASUREMENT'); g(70, 1);              // metric
+    g(9, '$DIMSCALE'); g(40, dxfNum(scale));
+    g(9, '$DIMSTYLE'); g(2, 'PLATE3D');
+    g(9, '$TEXTSTYLE'); g(7, 'PLATE3D');
+    g(9, '$EXTMIN'); g(10, dxfNum(ext.x0)); g(20, dxfNum(ext.y0)); g(30, '0');
+    g(9, '$EXTMAX'); g(10, dxfNum(ext.x1)); g(20, dxfNum(ext.y1)); g(30, '0');
+    g(9, '$HANDSEED'); g(5, (HND + 4096).toString(16).toUpperCase());
+    g(0, 'ENDSEC');
+
+    g(0, 'SECTION'); g(2, 'TABLES');
+    function tbl(name, n, body) {
+      g(0, 'TABLE'); g(2, name); g(5, TBL[name]); g(330, '0');
+      g(100, 'AcDbSymbolTable'); g(70, n);
+      body();
+      g(0, 'ENDTAB');
+    }
+    function rec(type, name, hnd, cls, body) {
+      g(0, type);
+      g(type === 'DIMSTYLE' ? 105 : 5, hnd);
+      g(330, TBL[type]);
+      g(100, 'AcDbSymbolTableRecord'); g(100, cls);
+      g(2, name); g(70, 0);
+      body();
+    }
+    tbl('VPORT', 1, function () {
+      rec('VPORT', '*Active', h(), 'AcDbViewportTableRecord', function () {
+        gs([10, '0', 20, '0', 11, '1', 21, '1',
+            12, dxfNum((ext.x0 + ext.x1) / 2), 22, dxfNum((ext.y0 + ext.y1) / 2),
+            13, '0', 23, '0', 14, '10', 24, '10', 15, '10', 25, '10',
+            16, '0', 26, '0', 36, '1', 17, '0', 27, '0', 37, '0',
+            40, dxfNum(Math.max(1, ext.y1 - ext.y0)), 41, '1.9', 42, '50', 43, '0',
+            44, '0', 50, '0', 51, '0', 71, '0', 72, '100', 73, '1', 74, '3',
+            75, '0', 76, '0', 77, '0', 78, '0', 281, '0', 65, '1',
+            110, '0', 120, '0', 130, '0', 111, '1', 121, '0', 131, '0',
+            112, '0', 122, '1', 132, '0', 79, '0', 146, '0']);
+      });
+    });
+    var LT = ['ByBlock', 'ByLayer', 'Continuous'];
+    tbl('LTYPE', LT.length, function () {
+      LT.forEach(function (n) {
+        rec('LTYPE', n, h(), 'AcDbLinetypeTableRecord', function () {
+          gs([3, n === 'Continuous' ? 'Solid line' : '', 72, '65', 73, '0', 40, '0']);
+        });
+      });
+    });
+    tbl('LAYER', DXF_LAYERS.length + 1, function () {
+      rec('LAYER', '0', h(), 'AcDbLayerTableRecord', function () {
+        gs([62, '7', 6, 'Continuous', 370, '-3']);
+      });
+      DXF_LAYERS.forEach(function (L) {
+        rec('LAYER', L[0], h(), 'AcDbLayerTableRecord', function () {
+          gs([62, String(L[1]), 6, 'Continuous', 370, '-3']);
+        });
+      });
+    });
+    tbl('STYLE', 1, function () {
+      g(0, 'STYLE'); g(5, hStyle); g(330, TBL.STYLE);
+      g(100, 'AcDbSymbolTableRecord'); g(100, 'AcDbTextStyleTableRecord');
+      g(2, 'PLATE3D'); g(70, 0);
+      gs([40, '0', 41, '1', 50, '0', 71, '0', 42, dxfNum(D.text.dim),
+          3, 'txt', 4, '']);
+    });
+    tbl('VIEW', 0, function () {});
+    tbl('UCS', 0, function () {});
+    tbl('APPID', 1, function () {
+      rec('APPID', 'ACAD', h(), 'AcDbRegAppTableRecord', function () {});
+    });
+    tbl('DIMSTYLE', 1, function () {
+      g(0, 'DIMSTYLE'); g(105, hDimSty); g(330, TBL.DIMSTYLE);
+      g(100, 'AcDbSymbolTableRecord'); g(100, 'AcDbDimStyleTableRecord');
+      g(2, 'PLATE3D'); g(70, 0);
+      /* The registered style, straight across. Only DIMSCALE carries the
+         drawing scale; every other value is the paper millimetre it was
+         registered as, and the CAD does the multiplying. */
+      gs([40, dxfNum(scale),                 // DIMSCALE
+          41, dxfNum(DIMSTYLE.arrow),        // DIMASZ
+          42, dxfNum(DIMSTYLE.origin),       // DIMEXO
+          43, dxfNum(DIMSTYLE.stack),        // DIMDLI
+          44, dxfNum(DIMSTYLE.extend),       // DIMEXE
+          140, dxfNum(DIMSTYLE.text.dim),    // DIMTXT
+          147, dxfNum(DIMSTYLE.textGap),     // DIMGAP
+          73, '0', 74, '0',                  // text inside horizontal / outside
+          77, '1',                           // DIMTAD - text above the line
+          78, '8',                           // DIMZIN - drop trailing zeros
+          271, '0', 272, '0',                // DIMDEC / DIMTDEC
+          279, '0', 289, '3']);
+      g(340, hStyle);                        // DIMTXSTY
+      g(342, hDot);                          // DIMBLK - the dot arrowhead
+    });
+    tbl('BLOCK_RECORD', blkRecs.length + 3, function () {
+      [['*Model_Space', hMS], ['*Paper_Space', hPS], ['_DOT', hDot]]
+        .concat(blkRecs.map(function (b) { return [b.name, b.handle]; }))
+        .forEach(function (b) {
+          g(0, 'BLOCK_RECORD'); g(5, b[1]); g(330, TBL.BLOCK_RECORD);
+          g(100, 'AcDbSymbolTableRecord'); g(100, 'AcDbBlockTableRecord');
+          g(2, b[0]); g(70, 0); g(280, 1); g(281, 1);
+        });
+    });
+    g(0, 'ENDSEC');
+
+    g(0, 'SECTION'); g(2, 'BLOCKS');
+    function blockDef(name, hnd, layer, body) {
+      g(0, 'BLOCK'); g(5, h()); g(330, hnd);
+      g(100, 'AcDbEntity'); g(8, layer); g(100, 'AcDbBlockBegin');
+      g(2, name); g(70, name.charAt(0) === '*' && name.charAt(1) === 'D' ? 1 : 0);
+      g(10, '0'); g(20, '0'); g(30, '0'); g(3, name); g(1, '');
+      body();
+      g(0, 'ENDBLK'); g(5, h()); g(330, hnd);
+      g(100, 'AcDbEntity'); g(8, layer); g(100, 'AcDbBlockEnd');
+    }
+    blockDef('*Model_Space', hMS, '0', function () {});
+    blockDef('*Paper_Space', hPS, '0', function () {});
+    // the dot arrowhead, drawn once at unit size: a filled square is a dot at
+    // 1.1mm on paper, and it is one entity instead of a hatch
+    blockDef('_DOT', hDot, '0', function () {
+      g(0, 'SOLID'); g(5, h()); g(330, hDot);
+      g(100, 'AcDbEntity'); g(8, '0'); g(100, 'AcDbTrace');
+      gs([10, '-0.5', 20, '-0.5', 30, '0', 11, '0.5', 21, '-0.5', 31, '0',
+          12, '-0.5', 22, '0.5', 32, '0', 13, '0.5', 23, '0.5', 33, '0']);
+    });
+    blkDefs.forEach(function (b) {
+      blockDef(b.name, b.handle, b.layer, function () {
+        b.ents.forEach(function (e) {
+          // an entity inside a block is owned by that block record
+          for (var i = 0; i < e.length; i += 2)
+            g(e[i], e[i] === '330' ? b.handle : e[i + 1]);
+        });
+      });
+    });
+    g(0, 'ENDSEC');
+
+    g(0, 'SECTION'); g(2, 'ENTITIES');
+    ents.forEach(function (e) { for (var i = 0; i < e.length; i += 2) g(e[i], e[i + 1]); });
+    g(0, 'ENDSEC');
+
+    g(0, 'SECTION'); g(2, 'OBJECTS');
+    g(0, 'DICTIONARY'); g(5, hRootDict); g(330, '0');
+    g(100, 'AcDbDictionary'); g(281, 1);
+    g(3, 'ACAD_GROUP'); g(350, hGroupDict);
+    g(0, 'DICTIONARY'); g(5, hGroupDict); g(330, hRootDict);
+    g(100, 'AcDbDictionary'); g(281, 1);
+    g(0, 'ENDSEC');
+    g(0, 'EOF');
+
+    return R.join('\n') + '\n';
+  }
+
+  /* The File menu closes on the next click anywhere - including the item you
+     just picked, so a save does not leave the menu hanging open over the model.
+     Bound once, on the document, rather than per open. */
+  function toggleFileMenu(ev) {
+    if (ev && ev.stopPropagation) ev.stopPropagation();
+    var el = document.getElementById('pb-fmenu');
+    if (el) el.classList.toggle('open');
+  }
+  function closeFileMenu() {
+    var el = document.getElementById('pb-fmenu');
+    if (el) el.classList.remove('open');
+  }
+
+  var dxfScale = 20;                 // remembered between exports in this session
+  function saveDXF() {
+    var list = visibleItems();
+    if (!list.length) {
+      alert('Nothing to draw.\n\n' +
+            'A drawing is made from what the ASSY rows placed, so load a sheet ' +
+            'with Load Excel first — or tick at least one assembly back on.');
+      return;
+    }
+    openScaleAsk();
+  }
+  function openScaleAsk() {
+    var el = document.getElementById('pb-scale');
+    if (!el) return;
+    el.style.display = 'flex';
+    var f = document.getElementById('pb-scale-v');
+    f.value = dxfScale;
+    f.focus();
+    f.select();
+  }
+  function closeScaleAsk() {
+    var el = document.getElementById('pb-scale');
+    if (el) el.style.display = 'none';
+  }
+  function confirmScale() {
+    var f = document.getElementById('pb-scale-v');
+    var s = Number(f && f.value);
+    if (!(s > 0)) { alert('The scale has to be a number greater than 0 — 20 means 1:20.'); return; }
+    dxfScale = s;
+    closeScaleAsk();
+    var list = visibleItems();
+    if (!list.length) return;
+    download(buildDXF(list, s), 'plate_builder_1-' + s + '.dxf');
+  }
+
   /* ================= BOQ: the take-off, as a workbook =================
      Four sheets, reading outward from the steel:
        SUMMARY    what the model weighs, by category
@@ -5903,6 +6452,12 @@
 
     '<h3>The menu bar</h3>',
     '<table class="gt"><thead><tr><th>control</th><th>what it does</th></tr></thead><tbody>',
+    '<tr><td><b>File</b></td><td>everything that reads or writes a file, on one menu</td></tr>',
+    '<tr><td><b>Save DXF</b></td><td>the drawing. Six views of the assembly, then every',
+    ' distinct part once at its standard section with how many were placed. It asks for a',
+    ' scale first: the steel is written 1:1 in millimetres and the scale goes into the file',
+    ' as the dimension style\'s DIMSCALE, so the CAD sizes the annotation - and you can',
+    ' change the scale there later without exporting again</td></tr>',
     '<tr><td><b>Save STL</b></td><td>the model as a triangle mesh</td></tr>',
     '<tr><td><b>Save IFC</b></td><td>the model as real BIM solids - each part its exact profile,',
     ' holes as voids, extruded by its thickness</td></tr>',
@@ -6053,11 +6608,23 @@
     app.id = 'pb-app';
     app.innerHTML =
       '<div id="pb-bar">' +
-      '  <button class="accent" onclick="plateBuilder.pickExcel()">&#8682; Load Excel</button>' +
-      '  <button onclick="plateBuilder.exportSTL()">Save STL</button>' +
-      '  <button onclick="plateBuilder.exportIFC()">Save IFC</button>' +
-      '  <button onclick="plateBuilder.exportBOQ()" title="quantities and weights' +
+      '  <span class="fmenu" id="pb-fmenu">' +
+      '    <button class="accent" onclick="plateBuilder.toggleFileMenu(event)">' +
+      '      File <span class="car">&#9662;</span></button>' +
+      '    <span class="drop">' +
+      '      <button onclick="plateBuilder.pickExcel()">&#8682; Load Excel&hellip;</button>' +
+      '      <i></i>' +
+      '      <button onclick="plateBuilder.exportDXF()" title="the drawing: six views' +
+      ' of the assembly and every part at its standard section">Save DXF&hellip;</button>' +
+      '      <button onclick="plateBuilder.exportBOQ()" title="quantities and weights' +
       ' as a workbook">Save BOQ</button>' +
+      '      <i></i>' +
+      '      <button onclick="plateBuilder.exportSTL()" title="the model as a triangle' +
+      ' mesh">Save STL</button>' +
+      '      <button onclick="plateBuilder.exportIFC()" title="the model as BIM solids">' +
+      'Save IFC</button>' +
+      '    </span>' +
+      '  </span>' +
       '  <input type="file" id="pb-file" accept=".xlsx,.xls" style="display:none">' +
       '  <span class="sep"></span>' +
       '  <button class="vw active" onclick="plateBuilder.setView(\'iso\')">ISO</button>' +
@@ -6108,6 +6675,20 @@
       '</div>' +
       '</div>' +
       '<div id="pb-pal"></div>' +
+      '<div id="pb-scale" onclick="if(event.target===this)plateBuilder.closeScaleAsk()">' +
+      '  <div class="box">' +
+      '    <h2>Drawing scale</h2>' +
+      '    <p>The steel is drawn 1:1 in millimetres. The scale sizes the' +
+      '      annotation &mdash; it is written to the file as DIMSTYLE\'s DIMSCALE,' +
+      '      so the CAD can change it later without a new export.</p>' +
+      '    <label>1 :&nbsp;<input type="number" id="pb-scale-v" min="1" step="1"' +
+      '      onkeydown="if(event.key===\'Enter\')plateBuilder.confirmScale();' +
+      '                 if(event.key===\'Escape\')plateBuilder.closeScaleAsk()"></label>' +
+      '    <div class="row">' +
+      '      <button onclick="plateBuilder.closeScaleAsk()">Cancel</button>' +
+      '      <button class="accent" onclick="plateBuilder.confirmScale()">Save DXF</button>' +
+      '    </div>' +
+      '  </div></div>' +
       '<div id="pb-ex" onclick="if(event.target===this)plateBuilder.closeSamples()">' +
       '  <div class="box">' +
       '    <h2><span class="close" onclick="plateBuilder.closeSamples()"' +
@@ -6183,6 +6764,10 @@
     }
     window.addEventListener('mousedown', function (e) {
       if (palPending && !document.getElementById('pb-pal').contains(e.target)) closePalette();
+      // the File menu shuts on the next click anywhere, its own items included
+      var fm = document.getElementById('pb-fmenu');
+      if (fm && fm.classList.contains('open') &&
+          !e.target.closest('#pb-fmenu > button')) setTimeout(closeFileMenu, 0);
     });
     // The example window covers the viewport, so its own backdrop click closes
     // it; Escape is the other way out people reach for.
@@ -6778,8 +7363,10 @@
     openGuide: openGuide, closeGuide: closeGuide,
     openSamples: openSamples, closeSamples: closeSamples, getSample: getSample,
     toggleMemberAxis: toggleMemberAxis,
+    toggleFileMenu: toggleFileMenu, closeFileMenu: closeFileMenu,
+    exportDXF: saveDXF, closeScaleAsk: closeScaleAsk, confirmScale: confirmScale,
     // the annotation style, at scale 1 and at any scale - see DIMSTYLE.md
-    dimStyleBase: DIMSTYLE, dimStyle: dimStyle
+    dimStyleBase: DIMSTYLE, dimStyle: dimStyle, buildDXF: buildDXF
   };
 
   /* ---- auto-run: use window.PLATE_DATA if present, else empty default.
