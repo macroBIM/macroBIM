@@ -124,10 +124,19 @@
     '#pb-side tr.ghead td::before { content:""; display:inline-block; width:4px; height:12px;',
     '  border-radius:2px; background:var(--dim); margin-right:8px; vertical-align:-1px; }',
     '#pb-side tr.ghead:first-child td { padding-top:2px; }',
+    // a foldable section: the caret replaces the bar, and the whole list under
+    // the heading goes away by class - so a row already put away by its own
+    // group fold stays put away when the section is opened again
+    '#pb-side tr.ghead[data-sect] td::before { display:none; }',
+    '#pb-side table.sect-shut tr:not(.ghead) { display:none; }',
+    '#pb-side .sname { color:#0f172a; }',
+    '#pb-side .scount { color:var(--dim); font-weight:500; margin-left:5px; }',
+    '#pb-side .shint { color:var(--dim); font-weight:400; font-size:11px; margin-left:7px; }',
     // group header inside the assembly list
     '#pb-side tr.gsub td { color:#334155; font-size:12px; padding-top:9px;',
     '  border-bottom:1px solid var(--hair); }',
-    '#pb-side .gname { color:#0f172a; font-size:13px; font-weight:600; }',
+    '#pb-side .gname { color:#0f172a; font-size:13px; font-weight:600; cursor:pointer; }',
+    '#pb-side .gname:hover { color:#1d4ed8; }',
     '#pb-side .gcount { color:#94a3b8; font-size:11px; font-weight:400; margin-left:6px; }',
     // the row picked in the list, shown against the same cyan as its outline
     // in the 3D view so the two read as one selection
@@ -2315,12 +2324,44 @@
   }
 
   // section title / placeholder rows - same look in every list
-  function sectionRow(tbl, cls, text, span) {
+  /* Every list starts folded. Six of them stacked open is a hundred rows to
+     scroll past before the model, and what a sheet is usually opened to check
+     is the count - so the count sits on the heading and the rows are one click
+     away.
+
+     `key` makes a heading foldable; the state lives in sectFold and is read
+     back here on every rebuild, so a list redrawn after a colour change comes
+     back the way it was left. */
+  var sectFold = {};
+  function sectionRow(tbl, cls, text, span, key, count) {
     var tr = document.createElement('tr');
     tr.className = cls;
-    tr.innerHTML = '<td colspan="' + (span || 2) + '">' + text + '</td>';
+    var html = text;
+    if (key) {
+      if (sectFold[key] === undefined) sectFold[key] = true;
+      var bit = String(text).split(' \u2014 ');
+      html = '<span class="fold' + (sectFold[key] ? ' shut' : '') + '"' +
+             ' onclick="plateBuilder.toggleSection(\'' + key + '\')"' +
+             ' title="show or hide this list">' + ICON_FOLD + '</span>' +
+             '<span class="sname">' + bit[0] + '</span>' +
+             '<span class="scount">(' + (count || 0) + ')</span>' +
+             (bit[1] ? '<span class="shint">\u2014 ' + bit[1] + '</span>' : '');
+      tr.setAttribute('data-sect', key);
+      tbl.className = sectFold[key] ? 'sect-shut' : '';
+    }
+    tr.innerHTML = '<td colspan="' + (span || 2) + '">' + html + '</td>';
     tbl.appendChild(tr);
     return tr;
+  }
+  function toggleSection(key) {
+    var head = document.querySelector('#pb-side tr[data-sect="' + key + '"]');
+    if (!head) return;
+    var shut = sectFold[key] = !sectFold[key];
+    var t = head.parentNode;
+    while (t && t.tagName !== 'TABLE') t = t.parentNode;
+    if (t) t.className = shut ? 'sect-shut' : '';
+    var f = head.querySelector('.fold');
+    if (f) f.className = 'fold' + (shut ? ' shut' : '');
   }
 
   // Cut shapes. They are never members, so they carry no colour and no weight -
@@ -2330,7 +2371,7 @@
     if (!tbl) return;
     tbl.innerHTML = '';
     var ids = Object.keys(shapeLib);
-    sectionRow(tbl, 'ghead', 'HOLES — click to preview', 3);
+    sectionRow(tbl, 'ghead', 'HOLES — click to preview', 3, 'hole', ids.length);
     if (!ids.length) { sectionRow(tbl, 'none', 'no HOLE row', 3); return; }
     var hr = document.createElement('tr');
     hr.className = 'chead';
@@ -2362,7 +2403,7 @@
     if (!tbl) return;
     tbl.innerHTML = '';
     var ids = Object.keys(lastPlates).filter(function (id) { return !lastPlates[id].__bar; });
-    sectionRow(tbl, 'ghead', 'PLATES — click to preview', 6);
+    sectionRow(tbl, 'ghead', 'PLATES — click to preview', 6, 'plate', ids.length);
     if (!ids.length) { sectionRow(tbl, 'none', 'no PLATE row', 6); return; }
     var hr = document.createElement('tr');
     hr.className = 'chead';
@@ -2395,7 +2436,7 @@
     if (!tbl) return;
     tbl.innerHTML = '';
     var ids = Object.keys(lastPlates).filter(function (id) { return isBarSpec(lastPlates[id]); });
-    sectionRow(tbl, 'ghead', 'BARS', 4);
+    sectionRow(tbl, 'ghead', 'BARS', 4, 'bar', ids.length);
     if (!ids.length) { sectionRow(tbl, 'none', 'no BAR row', 4); return; }
     var hr = document.createElement('tr');
     hr.className = 'chead';
@@ -2424,7 +2465,7 @@
     if (!tbl) return;
     tbl.innerHTML = '';
     var ids = Object.keys(lastPlates).filter(function (id) { return isSectSpec(lastPlates[id]); });
-    sectionRow(tbl, 'ghead', 'SECTIONS — click to preview', 4);
+    sectionRow(tbl, 'ghead', 'SECTIONS — click to preview', 4, 'sect', ids.length);
     if (!ids.length) { sectionRow(tbl, 'none', 'no SECT row', 4); return; }
     var hr = document.createElement('tr');
     hr.className = 'chead';
@@ -2769,7 +2810,7 @@
     if (!tbl) return;
     tbl.innerHTML = '';
     var ids = Object.keys(lastParts);
-    sectionRow(tbl, 'ghead', 'MODULES — click to preview');
+    sectionRow(tbl, 'ghead', 'MODULES — click to preview', 2, 'module', ids.length);
     if (!ids.length) { sectionRow(tbl, 'none', 'no MODULE row'); return; }
     ids.forEach(function (id) {
       var part = lastParts[id];
@@ -3792,6 +3833,13 @@
      among a hundred others; clicking the same row again drops the selection. */
   var SEL_COL = 0x0891b2, SEL_GLOW = 0x06262f;   // enough to pick out, not to bleach
   var selKey = null;                    // instKey of the picked row
+  var selGroup = null;                  // ... or the name of a picked assembly
+  // One picked thing at a time, but it is either a row or a whole assembly, so
+  // every place that asked "is this the picked row" has to ask this instead.
+  function itemPicked(it) {
+    if (selGroup !== null) return it.group === selGroup;
+    return !!selKey && it.instKey === selKey;
+  }
   var selBox = null;                    // its outline in the main scene
   function clearSelBox() {
     if (!selBox) return;
@@ -3802,10 +3850,10 @@
   }
   function drawSelBox() {
     clearSelBox();
-    if (!selKey || !scene) return;
+    if ((!selKey && selGroup === null) || !scene) return;
     var box = new THREE.Box3();
     items.forEach(function (it) {
-      if (it.instKey === selKey && it.groupObj.visible) box.expandByObject(it.groupObj);
+      if (itemPicked(it) && it.groupObj.visible) box.expandByObject(it.groupObj);
     });
     if (box.isEmpty()) return;
     var pad = Math.max(6, box.getSize(new THREE.Vector3()).length() * 0.02);
@@ -3816,17 +3864,37 @@
     selBox.renderOrder = 997;
     scene.add(selBox);
   }
-  function selectRow(ri) {
-    var r = listRows[ri];
-    if (!r) return;
-    selKey = selKey === r.key ? null : r.key;    // the same row again clears it
-    restyleAll();
-    drawSelBox();
+  function markPicked() {
     var tbl = document.getElementById('pb-list');
     if (!tbl) return;
     [].forEach.call(tbl.querySelectorAll('tr[data-row]'), function (tr) {
       tr.className = tr.getAttribute('data-key') === selKey ? 'sel' : '';
     });
+    [].forEach.call(tbl.querySelectorAll('tr[data-gh]'), function (tr) {
+      var n = tr.getAttribute('data-gname');
+      tr.className = 'gsub' + (selGroup !== null && n === selGroup ? ' sel' : '');
+    });
+  }
+  function selectRow(ri) {
+    var r = listRows[ri];
+    if (!r) return;
+    selKey = selKey === r.key ? null : r.key;    // the same row again clears it
+    selGroup = null;
+    restyleAll();
+    drawSelBox();
+    markPicked();
+  }
+  // Clicking an assembly's name picks every member under it at once - the box
+  // in the view is drawn round the lot, so it says where the assembly is
+  // rather than where one of its plates is.
+  function selectGroup(gi) {
+    var g = listGroups[gi];
+    if (!g) return;
+    selGroup = selGroup === g.name ? null : g.name;
+    selKey = null;
+    restyleAll();
+    drawSelBox();
+    markPicked();
   }
   // a chevron in a ring, drawn rather than fetched - the viewer runs in its own
   // document and one circle plus one polyline costs less than an icon font
@@ -3851,9 +3919,6 @@
     tbl.innerHTML = '';
     listRows = [];
     listGroups = [];
-    sectionRow(tbl, 'ghead', 'ASSEMBLY — placed modules');
-    if (!items.length) sectionRow(tbl, 'none', 'no ASSY row — nothing placed');
-
     var groups = [], gmap = {};
     items.forEach(function (it) {
       total += it.mass;
@@ -3870,6 +3935,9 @@
       if (it.moduleId) r.mods[it.moduleId] = 1;
     });
 
+    sectionRow(tbl, 'ghead', 'ASSEMBLY — placed modules', 2, 'assy', groups.length);
+    if (!items.length) sectionRow(tbl, 'none', 'no ASSY row — nothing placed');
+
     groups.forEach(function (g) {
       var gi = listGroups.length;
       listGroups.push(g);
@@ -3879,6 +3947,7 @@
       var gtr = document.createElement('tr');
       gtr.className = 'gsub';
       gtr.setAttribute('data-gh', gi);
+      gtr.setAttribute('data-gname', g.name);
       var gOn = g.rows.some(function (r) {
         return r.items.some(function (it) { return it.groupObj.visible; });
       });
@@ -3893,7 +3962,8 @@
         '<td><span class="fold' + (shut ? ' shut' : '') + '" style="color:' + band + '"' +
         ' onclick="plateBuilder.toggleFold(' + gi + ')"' +
         ' title="show or hide the members of this assembly">' + ICON_FOLD + '</span>' +
-        '<span class="gname">' +
+        '<span class="gname" onclick="plateBuilder.selectGroup(' + gi + ')"' +
+        ' title="pick every member of this assembly">' +
         (g.name === '-' ? 'single plates' : esc(g.name)) + '</span>' +
         '<span class="gcount">' + g.rows.length +
         (g.rows.length > 1 ? ' members' : ' member') + '</span></td>';
@@ -5981,7 +6051,7 @@
     runToken++;
     var token = runToken;
     items = [];
-    selKey = null;                       // a new model, so nothing is picked yet
+    selKey = null; selGroup = null;      // a new model, so nothing is picked yet
     selBox = null;                       // the old scene took the helper with it
     folded = {};                         // and every assembly starts folded again
 
@@ -6142,7 +6212,7 @@
   function styleItem(it) {
     var col = resolveColor(it, it.baseColor);
     var op = resolveOpac(it);
-    var on = !!selKey && it.instKey === selKey;
+    var on = itemPicked(it);
     it.mat.color.setHex(col);
     it.mat.emissive.setHex(on ? SEL_GLOW : 0x000000);
     it.mat.opacity = op;
@@ -6435,6 +6505,8 @@
   window.plateBuilder = {
     run: run, setView: setView, exportSTL: exportSTL, exportIFC: exportIFC,
     exportBOQ: exportBOQ,
+    toggleSection: toggleSection,
+    selectGroup: selectGroup,
     toggleItem: toggleItem, toggleGroup: toggleGroup, toggleInst: toggleInst,
     toggleFold: toggleFold, selectRow: selectRow,
     pickExcel: pickExcel, loadExcelFile: loadExcelFile,
