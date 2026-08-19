@@ -129,6 +129,11 @@
     // group fold stays put away when the section is opened again
     '#pb-side tr.ghead[data-sect] td::before { display:none; }',
     '#pb-side table.sect-shut tr:not(.ghead) { display:none; }',
+    // the whole heading line is the fold target, so it has to look like one
+    '#pb-side tr.ghead td.sechd { cursor:pointer; -webkit-user-select:none;',
+    '  user-select:none; }',
+    '#pb-side tr.ghead td.sechd:hover .sname { color:#1d4ed8; }',
+    '#pb-side tr.ghead td.sechd:hover .fold { opacity:.72; }',
     '#pb-side .sname { color:#0f172a; }',
     '#pb-side .scount { color:var(--dim); font-weight:500; margin-left:5px; }',
     '#pb-side .shint { color:var(--dim); font-weight:400; font-size:11px; margin-left:7px; }',
@@ -287,17 +292,40 @@
     '#pb-modal .meta { color:#64748b; font-size:11px; margin-top:9px; }',
     '#pb-modal .pvbody { display:flex; gap:10px; align-items:flex-start; }',
     '#pb-pv3d { border:1px solid var(--line); border-radius:8px; }',
-    '#pb-pv-tree { display:none; width:196px; max-height:542px; overflow-y:auto;',
-    '  background:#fff; border:1px solid var(--line); border-radius:8px; padding:6px 8px; }',
-    '#pb-pv-tree table { width:100%; border-collapse:collapse; }',
-    '#pb-pv-tree td { padding:4px 2px; vertical-align:middle; color:#334155;',
+    /* The member panel is a table, and the table does not wrap - see PV_COLS.
+       Its width is set from the table's own width when the preview opens, so
+       these rules only have to lay it out: a caption that stays put, and one
+       scrolling area under it holding the rows. */
+    /* width and height are set when the preview opens - see pvModuleLayout */
+    '#pb-pv-tree { display:none; flex-direction:column; overflow:hidden;',
+    '  background:#fff; border:1px solid var(--line); border-radius:8px; }',
+    '#pb-pv-tree .pvcap { flex:0 0 auto; color:#0f172a; font-size:10px; font-weight:700;',
+    '  letter-spacing:.06em; text-transform:uppercase; padding:7px 9px 6px;',
+    '  border-bottom:1px solid var(--hair); white-space:nowrap; overflow:hidden;',
+    '  text-overflow:ellipsis; }',
+    '#pb-pv-tree .pvcap span { color:var(--dim); font-weight:500; }',
+    '#pb-pv-tree .pvscroll { flex:1 1 auto; min-height:0; overflow:auto; }',
+    '#pb-pv-tree table { border-collapse:collapse; }',
+    '#pb-pv-tree td, #pb-pv-tree th { padding:4px 9px 4px 0; white-space:nowrap;',
+    '  vertical-align:middle; color:#334155; font-size:11px;',
     '  border-bottom:1px solid #f1f5f9; }',
-    '#pb-pv-tree tr.thead td { color:#0f172a; font-size:10px; font-weight:700;',
-    '  letter-spacing:.06em; text-transform:uppercase; padding-bottom:6px;',
+    '#pb-pv-tree td:first-child, #pb-pv-tree th:first-child { padding-left:9px; }',
+    /* sticky, so the column names survive scrolling a 60-member module */
+    '#pb-pv-tree th { position:sticky; top:0; z-index:1; background:#fff;',
+    '  color:#64748b; font-size:9px; font-weight:700; letter-spacing:.06em;',
+    '  text-transform:uppercase; text-align:left;',
     '  border-bottom:1px solid var(--hair); }',
+    '#pb-pv-tree th.num { text-align:right; }',
+    /* ... and the controls and the name stay put when the table slides sideways,
+       or you scroll to a coordinate with no way of telling whose it is */
+    '#pb-pv-tree .who { position:sticky; left:0; z-index:2; background:#fff;',
+    '  box-shadow:1px 0 0 var(--hair); }',
+    '#pb-pv-tree th.who { z-index:3; }',
     '#pb-pv-tree tr.off td { opacity:.45; }',
     '#pb-pv-tree .nm { font-size:11px; color:#0f172a; font-weight:600; }',
-    '#pb-pv-tree .dims { color:#94a3b8; font-size:10px; }',
+    '#pb-pv-tree .num { text-align:right; font-variant-numeric:tabular-nums; }',
+    '#pb-pv-tree .note { color:#b45309; font-size:9.5px; font-weight:700;',
+    '  letter-spacing:.05em; }',
     '#pb-pv-tree input[type=range] { width:38px; height:11px; vertical-align:middle;',
     '  accent-color:var(--dim); cursor:pointer; }',
     '#pb-pv-tree input[type=checkbox] { margin:0 3px 0 0; vertical-align:middle;',
@@ -686,21 +714,44 @@
     for (var i = 0; i < k.length; i++) if (map[k[i]] === role) return k[i];
     return role;
   }
-  function memberDesc(row) {                    // one module member, for the preview panel
+  /* One module member, broken into the cells of the preview panel's table.
+     It used to be one run-on line - "A\u2192B \u00b7 (-2400, -2400, -400) \u2192 (2400, -2400,
+     -400) \u00b7 L4800 \u00b7 off 140/140" - which in a 196px panel wrapped to four lines
+     per member and stopped being readable at all. A fact per column reads, and
+     coordinates in a column line up down the list.
+     A key is left out when the member has nothing to say there, and the panel
+     drops any column no member fills: a module of plates carries no empty
+     TO / LENGTH columns for the sake of a module of bars. */
+  var PV_COLS = [
+    { k: 'plane', h: 'plane' },
+    { k: 'ref',   h: 'ref.pt' },
+    { k: 'at',    h: 'at' },
+    { k: 'to',    h: 'to' },
+    { k: 'len',   h: 'length', num: true },
+    { k: 'rot',   h: 'rot',    num: true },
+    { k: 'off',   h: 'offset', num: true },
+    { k: 'ends',  h: 'end off', num: true },
+    { k: 'note',  h: '' }
+  ];
+  function pvCells(row, part) {
+    var c = {};
     if (row.__ax) {                             // start/end placement
-      var t2 = 'A\u2192B \u00b7 (' + row.X1 + ', ' + row.Y1 + ', ' + row.Z1 + ') \u2192 (' +
-               row.X2 + ', ' + row.Y2 + ', ' + row.Z2 + ') \u00b7 L' + rnd(row.LEN);
-      if (row.OFB || row.OFE) t2 += ' \u00b7 off ' + row.OFB + '/' + row.OFE;
-      if (row.ALPHA) t2 += ' \u00b7 \u03b1 ' + row.ALPHA;
-      return t2;
+      c.plane = 'A\u2192B';
+      c.at = '(' + row.X1 + ', ' + row.Y1 + ', ' + row.Z1 + ')';
+      c.to = '(' + row.X2 + ', ' + row.Y2 + ', ' + row.Z2 + ')';
+      c.len = String(rnd(row.LEN));
+      if (row.OFB || row.OFE) c.ends = row.OFB + ' / ' + row.OFE;
+      if (row.ALPHA) c.rot = '\u03b1 ' + row.ALPHA;
+    } else {
+      c.plane = row.PL_IN || planeLabel(row.PLANE);
+      c.ref = row.__bar ? 'start' : row.REFPT + faceMark(row.FACE);
+      if (row.__xyz) c.at = '(' + row.LX + ', ' + row.LY + ', ' + row.LZ + ')';
+      else c.off = String(row.OFFSET);
+      var rot = row.__xyz ? [row.RX, row.RY, row.RZ] : [0, 0, row.ROT];
+      if (rot[0] || rot[1] || rot[2]) c.rot = rot.join(' / ');
     }
-    var t = (row.PL_IN || planeLabel(row.PLANE)) + ' \u00b7 ' +
-            (row.__bar ? 'start' : row.REFPT + faceMark(row.FACE)) + ' \u00b7 ';
-    t += row.__xyz ? '(' + row.LX + ', ' + row.LY + ', ' + row.LZ + ')'
-                   : 'off ' + row.OFFSET;
-    var rot = row.__xyz ? [row.RX, row.RY, row.RZ] : [0, 0, row.ROT];
-    if (rot[0] || rot[1] || rot[2]) t += ' \u00b7 rot ' + rot.join('/');
-    return t;
+    if (part && part.base && part.base.inst === row.NO) c.note = 'BASE';
+    return c;
   }
   function rnd(x) { return Math.round(x * 100) / 100; }
 
@@ -2397,20 +2448,23 @@
   function sectionRow(tbl, cls, text, span, key, count) {
     var tr = document.createElement('tr');
     tr.className = cls;
-    var html = text;
+    var html = text, tdAttr = '';
     if (key) {
       if (sectFold[key] === undefined) sectFold[key] = true;
       var bit = String(text).split(' \u2014 ');
-      html = '<span class="fold' + (sectFold[key] ? ' shut' : '') + '"' +
-             ' onclick="plateBuilder.toggleSection(\'' + key + '\')"' +
-             ' title="show or hide this list">' + ICON_FOLD + '</span>' +
+      html = '<span class="fold' + (sectFold[key] ? ' shut' : '') + '">' + ICON_FOLD +
+             '</span>' +
              '<span class="sname">' + bit[0] + '</span>' +
              '<span class="scount">(' + (count || 0) + ')</span>' +
              (bit[1] ? '<span class="shint">\u2014 ' + bit[1] + '</span>' : '');
+      // the whole heading folds, not just the caret: a 14px triangle is a small
+      // thing to hit for something you do on every section, every load
+      tdAttr = ' class="sechd" onclick="plateBuilder.toggleSection(\'' + key + '\')"' +
+               ' title="show or hide this list"';
       tr.setAttribute('data-sect', key);
       tbl.className = sectFold[key] ? 'sect-shut' : '';
     }
-    tr.innerHTML = '<td colspan="' + (span || 2) + '">' + html + '</td>';
+    tr.innerHTML = '<td colspan="' + (span || 2) + '"' + tdAttr + '>' + html + '</td>';
     tbl.appendChild(tr);
     return tr;
   }
@@ -2601,7 +2655,7 @@
       });
     });
 
-    var vs = pvViewSize(false);
+    var vs = pvViewSize();
     cv.width = vs.W; cv.height = vs.H;
     var W = vs.W, H = vs.H, PAD = Math.round(54 * vs.H / 540);
     var fit = Math.min((W - PAD * 2) / Math.max(maxx - minx, 1e-6),
@@ -2654,7 +2708,7 @@
     if (!pv) return;
     var cv = document.getElementById('pb-pv-canvas');
     if (!cv) return;
-    var vs = pvViewSize(false);
+    var vs = pvViewSize();
     if (vs.W === pv.W && vs.H === pv.H) return;
     var cxm = pv.minx + (pv.W / 2 - pv.ox) / pv.sc;
     var cym = pv.miny + (pv.H / 2 - pv.oy) / pv.sc;
@@ -2895,48 +2949,55 @@
 
   // The module's member plates, listed beside its preview: hide/show, local
   // axes and per-plate opacity for the module currently open.
+  // The panel's own size is fixed and set by the caller, so this only fills it.
   function buildPvTree(id, force) {
     var host = document.getElementById('pb-pv-tree');
     if (!host) return;
     var part = lastParts[id];
     if (!part) { host.style.display = 'none'; host.innerHTML = ''; pvTreeId = null; return; }
-    host.style.display = 'block';
+    host.style.display = 'flex';
     // the preview rebuilds on every slider step - leave the panel's DOM alone
     // then, or the control being dragged is destroyed under the pointer
-    if (!force && pvTreeId === id) return;
-    pvTreeId = id;
-    var t = document.createElement('table');
-    var hr = document.createElement('tr');
-    hr.className = 'thead';
-    hr.innerHTML = '<td colspan="2">MEMBERS IN ' + esc(id) + '</td>';
-    t.appendChild(hr);
-    part.pos.forEach(function (row) {
-      var key = id + '/' + row.NO;
-      var on = !memberHidden[key];
-      var tr = document.createElement('tr');
-      tr.setAttribute('data-key', key);
-      if (!on) tr.className = 'off';
-      tr.innerHTML =
-        '<td style="width:74px;white-space:nowrap">' +
-        '<input type="checkbox" title="show / hide this plate"' + (on ? ' checked' : '') +
-        ' onchange="plateBuilder.togglePvMember(\'' + id + '\',\'' + row.NO + '\',this.checked)">' +
-        '<span class="sw" title="colour of this plate" style="background:' +
-        int2hex(resolveColor({ plateId: row.PLATE }, (lastColors && lastColors[row.PLATE]) || 0x999999)) +
-        '" onclick="plateBuilder.openPalette(event,\'plate\',\'' + row.PLATE + '\',this)"></span>' +
-        '<input type="range" min="10" max="100" step="5" value="' +
-        Math.round((ovOpac.member[key] !== undefined ? ovOpac.member[key] : 1) * 100) +
-        '" title="opacity of this plate" ' +
-        'oninput="plateBuilder.setOpacity(\'member\',\'' + key + '\',this.value)"></td>' +
-        '<td><label class="nm" title="show local axes at its Ref.Pt">' +
-        '<input type="checkbox"' + (memberAxes[key] ? ' checked' : '') +
-        ' onchange="plateBuilder.toggleMemberAxis(\'' + id + '\',\'' + row.NO + '\',this.checked)"> ' +
-        esc(row.NO) + '</label>' +
-        '<div class="dims">' + esc(memberDesc(row)) +
-        (part.base && part.base.inst === row.NO ? ' · BASE' : '') + '</div></td>';
-      t.appendChild(tr);
-    });
-    host.innerHTML = '';
-    host.appendChild(t);
+    if (force || pvTreeId !== id) {
+      pvTreeId = id;
+      var cells = part.pos.map(function (row) { return pvCells(row, part); });
+      var cols = PV_COLS.filter(function (c) {
+        return cells.some(function (x) { return x[c.k]; });
+      });
+      var html = '<tr><th class="who">member</th>';
+      cols.forEach(function (c) {
+        html += '<th' + (c.num ? ' class="num"' : '') + '>' + esc(c.h) + '</th>';
+      });
+      html += '</tr>';
+      part.pos.forEach(function (row, i) {
+        var key = id + '/' + row.NO;
+        var on = !memberHidden[key];
+        html += '<tr data-key="' + esc(key) + '"' + (on ? '' : ' class="off"') + '>' +
+          '<td class="who">' +
+          '<input type="checkbox" title="show / hide this plate"' + (on ? ' checked' : '') +
+          ' onchange="plateBuilder.togglePvMember(\'' + id + '\',\'' + row.NO + '\',this.checked)">' +
+          '<span class="sw" title="colour of this plate" style="background:' +
+          int2hex(resolveColor({ plateId: row.PLATE }, (lastColors && lastColors[row.PLATE]) || 0x999999)) +
+          '" onclick="plateBuilder.openPalette(event,\'plate\',\'' + row.PLATE + '\',this)"></span>' +
+          '<input type="range" min="10" max="100" step="5" value="' +
+          Math.round((ovOpac.member[key] !== undefined ? ovOpac.member[key] : 1) * 100) +
+          '" title="opacity of this plate" ' +
+          'oninput="plateBuilder.setOpacity(\'member\',\'' + key + '\',this.value)">' +
+          '<label class="nm" title="show local axes at its Ref.Pt">' +
+          '<input type="checkbox"' + (memberAxes[key] ? ' checked' : '') +
+          ' onchange="plateBuilder.toggleMemberAxis(\'' + id + '\',\'' + row.NO + '\',this.checked)"> ' +
+          esc(row.NO) + '</label></td>';
+        cols.forEach(function (c) {
+          html += '<td class="' + (c.num ? 'num' : '') + (c.k === 'note' ? ' note' : '') +
+                  '">' + esc(cells[i][c.k] || '') + '</td>';
+        });
+        html += '</tr>';
+      });
+      host.innerHTML =
+        '<div class="pvcap">members in ' + esc(id) +
+        ' <span>(' + part.pos.length + ')</span></div>' +
+        '<div class="pvscroll"><table>' + html + '</table></div>';
+    }
   }
 
   // Where the module's BASE point ends up in preview coordinates. Recomputed
@@ -3362,18 +3423,47 @@
   // renderer per open exhausts the browser's context budget - the opacity and
   // axis controls reopen the preview on every input step - and once the budget
   // is gone the preview stays blank until the page is reloaded.
-  // The preview keeps 16:9 but never grows past what the window can show, so
-  // the modal does not need a scrollbar on a short screen. Chrome around the
-  // view: box padding+border, the title row, the two meta lines, and the member
-  // tree when the 3D box has one.
-  function pvViewSize(withTree) {
-    // the box itself is capped at 97vw / 96vh, so measure against that, less the
-    // chrome: padding + borders (34), title row + the two meta lines (~66), and
-    // the member tree with its gap (206) when the 3D box has one
-    var availW = Math.floor(window.innerWidth * 0.97) - (36 + (withTree ? 206 : 0));
-    var availH = Math.floor(window.innerHeight * 0.96) - 100;
-    var s = Math.min(1, availW / 960, availH / 540);
+  /* The module preview is a fixed size. It used to be fitted - the panel took
+     the width its table wanted and the view took the rest - so every module
+     opened at a different size, and a module that looked bigger than the last
+     one might only have had a shorter member list. Two constants now, the same
+     on every module: you can tell one model from another by looking at it.
+
+     16:9 at 1200 wide is exactly 675, so the view is 1200 x 675 with nothing to
+     round. The panel keeps the proportion it had at 1100 - 355/1100 - which
+     puts it at 387.
+
+     The panel is the one that scrolls. It cannot hold MD.HEAD's table (775 wide,
+     942 tall) and is not meant to: the controls and the member name are frozen
+     at its left edge, and the columns past them slide under them. */
+  var PV_VIEW_W = 1200, PV_VIEW_H = 675;   // the 3D view
+  var PV_TREE_W = 387;                     // the member panel beside it
+  var PV_GAP = 10;                         // .pvbody's gap between the two
+  function pvRoom() {              // width inside the box, which is capped at 97vw
+    return Math.floor(window.innerWidth * 0.97) - 36;
+  }
+  function pvAvailH() {            // ... and at 96vh, less the title and meta rows
+    return Math.floor(window.innerHeight * 0.96) - 100;
+  }
+  /* Fixed means fixed on any screen that can hold it - 1684 x 808 of viewport,
+     which on the site means a browser 2052 wide and 930 tall (the frame loses
+     270 to the sidebar plus 98 of page gutter, and is 100vh - 120 less 2 for
+     its border). Below that the whole body scales together rather than the
+     modal growing a scrollbar, so the panel and the view keep their proportions
+     to each other. */
+  function pvModuleLayout() {
+    var s = Math.min(1, pvRoom() / (PV_TREE_W + PV_GAP + PV_VIEW_W),
+                     pvAvailH() / PV_VIEW_H);
     if (!(s > 0.3)) s = 0.3;                     // also catches NaN on odd hosts
+    return { tree: Math.round(PV_TREE_W * s),
+             W: Math.round(PV_VIEW_W * s), H: Math.round(PV_VIEW_H * s) };
+  }
+  /* The 2D plate drawing is its own thing and keeps the 960 cap: its dimension
+     text is set in fixed pixels, so a bigger canvas would leave the numbers
+     small against a larger drawing rather than simply showing more. */
+  function pvViewSize() {
+    var s = Math.min(1, pvRoom() / 960, pvAvailH() / 540);
+    if (!(s > 0.3)) s = 0.3;
     return { W: Math.round(960 * s), H: Math.round(540 * s) };
   }
 
@@ -3693,11 +3783,15 @@
     pvTitle.textContent = id + '  (module)';     // set first, so the box is never blank
     pvMeta.textContent = '';
 
-    var vs = pvViewSize(true);
-    var W = vs.W, H = vs.H;                      // 16:9, clipped to the window
-    host.style.width = W + 'px'; host.style.height = H + 'px';
+    // not forced: an opacity slider reopens the preview on every step, and a
+    // rebuild would destroy the control under the pointer
+    buildPvTree(id);
     var tree = document.getElementById('pb-pv-tree');
-    if (tree) tree.style.maxHeight = (H + 2) + 'px';
+    var vs = pvModuleLayout();
+    var W = vs.W, H = vs.H;                      // the fixed 1000 x 563, or scaled
+    host.style.width = W + 'px'; host.style.height = H + 'px';
+    // + the panel's two borders, so its outer edge lines up with the view's
+    if (tree) { tree.style.width = vs.tree + 'px'; tree.style.height = (H + 2) + 'px'; }
     var sc = new THREE.Scene();
     pvScene = sc;
     sc.background = new THREE.Color(0x15181c);
@@ -3859,12 +3953,19 @@
                  : '<span style="color:#f0c674">no BASE — local origin</span>') +
       (bad.length ? ' &middot; <span style="color:#f09a9a">not drawn: ' +
                     esc(bad.join(', ')) + '</span>' : '') +
-      ' &nbsp;&nbsp;<span style="color:#5b6472">drag to rotate</span>';
+      /* The view's own size, because you cannot read it off the screen. It is
+         PV_VIEW_W x PV_VIEW_H whenever the window can hold that, and smaller
+         when it cannot - and telling those two apart by eye is impossible,
+         which turns "did the update land?" into a question nobody can answer.
+         A window too narrow says so rather than looking like a stale build. */
+      ' &nbsp;&nbsp;<span style="color:#5b6472">' + W + '&times;' + H +
+      (W < PV_VIEW_W ? ' <span style="color:#8a7a45">(window too small for ' +
+                       PV_VIEW_W + '&times;' + PV_VIEW_H + ')</span>' : '') +
+      ' &nbsp; drag to rotate</span>';
 
     if (measPv) measPv.dispose();
     measPv = createMeasure({ scene: sc, camera: cam, dom: rn.domElement,
                              out: 'pb-pv-pos', size: function () { return size; } });
-    buildPvTree(id);
     if (basePt) pvSnaps.push(basePt.clone());    // the datum snaps too
     pvSnaps.push(new THREE.Vector3(0, 0, 0));    // and so does the local origin
     measPv.setSnaps(pvSnaps);
@@ -6498,8 +6599,8 @@
   // Example workbooks, all sitting next to this file. Add a row to put another
   // one on the menu; nothing else needs touching.
   /* One row each. `d` is a single line and is not allowed to wrap - the point of
-     the list is to compare five examples at a glance and pick one, not to read
-     five paragraphs. The long version is the model itself. */
+     the list is to compare the examples at a glance and pick one, not to read a
+     paragraph about each. The long version is the model itself. */
   var SAMPLES = [
     { f: 'PLATE3D_BASIC.xlsx', n: 'Basic', s: '76 rows → 90 members · 1.70 t',
       d: 'Every keyword once, in one real model. Start here.' },
@@ -6511,6 +6612,8 @@
       d: 'Half a frame, mirrored and copied into a 30 m shed.' },
     { f: 'PLATE3D_NODE.xlsx', n: 'Bolted node', s: '59 rows → 46 members · 168 kg',
       d: 'A four-way beam connection: one arm, turned four ways.' },
+    { f: 'PLATE3D_SPLICE.xlsx', n: 'Beam splice', s: '85 rows → 46 members · 376 kg',
+      d: 'A bolted splice: an H made of plates, so CUT can drill it.' },
     { f: 'PLATE3D_TANK.xlsx', n: 'Tank', s: '54 rows → 16 members · 4.9 kg',
       d: 'Reverse-engineered from a five-sheet A4 drawing set.' },
     { f: 'PLATE3D_TURRET.xlsx', n: 'Turret', s: '56 rows → 12 members · 0.65 kg',
