@@ -3421,11 +3421,11 @@
      one might only have had a shorter member list. Two constants now, the same
      on every module: you can tell one model from another by looking at it.
 
-     16:9 at 1000 wide is 562.5, so the view is 1000 x 563 - an aspect of 1.7762
+     16:9 at 1100 wide is 618.75, so the view is 1100 x 619 - an aspect of 1.7770
      against 1.7778, which no eye reads as out of square. The panel is 500 and
-     scrolls, both ways: a wide table (MD.HEAD's is 784) slides sideways, a long
+     scrolls, both ways: a wide table (MD.HEAD's is 775) slides sideways, a long
      one (MD.BASE has 33 members) slides down. */
-  var PV_VIEW_W = 1000, PV_VIEW_H = 563;   // the 3D view
+  var PV_VIEW_W = 1100, PV_VIEW_H = 619;   // the 3D view
   var PV_TREE_W = 500;                     // the member panel beside it
   var PV_GAP = 10;                         // .pvbody's gap between the two
   function pvRoom() {              // width inside the box, which is capped at 97vw
@@ -3434,7 +3434,7 @@
   function pvAvailH() {            // ... and at 96vh, less the title and meta rows
     return Math.floor(window.innerHeight * 0.96) - 100;
   }
-  /* Fixed means fixed on any screen that can hold it - 1594 x 691 and up. Below
+  /* Fixed means fixed on any screen that can hold it - 1697 x 749 and up. Below
      that the whole body scales together rather than the modal growing a
      scrollbar, so the panel and the view keep their proportions to each other. */
   function pvModuleLayout() {
