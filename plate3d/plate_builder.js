@@ -592,9 +592,9 @@
        MODULE ID BASE INSTANCE POINT          (module reference point = one of the
                                                9 points of a member plate;
                                                missing BASE -> warning + local origin)
-       -- member ids are unique inside their module: two rows sharing one id is
-          a fatal, since BASE, hiding and the member list all address members by
-          that name. Reuse a definition as ID_1, ID_2, ... instead.
+       -- name the same part as many times as you use it. The engine numbers
+          the repeats itself - pl.c1 twice becomes pl.c1_1 and pl.c1_2 - so the
+          sheet says what a thing is and never has to invent an instance name
        -- a BAR member leaves REF.PT blank: a bar is always held by the centre of
           its starting face and grows along the plane's thickness axis, so a bar
           on XY at 0,0,0 runs from z=0 up to z=Length
@@ -743,22 +743,26 @@
     // visibly short.
     var fatals = [];
     function fatal(m) { fatals.push(m); log.push({ s: 'e', m: m }); console.error('[plateBuilder] ' + m); }
-    // Member ids are unique inside their module: "md.frame/pl.web" names exactly
-    // one member, and hiding, BASE and the preview all address members by that
-    // name. Two rows sharing one id would make those references ambiguous, so
-    // reusing a section means giving each use its own id - pl.web_1, pl.web_2 -
-    // which resolvePlate maps back onto the one definition.
-    var memSeen = {};
-    function addMember(part, row, r) {
-      var k = part.ID + '/' + row.NO;
-      if (memSeen[k]) {
-        fatal('MODULE ' + part.ID + ': member id ' + row.NO + ' is used twice (sheet rows ' +
-              memSeen[k] + ' and ' + (r + 1) + '). Every member of a module needs its own id — ' +
-              'to use one section more than once, add a suffix: ' + row.NO + '_1, ' +
-              row.NO + '_2, ... (they all still read the ' + row.PLATE + ' definition).');
-        return;
-      }
-      memSeen[k] = r + 1;
+    // A member is addressed by "md.frame/pl.web" - by hiding, by BASE, by the
+    // preview - so the ids have to come out unique. They are made unique in
+    // numberMembers, after the sheet has been read, rather than demanded of
+    // whoever writes it.
+    /* A MODULE row that names a shape nothing defines cannot be drawn, and
+       skipping it quietly is the worst of the options: the sheet looks like it
+       loaded, the model is short a member, and the count in the panel is the
+       only place it shows. The definition rows are read top to bottom, so a
+       PLATE written below the MODULE that uses it has not been seen yet -
+       which is the usual cause after a plain typo. */
+    function noSuchMember(r, kw, id) {
+      fatal('row ' + (r + 1) + ': ' + kw + ' names ' + (id || '(blank)') +
+            ', which no PLATE, BAR or SECT row defines. Check the spelling, and ' +
+            'check it is defined above this row — the sheet is read from the top.');
+    }
+    /* A MODULE row names the shape it places, and naming the same shape twice
+       is the ordinary case - two identical plates, four identical bolts. The
+       instance ids that keep them apart are the engine's bookkeeping and are
+       given out after the sheet has been read, in numberMembers below. */
+    function addMember(part, row) {
       part.pos.push(row);
     }
     function resolvePlate(pid) {          // exact id, or instance suffix PL.C1_2 → PL.C1
@@ -1050,13 +1054,13 @@
           continue;
         }
         var mplate = resolvePlate(msub);
-        if (!mplate) { warn('row ' + (r + 1) + ': MODULE row with undefined plate ' + msub); continue; }
+        if (!mplate) { noSuchMember(r, 'MODULE', msub); continue; }
         if (palias[str(v[2]).toUpperCase()]) {   // legacy: <plate> PLANE Ref.Pt L.X L.Y L.ROT OFFSET
           addMember(currentPart, { NO: msub, PLATE: mplate, PLANE: palias[str(v[2]).toUpperCase()],
                                    PL_IN: str(v[2]).toUpperCase(), __bar: !!plates[mplate].__bar,
                                    REFPT: normPoint(v[3]), FACE: faceOf(v[3]),
                                    LX: num(v[4], 0), LY: num(v[5], 0),
-                                   ROT: num(v[6], 0), OFFSET: num(v[7], 0) }, r);
+                                   ROT: num(v[6], 0), OFFSET: num(v[7], 0) });
           continue;
         }
         // <plate> Ref.Pt L.X L.Y L.Z PLANE [ROT.X ROT.Y ROT.Z]
@@ -1066,7 +1070,7 @@
                                    PL_IN: mplane, __bar: !!plates[mplate].__bar,
                                    REFPT: normPoint(v[2]), FACE: faceOf(v[2]),
                                    LX: num(v[3], 0), LY: num(v[4], 0), LZ: num(v[5], 0),
-                                   RX: num(v[7], 0), RY: num(v[8], 0), RZ: num(v[9], 0) }, r);
+                                   RX: num(v[7], 0), RY: num(v[8], 0), RZ: num(v[9], 0) });
           continue;
         }
         // <bar/sect> Ref.Pt LX1 LY1 LZ1 LX2 LY2 LZ2 [OFF_B OFF_E Alpha]
@@ -1075,7 +1079,7 @@
         // are tested: a column standing straight up leaves LX2 and LY2 blank.
         if (isNum(v[6]) || isNum(v[7]) || isNum(v[8])) {
           var axr = axialRow(msub, mplate, v, r);
-          if (axr) addMember(currentPart, axr, r);
+          if (axr) addMember(currentPart, axr);
           continue;
         }
         warn('row ' + (r + 1) + ': unknown PLANE ' + (str(v[6]) || '(blank)') +
@@ -1085,14 +1089,14 @@
         if (!currentPart) { warn('row ' + (r + 1) + ': POS outside of a MODULE'); continue; }
         var ppid = str(v[0]).toUpperCase();
         var pplate = resolvePlate(ppid);
-        if (!pplate) { warn('row ' + (r + 1) + ': POS of undefined plate ' + ppid); continue; }
+        if (!pplate) { noSuchMember(r, 'POS', ppid); continue; }
         var pplane = str(v[1]).toUpperCase();
         if (!palias[pplane]) { warn('row ' + (r + 1) + ': unknown PLANE ' + pplane + ' (use XY/YZ/XZ)'); continue; }
         addMember(currentPart, { NO: ppid, PLATE: pplate, PLANE: palias[pplane],
                                  PL_IN: pplane, __bar: !!plates[pplate].__bar,
                                  REFPT: normPoint(v[2]), FACE: faceOf(v[2]),
                                  LX: num(v[3], 0), LY: num(v[4], 0),
-                                 ROT: num(v[5], 0), OFFSET: num(v[6], 0) }, r);
+                                 ROT: num(v[5], 0), OFFSET: num(v[6], 0) });
       } else if (kw === 'BASE') {         // BASE INSTANCE POINT — part reference point
         if (!currentPart) { warn('row ' + (r + 1) + ': BASE outside of a MODULE'); continue; }
         currentPart.base = { inst: str(v[0]).toUpperCase(), pt: normPoint(v[1]),
@@ -1250,6 +1254,51 @@
     // wherever its members happen to have been drawn rather than where the sheet
     // asked. The fallback keeps the model on screen to look at; it does not make
     // the sheet right.
+    /* Hand out the instance ids.
+
+       A PLATE row is a shape; a MODULE row is one use of that shape. Using it
+       twice is the ordinary case - two identical plates, four identical bolts -
+       and the sheet should be able to say so by writing the same id twice. What
+       it must not have to do is invent pl.c1_1 and pl.c1_2 to get past a
+       uniqueness check: that numbering is bookkeeping, and bookkeeping is ours.
+
+       So it happens here, after the sheet is read. A name used once keeps it, so
+       nothing any existing sheet wrote moves. A name used more than once has
+       every one of its uses numbered from _1, skipping any number the sheet
+       spelled out itself, so a mixture of both styles cannot collide.
+
+       Two copies in the same place are still wrong, of course - but that is a
+       geometry mistake and the clash check is what finds it, not a rule about
+       spelling. */
+    Object.keys(parts).forEach(function (id) {
+      var part = parts[id], used = {}, taken = {};
+      part.pos.forEach(function (p) {
+        used[p.NO] = (used[p.NO] || 0) + 1;
+        taken[p.NO] = true;
+      });
+      var seq = {}, firstOf = {};
+      part.pos.forEach(function (p) {
+        var base = p.NO;
+        if (used[base] < 2) return;
+        var k = (seq[base] || 0) + 1, cand = base + '_' + k;
+        while (taken[cand]) { k++; cand = base + '_' + k; }
+        seq[base] = k;
+        taken[cand] = true;
+        if (!firstOf[base]) firstOf[base] = cand;
+        p.WROTE = base;                       // what the sheet called it
+        p.NO = cand;
+      });
+      /* BASE names a member. If the name it gives now covers several, it means
+         the first of them - the one the sheet listed first - and says so rather
+         than picking quietly. */
+      var b = part.base;
+      if (b && firstOf[b.inst]) {
+        hint('MODULE ' + id + ': BASE ' + b.inst + ' names ' + used[b.inst] +
+             ' members — taking the first, ' + firstOf[b.inst] +
+             '. Name a copy directly to choose another.');
+        b.inst = firstOf[b.inst];
+      }
+    });
     Object.keys(parts).forEach(function (id) {
       if (!parts[id].pos.length) hint('MODULE ' + id + ': has no POS rows');
       else if (!parts[id].base) warn('MODULE ' + id + ': BASE not defined — add "MODULE ' + id +
@@ -5530,18 +5579,18 @@
     ' <code>OFF_B</code> cut the steel back to. OFF trims the member; it never moves it.</p>',
     sheet([['# MODULE', 'id', 'member', 'Ref.Pt', 'L.X', 'L.Y', 'L.Z', 'PLANE'],
            ['MODULE', 'md.tower', 'pl.T1', 'bc+', 140, 0, 0, 'XZ'],
-           ['MODULE', 'md.tower', 'pl.C1_1', 'bc', 0, 0, 0, 'XY'],
-           ['MODULE', 'md.tower', 'pl.C2_1', 'bc', -60, 0, 60, 'YZ'],
+           ['MODULE', 'md.tower', 'pl.C1', 'bc+', 0, 0, 0, 'XY'],
+           ['MODULE', 'md.tower', 'pl.C1', 'bc-', 0, 200, 0, 'XY'],
+           ['MODULE', 'md.tower', 'pl.C2', 'bc', -60, 0, 60, 'YZ'],
            ['MODULE', 'md.tower', 'BASE', 'pl.T1', 'bc-']],
-          'An <code>_1</code>, <code>_2</code> suffix marks repeated instances of the same part.'),
-    '<p class="warn"><b>Every member of a module needs its own id.</b> That id is how the sheet',
-    ' and the app both address it - the BASE row names one, the module preview hides one, the',
-    ' assembly list shows one per row. Two rows carrying the same id inside one module leave',
-    ' every one of those references ambiguous, so the sheet is <b>refused outright</b>: a dialog',
-    ' names the two rows and nothing is drawn. To use one part or one section more than once,',
-    ' add a suffix - <code>pl.C1_1</code>, <code>pl.C1_2</code>, ... - which the engine strips',
-    ' back to <code>pl.C1</code> to find the definition. One definition, as many members as',
-    ' you like, each with a name of its own.</p>',
+          'pl.C1 twice is two members - the app calls them pl.C1_1 and pl.C1_2. ' +
+          'pl.T1 and pl.C2 are used once and keep their plain names.'),
+    '<p><b>Name the part; the engine numbers the copies.</b> A <b>PLATE</b> row is a shape and a',
+    ' <b>MODULE</b> row is one use of it, so write <code>pl.C1</code> as many times as you use it.',
+    ' The app gives each use an id of its own - <code>pl.C1_1</code>, <code>pl.C1_2</code>, ... -',
+    ' because BASE, the module preview and the assembly list all address a member by name. A part',
+    ' used once keeps its plain name. You can still write the suffix yourself when you want to',
+    ' point <b>BASE</b> at a particular copy; a bare name there means the first one.</p>',
 
     '<h3>MODULE by coordinates - a bar or a section between two points</h3>',
     sheet([['MODULE', 'id', 'member.id', 'Ref.Pt', 'LX1', 'LY1', 'LZ1',
@@ -6752,7 +6801,7 @@
     ["MODULE","md.cjib","sc.cch_1","",0,650,1090,2600,650,1090,"","",90],
     ["MODULE","md.cjib","sc.cch_2","",0,-650,1090,2600,-650,1090],
     ["MODULE","md.cjib","bar.cbc","",0,0,0,2600,0,0],
-    ["MODULE","md.cjib","bar.ch_1","",2600,-650,1250,2600,650,1250],
+    ["MODULE","md.cjib","bar.ch","",2600,-650,1250,2600,650,1250],
     ["MODULE","md.cjib","bar.cw_1","",0,650,1090,2600,0,0,90,280],
     ["MODULE","md.cjib","bar.cw_2","",0,-650,1090,2600,0,0,90,280],
     ["MODULE","md.cjib","bar.cw_3","",2600,650,1090,2600,0,0,60,110],
@@ -6809,7 +6858,7 @@
     ["MODULE","md.hook","pl.shv_1","mc",0,-150,520,"XZ"],
     ["MODULE","md.hook","pl.shv_2","mc",0,0,520,"XZ"],
     ["MODULE","md.hook","pl.shv_3","mc",0,150,520,"XZ"],
-    ["MODULE","md.hook","bar.axle_1","",0,-205,520,0,205,520],
+    ["MODULE","md.hook","bar.axle","",0,-205,520,0,205,520],
     ["MODULE","md.hook","pl.hk","bl",-450,0,-1910,"XZ"],
     ["MODULE","md.hook","bar.rope_1","",-380,-75,520,-380,-75,26020,300,60],
     ["MODULE","md.hook","bar.rope_2","",380,-75,520,380,-75,26020,300,60],
