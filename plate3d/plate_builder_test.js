@@ -48,6 +48,78 @@
                  0x7cb342, 0xba68c8, 0xf06292, 0x4dd0e1, 0x9575cd, 0xe8c84a,
                  0x81c784, 0x64b5f6, 0xffb74d, 0xa1887f];
 
+  /* The dimension style drawings are annotated with. These are the numbers at
+     scale 1: paper millimetres, the size a length reads on a printed sheet.
+     A drawing at 1:50 asks for dimStyle(50) and every one of them is multiplied,
+     so the annotation prints the same size whatever the drawing is plotted at -
+     which is the whole point of holding them here rather than at each call site.
+
+     The letters are the ones on the style dialog's preview:
+       A  gap between the measured point and where its extension line starts
+       B  measured edge to the first dimension line
+       C  one dimension line to the next, stacked
+       D  how far the extension line runs past the dimension line
+       E  arrow (here dot) size
+       F  gap between the text and the dimension line
+     They are AutoCAD's DIMEXO, DIMDLI, DIMEXE, DIMASZ and DIMGAP under other
+     names, so a DXF written from this needs no translation table.
+
+     `pick` is not scaled: those are choices, not lengths. */
+  var DIMSTYLE = {
+    origin:  10,     // A  Offset From Origin
+    base:    10,     // B  Distance From Base to Dim
+    stack:   10,     // C  Offset From Dim to Dim
+    extend:  0.5,    // D  Extend Beyond Dim
+    arrow:   1.1,    // E  Arrow Size
+    textGap: 0.5,    // F  Text Offset From Dim
+    // rebar marking: the bubble and the length bar beside it
+    markLen:    100,
+    markSize:   2.5,
+    markRadius: 4,
+    /* Text heights, also in paper millimetres - CAD height is these times the
+       scale denominator, the same multiplication everything above gets. Held by
+       what the text is for rather than as raw numbers, because that is the part
+       that survives a change of scale: a dimension is 2.5 on the sheet whether
+       the drawing is 1:10 or 1:100.
+       Where practice gives a band the middle of it is taken; DIMSTYLE.md has
+       the bands and the Korean names for each. */
+    text: {
+      dim:     2.5,   // dimensions and dimension lines
+      note:    3.0,   // general notes                    2.5 - 3.5
+      member:  3.5,   // member names, main callouts
+      section: 5.0,   // section and detail titles
+      heading: 6.0,   // major headings                   5 - 7
+      title:   8.0    // sheet title                      7 - 10 and up
+    },
+    pick: {
+      arrowHead: 'dot',          // dot | arrow | circle | oblique
+      unit:      'dot',          // comma | dot | none    - thousands separator
+      angle:     'dms',          // dms 00°00'00" | d1 00.0° | d3 00.000°
+      spec:      'comma',        // comma | dot | none
+      specForm:  '1 - PL - W x T x L',
+      specAt:    'X',
+      simpleMarking: false
+    }
+  };
+  var DIMSTYLE_SCALED = ['origin', 'base', 'stack', 'extend', 'arrow', 'textGap',
+                         'markLen', 'markSize', 'markRadius'];
+  // scale = the drawing's scale denominator: 50 for 1:50. Everything that is a
+  // length comes back multiplied by it; `pick` is choices and comes back as is.
+  // Rounded at the sixth decimal because binary floats do not multiply cleanly -
+  // 1.1 * 50 is 55.00000000000001, and that is a number nobody wants to find
+  // written into a DXF.
+  function dimScale(v, s) { return Math.round(v * s * 1e6) / 1e6; }
+  function dimStyle(scale) {
+    var s = Number(scale);
+    if (!(s > 0)) s = 1;
+    var out = { scale: s, pick: DIMSTYLE.pick, text: {} };
+    DIMSTYLE_SCALED.forEach(function (k) { out[k] = dimScale(DIMSTYLE[k], s); });
+    Object.keys(DIMSTYLE.text).forEach(function (k) {
+      out.text[k] = dimScale(DIMSTYLE.text[k], s);
+    });
+    return out;
+  }
+
   // Palette and controls follow the PSCBOX page so the viewer reads as part of
   // the macroBIM site rather than a black box dropped into it: Inter, slate ink
   // on white cards, #2563eb for anything primary, #cbd5e1 / #e2e8f0 for rules.
@@ -6705,7 +6777,9 @@
     setClash: setClash, setClashPv: setClashPv,
     openGuide: openGuide, closeGuide: closeGuide,
     openSamples: openSamples, closeSamples: closeSamples, getSample: getSample,
-    toggleMemberAxis: toggleMemberAxis
+    toggleMemberAxis: toggleMemberAxis,
+    // the annotation style, at scale 1 and at any scale - see DIMSTYLE.md
+    dimStyleBase: DIMSTYLE, dimStyle: dimStyle
   };
 
   /* ---- auto-run: use window.PLATE_DATA if present, else empty default.
