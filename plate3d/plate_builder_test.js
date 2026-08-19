@@ -3945,7 +3945,15 @@
                  : '<span style="color:#f0c674">no BASE — local origin</span>') +
       (bad.length ? ' &middot; <span style="color:#f09a9a">not drawn: ' +
                     esc(bad.join(', ')) + '</span>' : '') +
-      ' &nbsp;&nbsp;<span style="color:#5b6472">drag to rotate</span>';
+      /* The view's own size, because you cannot read it off the screen. It is
+         PV_VIEW_W x PV_VIEW_H whenever the window can hold that, and smaller
+         when it cannot - and telling those two apart by eye is impossible,
+         which turns "did the update land?" into a question nobody can answer.
+         A window too narrow says so rather than looking like a stale build. */
+      ' &nbsp;&nbsp;<span style="color:#5b6472">' + W + '&times;' + H +
+      (W < PV_VIEW_W ? ' <span style="color:#8a7a45">(window too small for ' +
+                       PV_VIEW_W + '&times;' + PV_VIEW_H + ')</span>' : '') +
+      ' &nbsp; drag to rotate</span>';
 
     if (measPv) measPv.dispose();
     measPv = createMeasure({ scene: sc, camera: cam, dom: rn.domElement,
