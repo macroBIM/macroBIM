@@ -4249,17 +4249,35 @@
   }
 
   /* ---- workbook writing ---- */
-  var BQ_INK = 'FF0F172A', BQ_DIM = 'FF64748B', BQ_HAIR = 'FFCBD5E1';
+  var BQ_INK = 'FF0F172A', BQ_DIM = 'FF64748B', BQ_HAIR = 'FFCBD5E1',
+      BQ_RULE = 'FFE2E8F0', BQ_KEY = 'FF1D4ED8';
   var BQ_WT = '#,##0.000', BQ_DIM_FMT = '#,##0.###', BQ_QTY = '#,##0.###',
       BQ_AREA = '#,##0.0000';
+  /* A take-off is read down a column, so the book is set like a table and not
+     like a spreadsheet: no grid behind it, one hairline under each line, and
+     enough room between lines to follow one across. The column headings carry a
+     rule rather than a filled band - a dark band draws the eye to the labels,
+     which are the part of the page nobody needs to read twice. */
   function bqStyle(row, opt) {
+    row.height = opt.h || 19;
     row.eachCell({ includeEmpty: true }, function (c) {
       if (opt.fill) c.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: opt.fill } };
       c.font = { bold: !!opt.bold, size: opt.size || 10,
                  color: { argb: opt.color || BQ_INK }, italic: !!opt.italic };
-      if (opt.top) c.border = { top: { style: opt.top, color: { argb: BQ_HAIR } } };
+      c.alignment = { vertical: 'middle',
+                      horizontal: (c.alignment || {}).horizontal || undefined };
+      var b = null;
+      if (opt.top) (b = b || {}).top = { style: opt.top, color: { argb: BQ_HAIR } };
+      if (opt.bottom) (b = b || {}).bottom =
+        { style: opt.bottom, color: { argb: opt.rule || BQ_RULE } };
+      if (b) c.border = b;
     });
     return row;
+  }
+  // Frozen heading rows, and the grid turned off - it is the single thing that
+  // separates a page you read from a page you edit.
+  function bqView(ws, split) {
+    ws.views = [{ state: 'frozen', ySplit: split, showGridLines: false }];
   }
   function plural(n, w) { return n + ' ' + w + (n === 1 ? '' : 's'); }
   function colL(i) {                             // 1 -> A, 27 -> AA
@@ -4331,22 +4349,22 @@
     var ix = {};
     cols.forEach(function (c, i) { ix[c.h] = i + 1; });
 
-    bqStyle(ws.addRow([def.t]), { bold: true, size: 11, color: 'FF1D4ED8' });
+    bqStyle(ws.addRow([def.t]), { bold: true, size: 11, color: BQ_KEY, h: 24 });
     bqStyle(ws.addRow(cols.map(function (c) { return c.h; })),
-            { bold: true, size: 9, color: 'FFFFFFFF', fill: BQ_INK });
+            { bold: true, size: 9, color: BQ_KEY, bottom: 'medium', rule: BQ_KEY, h: 21 });
     var sums = cols.map(function () { return 0; });
     var first = null, last = null;
     rows.forEach(function (r) {
       var row = ws.addRow(cols.map(function (c) { return c.k(r); }));
       if (first === null) first = row.number;
       last = row.number;
-      bqStyle(row, {});
+      bqStyle(row, { bottom: 'thin' });
       cols.forEach(function (c, i) {
         var cell = row.getCell(i + 1);
         if (c.fm) cell.value = fx(c.fm(row.number, ix), num(c.k(r), 0));
         if (!c.f) return;
         cell.numFmt = c.f;
-        cell.alignment = { horizontal: 'right' };
+        cell.alignment = { horizontal: 'right', vertical: 'middle' };
         if (c.sum) sums[i] += num(c.k(r), 0);
       });
     });
@@ -4360,7 +4378,7 @@
       var L = colL(i + 1);
       sub.getCell(i + 1).value = fx('SUM(' + L + first + ':' + L + last + ')', sums[i]);
       sub.getCell(i + 1).numFmt = c.f;
-      sub.getCell(i + 1).alignment = { horizontal: 'right' };
+      sub.getCell(i + 1).alignment = { horizontal: 'right', vertical: 'middle' };
       at[c.h] = L + sub.number;
     });
     ws.addRow([]);
@@ -4394,8 +4412,8 @@
     bqStyle(row, { bold: true, size: 11, top: 'medium' });
     row.getCell(3).numFmt = '#,##0';
     row.getCell(5).numFmt = BQ_WT;
-    row.getCell(3).alignment = { horizontal: 'right' };
-    row.getCell(5).alignment = { horizontal: 'right' };
+    row.getCell(3).alignment = { horizontal: 'right', vertical: 'middle' };
+    row.getCell(5).alignment = { horizontal: 'right', vertical: 'middle' };
   }
 
   function buildBOQ(list, fname) {
@@ -4437,7 +4455,7 @@
     var pb = bqBlocks(s2, agg, 'part');
     bqTotal(s2, 'PART TOTAL', bqPick(pb, 'QTY'), list.length,
             bqPick(pb, 'WEIGHT kg'), agg.total);
-    s2.views = [{ state: 'frozen', ySplit: 3 }];
+    bqView(s2, 3);
 
     /* ---- MODULES ---- */
     var s3 = wb.addWorksheet('MODULES');
@@ -4469,7 +4487,7 @@
       modTotCells = modTotCells.concat(bqPick(lb, 'WEIGHT kg'));
     }
     bqTotal(s3, 'MODULE TOTAL', [], list.length, modTotCells, agg.total);
-    s3.views = [{ state: 'frozen', ySplit: 3 }];
+    bqView(s3, 3);
 
     /* ---- ASSEMBLY ---- */
     var s4 = wb.addWorksheet('ASSEMBLY');
@@ -4486,7 +4504,7 @@
       bqStyle(h, { bold: true, size: 11, fill: 'FFEFF6FF' });
       h.getCell(6).numFmt = BQ_WT;
       bqStyle(s4.addRow(['MODULE', 'MEMBERS / UNIT', 'QTY', 'MEMBERS', 'UNIT kg', 'WEIGHT kg']),
-              { bold: true, size: 9, color: 'FFFFFFFF', fill: BQ_INK });
+              { bold: true, size: 9, color: BQ_KEY, bottom: 'medium', rule: BQ_KEY, h: 21 });
       var first = null, last = null;
       a.modOrder.forEach(function (mid) {
         var m = a.mods[mid];
@@ -4496,11 +4514,11 @@
         last = rn;
         row.getCell(4).value = fx('B' + rn + '*C' + rn, m.n);
         row.getCell(6).value = fx('E' + rn + '*C' + rn, m.wt);
-        bqStyle(row, {});
+        bqStyle(row, { bottom: 'thin' });
         row.getCell(2).numFmt = BQ_QTY; row.getCell(3).numFmt = '#,##0';
         row.getCell(4).numFmt = '#,##0';
         row.getCell(5).numFmt = BQ_WT; row.getCell(6).numFmt = BQ_WT;
-        for (var c = 2; c <= 6; c++) row.getCell(c).alignment = { horizontal: 'right' };
+        for (var c = 2; c <= 6; c++) row.getCell(c).alignment = { horizontal: 'right', vertical: 'middle' };
       });
       if (a.loose.length) {
         var lr = s4.addRow(['(parts placed directly)', null, a.loose.length, a.loose.length,
@@ -4518,8 +4536,8 @@
       }
       bqStyle(sub, { bold: true, top: 'thin' });
       sub.getCell(4).numFmt = '#,##0'; sub.getCell(6).numFmt = BQ_WT;
-      sub.getCell(4).alignment = { horizontal: 'right' };
-      sub.getCell(6).alignment = { horizontal: 'right' };
+      sub.getCell(4).alignment = { horizontal: 'right', vertical: 'middle' };
+      sub.getCell(6).alignment = { horizontal: 'right', vertical: 'middle' };
       h.getCell(6).value = fx('F' + sub.number, a.wt);
       subCells.push('F' + sub.number);
       nCells.push('D' + sub.number);
@@ -4532,12 +4550,12 @@
     bqStyle(gr, { bold: true, size: 12, top: 'medium' });
     gr.getCell(3).numFmt = '#,##0'; gr.getCell(4).numFmt = '#,##0';
     gr.getCell(6).numFmt = BQ_WT;
-    for (var c2 = 3; c2 <= 6; c2++) gr.getCell(c2).alignment = { horizontal: 'right' };
-    s4.views = [{ state: 'frozen', ySplit: 3 }];
+    for (var c2 = 3; c2 <= 6; c2++) gr.getCell(c2).alignment = { horizontal: 'right', vertical: 'middle' };
+    bqView(s4, 3);
 
     /* ---- back to SUMMARY, now that there is something to point at ---- */
     bqStyle(s1.addRow(['BY CATEGORY', 'ITEMS', 'QTY', 'WEIGHT kg', 'SHARE']),
-            { bold: true, size: 9, color: 'FFFFFFFF', fill: BQ_INK });
+            { bold: true, size: 9, color: BQ_KEY, bottom: 'medium', rule: BQ_KEY, h: 21 });
     var catRows = [];
     ['PLATE', 'BAR', 'SECT'].forEach(function (cat) {
       var blocks = pb.filter(function (b) { return BOQ_CAT[b.kind] === cat; });
@@ -4551,11 +4569,11 @@
       var row = s1.addRow([cat, nItem, null, null, null]);
       row.getCell(3).value = fxSum(bqPick(blocks, 'QTY').map(pre), q);
       row.getCell(4).value = fxSum(bqPick(blocks, 'WEIGHT kg').map(pre), w);
-      bqStyle(row, {});
+      bqStyle(row, { bottom: 'thin' });
       catRows.push({ n: row.number, w: w });
       row.getCell(2).numFmt = '#,##0'; row.getCell(3).numFmt = '#,##0';
       row.getCell(4).numFmt = BQ_WT; row.getCell(5).numFmt = '0.0%';
-      for (var c = 2; c <= 5; c++) row.getCell(c).alignment = { horizontal: 'right' };
+      for (var c = 2; c <= 5; c++) row.getCell(c).alignment = { horizontal: 'right', vertical: 'middle' };
     });
     var tot = s1.addRow(['TOTAL', agg.rows.length, null, null, null]);
     if (catRows.length) {
@@ -4571,19 +4589,19 @@
     bqStyle(tot, { bold: true, top: 'thin' });
     tot.getCell(2).numFmt = '#,##0'; tot.getCell(3).numFmt = '#,##0';
     tot.getCell(4).numFmt = BQ_WT; tot.getCell(5).numFmt = '0.0%';
-    for (var c1 = 2; c1 <= 5; c1++) tot.getCell(c1).alignment = { horizontal: 'right' };
+    for (var c1 = 2; c1 <= 5; c1++) tot.getCell(c1).alignment = { horizontal: 'right', vertical: 'middle' };
     s1.addRow([]);
 
-    bqStyle(s1.addRow(['MODEL', 'COUNT']), { bold: true, size: 9, color: 'FFFFFFFF', fill: BQ_INK });
+    bqStyle(s1.addRow(['MODEL', 'COUNT']), { bold: true, size: 9, color: BQ_KEY, bottom: 'medium', rule: BQ_KEY, h: 21 });
     [['assemblies', asm.order.length], ['module types', mods.order.length],
      ['distinct parts', agg.rows.length], ['placed members', list.length]
     ].forEach(function (p) {
       var row = s1.addRow(p);
-      bqStyle(row, {});
+      bqStyle(row, { bottom: 'thin' });
       row.getCell(2).numFmt = '#,##0';
-      row.getCell(2).alignment = { horizontal: 'right' };
+      row.getCell(2).alignment = { horizontal: 'right', vertical: 'middle' };
     });
-    s1.views = [{ state: 'frozen', ySplit: 1 }];
+    bqView(s1, 1);
     return wb;
   }
 
