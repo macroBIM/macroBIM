@@ -6506,8 +6506,8 @@
   // Example workbooks, all sitting next to this file. Add a row to put another
   // one on the menu; nothing else needs touching.
   /* One row each. `d` is a single line and is not allowed to wrap - the point of
-     the list is to compare five examples at a glance and pick one, not to read
-     five paragraphs. The long version is the model itself. */
+     the list is to compare the examples at a glance and pick one, not to read a
+     paragraph about each. The long version is the model itself. */
   var SAMPLES = [
     { f: 'PLATE3D_BASIC.xlsx', n: 'Basic', s: '76 rows → 90 members · 1.70 t',
       d: 'Every keyword once, in one real model. Start here.' },
@@ -6519,6 +6519,8 @@
       d: 'Half a frame, mirrored and copied into a 30 m shed.' },
     { f: 'PLATE3D_NODE.xlsx', n: 'Bolted node', s: '59 rows → 46 members · 168 kg',
       d: 'A four-way beam connection: one arm, turned four ways.' },
+    { f: 'PLATE3D_SPLICE.xlsx', n: 'Beam splice', s: '85 rows → 46 members · 376 kg',
+      d: 'A bolted splice: an H made of plates, so CUT can drill it.' },
     { f: 'PLATE3D_TANK.xlsx', n: 'Tank', s: '54 rows → 16 members · 4.9 kg',
       d: 'Reverse-engineered from a five-sheet A4 drawing set.' },
     { f: 'PLATE3D_TURRET.xlsx', n: 'Turret', s: '56 rows → 12 members · 0.65 kg',
