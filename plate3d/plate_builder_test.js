@@ -3421,17 +3421,15 @@
      one might only have had a shorter member list. Two constants now, the same
      on every module: you can tell one model from another by looking at it.
 
-     16:9 at 1100 wide is 618.75, so the view is 1100 x 619 - an aspect of 1.7770
-     against 1.7778, which no eye reads as out of square.
+     16:9 at 1200 wide is exactly 675, so the view is 1200 x 675 with nothing to
+     round. The panel keeps the proportion it had at 1100 - 355/1100 - which
+     puts it at 387.
 
-     The panel is 355 because that is what is left. On the macroBIM site PLATE3D
-     sits in an iframe beside a 270px sidebar, so a 1920 browser gives the frame
-     1552 and the modal 1469 of that; 1100 + 10 + 355 = 1465 fits, 500 would not
-     and would have shrunk the view to 1004. The panel scrolls instead, both
-     ways: the controls and the member name are frozen at its left edge, and the
-     columns past them slide - MD.HEAD's table is 775 wide and 942 tall. */
-  var PV_VIEW_W = 1100, PV_VIEW_H = 619;   // the 3D view
-  var PV_TREE_W = 355;                     // the member panel beside it
+     The panel is the one that scrolls. It cannot hold MD.HEAD's table (775 wide,
+     942 tall) and is not meant to: the controls and the member name are frozen
+     at its left edge, and the columns past them slide under them. */
+  var PV_VIEW_W = 1200, PV_VIEW_H = 675;   // the 3D view
+  var PV_TREE_W = 387;                     // the member panel beside it
   var PV_GAP = 10;                         // .pvbody's gap between the two
   function pvRoom() {              // width inside the box, which is capped at 97vw
     return Math.floor(window.innerWidth * 0.97) - 36;
@@ -3439,11 +3437,12 @@
   function pvAvailH() {            // ... and at 96vh, less the title and meta rows
     return Math.floor(window.innerHeight * 0.96) - 100;
   }
-  /* Fixed means fixed on any screen that can hold it - 1548 x 749 of viewport,
-     which on the site means a browser 1916 wide and 871 tall (the frame is
-     100vh - 120 and eats 2 more for its border). Below that the whole body
-     scales together rather than the modal growing a scrollbar, so the panel and
-     the view keep their proportions to each other. */
+  /* Fixed means fixed on any screen that can hold it - 1684 x 808 of viewport,
+     which on the site means a browser 2052 wide and 930 tall (the frame loses
+     270 to the sidebar plus 98 of page gutter, and is 100vh - 120 less 2 for
+     its border). Below that the whole body scales together rather than the
+     modal growing a scrollbar, so the panel and the view keep their proportions
+     to each other. */
   function pvModuleLayout() {
     var s = Math.min(1, pvRoom() / (PV_TREE_W + PV_GAP + PV_VIEW_W),
                      pvAvailH() / PV_VIEW_H);
