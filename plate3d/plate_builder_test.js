@@ -4650,13 +4650,15 @@
                                       '11', dxfNum(at[0]), '21', dxfNum(at[1])]);
       (buf || ents).push(entHead('TEXT', layer).concat(body));
     }
-    /* The arrowhead. A circle, not a filled SOLID: LINE, CIRCLE and ARC are the
-       entity types bim_dxf.js already ships, and after an R2000 file that would
-       not open, staying inside what is known to work is worth an unfilled dot.
-       Fill it once this opens. */
-    function circle(layer, c, r, buf) {
-      (buf || ents).push(entHead('CIRCLE', layer).concat(
-        ['10', dxfNum(c[0]), '20', dxfNum(c[1]), '40', dxfNum(r)]));
+    /* The arrowhead: a filled dot, which in DXF is a SOLID. Its four corners go
+       in the order 1-2-4-3, not round the quad - the third and fourth points
+       name the far edge. Getting that wrong draws a bowtie. */
+    function dot(layer, c, r, buf) {
+      (buf || ents).push(entHead('SOLID', layer).concat(
+        ['10', dxfNum(c[0] - r), '20', dxfNum(c[1] - r),
+         '11', dxfNum(c[0] + r), '21', dxfNum(c[1] - r),
+         '12', dxfNum(c[0] - r), '22', dxfNum(c[1] + r),
+         '13', dxfNum(c[0] + r), '23', dxfNum(c[1] + r)]));
     }
 
     /* A linear dimension, drawn: two extension lines, the dimension line, a dot
@@ -4674,15 +4676,23 @@
          D.textGap  text to dimension line
          D.text.dim the number's height
 
+       The dimension line stands off by D.origin + D.base, not D.base alone.
+       A and B are consecutive bands on the style dialog's preview, not two
+       measurements of the same distance: A is the gap the extension line leaves
+       at the measured point, B is the run of extension line past it. Both are
+       10, so treating B as the distance from the object put the dimension line
+       exactly where the extension line starts and the extension line came out
+       0.5 long - the plate floating with nothing joining it to its dimension.
+
        `level` is which stacked line this is, counting from the object out:
-       level 0 sits D.base away, level 1 a further D.stack, and so on. */
+       level 0 sits origin + base away, level 1 a further D.stack, and so on. */
     function dimLinear(p1, p2, at, vertical, level) {
       var A = D.arrow, EXO = D.origin, EXE = D.extend, TG = D.textGap, TH = D.text.dim;
       var v = vertical;
       var val = Math.abs(v ? p2[1] - p1[1] : p2[0] - p1[0]);
       if (!(val > 1e-9)) return;
       // `at` is the edge being dimensioned; the line stands off it by the style
-      var off = at - D.base - D.stack * (level || 0);
+      var off = at - D.origin - D.base - D.stack * (level || 0);
       var q1 = v ? [off, p1[1]] : [p1[0], off];
       var q2 = v ? [off, p2[1]] : [p2[0], off];
       // extension lines: start EXO clear of the point, finish EXE past the line
@@ -4696,8 +4706,8 @@
       extLine(p1, q1);
       extLine(p2, q2);
       line('PL3D-DIM', q1, q2);
-      circle('PL3D-DIM', q1, A / 2);
-      circle('PL3D-DIM', q2, A / 2);
+      dot('PL3D-DIM', q1, A / 2);
+      dot('PL3D-DIM', q2, A / 2);
       /* The number reads along its own dimension line: upright on a horizontal
          one, turned 90 degrees on a vertical one. Rotated text grows away from
          its baseline in the direction 90 degrees further round, so on a vertical
@@ -4713,7 +4723,7 @@
        number governs the drawing: D.base is the dimension standoff, and frames
        sit two and a half of those apart - 25mm on the sheet at any scale. */
     var GAP = D.base * 2.5;
-    var TXT_T = D.text.section, TXT_L = D.text.member, TXT_N = D.text.note;
+    var TXT_T = D.text.section;              // view titles
 
     // six views, measured first so they can be laid out on a common grid
     var views = DXF_VIEWS.map(function (vw) {
@@ -4795,12 +4805,16 @@
       });
       if (w > 0) dimLinear([ox, oy], [ox + w, oy], oy, false, 0);
       if (hgt > 0) dimLinear([ox, oy], [ox, oy + hgt], ox, true, 0);
-      // clear of the dimension line under the part and of its number
-      var lblY = oy - D.base - D.text.dim - TXT_L * 1.4;
-      text('PL3D-TEXT', [ox + w / 2, lblY], TXT_L,
-           p.it.plateId.toUpperCase() + ', ' + p.it.dims, true);
-      text('PL3D-TEXT', [ox + w / 2, lblY - TXT_L * 1.6], TXT_N,
-           p.n + 'EA', true);
+      /* Both lines of the label at one size. They were 3.5 and 3.0 - the
+         registered heights for a member name and for a note - and two lines of
+         the same label at two sizes reads as a mistake, whatever the table
+         says. D.text.dim is the same 2.5 the dimensions are set in. */
+      var LBL = D.text.dim;
+      var lblY = oy - D.origin - D.base - D.text.dim - LBL * 1.4;
+      text('PL3D-TEXT', [ox + w / 2, lblY], LBL,
+           p.it.plateId.toUpperCase() + ', ' + p.it.dims, true, 0);
+      text('PL3D-TEXT', [ox + w / 2, lblY - LBL * 1.6], LBL,
+           p.n + 'EA', true, 0);
     });
 
     /* ---- assemble the file ---- */
