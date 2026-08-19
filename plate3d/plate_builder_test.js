@@ -69,7 +69,11 @@
     origin:  10,     // A  Offset From Origin
     base:    10,     // B  Distance From Base to Dim
     stack:   10,     // C  Offset From Dim to Dim
-    extend:  0.5,    // D  Extend Beyond Dim
+    /* D. The dialog said 0.5, and at 0.5 it is invisible: the dot is 1.1 across,
+       so it covers 0.55 either side of the dimension line and swallows the whole
+       overshoot. D has to clear E/2 or there is nothing to see. 1.25 is
+       AutoCAD's own DIMEXE default and leaves 0.7mm showing. */
+    extend:  1.25,   // D  Extend Beyond Dim
     arrow:   1.1,    // E  Arrow Size
     textGap: 0.5,    // F  Text Offset From Dim
     // rebar marking: the bubble and the length bar beside it

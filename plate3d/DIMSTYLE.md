@@ -36,13 +36,18 @@ plateBuilder.dimStyleBase.base          // 10   (기준값)
 | **A** | Offset From Origin | **10** | `origin` | 측정점과 치수보조선 시작점 사이 띄움 |
 | **B** | Distance From Base to Dim | **10** | `base` | A 가 끝난 지점부터 치수선까지 = 보조선이 뻗는 길이 |
 | **C** | Offset From Dim to Dim | **10** | `stack` | 치수선을 여러 단 쌓을 때 단 간격 |
-| **D** | Extend Beyond Dim | **0.5** | `extend` | 치수보조선이 치수선을 넘어 나가는 길이 |
+| **D** | Extend Beyond Dim | **1.25** | `extend` | 치수보조선이 치수선을 넘어 나가는 길이 |
 | **E** | Arrow Size | **1.1** | `arrow` | 화살표(여기서는 점) 크기 |
 | **F** | Text Offset From Dim | **0.5** | `textGap` | 문자와 치수선 사이 띄움 |
 
 AutoCAD 시스템 변수로는 A=`DIMEXO`, C=`DIMDLI`, D=`DIMEXE`, E=`DIMASZ`,
 F=`DIMGAP` 이다. B 에 해당하는 변수는 없다 — AutoCAD 는 치수선 위치를 사용자가
 찍는 값으로 두기 때문이다. 여기서는 스타일이 정한다.
+
+> **D 는 반드시 E/2 보다 커야 한다.** 점(dot) 화살표는 치수선 양쪽으로 E/2 를
+> 덮으므로, D 가 그보다 작으면 튀어나온 부분이 통째로 점 밑에 들어가 보이지 않는다.
+> 대화상자의 원래 값은 D=0.5 였는데 E=1.1 이라 E/2=0.55 — 항상 가려졌다.
+> 그래서 D 만 AutoCAD 기본값인 **1.25** 로 올렸다 (여유 0.7mm).
 
 ## 2. 철근 마킹 (Rebar Marking)
 
