@@ -172,10 +172,13 @@
     '#pb-bar input[type=checkbox] { accent-color:var(--dim); cursor:pointer; margin:0; }',
 
     /* ---- body: list panel + 16:9 graphics pane ---- */
-    // centred, not stretched: the list panel is given the view's height in
-    // fitRenderer, and both boxes then sit on the same middle line
-    '#pb-body { display:flex; flex:1 1 auto; min-height:0; gap:12px; padding:12px;',
-    '  align-items:center; }',
+    /* The pane holding the view has to STRETCH. Centring the body's items looked
+       like the way to line the two boxes up, and instead locked the view at
+       whatever size it first happened to take: the pane then had no height of
+       its own, fitRenderer read the pane to size the view, and the pane was
+       being sized by the view. The list is centred on its own instead. */
+    '#pb-body { display:flex; flex:1 1 auto; min-height:0; gap:12px; padding:12px; }',
+    '#pb-side { align-self:center; }',
     '#pb-side { width:380px; min-width:380px; overflow-y:auto; background:#fff;',
     '  border:1px solid var(--line); border-radius:10px; padding:12px 14px; }',
     '#pb-side::-webkit-scrollbar { width:6px; }',
@@ -298,7 +301,11 @@
     /* ---- the two menu buttons: File and View, one size so they read as a pair
        and the bar starts with a block rather than a row of loose buttons ---- */
     '.fmenu { position:relative; display:inline-block; }',
-    '#pb-bar .fmenu > button { min-width:92px; padding:9px 13px; font-size:11.5px; }',
+    /* Matched to the Example button at the far end of the bar - same 102 wide,
+       same 12px type, so the two ends of the row are the same size. Wider than
+       the toggles between them, not taller. */
+    '#pb-bar .fmenu > button { min-width:102px; font-size:12px; font-weight:600;',
+    '  text-transform:none; letter-spacing:0; }',
     // the view being looked through, marked in the list the way the row of
     // buttons used to mark it
     '#pb-bar .fmenu .drop button.vw.active { color:var(--dim); font-weight:700;',
