@@ -4251,6 +4251,7 @@
   /* ---- workbook writing ---- */
   var BQ_INK = 'FF0F172A', BQ_DIM = 'FF64748B', BQ_HAIR = 'FFCBD5E1',
       BQ_RULE = 'FFE2E8F0', BQ_KEY = 'FF1D4ED8';
+  var BQ_FONT = 'Arial';                  // see bqFont, at the end of buildBOQ
   var BQ_WT = '#,##0.000', BQ_DIM_FMT = '#,##0.###', BQ_QTY = '#,##0.###',
       BQ_AREA = '#,##0.0000';
   /* A take-off is read down a column, so the book is set like a table and not
@@ -4602,7 +4603,31 @@
       row.getCell(2).alignment = { horizontal: 'right', vertical: 'middle' };
     });
     bqView(s1, 1);
+    bqFont(wb);
     return wb;
+  }
+  /* Name the face on every cell, last thing before the book is handed over.
+
+     A cell that names no font gets the theme font, and the theme font is not
+     the same everywhere: Microsoft 365 draws it in Aptos, an older Excel in
+     Calibri. The same take-off then looks different on the fabricator's desk
+     than it did on the desk it was written at, which for a document that gets
+     emailed out is not a small thing.
+
+     Arial, and not the face the app itself is set in: Inter gives its digits
+     different widths - a 1 is a third narrower than a 0 - and Excel has no way
+     to ask for tabular figures. At 11pt that walks the decimal point 7.65 px
+     up and down a column of weights. Arial holds it to 1 px, and there is no
+     machine it has to be installed on. */
+  function bqFont(wb) {
+    wb.eachSheet(function (ws) {
+      ws.eachRow({ includeEmpty: true }, function (row) {
+        row.eachCell({ includeEmpty: true }, function (c) {
+          c.font = Object.assign({ size: 10, color: { argb: BQ_INK } },
+                                 c.font || {}, { name: BQ_FONT });
+        });
+      });
+    });
   }
 
   function exportBOQ() {
