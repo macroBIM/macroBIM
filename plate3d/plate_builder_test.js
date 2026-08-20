@@ -176,15 +176,29 @@
        like the way to line the two boxes up, and instead locked the view at
        whatever size it first happened to take: the pane then had no height of
        its own, fitRenderer read the pane to size the view, and the pane was
-       being sized by the view. The list is centred on its own instead. */
-    '#pb-body { display:flex; flex:1 1 auto; min-height:0; gap:12px; padding:12px; }',
-    '#pb-side { align-self:center; }',
-    '#pb-side { width:380px; min-width:380px; overflow-y:auto; background:#fff;',
-    '  border:1px solid var(--line); border-radius:10px; padding:12px 14px; }',
+       being sized by the view. The list gets the view's height in fitRenderer
+       instead, and both sit at the top.
+
+       Top, not centred, because the leftover height cannot be removed - it is
+       (body - view)/2 above and below whatever the padding is, since 16:9 in a
+       pane wider than 16:9 is width-limited. Centred, that white is split into
+       two bands you look straight at; anchored, the drawing starts right under
+       the toolbar and the whole remainder falls below, where it reads as the
+       end of the page rather than as a gap. */
+    '#pb-body { display:flex; flex:1 1 auto; min-height:0; gap:12px;',
+    '  padding:10px 12px 12px; align-items:flex-start; }',
+    '#pb-viewwrap { align-self:stretch; }',
+    /* 320, not 380. Every pixel off the list is a pixel of width for the view,
+       and the view's height follows its width at 16:9 - so a narrower list is
+       the only thing that actually shrinks the leftover band. 320 still clears
+       the longest line the panel holds, the placed-members total. */
+    '#pb-side { width:320px; min-width:320px; overflow-y:auto; background:#fff;',
+    '  border:1px solid var(--line); border-radius:10px; padding:11px 12px; }',
     '#pb-side::-webkit-scrollbar { width:6px; }',
     '#pb-side::-webkit-scrollbar-thumb { background:#cbd5e1; border-radius:4px; }',
+    // the view sits at the top of its pane, not floating in the middle of it
     '#pb-viewwrap { flex:1 1 auto; min-width:0; display:flex;',
-    '  align-items:center; justify-content:center; }',
+    '  align-items:flex-start; justify-content:center; }',
     // outline, not border: it draws the frame without eating into the box, so
     // the canvas fills the 16:9 pane exactly instead of losing a pixel each side
     '#pb-view { flex:0 0 auto; position:relative; background:#15181c;',
