@@ -769,6 +769,11 @@
                                                BARS table on the left - id, diameter,
                                                length, material - and placed by MODULE
                                                and ASSY rows like any other member.
+                                               A bar has no Ref.Pt: it STARTS at the
+                                               point given and runs its Length along that
+                                               plane's thickness axis - XY +Z, XZ -Y,
+                                               YZ +X. The signs are what keep each plane
+                                               right-handed and are not a choice.
                                                The older "ID Dia Length" order is still
                                                read)
        CUT   plateID L.X L.Y shapeID dx dy repeat [dx2 dy2 repeat2]
@@ -866,6 +871,11 @@
                                                blank/O = BASE point, 9-point name =
                                                module bbox point, INSTANCE.POINT =
                                                explicit plate point)
+       VIEW  MODULE.ID FROM [title]           (a drawing, for Save DXF. FROM is one of
+                                               FRONT / BACK / LEFT / RIGHT / TOP / BOTTOM
+                                               and the title is what is written over it.
+                                               No VIEW rows, no VIEWS block - the scale
+                                               is asked for in the dialog like the others)
        END
      ================================================================ */
   // World is Z-up (X east, Y north, Z up) like IFC/AutoCAD/Revit/Tekla, so the
@@ -7335,9 +7345,9 @@
     ' reads a round coordinate straight off.</p>',
 
     '<h3>Save DXF - the drawing</h3>',
-    '<p>The drawing comes out in <b>three blocks</b>, and each is plotted at its own scale.',
+    '<p>The drawing comes out in <b>blocks</b>, and each is plotted at its own scale.',
     ' One scale cannot serve a 60&nbsp;m assembly and a 200&nbsp;mm gusset, so the dialog asks',
-    ' three times: tick the blocks you want and give each a scale.</p>',
+    ' once per block: tick the blocks you want and give each a scale.</p>',
     '<table class="gt"><thead><tr><th>block</th><th>what it draws</th></tr></thead><tbody>',
     '<tr><td><b>ASSEMBLY</b></td><td>six views - front, back, left, right, top, bottom - of',
     ' everything the ASSY rows placed</td></tr>',
@@ -7345,7 +7355,16 @@
     '<tr><td><b>PART / SECT</b></td><td>every distinct part once at its standard section,',
     ' with how many were placed. Round <b>bars are not drawn</b> - a bar is a length of stock,',
     ' and a circle with a diameter beside it says nothing the take-off does not</td></tr>',
+    '<tr><td><b>VIEWS</b></td><td>the drawings the sheet asked for by name, one to a',
+    ' <code>VIEW</code> row on the input tab: a module, the direction it is seen from, and',
+    ' the title to write over it. A sheet with no VIEW rows leaves this line greyed out and',
+    ' exports exactly what it always did</td></tr>',
     '</tbody></table>',
+    '<p><b>Why a keyword and not more tick boxes.</b> Which face of a splice you want drawn,',
+    ' and what to call it, is known by whoever wrote the workbook - not by whoever presses',
+    ' Save DXF, who would have to answer it again every time. The scale is the other way',
+    ' round: it belongs to the paper, not to the model, so that is the one thing the dialog',
+    ' asks. Nothing in the engine knows what a splice is.</p>',
     '<p><b>The steel is written 1:1 in millimetres throughout.</b> Only the annotation changes',
     ' size, so the three blocks share one coordinate system and a viewport plotted at each',
     ' block&rsquo;s scale comes out right. The file is DXF R12 and the annotation is drawn -',

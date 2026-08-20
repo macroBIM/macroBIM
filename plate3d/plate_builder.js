@@ -693,6 +693,7 @@
   var camPersp = null, camOrtho = null, orthoView = false;
   var MAIN_FOV = 40, mainAspect = 1.6;
   var lastPlates = {}, lastCuts = [], lastColors = {}, lastParts = {};  // for preview modals
+  var lastViews = [];                   // VIEW rows, read by Save DXF
   var shapeLib = {};        // HOLE definitions - cut shapes, never members
   /* ---- the example workbook ----
      It sits next to this file, so the button works from wherever the engine was
@@ -768,15 +769,25 @@
                                                BARS table on the left - id, diameter,
                                                length, material - and placed by MODULE
                                                and ASSY rows like any other member.
+                                               A bar has no Ref.Pt: it STARTS at the
+                                               point given and runs its Length along that
+                                               plane's thickness axis - XY +Z, XZ -Y,
+                                               YZ +X. The signs are what keep each plane
+                                               right-handed and are not a choice.
                                                The older "ID Dia Length" order is still
                                                read)
-       CUT   plateID L.X L.Y shapeID dx dy repeat
+       CUT   plateID L.X L.Y shapeID dx dy repeat [dx2 dy2 repeat2]
                                               (put shapeID - a HOLE, or another PLATE's
                                                outline - on the plate at L.X/L.Y, both
                                                measured from the plate's own origin.
                                                The shape lands by its BASE.pt)
                                               (repeat = extra copies, each offset by
                                                dx,dy from the previous one; 0/blank = none)
+                                              (dx2/dy2/repeat2 step that whole row
+                                               sideways, so one line lays a grid. Blank
+                                               = one row, as before. A bolt pattern is
+                                               one CUT row however many bolts it holds,
+                                               and both counts may be formulas)
                                               (the target plate must already be defined;
                                                the shape may be defined anywhere)
        -- older CUT rows, shape and its values last, are still read:
@@ -785,6 +796,8 @@
        -- older still, shape first:
           CUT [plateID] [refPt] RECT B H L.X L.Y L.ROT dx dy repeat
           (those place RECT/PLATE by their lower-left corner)
+       -- dx2/dy2/repeat2 may end any of the three, after that form's own
+          last value
        -- legacy PLATE rows with no shape keyword are still read, the shape
           taken from the values:  PLATE ID WT WB H OFF_TOP [OFF_B] THK MAT
                                   PLATE ID B H THK MAT
@@ -858,6 +871,11 @@
                                                blank/O = BASE point, 9-point name =
                                                module bbox point, INSTANCE.POINT =
                                                explicit plate point)
+       VIEW  MODULE.ID FROM [title]           (a drawing, for Save DXF. FROM is one of
+                                               FRONT / BACK / LEFT / RIGHT / TOP / BOTTOM
+                                               and the title is what is written over it.
+                                               No VIEW rows, no VIEWS block - the scale
+                                               is asked for in the dialog like the others)
        END
      ================================================================ */
   // World is Z-up (X east, Y north, Z up) like IFC/AutoCAD/Revit/Tekla, so the
@@ -962,6 +980,9 @@
        of the same command on the same source forces the issue. */
     var CMD_SFX = { ADD: 'A', MIR: 'M', COPY: 'C', ROT: 'R' };
     var MAX_REP = 999;                   // .c001 ... .c999
+    // a CUT row lays repeat x repeat2 copies and every one is a boolean
+    // subtraction, so the two counts together have a ceiling of their own
+    var MAX_CUT_REP = 2000;
     var memSeq = {};                     // assembly + source + command -> made so far
     function memberId(aid, ref, cmd) {
       var sfx = CMD_SFX[cmd] || 'a';
@@ -972,7 +993,9 @@
              (numbered ? (n < 1000 ? ('000' + n).slice(-3) : String(n)) : '');
     }
     var palias = PLANE_ALIAS, yup = false;   // switched by a COORD row
-    var counts = { plate: 0, hole: 0, bar: 0, sect: 0, cut: 0, module: 0, assy: 0 };
+    var counts = { plate: 0, hole: 0, bar: 0, sect: 0, cut: 0, module: 0, assy: 0,
+                   view: 0 };
+    var views = [];                      // VIEW rows: drawings the sheet asked for
     var current = null, currentPart = null, counter = {};
     // Two severities. warn() is a row the parser could not honour - skipped, or
     // a name that did not resolve - so what lands on screen is not what the
@@ -1204,6 +1227,44 @@
         counts.sect++;
       } else if (kw === 'CUT') {          // CUT [plateID] [refPt] TYPE ...
         function isCutType(x) { return x === 'RECT' || x === 'CIRC' || x === 'PLATE'; }
+        /* The second repeat axis, which every CUT grammar ends with: dx2 dy2
+           repeat2, three more columns that step the whole first row sideways.
+           One row lays a grid, so a bolt pattern is one line of sheet however
+           many bolts it holds - and the count can be a formula, which is what
+           lets a front sheet drive it. Left blank it is the 1D repeat as
+           before, so no existing sheet changes. */
+        function cutAxis2(c, w, k) {
+          c.DX2 = num(w[k], 0); c.DY2 = num(w[k + 1], 0); c.REP2 = num(w[k + 2], 0);
+        }
+        /* Both axes warn the same way. Steps with no count make nothing, a
+           count with no step stacks copies on the spot - either is a column
+           out of line far more often than it is what was meant. */
+        function cutRepHint(c, target, extra) {
+          function say(m) {
+            hint('row ' + (r + 1) + ': CUT on ' + target + ' ' + m +
+                 (extra ? ' ' + extra : ''));
+          }
+          if ((num(c.DX, 0) || num(c.DY, 0)) && num(c.REP, 0) < 1)
+            say('has dx/dy but repeat is 0/empty — no copy is made' +
+                ' (repeat = how many extra copies)');
+          if ((num(c.DX2, 0) || num(c.DY2, 0)) && num(c.REP2, 0) < 1)
+            say('has dx2/dy2 but repeat2 is 0/empty — the second row is not laid');
+          if (num(c.REP2, 0) >= 1 && !num(c.DX2, 0) && !num(c.DY2, 0))
+            say('has repeat2 but no dx2/dy2 — the copies land on top of each other');
+          /* Two counts multiply, and both can be formulas, so a slip on the
+             front sheet is a grid of a million holes rather than a row of ten
+             too many. Every instance is a boolean subtraction; the row is cut
+             back to a size the shape engine can finish. */
+          var made = (num(c.REP, 0) + 1) * (num(c.REP2, 0) + 1);
+          if (made > MAX_CUT_REP) {
+            warn('row ' + (r + 1) + ': CUT on ' + target + ' asks for ' + made +
+                 ' copies, past the ' + MAX_CUT_REP + ' limit — only the first ' +
+                 MAX_CUT_REP + ' are cut. Check repeat and repeat2.');
+            c.REP = Math.min(num(c.REP, 0), MAX_CUT_REP - 1);
+            c.REP2 = Math.min(num(c.REP2, 0),
+                              Math.floor(MAX_CUT_REP / (num(c.REP, 0) + 1)) - 1);
+          }
+        }
         var sub = str(v[0]).toUpperCase();
         var target = current, refpt = 'bc';    // default = plate local origin
         if (!isCutType(sub)) {
@@ -1217,7 +1278,7 @@
         }
         if (!target) { warn('row ' + (r + 1) + ': CUT before any PLATE'); continue; }
         var c = { PLATE: target, REFPT: refpt, __xlCut: true };
-        // Current grammar: CUT <plate> L.X L.Y <shape id> dx dy repeat.
+        // Current grammar: CUT <plate> L.X L.Y <shape id> dx dy repeat dx2 dy2 repeat2.
         // The shape is a HOLE (or another PLATE) defined elsewhere, so the row
         // is a fixed width. L.X/L.Y are measured from the plate's own origin -
         // its BASE.pt - and the shape is placed by its BASE.pt.
@@ -1225,11 +1286,9 @@
           c.U = num(v[0], 0); c.V = num(v[1], 0);
           c.TYPE = 'REF'; c.REF = str(v[2]).toUpperCase();
           c.DX = num(v[3], 0); c.DY = num(v[4], 0); c.REP = num(v[5], 0);
+          cutAxis2(c, v, 6);
           c.ANG = 0; c.__org = true;
-          if ((c.DX || c.DY) && c.REP < 1) {
-            hint('row ' + (r + 1) + ': CUT on ' + target + ' has dx/dy but repeat is 0/empty' +
-                 ' — no copy is made (repeat = how many extra copies)');
-          }
+          cutRepHint(c, target);
           cuts.push(c);
           counts.cut++;
           continue;
@@ -1242,21 +1301,23 @@
           c.__ctr = true;
           var ct = str(v[5]).toUpperCase();
           c.ANG = 0;                          // no rotation column for now
+          // dx2/dy2/repeat2 follow the shape's own values, so where they start
+          // depends on how many the shape took: two for RECT, one for the rest.
           if (ct === 'RECT') {
             c.TYPE = 'TRAP'; c.B = num(v[6], 0); c.TW = c.B; c.H = num(v[7], 0); c.OF = 0;
+            cutAxis2(c, v, 8);
           } else if (ct === 'CIRC') {
             c.TYPE = 'CIRC'; c.D = num(v[6], 0);
+            cutAxis2(c, v, 7);
           } else if (ct === 'PLATE') {
             c.TYPE = 'REF'; c.REF = str(v[6]).toUpperCase();
+            cutAxis2(c, v, 7);
           } else {
             warn('row ' + (r + 1) + ': CUT on ' + target + ' — expected RECT / CIRC / PLATE' +
                  ' after L.X, L.Y, dx, dy, repeat, found ' + (str(v[5]) || '(blank)'));
             continue;
           }
-          if ((c.DX || c.DY) && c.REP < 1) {
-            hint('row ' + (r + 1) + ': CUT on ' + target + ' has dx/dy but repeat is 0/empty' +
-                 ' — no copy is made (repeat = how many extra copies)');
-          }
+          cutRepHint(c, target);
           cuts.push(c);
           counts.cut++;
           continue;
@@ -1265,22 +1326,41 @@
           c.TYPE = 'TRAP'; c.B = num(v[1], 0); c.TW = c.B; c.H = num(v[2], 0); c.OF = 0;
           c.U = num(v[3], 0); c.V = num(v[4], 0); c.ANG = num(v[5], 0);
           c.DX = num(v[6], 0); c.DY = num(v[7], 0); c.REP = num(v[8], 0);
+          cutAxis2(c, v, 9);
         } else if (sub === 'CIRC') {
           c.TYPE = 'CIRC'; c.D = num(v[1], 0);
           c.U = num(v[2], 0); c.V = num(v[3], 0); c.ANG = num(v[4], 0);
           c.DX = num(v[5], 0); c.DY = num(v[6], 0); c.REP = num(v[7], 0);
+          cutAxis2(c, v, 8);
         } else if (sub === 'PLATE') {
           c.TYPE = 'REF'; c.REF = str(v[1]).toUpperCase();
           c.U = num(v[2], 0); c.V = num(v[3], 0); c.ANG = num(v[4], 0);
           c.DX = num(v[5], 0); c.DY = num(v[6], 0); c.REP = num(v[7], 0);
+          cutAxis2(c, v, 8);
         } else { warn('row ' + (r + 1) + ': unknown CUT type ' + sub); continue; }
-        if ((num(c.DX, 0) || num(c.DY, 0)) && num(c.REP, 0) < 1) {
-          hint('row ' + (r + 1) + ': CUT on ' + target + ' has dx/dy but repeat is 0/empty' +
-               ' — no copy is made. Check the column alignment (CIRC/PLATE rows have one ' +
-               'parameter less than RECT, so dx/dy/repeat shift one column left)');
-        }
+        cutRepHint(c, target, 'Check the column alignment (CIRC/PLATE rows have one ' +
+          'parameter less than RECT, so dx/dy/repeat shift one column left)');
         cuts.push(c);
         counts.cut++;
+      } else if (kw === 'VIEW') {         // VIEW <module> <direction> [title]
+        /* A drawing the sheet asks for by name: which module, seen from where,
+           and what to call it. All three are content - the person who knows
+           them is whoever wrote the workbook, not whoever presses Save DXF.
+           The scale is not among them. A scale is a property of the paper
+           rather than of the model, which is why the dialog asks for it, the
+           same as it does for the other three blocks. */
+        var vmod = str(v[0]).toUpperCase(), vdir = str(v[1]).toUpperCase();
+        var vttl = str(v[2]);
+        if (!vmod) { warn('row ' + (r + 1) + ': VIEW without a module'); continue; }
+        if (!DXF_VIEW_KEY[vdir]) {
+          warn('row ' + (r + 1) + ': VIEW ' + vmod + ' — unknown direction "' +
+               (str(v[1]) || '(blank)') + '" (use ' +
+               DXF_VIEWS.map(function (x) { return x.key; }).join(' / ') + ')');
+          continue;
+        }
+        views.push({ MODULE: vmod, DIR: vdir,
+                     TITLE: vttl || (vmod + ' ' + vdir), ROW: r + 1 });
+        counts.view++;
       } else if (kw === 'COORD') {        // COORD ZUP (default) | YUP — frame the sheet is written in
         yup = str(v[0]).toUpperCase() === 'YUP';
         palias = yup ? PLANE_ALIAS_YUP : PLANE_ALIAS;
@@ -1550,8 +1630,19 @@
         warn('MODULE ' + id + ': BASE instance ' + parts[id].base.inst +
              ' not found among its members — falling back to the local origin (0,0,0)');
     });
+    /* VIEW rows may sit above the MODULE rows they name, so the module is
+       looked for once the whole sheet has been read rather than as the row
+       goes by. A view of nothing is dropped: better no drawing than an empty
+       frame with a title over it. */
+    views = views.filter(function (vw) {
+      if (parts[vw.MODULE]) return true;
+      warn('row ' + vw.ROW + ': VIEW names module ' + vw.MODULE +
+           ', which the sheet never defines — no drawing is made');
+      counts.view--;
+      return false;
+    });
     return { plates: plates, holes: holes, parts: parts, cuts: cuts, assy: assy,
-             log: log, counts: counts, yup: yup,
+             views: views, log: log, counts: counts, yup: yup,
              fatal: fatals.length ? fatals : null };
   }
 
@@ -1605,7 +1696,8 @@
             (c.sect ? ' &middot; sections ' + c.sect : '') +
             ' &middot; cuts ' + c.cut +
             ' &middot; modules ' + (c.module || 0) +
-            ' &middot; assy ' + c.assy + ' &rarr; placed ' + placed;
+            ' &middot; assy ' + c.assy + ' &rarr; placed ' + placed +
+            (c.view ? ' &middot; views ' + c.view : '');
     if (log.length) {
       var ranked = bad.concat(log.filter(function (e) { return e.s !== 'e'; }));
       h += '<ul>' + ranked.slice(0, 10).map(function (e) {
@@ -2077,12 +2169,17 @@
     cuts.filter(function (c) { return c.PLATE === spec.ID; }).forEach(function (c) {
       var anchor = c.__org ? [0, 0]
                    : (basePts[c.REFPT || (c.__xlCut ? 'bc' : 'bl')] || [0, 0]);
-      // positions: 1D repeat (N/DX/DY, Excel grammar) or NX·PX/NY·PY grid
+      // positions: the Excel repeat (dx/dy/repeat, and dx2/dy2/repeat2 stepping
+      // that whole row sideways) or the CUT sheet's NX·PX/NY·PY grid
       var uvs = [];
       if (c.REP !== undefined) {              // repeat = extra copies (original excluded)
-        for (var i = 0; i <= num(c.REP, 0); i++)
-          uvs.push([anchor[0] + num(c.U, 0) + i * num(c.DX, 0),
-                    anchor[1] + num(c.V, 0) + i * num(c.DY, 0)]);
+        var n1 = num(c.REP, 0), n2 = num(c.REP2, 0);
+        var dx1 = num(c.DX, 0), dy1 = num(c.DY, 0);
+        var dx2 = num(c.DX2, 0), dy2 = num(c.DY2, 0);
+        for (var j = 0; j <= n2; j++)
+          for (var i = 0; i <= n1; i++)
+            uvs.push([anchor[0] + num(c.U, 0) + i * dx1 + j * dx2,
+                      anchor[1] + num(c.V, 0) + i * dy1 + j * dy2]);
       } else {
         var nx = num(c.NX, 1), px = num(c.PX, 0), ny = num(c.NY, 1), py = num(c.PY, 0);
         for (var ix = 0; ix < nx; ix++) for (var iy = 0; iy < ny; iy++)
@@ -2370,6 +2467,7 @@
     lastCuts = cuts;
     lastColors = colors;
     lastParts = parts;
+    lastViews = (data.__parsed && data.__parsed.views) || [];
     var inst = {};                       // NO → {matrix, pts, thk} for EDGE references
     var bbox = new THREE.Box3();
 
@@ -4596,21 +4694,33 @@
   // width from - A0's long side, so the block fits the biggest ordinary sheet
   var DXF_SHEET_W = 1189;
 
-  var DXF_LAYERS = [                      // name, AutoCAD colour index
+  /* name, AutoCAD colour index, line type. The four line types the LTYPE table
+     below registers are the ones bim_dxf.js writes, to the same dash lengths -
+     CONTINUOUS, CENTER, HIDDEN, PHANTOM - so a PLATE3D drawing and a drawing
+     from the rest of macroBIM open with the same pen set. Third value left off
+     means CONTINUOUS.
+     CENTER and HIDDEN are the two a shop drawing needs beyond the outline: a
+     centre line through a bolt line, and whatever is behind the part you are
+     looking at. */
+  var DXF_LAYERS = [
     ['PL3D-OUTLINE', 7], ['PL3D-HOLE', 4], ['PL3D-DIM', 1],
-    ['PL3D-TEXT', 7], ['PL3D-TITLE', 3]
+    ['PL3D-TEXT', 7], ['PL3D-TITLE', 3],
+    ['PL3D-CENTER', 6, 'CENTER'], ['PL3D-HIDDEN', 8, 'HIDDEN']
   ];
   // the six views, each as the axes of its picture plane. `dir` points from the
   // model towards the viewer, and is what decides which side of a member faces
   // us - the silhouette test needs it.
   var DXF_VIEWS = [
     { key: 'FRONT',  right: [1, 0, 0],  up: [0, 0, 1], dir: [0, -1, 0] },
+    // (DXF_VIEW_KEY, below, is this list by key - VIEW rows are checked against it)
     { key: 'BACK',   right: [-1, 0, 0], up: [0, 0, 1], dir: [0, 1, 0] },
     { key: 'LEFT',   right: [0, -1, 0], up: [0, 0, 1], dir: [-1, 0, 0] },
     { key: 'RIGHT',  right: [0, 1, 0],  up: [0, 0, 1], dir: [1, 0, 0] },
     { key: 'TOP',    right: [1, 0, 0],  up: [0, 1, 0], dir: [0, 0, 1] },
     { key: 'BOTTOM', right: [-1, 0, 0], up: [0, 1, 0], dir: [0, 0, -1] }
   ];
+  var DXF_VIEW_KEY = {};
+  DXF_VIEWS.forEach(function (vw) { DXF_VIEW_KEY[vw.key] = vw; });
 
   // DXF is a code-page file, not UTF-8. Anything outside ASCII is transliterated
   // rather than escaped, so a label reads the same in every CAD.
@@ -5274,13 +5384,30 @@
 
     // six views of one set of members, laid out 3 x 2, drawn from (x0, yTop)
     // downward. Returns how much room it took.
-    function viewGrid(members, x0, yTop) {
-      var vs = DXF_VIEWS.map(function (vw) {
-        var segs = [];
-        members.forEach(function (it) { dxfMemberEdges(it, vw, segs); });
-        segs = dxfDedupe(segs);
-        return { key: vw.key, segs: segs, box: segsBox(segs) };
+    /* One projection of a set of members, ready to be put somewhere. */
+    function viewOf(members, vw) {
+      var segs = [];
+      members.forEach(function (it) { dxfMemberEdges(it, vw, segs); });
+      segs = dxfDedupe(segs);
+      return { key: vw.key, segs: segs, box: segsBox(segs) };
+    }
+    /* ...and drawn where it is put, with its title over it and its overall
+       size under and beside it. The grid below places six; a VIEW row places
+       one. Same picture either way, which is the point of it being one call. */
+    function placeView(v, ox, oy, title) {
+      var w = v.box.x1 - v.box.x0, h = v.box.y1 - v.box.y0;
+      v.segs.forEach(function (sg) {
+        line('PL3D-OUTLINE', [sg[0][0] - v.box.x0 + ox, sg[0][1] - v.box.y0 + oy],
+             [sg[1][0] - v.box.x0 + ox, sg[1][1] - v.box.y0 + oy]);
       });
+      text('PL3D-TITLE', [ox + w / 2, oy + h + D.base], D.text.section, title, true, 0);
+      if (w > 0) dimLinear([ox, oy], [ox + w, oy], oy, false, 0);
+      if (h > 0) dimLinear([ox, oy], [ox, oy + h], ox, true, 0);
+      return { w: w, h: h };
+    }
+
+    function viewGrid(members, x0, yTop) {
+      var vs = DXF_VIEWS.map(function (vw) { return viewOf(members, vw); });
       var G = gap();
       var colW = [0, 0, 0], rowH = [0, 0];
       vs.forEach(function (v, i) {
@@ -5299,16 +5426,7 @@
       var rowY = [yTop - band - rowH[0], 0];
       rowY[1] = rowY[0] - rowH[1] - band - G * 1.5;
       vs.forEach(function (v, i) {
-        var ox = colX[i % 3], oy = rowY[Math.floor(i / 3)];
-        var w = v.box.x1 - v.box.x0, h = v.box.y1 - v.box.y0;
-        v.segs.forEach(function (sg) {
-          line('PL3D-OUTLINE', [sg[0][0] - v.box.x0 + ox, sg[0][1] - v.box.y0 + oy],
-               [sg[1][0] - v.box.x0 + ox, sg[1][1] - v.box.y0 + oy]);
-        });
-        text('PL3D-TITLE', [ox + w / 2, oy + h + D.base], D.text.section,
-             v.key + ' VIEW', true, 0);
-        if (w > 0) dimLinear([ox, oy], [ox + w, oy], oy, false, 0);
-        if (h > 0) dimLinear([ox, oy], [ox, oy + h], ox, true, 0);
+        placeView(v, colX[i % 3], rowY[Math.floor(i / 3)], v.key + ' VIEW');
       });
       return { w: colX[2] + colW[2] - x0, h: yTop - (rowY[1] - G * 2) };
     }
@@ -5501,6 +5619,30 @@
       sheetW = Math.max(sheetW, pr.w / D.scale);
     }
 
+    /* ---- 4. the drawings the sheet asked for by name ----
+       Not in the dialog, and no tick box: a VIEW row is a decision already
+       taken by whoever wrote the workbook, so it carries its own scale and
+       its own title and is simply drawn. A sheet with no VIEW rows gets no
+       such block and exports exactly what it always did. To drop one, comment
+       the row out - the same way anything else in the sheet is turned off. */
+    if (opts.views && opts.views.on && lastViews && lastViews.length) {
+      D = dimStyle(opts.views.scale);
+      cursorY -= blockTitle('VIEWS  1:' + opts.views.scale, cursorY);
+      lastViews.forEach(function (vr) {
+        var mem = moduleItems(vr.MODULE);
+        if (!mem.length) return;              // every member hidden, or an empty module
+        var v = viewOf(mem, DXF_VIEW_KEY[vr.DIR]);
+        var band = D.base + D.text.section * 1.4;
+        var oy = cursorY - band - (v.box.y1 - v.box.y0);
+        var r2 = placeView(v, gap(), oy, vr.TITLE);
+        // the overall dimension hangs below the steel, so the next view starts
+        // clear of it rather than on top of its number
+        cursorY = oy - (D.origin + D.base + D.text.dim * 1.4) - gap() * 2;
+        sheetW = Math.max(sheetW, (gap() + r2.w) / D.scale);
+      });
+      cursorY -= gap() * 2;
+    }
+
     /* ---- assemble the file ---- */
     /* The file, in the shape bim_dxf.js writes and the site's other tools have
        been shipping: AC1009, one header variable, the LTYPE and LAYER tables,
@@ -5525,7 +5667,7 @@
     g(0, 'TABLE'); g(2, 'LAYER'); g(70, DXF_LAYERS.length + 1);
     g(0, 'LAYER'); g(2, '0'); g(70, 0); g(62, 7); g(6, 'CONTINUOUS');
     DXF_LAYERS.forEach(function (L) {
-      g(0, 'LAYER'); g(2, L[0]); g(70, 0); g(62, L[1]); g(6, 'CONTINUOUS');
+      g(0, 'LAYER'); g(2, L[0]); g(70, 0); g(62, L[1]); g(6, L[2] || 'CONTINUOUS');
     });
     g(0, 'ENDTAB');
 
@@ -5583,14 +5725,15 @@
   var dxfBlocks = {
     assembly: { on: true, scale: 50 },
     module:   { on: true, scale: 20 },
-    part:     { on: true, scale: 10 }
+    part:     { on: true, scale: 10 },
+    views:    { on: true, scale: 10 }
   };
-  var DXF_BLOCK_KEYS = ['assembly', 'module', 'part'];
+  var DXF_BLOCK_KEYS = ['assembly', 'module', 'part', 'views'];
   function dxfBlockRow(key, name, note) {
     return '    <div class="blk" id="pb-sc-' + key + '-row">' +
            '      <label class="on"><input type="checkbox" id="pb-sc-' + key + '"' +
            '        onchange="plateBuilder.scaleRowSync()"> ' + name +
-           '        <small>' + note + '</small></label>' +
+           '        <small id="pb-sc-' + key + '-note">' + note + '</small></label>' +
            '      <span class="sc">1 :&nbsp;<input type="number" min="1" step="1"' +
            '        id="pb-sc-' + key + '-v"' +
            '        onkeydown="if(event.key===\'Enter\')plateBuilder.confirmScale();' +
@@ -5629,6 +5772,18 @@
       if (c) c.checked = !!dxfBlocks[k].on;
       if (v) v.value = dxfBlocks[k].scale;
     });
+    /* The VIEWS line is the one block the sheet decides the existence of, so
+       the dialog says how many it found rather than offering a drawing that is
+       not there. Which module, seen from where, called what - all of that came
+       off the sheet. The scale did not: that is a property of the paper, not of
+       the model, which is why it is asked for here like the other three. */
+    var nv = (lastViews && lastViews.length) || 0;
+    var vc = document.getElementById('pb-sc-views');
+    var vn = document.getElementById('pb-sc-views-note');
+    if (vc) { vc.disabled = !nv; if (!nv) vc.checked = false; }
+    if (vn) vn.textContent = nv
+      ? nv + (nv > 1 ? ' drawings' : ' drawing') + ' the sheet names'
+      : 'none - this sheet does not name any';
     scaleRowSync();
     var first = document.getElementById('pb-sc-assembly-v');
     if (first) { first.focus(); first.select(); }
@@ -5648,8 +5803,8 @@
       opts[k] = { on: want, scale: s > 0 ? s : dxfBlocks[k].scale };
     });
     if (!on) {
-      alert('Nothing ticked.\n\nPick at least one of ASSEMBLY, MODULE or PART ' +
-            'to draw — an empty drawing is a file that looks fine and is not.');
+      alert('Nothing ticked.\n\nPick at least one block to draw — an empty ' +
+            'drawing is a file that looks fine and is not.');
       return;
     }
     if (bad) {
@@ -6902,7 +7057,8 @@
     ' id is warned about.</p>',
 
     '<h3>CUT - remove it</h3>',
-    sheet([['CUT', 'plate.id', 'L.X', 'L.Y', 'shape.id', 'dx', 'dy', 'repeat']]),
+    sheet([['CUT', 'plate.id', 'L.X', 'L.Y', 'shape.id', 'dx', 'dy', 'repeat',
+            'dx2', 'dy2', 'repeat2']]),
     '<p>Reads as: <i>take this shape and subtract it from that plate, with the shape&rsquo;s own',
     ' BASE.pt landing at (L.X, L.Y) measured from the plate&rsquo;s origin.</i></p>',
     '<table class="gt"><thead><tr><th>field</th><th>meaning</th></tr></thead><tbody>',
@@ -6911,6 +7067,8 @@
     '<tr><td><code>shape.id</code></td><td>a HOLE, or another PLATE whose outline you want to borrow</td></tr>',
     '<tr><td><code>dx dy repeat</code></td><td>array copies. <code>repeat</code> is how many',
     ' <i>extra</i> - blank or 0 gives one hole, 1 gives two</td></tr>',
+    '<tr><td><code>dx2 dy2 repeat2</code></td><td>optional second axis: it steps the whole',
+    ' first row sideways, so one line lays a grid. Blank gives one row, exactly as before</td></tr>',
     '</tbody></table>',
     '<p>Inside the outline it is a hole; straddling the edge it is a notch. It may run off',
     ' the plate entirely - only the overlap is removed. Rows apply in order, so cuts can',
@@ -6920,6 +7078,14 @@
            ['# CUT', 'plate', 'L.X', 'L.Y', 'shape', 'dx', 'dy', 'repeat'],
            ['CUT', 'pl.T1', -110, 90, 'h.M22', 0, 220, 1]],
           'Two &#216;22 holes, at (&#8722;110, 90) and (&#8722;110, 310).'),
+    sheet([['# CUT', 'plate', 'L.X', 'L.Y', 'shape', 'dx', 'dy', 'repeat',
+            'dx2', 'dy2', 'repeat2'],
+           ['CUT', 'pl.T1', 35, 85, 'h.M22', 75, 0, 1, 0, -170, 1]],
+          'Eight, in a 4 &#215; 2 grid: 75 apart along the plate, 170 across it. ' +
+          'Both counts can be formulas, so a front sheet can drive the bolt count.'),
+    '<p>A grid needs one row per quadrant when the two halves are split by a joint gap,',
+    ' because the gap makes the spacing uneven across the middle - four rows lay any bolt',
+    ' pattern of that kind, whatever the counts are.</p>',
     '<p class="warn">A CUT on a SECT cuts the whole length, not a hole in the web.</p>',
 
     '<h3>BAR - a round bar</h3>',
@@ -7179,9 +7345,9 @@
     ' reads a round coordinate straight off.</p>',
 
     '<h3>Save DXF - the drawing</h3>',
-    '<p>The drawing comes out in <b>three blocks</b>, and each is plotted at its own scale.',
+    '<p>The drawing comes out in <b>blocks</b>, and each is plotted at its own scale.',
     ' One scale cannot serve a 60&nbsp;m assembly and a 200&nbsp;mm gusset, so the dialog asks',
-    ' three times: tick the blocks you want and give each a scale.</p>',
+    ' once per block: tick the blocks you want and give each a scale.</p>',
     '<table class="gt"><thead><tr><th>block</th><th>what it draws</th></tr></thead><tbody>',
     '<tr><td><b>ASSEMBLY</b></td><td>six views - front, back, left, right, top, bottom - of',
     ' everything the ASSY rows placed</td></tr>',
@@ -7189,7 +7355,16 @@
     '<tr><td><b>PART / SECT</b></td><td>every distinct part once at its standard section,',
     ' with how many were placed. Round <b>bars are not drawn</b> - a bar is a length of stock,',
     ' and a circle with a diameter beside it says nothing the take-off does not</td></tr>',
+    '<tr><td><b>VIEWS</b></td><td>the drawings the sheet asked for by name, one to a',
+    ' <code>VIEW</code> row on the input tab: a module, the direction it is seen from, and',
+    ' the title to write over it. A sheet with no VIEW rows leaves this line greyed out and',
+    ' exports exactly what it always did</td></tr>',
     '</tbody></table>',
+    '<p><b>Why a keyword and not more tick boxes.</b> Which face of a splice you want drawn,',
+    ' and what to call it, is known by whoever wrote the workbook - not by whoever presses',
+    ' Save DXF, who would have to answer it again every time. The scale is the other way',
+    ' round: it belongs to the paper, not to the model, so that is the one thing the dialog',
+    ' asks. Nothing in the engine knows what a splice is.</p>',
     '<p><b>The steel is written 1:1 in millimetres throughout.</b> Only the annotation changes',
     ' size, so the three blocks share one coordinate system and a viewport plotted at each',
     ' block&rsquo;s scale comes out right. The file is DXF R12 and the annotation is drawn -',
@@ -7207,6 +7382,20 @@
     '</tbody></table>',
     '<p>A cut is measured at the size the sheet wrote, even where it hangs over an edge -',
     ' only the overlap comes out of the steel, but the whole shape is what gets cut.</p>',
+    '<p>Layers, and the line type each one carries. They are the four line types the rest of',
+    ' macroBIM writes, to the same dash lengths, so a PLATE3D drawing opens with the same pen',
+    ' set as one from anywhere else in the suite:</p>',
+    '<table class="gt"><thead><tr><th>layer</th><th>line type</th><th>what is on it</th></tr></thead><tbody>',
+    '<tr><td><code>PL3D-OUTLINE</code></td><td>CONTINUOUS</td><td>the steel</td></tr>',
+    '<tr><td><code>PL3D-HOLE</code></td><td>CONTINUOUS</td><td>what was cut out of it</td></tr>',
+    '<tr><td><code>PL3D-DIM</code></td><td>CONTINUOUS</td><td>dimension lines, leaders, arrow marks</td></tr>',
+    '<tr><td><code>PL3D-TEXT</code></td><td>CONTINUOUS</td><td>numbers, part names, quantities</td></tr>',
+    '<tr><td><code>PL3D-TITLE</code></td><td>CONTINUOUS</td><td>block and view titles</td></tr>',
+    '<tr><td><code>PL3D-CENTER</code></td><td>CENTER</td><td>centre and gauge lines</td></tr>',
+    '<tr><td><code>PL3D-HIDDEN</code></td><td>HIDDEN</td><td>what lies behind the part in view</td></tr>',
+    '</tbody></table>',
+    '<p>The last two are registered and ready but nothing is drawn on them yet - they arrive',
+    ' with the bolt pitch chains and the view context.</p>',
 
     '<h3>Save BOQ - the take-off</h3>',
     '<p>A workbook of four sheets, written from the model on screen. Weights are computed',
@@ -7405,12 +7594,13 @@
       '  <div class="box">' +
       '    <h2>Drawing scale</h2>' +
       '    <p>The steel is drawn 1:1 in millimetres &mdash; the scale sizes the' +
-      '      annotation. The drawing comes out in three blocks, each at its own' +
+      '      annotation. The drawing comes out in blocks, each at its own' +
       '      scale, so a 60m assembly and a 200mm gusset can both read. Round' +
       '      bars are not drawn.</p>' +
       dxfBlockRow('assembly', 'ASSEMBLY', 'six views of everything placed') +
       dxfBlockRow('module', 'MODULE', 'six views of each module') +
       dxfBlockRow('part', 'PART / SECT', 'one of each, with a count') +
+      dxfBlockRow('views', 'VIEWS', 'named on the input tab') +
       '    <div class="row">' +
       '      <button onclick="plateBuilder.closeScaleAsk()">Cancel</button>' +
       '      <button class="accent" onclick="plateBuilder.confirmScale()">Save DXF</button>' +
