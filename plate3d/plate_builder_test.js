@@ -2124,7 +2124,12 @@
       hs.forEach(function (r) { area -= Math.abs(ringArea(r)); });
     });
 
-    return { outers: c.outers, holes: c.holes, feats: feats, area: area };
+    /* The cutters go out with the result. They are what the sheet asked for,
+       placed and rotated but not yet subtracted, and that is the only place
+       the shape of a CUT survives intact: once the boolean has run, one that
+       reached an edge is indistinguishable from the outline it melted into. */
+    return { outers: c.outers, holes: c.holes, feats: feats, area: area,
+             cuts: cutters };
   }
   // even containment depth = outer ring, odd = hole; each hole filed under the
   // outer that contains it
@@ -2375,15 +2380,17 @@
       var world = yupFix(matrix);        // EDGE chaining keeps using the raw matrix
       var thk = spec.THK;
       var g2d = buildPlate2D(spec, cuts, plates);
-      var outers = g2d.outers, holesArr = g2d.holes;
+      var outers = g2d.outers, holesArr = g2d.holes, cutRings = g2d.cuts || [];
       if (mirror) {
         outers = mirror2D(outers, spec);
         holesArr = holesArr.map(function (hs) { return mirror2D(hs, spec); });
+        cutRings = mirror2D(cutRings, spec);
       }
       if (flip) {                        // reflected instance, see flipRingsX
         world = world.clone().multiply(new THREE.Matrix4().makeScale(-1, 1, 1));
         outers = flipRingsX(outers);
         holesArr = holesArr.map(flipRingsX);
+        cutRings = flipRingsX(cutRings);
       }
       var groupObj = new THREE.Group();
       var mat = new THREE.MeshPhongMaterial({ color: colors[spec.ID], shininess: 28,
@@ -2429,7 +2436,7 @@
                  dims: dims, remark: remark || '',
                  spec: spec, thk: thk, matrix: world, mat: mat, edgeMat: edgeMat,
                  baseColor: colors[spec.ID],
-                 rings: { outers: outers, holes: holesArr } };
+                 rings: { outers: outers, holes: holesArr, cuts: cutRings } };
       items.push(it);
       styleItem(it);
       return { pts: namedPoints(spec, mirror), thk: thk };
@@ -4501,7 +4508,7 @@
       var g2 = buildPlate2D(spec, lastCuts, lastPlates);
       out.push({ no: row.NO, spec: spec, thk: spec.THK, matrix: m,
                  mass: g2.area * spec.THK * RHO, dims: '',
-                 rings: { outers: g2.outers, holes: g2.holes } });
+                 rings: { outers: g2.outers, holes: g2.holes, cuts: g2.cuts } });
     });
     return out;
   }
@@ -4713,64 +4720,55 @@
     return order.map(function (k) { return by[k]; });
   }
 
-  /* What a part carries on leaders, and how many. Counted before the shelf is
-     laid out, because the leaders run up and to the right and the shelf has to
-     leave headroom for the highest of them - otherwise a D22 is written across
-     whatever sits above.
-     One leader per distinct hole diameter, taken from the hole furthest up and
-     to the right so it leaves the steel at once instead of crossing it. */
-  function circleDias(p) {
-    var by = {}, order = [];
-    function put(hc, reach, over) {
-      var k = Math.round(hc.r * 100);
-      if (!by[k]) { by[k] = { hc: hc, reach: reach }; order.push(k); }
-      else if (over && reach > by[k].reach) by[k] = { hc: hc, reach: reach };
-    }
-    p.it.rings.outers.forEach(function (o, i) {
-      (p.it.rings.holes[i] || []).forEach(function (hole) {
-        var hc = ringCircle(hole);
-        if (hc) put(hc, hc.c[0] + hc.c[1], true);
+  /* Every CUT the sheet made in this plate, as it was placed, grouped by the
+     shape it is. Reading the cuts rather than the boolean result is the
+     difference between knowing and guessing. Once the subtraction has run, a
+     cut that reached an edge is indistinguishable from the outline it melted
+     into, and the only way back was to hunt for it - an arc by fitting circles
+     to runs of vertices, a notch by looking for square concave corners - which
+     found the common cases, missed a trapezoidal notch entirely, and called an
+     H section's root fillets holes. The sheet offers three shapes and says
+     which one it meant; this reads that.
+
+     Round cuts come back for a diameter, everything else for the linear rules
+     the outline gets. One per distinct shape, the way one D22 stands for four
+     identical holes: the round one taken is the furthest up and right, because
+     its leader leaves that way, and the rest the furthest down and left,
+     because their dimensions do. */
+  function cutFeatures(p) {
+    var raw = p.it.rings && p.it.rings.cuts;
+    if (!raw) {                        // a ring set from before cuts were kept
+      raw = [];
+      p.it.rings.outers.forEach(function (o, i) {
+        (p.it.rings.holes[i] || []).forEach(function (h) { raw.push(h); });
       });
+    }
+    var byR = {}, rOrder = [], byS = {}, sOrder = [];
+    raw.forEach(function (ring) {
+      if (!ring || ring.length < 3) return;
+      var hc = ringCircle(ring);
+      if (hc) {
+        var rk = Math.round(hc.r * 100);
+        if (!byR[rk]) { byR[rk] = hc; rOrder.push(rk); }
+        else if (hc.c[0] + hc.c[1] > byR[rk].c[0] + byR[rk].c[1]) byR[rk] = hc;
+        return;
+      }
+      var c = cutBox(ring);
+      if (!c) return;
+      var r2 = function (v) { return Math.round(v * 100); };
+      var sk = [r2(c.x1 - c.x0), r2(c.y1 - c.y0),
+                r2(c.botLen), r2(c.topLen)].join('|');
+      if (!byS[sk]) { byS[sk] = c; sOrder.push(sk); }
+      else if (c.x0 + c.y0 < byS[sk].x0 + byS[sk].y0) byS[sk] = c;
     });
-    /* A circular CUT that reached an edge stopped being a hole: it melted into
-       the outline as an arc, and the hole list has never had it - which is why
-       a plate with a round bite out of its side came out with no diameter on
-       it at all. Find it in the outline instead. What comes back is a centre
-       and a radius, and past that there is nothing left to tell apart from a
-       closed hole - the same call-out is drawn for both. */
-    /* Not on a rolled section. Every arc in an H's outline is a root fillet,
-       which sectCallouts already names with an r - and the scan duly offered
-       D22 for the r11 on an H-200x100, which is the same curve said twice and
-       in the wrong units. */
-    if (!partCircle(p) && p.it.spec.SHAPE !== 'SECT') {
-      p.it.rings.outers.forEach(function (o) {
-        ringArcs(o).forEach(function (a) { put(a, a.c[0] + a.c[1], false); });
-      });
-    }
-    return order.map(function (k) { return by[k].hc; });
+    return { round: rOrder.map(function (k) { return byR[k]; }),
+             poly:  sOrder.map(function (k) { return byS[k]; }) };
   }
-  // the circle through three points, or null if they are in a line
-  function circle3(a, b, c) {
-    var d = 2 * (a[0] * (b[1] - c[1]) + b[0] * (c[1] - a[1]) + c[0] * (a[1] - b[1]));
-    if (Math.abs(d) < 1e-12) return null;
-    var a2 = a[0] * a[0] + a[1] * a[1], b2 = b[0] * b[0] + b[1] * b[1],
-        c2 = c[0] * c[0] + c[1] * c[1];
-    var ux = (a2 * (b[1] - c[1]) + b2 * (c[1] - a[1]) + c2 * (a[1] - b[1])) / d;
-    var uy = (a2 * (c[0] - b[0]) + b2 * (a[0] - c[0]) + c2 * (b[0] - a[0])) / d;
-    var r = Math.hypot(a[0] - ux, a[1] - uy);
-    return r > 1e-9 ? { c: [ux, uy], r: r } : null;
-  }
-  /* Arcs hiding in a polygonised outline. Three consecutive vertices fix a
-     circle; the run grows while the next vertex stays within one percent of
-     the radius of it. Five points and forty degrees before it counts - a hole
-     is polygonised into 48 sides, so forty degrees is more than five of them,
-     and three points on a gentle corner are not an arc.
-     The radius is capped at the ring's own size: three nearly-collinear points
-     fit an enormous circle, and with a one-percent tolerance that circle would
-     then swallow a straight edge whole. */
-  function ringArcs(ring) {
-    var n = ring.length;
-    if (n < 6) return [];
+  /* One cut, measured the way the outline is: the bottom edge as it is, the
+     top edge when it is a different length, and the height.
+     A cut turned by ANG is measured across its bounding box - the sides are
+     no longer the bottom and the top of anything. */
+  function cutBox(ring) {
     var x0 = Infinity, x1 = -Infinity, y0 = Infinity, y1 = -Infinity;
     ring.forEach(function (q) {
       if (q[0] < x0) x0 = q[0];
@@ -4778,28 +4776,14 @@
       if (q[1] < y0) y0 = q[1];
       if (q[1] > y1) y1 = q[1];
     });
-    var maxR = Math.hypot(x1 - x0, y1 - y0);
-    var out = [], i = 0;
-    function ang(q, c) { return Math.atan2(q[1] - c[1], q[0] - c[0]); }
-    while (i + 2 < n) {
-      var fit = circle3(ring[i], ring[i + 1], ring[i + 2]);
-      if (!fit || fit.r > maxR) { i++; continue; }
-      var tol = Math.max(1e-6, fit.r * 0.01), j = i + 2;
-      while (j + 1 < n && Math.abs(Math.hypot(ring[j + 1][0] - fit.c[0],
-                                              ring[j + 1][1] - fit.c[1]) - fit.r) <= tol) j++;
-      if (j - i + 1 >= 5) {
-        var span = 0;
-        for (var m = i; m < j; m++) {
-          var dth = ang(ring[m + 1], fit.c) - ang(ring[m], fit.c);
-          while (dth > Math.PI) dth -= 2 * Math.PI;
-          while (dth < -Math.PI) dth += 2 * Math.PI;
-          span += Math.abs(dth);
-        }
-        if (span >= Math.PI * 40 / 180) { out.push(fit); i = j; continue; }
-      }
-      i++;
-    }
-    return out;
+    if (!(x1 - x0 > 1e-9) || !(y1 - y0 > 1e-9)) return null;
+    var tol = Math.max(1e-6, (y1 - y0) * 1e-5);
+    var bot = ringsSpanAt([ring], y0, tol), top = ringsSpanAt([ring], y1, tol);
+    var len = function (e) { return e ? e[1] - e[0] : 0; };
+    return { x0: x0, x1: x1, y0: y0, y1: y1, bot: bot, top: top,
+             botLen: len(bot), topLen: len(top),
+             showTop: !!top && Math.abs(len(top) - len(bot))
+                              > Math.max(1e-6, (x1 - x0) * 1e-5) };
   }
   function partCircle(p) {
     return p.it.rings.outers.length === 1 && ringCircle(p.it.rings.outers[0]);
@@ -4828,106 +4812,29 @@
                        Math.max(1e-6, (p.box.y1 - p.box.y0) * 1e-5));
   }
 
-  /* What a CUT took out of the plate, ready to dimension. A round cut already
-     has its diameter on a leader and is left alone; anything else is a shape
-     with sides, and gets the sides the outline gets - bottom edge, top edge if
-     it differs, height.
-     One per distinct shape, the way one D22 stands for four identical holes.
-     The one chosen is the furthest down and to the left, because these
-     dimensions leave that way and there is the least in their path - the
-     mirror of taking the furthest up-right hole for a leader that runs the
-     other way. */
-  function cutDims(p) {
-    var by = {}, order = [];
-    p.it.rings.outers.forEach(function (o, i) {
-      (p.it.rings.holes[i] || []).forEach(function (hole) {
-        if (!hole || hole.length < 3 || ringCircle(hole)) return;
-        var x0 = Infinity, x1 = -Infinity, y0 = Infinity, y1 = -Infinity;
-        hole.forEach(function (q) {
-          if (q[0] < x0) x0 = q[0];
-          if (q[0] > x1) x1 = q[0];
-          if (q[1] < y0) y0 = q[1];
-          if (q[1] > y1) y1 = q[1];
-        });
-        if (!(x1 - x0 > 1e-9) || !(y1 - y0 > 1e-9)) return;
-        var tol = Math.max(1e-6, (y1 - y0) * 1e-5);
-        var bot = ringsSpanAt([hole], y0, tol), top = ringsSpanAt([hole], y1, tol);
-        var len = function (e) { return e ? e[1] - e[0] : 0; };
-        var r2 = function (v) { return Math.round(v * 100); };
-        var key = [r2(x1 - x0), r2(y1 - y0), r2(len(bot)), r2(len(top))].join('|');
-        var c = { x0: x0, x1: x1, y0: y0, y1: y1, bot: bot, top: top,
-                  reach: x0 + y0 };
-        // the top only when it is a different length from the bottom
-        c.showTop = !!top && Math.abs(len(top) - len(bot)) > Math.max(1e-6, (x1 - x0) * 1e-5);
-        if (!by[key]) { by[key] = c; order.push(key); }
-        else if (c.reach < by[key].reach) by[key] = c;
-      });
-    });
-    return order.map(function (k) { return by[k]; });
-  }
-
-  /* A CUT that reached an edge is not a hole any more. It is a step in the
-     outline, so cutDims - which reads the hole list - never sees it, and a
-     plate with a corner notched out came off the drawing with nothing said
-     about the notch at all.
-     What the cut took away is bounded by the edges meeting at the concave
-     corners it left, so those are what get measured. Only square corners
-     count: a polygonised arc is concave at every one of its vertices, and what
-     tells the two apart is the turn - a rectangular step turns ninety degrees
-     and a 48-sided circle turns seven and a half.
-     The dimensions go left and below like every other one on the sheet.
-     Putting them on whichever side is air sounds better and is not: on a slot
-     cut into an edge the air is the slot itself, and the depth line lands down
-     the middle of it with the width's number written across it. */
-  function notchEdges(p) {
-    var by = {}, order = [];
-    p.it.rings.outers.forEach(function (ring) {
-      var n = ring.length, i;
-      if (n < 5) return;                      // a rectangle has no step in it
-      var area = 0;
-      for (i = 0; i < n; i++) {
-        var a = ring[i], b = ring[(i + 1) % n];
-        area += a[0] * b[1] - b[0] * a[1];
-      }
-      var ccw = area > 0;
-      for (i = 0; i < n; i++) {
-        var prev = ring[(i + n - 1) % n], v = ring[i], next = ring[(i + 1) % n];
-        var ux = v[0] - prev[0], uy = v[1] - prev[1];
-        var wx = next[0] - v[0], wy = next[1] - v[1];
-        var lu = Math.hypot(ux, uy), lw = Math.hypot(wx, wy);
-        if (lu < 1e-9 || lw < 1e-9) continue;
-        var cross = ux * wy - uy * wx;
-        if (ccw ? cross >= 0 : cross <= 0) continue;          // convex, or straight
-        if (Math.abs(cross) < lu * lw * 0.5) continue;        // under 30 deg: a curve
-        [[prev, v, lu], [v, next, lw]].forEach(function (e) {
-          var dx = e[1][0] - e[0][0], dy = e[1][1] - e[0][1];
-          var vert = Math.abs(dx) < e[2] * 1e-3, horz = Math.abs(dy) < e[2] * 1e-3;
-          if (!vert && !horz) return;         // a slanted side is not measured here
-          /* One per length and direction - a slot's two sides are the same
-             60 and want saying once. The one kept is the furthest left (or
-             lowest), because the dimension is drawn that way and keeping the
-             other one puts the line down the middle of the slot it is
-             measuring, under the other number. */
-          var key = (vert ? 'v' : 'h') + '|' + Math.round(e[2] * 100);
-          var at = vert ? e[0][0] : e[0][1];
-          if (by[key]) { if (by[key].at <= at) return; }
-          else order.push(key);
-          by[key] = { a: e[0], b: e[1], vertical: vert, at: at };
-        });
-      }
-    });
-    return order.map(function (k) { return by[k]; });
-  }
   // does this part want a dimension over the top? - the shelf has to leave room
   function partPadTop(p, D) {
     var pad = p.it.spec.SHAPE === 'SECT'
       ? sectPadTop(p.it.spec, p.box.x1 - p.box.x0, p.box.y1 - p.box.y0, D) : 0;
     if (topEdgeDim(p))
       pad = Math.max(pad, D.origin + D.base + D.textGap + D.text.dim * 1.2);
-    // a cut that reaches the top edge puts its own top dimension above the part
-    var anyTop = cutDims(p).some(function (c) { return c.showTop; });
-    if (anyTop)
-      pad = Math.max(pad, D.innerOrigin + D.innerBase + D.textGap + D.text.dim * 1.2);
+    /* A cut is measured as the sheet wrote it, and the sheet is allowed to
+       hang one over an edge - only the overlap comes out of the steel. So the
+       call-out can reach past the part it belongs to, by however far the cut
+       does plus its own band. */
+    var band = D.innerOrigin + D.innerBase + D.textGap + D.text.dim * 1.2;
+    cutFeatures(p).poly.forEach(function (c) {
+      var over = Math.max(0, c.y1 - p.box.y1);
+      pad = Math.max(pad, over + (c.showTop ? band : 0));
+    });
+    return pad;
+  }
+  // and the room a cut hanging past the right-hand edge needs
+  function cutPadRight(p) {
+    var pad = 0;
+    cutFeatures(p).poly.forEach(function (c) {
+      pad = Math.max(pad, c.x1 - p.box.x1);
+    });
     return pad;
   }
   /* Plates only. A rolled section is described by its own call-outs, and its
@@ -4944,7 +4851,7 @@
     return top;                                  // a rectangle says it once
   }
   function leadCount(p) {
-    var n = circleDias(p).length + (partCircle(p) ? 1 : 0);
+    var n = cutFeatures(p).round.length + (partCircle(p) ? 1 : 0);
     if (p.it.spec.SHAPE === 'SECT')
       n += sectCallouts(p.it.spec, p.box.x1 - p.box.x0,
                         p.box.y1 - p.box.y0).leads.length;
@@ -5433,8 +5340,8 @@
         var rule = Math.max(D.markLen, dxfTextWidth(nameStr, D.text.member));
         // a section's thickness dimensions stand off its right-hand side, so
         // its cell is wider than its steel or the next part sits on them
-        var pad = p.it.spec.SHAPE === 'SECT'
-          ? sectPadRight(p.it.spec, w, h, D) : 0;
+        var pad = Math.max(cutPadRight(p), p.it.spec.SHAPE === 'SECT'
+          ? sectPadRight(p.it.spec, w, h, D) : 0);
         var cell = Math.max(w + pad, rule);
         if (px > x0 + G && px + cell > x0 + budget) {
           py -= shelf + lowBand + topBand + G * 1.5;
@@ -5474,13 +5381,14 @@
           if (h > 0) dimLinear([ox, oy], [ox, oy + h], ox, true, 0);
         }
 
-        // one call-out per distinct circle - a closed hole, or an arc a CUT
-        // left in the outline - from the one furthest up and to the right
-        circleDias(p).forEach(function (hc) {
-          leaderDia([hc.c[0] - p.box.x0 + ox, hc.c[1] - p.box.y0 + oy],
-                    hc.r, hc.r, 1, 1, lead++);
+        var cf = cutFeatures(p);
+        var CX = function (x) { return x - p.box.x0 + ox; };
+        var CY = function (y) { return y - p.box.y0 + oy; };
+        // one call-out per distinct round cut, from the one furthest up-right
+        cf.round.forEach(function (hc) {
+          leaderDia([CX(hc.c[0]), CY(hc.c[1])], hc.r, hc.r, 1, 1, lead++);
         });
-        /* What the CUTs took out, dimensioned by the same rules as the outline
+        /* The rest of the CUTs, dimensioned by the same rules as the outline
            but with A and B at the inside offsets - a dimension line standing
            20mm clear on paper is right in the margin round a part and is most
            of a small plate's interior. D is swapped for the inside style and
@@ -5488,20 +5396,13 @@
            of dimension come out of one piece of code. */
         var Dout = D;
         D = dimStyleInner(D);
-        var CX = function (x) { return x - p.box.x0 + ox; };
-        var CY = function (y) { return y - p.box.y0 + oy; };
-        cutDims(p).forEach(function (c) {
+        cf.poly.forEach(function (c) {
           var b = c.bot || [c.x0, c.x1];
           dimLinear([CX(b[0]), CY(c.y0)], [CX(b[1]), CY(c.y0)], CY(c.y0), false, 0);
           if (c.showTop)
             dimLinear([CX(c.top[0]), CY(c.y1)], [CX(c.top[1]), CY(c.y1)],
                       CY(c.y1), false, 0, 1);
           dimLinear([CX(c.x0), CY(c.y0)], [CX(c.x0), CY(c.y1)], CX(c.x0), true, 0);
-        });
-        // and the steps a cut left in the outline
-        notchEdges(p).forEach(function (e) {
-          var a = [CX(e.a[0]), CY(e.a[1])], b = [CX(e.b[0]), CY(e.b[1])];
-          dimLinear(a, b, e.vertical ? a[0] : a[1], e.vertical, 0);
         });
         D = Dout;
         if (p.it.spec.SHAPE === 'SECT') {
