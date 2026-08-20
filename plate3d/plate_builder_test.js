@@ -7175,6 +7175,29 @@
          scrolling because it thought it had more room than it was showing. */
       var sd = document.getElementById('pb-side');
       if (sd) sd.style.height = ch + 'px';
+      tellHost();
+    }
+    /* How tall this page actually needs to be, told to whoever framed it.
+       In an iframe the height is a guess made outside: the macroBIM layout
+       reserved 120px for what sits above the frame, and if that guess is a few
+       pixels short the host page scrolls, while if it is long the app pads the
+       difference out as white below the drawing. Neither is fixable from
+       inside a fixed-height frame, so the frame is told the number instead.
+       The width is not in question - the view is width-limited at 16:9 - so
+       asking for bar + padding + view height is a fixed point, not a loop. */
+    var toldHost = 0;
+    function tellHost() {
+      if (window.parent === window) return;
+      var bar = document.getElementById('pb-bar');
+      var bd = document.getElementById('pb-body');
+      if (!bar || !bd) return;
+      var bcs = getComputedStyle(bd);
+      var need = Math.ceil(bar.offsetTop + bar.offsetHeight +
+                           parseFloat(bcs.paddingTop) + parseFloat(bcs.paddingBottom) +
+                           fitH);
+      if (!(need > 0) || Math.abs(need - toldHost) < 2) return;
+      toldHost = need;
+      try { window.parent.postMessage({ plate3d: 'height', h: need }, '*'); } catch (e) {}
     }
     fitRenderer();
     if (onResize) window.removeEventListener('resize', onResize);
