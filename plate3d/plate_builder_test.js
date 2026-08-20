@@ -6907,9 +6907,17 @@
     }
     window.addEventListener('mousedown', function (e) {
       if (palPending && !document.getElementById('pb-pal').contains(e.target)) closePalette();
-      // a menu shuts on the next click anywhere, its own items included
-      if (!e.target.closest('#pb-fmenu > button, #pb-vmenu > button'))
-        setTimeout(closeMenus, 0);
+      // NOT the menus - see the click listener below. Shutting them on mousedown
+      // hides the item before mouseup lands on it, and the click event then
+      // never reaches the item at all: hold the button down for even a moment
+      // and nothing happens.
+    });
+    /* A menu shuts on the next click anywhere, its own items included - on
+       click, after the item's own handler has run, not on mousedown before it.
+       The toggle buttons stop propagation and handle themselves. */
+    window.addEventListener('click', function (e) {
+      if (e.target.closest && e.target.closest('#pb-fmenu > button, #pb-vmenu > button')) return;
+      closeMenus();
     });
     // The example window covers the viewport, so its own backdrop click closes
     // it; Escape is the other way out people reach for.
