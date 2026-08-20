@@ -4649,9 +4649,18 @@
   // width from - A0's long side, so the block fits the biggest ordinary sheet
   var DXF_SHEET_W = 1189;
 
-  var DXF_LAYERS = [                      // name, AutoCAD colour index
+  /* name, AutoCAD colour index, line type. The four line types the LTYPE table
+     below registers are the ones bim_dxf.js writes, to the same dash lengths -
+     CONTINUOUS, CENTER, HIDDEN, PHANTOM - so a PLATE3D drawing and a drawing
+     from the rest of macroBIM open with the same pen set. Third value left off
+     means CONTINUOUS.
+     CENTER and HIDDEN are the two a shop drawing needs beyond the outline: a
+     centre line through a bolt line, and whatever is behind the part you are
+     looking at. */
+  var DXF_LAYERS = [
     ['PL3D-OUTLINE', 7], ['PL3D-HOLE', 4], ['PL3D-DIM', 1],
-    ['PL3D-TEXT', 7], ['PL3D-TITLE', 3]
+    ['PL3D-TEXT', 7], ['PL3D-TITLE', 3],
+    ['PL3D-CENTER', 6, 'CENTER'], ['PL3D-HIDDEN', 8, 'HIDDEN']
   ];
   // the six views, each as the axes of its picture plane. `dir` points from the
   // model towards the viewer, and is what decides which side of a member faces
@@ -5578,7 +5587,7 @@
     g(0, 'TABLE'); g(2, 'LAYER'); g(70, DXF_LAYERS.length + 1);
     g(0, 'LAYER'); g(2, '0'); g(70, 0); g(62, 7); g(6, 'CONTINUOUS');
     DXF_LAYERS.forEach(function (L) {
-      g(0, 'LAYER'); g(2, L[0]); g(70, 0); g(62, L[1]); g(6, 'CONTINUOUS');
+      g(0, 'LAYER'); g(2, L[0]); g(70, 0); g(62, L[1]); g(6, L[2] || 'CONTINUOUS');
     });
     g(0, 'ENDTAB');
 
@@ -7271,6 +7280,20 @@
     '</tbody></table>',
     '<p>A cut is measured at the size the sheet wrote, even where it hangs over an edge -',
     ' only the overlap comes out of the steel, but the whole shape is what gets cut.</p>',
+    '<p>Layers, and the line type each one carries. They are the four line types the rest of',
+    ' macroBIM writes, to the same dash lengths, so a PLATE3D drawing opens with the same pen',
+    ' set as one from anywhere else in the suite:</p>',
+    '<table class="gt"><thead><tr><th>layer</th><th>line type</th><th>what is on it</th></tr></thead><tbody>',
+    '<tr><td><code>PL3D-OUTLINE</code></td><td>CONTINUOUS</td><td>the steel</td></tr>',
+    '<tr><td><code>PL3D-HOLE</code></td><td>CONTINUOUS</td><td>what was cut out of it</td></tr>',
+    '<tr><td><code>PL3D-DIM</code></td><td>CONTINUOUS</td><td>dimension lines, leaders, arrow marks</td></tr>',
+    '<tr><td><code>PL3D-TEXT</code></td><td>CONTINUOUS</td><td>numbers, part names, quantities</td></tr>',
+    '<tr><td><code>PL3D-TITLE</code></td><td>CONTINUOUS</td><td>block and view titles</td></tr>',
+    '<tr><td><code>PL3D-CENTER</code></td><td>CENTER</td><td>centre and gauge lines</td></tr>',
+    '<tr><td><code>PL3D-HIDDEN</code></td><td>HIDDEN</td><td>what lies behind the part in view</td></tr>',
+    '</tbody></table>',
+    '<p>The last two are registered and ready but nothing is drawn on them yet - they arrive',
+    ' with the bolt pitch chains and the view context.</p>',
 
     '<h3>Save BOQ - the take-off</h3>',
     '<p>A workbook of four sheets, written from the model on screen. Weights are computed',

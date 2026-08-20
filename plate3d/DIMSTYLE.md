@@ -225,6 +225,30 @@ CUT 이 판 가장자리에 걸치면 boolean 이 끝난 뒤에는 **잘린 자�
 
 ---
 
+## 5. 레이어와 선종류 (DXF)
+
+선종류는 **`bim_dxf.js` 가 쓰는 4종과 이름·대시길이까지 동일**하다 (`CONTINUOUS` /
+`CENTER` / `HIDDEN` / `PHANTOM`). PLATE3D 도면과 macroBIM 다른 도구의 도면이 같은
+펜 세트로 열리게 하려는 것이고, `bim_boltsplice.js` 가 이미 `splice_cent`(CENTER),
+`main_hidden`(HIDDEN) 으로 쓰고 있는 그 관행을 따른다.
+
+| 레이어 | 색 | 선종류 | 올라가는 것 |
+|---|---|---|---|
+| `PL3D-OUTLINE` | 7 | CONTINUOUS | 강재 외곽선 |
+| `PL3D-HOLE` | 4 | CONTINUOUS | 빼낸 형상 |
+| `PL3D-DIM` | 1 | CONTINUOUS | 치수선·지시선·화살표 |
+| `PL3D-TEXT` | 7 | CONTINUOUS | 숫자·부재명·수량 |
+| `PL3D-TITLE` | 3 | CONTINUOUS | 블록·뷰 제목 |
+| `PL3D-CENTER` | 6 | CENTER | 중심선·볼트 게이지선 |
+| `PL3D-HIDDEN` | 8 | HIDDEN | 뷰에서 뒤에 있는 것 (은선) |
+
+- 엔진의 `DXF_LAYERS` 는 `[이름, 색, 선종류]` 이고 **세 번째를 비우면 `CONTINUOUS`** 다.
+- 아래 두 줄은 **등록만 되어 있고 아직 아무것도 그리지 않는다.** 볼트 피치 체인과
+  뷰 컨텍스트 작업에서 쓰기 시작한다.
+- LTYPE 테이블에는 `PHANTOM` 도 등록돼 있지만 여기에 배정된 레이어는 아직 없다.
+
+---
+
 ## 축척을 쓰는 쪽에서 지켜야 할 것
 
 - **길이는 전부 `dimStyle(scale)` 을 거쳐서 쓴다.** 호출부에서 따로 곱하지 않는다.
