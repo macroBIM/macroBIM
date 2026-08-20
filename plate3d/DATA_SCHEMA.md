@@ -224,7 +224,7 @@ A열에 메모를 적으면 그게 키워드로 읽혀 버린다 — `END` 행�
 | HOLE | ID, **CIRC**, BASE.pt, D | 〃 |
 | SECT | ID, MAT, Length, **TYPE**, BASE.pt, `<값>` | 압연 형강. TYPE = **H / C / L**. 값은 **중간 공백 없이 순차 입력**하며 타입마다 목록이 다르다 (아래 표). `r`을 0이나 빈칸으로 두면 그 모서리는 각지게 나온다. 왼쪽 **SECTIONS** 표에 모이고 클릭하면 단면 도면이 열린다(measure 가능). 배치는 BAR와 동일 — Ref.Pt 없음, 시점부 단면 기준 |
 | BAR | ID, MAT, Dia, Length | 직선 환봉. 왼쪽 **BARS** 표(ID·직경·길이·재질)에 따로 모이고, 배치는 MODULE/ASSY로 판과 동일. 예전 `ID, Dia, Length` 순서도 인식 |
-| CUT | 판ID, L.X, L.Y, **형상ID**, dx, dy, repeat | 형상ID(HOLE 또는 다른 PLATE)를 그 판에서 빼기 |
+| CUT | 판ID, L.X, L.Y, **형상ID**, dx, dy, repeat, `dx2`, `dy2`, `repeat2` | 형상ID(HOLE 또는 다른 PLATE)를 그 판에서 빼기. 뒤 3열은 **2번째 배열 축**(생략 가능) |
 | **MODULE** | ID, PLATE/BAR.ID, Ref.Pt, L.X, L.Y, L.Z, PLANE, ROT.X, ROT.Y, ROT.Z | 모듈에 부재 1개 배치. 판의 Ref.Pt가 **모듈 로컬 (L.X, L.Y, L.Z)** 에 오고, PLANE은 그 판이 놓일 평면, ROT.X/Y/Z는 그 점을 중심으로 한 회전(도). 행마다 모듈 ID 반복 — 같은 ID 행들이 한 모듈로 누적. PART도 별칭 인식 |
 | **MODULE** | ID, BAR/SECT.ID, Ref.Pt, LX1, LY1, LZ1, **LX2, LY2, LZ2**, OFF_B, OFF_E, Alpha | **좌표 배치** — 같은 MODULE 행인데 PLANE 자리에 평면 이름이 아니라 **숫자**가 온 형태. 부재를 모듈 로컬 (LX1,LY1,LZ1) → (LX2,LY2,LZ2) 로 **늘여서** 배치하고, 길이는 두 점 사이 거리에서 가져온다. → BAR/SECT 정의행의 Length 는 **참고값으로만** 남는다(SECTIONS 표에 `ref` 표시). **BAR/SECT 전용** — 판은 두께가 늘어나 버리므로 오류 |
 | | OFF_B / OFF_E | 시작·끝 절단(부재 축 방향). **부호 있음: 양수 = 절점에서 물러남, 음수 = 절점을 지나 더 나감**(거셋에 물려 들어가는 브레이스, 베이스에 묻히는 기둥). 실제 길이 = `\|B−A\| − OFF_B − OFF_E` 이며 0보다 커야 한다 |
@@ -258,9 +258,20 @@ A열에 메모를 적으면 그게 키워드로 읽혀 버린다 — `END` 행�
 - 예전 CUT 순서도 계속 읽는다:
   `CUT [판ID] [기준점] L.X L.Y dx dy repeat RECT B H | CIRC D | PLATE ID` (형상을 **중심** 기준 배치)
   `CUT [판ID] [기준점] RECT B H L.X L.Y L.ROT dx dy repeat` (형상을 **좌하단** 기준 배치)
+  `dx2 dy2 repeat2` 는 **세 형식 모두** 그 형식의 마지막 값 뒤에 붙일 수 있다.
 - 예전 PLATE 행(도형 키워드 없음)도 계속 읽는다: `PLATE ID WT WB H OFF_TOP [OFF_B] THK MAT`, `PLATE ID B H THK MAT`
 - **dx / dy / repeat = 배열 복제**: repeat는 **추가 복제 개수**(원본 제외 — 0/빈칸이면 1개, 1이면 총 2개), dx·dy는 복제 간격 벡터.
   예: `CUT pl.T1 -110 90 h.M22 0 220 1` = Ø22 구멍이 (−110, 90)과 (−110, 310)에 2개
+- **dx2 / dy2 / repeat2 = 2번째 배열 축**(생략 가능): 위에서 만든 **한 줄 전체**를 dx2·dy2 만큼
+  옆으로 옮겨 `repeat2` 개 더 만든다. 즉 한 행이 격자를 만든다. 총 개수 = `(repeat+1) × (repeat2+1)`.
+  예: `CUT pl.T1 35 85 h.M22 75 0 1 0 -170 1` = 길이방향 75 간격 2개 × 폭방향 170 간격 2줄 = 4개
+  - 비워두면 **기존 1차원 반복과 완전히 동일** — 기존 시트는 아무것도 달라지지 않는다.
+  - 두 개수 모두 **수식**이어도 되므로, 앞장(PARAM 같은 계산 시트)에서 볼트 개수를 바꾸면
+    구멍이 따라온다. **볼트 배열 한 덩어리가 CUT 한 줄**이 되는 것이 이 열의 목적.
+  - 조인트 유격처럼 가운데 간격이 다르면 한 행으로는 안 되고 **사분면당 한 행, 총 4행**이면
+    개수와 무관하게 어떤 볼트 배열이든 표현된다.
+  - `(repeat+1) × (repeat2+1)` 이 **2000** 을 넘으면 2000개까지만 자르고 오류로 알린다
+    (한 개마다 불리언 빼기 1회라, 수식이 어긋나면 그대로 멈춰버리기 때문).
 - PLANE: **XY(수평)/XZ(정면)/YZ(측면)** — Z-up 기준. Ref.Pt: tl·tc·tr·ml·mc·mr·bl·bc·br (예전 p 접두사 표기도 인식)
 - **ASSY도 같은 ID 행이 누적된다** — `ASSY as.comb md.tower ADD 0 0 0` 다음 줄에
   `ASSY as.comb bar.pt3m ADD 1000 1000 0` 을 쓰면 조립체는 **as.comb 하나**이고 그 아래에

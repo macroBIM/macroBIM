@@ -770,13 +770,18 @@
                                                and ASSY rows like any other member.
                                                The older "ID Dia Length" order is still
                                                read)
-       CUT   plateID L.X L.Y shapeID dx dy repeat
+       CUT   plateID L.X L.Y shapeID dx dy repeat [dx2 dy2 repeat2]
                                               (put shapeID - a HOLE, or another PLATE's
                                                outline - on the plate at L.X/L.Y, both
                                                measured from the plate's own origin.
                                                The shape lands by its BASE.pt)
                                               (repeat = extra copies, each offset by
                                                dx,dy from the previous one; 0/blank = none)
+                                              (dx2/dy2/repeat2 step that whole row
+                                               sideways, so one line lays a grid. Blank
+                                               = one row, as before. A bolt pattern is
+                                               one CUT row however many bolts it holds,
+                                               and both counts may be formulas)
                                               (the target plate must already be defined;
                                                the shape may be defined anywhere)
        -- older CUT rows, shape and its values last, are still read:
@@ -785,6 +790,8 @@
        -- older still, shape first:
           CUT [plateID] [refPt] RECT B H L.X L.Y L.ROT dx dy repeat
           (those place RECT/PLATE by their lower-left corner)
+       -- dx2/dy2/repeat2 may end any of the three, after that form's own
+          last value
        -- legacy PLATE rows with no shape keyword are still read, the shape
           taken from the values:  PLATE ID WT WB H OFF_TOP [OFF_B] THK MAT
                                   PLATE ID B H THK MAT
@@ -962,6 +969,9 @@
        of the same command on the same source forces the issue. */
     var CMD_SFX = { ADD: 'A', MIR: 'M', COPY: 'C', ROT: 'R' };
     var MAX_REP = 999;                   // .c001 ... .c999
+    // a CUT row lays repeat x repeat2 copies and every one is a boolean
+    // subtraction, so the two counts together have a ceiling of their own
+    var MAX_CUT_REP = 2000;
     var memSeq = {};                     // assembly + source + command -> made so far
     function memberId(aid, ref, cmd) {
       var sfx = CMD_SFX[cmd] || 'a';
@@ -1204,6 +1214,44 @@
         counts.sect++;
       } else if (kw === 'CUT') {          // CUT [plateID] [refPt] TYPE ...
         function isCutType(x) { return x === 'RECT' || x === 'CIRC' || x === 'PLATE'; }
+        /* The second repeat axis, which every CUT grammar ends with: dx2 dy2
+           repeat2, three more columns that step the whole first row sideways.
+           One row lays a grid, so a bolt pattern is one line of sheet however
+           many bolts it holds - and the count can be a formula, which is what
+           lets a front sheet drive it. Left blank it is the 1D repeat as
+           before, so no existing sheet changes. */
+        function cutAxis2(c, w, k) {
+          c.DX2 = num(w[k], 0); c.DY2 = num(w[k + 1], 0); c.REP2 = num(w[k + 2], 0);
+        }
+        /* Both axes warn the same way. Steps with no count make nothing, a
+           count with no step stacks copies on the spot - either is a column
+           out of line far more often than it is what was meant. */
+        function cutRepHint(c, target, extra) {
+          function say(m) {
+            hint('row ' + (r + 1) + ': CUT on ' + target + ' ' + m +
+                 (extra ? ' ' + extra : ''));
+          }
+          if ((num(c.DX, 0) || num(c.DY, 0)) && num(c.REP, 0) < 1)
+            say('has dx/dy but repeat is 0/empty — no copy is made' +
+                ' (repeat = how many extra copies)');
+          if ((num(c.DX2, 0) || num(c.DY2, 0)) && num(c.REP2, 0) < 1)
+            say('has dx2/dy2 but repeat2 is 0/empty — the second row is not laid');
+          if (num(c.REP2, 0) >= 1 && !num(c.DX2, 0) && !num(c.DY2, 0))
+            say('has repeat2 but no dx2/dy2 — the copies land on top of each other');
+          /* Two counts multiply, and both can be formulas, so a slip on the
+             front sheet is a grid of a million holes rather than a row of ten
+             too many. Every instance is a boolean subtraction; the row is cut
+             back to a size the shape engine can finish. */
+          var made = (num(c.REP, 0) + 1) * (num(c.REP2, 0) + 1);
+          if (made > MAX_CUT_REP) {
+            warn('row ' + (r + 1) + ': CUT on ' + target + ' asks for ' + made +
+                 ' copies, past the ' + MAX_CUT_REP + ' limit — only the first ' +
+                 MAX_CUT_REP + ' are cut. Check repeat and repeat2.');
+            c.REP = Math.min(num(c.REP, 0), MAX_CUT_REP - 1);
+            c.REP2 = Math.min(num(c.REP2, 0),
+                              Math.floor(MAX_CUT_REP / (num(c.REP, 0) + 1)) - 1);
+          }
+        }
         var sub = str(v[0]).toUpperCase();
         var target = current, refpt = 'bc';    // default = plate local origin
         if (!isCutType(sub)) {
@@ -1217,7 +1265,7 @@
         }
         if (!target) { warn('row ' + (r + 1) + ': CUT before any PLATE'); continue; }
         var c = { PLATE: target, REFPT: refpt, __xlCut: true };
-        // Current grammar: CUT <plate> L.X L.Y <shape id> dx dy repeat.
+        // Current grammar: CUT <plate> L.X L.Y <shape id> dx dy repeat dx2 dy2 repeat2.
         // The shape is a HOLE (or another PLATE) defined elsewhere, so the row
         // is a fixed width. L.X/L.Y are measured from the plate's own origin -
         // its BASE.pt - and the shape is placed by its BASE.pt.
@@ -1225,11 +1273,9 @@
           c.U = num(v[0], 0); c.V = num(v[1], 0);
           c.TYPE = 'REF'; c.REF = str(v[2]).toUpperCase();
           c.DX = num(v[3], 0); c.DY = num(v[4], 0); c.REP = num(v[5], 0);
+          cutAxis2(c, v, 6);
           c.ANG = 0; c.__org = true;
-          if ((c.DX || c.DY) && c.REP < 1) {
-            hint('row ' + (r + 1) + ': CUT on ' + target + ' has dx/dy but repeat is 0/empty' +
-                 ' — no copy is made (repeat = how many extra copies)');
-          }
+          cutRepHint(c, target);
           cuts.push(c);
           counts.cut++;
           continue;
@@ -1242,21 +1288,23 @@
           c.__ctr = true;
           var ct = str(v[5]).toUpperCase();
           c.ANG = 0;                          // no rotation column for now
+          // dx2/dy2/repeat2 follow the shape's own values, so where they start
+          // depends on how many the shape took: two for RECT, one for the rest.
           if (ct === 'RECT') {
             c.TYPE = 'TRAP'; c.B = num(v[6], 0); c.TW = c.B; c.H = num(v[7], 0); c.OF = 0;
+            cutAxis2(c, v, 8);
           } else if (ct === 'CIRC') {
             c.TYPE = 'CIRC'; c.D = num(v[6], 0);
+            cutAxis2(c, v, 7);
           } else if (ct === 'PLATE') {
             c.TYPE = 'REF'; c.REF = str(v[6]).toUpperCase();
+            cutAxis2(c, v, 7);
           } else {
             warn('row ' + (r + 1) + ': CUT on ' + target + ' — expected RECT / CIRC / PLATE' +
                  ' after L.X, L.Y, dx, dy, repeat, found ' + (str(v[5]) || '(blank)'));
             continue;
           }
-          if ((c.DX || c.DY) && c.REP < 1) {
-            hint('row ' + (r + 1) + ': CUT on ' + target + ' has dx/dy but repeat is 0/empty' +
-                 ' — no copy is made (repeat = how many extra copies)');
-          }
+          cutRepHint(c, target);
           cuts.push(c);
           counts.cut++;
           continue;
@@ -1265,20 +1313,20 @@
           c.TYPE = 'TRAP'; c.B = num(v[1], 0); c.TW = c.B; c.H = num(v[2], 0); c.OF = 0;
           c.U = num(v[3], 0); c.V = num(v[4], 0); c.ANG = num(v[5], 0);
           c.DX = num(v[6], 0); c.DY = num(v[7], 0); c.REP = num(v[8], 0);
+          cutAxis2(c, v, 9);
         } else if (sub === 'CIRC') {
           c.TYPE = 'CIRC'; c.D = num(v[1], 0);
           c.U = num(v[2], 0); c.V = num(v[3], 0); c.ANG = num(v[4], 0);
           c.DX = num(v[5], 0); c.DY = num(v[6], 0); c.REP = num(v[7], 0);
+          cutAxis2(c, v, 8);
         } else if (sub === 'PLATE') {
           c.TYPE = 'REF'; c.REF = str(v[1]).toUpperCase();
           c.U = num(v[2], 0); c.V = num(v[3], 0); c.ANG = num(v[4], 0);
           c.DX = num(v[5], 0); c.DY = num(v[6], 0); c.REP = num(v[7], 0);
+          cutAxis2(c, v, 8);
         } else { warn('row ' + (r + 1) + ': unknown CUT type ' + sub); continue; }
-        if ((num(c.DX, 0) || num(c.DY, 0)) && num(c.REP, 0) < 1) {
-          hint('row ' + (r + 1) + ': CUT on ' + target + ' has dx/dy but repeat is 0/empty' +
-               ' — no copy is made. Check the column alignment (CIRC/PLATE rows have one ' +
-               'parameter less than RECT, so dx/dy/repeat shift one column left)');
-        }
+        cutRepHint(c, target, 'Check the column alignment (CIRC/PLATE rows have one ' +
+          'parameter less than RECT, so dx/dy/repeat shift one column left)');
         cuts.push(c);
         counts.cut++;
       } else if (kw === 'COORD') {        // COORD ZUP (default) | YUP — frame the sheet is written in
@@ -2077,12 +2125,17 @@
     cuts.filter(function (c) { return c.PLATE === spec.ID; }).forEach(function (c) {
       var anchor = c.__org ? [0, 0]
                    : (basePts[c.REFPT || (c.__xlCut ? 'bc' : 'bl')] || [0, 0]);
-      // positions: 1D repeat (N/DX/DY, Excel grammar) or NX·PX/NY·PY grid
+      // positions: the Excel repeat (dx/dy/repeat, and dx2/dy2/repeat2 stepping
+      // that whole row sideways) or the CUT sheet's NX·PX/NY·PY grid
       var uvs = [];
       if (c.REP !== undefined) {              // repeat = extra copies (original excluded)
-        for (var i = 0; i <= num(c.REP, 0); i++)
-          uvs.push([anchor[0] + num(c.U, 0) + i * num(c.DX, 0),
-                    anchor[1] + num(c.V, 0) + i * num(c.DY, 0)]);
+        var n1 = num(c.REP, 0), n2 = num(c.REP2, 0);
+        var dx1 = num(c.DX, 0), dy1 = num(c.DY, 0);
+        var dx2 = num(c.DX2, 0), dy2 = num(c.DY2, 0);
+        for (var j = 0; j <= n2; j++)
+          for (var i = 0; i <= n1; i++)
+            uvs.push([anchor[0] + num(c.U, 0) + i * dx1 + j * dx2,
+                      anchor[1] + num(c.V, 0) + i * dy1 + j * dy2]);
       } else {
         var nx = num(c.NX, 1), px = num(c.PX, 0), ny = num(c.NY, 1), py = num(c.PY, 0);
         for (var ix = 0; ix < nx; ix++) for (var iy = 0; iy < ny; iy++)
@@ -6902,7 +6955,8 @@
     ' id is warned about.</p>',
 
     '<h3>CUT - remove it</h3>',
-    sheet([['CUT', 'plate.id', 'L.X', 'L.Y', 'shape.id', 'dx', 'dy', 'repeat']]),
+    sheet([['CUT', 'plate.id', 'L.X', 'L.Y', 'shape.id', 'dx', 'dy', 'repeat',
+            'dx2', 'dy2', 'repeat2']]),
     '<p>Reads as: <i>take this shape and subtract it from that plate, with the shape&rsquo;s own',
     ' BASE.pt landing at (L.X, L.Y) measured from the plate&rsquo;s origin.</i></p>',
     '<table class="gt"><thead><tr><th>field</th><th>meaning</th></tr></thead><tbody>',
@@ -6911,6 +6965,8 @@
     '<tr><td><code>shape.id</code></td><td>a HOLE, or another PLATE whose outline you want to borrow</td></tr>',
     '<tr><td><code>dx dy repeat</code></td><td>array copies. <code>repeat</code> is how many',
     ' <i>extra</i> - blank or 0 gives one hole, 1 gives two</td></tr>',
+    '<tr><td><code>dx2 dy2 repeat2</code></td><td>optional second axis: it steps the whole',
+    ' first row sideways, so one line lays a grid. Blank gives one row, exactly as before</td></tr>',
     '</tbody></table>',
     '<p>Inside the outline it is a hole; straddling the edge it is a notch. It may run off',
     ' the plate entirely - only the overlap is removed. Rows apply in order, so cuts can',
@@ -6920,6 +6976,14 @@
            ['# CUT', 'plate', 'L.X', 'L.Y', 'shape', 'dx', 'dy', 'repeat'],
            ['CUT', 'pl.T1', -110, 90, 'h.M22', 0, 220, 1]],
           'Two &#216;22 holes, at (&#8722;110, 90) and (&#8722;110, 310).'),
+    sheet([['# CUT', 'plate', 'L.X', 'L.Y', 'shape', 'dx', 'dy', 'repeat',
+            'dx2', 'dy2', 'repeat2'],
+           ['CUT', 'pl.T1', 35, 85, 'h.M22', 75, 0, 1, 0, -170, 1]],
+          'Eight, in a 4 &#215; 2 grid: 75 apart along the plate, 170 across it. ' +
+          'Both counts can be formulas, so a front sheet can drive the bolt count.'),
+    '<p>A grid needs one row per quadrant when the two halves are split by a joint gap,',
+    ' because the gap makes the spacing uneven across the middle - four rows lay any bolt',
+    ' pattern of that kind, whatever the counts are.</p>',
     '<p class="warn">A CUT on a SECT cuts the whole length, not a hole in the web.</p>',
 
     '<h3>BAR - a round bar</h3>',
