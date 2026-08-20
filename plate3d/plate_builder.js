@@ -4740,7 +4740,7 @@
      Without the silhouette test a round bar seen from the side is two loose
      lines with nothing joining them; without the corner test a plate loses its
      four vertical edges. */
-  function dxfMemberEdges(it, view, segs) {
+  function dxfMemberEdges(it, view, segs, arcs) {
     var m = it.matrix, half = (it.thk || 0) / 2;
     var vd = new THREE.Vector3(view.dir[0], view.dir[1], view.dir[2]);
     var R = new THREE.Vector3(view.right[0], view.right[1], view.right[2]);
@@ -4753,20 +4753,38 @@
     var e0 = new THREE.Vector3(0, 0, 0).applyMatrix4(m);
     var ez = new THREE.Vector3(0, 0, 1).applyMatrix4(m).sub(e0).normalize();
 
+    /* A circle only stays a circle when we are looking straight down the
+       extrusion. Turned edge on it is a line, which the polygon already draws;
+       anywhere between it is an ellipse, and R12 has no ELLIPSE entity - so
+       those keep their facets and say so rather than pretending. */
+    var faceOn = arcs && Math.abs(ez.dot(vd)) > 0.999;
+    var flat = [];
+    if (faceOn) (it.rings.cuts || []).forEach(function (rg) {
+      var k = ringCircle(rg);
+      if (k) flat.push({ c: proj(k.c[0], k.c[1], -half), r: k.r });
+    });
+
     function ring(pts) {
       var n = pts.length;
       if (n < 2) return;
       var faceFront = [];
+      var lo = [], hi = [];
       for (var i = 0; i < n; i++) {
         var a = pts[i], b = pts[(i + 1) % n];
-        segs.push([proj(a[0], a[1], -half), proj(b[0], b[1], -half)]);
-        if (half) segs.push([proj(a[0], a[1], half), proj(b[0], b[1], half)]);
+        lo.push(proj(a[0], a[1], -half));
+        if (half) hi.push(proj(a[0], a[1], half));
         // side face i is spanned by edge a->b and the extrusion direction
         var ea = new THREE.Vector3(b[0] - a[0], b[1] - a[1], 0)
                    .applyMatrix4(new THREE.Matrix4().extractRotation(m));
         var nrm = new THREE.Vector3().crossVectors(ea, ez);
         faceFront[i] = nrm.dot(vd) > 0;
       }
+      [lo, hi].forEach(function (cap) {
+        if (!cap.length) return;
+        var d = ringDraw(cap, flat);
+        d.lines.forEach(function (s) { segs.push(s); });
+        if (arcs) d.arcs.forEach(function (a) { arcs.push(a); });
+      });
       if (!half) return;
       for (var j = 0; j < n; j++) {
         var prev = pts[(j - 1 + n) % n], cur = pts[j], nxt = pts[(j + 1) % n];
@@ -4805,14 +4823,33 @@
     return out;
   }
 
-  function segsBox(segs) {
+  function segsBox(segs, arcs) {
     var b = { x0: Infinity, y0: Infinity, x1: -Infinity, y1: -Infinity };
-    segs.forEach(function (s) {
-      s.forEach(function (p) {
-        if (p[0] < b.x0) b.x0 = p[0];
-        if (p[0] > b.x1) b.x1 = p[0];
-        if (p[1] < b.y0) b.y0 = p[1];
-        if (p[1] > b.y1) b.y1 = p[1];
+    function hit(p) {
+      if (p[0] < b.x0) b.x0 = p[0];
+      if (p[0] > b.x1) b.x1 = p[0];
+      if (p[1] < b.y0) b.y0 = p[1];
+      if (p[1] > b.y1) b.y1 = p[1];
+    }
+    segs.forEach(function (s) { s.forEach(hit); });
+    /* An arc reaches past its own ends wherever it crosses an axis, so the four
+       quadrant points count whenever the sweep passes through them. Measuring
+       an arc by its endpoints alone is how a part comes out narrower than the
+       hole that was cut in it. */
+    (arcs || []).forEach(function (a) {
+      if (a.full) {
+        hit([a.c[0] - a.r, a.c[1] - a.r]); hit([a.c[0] + a.r, a.c[1] + a.r]);
+        return;
+      }
+      var s = a.a0, e = a.a1 < a.a0 ? a.a1 + 360 : a.a1;
+      hit([a.c[0] + a.r * Math.cos(s * Math.PI / 180),
+           a.c[1] + a.r * Math.sin(s * Math.PI / 180)]);
+      hit([a.c[0] + a.r * Math.cos(a.a1 * Math.PI / 180),
+           a.c[1] + a.r * Math.sin(a.a1 * Math.PI / 180)]);
+      [0, 90, 180, 270, 360, 450, 540, 630].forEach(function (q) {
+        if (q >= s && q <= e)
+          hit([a.c[0] + a.r * Math.cos(q * Math.PI / 180),
+               a.c[1] + a.r * Math.sin(q * Math.PI / 180)]);
       });
     });
     if (!isFinite(b.x0)) return { x0: 0, y0: 0, x1: 0, y1: 0 };
@@ -4974,6 +5011,96 @@
      it reaches here, so "circle" has to be decided from the geometry: every
      vertex the same distance from the centroid, within a fraction of a percent.
      Returns the centre and radius, or null for anything else. */
+  /* ---------------- polygon back to arcs ----------------
+     A hole is a circle right up until the boolean runs, and after it the plate
+     outline is one ring of points with nothing saying which of them came from
+     where. The circle itself is not lost though - buildPlate2D keeps the CUT
+     rings it was handed - so the question is only which points sit on it, and
+     that is a membership test against a known centre and radius rather than a
+     fit. Fitting is what went wrong before: with no candidate to check against
+     it put enormous circles through nearly straight runs and read an H-section
+     root fillet as a bolt hole. Nothing here can do that. A point that is on no
+     known circle stays a line, which is the honest answer. */
+  function arcTol(r) { return Math.max(r * 2e-3, 1e-6); }
+  function onCircle(p, k) {
+    return Math.abs(Math.hypot(p[0] - k.c[0], p[1] - k.c[1]) - k.r) <= arcTol(k.r);
+  }
+  function angAt(p, k) {
+    var a = Math.atan2(p[1] - k.c[1], p[0] - k.c[0]) * 180 / Math.PI;
+    return a < 0 ? a + 360 : a;
+  }
+  /* An edge counts as part of a circle only if both ends are on it AND its
+     middle very nearly is too. Two points can sit on the same circle with a
+     straight plate edge between them - a chord, not an arc - and the midpoint
+     is what tells them apart: on one facet of a 32-gon it is 0.995r out, on a
+     chord across the circle it is nowhere near. */
+  function edgeOnCircle(p, q, k) {
+    if (!onCircle(p, k) || !onCircle(q, k)) return false;
+    var m = [(p[0] + q[0]) / 2, (p[1] + q[1]) / 2];
+    return Math.hypot(m[0] - k.c[0], m[1] - k.c[1]) >= k.r * 0.866;   // 60 deg
+  }
+  /* The ring as things to draw: runs of edges on one circle become arcs, and a
+     run that closes on itself becomes the circle. Everything else is a line. */
+  function ringDraw(ring, circles) {
+    var out = { lines: [], arcs: [] }, n = ring.length, i;
+    if (n < 2) return out;
+    var owner = new Array(n);                  // edge i -> which circle, or -1
+    for (i = 0; i < n; i++) {
+      var p = ring[i], q = ring[(i + 1) % n];
+      owner[i] = -1;
+      for (var k = 0; k < circles.length; k++)
+        if (edgeOnCircle(p, q, circles[k])) { owner[i] = k; break; }
+    }
+    var any = false;
+    for (i = 0; i < n; i++) if (owner[i] >= 0) any = true;
+    if (!any) {
+      for (i = 0; i < n; i++) out.lines.push([ring[i], ring[(i + 1) % n]]);
+      return out;
+    }
+    // a whole ring on one circle is the circle
+    var whole = owner.every(function (o) { return o === owner[0]; });
+    if (whole && owner[0] >= 0) {
+      out.arcs.push({ c: circles[owner[0]].c, r: circles[owner[0]].r, full: true });
+      return out;
+    }
+    // otherwise walk from an edge that starts a run, so no run is split in two
+    var start = 0;
+    while (start < n && owner[start] === owner[(start - 1 + n) % n]) start++;
+    if (start >= n) start = 0;
+    i = 0;
+    while (i < n) {
+      var e = (start + i) % n, own = owner[e], len = 1;
+      while (i + len < n && owner[(start + i + len) % n] === own) len++;
+      if (own < 0) {
+        for (var j = 0; j < len; j++) {
+          var s = (start + i + j) % n;
+          out.lines.push([ring[s], ring[(s + 1) % n]]);
+        }
+      } else {
+        var K = circles[own];
+        var p0 = ring[e], p1 = ring[(e + len) % n];
+        var a0 = angAt(p0, K), a1 = angAt(p1, K);
+        var d = angAt(ring[(e + 1) % n], K) - a0;      // which way the run runs
+        if (d > 180) d -= 360; else if (d < -180) d += 360;
+        out.arcs.push(d >= 0 ? { c: K.c, r: K.r, a0: a0, a1: a1 }
+                             : { c: K.c, r: K.r, a0: a1, a1: a0 });
+      }
+      i += len;
+    }
+    return out;
+  }
+  // both caps of a plate seen face on give the same circle; one is enough
+  function arcDedupe(arcs) {
+    var seen = {}, out = [];
+    arcs.forEach(function (a) {
+      var k = dxfNum(a.c[0]) + ',' + dxfNum(a.c[1]) + ',' + dxfNum(a.r) + ',' +
+              (a.full ? 'F' : dxfNum(a.a0) + ',' + dxfNum(a.a1));
+      if (seen[k]) return;
+      seen[k] = 1;
+      out.push(a);
+    });
+    return out;
+  }
   function ringCircle(pts) {
     if (!pts || pts.length < 12) return null;
     var n = pts.length, cx = 0, cy = 0, i;
@@ -5173,6 +5300,24 @@
     function circle(layer, c, r, buf) {
       (buf || ents).push(entHead('CIRCLE', layer).concat(
         ['10', dxfNum(c[0]), '20', dxfNum(c[1]), '40', dxfNum(r)]));
+    }
+    /* R12 has ARC, and it always sweeps anticlockwise from the first angle to
+       the second - so a run of points read clockwise round the circle is the
+       same arc written the other way about. Angles in degrees. */
+    function arcEnt(layer, c, r, a0, a1, buf) {
+      (buf || ents).push(entHead('ARC', layer).concat(
+        ['10', dxfNum(c[0]), '20', dxfNum(c[1]), '40', dxfNum(r),
+         '50', dxfNum(a0), '51', dxfNum(a1)]));
+    }
+    // one drawing op from ringDraw, placed by an offset
+    function drawOps(layer, ops, dx, dy) {
+      ops.lines.forEach(function (s) {
+        line(layer, [s[0][0] + dx, s[0][1] + dy], [s[1][0] + dx, s[1][1] + dy]);
+      });
+      ops.arcs.forEach(function (a) {
+        if (a.full) circle(layer, [a.c[0] + dx, a.c[1] + dy], a.r);
+        else arcEnt(layer, [a.c[0] + dx, a.c[1] + dy], a.r, a.a0, a.a1);
+      });
     }
     /* The arrowhead: a round filled dot. R12 has no filled circle, so it is a
        fan of SOLID triangles with a CIRCLE laid over the top to keep the rim
@@ -5386,20 +5531,21 @@
     // downward. Returns how much room it took.
     /* One projection of a set of members, ready to be put somewhere. */
     function viewOf(members, vw) {
-      var segs = [];
-      members.forEach(function (it) { dxfMemberEdges(it, vw, segs); });
+      var segs = [], arcs = [];
+      members.forEach(function (it) { dxfMemberEdges(it, vw, segs, arcs); });
       segs = dxfDedupe(segs);
-      return { key: vw.key, segs: segs, box: segsBox(segs) };
+      arcs = arcDedupe(arcs);
+      /* The box has to see the arcs too, or a hole that reached the edge would
+         be measured to its chord. arcBox gives what the sweep actually covers. */
+      return { key: vw.key, segs: segs, arcs: arcs, box: segsBox(segs, arcs) };
     }
     /* ...and drawn where it is put, with its title over it and its overall
        size under and beside it. The grid below places six; a VIEW row places
        one. Same picture either way, which is the point of it being one call. */
     function placeView(v, ox, oy, title) {
       var w = v.box.x1 - v.box.x0, h = v.box.y1 - v.box.y0;
-      v.segs.forEach(function (sg) {
-        line('PL3D-OUTLINE', [sg[0][0] - v.box.x0 + ox, sg[0][1] - v.box.y0 + oy],
-             [sg[1][0] - v.box.x0 + ox, sg[1][1] - v.box.y0 + oy]);
-      });
+      drawOps('PL3D-OUTLINE', { lines: v.segs, arcs: v.arcs || [] },
+              ox - v.box.x0, oy - v.box.y0);
       text('PL3D-TITLE', [ox + w / 2, oy + h + D.base], D.text.section, title, true, 0);
       if (w > 0) dimLinear([ox, oy], [ox + w, oy], oy, false, 0);
       if (h > 0) dimLinear([ox, oy], [ox, oy + h], ox, true, 0);
@@ -5476,10 +5622,8 @@
         px += cell + G * 2.5;
         wide = Math.max(wide, px - x0);
         shelf = Math.max(shelf, h);
-        p.segs.forEach(function (sg) {
-          line('PL3D-OUTLINE', [sg[0][0] - p.box.x0 + ox, sg[0][1] - p.box.y0 + oy],
-               [sg[1][0] - p.box.x0 + ox, sg[1][1] - p.box.y0 + oy]);
-        });
+        drawOps('PL3D-OUTLINE', { lines: p.segs, arcs: p.arcs || [] },
+                ox - p.box.x0, oy - p.box.y0);
 
         // a round part gets a diameter, not a width and a height
         var lead = 0;
@@ -5596,16 +5740,30 @@
       var parts = dxfParts(list.filter(function (it) {
         return !(it.spec.__bar && !it.spec.__sect);
       })).map(function (p) {
-        var segs = [];
-        p.it.rings.outers.forEach(function (o, i) {
-          for (var k = 0; k < o.length; k++) segs.push([o[k], o[(k + 1) % o.length]]);
-          (p.it.rings.holes[i] || []).forEach(function (hole) {
-            for (var jj = 0; jj < hole.length; jj++)
-              segs.push([hole[jj], hole[(jj + 1) % hole.length]]);
+        /* Here the plate lies in its own plane, so every circle the sheet cut
+           is a circle on the paper - this is where arcs pay best. */
+        var segs = [], arcs = [], circles = [];
+        (p.it.rings.cuts || []).forEach(function (rg) {
+          var k = ringCircle(rg);
+          if (k) circles.push(k);
+        });
+        if (p.it.spec && p.it.spec.SHAPE === 'CIRC')
+          p.it.rings.outers.forEach(function (o) {
+            var k = ringCircle(o);
+            if (k) circles.push(k);
           });
+        function take(rg) {
+          var d = ringDraw(rg, circles);
+          d.lines.forEach(function (s) { segs.push(s); });
+          d.arcs.forEach(function (a) { arcs.push(a); });
+        }
+        p.it.rings.outers.forEach(function (o, i) {
+          take(o);
+          (p.it.rings.holes[i] || []).forEach(take);
         });
         p.segs = segs;
-        p.box = segsBox(segs);
+        p.arcs = arcDedupe(arcs);
+        p.box = segsBox(segs, p.arcs);
         return p;
       });
       /* The shelf wraps at the width of the widest block above it - but that
@@ -7382,6 +7540,14 @@
     '</tbody></table>',
     '<p>A cut is measured at the size the sheet wrote, even where it hangs over an edge -',
     ' only the overlap comes out of the steel, but the whole shape is what gets cut.</p>',
+    '<p><b>Round cuts come out round.</b> A hole is a real <code>CIRCLE</code>, and one that',
+    ' reaches an edge is the <code>ARC</code> that is left of it - so it stays smooth however',
+    ' far you zoom, and centre, quadrant and tangent all snap. The engine knows which they are',
+    ' because it keeps the CUT rows it was given, so it is checking against circles the sheet',
+    ' actually asked for rather than guessing at one from the points.</p>',
+    '<p class="warn">Two things stay as straight segments, and both are honest about it: a',
+    ' circle seen at an angle is an ellipse, and R12 has no ELLIPSE entity; and a curve that was',
+    ' never a CUT circle - a shape traced point by point - was never round to begin with.</p>',
     '<p>Layers, and the line type each one carries. They are the four line types the rest of',
     ' macroBIM writes, to the same dash lengths, so a PLATE3D drawing opens with the same pen',
     ' set as one from anywhere else in the suite:</p>',
