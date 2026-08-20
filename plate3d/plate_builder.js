@@ -824,6 +824,7 @@
                                                OFFSET is still read - detected from
                                                whether column 3 is a plane name)
        MODULE ID BAR/SECT.ID REF.PT LX1 LY1 LZ1 LX2 LY2 LZ2 [OFF_B OFF_E ALPHA]
+              [dx dy dz repeat] [dx2 dy2 dz2 repeat2]
                                               (the same row with a number where the
                                                plane name would be: a bar or a section
                                                stretched from (LX1,LY1,LZ1) to
@@ -835,6 +836,10 @@
                                                axis; REF.PT names the point that rides
                                                the axis line, blank = the BASE.pt.
                                                BAR/SECT only - a plate has no axis)
+                                              (the same two repeat axes, in the same
+                                               eight columns after ALPHA: a copy moves
+                                               both ends together, so it keeps the
+                                               direction, the length and the trims)
        MODULE ID BASE INSTANCE POINT          (module reference point = one of the
                                                9 points of a member plate;
                                                missing BASE -> warning + local origin)
@@ -1049,6 +1054,40 @@
       var sfx = pid.match(/^(.+?)[_-]\d+$/);
       if (sfx && plates[sfx[1]]) return sfx[1];
       return null;
+    }
+    /* ---- the two repeat axes a MODULE row carries ----
+       Both placement forms end in the same eight cells, so both read them the
+       same way: dx dy dz repeat, then dx2 dy2 dz2 repeat2, starting at column
+       k. What comes back is one offset per copy, the original included, so the
+       caller only has to add it to whatever it calls a position.
+       They exist for the reason the CUT row's do: a bolt pattern is one line of
+       sheet whatever it holds, and its counts can be formulas. A formula cannot
+       add a row, so without a repeat the number of members is fixed the moment
+       the file is written and a front sheet cannot change it.
+       Copies are numbered downstream, where a name used twice already becomes
+       name_1, name_2 - so nothing else has to know. */
+    function modSteps(v, k, tag, r) {
+      var d1 = [num(v[k], 0), num(v[k + 1], 0), num(v[k + 2], 0)], n1 = num(v[k + 3], 0);
+      var d2 = [num(v[k + 4], 0), num(v[k + 5], 0), num(v[k + 6], 0)], n2 = num(v[k + 7], 0);
+      function say(m) { hint('row ' + (r + 1) + ': MODULE ' + tag + ' ' + m); }
+      if ((d1[0] || d1[1] || d1[2]) && n1 < 1)
+        say('has dx/dy/dz but repeat is 0/empty — no copy is made');
+      if ((d2[0] || d2[1] || d2[2]) && n2 < 1)
+        say('has dx2/dy2/dz2 but repeat2 is 0/empty — the second row is not laid');
+      if (n1 >= 1 && !d1[0] && !d1[1] && !d1[2])
+        say('has repeat but no dx/dy/dz — the copies land on top of each other');
+      var made = (n1 + 1) * (n2 + 1);
+      if (made > MAX_CUT_REP) {
+        warn('row ' + (r + 1) + ': MODULE ' + tag + ' asks for ' + made +
+             ' copies, past the ' + MAX_CUT_REP + ' limit — only the first are placed.');
+        n1 = Math.min(n1, MAX_CUT_REP - 1);
+        n2 = Math.min(n2, Math.floor(MAX_CUT_REP / (n1 + 1)) - 1);
+      }
+      var out = [];
+      for (var j = 0; j <= n2; j++)
+        for (var i = 0; i <= n1; i++)
+          out.push([i * d1[0] + j * d2[0], i * d1[1] + j * d2[1], i * d1[2] + j * d2[2]]);
+      return out;
     }
     /* ---- a bar or a section stretched between two points ----
        The two end points are module-local and constant, so the member's real
@@ -1420,48 +1459,38 @@
                        REFPT: normPoint(v[2]), FACE: faceOf(v[2]),
                        LX: num(v[3], 0), LY: num(v[4], 0), LZ: num(v[5], 0),
                        RX: num(v[7], 0), RY: num(v[8], 0), RZ: num(v[9], 0) };
-          /* The same two repeat axes a CUT row has, for the same reason: a bolt
-             pattern is one line of sheet whatever it holds, and the counts can
-             be formulas. Without them a member can only be written out one row
-             at a time, so the row count is fixed at the moment the file is
-             written and a front sheet cannot change how many there are.
-             Copies are numbered downstream, where a name used twice already
-             becomes name_1, name_2 - so nothing else has to know. */
-          var md1 = [num(v[10], 0), num(v[11], 0), num(v[12], 0)], mn1 = num(v[13], 0);
-          var md2 = [num(v[14], 0), num(v[15], 0), num(v[16], 0)], mn2 = num(v[17], 0);
-          function modHint(m) { hint('row ' + (r + 1) + ': MODULE ' + partId + ' ' + msub + ' ' + m); }
-          if ((md1[0] || md1[1] || md1[2]) && mn1 < 1)
-            modHint('has dx/dy/dz but repeat is 0/empty — no copy is made');
-          if ((md2[0] || md2[1] || md2[2]) && mn2 < 1)
-            modHint('has dx2/dy2/dz2 but repeat2 is 0/empty — the second row is not laid');
-          if (mn1 >= 1 && !md1[0] && !md1[1] && !md1[2])
-            modHint('has repeat but no dx/dy/dz — the copies land on top of each other');
-          var made = (mn1 + 1) * (mn2 + 1);
-          if (made > MAX_CUT_REP) {
-            warn('row ' + (r + 1) + ': MODULE ' + partId + ' ' + msub + ' asks for ' + made +
-                 ' copies, past the ' + MAX_CUT_REP + ' limit — only the first are placed.');
-            mn1 = Math.min(mn1, MAX_CUT_REP - 1);
-            mn2 = Math.min(mn2, Math.floor(MAX_CUT_REP / (mn1 + 1)) - 1);
-          }
-          for (var mj = 0; mj <= mn2; mj++) {
-            for (var mi = 0; mi <= mn1; mi++) {
-              var cp = {};
-              for (var mk in mrow) cp[mk] = mrow[mk];
-              cp.LX = mrow.LX + mi * md1[0] + mj * md2[0];
-              cp.LY = mrow.LY + mi * md1[1] + mj * md2[1];
-              cp.LZ = mrow.LZ + mi * md1[2] + mj * md2[2];
-              addMember(currentPart, cp);
-            }
+          var msteps = modSteps(v, 10, partId + ' ' + msub, r);
+          for (var mi = 0; mi < msteps.length; mi++) {
+            var cp = {};
+            for (var mk in mrow) cp[mk] = mrow[mk];
+            cp.LX = mrow.LX + msteps[mi][0];
+            cp.LY = mrow.LY + msteps[mi][1];
+            cp.LZ = mrow.LZ + msteps[mi][2];
+            addMember(currentPart, cp);
           }
           continue;
         }
         // <bar/sect> Ref.Pt LX1 LY1 LZ1 LX2 LY2 LZ2 [OFF_B OFF_E Alpha]
+        //            [dx dy dz repeat] [dx2 dy2 dz2 repeat2]
         // The PLANE cell holds a number instead of a plane name, so the member is
         // stretched between two module-local points. All three end coordinates
         // are tested: a column standing straight up leaves LX2 and LY2 blank.
         if (isNum(v[6]) || isNum(v[7]) || isNum(v[8])) {
           var axr = axialRow(msub, mplate, v, r);
-          if (axr) addMember(currentPart, axr);
+          if (axr) {
+            /* A copy moves both ends by the same offset, so it keeps the
+               direction, the length and the two trims of the row it came from -
+               a rail of identical braces, a row of studs. */
+            var asteps = modSteps(v, 12, partId + ' ' + msub, r);
+            for (var ai = 0; ai < asteps.length; ai++) {
+              var acp = {}, as = asteps[ai];
+              for (var ak in axr) acp[ak] = axr[ak];
+              acp.X1 = axr.X1 + as[0]; acp.Y1 = axr.Y1 + as[1]; acp.Z1 = axr.Z1 + as[2];
+              acp.X2 = axr.X2 + as[0]; acp.Y2 = axr.Y2 + as[1]; acp.Z2 = axr.Z2 + as[2];
+              acp.AX = axr.AX + as[0]; acp.AY = axr.AY + as[1]; acp.AZ = axr.AZ + as[2];
+              addMember(currentPart, acp);
+            }
+          }
           continue;
         }
         warn('row ' + (r + 1) + ': unknown PLANE ' + (str(v[6]) || '(blank)') +
@@ -7618,7 +7647,8 @@
 
     '<h3>MODULE by coordinates - a bar or a section between two points</h3>',
     sheet([['MODULE', 'id', 'member.id', 'Ref.Pt', 'LX1', 'LY1', 'LZ1',
-            'LX2', 'LY2', 'LZ2', 'OFF_B', 'OFF_E', 'Alpha']]),
+            'LX2', 'LY2', 'LZ2', 'OFF_B', 'OFF_E', 'Alpha',
+            'dx', 'dy', 'dz', 'repeat', 'dx2', 'dy2', 'dz2', 'repeat2']]),
     '<p>Same keyword, same first four columns. What tells the two apart is the <b>PLANE cell</b>:',
     ' a plane name there means the row above, a <b>number</b> means this one. The member is then',
     ' stretched from <b>(LX1, LY1, LZ1)</b> to <b>(LX2, LY2, LZ2)</b> in module coordinates and',
@@ -7664,6 +7694,16 @@
           '1200&times;1800 bay - 2163 node to node, built 2243 so each end laps 40 past its ' +
           'node. The top strut is held 30 clear at both ends and rolled 90&deg;. The Length ' +
           'cell says 6000 because that is the stock length - nothing reads it.'),
+    '<h4>Repeating it</h4>',
+    '<p>The last eight columns are the same two repeat axes the row above has, sitting after',
+    ' <code>Alpha</code>. A copy <b>moves both ends by the same step</b>, so it keeps the direction,',
+    ' the length and both trims of the row it came from - a rail of identical braces, a run of',
+    ' studs, a line of anchor bolts. Left blank the row is one member, as it always was.</p>',
+    sheet([['# MODULE', 'id', 'member', 'Ref.Pt', 'LX1', 'LY1', 'LZ1', 'LX2', 'LY2', 'LZ2',
+            'OFF_B', 'OFF_E', 'Alpha', 'dx', 'dy', 'dz', 'rep', 'dx2', 'dy2', 'dz2', 'rep2'],
+           ['MODULE', 'md.rail', 's.brc', '', 0, 0, 0, 0, 0, 900, 0, 0, 0,
+            1500, 0, 0, 5, 0, 2400, 0, 1]],
+          'One row, twelve posts: six along at 1500, on two lines 2400 apart.'),
     '<p class="warn">Coordinates place a <b>BAR or a SECT only</b>. A plate is placed with Ref.Pt,',
     ' L.X, L.Y, L.Z and a PLANE, because stretching a plate would stretch its thickness. Two',
     ' identical points, or offsets that eat the whole member, are reported and the row is skipped.</p>',
