@@ -7177,14 +7177,18 @@
       if (sd) sd.style.height = ch + 'px';
       tellHost();
     }
-    /* How tall this page actually needs to be, told to whoever framed it.
-       In an iframe the height is a guess made outside: the macroBIM layout
-       reserved 120px for what sits above the frame, and if that guess is a few
-       pixels short the host page scrolls, while if it is long the app pads the
-       difference out as white below the drawing. Neither is fixable from
-       inside a fixed-height frame, so the frame is told the number instead.
-       The width is not in question - the view is width-limited at 16:9 - so
-       asking for bar + padding + view height is a fixed point, not a loop. */
+    /* How tall this page needs to be, told to whoever framed it. In an iframe
+       the height is a guess made outside - the macroBIM layout reserved a
+       constant for whatever sits above the frame - and a guess that is a few
+       pixels short scrolls the host page while one that is long leaves white
+       under the drawing. Neither is reachable from inside a fixed-height frame.
+
+       The number is worked out from the WIDTH alone and never from the height
+       the view currently has. Asking for the current height looks equivalent
+       and is not: fitRenderer floors the view's height, the frame comes back
+       that little bit shorter, the next pass floors a slightly smaller number,
+       and the frame walks itself down to nothing. It did exactly that. Width
+       does not depend on the answer, so there is no loop to walk. */
     var toldHost = 0;
     function tellHost() {
       if (window.parent === window) return;
@@ -7192,9 +7196,11 @@
       var bd = document.getElementById('pb-body');
       if (!bar || !bd) return;
       var bcs = getComputedStyle(bd);
+      var availW = wrap.clientWidth - wpx;
+      if (!(availW > 0)) return;
       var need = Math.ceil(bar.offsetTop + bar.offsetHeight +
                            parseFloat(bcs.paddingTop) + parseFloat(bcs.paddingBottom) +
-                           fitH);
+                           availW * 9 / 16);
       if (!(need > 0) || Math.abs(need - toldHost) < 2) return;
       toldHost = need;
       try { window.parent.postMessage({ plate3d: 'height', h: need }, '*'); } catch (e) {}
