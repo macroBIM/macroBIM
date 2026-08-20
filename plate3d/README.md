@@ -91,6 +91,16 @@ cp plate3d/plate_builder_test.js plate3d/plate_builder.js   # 엔진 복사
 **테스트본도 필요하면 `embed_test.html` 의 `?v=` 를 먼저 올린다.** 그래서 테스트 쪽 `?v=` 가
 운영보다 앞서 있을 수 있고, 동기화할 때 양쪽을 같은 값으로 다시 맞추면 된다.
 
+**`?v=` 는 테스트 쪽에도 두 군데다.** 운영에서 한 번 놓쳤던 것과 같은 구멍이다:
+
+| 파일 | 무엇을 캐시 무효화하나 |
+|---|---|
+| `plate3d/embed_test.html` 의 `plate_builder_test.js?v=` | 엔진 |
+| `design/layout_body_test.js` 의 `embed_test.html?v=` | **embed 자체** |
+
+아래를 안 올리면 브라우저가 옛 `embed_test.html` 을 캐시에서 꺼내고, 그게 옛 엔진을
+불러온다 — 엔진을 올려도 테스트 페이지에는 안 나온다. **둘 다 올린다.**
+
 예제 `.xlsx` 는 나누지 않는다 — 두 엔진이 같은 폴더에서 같은 파일을 받아간다.
 새 예제를 추가하면 테스트 엔진의 `SAMPLES` 배열에만 먼저 들어가고, 동기화할 때 운영으로 넘어간다.
 
