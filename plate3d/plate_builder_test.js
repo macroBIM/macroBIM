@@ -347,15 +347,41 @@
     '  z-index:75; background:rgba(15,23,42,.35); align-items:center;',
     '  justify-content:center; padding:20px; }',
     '#pb-scale .box { background:#fff; border:1px solid var(--line); border-radius:10px;',
-    '  width:392px; max-width:94vw; padding:16px 17px;',
+    '  width:472px; max-width:94vw; padding:16px 17px;',
     '  box-shadow:0 12px 40px rgba(15,23,42,.24); }',
     '#pb-scale h2 { font-size:15px; font-weight:600; color:#0f172a; margin:0 0 7px; }',
     '#pb-scale p { font-size:11.5px; color:#64748b; line-height:1.6; margin:0 0 12px; }',
-    '#pb-scale label { font-size:13px; font-weight:600; color:#0f172a;',
-    '  display:flex; align-items:center; }',
-    '#pb-scale input { font:inherit; font-size:14px; width:96px; padding:6px 9px;',
-    '  border:1px solid var(--line); border-radius:6px; color:#0f172a; }',
-    '#pb-scale .row { display:flex; justify-content:flex-end; gap:8px; margin-top:15px; }',
+    // one line per block: tick it to draw it, and say what it is plotted at
+    '#pb-scale .blk { display:flex; align-items:center; gap:10px; padding:7px 9px;',
+    '  border:1px solid var(--line); border-radius:7px; margin-bottom:7px;',
+    '  transition:background .12s,border-color .12s; }',
+    '#pb-scale .blk.off { background:#f8fafc; border-color:var(--hair); }',
+    '#pb-scale .blk .on { flex:1 1 auto; display:flex; align-items:center; gap:7px;',
+    '  font-size:13px; font-weight:600; color:#0f172a; cursor:pointer; }',
+    '#pb-scale .blk.off .on { color:#94a3b8; }',
+    '#pb-scale .blk .on small { font-weight:400; font-size:11px; color:#94a3b8; }',
+    '#pb-scale .blk .sc { display:flex; align-items:center; font-size:13px;',
+    '  font-weight:600; color:#0f172a; flex:0 0 auto; }',
+    '#pb-scale .blk.off .sc { color:#94a3b8; }',
+    '#pb-scale input[type=checkbox] { accent-color:var(--dim); cursor:pointer; margin:0;',
+    '  width:15px; height:15px; }',
+    '#pb-scale input[type=number] { font:inherit; font-size:13px; width:74px;',
+    '  padding:5px 8px; border:1px solid var(--line); border-radius:6px; color:#0f172a; }',
+    '#pb-scale .row { display:flex; justify-content:flex-end; gap:8px; margin-top:14px; }',
+    // sized off the Example button in the bar - the small default buttons that
+    // were here read as an afterthought next to it
+    '#pb-scale .row button { font:inherit; font-size:12px; font-weight:600;',
+    '  letter-spacing:0; text-transform:none; min-width:102px; padding:5px 12px;',
+    '  border:1px solid var(--line); border-radius:6px; background:#fff;',
+    '  color:#334155; cursor:pointer;',
+    '  transition:background .12s,border-color .12s,box-shadow .12s,transform .06s; }',
+    '#pb-scale .row button:hover { background:#f1f5f9;',
+    '  box-shadow:0 2px 6px rgba(15,23,42,.12); }',
+    '#pb-scale .row button:active { transform:translateY(1px) scale(.97); box-shadow:none; }',
+    '#pb-scale .row button.accent { background:var(--dim); border-color:var(--dim);',
+    '  color:#fff; }',
+    '#pb-scale .row button.accent:hover { background:#1d4ed8; border-color:#1d4ed8;',
+    '  box-shadow:0 2px 8px rgba(37,99,235,.35); }',
 
     /* ---- example workbook picker: a window, like the plate preview ---- */
     '#pb-ex { display:none; position:fixed; left:0; top:0; right:0; bottom:0; z-index:55;',
@@ -4532,6 +4558,9 @@
      every CAD falls back to, and Arial is the face the rest of PLATE3D's output
      already uses - the take-off is set in it too. */
   var DXF_STYLE = 'PLATE3D', DXF_FONT = 'arial.ttf';
+  // paper mm the part shelf wraps at when no other block was drawn to take a
+  // width from - A0's long side, so the block fits the biggest ordinary sheet
+  var DXF_SHEET_W = 1189;
 
   var DXF_LAYERS = [                      // name, AutoCAD colour index
     ['PL3D-OUTLINE', 7], ['PL3D-HOLE', 4], ['PL3D-DIM', 1],
@@ -4659,6 +4688,34 @@
     return order.map(function (k) { return by[k]; });
   }
 
+  /* What a part carries on leaders, and how many. Counted before the shelf is
+     laid out, because the leaders run up and to the right and the shelf has to
+     leave headroom for the highest of them - otherwise a D22 is written across
+     whatever sits above.
+     One leader per distinct hole diameter, taken from the hole furthest up and
+     to the right so it leaves the steel at once instead of crossing it. */
+  function holeDias(p) {
+    var by = {};
+    p.it.rings.outers.forEach(function (o, i) {
+      (p.it.rings.holes[i] || []).forEach(function (hole) {
+        var hc = ringCircle(hole);
+        if (!hc) return;
+        var k = Math.round(hc.r * 100), reach = hc.c[0] + hc.c[1];
+        if (!by[k] || reach > by[k].reach) by[k] = { hc: hc, reach: reach };
+      });
+    });
+    return Object.keys(by).map(function (k) { return by[k].hc; });
+  }
+  function partCircle(p) {
+    return p.it.rings.outers.length === 1 && ringCircle(p.it.rings.outers[0]);
+  }
+  function leadCount(p) {
+    var n = holeDias(p).length + (partCircle(p) ? 1 : 0);
+    if (p.it.spec.SHAPE === 'SECT')
+      n += sectCallouts(p.it.spec, p.box.x1 - p.box.x0, p.box.y1 - p.box.y0).length;
+    return n;
+  }
+
   /* Is this ring a circle? A hole is polygonised into 48 segments long before
      it reaches here, so "circle" has to be decided from the geometry: every
      vertex the same distance from the centroid, within a fraction of a percent.
@@ -4725,8 +4782,22 @@
     return out;
   }
 
-  function buildDXF(list, scale) {
-    var D = dimStyle(scale);
+  /* opts says which of the three blocks to draw and at what scale:
+       { part:{on,scale}, module:{on,scale}, assembly:{on,scale} }
+     A bare number still works and means all three at that one scale - the
+     public API took a scale before this, and the sync copy of the site may
+     still be calling it that way. */
+  function buildDXF(list, opts) {
+    if (typeof opts === 'number' || typeof opts === 'string') {
+      var one = Number(opts);
+      opts = { part:     { on: true, scale: one },
+               module:   { on: true, scale: one },
+               assembly: { on: true, scale: one } };
+    }
+    opts = opts || {};
+    // D is the live style, reassigned as each block starts - every drawing
+    // helper reads it at call time, so a block's scale reaches all of them
+    var D = dimStyle(1);
     var R = [];
     function g(code, v) { R.push(String(code), String(v)); }
     function gs(arr) { for (var i = 0; i < arr.length; i += 2) g(arr[i], arr[i + 1]); }
@@ -4858,150 +4929,195 @@
       text('PL3D-DIM', tp, TH, String(Math.round(val)), true, v ? 90 : 0);
     }
 
-    /* ---- the drawing ---- */
-    /* Sheet layout gaps. Derived from the style rather than picked, so one
-       number governs the drawing: D.base is the dimension standoff, and frames
-       sit two and a half of those apart - 25mm on the sheet at any scale. */
-    var GAP = D.base * 2.5;
-    var TXT_T = D.text.section;              // view titles
+    /* ---- the drawing, in up to three blocks ---- */
+    /* Each block is drawn at its own scale, so a 63m assembly and a 300mm
+       gusset can each be annotated at a size that reads. The steel stays 1:1 in
+       millimetres throughout - only the annotation changes size - so the blocks
+       sit in one coordinate system and a viewport plotted at each block's scale
+       comes out right. */
+    // cursorY walks down the sheet in model mm; sheetW is the widest block so
+    // far measured **on paper**, which is the only width comparable between
+    // blocks drawn at different scales
+    var cursorY = 0, sheetW = 0;
 
-    // six views, measured first so they can be laid out on a common grid
-    var views = DXF_VIEWS.map(function (vw) {
-      var segs = [];
-      list.forEach(function (it) { dxfMemberEdges(it, vw, segs); });
-      segs = dxfDedupe(segs);
-      return { key: vw.key, segs: segs, box: segsBox(segs) };
-    });
-    /* Each column is as wide as the widest view in it, each row as tall as the
-       tallest. One cell size for all six sits every view in a box the size of
-       the front elevation, and a crane seen end-on is then 5m of drawing in a
-       63m box - most of the sheet empty. */
-    var colW = [0, 0, 0], rowH = [0, 0];
-    views.forEach(function (v, i) {
-      var c = i % 3, r = Math.floor(i / 3);
-      colW[c] = Math.max(colW[c], v.box.x1 - v.box.x0);
-      rowH[r] = Math.max(rowH[r], v.box.y1 - v.box.y0);
-    });
-    var colX = [GAP, 0, 0], rowY = [0, 0];
-    colX[1] = colX[0] + colW[0] + GAP * 2;
-    colX[2] = colX[1] + colW[1] + GAP * 2;
-    // views are drawn upward from their row's baseline, so the second row has to
-    // be dropped by its OWN height, not the first row's: a plan of a four-way
-    // node is far taller than the elevations above it and grew straight through
-    // them when this used rowH[0]
-    rowY[1] = rowY[0] - rowH[1] - GAP * 5;
-    var sheetW = colX[2] + colW[2];
+    function gap() { return D.base * 2.5; }     // 25mm on the sheet, at this block's scale
 
-    function place(segs, box, ox, oy) {
-      segs.forEach(function (s) {
-        line('PL3D-OUTLINE', [s[0][0] - box.x0 + ox, s[0][1] - box.y0 + oy],
-             [s[1][0] - box.x0 + ox, s[1][1] - box.y0 + oy]);
+    // six views of one set of members, laid out 3 x 2, drawn from (x0, yTop)
+    // downward. Returns how much room it took.
+    function viewGrid(members, x0, yTop) {
+      var vs = DXF_VIEWS.map(function (vw) {
+        var segs = [];
+        members.forEach(function (it) { dxfMemberEdges(it, vw, segs); });
+        segs = dxfDedupe(segs);
+        return { key: vw.key, segs: segs, box: segsBox(segs) };
       });
-    }
-    views.forEach(function (v, i) {
-      var ox = colX[i % 3], oy = rowY[Math.floor(i / 3)];
-      var w = v.box.x1 - v.box.x0, hgt = v.box.y1 - v.box.y0;
-      place(v.segs, v.box, ox, oy);
-      text('PL3D-TITLE', [ox + w / 2, oy + hgt + D.base], TXT_T, v.key + ' VIEW', true, 0);
-      if (w > 0) dimLinear([ox, oy], [ox + w, oy], oy, false, 0);
-      if (hgt > 0) dimLinear([ox, oy], [ox, oy + hgt], ox, true, 0);
-    });
-
-    // the parts, one standard section each, under the views
-    var parts = dxfParts(list).map(function (p) {
-      var segs = [];
-      p.it.rings.outers.forEach(function (o, i) {
-        for (var k = 0; k < o.length; k++)
-          segs.push([o[k], o[(k + 1) % o.length]]);
-        (p.it.rings.holes[i] || []).forEach(function (hole) {
-          for (var j = 0; j < hole.length; j++)
-            segs.push([hole[j], hole[(j + 1) % hole.length]]);
+      var G = gap();
+      var colW = [0, 0, 0], rowH = [0, 0];
+      vs.forEach(function (v, i) {
+        var c = i % 3, r = Math.floor(i / 3);
+        colW[c] = Math.max(colW[c], v.box.x1 - v.box.x0);
+        rowH[r] = Math.max(rowH[r], v.box.y1 - v.box.y0);
+      });
+      var colX = [x0 + G, 0, 0];
+      colX[1] = colX[0] + colW[0] + G * 2;
+      colX[2] = colX[1] + colW[1] + G * 2;
+      /* Each row carries its view names above it, so the row hangs that much
+         further down. Leaving it out is how ASSEMBLY 1:20 and FRONT VIEW came
+         to be written on the same line. */
+      var band = D.base + D.text.section * 1.4;
+      // rows are laid out downward from yTop, each row hanging by its own height
+      var rowY = [yTop - band - rowH[0], 0];
+      rowY[1] = rowY[0] - rowH[1] - band - G * 1.5;
+      vs.forEach(function (v, i) {
+        var ox = colX[i % 3], oy = rowY[Math.floor(i / 3)];
+        var w = v.box.x1 - v.box.x0, h = v.box.y1 - v.box.y0;
+        v.segs.forEach(function (sg) {
+          line('PL3D-OUTLINE', [sg[0][0] - v.box.x0 + ox, sg[0][1] - v.box.y0 + oy],
+               [sg[1][0] - v.box.x0 + ox, sg[1][1] - v.box.y0 + oy]);
         });
-      });
-      p.segs = segs;
-      p.box = segsBox(segs);
-      return p;
-    });
-    /* Shelf packing rather than a grid: a 9m section and a 100mm gusset in the
-       same list would otherwise both get a 9m cell. Parts fill a row until the
-       sheet width runs out, and the row is as tall as its tallest part.
-       A cell is as wide as the part OR its label rule, whichever is wider - the
-       rule is at least markLen and grows with the name, so on a small part it is
-       the label that decides the spacing, not the steel. */
-    var partsTop = rowY[1] - GAP * 4;
-    var px = GAP, py = partsTop, shelf = 0;
-    parts.forEach(function (p) {
-      var w = p.box.x1 - p.box.x0, hgt = p.box.y1 - p.box.y0;
-      var nameStr = p.it.plateId.toUpperCase() + ', ' + p.it.dims;
-      var rule = Math.max(D.markLen, dxfTextWidth(nameStr, D.text.member));
-      var cell = Math.max(w, rule);
-      if (px > GAP && px + cell > sheetW) {
-        py -= shelf + GAP * 4;
-        px = GAP;
-        shelf = 0;
-      }
-      // hangs down from the shelf line, never up: a part taller than the gap
-      // would otherwise grow straight through the views above it
-      var ox = px + (cell - w) / 2, oy = py - hgt;
-      var mid = px + cell / 2;
-      px += cell + GAP * 2.5;
-      shelf = Math.max(shelf, hgt);
-      p.segs.forEach(function (s) {
-        line('PL3D-OUTLINE', [s[0][0] - p.box.x0 + ox, s[0][1] - p.box.y0 + oy],
-             [s[1][0] - p.box.x0 + ox, s[1][1] - p.box.y0 + oy]);
-      });
-
-      /* A round part gets a diameter, not a width and a height. Everything else
-         gets the two linear dimensions it has always had. */
-      var outerC = p.it.rings.outers.length === 1 && ringCircle(p.it.rings.outers[0]);
-      if (outerC) {
-        leaderDia([ox + w / 2, oy + hgt / 2], outerC.r, outerC.r, 1, 1);
-      } else {
+        text('PL3D-TITLE', [ox + w / 2, oy + h + D.base], D.text.section,
+             v.key + ' VIEW', true, 0);
         if (w > 0) dimLinear([ox, oy], [ox + w, oy], oy, false, 0);
-        if (hgt > 0) dimLinear([ox, oy], [ox, oy + hgt], ox, true, 0);
-      }
-
-      /* Holes get their diameter on a 45 degree leader. One leader per distinct
-         size - four identical bolt holes want one D22, not four fighting over
-         the same space - and taken from the hole furthest up and to the right,
-         so the leader leaves the steel immediately instead of drawing a
-         diagonal across the part it is annotating. */
-      var byDia = {};
-      p.it.rings.outers.forEach(function (o, i) {
-        (p.it.rings.holes[i] || []).forEach(function (hole) {
-          var hc = ringCircle(hole);
-          if (!hc) return;
-          var key = Math.round(hc.r * 100), reach = hc.c[0] + hc.c[1];
-          if (!byDia[key] || reach > byDia[key].reach)
-            byDia[key] = { hc: hc, reach: reach };
-        });
+        if (h > 0) dimLinear([ox, oy], [ox, oy + h], ox, true, 0);
       });
-      var lead = 0;
-      Object.keys(byDia).forEach(function (k) {
-        var hc = byDia[k].hc;
-        leaderDia([hc.c[0] - p.box.x0 + ox, hc.c[1] - p.box.y0 + oy],
-                  hc.r, hc.r, 1, 1, lead++);
-      });
+      return { w: colX[2] + colW[2] - x0, h: yTop - (rowY[1] - G * 2) };
+    }
 
-      /* A rolled section says what it is made of: web, flanges, root radius.
-         H-700x300 alone leaves the reader looking the rest up, and the profile
-         was drawn from those numbers in the first place. */
-      if (p.it.spec.SHAPE === 'SECT') {
-        sectCallouts(p.it.spec, w, hgt).forEach(function (c) {
-          leaderAt([ox + c.u, oy + c.v], c.txt, c.dx, c.dy, lead++);
+    /* The distinct parts, shelf-packed. A 9m section and a 100mm gusset in one
+       grid would both get a 9m cell, so rows fill until the budget runs out and
+       each row is as tall as its tallest part. A cell is as wide as the part OR
+       its label rule, whichever is wider. */
+    function partShelf(parts, x0, yTop, budget) {
+      var G = gap();
+      /* What hangs off a part, worked out before anything is placed. The
+         leaders run up and to the right, so a shelf needs headroom above it or
+         a D22 lands on the block title; the name, its rule and the count hang
+         below, so it needs room under it too. Both are the same for every part
+         at this scale, so they are bands, not per-part measurements. */
+      var most = 0;
+      parts.forEach(function (p) { most = Math.max(most, leadCount(p)); });
+      var topBand = most > 0
+        ? (D.origin + D.base) * (1 + (most - 1) * 0.9) * Math.SQRT1_2
+          + D.textGap + D.text.dim * 1.2
+        : 0;
+      var lowBand = D.origin + D.base + D.text.dim
+                  + D.text.member * 1.9 + D.text.note * 1.5;
+      var px = x0 + G, py = yTop - topBand, shelf = 0, wide = 0;
+      parts.forEach(function (p) {
+        var w = p.box.x1 - p.box.x0, h = p.box.y1 - p.box.y0;
+        var nameStr = p.it.plateId.toUpperCase() + ', ' + p.it.dims;
+        var rule = Math.max(D.markLen, dxfTextWidth(nameStr, D.text.member));
+        var cell = Math.max(w, rule);
+        if (px > x0 + G && px + cell > x0 + budget) {
+          py -= shelf + lowBand + topBand + G * 1.5;
+          px = x0 + G;
+          shelf = 0;
+        }
+        // hangs down from the shelf line, never up: a tall part would otherwise
+        // grow through whatever is above it
+        var ox = px + (cell - w) / 2, oy = py - h;
+        var mid = px + cell / 2;
+        px += cell + G * 2.5;
+        wide = Math.max(wide, px - x0);
+        shelf = Math.max(shelf, h);
+        p.segs.forEach(function (sg) {
+          line('PL3D-OUTLINE', [sg[0][0] - p.box.x0 + ox, sg[0][1] - p.box.y0 + oy],
+               [sg[1][0] - p.box.x0 + ox, sg[1][1] - p.box.y0 + oy]);
         });
-      }
 
-      /* The label: the name, a rule under it, then how many. The rule is
-         markLen long unless the name is longer, in which case it grows - a rule
-         that stops short of its own text is the thing you notice. */
-      var lblY = oy - D.origin - D.base - D.text.dim - D.text.member * 1.4;
-      text('PL3D-TEXT', [mid, lblY], D.text.member, nameStr, true, 0);
-      var ruleY = lblY - D.text.member * 0.5;
-      line('PL3D-DIM', [mid - rule / 2, ruleY], [mid + rule / 2, ruleY]);
-      text('PL3D-TEXT', [mid, ruleY - D.text.note * 1.3], D.text.note,
-           p.n + 'EA', true, 0);
-    });
+        // a round part gets a diameter, not a width and a height
+        var lead = 0;
+        var outerC = partCircle(p);
+        if (outerC) {
+          leaderDia([ox + w / 2, oy + h / 2], outerC.r, outerC.r, 1, 1, lead++);
+        } else {
+          if (w > 0) dimLinear([ox, oy], [ox + w, oy], oy, false, 0);
+          if (h > 0) dimLinear([ox, oy], [ox, oy + h], ox, true, 0);
+        }
+
+        // one leader per distinct hole size, from the hole furthest up and right
+        holeDias(p).forEach(function (hc) {
+          leaderDia([hc.c[0] - p.box.x0 + ox, hc.c[1] - p.box.y0 + oy],
+                    hc.r, hc.r, 1, 1, lead++);
+        });
+        if (p.it.spec.SHAPE === 'SECT') {
+          sectCallouts(p.it.spec, w, h).forEach(function (c) {
+            leaderAt([ox + c.u, oy + c.v], c.txt, c.dx, c.dy, lead++);
+          });
+        }
+
+        var lblY = oy - D.origin - D.base - D.text.dim - D.text.member * 1.4;
+        text('PL3D-TEXT', [mid, lblY], D.text.member, nameStr, true, 0);
+        var ruleY = lblY - D.text.member * 0.5;
+        line('PL3D-DIM', [mid - rule / 2, ruleY], [mid + rule / 2, ruleY]);
+        text('PL3D-TEXT', [mid, ruleY - D.text.note * 1.3], D.text.note,
+             p.n + 'EA', true, 0);
+      });
+      return { w: wide, h: yTop - (py - shelf - lowBand - G) };
+    }
+
+    function blockTitle(s2, y) {
+      text('PL3D-TITLE', [gap(), y], D.text.heading, s2, false, 0);
+      return D.text.heading * 2.2;
+    }
+
+    // ---- 1. the assembly, as six views ----
+    if (opts.assembly && opts.assembly.on) {
+      D = dimStyle(opts.assembly.scale);
+      cursorY -= blockTitle('ASSEMBLY  1:' + opts.assembly.scale, cursorY);
+      var a = viewGrid(list, 0, cursorY);
+      cursorY -= a.h + gap() * 4;
+      sheetW = Math.max(sheetW, a.w / D.scale);
+    }
+
+    // ---- 2. each module, as six views of its own ----
+    if (opts.module && opts.module.on) {
+      D = dimStyle(opts.module.scale);
+      cursorY -= blockTitle('MODULES  1:' + opts.module.scale, cursorY);
+      Object.keys(lastParts).forEach(function (id) {
+        var mem = moduleItems(id);
+        if (!mem.length) return;
+        cursorY -= blockTitle(id.toUpperCase(), cursorY);
+        var m = viewGrid(mem, 0, cursorY);
+        cursorY -= m.h + gap() * 3;
+        sheetW = Math.max(sheetW, m.w / D.scale);
+      });
+      cursorY -= gap() * 2;
+    }
+
+    // ---- 3. the parts, one standard section each ----
+    if (opts.part && opts.part.on) {
+      D = dimStyle(opts.part.scale);
+      cursorY -= blockTitle('PARTS  1:' + opts.part.scale, cursorY);
+      /* Round bars are left out. A bar is a length of stock, not a part to be
+         cut to a shape, and a circle with a diameter beside it tells a
+         fabricator nothing the take-off does not. Sections stay - they carry a
+         profile worth drawing. */
+      var parts = dxfParts(list.filter(function (it) {
+        return !(it.spec.__bar && !it.spec.__sect);
+      })).map(function (p) {
+        var segs = [];
+        p.it.rings.outers.forEach(function (o, i) {
+          for (var k = 0; k < o.length; k++) segs.push([o[k], o[(k + 1) % o.length]]);
+          (p.it.rings.holes[i] || []).forEach(function (hole) {
+            for (var jj = 0; jj < hole.length; jj++)
+              segs.push([hole[jj], hole[(jj + 1) % hole.length]]);
+          });
+        });
+        p.segs = segs;
+        p.box = segsBox(segs);
+        return p;
+      });
+      /* The shelf wraps at the width of the widest block above it - but that
+         width has to be compared on paper, not in the model. The blocks are at
+         different scales, so 200m of tower at 1:100 is 2m of paper while the
+         same 200m of parts at 1:10 is twenty. Taking the model width straight
+         across put every part of the tower on one 200m row. */
+      var budget = (sheetW > 0 ? sheetW : DXF_SHEET_W) * D.scale;
+      var pr = partShelf(parts, 0, cursorY, budget);
+      cursorY -= pr.h;
+      sheetW = Math.max(sheetW, pr.w / D.scale);
+    }
 
     /* ---- assemble the file ---- */
     /* The file, in the shape bim_dxf.js writes and the site's other tools have
@@ -5077,7 +5193,28 @@
   function toggleViewMenu(ev) { toggleMenu('pb-vmenu', ev); }
   function closeFileMenu() { closeMenus(); }
 
-  var dxfScale = 20;                 // remembered between exports in this session
+  /* The drawing is three blocks and each is plotted at its own scale, so the
+     question is asked three times over. Remembered for the session, because
+     the second export of a sheet is nearly always the first one again with one
+     number changed. The ladder is the usual one: the whole assembly small, a
+     module bigger, a single part biggest. */
+  var dxfBlocks = {
+    assembly: { on: true, scale: 50 },
+    module:   { on: true, scale: 20 },
+    part:     { on: true, scale: 10 }
+  };
+  var DXF_BLOCK_KEYS = ['assembly', 'module', 'part'];
+  function dxfBlockRow(key, name, note) {
+    return '    <div class="blk" id="pb-sc-' + key + '-row">' +
+           '      <label class="on"><input type="checkbox" id="pb-sc-' + key + '"' +
+           '        onchange="plateBuilder.scaleRowSync()"> ' + name +
+           '        <small>' + note + '</small></label>' +
+           '      <span class="sc">1 :&nbsp;<input type="number" min="1" step="1"' +
+           '        id="pb-sc-' + key + '-v"' +
+           '        onkeydown="if(event.key===\'Enter\')plateBuilder.confirmScale();' +
+           '                   if(event.key===\'Escape\')plateBuilder.closeScaleAsk()">' +
+           '      </span></div>';
+  }
   function saveDXF() {
     var list = visibleItems();
     if (!list.length) {
@@ -5088,28 +5225,66 @@
     }
     openScaleAsk();
   }
+  // greys out the scale of a block you are not drawing, so the dialog says
+  // what it is going to do without being read twice
+  function scaleRowSync() {
+    DXF_BLOCK_KEYS.forEach(function (k) {
+      var c = document.getElementById('pb-sc-' + k);
+      var row = document.getElementById('pb-sc-' + k + '-row');
+      var v = document.getElementById('pb-sc-' + k + '-v');
+      if (!c || !row || !v) return;
+      row.classList.toggle('off', !c.checked);
+      v.disabled = !c.checked;
+    });
+  }
   function openScaleAsk() {
     var el = document.getElementById('pb-scale');
     if (!el) return;
     el.style.display = 'flex';
-    var f = document.getElementById('pb-scale-v');
-    f.value = dxfScale;
-    f.focus();
-    f.select();
+    DXF_BLOCK_KEYS.forEach(function (k) {
+      var c = document.getElementById('pb-sc-' + k);
+      var v = document.getElementById('pb-sc-' + k + '-v');
+      if (c) c.checked = !!dxfBlocks[k].on;
+      if (v) v.value = dxfBlocks[k].scale;
+    });
+    scaleRowSync();
+    var first = document.getElementById('pb-sc-assembly-v');
+    if (first) { first.focus(); first.select(); }
   }
   function closeScaleAsk() {
     var el = document.getElementById('pb-scale');
     if (el) el.style.display = 'none';
   }
   function confirmScale() {
-    var f = document.getElementById('pb-scale-v');
-    var s = Number(f && f.value);
-    if (!(s > 0)) { alert('The scale has to be a number greater than 0 — 20 means 1:20.'); return; }
-    dxfScale = s;
+    var opts = {}, on = 0, bad = null;
+    DXF_BLOCK_KEYS.forEach(function (k) {
+      var c = document.getElementById('pb-sc-' + k);
+      var v = document.getElementById('pb-sc-' + k + '-v');
+      var s = Number(v && v.value);
+      var want = !!(c && c.checked);
+      if (want) { on++; if (!(s > 0)) bad = k; }
+      opts[k] = { on: want, scale: s > 0 ? s : dxfBlocks[k].scale };
+    });
+    if (!on) {
+      alert('Nothing ticked.\n\nPick at least one of ASSEMBLY, MODULE or PART ' +
+            'to draw — an empty drawing is a file that looks fine and is not.');
+      return;
+    }
+    if (bad) {
+      alert('The ' + bad.toUpperCase() + ' scale has to be a number greater ' +
+            'than 0 — 20 means 1:20.');
+      return;
+    }
+    dxfBlocks = opts;
     closeScaleAsk();
     var list = visibleItems();
     if (!list.length) return;
-    download(buildDXF(list, s), 'plate_builder_1-' + s + '.dxf');
+    // the name carries the scales, because two exports of one sheet differ by
+    // nothing else: plate_builder_A50-M20-P10.dxf
+    var tag = DXF_BLOCK_KEYS.filter(function (k) { return opts[k].on; })
+      .map(function (k) { return k.charAt(0).toUpperCase() + opts[k].scale; })
+      .join('-');
+    download(buildDXF(list, opts), 'plate_builder_' + tag + '.dxf');
   }
 
   /* ================= BOQ: the take-off, as a workbook =================
@@ -6821,12 +6996,13 @@
       '<div id="pb-scale" onclick="if(event.target===this)plateBuilder.closeScaleAsk()">' +
       '  <div class="box">' +
       '    <h2>Drawing scale</h2>' +
-      '    <p>The steel is drawn 1:1 in millimetres. The scale sizes the' +
-      '      annotation &mdash; it is written to the file as DIMSTYLE\'s DIMSCALE,' +
-      '      so the CAD can change it later without a new export.</p>' +
-      '    <label>1 :&nbsp;<input type="number" id="pb-scale-v" min="1" step="1"' +
-      '      onkeydown="if(event.key===\'Enter\')plateBuilder.confirmScale();' +
-      '                 if(event.key===\'Escape\')plateBuilder.closeScaleAsk()"></label>' +
+      '    <p>The steel is drawn 1:1 in millimetres &mdash; the scale sizes the' +
+      '      annotation. The drawing comes out in three blocks, each at its own' +
+      '      scale, so a 60m assembly and a 200mm gusset can both read. Round' +
+      '      bars are not drawn.</p>' +
+      dxfBlockRow('assembly', 'ASSEMBLY', 'six views of everything placed') +
+      dxfBlockRow('module', 'MODULE', 'six views of each module') +
+      dxfBlockRow('part', 'PART / SECT', 'one of each, with a count') +
       '    <div class="row">' +
       '      <button onclick="plateBuilder.closeScaleAsk()">Cancel</button>' +
       '      <button class="accent" onclick="plateBuilder.confirmScale()">Save DXF</button>' +
@@ -7551,6 +7727,7 @@
     toggleFileMenu: toggleFileMenu, toggleViewMenu: toggleViewMenu,
     closeFileMenu: closeMenus,
     exportDXF: saveDXF, closeScaleAsk: closeScaleAsk, confirmScale: confirmScale,
+    scaleRowSync: scaleRowSync,
     // the annotation style, at scale 1 and at any scale - see DIMSTYLE.md
     dimStyleBase: DIMSTYLE, dimStyle: dimStyle, buildDXF: buildDXF
   };
