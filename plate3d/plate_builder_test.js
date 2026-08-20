@@ -4719,17 +4719,87 @@
      whatever sits above.
      One leader per distinct hole diameter, taken from the hole furthest up and
      to the right so it leaves the steel at once instead of crossing it. */
-  function holeDias(p) {
-    var by = {};
+  function circleDias(p) {
+    var by = {}, order = [];
+    function put(hc, reach, over) {
+      var k = Math.round(hc.r * 100);
+      if (!by[k]) { by[k] = { hc: hc, reach: reach }; order.push(k); }
+      else if (over && reach > by[k].reach) by[k] = { hc: hc, reach: reach };
+    }
     p.it.rings.outers.forEach(function (o, i) {
       (p.it.rings.holes[i] || []).forEach(function (hole) {
         var hc = ringCircle(hole);
-        if (!hc) return;
-        var k = Math.round(hc.r * 100), reach = hc.c[0] + hc.c[1];
-        if (!by[k] || reach > by[k].reach) by[k] = { hc: hc, reach: reach };
+        if (hc) put(hc, hc.c[0] + hc.c[1], true);
       });
     });
-    return Object.keys(by).map(function (k) { return by[k].hc; });
+    /* A circular CUT that reached an edge stopped being a hole: it melted into
+       the outline as an arc, and the hole list has never had it - which is why
+       a plate with a round bite out of its side came out with no diameter on
+       it at all. Find it in the outline instead. What comes back is a centre
+       and a radius, and past that there is nothing left to tell apart from a
+       closed hole - the same call-out is drawn for both. */
+    /* Not on a rolled section. Every arc in an H's outline is a root fillet,
+       which sectCallouts already names with an r - and the scan duly offered
+       D22 for the r11 on an H-200x100, which is the same curve said twice and
+       in the wrong units. */
+    if (!partCircle(p) && p.it.spec.SHAPE !== 'SECT') {
+      p.it.rings.outers.forEach(function (o) {
+        ringArcs(o).forEach(function (a) { put(a, a.c[0] + a.c[1], false); });
+      });
+    }
+    return order.map(function (k) { return by[k].hc; });
+  }
+  // the circle through three points, or null if they are in a line
+  function circle3(a, b, c) {
+    var d = 2 * (a[0] * (b[1] - c[1]) + b[0] * (c[1] - a[1]) + c[0] * (a[1] - b[1]));
+    if (Math.abs(d) < 1e-12) return null;
+    var a2 = a[0] * a[0] + a[1] * a[1], b2 = b[0] * b[0] + b[1] * b[1],
+        c2 = c[0] * c[0] + c[1] * c[1];
+    var ux = (a2 * (b[1] - c[1]) + b2 * (c[1] - a[1]) + c2 * (a[1] - b[1])) / d;
+    var uy = (a2 * (c[0] - b[0]) + b2 * (a[0] - c[0]) + c2 * (b[0] - a[0])) / d;
+    var r = Math.hypot(a[0] - ux, a[1] - uy);
+    return r > 1e-9 ? { c: [ux, uy], r: r } : null;
+  }
+  /* Arcs hiding in a polygonised outline. Three consecutive vertices fix a
+     circle; the run grows while the next vertex stays within one percent of
+     the radius of it. Five points and forty degrees before it counts - a hole
+     is polygonised into 48 sides, so forty degrees is more than five of them,
+     and three points on a gentle corner are not an arc.
+     The radius is capped at the ring's own size: three nearly-collinear points
+     fit an enormous circle, and with a one-percent tolerance that circle would
+     then swallow a straight edge whole. */
+  function ringArcs(ring) {
+    var n = ring.length;
+    if (n < 6) return [];
+    var x0 = Infinity, x1 = -Infinity, y0 = Infinity, y1 = -Infinity;
+    ring.forEach(function (q) {
+      if (q[0] < x0) x0 = q[0];
+      if (q[0] > x1) x1 = q[0];
+      if (q[1] < y0) y0 = q[1];
+      if (q[1] > y1) y1 = q[1];
+    });
+    var maxR = Math.hypot(x1 - x0, y1 - y0);
+    var out = [], i = 0;
+    function ang(q, c) { return Math.atan2(q[1] - c[1], q[0] - c[0]); }
+    while (i + 2 < n) {
+      var fit = circle3(ring[i], ring[i + 1], ring[i + 2]);
+      if (!fit || fit.r > maxR) { i++; continue; }
+      var tol = Math.max(1e-6, fit.r * 0.01), j = i + 2;
+      while (j + 1 < n && Math.abs(Math.hypot(ring[j + 1][0] - fit.c[0],
+                                              ring[j + 1][1] - fit.c[1]) - fit.r) <= tol) j++;
+      if (j - i + 1 >= 5) {
+        var span = 0;
+        for (var m = i; m < j; m++) {
+          var dth = ang(ring[m + 1], fit.c) - ang(ring[m], fit.c);
+          while (dth > Math.PI) dth -= 2 * Math.PI;
+          while (dth < -Math.PI) dth += 2 * Math.PI;
+          span += Math.abs(dth);
+        }
+        if (span >= Math.PI * 40 / 180) { out.push(fit); i = j; continue; }
+      }
+      i++;
+    }
+    return out;
   }
   function partCircle(p) {
     return p.it.rings.outers.length === 1 && ringCircle(p.it.rings.outers[0]);
@@ -4821,7 +4891,7 @@
     return top;                                  // a rectangle says it once
   }
   function leadCount(p) {
-    var n = holeDias(p).length + (partCircle(p) ? 1 : 0);
+    var n = circleDias(p).length + (partCircle(p) ? 1 : 0);
     if (p.it.spec.SHAPE === 'SECT')
       n += sectCallouts(p.it.spec, p.box.x1 - p.box.x0,
                         p.box.y1 - p.box.y0).leads.length;
@@ -5095,13 +5165,29 @@
     }
     /* A diameter, called out on a leader rather than measured across. A circle
        has no meaningful width and height, and two linear dimensions on one say
-       nothing a single D does not. The arrow lands on the rim pointing in at
-       the centre, so the call-out reads off the circle it belongs to. */
+       nothing a single D does not.
+       The dimension line runs through the centre and terminates on the rim at
+       both ends, arrows pointing out - which is what makes it read as a
+       diameter rather than as a note that happens to touch a circle. It then
+       carries on past the near rim to a shoulder for the number, because the
+       circles here are far too small to letter across.
+       An arc gets exactly this: the arrow on the side a CUT took away lands in
+       air, and that is still where that circle's rim would be. */
     function leaderDia(c, r, dia, dirX, dirY, step) {
-      var k = Math.SQRT1_2;
+      var k = Math.SQRT1_2, TH = D.text.dim, TG = D.textGap;
       var sx = dirX < 0 ? -1 : 1, sy = dirY < 0 ? -1 : 1;
-      leaderAt([c[0] + r * k * sx, c[1] + r * k * sy],
-               'D' + rnd(dia * 2), sx, sy, step);
+      var far  = [c[0] - r * k * sx, c[1] - r * k * sy];
+      var near = [c[0] + r * k * sx, c[1] + r * k * sy];
+      var s = 'D' + rnd(dia * 2);
+      var run = D.leadRun * (1 + (step || 0) * 0.9);
+      var p1 = [near[0] + run * k * sx, near[1] + run * k * sy];
+      var sh = noteRun(s, D);
+      var p2 = [p1[0] + sh * sx, p1[1]];
+      line('PL3D-DIM', far, p1);           // through the centre and on out
+      line('PL3D-DIM', p1, p2);
+      arrowHead('PL3D-DIM', far, -k * sx, -k * sy);
+      arrowHead('PL3D-DIM', near, k * sx, k * sy);
+      text('PL3D-DIM', [(p1[0] + p2[0]) / 2, p1[1] + TG], TH, s, true, 0);
     }
 
     /* A linear dimension, drawn: two extension lines, the dimension line, a dot
@@ -5335,8 +5421,9 @@
           if (h > 0) dimLinear([ox, oy], [ox, oy + h], ox, true, 0);
         }
 
-        // one leader per distinct hole size, from the hole furthest up and right
-        holeDias(p).forEach(function (hc) {
+        // one call-out per distinct circle - a closed hole, or an arc a CUT
+        // left in the outline - from the one furthest up and to the right
+        circleDias(p).forEach(function (hc) {
           leaderDia([hc.c[0] - p.box.x0 + ox, hc.c[1] - p.box.y0 + oy],
                     hc.r, hc.r, 1, 1, lead++);
         });
