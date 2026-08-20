@@ -4740,7 +4740,7 @@
      Without the silhouette test a round bar seen from the side is two loose
      lines with nothing joining them; without the corner test a plate loses its
      four vertical edges. */
-  function dxfMemberEdges(it, view, segs, arcs) {
+  function dxfMemberEdges(it, view, segs, arcs, holes) {
     var m = it.matrix, half = (it.thk || 0) / 2;
     var vd = new THREE.Vector3(view.dir[0], view.dir[1], view.dir[2]);
     var R = new THREE.Vector3(view.right[0], view.right[1], view.right[2]);
@@ -4761,7 +4761,10 @@
     var flat = [];
     if (faceOn) (it.rings.cuts || []).forEach(function (rg) {
       var k = ringCircle(rg);
-      if (k) flat.push({ c: proj(k.c[0], k.c[1], -half), r: k.r });
+      if (!k) return;
+      var pc = proj(k.c[0], k.c[1], -half);
+      flat.push({ c: pc, r: k.r });
+      if (holes) holes.push(pc);            // for the pitch chain
     });
 
     function ring(pts) {
@@ -5087,6 +5090,56 @@
       }
       i += len;
     }
+    return out;
+  }
+  /* ---------------- the pitch chain ----------------
+     An outline and a hole pattern with only an overall size on them cannot be
+     drilled from: nothing says where the holes go. Every number needed is
+     already on the sheet - the CUT rows the drawing keeps - so the chain is
+     read off the hole centres rather than asked for.
+     Positions are pooled across all the CUT rows on the plate and then
+     deduped, which is what turns four quadrant rows into one chain per axis
+     instead of four drawn over each other. */
+  function dimNum(v) {
+    var n = Math.round(v * 10) / 10;
+    return String(n);
+  }
+  function chainOps(pos, lo, hi) {
+    var u = [];
+    pos.slice().sort(function (a, b) { return a - b; }).forEach(function (v) {
+      if (!u.length || Math.abs(v - u[u.length - 1]) > 1e-3) u.push(v);
+    });
+    if (u.length < 2) return [];                 // one line of holes says nothing
+    var all = [lo].concat(u).concat([hi]), links = [], i;
+    for (i = 0; i < all.length - 1; i++) {
+      var d = all[i + 1] - all[i];
+      if (d > 1e-3) links.push({ a: all[i], b: all[i + 1], v: d });
+    }
+    /* Two or more equal links in a row collapse to N@P=total, which is the
+       usual shop-drawing form. A run of one is just its own number. */
+    var out = [], k = 0;
+    while (k < links.length) {
+      var j = k + 1;
+      while (j < links.length && Math.abs(links[j].v - links[k].v) < 1e-3) j++;
+      var n = j - k;
+      if (n >= 2) {
+        out.push({ a: links[k].a, b: links[j - 1].b,
+                   txt: n + '@' + dimNum(links[k].v) + '=' + dimNum(n * links[k].v) });
+      } else {
+        for (var m = k; m < j; m++)
+          out.push({ a: links[m].a, b: links[m].b, txt: dimNum(links[m].v) });
+      }
+      k = j;
+    }
+    return out;
+  }
+  // every round CUT on a plate, in the plate's own 2D frame
+  function holeCentres(it) {
+    var out = [];
+    (it.rings && it.rings.cuts || []).forEach(function (rg) {
+      var k = ringCircle(rg);
+      if (k) out.push(k.c);
+    });
     return out;
   }
   // both caps of a plate seen face on give the same circle; one is enough
@@ -5443,7 +5496,7 @@
       line('PL3D-DIM', [p[0] + ux * D.origin, p[1] + uy * D.origin],
            [q[0] + ux * D.extend, q[1] + uy * D.extend]);
     }
-    function dimLinear(p1, p2, at, vertical, level, side) {
+    function dimLinear(p1, p2, at, vertical, level, side, txt) {
       var A = D.arrow, TG = D.textGap, TH = D.text.dim;
       var v = vertical, sd = side > 0 ? 1 : -1;
       var val = Math.abs(v ? p2[1] - p1[1] : p2[0] - p1[0]);
@@ -5463,8 +5516,23 @@
          dimension the baseline sits TG to the left of the line and the glyphs
          fill the space beyond it - the same clearance as the horizontal case. */
       var mid = [(q1[0] + q2[0]) / 2, (q1[1] + q2[1]) / 2];
-      var tp = v ? [mid[0] - TG, mid[1]] : [mid[0], mid[1] + TG];
-      text('PL3D-DIM', tp, TH, String(Math.round(val)), true, v ? 90 : 0);
+      /* A number wider than the link it belongs to would sit on its own dots and
+         on its neighbour's - which is what a chain of short pitches does. It
+         steps one text height further out instead, into a lane of its own, and
+         the ones that fit stay where they are. */
+      var s = txt || String(Math.round(val));
+      var out = dxfTextWidth(s, TH) + TG * 2 <= val ? 0 : sd * TH * 1.3;
+      var tp = v ? [mid[0] - TG + out, mid[1]] : [mid[0], mid[1] + TG + out];
+      text('PL3D-DIM', tp, TH, s, true, v ? 90 : 0);
+    }
+    /* One chain, drawn one stack out from whatever it sits beside. `at` is the
+       edge it stands off, exactly as for a single dimension. */
+    function dimChain(ops, at, vertical, level, side, fix) {
+      ops.forEach(function (s) {
+        var p1 = vertical ? [fix, s.a] : [s.a, fix];
+        var p2 = vertical ? [fix, s.b] : [s.b, fix];
+        dimLinear(p1, p2, at, vertical, level, side, s.txt);
+      });
     }
 
     /* A thickness dimension where the thing measured is thinner than the
@@ -5531,24 +5599,40 @@
     // downward. Returns how much room it took.
     /* One projection of a set of members, ready to be put somewhere. */
     function viewOf(members, vw) {
-      var segs = [], arcs = [];
-      members.forEach(function (it) { dxfMemberEdges(it, vw, segs, arcs); });
+      var segs = [], arcs = [], holes = [];
+      members.forEach(function (it) { dxfMemberEdges(it, vw, segs, arcs, holes); });
       segs = dxfDedupe(segs);
       arcs = arcDedupe(arcs);
       /* The box has to see the arcs too, or a hole that reached the edge would
          be measured to its chord. arcBox gives what the sweep actually covers. */
-      return { key: vw.key, segs: segs, arcs: arcs, box: segsBox(segs, arcs) };
+      return { key: vw.key, segs: segs, arcs: arcs, holes: holes,
+               box: segsBox(segs, arcs) };
     }
     /* ...and drawn where it is put, with its title over it and its overall
        size under and beside it. The grid below places six; a VIEW row places
        one. Same picture either way, which is the point of it being one call. */
-    function placeView(v, ox, oy, title) {
+    /* chain = draw the pitch chains too. The six-view grids leave them off:
+       the same holes would be chained in three of the six and the rows are
+       tight enough already. A drawing the sheet asked for by name is the one
+       meant to be worked from, so that is where they go. */
+    function placeView(v, ox, oy, title, chain) {
       var w = v.box.x1 - v.box.x0, h = v.box.y1 - v.box.y0;
       drawOps('PL3D-OUTLINE', { lines: v.segs, arcs: v.arcs || [] },
               ox - v.box.x0, oy - v.box.y0);
       text('PL3D-TITLE', [ox + w / 2, oy + h + D.base], D.text.section, title, true, 0);
-      if (w > 0) dimLinear([ox, oy], [ox + w, oy], oy, false, 0);
-      if (h > 0) dimLinear([ox, oy], [ox, oy + h], ox, true, 0);
+      /* Detail nearest the steel, overall outside it - a chain read after the
+         size it adds up to is a chain read twice. */
+      var lv = 0;
+      if (chain && v.holes && v.holes.length) {
+        var dx = ox - v.box.x0, dy = oy - v.box.y0;
+        var cx = chainOps(v.holes.map(function (c) { return c[0] + dx; }), ox, ox + w);
+        var cy = chainOps(v.holes.map(function (c) { return c[1] + dy; }), oy, oy + h);
+        dimChain(cx, oy, false, 0, 0, oy);
+        dimChain(cy, ox, true, 0, 0, ox);
+        if (cx.length || cy.length) lv = 1;
+      }
+      if (w > 0) dimLinear([ox, oy], [ox + w, oy], oy, false, lv);
+      if (h > 0) dimLinear([ox, oy], [ox, oy + h], ox, true, lv);
       return { w: w, h: h };
     }
 
@@ -5597,7 +5681,16 @@
         ? D.leadRun * (1 + (most - 1) * 0.9) * Math.SQRT1_2
           + D.textGap + D.text.dim * 1.2
         : 0);
-      var lowBand = D.origin + D.base + D.text.dim
+      /* A pitch chain stands one stack outside the overall size, so where any
+         part in the block carries one every part's name drops by the same
+         amount - names at two heights in one row read as two rows. */
+      var anyChain = parts.some(function (q) {
+        var c = holeCentres(q.it);
+        return chainOps(c.map(function (h) { return h[0]; }), -1e9, 1e9).length > 2 ||
+               chainOps(c.map(function (h) { return h[1]; }), -1e9, 1e9).length > 2;
+      });
+      var chainRoom = anyChain ? D.stack + D.text.dim * 1.4 : 0;
+      var lowBand = D.origin + D.base + D.text.dim + chainRoom
                   + D.text.member * 1.9 + D.text.note * 1.5;
       var px = x0 + G, py = yTop - topBand, shelf = 0, wide = 0;
       parts.forEach(function (p) {
@@ -5625,6 +5718,21 @@
         drawOps('PL3D-OUTLINE', { lines: p.segs, arcs: p.arcs || [] },
                 ox - p.box.x0, oy - p.box.y0);
 
+        /* Where the holes are. The overall size says how big the plate is; this
+           says where to put the drill, and a plate drawn without it cannot be
+           made. It goes nearest the steel and pushes the overall size out one
+           stack - a chain read after the number it adds up to is read twice. */
+        var hcs = holeCentres(p.it), lv = 0;
+        if (hcs.length) {
+          var chX = chainOps(hcs.map(function (hh) { return hh[0] - p.box.x0 + ox; }),
+                             ox, ox + w);
+          var chY = chainOps(hcs.map(function (hh) { return hh[1] - p.box.y0 + oy; }),
+                             oy, oy + h);
+          dimChain(chX, oy, false, 0, 0, oy);
+          dimChain(chY, ox, true, 0, 0, ox);
+          if (chX.length || chY.length) lv = 1;
+        }
+
         // a round part gets a diameter, not a width and a height
         var lead = 0;
         var outerC = partCircle(p);
@@ -5638,11 +5746,11 @@
           var top = topEdgeDim(p);
           var bot = p.it.spec.SHAPE === 'SECT' ? null : edgeSpan(p, p.box.y0);
           if (bot) dimLinear([ox + bot[0] - p.box.x0, oy],
-                             [ox + bot[1] - p.box.x0, oy], oy, false, 0);
-          else if (!top && w > 0) dimLinear([ox, oy], [ox + w, oy], oy, false, 0);
+                             [ox + bot[1] - p.box.x0, oy], oy, false, lv);
+          else if (!top && w > 0) dimLinear([ox, oy], [ox + w, oy], oy, false, lv);
           if (top) dimLinear([ox + top[0] - p.box.x0, oy + h],
                              [ox + top[1] - p.box.x0, oy + h], oy + h, false, 0, 1);
-          if (h > 0) dimLinear([ox, oy], [ox, oy + h], ox, true, 0);
+          if (h > 0) dimLinear([ox, oy], [ox, oy + h], ox, true, lv);
         }
 
         var cf = cutFeatures(p);
@@ -5690,7 +5798,8 @@
           });
         }
 
-        var lblY = oy - D.origin - D.base - D.text.dim - D.text.member * 1.4;
+        var lblY = oy - D.origin - D.base - D.text.dim - chainRoom
+                 - D.text.member * 1.4;
         text('PL3D-TEXT', [mid, lblY], D.text.member, nameStr, true, 0);
         var ruleY = lblY - D.text.member * 0.5;
         line('PL3D-DIM', [mid - rule / 2, ruleY], [mid + rule / 2, ruleY]);
@@ -5792,11 +5901,15 @@
         var v = viewOf(mem, DXF_VIEW_KEY[vr.DIR]);
         var band = D.base + D.text.section * 1.4;
         var oy = cursorY - band - (v.box.y1 - v.box.y0);
-        var r2 = placeView(v, gap(), oy, vr.TITLE);
-        // the overall dimension hangs below the steel, so the next view starts
-        // clear of it rather than on top of its number
-        cursorY = oy - (D.origin + D.base + D.text.dim * 1.4) - gap() * 2;
-        sheetW = Math.max(sheetW, (gap() + r2.w) / D.scale);
+        var r2 = placeView(v, gap(), oy, vr.TITLE, true);
+        /* The overall dimension hangs below the steel and the pitch chain a
+           stack below that, so the next view starts clear of both rather than
+           on top of their numbers. The chain also stands off to the left, so
+           the sheet has to be that much wider. */
+        var chained = v.holes && v.holes.length ? D.stack : 0;
+        cursorY = oy - (D.origin + D.base + chained + D.text.dim * 1.4) - gap() * 2;
+        sheetW = Math.max(sheetW,
+                          (gap() + r2.w + D.origin + D.base + chained) / D.scale);
       });
       cursorY -= gap() * 2;
     }
@@ -7537,7 +7650,14 @@
     ' through the centre with an arrow on each side of it</td></tr>',
     '<tr><td>a section</td><td>overall height and width, flange thicknesses off the flange tip,',
     ' the web carried out of the section, and the root and toe radii on leaders</td></tr>',
+    '<tr><td>a hole pattern</td><td>a <b>pitch chain</b> along each axis - edge distance, every',
+    ' pitch, and any gap left in the middle. It reads off the hole centres, so however many CUT',
+    ' rows put them there you get one chain per axis, not one per row. Two or more equal pitches',
+    ' in a row are written <code>3@75=225</code></td></tr>',
     '</tbody></table>',
+    '<p>The chain goes <b>nearest the steel</b> and the overall size stands outside it: a chain',
+    ' read after the number it adds up to is a chain read twice. A number too wide for its own',
+    ' link steps one text height further out rather than sitting on its neighbour.</p>',
     '<p>A cut is measured at the size the sheet wrote, even where it hangs over an edge -',
     ' only the overlap comes out of the steel, but the whole shape is what gets cut.</p>',
     '<p><b>Round cuts come out round.</b> A hole is a real <code>CIRCLE</code>, and one that',
