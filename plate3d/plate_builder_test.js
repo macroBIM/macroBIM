@@ -4740,7 +4740,7 @@
      Without the silhouette test a round bar seen from the side is two loose
      lines with nothing joining them; without the corner test a plate loses its
      four vertical edges. */
-  function dxfMemberEdges(it, view, segs, arcs, holes) {
+  function dxfMemberEdges(it, view, segs, arcs, holes, outlineOnly) {
     var m = it.matrix, half = (it.thk || 0) / 2;
     var vd = new THREE.Vector3(view.dir[0], view.dir[1], view.dir[2]);
     var R = new THREE.Vector3(view.right[0], view.right[1], view.right[2]);
@@ -4805,8 +4805,28 @@
     }
     it.rings.outers.forEach(function (o, i) {
       ring(o);
-      (it.rings.holes[i] || []).forEach(ring);
+      if (!outlineOnly) (it.rings.holes[i] || []).forEach(ring);
     });
+  }
+
+  /* How far along the line of sight a member reaches. An orthographic view has
+     no depth to it, so without this every member in the model lands on the same
+     picture - looking down at a top flange you would get the bottom flange, its
+     plates and every bolt drawn through it. */
+  function memberDepth(it, view) {
+    var m = it.matrix, half = (it.thk || 0) / 2;
+    var vd = new THREE.Vector3(view.dir[0], view.dir[1], view.dir[2]);
+    var lo = Infinity, hi = -Infinity;
+    (it.rings.outers || []).forEach(function (o) {
+      o.forEach(function (p) {
+        [-half, half].forEach(function (z) {
+          var q = new THREE.Vector3(p[0], p[1], z).applyMatrix4(m).dot(vd);
+          if (q < lo) lo = q;
+          if (q > hi) hi = q;
+        });
+      });
+    });
+    return [lo, hi];
   }
 
   // Two projections of the same plate land on the same line more often than not
@@ -5141,6 +5161,30 @@
       if (k) out.push(k.c);
     });
     return out;
+  }
+  /* ---------------- context: what is behind the part ----------------
+     A face drawn on its own says what the plate is and not where it sits. The
+     rest of the model, on the hidden layer and cut off a short way outside the
+     part, is what puts it back on its beam - and it is cut off because the
+     beam is 1820 long against a 300 plate and would otherwise decide the size
+     of the drawing.
+     The margin is a paper length, not a fraction of the part: 15mm of paper
+     shows about the same amount of surroundings whatever the part and whatever
+     the scale, which is the property that actually matters here. */
+  function ctxMargin(D) { return D.stack * 1.5; }
+  // Liang-Barsky: the piece of a-b inside the rectangle, or null
+  function clipSeg(a, b, r) {
+    var t0 = 0, t1 = 1, dx = b[0] - a[0], dy = b[1] - a[1];
+    var p = [-dx, dx, -dy, dy];
+    var q = [a[0] - r.x0, r.x1 - a[0], a[1] - r.y0, r.y1 - a[1]];
+    for (var i = 0; i < 4; i++) {
+      if (p[i] === 0) { if (q[i] < 0) return null; continue; }
+      var t = q[i] / p[i];
+      if (p[i] < 0) { if (t > t1) return null; if (t > t0) t0 = t; }
+      else { if (t < t0) return null; if (t < t1) t1 = t; }
+    }
+    if (t1 - t0 < 1e-9) return null;
+    return [[a[0] + t0 * dx, a[1] + t0 * dy], [a[0] + t1 * dx, a[1] + t1 * dy]];
   }
   // both caps of a plate seen face on give the same circle; one is enough
   function arcDedupe(arcs) {
@@ -5598,15 +5642,47 @@
     // six views of one set of members, laid out 3 x 2, drawn from (x0, yTop)
     // downward. Returns how much room it took.
     /* One projection of a set of members, ready to be put somewhere. */
-    function viewOf(members, vw) {
+    function viewOf(members, vw, rest) {
       var segs = [], arcs = [], holes = [];
       members.forEach(function (it) { dxfMemberEdges(it, vw, segs, arcs, holes); });
       segs = dxfDedupe(segs);
       arcs = arcDedupe(arcs);
       /* The box has to see the arcs too, or a hole that reached the edge would
-         be measured to its chord. arcBox gives what the sweep actually covers. */
-      return { key: vw.key, segs: segs, arcs: arcs, holes: holes,
-               box: segsBox(segs, arcs) };
+         be measured to its chord. segsBox gives what the sweep actually covers. */
+      var box = segsBox(segs, arcs);
+      /* Context is drawn flat - no arcs asked for. A hidden line is only saying
+         "there is something here", and a faceted hole says that as well as a
+         round one for a fraction of the file. */
+      var ctx = [], outer = box;
+      if (rest && rest.length) {
+        var mg = ctxMargin(D);
+        outer = { x0: box.x0 - mg, y0: box.y0 - mg,
+                  x1: box.x1 + mg, y1: box.y1 + mg };
+        /* Only what is beside the part, in depth as well as across the page,
+           and only its outline. Context is there to say where the part sits -
+           every hole and every bolt in the rest of the model says nothing about
+           that and buries the part that does. Round bars go entirely: a bolt
+           seen end on is a circle on top of the hole it is already in. */
+        var dsub = [Infinity, -Infinity];
+        members.forEach(function (it) {
+          var d = memberDepth(it, vw);
+          if (d[0] < dsub[0]) dsub[0] = d[0];
+          if (d[1] > dsub[1]) dsub[1] = d[1];
+        });
+        var raw = [];
+        rest.forEach(function (it) {
+          if (it.spec && it.spec.__bar && !it.spec.__sect) return;
+          var d = memberDepth(it, vw);
+          if (d[1] < dsub[0] - mg || d[0] > dsub[1] + mg) return;
+          dxfMemberEdges(it, vw, raw, null, null, true);
+        });
+        dxfDedupe(raw).forEach(function (s) {
+          var c = clipSeg(s[0], s[1], outer);
+          if (c) ctx.push(c);
+        });
+      }
+      return { key: vw.key, segs: segs, arcs: arcs, holes: holes, ctx: ctx,
+               box: box, outer: outer };
     }
     /* ...and drawn where it is put, with its title over it and its overall
        size under and beside it. The grid below places six; a VIEW row places
@@ -5617,9 +5693,15 @@
        meant to be worked from, so that is where they go. */
     function placeView(v, ox, oy, title, chain) {
       var w = v.box.x1 - v.box.x0, h = v.box.y1 - v.box.y0;
-      drawOps('PL3D-OUTLINE', { lines: v.segs, arcs: v.arcs || [] },
-              ox - v.box.x0, oy - v.box.y0);
-      text('PL3D-TITLE', [ox + w / 2, oy + h + D.base], D.text.section, title, true, 0);
+      var dx = ox - v.box.x0, dy = oy - v.box.y0;
+      // what is behind it first, so the part draws over its own context
+      (v.ctx || []).forEach(function (s) {
+        line('PL3D-HIDDEN', [s[0][0] + dx, s[0][1] + dy],
+             [s[1][0] + dx, s[1][1] + dy]);
+      });
+      drawOps('PL3D-OUTLINE', { lines: v.segs, arcs: v.arcs || [] }, dx, dy);
+      var topY = (v.outer ? v.outer.y1 + dy : oy + h);
+      text('PL3D-TITLE', [ox + w / 2, topY + D.base], D.text.section, title, true, 0);
       /* Detail nearest the steel, overall outside it - a chain read after the
          size it adds up to is a chain read twice. */
       var lv = 0;
@@ -5896,20 +5978,30 @@
       D = dimStyle(opts.views.scale);
       cursorY -= blockTitle('VIEWS  1:' + opts.views.scale, cursorY);
       lastViews.forEach(function (vr) {
-        var mem = moduleItems(vr.MODULE);
-        if (!mem.length) return;              // every member hidden, or an empty module
-        var v = viewOf(mem, DXF_VIEW_KEY[vr.DIR]);
+        /* Taken from what the ASSY rows placed rather than from the module
+           definition, so the subject and everything round it are in the one
+           frame and can be drawn together. */
+        var mem = list.filter(function (it) { return it.moduleId === vr.MODULE; });
+        if (!mem.length) return;              // never placed, or every member hidden
+        var rest = list.filter(function (it) { return it.moduleId !== vr.MODULE; });
+        var v = viewOf(mem, DXF_VIEW_KEY[vr.DIR], rest);
         var band = D.base + D.text.section * 1.4;
-        var oy = cursorY - band - (v.box.y1 - v.box.y0);
-        var r2 = placeView(v, gap(), oy, vr.TITLE, true);
-        /* The overall dimension hangs below the steel and the pitch chain a
-           stack below that, so the next view starts clear of both rather than
-           on top of their numbers. The chain also stands off to the left, so
-           the sheet has to be that much wider. */
+        /* The context reaches past the part on every side, so the part is put
+           where its own box leaves the whole of that clear of the view above. */
+        var padT = v.outer.y1 - v.box.y1, padB = v.box.y0 - v.outer.y0;
+        var padL = v.box.x0 - v.outer.x0;
         var chained = v.holes && v.holes.length ? D.stack : 0;
-        cursorY = oy - (D.origin + D.base + chained + D.text.dim * 1.4) - gap() * 2;
+        var leftRoom = D.origin + D.base + chained;
+        var oy = cursorY - band - (v.box.y1 - v.box.y0) - padT;
+        var r2 = placeView(v, gap() + leftRoom + padL, oy, vr.TITLE, true);
+        /* Below the steel hangs the pitch chain, then the overall dimension,
+           and the context reaches lower still - the next view clears whichever
+           of them goes furthest down. */
+        cursorY = Math.min(oy - padB,
+                           oy - (D.origin + D.base + chained + D.text.dim * 1.4))
+                  - gap() * 2;
         sheetW = Math.max(sheetW,
-                          (gap() + r2.w + D.origin + D.base + chained) / D.scale);
+          (gap() + leftRoom + (v.outer.x1 - v.outer.x0)) / D.scale);
       });
       cursorY -= gap() * 2;
     }
@@ -7628,8 +7720,9 @@
     ' and a circle with a diameter beside it says nothing the take-off does not</td></tr>',
     '<tr><td><b>VIEWS</b></td><td>the drawings the sheet asked for by name, one to a',
     ' <code>VIEW</code> row on the input tab: a module, the direction it is seen from, and',
-    ' the title to write over it. A sheet with no VIEW rows leaves this line greyed out and',
-    ' exports exactly what it always did</td></tr>',
+    ' the title to write over it. Drawn solid, with <b>whatever is behind it on the hidden',
+    ' layer</b> so the part can be seen where it sits. A sheet with no VIEW rows leaves this',
+    ' line greyed out and exports exactly what it always did</td></tr>',
     '</tbody></table>',
     '<p><b>Why a keyword and not more tick boxes.</b> Which face of a splice you want drawn,',
     ' and what to call it, is known by whoever wrote the workbook - not by whoever presses',
@@ -7658,6 +7751,13 @@
     '<p>The chain goes <b>nearest the steel</b> and the overall size stands outside it: a chain',
     ' read after the number it adds up to is a chain read twice. A number too wide for its own',
     ' link steps one text height further out rather than sitting on its neighbour.</p>',
+    '<p><b>Context on a named view.</b> The rest of the model is drawn on <code>PL3D-HIDDEN</code>',
+    ' round the part, so a plate is seen on its beam rather than floating. It is trimmed three',
+    ' ways, and each one is there for a reason: <b>across the page</b>, because an 1820&nbsp;mm',
+    ' beam would otherwise set the size of a 300&nbsp;mm drawing; <b>in depth</b>, because an',
+    ' orthographic view is flat and the bottom flange would come through the top one; and to',
+    ' <b>outlines only, no bars</b>, because every hole and every bolt in the rest of the model',
+    ' says nothing about where this part sits and buries the part that does.</p>',
     '<p>A cut is measured at the size the sheet wrote, even where it hangs over an edge -',
     ' only the overlap comes out of the steel, but the whole shape is what gets cut.</p>',
     '<p><b>Round cuts come out round.</b> A hole is a real <code>CIRCLE</code>, and one that',
