@@ -4554,9 +4554,10 @@
   }
 
   /* ================= DXF export (AC1009 / R12) =================
-     A drawing of what the ASSY rows placed: six orthographic views of the whole
-     assembly, then every distinct part once at its standard section with how
-     many of it there are.
+     A drawing of what the ASSY rows placed, in up to three blocks, each drawn
+     at its own scale: six orthographic views of the whole assembly, the same
+     six of each module, and every distinct part once at its standard section
+     with how many of it there are.
 
      The file is built to the shape of macroBIM/bim_dxf.js, which is what the
      site's other drawing tools already ship and what is known to open: AC1009,
@@ -4576,11 +4577,12 @@
      is worth doing only once this base is confirmed to open.
 
      Geometry is written 1:1 in millimetres, the way a CAD drawing is always
-     built. The scale you give is not applied to the steel - it is written into
-     the dimension style as DIMSCALE, and the CAD multiplies every annotation
-     length by it when it draws. So the numbers registered in DIMSTYLE stay the
-     size they were meant to be on paper, and changing the scale afterwards is
-     one edit in the CAD rather than a re-export.
+     built. The scale you give is never applied to the steel: dimStyle(scale)
+     multiplies the registered annotation lengths instead, so a 2.5mm number
+     comes out 2.5mm on paper whatever the block is plotted at. That is also
+     what lets the three blocks share one coordinate system - only their
+     annotation differs in size, so a viewport plotted at each block's own
+     scale is right for that block.
 
      No hidden-line removal: the six views draw every member's outline, near and
      far. That is enough for a bracket and honest about what it is on a crane. */
@@ -7146,17 +7148,13 @@
     '<h3>The menu bar</h3>',
     '<table class="gt"><thead><tr><th>control</th><th>what it does</th></tr></thead><tbody>',
     '<tr><td><b>File</b></td><td>everything that reads or writes a file, on one menu</td></tr>',
-    '<tr><td><b>Save DXF</b></td><td>the drawing. Six views of the assembly, then every',
-    ' distinct part once at its standard section with how many were placed. It asks for a',
-    ' scale first: the steel is written 1:1 in millimetres and the scale goes into the file',
-    ' as the dimension style\'s DIMSCALE, so the CAD sizes the annotation - and you can',
-    ' change the scale there later without exporting again</td></tr>',
+    '<tr><td><b>Save DXF</b></td><td>the drawing, in up to three blocks. See below</td></tr>',
     '<tr><td><b>Save STL</b></td><td>the model as a triangle mesh</td></tr>',
     '<tr><td><b>Save IFC</b></td><td>the model as real BIM solids - each part its exact profile,',
     ' holes as voids, extruded by its thickness</td></tr>',
     '<tr><td><b>Save BOQ</b></td><td>the take-off, as a workbook. See below</td></tr>',
-    '<tr><td><b>ISO / Front / Side / Top</b></td><td>standard views. The one you are looking',
-    ' through fills in</td></tr>',
+    '<tr><td><b>View</b></td><td>the standard views - <b>ISO / Front / Side / Top</b>. The one',
+    ' you are looking through fills in</td></tr>',
     '<tr><td><b>ortho</b></td><td>parallel projection - Front, Side and Top become true',
     ' elevations and plans. The framing is kept across the switch</td></tr>',
     '<tr><td><b>clash</b></td><td>draws the volume two members share, in red. Faces touching',
@@ -7179,6 +7177,36 @@
     ' highlights in the model instead of opening a drawing.</p>',
     '<p>The floor grid lies on z = 0 and its centre cross is the origin, so a grid crossing',
     ' reads a round coordinate straight off.</p>',
+
+    '<h3>Save DXF - the drawing</h3>',
+    '<p>The drawing comes out in <b>three blocks</b>, and each is plotted at its own scale.',
+    ' One scale cannot serve a 60&nbsp;m assembly and a 200&nbsp;mm gusset, so the dialog asks',
+    ' three times: tick the blocks you want and give each a scale.</p>',
+    '<table class="gt"><thead><tr><th>block</th><th>what it draws</th></tr></thead><tbody>',
+    '<tr><td><b>ASSEMBLY</b></td><td>six views - front, back, left, right, top, bottom - of',
+    ' everything the ASSY rows placed</td></tr>',
+    '<tr><td><b>MODULE</b></td><td>the same six views of each module on its own</td></tr>',
+    '<tr><td><b>PART / SECT</b></td><td>every distinct part once at its standard section,',
+    ' with how many were placed. Round <b>bars are not drawn</b> - a bar is a length of stock,',
+    ' and a circle with a diameter beside it says nothing the take-off does not</td></tr>',
+    '</tbody></table>',
+    '<p><b>The steel is written 1:1 in millimetres throughout.</b> Only the annotation changes',
+    ' size, so the three blocks share one coordinate system and a viewport plotted at each',
+    ' block&rsquo;s scale comes out right. The file is DXF R12 and the annotation is drawn -',
+    ' lines, text and filled marks - rather than left to the CAD&rsquo;s dimension style, so it',
+    ' reads the same wherever it is opened.</p>',
+    '<p>What is dimensioned, at every scale:</p>',
+    '<table class="gt"><thead><tr><th>on</th><th>what you get</th></tr></thead><tbody>',
+    '<tr><td>a plate</td><td>the bottom edge and the top edge when they differ - a trapezoid',
+    ' gives up both parallel sides - and the height</td></tr>',
+    '<tr><td>a CUT</td><td>the same, one per distinct shape, at closer offsets so the inside',
+    ' of a small plate does not fill up. A round cut gets a diameter instead: the line runs',
+    ' through the centre with an arrow on each side of it</td></tr>',
+    '<tr><td>a section</td><td>overall height and width, flange thicknesses off the flange tip,',
+    ' the web carried out of the section, and the root and toe radii on leaders</td></tr>',
+    '</tbody></table>',
+    '<p>A cut is measured at the size the sheet wrote, even where it hangs over an edge -',
+    ' only the overlap comes out of the steel, but the whole shape is what gets cut.</p>',
 
     '<h3>Save BOQ - the take-off</h3>',
     '<p>A workbook of four sheets, written from the model on screen. Weights are computed',
@@ -7307,8 +7335,8 @@
       '    <span class="drop">' +
       '      <button onclick="plateBuilder.pickExcel()">&#8682; Load Excel&hellip;</button>' +
       '      <i></i>' +
-      '      <button onclick="plateBuilder.exportDXF()" title="the drawing: six views' +
-      ' of the assembly and every part at its standard section">Save DXF&hellip;</button>' +
+      '      <button onclick="plateBuilder.exportDXF()" title="the drawing, in three blocks' +
+      ' - assembly, modules, parts - each at its own scale">Save DXF&hellip;</button>' +
       '      <button onclick="plateBuilder.exportBOQ()" title="quantities and weights' +
       ' as a workbook">Save BOQ</button>' +
       '      <i></i>' +
