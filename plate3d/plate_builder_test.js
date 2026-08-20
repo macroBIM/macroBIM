@@ -8727,7 +8727,7 @@
     { f: 'PLATE3D_SAMPLE.xlsx', n: 'Sample', s: '38 rows → 48 members · 803 kg',
       d: 'ADD / MIR / COPY / ROT, one command per assembly.' },
     { f: 'PLATE3D_TOWER.xlsx', n: 'Tower crane', s: '347 rows → 575 members · 73.6 t',
-      d: 'One mast panel and one jib bay become a whole crane.' },
+      d: 'A front sheet sets the height, the reach, the hoist and the slew.' },
     { f: 'PLATE3D_PORTAL.xlsx', n: 'Portal frame', s: '116 rows → 297 members · 20.0 t',
       d: 'Half a frame, mirrored and copied into a 30 m shed.' },
     { f: 'PLATE3D_NODE.xlsx', n: 'Bolted node', s: '59 rows → 46 members · 168 kg',
