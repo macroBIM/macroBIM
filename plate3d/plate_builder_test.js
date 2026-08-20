@@ -802,11 +802,24 @@
           taken from the values:  PLATE ID WT WB H OFF_TOP [OFF_B] THK MAT
                                   PLATE ID B H THK MAT
        MODULE ID PLATE.ID REF.PT L.X L.Y L.Z PLANE [ROT.X ROT.Y ROT.Z]
+              [dx dy dz repeat] [dx2 dy2 dz2 repeat2]
                                               (one row per member: the plate's
                                                REF.PT lands on module-local L.X/L.Y/L.Z,
                                                PLANE is the plane it lies on and ROT.X/Y/Z
                                                spin it about that point. Rows with the
-                                               same module ID accumulate; PART = alias.
+                                               same module ID accumulate; PART = alias)
+                                              (the two repeat axes work like a CUT
+                                               row's: dx/dy/dz stepped `repeat` more
+                                               times, and dx2/dy2/dz2 stepping that
+                                               whole row sideways `repeat2` more. Left
+                                               blank it is one member, as before. Copies
+                                               take the same name and are numbered
+                                               name_1, name_2 … - so BASE wants the
+                                               number, not the bare name)
+                                              (a blank member id is a row switched off,
+                                               skipped without a word - which is what
+                                               lets a count on a front sheet decide how
+                                               many there are)
                                                Legacy order PLANE REF.PT L.X L.Y L.ROT
                                                OFFSET is still read - detected from
                                                whether column 3 is a plane name)
@@ -1277,6 +1290,16 @@
           sub = str(v[0]).toUpperCase();
         }
         if (!target) { warn('row ' + (r + 1) + ': CUT before any PLATE'); continue; }
+        /* A row switched off from a front sheet. Every CUT has to name a shape -
+           a keyword or an id - so a row with nothing but numbers left on it has
+           had that name computed away, which is a formula sheet saying "not this
+           one" rather than a mistake. It is skipped without a word: a workbook
+           that lays out the most bolts anyone might ask for and turns the rest
+           off would otherwise report its own spare capacity as errors. */
+        if (!v.some(function (x) {
+              var t = str(x);
+              return t !== '' && !isNum(t);
+            })) continue;
         var c = { PLATE: target, REFPT: refpt, __xlCut: true };
         // Current grammar: CUT <plate> L.X L.Y <shape id> dx dy repeat dx2 dy2 repeat2.
         // The shape is a HOLE (or another PLATE) defined elsewhere, so the row
@@ -1376,6 +1399,8 @@
                                face: faceOf(v[3]) };
           continue;
         }
+        // the same switched-off row, on the placing side: no member, nothing to place
+        if (msub === '') continue;
         var mplate = resolvePlate(msub);
         if (!mplate) { noSuchMember(r, 'MODULE', msub); continue; }
         if (palias[str(v[2]).toUpperCase()]) {   // legacy: <plate> PLANE Ref.Pt L.X L.Y L.ROT OFFSET
@@ -1387,13 +1412,47 @@
           continue;
         }
         // <plate> Ref.Pt L.X L.Y L.Z PLANE [ROT.X ROT.Y ROT.Z]
+        //         [dx dy dz repeat] [dx2 dy2 dz2 repeat2]
         var mplane = str(v[6]).toUpperCase();
         if (palias[mplane]) {
-          addMember(currentPart, { __xyz: true, NO: msub, PLATE: mplate, PLANE: palias[mplane],
-                                   PL_IN: mplane, __bar: !!plates[mplate].__bar,
-                                   REFPT: normPoint(v[2]), FACE: faceOf(v[2]),
-                                   LX: num(v[3], 0), LY: num(v[4], 0), LZ: num(v[5], 0),
-                                   RX: num(v[7], 0), RY: num(v[8], 0), RZ: num(v[9], 0) });
+          var mrow = { __xyz: true, NO: msub, PLATE: mplate, PLANE: palias[mplane],
+                       PL_IN: mplane, __bar: !!plates[mplate].__bar,
+                       REFPT: normPoint(v[2]), FACE: faceOf(v[2]),
+                       LX: num(v[3], 0), LY: num(v[4], 0), LZ: num(v[5], 0),
+                       RX: num(v[7], 0), RY: num(v[8], 0), RZ: num(v[9], 0) };
+          /* The same two repeat axes a CUT row has, for the same reason: a bolt
+             pattern is one line of sheet whatever it holds, and the counts can
+             be formulas. Without them a member can only be written out one row
+             at a time, so the row count is fixed at the moment the file is
+             written and a front sheet cannot change how many there are.
+             Copies are numbered downstream, where a name used twice already
+             becomes name_1, name_2 - so nothing else has to know. */
+          var md1 = [num(v[10], 0), num(v[11], 0), num(v[12], 0)], mn1 = num(v[13], 0);
+          var md2 = [num(v[14], 0), num(v[15], 0), num(v[16], 0)], mn2 = num(v[17], 0);
+          function modHint(m) { hint('row ' + (r + 1) + ': MODULE ' + partId + ' ' + msub + ' ' + m); }
+          if ((md1[0] || md1[1] || md1[2]) && mn1 < 1)
+            modHint('has dx/dy/dz but repeat is 0/empty — no copy is made');
+          if ((md2[0] || md2[1] || md2[2]) && mn2 < 1)
+            modHint('has dx2/dy2/dz2 but repeat2 is 0/empty — the second row is not laid');
+          if (mn1 >= 1 && !md1[0] && !md1[1] && !md1[2])
+            modHint('has repeat but no dx/dy/dz — the copies land on top of each other');
+          var made = (mn1 + 1) * (mn2 + 1);
+          if (made > MAX_CUT_REP) {
+            warn('row ' + (r + 1) + ': MODULE ' + partId + ' ' + msub + ' asks for ' + made +
+                 ' copies, past the ' + MAX_CUT_REP + ' limit — only the first are placed.');
+            mn1 = Math.min(mn1, MAX_CUT_REP - 1);
+            mn2 = Math.min(mn2, Math.floor(MAX_CUT_REP / (mn1 + 1)) - 1);
+          }
+          for (var mj = 0; mj <= mn2; mj++) {
+            for (var mi = 0; mi <= mn1; mi++) {
+              var cp = {};
+              for (var mk in mrow) cp[mk] = mrow[mk];
+              cp.LX = mrow.LX + mi * md1[0] + mj * md2[0];
+              cp.LY = mrow.LY + mi * md1[1] + mj * md2[1];
+              cp.LZ = mrow.LZ + mi * md1[2] + mj * md2[2];
+              addMember(currentPart, cp);
+            }
+          }
           continue;
         }
         // <bar/sect> Ref.Pt LX1 LY1 LZ1 LX2 LY2 LZ2 [OFF_B OFF_E Alpha]
@@ -7505,7 +7564,9 @@
     ' every member cut from it.</p>',
 
     '<h3>MODULE - parts into a unit</h3>',
-    sheet([['MODULE', 'id', 'member.id', 'Ref.Pt', 'L.X', 'L.Y', 'L.Z', 'PLANE', 'ROT.X', 'ROT.Y', 'ROT.Z'],
+    sheet([['MODULE', 'id', 'member.id', 'Ref.Pt', 'L.X', 'L.Y', 'L.Z', 'PLANE',
+            'ROT.X', 'ROT.Y', 'ROT.Z', 'dx', 'dy', 'dz', 'repeat',
+            'dx2', 'dy2', 'dz2', 'repeat2'],
            ['MODULE', 'id', 'BASE', 'member.no', 'point']]),
     '<p>Reads as: <i>put this member&rsquo;s Ref.Pt at (L.X, L.Y, L.Z) in module coordinates, lay',
     ' it on PLANE, then spin it about that point by ROT.X, ROT.Y, ROT.Z degrees</i> (applied',
@@ -7531,6 +7592,23 @@
            ['MODULE', 'md.tower', 'BASE', 'pl.T1', 'bc-']],
           'pl.C1 twice is two members - the app calls them pl.C1_1 and pl.C1_2. ' +
           'pl.T1 and pl.C2 are used once and keep their plain names.'),
+    '<h4>Repeating a member</h4>',
+    '<p>The last two groups of columns are the same two repeat axes a <b>CUT</b> row has, and',
+    ' they work the same way: <code>dx dy dz</code> stepped <code>repeat</code> more times, and',
+    ' <code>dx2 dy2 dz2</code> stepping that whole row sideways <code>repeat2</code> more. Left',
+    ' blank the row is one member, as it always was.</p>',
+    sheet([['# MODULE', 'id', 'member', 'Ref.Pt', 'L.X', 'L.Y', 'L.Z', 'PLANE',
+            'RX', 'RY', 'RZ', 'dx', 'dy', 'dz', 'rep', 'dx2', 'dy2', 'dz2', 'rep2'],
+           ['MODULE', 'md.blt', 'bo.M22', '', 35, 50, 110, 'XY',
+            0, 0, 0, 75, 0, 0, 3, 0, 55, 0, 2]],
+          'One row, twelve bolts: four along at 75, three across at 55.'),
+    '<p><b>Why this and not one row each.</b> A row cannot be conjured by a formula, so a sheet',
+    ' that writes a member out one row at a time has its count fixed when the file is written -',
+    ' a front sheet can change the spacing but never how many. Put the count in',
+    ' <code>repeat</code> and it can be a formula like anything else.</p>',
+    '<p>A <b>blank member id</b> is a row switched off, skipped without a word. That is the other',
+    ' half of the same idea: lay out the most of something anyone might ask for, and let the',
+    ' sheet turn the rest off with <code>=IF(...,"bo.M22","")</code>.</p>',
     '<p><b>Name the part; the engine numbers the copies.</b> A <b>PLATE</b> row is a shape and a',
     ' <b>MODULE</b> row is one use of it, so write <code>pl.C1</code> as many times as you use it.',
     ' The app gives each use an id of its own - <code>pl.C1_1</code>, <code>pl.C1_2</code>, ... -',
@@ -8614,7 +8692,7 @@
       d: 'Half a frame, mirrored and copied into a 30 m shed.' },
     { f: 'PLATE3D_NODE.xlsx', n: 'Bolted node', s: '59 rows → 46 members · 168 kg',
       d: 'A four-way beam connection: one arm, turned four ways.' },
-    { f: 'PLATE3D_SPLICE.xlsx', n: 'Beam splice', s: '140 rows → 66 members · 208 kg',
+    { f: 'PLATE3D_SPLICE.xlsx', n: 'Beam splice', s: '106 rows → 66 members · 208 kg',
       d: 'A front sheet fills in the input tab, and names its own drawings.' },
     { f: 'PLATE3D_TANK.xlsx', n: 'Tank', s: '54 rows → 16 members · 4.9 kg',
       d: 'Reverse-engineered from a five-sheet A4 drawing set.' },
