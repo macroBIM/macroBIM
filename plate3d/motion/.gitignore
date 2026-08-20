@@ -1,0 +1,5 @@
+node_modules/
+_engine.js
+frames/
+*.mjpg
+*.webm

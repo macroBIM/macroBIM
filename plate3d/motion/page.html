@@ -1,0 +1,155 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8"><title>PLATE3D motion harness</title></head><body>
+<script src="https://unpkg.com/three@0.147.0/build/three.min.js"></script>
+<script src="https://unpkg.com/three@0.147.0/examples/js/controls/OrbitControls.js"></script>
+<script src="https://unpkg.com/polybooljs@1.1.0/dist/polybool.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/exceljs/4.3.0/exceljs.min.js"></script>
+<script>
+/* Motion harness. Model-agnostic: it knows how to pose parts and read the
+   result back, and nothing about cranes. What moves is in crane.js.
+
+   The engine is not modified beyond the one line patch.js inserts. Two things
+   are wrapped on the way past - the renderer, to keep the drawing buffer so a
+   frame can be read out of it, and OrbitControls, so a shot can be aimed. Both
+   are the same tricks video/tools/video_page.html already uses. */
+(function () {
+  var ctls = [];
+  var OC = THREE.OrbitControls;
+  THREE.OrbitControls = function (c, d) { var o = new OC(c, d); ctls.push(o); return o; };
+  THREE.OrbitControls.prototype = OC.prototype;
+  var WR = THREE.WebGLRenderer;
+  THREE.WebGLRenderer = function (p) {
+    p = p || {}; p.preserveDrawingBuffer = true;       // else toDataURL is a black frame
+    var o = new WR(p), orig = o.render.bind(o);
+    o.render = function (sc, cm) {
+      var v = document.getElementById('pb-view');
+      if (sc && sc.background && v && o.domElement && v.contains(o.domElement)) {
+        window.__pbR = o; window.__pbS = sc; window.__pbCam = cm; window.__pbCanvas = o.domElement;
+        for (var i = 0; i < ctls.length; i++) if (ctls[i].object === cm) window.__pbCtl = ctls[i];
+      }
+      return orig(sc, cm);
+    };
+    return o;
+  };
+  THREE.WebGLRenderer.prototype = WR.prototype;
+
+  /* ---------------- posing ----------------
+     buildInstance gives every part its own Group and bakes the world matrix
+     onto the meshes inside it with matrixAutoUpdate off. So the Group's own
+     matrix is unused, and writing one is a free world-space transform on that
+     part. Nothing is re-cut and nothing re-extruded - which is the whole claim
+     MOTION.md rests on.
+
+     A rule is { test, mat }. Rules are applied in order, each one wrapping the
+     last, so a rule listed later acts on the result of the earlier ones: list
+     the trolley's travel before the slew and the trolley rides out along the
+     jib and then turns with it. Parts matched by no rule are put back to
+     identity, so a pose is absolute and never accumulates. */
+  window.__motion = function (rules) {
+    var items = window.__pbItems ? window.__pbItems() : null;
+    if (!items) return { err: 'engine not patched - run patch.js' };
+    var moved = 0;
+    items.forEach(function (it) {
+      var M = null;
+      rules.forEach(function (r) {
+        if (!r.test(it)) return;
+        var T = r.mat();
+        M = M ? T.clone().multiply(M) : T;
+      });
+      var g = it.groupObj;
+      g.matrixAutoUpdate = false;
+      g.matrix.copy(M || new THREE.Matrix4());
+      g.updateMatrixWorld(true);
+      if (M) moved++;
+    });
+    return { moved: moved, total: items.length };
+  };
+
+  // the three transforms a rule can ask for, all in world space
+  window.__spin = function (cx, cy, deg) {              // about a vertical line
+    return new THREE.Matrix4().makeTranslation(cx, cy, 0)
+      .multiply(new THREE.Matrix4().makeRotationZ(deg * Math.PI / 180))
+      .multiply(new THREE.Matrix4().makeTranslation(-cx, -cy, 0));
+  };
+  window.__move = function (dx, dy, dz) {
+    return new THREE.Matrix4().makeTranslation(dx, dy, dz);
+  };
+  window.__stretchZ = function (ztop, k) {              // a rope: fixed at the top, grows down
+    return new THREE.Matrix4().makeTranslation(0, 0, ztop)
+      .multiply(new THREE.Matrix4().makeScale(1, 1, k))
+      .multiply(new THREE.Matrix4().makeTranslation(0, 0, -ztop));
+  };
+
+  /* ---------------- reading the result back ----------------
+     Measurement, not eyesight. A rendered frame is a bad witness: a camera pan
+     and a slew of the same sense look identical, and a 26 mm rope is a couple
+     of pixels. Every claim in MOTION.md section 9 comes from these. */
+  window.__bboxOf = function (pred) {
+    var b = new THREE.Box3(), f = new Function('it', 'return ' + pred);
+    window.__pbItems().forEach(function (it) { if (f(it)) b.expandByObject(it.groupObj); });
+    return b.isEmpty() ? null : { min: b.min.toArray(), max: b.max.toArray() };
+  };
+  window.__census = function () {
+    var g = {};
+    window.__pbItems().forEach(function (it) {
+      var k = it.group + ' | ' + (it.moduleId || '-');
+      if (!g[k]) g[k] = { n: 0, plates: {} };
+      g[k].n++;
+      g[k].plates[it.plateId] = (g[k].plates[it.plateId] || 0) + 1;
+    });
+    return Object.keys(g).sort().map(function (k) {
+      return { key: k, n: g[k].n, plates: Object.keys(g[k].plates).slice(0, 6) };
+    });
+  };
+  window.__count = function () { return window.__pbItems().length; };
+  /* An exact material point, for checking that a rotation is a rotation. A
+     bounding box will not do: a world-axis AABB is not rotation-equivariant, so
+     the centre of a turned object's box moves by more than the object did. The
+     translation column of a mesh's world matrix is a real point on the part and
+     transforms rigidly with it. */
+  window.__anchorOf = function (pred) {
+    var f = new Function('it', 'return ' + pred), out = null;
+    window.__pbItems().some(function (it) {
+      if (!f(it)) return false;
+      var m = null;
+      it.groupObj.traverse(function (o) { if (!m && o.isMesh) m = o; });
+      if (!m) return false;
+      m.updateWorldMatrix(true, false);
+      var v = new THREE.Vector3().setFromMatrixPosition(m.matrixWorld);
+      out = v.toArray();
+      return true;
+    });
+    return out;
+  };
+  // Cost of one pose, measured in the page - the number an animation loop pays.
+  // Timing it from node would bill the harness's round-trip to the browser too.
+  window.__benchPose = function (n) {
+    var t = performance.now();
+    for (var i = 0; i < n; i++) window.__pose(i * 3, 0, 0);
+    return (performance.now() - t) / n;
+  };
+
+  /* ---------------- shooting ---------------- */
+  window.__grab = function (q) {
+    if (!window.__pbCanvas) return null;
+    window.__pbR.render(window.__pbS, window.__pbCam);
+    return window.__pbCanvas.toDataURL('image/jpeg', q || 0.92);
+  };
+  // spherical, in millimetres and degrees, because that is how a shot is
+  // described: stand here, look there. Same as video/tools/video_page.html.
+  window.__aim = function (tx, ty, tz, dist, az, el) {
+    var c = window.__pbCam, ctl = window.__pbCtl;
+    if (!c || !ctl) return false;
+    var a = az * Math.PI / 180, e = el * Math.PI / 180;
+    c.position.set(tx + dist * Math.cos(e) * Math.cos(a),
+                   ty + dist * Math.cos(e) * Math.sin(a),
+                   tz + dist * Math.sin(e));
+    ctl.target.set(tx, ty, tz);
+    c.near = Math.max(1, dist / 400); c.far = dist * 30;
+    c.updateProjectionMatrix(); ctl.update();
+    return true;
+  };
+})();
+</script>
+<script src="./_engine.js"></script>
+</body></html>

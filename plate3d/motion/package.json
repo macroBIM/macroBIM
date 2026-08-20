@@ -1,0 +1,16 @@
+{
+  "name": "plate3d-motion-harness",
+  "private": true,
+  "description": "Proof that PLATE3D's scene can be posed without rebuilding geometry - see MOTION.md",
+  "scripts": {
+    "patch": "node patch.js",
+    "verify": "node patch.js && node verify.js",
+    "shoot": "node patch.js && node shoot.js"
+  },
+  "dependencies": {
+    "playwright-core": "*",
+    "three": "0.147.0",
+    "polybooljs": "1.1.0",
+    "exceljs": "4.3.0"
+  }
+}
