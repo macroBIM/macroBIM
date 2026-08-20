@@ -4717,6 +4717,47 @@
   function partCircle(p) {
     return p.it.rings.outers.length === 1 && ringCircle(p.it.rings.outers[0]);
   }
+  /* The horizontal run of the outline at one height - the top edge or the
+     bottom edge as a length, rather than the bounding box that contains both.
+     A trapezoid's two parallel sides are different lengths and both belong on
+     the drawing; taking the box gave one number, and when the top was the
+     longer of the two it wrote that number under the bottom edge.
+     Read off the geometry, not off the shape keyword, so a side that a CUT has
+     shortened is measured as it ended up. */
+  function edgeSpan(p, y) {
+    var tol = Math.max(1e-6, (p.box.y1 - p.box.y0) * 1e-5);
+    var lo = Infinity, hi = -Infinity;
+    p.it.rings.outers.forEach(function (o) {
+      for (var i = 0; i < o.length; i++) {
+        var a = o[i], b = o[(i + 1) % o.length];
+        if (Math.abs(a[1] - y) > tol || Math.abs(b[1] - y) > tol) continue;
+        lo = Math.min(lo, a[0], b[0]);
+        hi = Math.max(hi, a[0], b[0]);
+      }
+    });
+    return hi - lo > tol ? [lo, hi] : null;      // a corner is not an edge
+  }
+  // does this part want a dimension over the top? - the shelf has to leave room
+  function partPadTop(p, D) {
+    var pad = p.it.spec.SHAPE === 'SECT'
+      ? sectPadTop(p.it.spec, p.box.x1 - p.box.x0, p.box.y1 - p.box.y0, D) : 0;
+    if (topEdgeDim(p))
+      pad = Math.max(pad, D.origin + D.base + D.textGap + D.text.dim * 1.2);
+    return pad;
+  }
+  /* Plates only. A rolled section is described by its own call-outs, and its
+     top edge is not a side you would dimension: on an angle it is what is left
+     of the leg tip after the toe radius has eaten it, so the rule offered a
+     flat of 1mm on an L-90x75x9x7 as if it meant something. */
+  function topEdgeDim(p) {
+    if (partCircle(p) || p.it.spec.SHAPE === 'SECT') return null;
+    var top = edgeSpan(p, p.box.y1);
+    if (!top) return null;
+    var bot = edgeSpan(p, p.box.y0);
+    var tol = Math.max(1e-6, (p.box.x1 - p.box.x0) * 1e-5);
+    if (bot && Math.abs((top[1] - top[0]) - (bot[1] - bot[0])) <= tol) return null;
+    return top;                                  // a rectangle says it once
+  }
   function leadCount(p) {
     var n = holeDias(p).length + (partCircle(p) ? 1 : 0);
     if (p.it.spec.SHAPE === 'SECT')
@@ -4788,47 +4829,79 @@
       if (!isFinite(x0) || !isFinite(x1) || Math.abs(x1 - x0) < 1e-9) return;
       narrow.push({ x0: x0, x1: x1, y: y, txt: String(n(t)), up: !!up });
     }
+    /* Leaders carry the step they are to be drawn at, counted **per direction**.
+       Two call-outs heading the same way have to land on different shoulders or
+       the numbers sit on top of each other; two heading different ways never
+       meet, and stepping the second one out is length spent for nothing. */
+    var steps = {};
     function lead(u, v, txt, dx, dy) {
       if (u == null || !isFinite(u) || !isFinite(v)) return;
-      leads.push({ u: u, v: v, txt: txt, dx: dx, dy: dy });
+      var key = dx + ',' + dy;
+      leads.push({ u: u, v: v, txt: txt, dx: dx, dy: dy, step: steps[key] || 0 });
+      steps[key] = (steps[key] || 0) + 1;
+    }
+    // one leader per distinct radius: a section with the same root and toe
+    // radius does not want the same number written on it twice
+    var seenR = {};
+    function radLead(u, v, r, dx, dy) {
+      if (!(r > 0) || seenR[r]) return;
+      seenR[r] = 1;
+      lead(u, v, 'r ' + n(r), dx, dy);
     }
     /* A root fillet is concave: its centre of curvature sits in the open air
        off the corner, so the point of the arc nearest that air is centre minus
        r/sqrt2 each way - 0.293 r from the corner - and the leader runs on
        towards the centre. That is the one direction out of the corner that
-       does not cut back through the steel. */
+       does not cut back through the steel.
+       A toe is the other way round - convex, material behind it - so the arc
+       point is 0.293 r back from the tip and the leader heads out. Same
+       geometry the section preview has been drawing its R arrows from. */
     var K = 1 - Math.SQRT1_2;                     // 0.2929
     if (sp.SECT === 'H') {
+      // h bb bt tw tf1 tf2 r1 - seven values, no toe rounding on an H
       var cx = w / 2, tw = num(sp.tw, 0), t1 = num(sp.tf1, 0), t2 = num(sp.tf2, 0);
       var r1 = num(sp.r1, 0);
       var bt = num(sp.bt, 0), bb = num(sp.bb, 0);
       vdim(bt > 0 ? cx + bt / 2 : w, h - t2, h, t2);
       vdim(bb > 0 ? cx + bb / 2 : w, 0, t1, t1);
       hnarrow(cx - tw / 2, cx + tw / 2, h / 2, tw);
-      if (r1 > 0) lead(cx + tw / 2 + r1 * K, h - t2 - r1 * K, 'r ' + n(r1), 1, -1);
+      radLead(cx + tw / 2 + r1 * K, h - t2 - r1 * K, r1, 1, -1);        // web root
     } else if (sp.SECT === 'C') {
-      var ctw = num(sp.tw, 0), ctf = num(sp.tf, 0), rw = num(sp.rw, 0);
+      // h b tw tf rw rf - the web root and the flange toe
+      var ctw = num(sp.tw, 0), ctf = num(sp.tf, 0);
+      var rw = num(sp.rw, 0), rf = num(sp.rf, 0);
       vdim(w, h - ctf, h, ctf);
       vdim(w, 0, ctf, ctf);
       hnarrow(0, ctw, h / 2, ctw);
-      if (rw > 0) lead(ctw + rw * K, ctf + rw * K, 'r ' + n(rw), 1, 1);
+      radLead(ctw + rw * K, ctf + rw * K, rw, 1, 1);                    // web root
+      radLead(w - rf * K, h - ctf + rf * K, rf, 1, -1);                 // flange toe
     } else if (sp.SECT === 'L') {
-      var la = num(sp.t1, 0), lb = num(sp.t2, 0), lr = num(sp.r1, 0);
-      vdim(w, 0, lb, lb);                    // the b leg, measured at its tip
+      /* a b t1 t2 r1 r2 - and t1 belongs to the **a** leg, which is the
+         horizontal one, t2 to the b leg standing up. Reading them the other way
+         round dimensioned each leg with the other leg's thickness, and put the
+         root fillet's arrow off the corner by the same swap. */
+      var t1a = num(sp.t1, 0), t2b = num(sp.t2, 0);
+      var lr1 = num(sp.r1, 0), lr2 = num(sp.r2, 0);
+      vdim(w, 0, t1a, t1a);                  // the a leg, measured at its tip
       /* Lifted above the section, not laid across it. An angle's root leader
          is the only thing that can leave the corner, and it runs up and to the
          right through exactly the space a carried number would use - on a 90mm
          angle at 1:10 the leader's own text is a third of the section deep, so
          there is no band inside the steel that holds both. The leg is open at
          the top; the dimension goes there. */
-      hnarrow(0, la, h, la, true);
-      if (lr > 0) lead(la + lr * K, lb + lr * K, 'r ' + n(lr), 1, 1);
+      hnarrow(0, t2b, h, t2b, true);         // the b leg, over the top
+      radLead(t2b + lr1 * K, t1a + lr1 * K, lr1, 1, 1);                 // heel root
+      radLead(w - lr2 * K, t1a - lr2 * K, lr2, 1, 1);                   // a-leg toe
     }
     return { dims: dims, narrow: narrow, leads: leads };
   }
   /* How much room the section's right-hand annotation needs beyond its own
      width: the dimension line, one stack past it for the carried web number,
      and the number itself. */
+  // the run of text a note sits on: as long as the number and no longer. The
+  // old floor of D.base put a 10mm shoulder under a two-digit thickness and is
+  // most of why the lines read long on a section drawn at 1:10.
+  function noteRun(s, D) { return dxfTextWidth(s, D.text.dim) + D.textGap * 2; }
   function sectPadRight(sp, w, h, D) {
     var sc = sectCallouts(sp, w, h);
     if (!sc.dims.length && !sc.narrow.length) return 0;
@@ -4838,14 +4911,13 @@
                         + dxfTextWidth(dm.txt, D.text.dim));
     });
     sc.narrow.forEach(function (nd) {                  // number carried out on it
-      pad = Math.max(pad, base + Math.max(D.base, dxfTextWidth(nd.txt, D.text.dim)));
+      pad = Math.max(pad, nd.x1 + D.leadRun + noteRun(nd.txt, D) - w);
     });
-    // and the root radius's leader, which also runs out to the right
+    // and the radius leaders, which also run out to the right
     sc.leads.forEach(function (c) {
       if (c.dx < 0) return;
-      var end = c.u + D.leadRun * k
-              + Math.max(D.base, dxfTextWidth(c.txt, D.text.dim));
-      pad = Math.max(pad, end - w);
+      pad = Math.max(pad, c.u + D.leadRun * (1 + c.step * 0.9) * k
+                        + noteRun(c.txt, D) - w);
     });
     return pad;
   }
@@ -4937,24 +5009,20 @@
     /* A note on a leader: the arrow sits on the thing, the leg leaves it at 45
        degrees, then it turns horizontal for a shoulder the text sits on - the
        shoulder is as long as the text needs, so the text never overhangs it.
-       `minRun` is for a call-out that starts inside the outline, a hole in a
-       plate: the leg is lengthened until the shoulder is clear of the steel,
-       because a number written across the part it belongs to is a number you
-       have to hunt for. */
-    function leaderAt(p0, s, dirX, dirY, step, minRun) {
+       Every length here is the note's own size - leadRun and the text - and
+       none of it is the part's. Running the leg out until the shoulder left the
+       steel, which is what it used to do, made the leader as long as the plate
+       was wide: a 900mm plate with a hole in the middle got half a metre of
+       leader to say D130. A number sitting on blank steel beside its hole is
+       normal drafting and reads better. */
+    function leaderAt(p0, s, dirX, dirY, step) {
       var TH = D.text.dim, TG = D.textGap, k = Math.SQRT1_2;
       var sx = dirX < 0 ? -1 : 1, sy = dirY < 0 ? -1 : 1;
-      /* Each further call runs out a step longer, so two call-outs on one part
-         land on their own shoulders instead of crossing. The step is added on
-         top of the clearance run, not compared against it: a plate with a hole
-         in the middle and one in the corner needs a long run for the first and
-         a short one for the second, and taking the larger of the two put both
-         shoulders at the same height with the numbers written over each other. */
-      var stagger = D.leadRun * 0.9 * (step || 0);
-      var run = D.leadRun + stagger;
-      if (minRun > 0) run = Math.max(run, minRun + stagger);
+      // each further call in the same direction runs out a step longer, so two
+      // call-outs land on their own shoulders instead of on each other
+      var run = D.leadRun * (1 + (step || 0) * 0.9);
       var p1 = [p0[0] + run * k * sx, p0[1] + run * k * sy];
-      var sh = Math.max(D.base, dxfTextWidth(s, TH));
+      var sh = noteRun(s, D);
       var p2 = [p1[0] + sh * sx, p1[1]];
       // the leg starts at the back of the arrowhead, not under it
       var a0 = [p0[0] + D.leadArrow * k * sx, p0[1] + D.leadArrow * k * sy];
@@ -4967,11 +5035,11 @@
        has no meaningful width and height, and two linear dimensions on one say
        nothing a single D does not. The arrow lands on the rim pointing in at
        the centre, so the call-out reads off the circle it belongs to. */
-    function leaderDia(c, r, dia, dirX, dirY, step, minRun) {
+    function leaderDia(c, r, dia, dirX, dirY, step) {
       var k = Math.SQRT1_2;
       var sx = dirX < 0 ? -1 : 1, sy = dirY < 0 ? -1 : 1;
       leaderAt([c[0] + r * k * sx, c[1] + r * k * sy],
-               'D' + rnd(dia * 2), sx, sy, step, minRun);
+               'D' + rnd(dia * 2), sx, sy, step);
     }
 
     /* A linear dimension, drawn: two extension lines, the dimension line, a dot
@@ -5067,7 +5135,7 @@
       var TH = D.text.dim, TG = D.textGap, A = D.arrow;
       var lo = Math.min(x0, x1), hi = Math.max(x0, x1);
       if (!(hi - lo > 1e-9)) return;
-      var sh = Math.max(D.base, dxfTextWidth(s, TH));
+      var sh = noteRun(s, D);
       var ly = y;
       if (up) {                               // lifted clear on extension lines
         ly = y + D.origin + D.base;
@@ -5149,9 +5217,7 @@
       var most = 0, lift = 0;
       parts.forEach(function (p) {
         most = Math.max(most, leadCount(p));
-        if (p.it.spec.SHAPE === 'SECT')
-          lift = Math.max(lift, sectPadTop(p.it.spec, p.box.x1 - p.box.x0,
-                                           p.box.y1 - p.box.y0, D));
+        lift = Math.max(lift, partPadTop(p, D));
       });
       var topBand = Math.max(lift, most > 0
         ? D.leadRun * (1 + (most - 1) * 0.9) * Math.SQRT1_2
@@ -5193,20 +5259,24 @@
         if (outerC) {
           leaderDia([ox + w / 2, oy + h / 2], outerC.r, outerC.r, 1, 1, lead++);
         } else {
-          if (w > 0) dimLinear([ox, oy], [ox + w, oy], oy, false, 0);
+          /* Width is the edge that is actually there, not the box round it. On
+             a trapezoid the two parallel sides are different lengths and both
+             are wanted; below the part goes the bottom edge, above it the top,
+             and a rectangle - whose two agree - still says it once. */
+          var top = topEdgeDim(p);
+          var bot = p.it.spec.SHAPE === 'SECT' ? null : edgeSpan(p, p.box.y0);
+          if (bot) dimLinear([ox + bot[0] - p.box.x0, oy],
+                             [ox + bot[1] - p.box.x0, oy], oy, false, 0);
+          else if (!top && w > 0) dimLinear([ox, oy], [ox + w, oy], oy, false, 0);
+          if (top) dimLinear([ox + top[0] - p.box.x0, oy + h],
+                             [ox + top[1] - p.box.x0, oy + h], oy + h, false, 0, 1);
           if (h > 0) dimLinear([ox, oy], [ox, oy + h], ox, true, 0);
         }
 
-        /* One leader per distinct hole size, from the hole furthest up and
-           right. A hole is inside the steel, so the leg is run out far enough
-           for the shoulder to leave the part - a diameter written across the
-           plate it is drilled in is a number you have to hunt for. */
-        var k = Math.SQRT1_2;
+        // one leader per distinct hole size, from the hole furthest up and right
         holeDias(p).forEach(function (hc) {
-          var cxh = hc.c[0] - p.box.x0 + ox, cyh = hc.c[1] - p.box.y0 + oy;
-          var rimX = cxh + hc.r * k, rimY = cyh + hc.r * k;
-          var out = Math.min(ox + w - rimX, oy + h - rimY) + D.origin;
-          leaderDia([cxh, cyh], hc.r, hc.r, 1, 1, lead++, out / k);
+          leaderDia([hc.c[0] - p.box.x0 + ox, hc.c[1] - p.box.y0 + oy],
+                    hc.r, hc.r, 1, 1, lead++);
         });
         if (p.it.spec.SHAPE === 'SECT') {
           var sc = sectCallouts(p.it.spec, w, h);
@@ -5215,13 +5285,17 @@
             dimThinV([ox + dm.x, oy + dm.y0], [ox + dm.x, oy + dm.y1],
                      ox + w, dm.txt);
           });
-          // the web: too thin to letter across, so its number is carried out
+          /* The web: too thin to letter across, so its number is carried out on
+             its own dimension line - out of the web, not out of the section.
+             Measuring that from the section's right-hand edge is what made the
+             line on an H-700 twice as long as the flange is wide. */
           sc.narrow.forEach(function (nd) {
             dimNarrow(ox + nd.x0, ox + nd.x1, oy + nd.y,
-                      ox + w + D.origin + D.base, nd.txt, nd.up);
+                      ox + nd.x1 + D.leadRun, nd.txt, nd.up);
           });
+          // steps are counted per direction and come with the call-out
           sc.leads.forEach(function (c) {
-            leaderAt([ox + c.u, oy + c.v], c.txt, c.dx, c.dy, lead++);
+            leaderAt([ox + c.u, oy + c.v], c.txt, c.dx, c.dy, c.step);
           });
         }
 
