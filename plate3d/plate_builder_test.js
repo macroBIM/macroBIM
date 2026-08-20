@@ -4865,6 +4865,59 @@
     });
     return order.map(function (k) { return by[k]; });
   }
+
+  /* A CUT that reached an edge is not a hole any more. It is a step in the
+     outline, so cutDims - which reads the hole list - never sees it, and a
+     plate with a corner notched out came off the drawing with nothing said
+     about the notch at all.
+     What the cut took away is bounded by the edges meeting at the concave
+     corners it left, so those are what get measured. Only square corners
+     count: a polygonised arc is concave at every one of its vertices, and what
+     tells the two apart is the turn - a rectangular step turns ninety degrees
+     and a 48-sided circle turns seven and a half.
+     The dimensions go left and below like every other one on the sheet.
+     Putting them on whichever side is air sounds better and is not: on a slot
+     cut into an edge the air is the slot itself, and the depth line lands down
+     the middle of it with the width's number written across it. */
+  function notchEdges(p) {
+    var by = {}, order = [];
+    p.it.rings.outers.forEach(function (ring) {
+      var n = ring.length, i;
+      if (n < 5) return;                      // a rectangle has no step in it
+      var area = 0;
+      for (i = 0; i < n; i++) {
+        var a = ring[i], b = ring[(i + 1) % n];
+        area += a[0] * b[1] - b[0] * a[1];
+      }
+      var ccw = area > 0;
+      for (i = 0; i < n; i++) {
+        var prev = ring[(i + n - 1) % n], v = ring[i], next = ring[(i + 1) % n];
+        var ux = v[0] - prev[0], uy = v[1] - prev[1];
+        var wx = next[0] - v[0], wy = next[1] - v[1];
+        var lu = Math.hypot(ux, uy), lw = Math.hypot(wx, wy);
+        if (lu < 1e-9 || lw < 1e-9) continue;
+        var cross = ux * wy - uy * wx;
+        if (ccw ? cross >= 0 : cross <= 0) continue;          // convex, or straight
+        if (Math.abs(cross) < lu * lw * 0.5) continue;        // under 30 deg: a curve
+        [[prev, v, lu], [v, next, lw]].forEach(function (e) {
+          var dx = e[1][0] - e[0][0], dy = e[1][1] - e[0][1];
+          var vert = Math.abs(dx) < e[2] * 1e-3, horz = Math.abs(dy) < e[2] * 1e-3;
+          if (!vert && !horz) return;         // a slanted side is not measured here
+          /* One per length and direction - a slot's two sides are the same
+             60 and want saying once. The one kept is the furthest left (or
+             lowest), because the dimension is drawn that way and keeping the
+             other one puts the line down the middle of the slot it is
+             measuring, under the other number. */
+          var key = (vert ? 'v' : 'h') + '|' + Math.round(e[2] * 100);
+          var at = vert ? e[0][0] : e[0][1];
+          if (by[key]) { if (by[key].at <= at) return; }
+          else order.push(key);
+          by[key] = { a: e[0], b: e[1], vertical: vert, at: at };
+        });
+      }
+    });
+    return order.map(function (k) { return by[k]; });
+  }
   // does this part want a dimension over the top? - the shelf has to leave room
   function partPadTop(p, D) {
     var pad = p.it.spec.SHAPE === 'SECT'
@@ -5444,6 +5497,11 @@
             dimLinear([CX(c.top[0]), CY(c.y1)], [CX(c.top[1]), CY(c.y1)],
                       CY(c.y1), false, 0, 1);
           dimLinear([CX(c.x0), CY(c.y0)], [CX(c.x0), CY(c.y1)], CX(c.x0), true, 0);
+        });
+        // and the steps a cut left in the outline
+        notchEdges(p).forEach(function (e) {
+          var a = [CX(e.a[0]), CY(e.a[1])], b = [CX(e.b[0]), CY(e.b[1])];
+          dimLinear(a, b, e.vertical ? a[0] : a[1], e.vertical, 0);
         });
         D = Dout;
         if (p.it.spec.SHAPE === 'SECT') {
