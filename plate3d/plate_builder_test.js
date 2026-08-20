@@ -83,6 +83,12 @@
     leadArrow: 2.5,
     // and how far a leader's diagonal leg runs before it turns for its shoulder
     leadRun:   6.7,
+    /* A and B again, for a dimension drawn **inside** an outline - what a CUT
+       took out of a plate. The registered 10 + 10 stands a dimension line 20mm
+       clear on paper, which is right in the open margin round a part and is
+       most of a small plate's interior. Inside, 4 + 4. */
+    innerOrigin: 4,
+    innerBase:   4,
     // rebar marking: the bubble and the length bar beside it
     markLen:    100,
     markSize:   2.5,
@@ -113,7 +119,7 @@
     }
   };
   var DIMSTYLE_SCALED = ['origin', 'base', 'stack', 'extend', 'arrow', 'textGap',
-                         'leadArrow', 'leadRun',
+                         'leadArrow', 'leadRun', 'innerOrigin', 'innerBase',
                          'markLen', 'markSize', 'markRadius'];
   // scale = the drawing's scale denominator: 50 for 1:50. Everything that is a
   // length comes back multiplied by it; `pick` is choices and comes back as is.
@@ -130,6 +136,17 @@
       out.text[k] = dimScale(DIMSTYLE.text[k], s);
     });
     return out;
+  }
+  /* The same style with the inside offsets in place of A and B. Only those two
+     move: D, E and F are the size of a mark, not the room round it, and a
+     dimension inside a plate is drawn with the same dot and the same text as
+     one outside it. */
+  function dimStyleInner(s) {
+    var o = {}, k;
+    for (k in s) if (Object.prototype.hasOwnProperty.call(s, k)) o[k] = s[k];
+    o.origin = s.innerOrigin;
+    o.base = s.innerBase;
+    return o;
   }
 
   // Palette and controls follow the PSCBOX page so the viewer reads as part of
@@ -4724,10 +4741,9 @@
      longer of the two it wrote that number under the bottom edge.
      Read off the geometry, not off the shape keyword, so a side that a CUT has
      shortened is measured as it ended up. */
-  function edgeSpan(p, y) {
-    var tol = Math.max(1e-6, (p.box.y1 - p.box.y0) * 1e-5);
+  function ringsSpanAt(rings, y, tol) {
     var lo = Infinity, hi = -Infinity;
-    p.it.rings.outers.forEach(function (o) {
+    rings.forEach(function (o) {
       for (var i = 0; i < o.length; i++) {
         var a = o[i], b = o[(i + 1) % o.length];
         if (Math.abs(a[1] - y) > tol || Math.abs(b[1] - y) > tol) continue;
@@ -4737,12 +4753,58 @@
     });
     return hi - lo > tol ? [lo, hi] : null;      // a corner is not an edge
   }
+  function edgeSpan(p, y) {
+    return ringsSpanAt(p.it.rings.outers, y,
+                       Math.max(1e-6, (p.box.y1 - p.box.y0) * 1e-5));
+  }
+
+  /* What a CUT took out of the plate, ready to dimension. A round cut already
+     has its diameter on a leader and is left alone; anything else is a shape
+     with sides, and gets the sides the outline gets - bottom edge, top edge if
+     it differs, height.
+     One per distinct shape, the way one D22 stands for four identical holes.
+     The one chosen is the furthest down and to the left, because these
+     dimensions leave that way and there is the least in their path - the
+     mirror of taking the furthest up-right hole for a leader that runs the
+     other way. */
+  function cutDims(p) {
+    var by = {}, order = [];
+    p.it.rings.outers.forEach(function (o, i) {
+      (p.it.rings.holes[i] || []).forEach(function (hole) {
+        if (!hole || hole.length < 3 || ringCircle(hole)) return;
+        var x0 = Infinity, x1 = -Infinity, y0 = Infinity, y1 = -Infinity;
+        hole.forEach(function (q) {
+          if (q[0] < x0) x0 = q[0];
+          if (q[0] > x1) x1 = q[0];
+          if (q[1] < y0) y0 = q[1];
+          if (q[1] > y1) y1 = q[1];
+        });
+        if (!(x1 - x0 > 1e-9) || !(y1 - y0 > 1e-9)) return;
+        var tol = Math.max(1e-6, (y1 - y0) * 1e-5);
+        var bot = ringsSpanAt([hole], y0, tol), top = ringsSpanAt([hole], y1, tol);
+        var len = function (e) { return e ? e[1] - e[0] : 0; };
+        var r2 = function (v) { return Math.round(v * 100); };
+        var key = [r2(x1 - x0), r2(y1 - y0), r2(len(bot)), r2(len(top))].join('|');
+        var c = { x0: x0, x1: x1, y0: y0, y1: y1, bot: bot, top: top,
+                  reach: x0 + y0 };
+        // the top only when it is a different length from the bottom
+        c.showTop = !!top && Math.abs(len(top) - len(bot)) > Math.max(1e-6, (x1 - x0) * 1e-5);
+        if (!by[key]) { by[key] = c; order.push(key); }
+        else if (c.reach < by[key].reach) by[key] = c;
+      });
+    });
+    return order.map(function (k) { return by[k]; });
+  }
   // does this part want a dimension over the top? - the shelf has to leave room
   function partPadTop(p, D) {
     var pad = p.it.spec.SHAPE === 'SECT'
       ? sectPadTop(p.it.spec, p.box.x1 - p.box.x0, p.box.y1 - p.box.y0, D) : 0;
     if (topEdgeDim(p))
       pad = Math.max(pad, D.origin + D.base + D.textGap + D.text.dim * 1.2);
+    // a cut that reaches the top edge puts its own top dimension above the part
+    var anyTop = cutDims(p).some(function (c) { return c.showTop; });
+    if (anyTop)
+      pad = Math.max(pad, D.innerOrigin + D.innerBase + D.textGap + D.text.dim * 1.2);
     return pad;
   }
   /* Plates only. A rolled section is described by its own call-outs, and its
@@ -5278,6 +5340,25 @@
           leaderDia([hc.c[0] - p.box.x0 + ox, hc.c[1] - p.box.y0 + oy],
                     hc.r, hc.r, 1, 1, lead++);
         });
+        /* What the CUTs took out, dimensioned by the same rules as the outline
+           but with A and B at the inside offsets - a dimension line standing
+           20mm clear on paper is right in the margin round a part and is most
+           of a small plate's interior. D is swapped for the inside style and
+           put back: every helper reads it when it is called, so the two kinds
+           of dimension come out of one piece of code. */
+        var Dout = D;
+        D = dimStyleInner(D);
+        var CX = function (x) { return x - p.box.x0 + ox; };
+        var CY = function (y) { return y - p.box.y0 + oy; };
+        cutDims(p).forEach(function (c) {
+          var b = c.bot || [c.x0, c.x1];
+          dimLinear([CX(b[0]), CY(c.y0)], [CX(b[1]), CY(c.y0)], CY(c.y0), false, 0);
+          if (c.showTop)
+            dimLinear([CX(c.top[0]), CY(c.y1)], [CX(c.top[1]), CY(c.y1)],
+                      CY(c.y1), false, 0, 1);
+          dimLinear([CX(c.x0), CY(c.y0)], [CX(c.x0), CY(c.y1)], CX(c.x0), true, 0);
+        });
+        D = Dout;
         if (p.it.spec.SHAPE === 'SECT') {
           var sc = sectCallouts(p.it.spec, w, h);
           // flange thicknesses: dimensioned off the tip, line to the right
