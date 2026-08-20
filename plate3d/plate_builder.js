@@ -48,6 +48,107 @@
                  0x7cb342, 0xba68c8, 0xf06292, 0x4dd0e1, 0x9575cd, 0xe8c84a,
                  0x81c784, 0x64b5f6, 0xffb74d, 0xa1887f];
 
+  /* The dimension style drawings are annotated with. These are the numbers at
+     scale 1: paper millimetres, the size a length reads on a printed sheet.
+     A drawing at 1:50 asks for dimStyle(50) and every one of them is multiplied,
+     so the annotation prints the same size whatever the drawing is plotted at -
+     which is the whole point of holding them here rather than at each call site.
+
+     The letters are the ones on the style dialog's preview:
+       A  gap between the measured point and where its extension line starts
+       B  measured edge to the first dimension line
+       C  one dimension line to the next, stacked
+       D  how far the extension line runs past the dimension line
+       E  arrow (here dot) size
+       F  gap between the text and the dimension line
+     They are AutoCAD's DIMEXO, DIMDLI, DIMEXE, DIMASZ and DIMGAP under other
+     names, so a DXF written from this needs no translation table.
+
+     `pick` is not scaled: those are choices, not lengths. */
+  var DIMSTYLE = {
+    origin:  10,     // A  Offset From Origin
+    base:    10,     // B  Distance From Base to Dim
+    stack:   10,     // C  Offset From Dim to Dim
+    /* D. The dialog said 0.5, and at 0.5 it is invisible: the dot is 1.1 across,
+       so it covers 0.55 either side of the dimension line and swallows the whole
+       overshoot. D has to clear E/2 or there is nothing to see. 1.25 is
+       AutoCAD's own DIMEXE default and leaves 0.7mm showing. */
+    extend:  1.25,   // D  Extend Beyond Dim
+    arrow:   1.1,    // E  Arrow Size
+    textGap: 0.5,    // F  Text Offset From Dim
+    /* Not on the dialog. E is a *dot* diameter and reads at 1.1; a filled
+       triangle 1.1 long is a speck. Leaders point with a triangle - a dot says
+       "this is a measured end", an arrow says "this thing here" - so the
+       arrowhead has its own length. 2.5 is AutoCAD's own DIMASZ default. */
+    leadArrow: 2.5,
+    // and how far a leader's diagonal leg runs before it turns for its shoulder
+    leadRun:   6.7,
+    /* A and B again, for a dimension drawn **inside** an outline - what a CUT
+       took out of a plate. The registered 10 + 10 stands a dimension line 20mm
+       clear on paper, which is right in the open margin round a part and is
+       most of a small plate's interior. Inside, 4 + 4. */
+    innerOrigin: 4,
+    innerBase:   4,
+    // rebar marking: the bubble and the length bar beside it
+    markLen:    100,
+    markSize:   2.5,
+    markRadius: 4,
+    /* Text heights, also in paper millimetres - CAD height is these times the
+       scale denominator, the same multiplication everything above gets. Held by
+       what the text is for rather than as raw numbers, because that is the part
+       that survives a change of scale: a dimension is 2.5 on the sheet whether
+       the drawing is 1:10 or 1:100.
+       Where practice gives a band the middle of it is taken; DIMSTYLE.md has
+       the bands and the Korean names for each. */
+    text: {
+      dim:     2.5,   // dimensions and dimension lines
+      note:    2.5,   // general notes                    practice allows 2.5 - 3.5
+      member:  2.5,   // member names, main callouts      practice gives 3.5
+      section: 5.0,   // section and detail titles
+      heading: 6.0,   // major headings                   5 - 7
+      title:   8.0    // sheet title                      7 - 10 and up
+    },
+    pick: {
+      arrowHead: 'dot',          // dot | arrow | circle | oblique
+      unit:      'dot',          // comma | dot | none    - thousands separator
+      angle:     'dms',          // dms 00°00'00" | d1 00.0° | d3 00.000°
+      spec:      'comma',        // comma | dot | none
+      specForm:  '1 - PL - W x T x L',
+      specAt:    'X',
+      simpleMarking: false
+    }
+  };
+  var DIMSTYLE_SCALED = ['origin', 'base', 'stack', 'extend', 'arrow', 'textGap',
+                         'leadArrow', 'leadRun', 'innerOrigin', 'innerBase',
+                         'markLen', 'markSize', 'markRadius'];
+  // scale = the drawing's scale denominator: 50 for 1:50. Everything that is a
+  // length comes back multiplied by it; `pick` is choices and comes back as is.
+  // Rounded at the sixth decimal because binary floats do not multiply cleanly -
+  // 1.1 * 50 is 55.00000000000001, and that is a number nobody wants to find
+  // written into a DXF.
+  function dimScale(v, s) { return Math.round(v * s * 1e6) / 1e6; }
+  function dimStyle(scale) {
+    var s = Number(scale);
+    if (!(s > 0)) s = 1;
+    var out = { scale: s, pick: DIMSTYLE.pick, text: {} };
+    DIMSTYLE_SCALED.forEach(function (k) { out[k] = dimScale(DIMSTYLE[k], s); });
+    Object.keys(DIMSTYLE.text).forEach(function (k) {
+      out.text[k] = dimScale(DIMSTYLE.text[k], s);
+    });
+    return out;
+  }
+  /* The same style with the inside offsets in place of A and B. Only those two
+     move: D, E and F are the size of a mark, not the room round it, and a
+     dimension inside a plate is drawn with the same dot and the same text as
+     one outside it. */
+  function dimStyleInner(s) {
+    var o = {}, k;
+    for (k in s) if (Object.prototype.hasOwnProperty.call(s, k)) o[k] = s[k];
+    o.origin = s.innerOrigin;
+    o.base = s.innerBase;
+    return o;
+  }
+
   // Palette and controls follow the PSCBOX page so the viewer reads as part of
   // the macroBIM site rather than a black box dropped into it: Inter, slate ink
   // on white cards, #2563eb for anything primary, #cbd5e1 / #e2e8f0 for rules.
@@ -96,13 +197,33 @@
     '#pb-bar input[type=checkbox] { accent-color:var(--dim); cursor:pointer; margin:0; }',
 
     /* ---- body: list panel + 16:9 graphics pane ---- */
-    '#pb-body { display:flex; flex:1 1 auto; min-height:0; gap:12px; padding:12px; }',
-    '#pb-side { width:380px; min-width:380px; overflow-y:auto; background:#fff;',
-    '  border:1px solid var(--line); border-radius:10px; padding:12px 14px; }',
+    /* The pane holding the view has to STRETCH. Centring the body's items looked
+       like the way to line the two boxes up, and instead locked the view at
+       whatever size it first happened to take: the pane then had no height of
+       its own, fitRenderer read the pane to size the view, and the pane was
+       being sized by the view. The list gets the view's height in fitRenderer
+       instead, and both sit at the top.
+
+       Top, not centred, because the leftover height cannot be removed - it is
+       (body - view)/2 above and below whatever the padding is, since 16:9 in a
+       pane wider than 16:9 is width-limited. Centred, that white is split into
+       two bands you look straight at; anchored, the drawing starts right under
+       the toolbar and the whole remainder falls below, where it reads as the
+       end of the page rather than as a gap. */
+    '#pb-body { display:flex; flex:1 1 auto; min-height:0; gap:12px;',
+    '  padding:10px 12px 12px; align-items:flex-start; }',
+    '#pb-viewwrap { align-self:stretch; }',
+    /* 320, not 380. Every pixel off the list is a pixel of width for the view,
+       and the view's height follows its width at 16:9 - so a narrower list is
+       the only thing that actually shrinks the leftover band. 320 still clears
+       the longest line the panel holds, the placed-members total. */
+    '#pb-side { width:320px; min-width:320px; overflow-y:auto; background:#fff;',
+    '  border:1px solid var(--line); border-radius:10px; padding:11px 12px; }',
     '#pb-side::-webkit-scrollbar { width:6px; }',
     '#pb-side::-webkit-scrollbar-thumb { background:#cbd5e1; border-radius:4px; }',
+    // the view sits at the top of its pane, not floating in the middle of it
     '#pb-viewwrap { flex:1 1 auto; min-width:0; display:flex;',
-    '  align-items:center; justify-content:center; }',
+    '  align-items:flex-start; justify-content:center; }',
     // outline, not border: it draws the frame without eating into the box, so
     // the canvas fills the 16:9 pane exactly instead of losing a pixel each side
     '#pb-view { flex:0 0 auto; position:relative; background:#15181c;',
@@ -215,6 +336,77 @@
     '  padding:7px 20px; font-family:inherit; font-size:13px; font-weight:600;',
     '  cursor:pointer; float:right; }',
     '#pb-fatal:after { content:""; display:block; clear:both; }',
+
+    /* ---- the two menu buttons: File and View, one size so they read as a pair
+       and the bar starts with a block rather than a row of loose buttons ---- */
+    '.fmenu { position:relative; display:inline-block; }',
+    /* Matched to the Example button at the far end of the bar - same 102 wide,
+       same 12px type, so the two ends of the row are the same size. Wider than
+       the toggles between them, not taller. */
+    '#pb-bar .fmenu > button { min-width:102px; font-size:12px; font-weight:600;',
+    '  text-transform:none; letter-spacing:0; }',
+    // the view being looked through, marked in the list the way the row of
+    // buttons used to mark it
+    '#pb-bar .fmenu .drop button.vw.active { color:var(--dim); font-weight:700;',
+    '  background:#eff6ff; }',
+    '.fmenu .car { font-size:9px; margin-left:3px; opacity:.85; }',
+    '.fmenu .drop { display:none; position:absolute; left:0; top:calc(100% + 5px);',
+    '  z-index:60; background:#fff; border:1px solid var(--line); border-radius:8px;',
+    '  box-shadow:0 10px 28px rgba(15,23,42,.18); padding:6px; min-width:200px; }',
+    '.fmenu.open .drop { display:block; }',
+    // a menu you reach for on every save, so the rows are a comfortable target
+    // rather than the tightest thing the text will fit in
+    // #pb-bar button carries an id, so these have to as well or the bar's own
+    // padding and 10.5px type win and the rows stay 24px tall
+    '#pb-bar .fmenu .drop button { display:block; width:100%; text-align:left;',
+    '  border:none; background:none; box-shadow:none; padding:11px 13px;',
+    '  border-radius:6px; font-size:12.5px; font-weight:600; letter-spacing:.02em;',
+    '  line-height:1.2; text-transform:none; color:#334155; }',
+    '#pb-bar .fmenu .drop button:hover { background:#f1f5f9; color:#0f172a;',
+    '  box-shadow:none; }',
+    '#pb-bar .fmenu .drop button:active { transform:none; }',
+    '.fmenu .drop i { display:block; height:1px; background:var(--hair); margin:5px 7px; }',
+
+    /* ---- the scale question, asked before a drawing is written ---- */
+    '#pb-scale { display:none; position:fixed; left:0; top:0; right:0; bottom:0;',
+    '  z-index:75; background:rgba(15,23,42,.35); align-items:center;',
+    '  justify-content:center; padding:20px; }',
+    '#pb-scale .box { background:#fff; border:1px solid var(--line); border-radius:10px;',
+    '  width:472px; max-width:94vw; padding:16px 17px;',
+    '  box-shadow:0 12px 40px rgba(15,23,42,.24); }',
+    '#pb-scale h2 { font-size:15px; font-weight:600; color:#0f172a; margin:0 0 7px; }',
+    '#pb-scale p { font-size:11.5px; color:#64748b; line-height:1.6; margin:0 0 12px; }',
+    // one line per block: tick it to draw it, and say what it is plotted at
+    '#pb-scale .blk { display:flex; align-items:center; gap:10px; padding:7px 9px;',
+    '  border:1px solid var(--line); border-radius:7px; margin-bottom:7px;',
+    '  transition:background .12s,border-color .12s; }',
+    '#pb-scale .blk.off { background:#f8fafc; border-color:var(--hair); }',
+    '#pb-scale .blk .on { flex:1 1 auto; display:flex; align-items:center; gap:7px;',
+    '  font-size:13px; font-weight:600; color:#0f172a; cursor:pointer; }',
+    '#pb-scale .blk.off .on { color:#94a3b8; }',
+    '#pb-scale .blk .on small { font-weight:400; font-size:11px; color:#94a3b8; }',
+    '#pb-scale .blk .sc { display:flex; align-items:center; font-size:13px;',
+    '  font-weight:600; color:#0f172a; flex:0 0 auto; }',
+    '#pb-scale .blk.off .sc { color:#94a3b8; }',
+    '#pb-scale input[type=checkbox] { accent-color:var(--dim); cursor:pointer; margin:0;',
+    '  width:15px; height:15px; }',
+    '#pb-scale input[type=number] { font:inherit; font-size:13px; width:74px;',
+    '  padding:5px 8px; border:1px solid var(--line); border-radius:6px; color:#0f172a; }',
+    '#pb-scale .row { display:flex; justify-content:flex-end; gap:8px; margin-top:14px; }',
+    // sized off the Example button in the bar - the small default buttons that
+    // were here read as an afterthought next to it
+    '#pb-scale .row button { font:inherit; font-size:12px; font-weight:600;',
+    '  letter-spacing:0; text-transform:none; min-width:102px; padding:5px 12px;',
+    '  border:1px solid var(--line); border-radius:6px; background:#fff;',
+    '  color:#334155; cursor:pointer;',
+    '  transition:background .12s,border-color .12s,box-shadow .12s,transform .06s; }',
+    '#pb-scale .row button:hover { background:#f1f5f9;',
+    '  box-shadow:0 2px 6px rgba(15,23,42,.12); }',
+    '#pb-scale .row button:active { transform:translateY(1px) scale(.97); box-shadow:none; }',
+    '#pb-scale .row button.accent { background:var(--dim); border-color:var(--dim);',
+    '  color:#fff; }',
+    '#pb-scale .row button.accent:hover { background:#1d4ed8; border-color:#1d4ed8;',
+    '  box-shadow:0 2px 8px rgba(37,99,235,.35); }',
 
     /* ---- example workbook picker: a window, like the plate preview ---- */
     '#pb-ex { display:none; position:fixed; left:0; top:0; right:0; bottom:0; z-index:55;',
@@ -1932,7 +2124,12 @@
       hs.forEach(function (r) { area -= Math.abs(ringArea(r)); });
     });
 
-    return { outers: c.outers, holes: c.holes, feats: feats, area: area };
+    /* The cutters go out with the result. They are what the sheet asked for,
+       placed and rotated but not yet subtracted, and that is the only place
+       the shape of a CUT survives intact: once the boolean has run, one that
+       reached an edge is indistinguishable from the outline it melted into. */
+    return { outers: c.outers, holes: c.holes, feats: feats, area: area,
+             cuts: cutters };
   }
   // even containment depth = outer ring, odd = hole; each hole filed under the
   // outer that contains it
@@ -2183,15 +2380,17 @@
       var world = yupFix(matrix);        // EDGE chaining keeps using the raw matrix
       var thk = spec.THK;
       var g2d = buildPlate2D(spec, cuts, plates);
-      var outers = g2d.outers, holesArr = g2d.holes;
+      var outers = g2d.outers, holesArr = g2d.holes, cutRings = g2d.cuts || [];
       if (mirror) {
         outers = mirror2D(outers, spec);
         holesArr = holesArr.map(function (hs) { return mirror2D(hs, spec); });
+        cutRings = mirror2D(cutRings, spec);
       }
       if (flip) {                        // reflected instance, see flipRingsX
         world = world.clone().multiply(new THREE.Matrix4().makeScale(-1, 1, 1));
         outers = flipRingsX(outers);
         holesArr = holesArr.map(flipRingsX);
+        cutRings = flipRingsX(cutRings);
       }
       var groupObj = new THREE.Group();
       var mat = new THREE.MeshPhongMaterial({ color: colors[spec.ID], shininess: 28,
@@ -2237,7 +2436,7 @@
                  dims: dims, remark: remark || '',
                  spec: spec, thk: thk, matrix: world, mat: mat, edgeMat: edgeMat,
                  baseColor: colors[spec.ID],
-                 rings: { outers: outers, holes: holesArr } };
+                 rings: { outers: outers, holes: holesArr, cuts: cutRings } };
       items.push(it);
       styleItem(it);
       return { pts: namedPoints(spec, mirror), thk: thk };
@@ -4309,7 +4508,7 @@
       var g2 = buildPlate2D(spec, lastCuts, lastPlates);
       out.push({ no: row.NO, spec: spec, thk: spec.THK, matrix: m,
                  mass: g2.area * spec.THK * RHO, dims: '',
-                 rings: { outers: g2.outers, holes: g2.holes } });
+                 rings: { outers: g2.outers, holes: g2.holes, cuts: g2.cuts } });
     });
     return out;
   }
@@ -4352,6 +4551,1122 @@
     var list = visibleItems();
     if (nothing(list)) return;
     download(buildIFC(list, 'plate_builder'), 'plate_builder.ifc');
+  }
+
+  /* ================= DXF export (AC1009 / R12) =================
+     A drawing of what the ASSY rows placed, in up to three blocks, each drawn
+     at its own scale: six orthographic views of the whole assembly, the same
+     six of each module, and every distinct part once at its standard section
+     with how many of it there are.
+
+     The file is built to the shape of macroBIM/bim_dxf.js, which is what the
+     site's other drawing tools already ship and what is known to open: AC1009,
+     $ACADVER and nothing else in the header, the LTYPE and LAYER tables and
+     nothing else in TABLES, then the entities. An earlier version of this
+     exporter wrote R2000 with VPORT, STYLE, APPID, DIMSTYLE and BLOCKS tables
+     filled in from memory, and AutoCAD refused the file outright. Anything
+     added past what bim_dxf.js proves is a guess, and a DXF that is only nearly
+     right does not open at all.
+
+     That costs the dimensions their identity: they are drawn from lines, a dot
+     at each end and a text, not DIMENSION entities, so the CAD cannot restyle
+     them and DIMSCALE cannot be changed after the fact. The geometry is
+     identical either way because dimStyle(scale) has already done the
+     multiplying. Adding DIMENSION entities back means adding a DIMSTYLE table
+     and a BLOCKS section - the two things most likely to have broken it - so it
+     is worth doing only once this base is confirmed to open.
+
+     Geometry is written 1:1 in millimetres, the way a CAD drawing is always
+     built. The scale you give is never applied to the steel: dimStyle(scale)
+     multiplies the registered annotation lengths instead, so a 2.5mm number
+     comes out 2.5mm on paper whatever the block is plotted at. That is also
+     what lets the three blocks share one coordinate system - only their
+     annotation differs in size, so a viewport plotted at each block's own
+     scale is right for that block.
+
+     No hidden-line removal: the six views draw every member's outline, near and
+     far. That is enough for a bracket and honest about what it is on a crane. */
+
+  /* The text style the drawing writes with. A TrueType name in the STYLE
+     table's font field is what gets Arial instead of the stick-figure txt.shx
+     every CAD falls back to, and Arial is the face the rest of PLATE3D's output
+     already uses - the take-off is set in it too. */
+  var DXF_STYLE = 'PLATE3D', DXF_FONT = 'arial.ttf';
+  // paper mm the part shelf wraps at when no other block was drawn to take a
+  // width from - A0's long side, so the block fits the biggest ordinary sheet
+  var DXF_SHEET_W = 1189;
+
+  var DXF_LAYERS = [                      // name, AutoCAD colour index
+    ['PL3D-OUTLINE', 7], ['PL3D-HOLE', 4], ['PL3D-DIM', 1],
+    ['PL3D-TEXT', 7], ['PL3D-TITLE', 3]
+  ];
+  // the six views, each as the axes of its picture plane. `dir` points from the
+  // model towards the viewer, and is what decides which side of a member faces
+  // us - the silhouette test needs it.
+  var DXF_VIEWS = [
+    { key: 'FRONT',  right: [1, 0, 0],  up: [0, 0, 1], dir: [0, -1, 0] },
+    { key: 'BACK',   right: [-1, 0, 0], up: [0, 0, 1], dir: [0, 1, 0] },
+    { key: 'LEFT',   right: [0, -1, 0], up: [0, 0, 1], dir: [-1, 0, 0] },
+    { key: 'RIGHT',  right: [0, 1, 0],  up: [0, 0, 1], dir: [1, 0, 0] },
+    { key: 'TOP',    right: [1, 0, 0],  up: [0, 1, 0], dir: [0, 0, 1] },
+    { key: 'BOTTOM', right: [-1, 0, 0], up: [0, 1, 0], dir: [0, 0, -1] }
+  ];
+
+  // DXF is a code-page file, not UTF-8. Anything outside ASCII is transliterated
+  // rather than escaped, so a label reads the same in every CAD.
+  function dxfText(s) {
+    return String(s == null ? '' : s)
+      .replace(/[×]/g, 'x').replace(/[−–—]/g, '-')
+      .replace(/[°]/g, 'deg').replace(/[α]/g, 'a')
+      .replace(/[^\x20-\x7e]/g, '?');
+  }
+  function dxfNum(v) {
+    var n = Math.round(Number(v) * 1e6) / 1e6;
+    return isFinite(n) ? String(n) : '0';
+  }
+
+  /* One member, projected into one view, as the lines you would draw: both cap
+     rings, plus the side edges that are either a real corner or the silhouette.
+     Without the silhouette test a round bar seen from the side is two loose
+     lines with nothing joining them; without the corner test a plate loses its
+     four vertical edges. */
+  function dxfMemberEdges(it, view, segs) {
+    var m = it.matrix, half = (it.thk || 0) / 2;
+    var vd = new THREE.Vector3(view.dir[0], view.dir[1], view.dir[2]);
+    var R = new THREE.Vector3(view.right[0], view.right[1], view.right[2]);
+    var U = new THREE.Vector3(view.up[0], view.up[1], view.up[2]);
+    function proj(x, y, z) {
+      var p = new THREE.Vector3(x, y, z).applyMatrix4(m);
+      return [p.dot(R), p.dot(U)];
+    }
+    // the extrusion direction in world space, for the side-face normals
+    var e0 = new THREE.Vector3(0, 0, 0).applyMatrix4(m);
+    var ez = new THREE.Vector3(0, 0, 1).applyMatrix4(m).sub(e0).normalize();
+
+    function ring(pts) {
+      var n = pts.length;
+      if (n < 2) return;
+      var faceFront = [];
+      for (var i = 0; i < n; i++) {
+        var a = pts[i], b = pts[(i + 1) % n];
+        segs.push([proj(a[0], a[1], -half), proj(b[0], b[1], -half)]);
+        if (half) segs.push([proj(a[0], a[1], half), proj(b[0], b[1], half)]);
+        // side face i is spanned by edge a->b and the extrusion direction
+        var ea = new THREE.Vector3(b[0] - a[0], b[1] - a[1], 0)
+                   .applyMatrix4(new THREE.Matrix4().extractRotation(m));
+        var nrm = new THREE.Vector3().crossVectors(ea, ez);
+        faceFront[i] = nrm.dot(vd) > 0;
+      }
+      if (!half) return;
+      for (var j = 0; j < n; j++) {
+        var prev = pts[(j - 1 + n) % n], cur = pts[j], nxt = pts[(j + 1) % n];
+        var d1x = cur[0] - prev[0], d1y = cur[1] - prev[1];
+        var d2x = nxt[0] - cur[0], d2y = nxt[1] - cur[1];
+        var l1 = Math.hypot(d1x, d1y), l2 = Math.hypot(d2x, d2y);
+        var corner = false;
+        if (l1 > 1e-9 && l2 > 1e-9) {
+          var cosT = (d1x * d2x + d1y * d2y) / (l1 * l2);
+          corner = cosT < Math.cos(25 * Math.PI / 180);   // same 25 deg the 3D view creases at
+        }
+        var sil = faceFront[(j - 1 + n) % n] !== faceFront[j];
+        if (corner || sil) segs.push([proj(cur[0], cur[1], -half), proj(cur[0], cur[1], half)]);
+      }
+    }
+    it.rings.outers.forEach(function (o, i) {
+      ring(o);
+      (it.rings.holes[i] || []).forEach(ring);
+    });
+  }
+
+  // Two projections of the same plate land on the same line more often than not
+  // - both caps of a plate seen face on, every copy of a repeated member. One
+  // line each keeps the file a tenth of the size and the drawing readable.
+  function dxfDedupe(segs) {
+    var seen = {}, out = [];
+    segs.forEach(function (s) {
+      var a = s[0], b = s[1];
+      if (Math.abs(a[0] - b[0]) < 1e-6 && Math.abs(a[1] - b[1]) < 1e-6) return;
+      var k1 = dxfNum(a[0]) + ',' + dxfNum(a[1]), k2 = dxfNum(b[0]) + ',' + dxfNum(b[1]);
+      var k = k1 < k2 ? k1 + '|' + k2 : k2 + '|' + k1;
+      if (seen[k]) return;
+      seen[k] = 1;
+      out.push(s);
+    });
+    return out;
+  }
+
+  function segsBox(segs) {
+    var b = { x0: Infinity, y0: Infinity, x1: -Infinity, y1: -Infinity };
+    segs.forEach(function (s) {
+      s.forEach(function (p) {
+        if (p[0] < b.x0) b.x0 = p[0];
+        if (p[0] > b.x1) b.x1 = p[0];
+        if (p[1] < b.y0) b.y0 = p[1];
+        if (p[1] > b.y1) b.y1 = p[1];
+      });
+    });
+    if (!isFinite(b.x0)) return { x0: 0, y0: 0, x1: 0, y1: 0 };
+    return b;
+  }
+
+  /* The distinct parts, one entry each, with how many were placed. Grouped by
+     the part id together with its extruded length, because one SECT definition
+     placed at three lengths is three things to fabricate, not one. */
+  function dxfParts(list) {
+    var by = {}, order = [];
+    list.forEach(function (it) {
+      var k = it.plateId + '|' + it.thk;
+      if (!by[k]) { by[k] = { it: it, n: 0, key: k }; order.push(k); }
+      by[k].n++;
+    });
+    return order.map(function (k) { return by[k]; });
+  }
+
+  /* Every CUT the sheet made in this plate, as it was placed, grouped by the
+     shape it is. Reading the cuts rather than the boolean result is the
+     difference between knowing and guessing. Once the subtraction has run, a
+     cut that reached an edge is indistinguishable from the outline it melted
+     into, and the only way back was to hunt for it - an arc by fitting circles
+     to runs of vertices, a notch by looking for square concave corners - which
+     found the common cases, missed a trapezoidal notch entirely, and called an
+     H section's root fillets holes. The sheet offers three shapes and says
+     which one it meant; this reads that.
+
+     Round cuts come back for a diameter, everything else for the linear rules
+     the outline gets. One per distinct shape, the way one D22 stands for four
+     identical holes: the round one taken is the furthest up and right, because
+     its leader leaves that way, and the rest the furthest down and left,
+     because their dimensions do. */
+  function cutFeatures(p) {
+    var raw = p.it.rings && p.it.rings.cuts;
+    if (!raw) {                        // a ring set from before cuts were kept
+      raw = [];
+      p.it.rings.outers.forEach(function (o, i) {
+        (p.it.rings.holes[i] || []).forEach(function (h) { raw.push(h); });
+      });
+    }
+    var byR = {}, rOrder = [], byS = {}, sOrder = [];
+    raw.forEach(function (ring) {
+      if (!ring || ring.length < 3) return;
+      var hc = ringCircle(ring);
+      if (hc) {
+        var rk = Math.round(hc.r * 100);
+        if (!byR[rk]) { byR[rk] = hc; rOrder.push(rk); }
+        else if (hc.c[0] + hc.c[1] > byR[rk].c[0] + byR[rk].c[1]) byR[rk] = hc;
+        return;
+      }
+      var c = cutBox(ring);
+      if (!c) return;
+      var r2 = function (v) { return Math.round(v * 100); };
+      var sk = [r2(c.x1 - c.x0), r2(c.y1 - c.y0),
+                r2(c.botLen), r2(c.topLen)].join('|');
+      if (!byS[sk]) { byS[sk] = c; sOrder.push(sk); }
+      else if (c.x0 + c.y0 < byS[sk].x0 + byS[sk].y0) byS[sk] = c;
+    });
+    return { round: rOrder.map(function (k) { return byR[k]; }),
+             poly:  sOrder.map(function (k) { return byS[k]; }) };
+  }
+  /* One cut, measured the way the outline is: the bottom edge as it is, the
+     top edge when it is a different length, and the height.
+     A cut turned by ANG is measured across its bounding box - the sides are
+     no longer the bottom and the top of anything. */
+  function cutBox(ring) {
+    var x0 = Infinity, x1 = -Infinity, y0 = Infinity, y1 = -Infinity;
+    ring.forEach(function (q) {
+      if (q[0] < x0) x0 = q[0];
+      if (q[0] > x1) x1 = q[0];
+      if (q[1] < y0) y0 = q[1];
+      if (q[1] > y1) y1 = q[1];
+    });
+    if (!(x1 - x0 > 1e-9) || !(y1 - y0 > 1e-9)) return null;
+    var tol = Math.max(1e-6, (y1 - y0) * 1e-5);
+    var bot = ringsSpanAt([ring], y0, tol), top = ringsSpanAt([ring], y1, tol);
+    var len = function (e) { return e ? e[1] - e[0] : 0; };
+    return { x0: x0, x1: x1, y0: y0, y1: y1, bot: bot, top: top,
+             botLen: len(bot), topLen: len(top),
+             showTop: !!top && Math.abs(len(top) - len(bot))
+                              > Math.max(1e-6, (x1 - x0) * 1e-5) };
+  }
+  function partCircle(p) {
+    return p.it.rings.outers.length === 1 && ringCircle(p.it.rings.outers[0]);
+  }
+  /* The horizontal run of the outline at one height - the top edge or the
+     bottom edge as a length, rather than the bounding box that contains both.
+     A trapezoid's two parallel sides are different lengths and both belong on
+     the drawing; taking the box gave one number, and when the top was the
+     longer of the two it wrote that number under the bottom edge.
+     Read off the geometry, not off the shape keyword, so a side that a CUT has
+     shortened is measured as it ended up. */
+  function ringsSpanAt(rings, y, tol) {
+    var lo = Infinity, hi = -Infinity;
+    rings.forEach(function (o) {
+      for (var i = 0; i < o.length; i++) {
+        var a = o[i], b = o[(i + 1) % o.length];
+        if (Math.abs(a[1] - y) > tol || Math.abs(b[1] - y) > tol) continue;
+        lo = Math.min(lo, a[0], b[0]);
+        hi = Math.max(hi, a[0], b[0]);
+      }
+    });
+    return hi - lo > tol ? [lo, hi] : null;      // a corner is not an edge
+  }
+  function edgeSpan(p, y) {
+    return ringsSpanAt(p.it.rings.outers, y,
+                       Math.max(1e-6, (p.box.y1 - p.box.y0) * 1e-5));
+  }
+
+  // does this part want a dimension over the top? - the shelf has to leave room
+  function partPadTop(p, D) {
+    var pad = p.it.spec.SHAPE === 'SECT'
+      ? sectPadTop(p.it.spec, p.box.x1 - p.box.x0, p.box.y1 - p.box.y0, D) : 0;
+    if (topEdgeDim(p))
+      pad = Math.max(pad, D.origin + D.base + D.textGap + D.text.dim * 1.2);
+    /* A cut is measured as the sheet wrote it, and the sheet is allowed to
+       hang one over an edge - only the overlap comes out of the steel. So the
+       call-out can reach past the part it belongs to, by however far the cut
+       does plus its own band. */
+    var band = D.innerOrigin + D.innerBase + D.textGap + D.text.dim * 1.2;
+    cutFeatures(p).poly.forEach(function (c) {
+      var over = Math.max(0, c.y1 - p.box.y1);
+      pad = Math.max(pad, over + (c.showTop ? band : 0));
+    });
+    return pad;
+  }
+  // and the room a cut hanging past the right-hand edge needs
+  function cutPadRight(p) {
+    var pad = 0;
+    cutFeatures(p).poly.forEach(function (c) {
+      pad = Math.max(pad, c.x1 - p.box.x1);
+    });
+    return pad;
+  }
+  /* Plates only. A rolled section is described by its own call-outs, and its
+     top edge is not a side you would dimension: on an angle it is what is left
+     of the leg tip after the toe radius has eaten it, so the rule offered a
+     flat of 1mm on an L-90x75x9x7 as if it meant something. */
+  function topEdgeDim(p) {
+    if (partCircle(p) || p.it.spec.SHAPE === 'SECT') return null;
+    var top = edgeSpan(p, p.box.y1);
+    if (!top) return null;
+    var bot = edgeSpan(p, p.box.y0);
+    var tol = Math.max(1e-6, (p.box.x1 - p.box.x0) * 1e-5);
+    if (bot && Math.abs((top[1] - top[0]) - (bot[1] - bot[0])) <= tol) return null;
+    return top;                                  // a rectangle says it once
+  }
+  function leadCount(p) {
+    var n = cutFeatures(p).round.length + (partCircle(p) ? 1 : 0);
+    if (p.it.spec.SHAPE === 'SECT')
+      n += sectCallouts(p.it.spec, p.box.x1 - p.box.x0,
+                        p.box.y1 - p.box.y0).leads.length;
+    return n;
+  }
+
+  /* Is this ring a circle? A hole is polygonised into 48 segments long before
+     it reaches here, so "circle" has to be decided from the geometry: every
+     vertex the same distance from the centroid, within a fraction of a percent.
+     Returns the centre and radius, or null for anything else. */
+  function ringCircle(pts) {
+    if (!pts || pts.length < 12) return null;
+    var n = pts.length, cx = 0, cy = 0, i;
+    for (i = 0; i < n; i++) { cx += pts[i][0]; cy += pts[i][1]; }
+    cx /= n; cy /= n;
+    var lo = Infinity, hi = 0;
+    for (i = 0; i < n; i++) {
+      var d = Math.hypot(pts[i][0] - cx, pts[i][1] - cy);
+      if (d < lo) lo = d;
+      if (d > hi) hi = d;
+    }
+    if (!(hi > 0) || (hi - lo) / hi > 0.02) return null;
+    return { c: [cx, cy], r: (lo + hi) / 2 };
+  }
+  // Arial has no fixed advance, so this is an estimate - deliberately generous,
+  // because a rule that comes up short of its own text is the visible failure.
+  function dxfTextWidth(s, h) { return String(s).length * h * 0.62; }
+
+  /* What a rolled section needs called out beyond its overall height and width:
+     the web, the flanges and the root radius. A reader given only H-700x300 has
+     to go and look the rest up; the profile is drawn from those numbers, so the
+     drawing may as well say them.
+
+     A thickness is a measurement, not a note, so it comes back as a dimension
+     and not as something on a leader. Flange thicknesses are dimensioned off
+     the flange tip to a line on the **right** of the section, the way a section
+     table draws t2; the web is too thin to letter between its own dots, so it
+     is a narrow dimension whose number is carried out clear of the steel - the
+     t1 of the same table. Only the root radius stays on a leader: it is a note
+     about a shape, and there is no pair of faces to measure it between.
+
+     Points come back in coordinates measured from the section's own bounding box
+     - u right from its left edge, v up from its bottom - because that is what
+     the part layout can place without knowing how the profile was parametrised.
+     Each leader carries the direction it should run so it leaves the steel at
+     once rather than crossing it.
+
+     Field names are the sheet's own:
+       H   h bb bt tw tf1 tf2 r1 r2      tf1 bottom flange, tf2 top
+       C   h b tw tf rw rf               rw web root, rf flange toe
+       L   a b t1 t2 r1 r2               t1 the a leg, t2 the b leg           */
+  function sectCallouts(sp, w, h) {
+    var dims = [], narrow = [], leads = [];
+    var n = function (v) { return rnd(num(v, 0)); };
+    // a flange thickness: measured up the flange tip, dimensioned to the right
+    function vdim(x, y0, y1, t) {
+      if (!isFinite(x) || !isFinite(y0) || !isFinite(y1)) return;
+      if (Math.abs(y1 - y0) < 1e-9) return;
+      dims.push({ x: x, y0: Math.min(y0, y1), y1: Math.max(y0, y1),
+                  txt: String(n(t)) });
+    }
+    /* A web thickness: dots on the two faces, number carried out to the right.
+       `up` lifts the whole thing above the section on extension lines instead
+       of laying it across at height y - for a shape whose thin part is open at
+       the top, which an angle's leg is and a web between two flanges is not. */
+    function hnarrow(x0, x1, y, t, up) {
+      if (!isFinite(x0) || !isFinite(x1) || Math.abs(x1 - x0) < 1e-9) return;
+      narrow.push({ x0: x0, x1: x1, y: y, txt: String(n(t)), up: !!up });
+    }
+    /* Leaders carry the step they are to be drawn at, counted **per direction**.
+       Two call-outs heading the same way have to land on different shoulders or
+       the numbers sit on top of each other; two heading different ways never
+       meet, and stepping the second one out is length spent for nothing. */
+    var steps = {};
+    function lead(u, v, txt, dx, dy) {
+      if (u == null || !isFinite(u) || !isFinite(v)) return;
+      var key = dx + ',' + dy;
+      leads.push({ u: u, v: v, txt: txt, dx: dx, dy: dy, step: steps[key] || 0 });
+      steps[key] = (steps[key] || 0) + 1;
+    }
+    // one leader per distinct radius: a section with the same root and toe
+    // radius does not want the same number written on it twice
+    var seenR = {};
+    function radLead(u, v, r, dx, dy) {
+      if (!(r > 0) || seenR[r]) return;
+      seenR[r] = 1;
+      lead(u, v, 'r ' + n(r), dx, dy);
+    }
+    /* A root fillet is concave: its centre of curvature sits in the open air
+       off the corner, so the point of the arc nearest that air is centre minus
+       r/sqrt2 each way - 0.293 r from the corner - and the leader runs on
+       towards the centre. That is the one direction out of the corner that
+       does not cut back through the steel.
+       A toe is the other way round - convex, material behind it - so the arc
+       point is 0.293 r back from the tip and the leader heads out. Same
+       geometry the section preview has been drawing its R arrows from. */
+    var K = 1 - Math.SQRT1_2;                     // 0.2929
+    if (sp.SECT === 'H') {
+      // h bb bt tw tf1 tf2 r1 - seven values, no toe rounding on an H
+      var cx = w / 2, tw = num(sp.tw, 0), t1 = num(sp.tf1, 0), t2 = num(sp.tf2, 0);
+      var r1 = num(sp.r1, 0);
+      var bt = num(sp.bt, 0), bb = num(sp.bb, 0);
+      vdim(bt > 0 ? cx + bt / 2 : w, h - t2, h, t2);
+      vdim(bb > 0 ? cx + bb / 2 : w, 0, t1, t1);
+      hnarrow(cx - tw / 2, cx + tw / 2, h / 2, tw);
+      radLead(cx + tw / 2 + r1 * K, h - t2 - r1 * K, r1, 1, -1);        // web root
+    } else if (sp.SECT === 'C') {
+      // h b tw tf rw rf - the web root and the flange toe
+      var ctw = num(sp.tw, 0), ctf = num(sp.tf, 0);
+      var rw = num(sp.rw, 0), rf = num(sp.rf, 0);
+      vdim(w, h - ctf, h, ctf);
+      vdim(w, 0, ctf, ctf);
+      hnarrow(0, ctw, h / 2, ctw);
+      radLead(ctw + rw * K, ctf + rw * K, rw, 1, 1);                    // web root
+      radLead(w - rf * K, h - ctf + rf * K, rf, 1, -1);                 // flange toe
+    } else if (sp.SECT === 'L') {
+      /* a b t1 t2 r1 r2 - and t1 belongs to the **a** leg, which is the
+         horizontal one, t2 to the b leg standing up. Reading them the other way
+         round dimensioned each leg with the other leg's thickness, and put the
+         root fillet's arrow off the corner by the same swap. */
+      var t1a = num(sp.t1, 0), t2b = num(sp.t2, 0);
+      var lr1 = num(sp.r1, 0), lr2 = num(sp.r2, 0);
+      vdim(w, 0, t1a, t1a);                  // the a leg, measured at its tip
+      /* Lifted above the section, not laid across it. An angle's root leader
+         is the only thing that can leave the corner, and it runs up and to the
+         right through exactly the space a carried number would use - on a 90mm
+         angle at 1:10 the leader's own text is a third of the section deep, so
+         there is no band inside the steel that holds both. The leg is open at
+         the top; the dimension goes there. */
+      hnarrow(0, t2b, h, t2b, true);         // the b leg, over the top
+      radLead(t2b + lr1 * K, t1a + lr1 * K, lr1, 1, 1);                 // heel root
+      radLead(w - lr2 * K, t1a - lr2 * K, lr2, 1, 1);                   // a-leg toe
+    }
+    return { dims: dims, narrow: narrow, leads: leads };
+  }
+  /* How much room the section's right-hand annotation needs beyond its own
+     width: the dimension line, one stack past it for the carried web number,
+     and the number itself. */
+  // the run of text a note sits on: as long as the number and no longer. The
+  // old floor of D.base put a 10mm shoulder under a two-digit thickness and is
+  // most of why the lines read long on a section drawn at 1:10.
+  function noteRun(s, D) { return dxfTextWidth(s, D.text.dim) + D.textGap * 2; }
+  function sectPadRight(sp, w, h, D) {
+    var sc = sectCallouts(sp, w, h);
+    if (!sc.dims.length && !sc.narrow.length) return 0;
+    var pad = 0, base = D.origin + D.base, k = Math.SQRT1_2;
+    sc.dims.forEach(function (dm) {                    // number beside the line
+      pad = Math.max(pad, base + D.arrow / 2 + D.textGap * 2
+                        + dxfTextWidth(dm.txt, D.text.dim));
+    });
+    sc.narrow.forEach(function (nd) {                  // number carried out on it
+      pad = Math.max(pad, nd.x1 + D.leadRun + noteRun(nd.txt, D) - w);
+    });
+    // and the radius leaders, which also run out to the right
+    sc.leads.forEach(function (c) {
+      if (c.dx < 0) return;
+      pad = Math.max(pad, c.u + D.leadRun * (1 + c.step * 0.9) * k
+                        + noteRun(c.txt, D) - w);
+    });
+    return pad;
+  }
+  // and above it, for the shapes whose thin part is dimensioned over the top
+  function sectPadTop(sp, w, h, D) {
+    var lifted = sectCallouts(sp, w, h).narrow.some(function (nd) { return nd.up; });
+    return lifted ? D.origin + D.base + D.textGap + D.text.dim * 1.2 : 0;
+  }
+
+  /* opts says which of the three blocks to draw and at what scale:
+       { part:{on,scale}, module:{on,scale}, assembly:{on,scale} }
+     A bare number still works and means all three at that one scale - the
+     public API took a scale before this, and the sync copy of the site may
+     still be calling it that way. */
+  function buildDXF(list, opts) {
+    if (typeof opts === 'number' || typeof opts === 'string') {
+      var one = Number(opts);
+      opts = { part:     { on: true, scale: one },
+               module:   { on: true, scale: one },
+               assembly: { on: true, scale: one } };
+    }
+    opts = opts || {};
+    // D is the live style, reassigned as each block starts - every drawing
+    // helper reads it at call time, so a block's scale reaches all of them
+    var D = dimStyle(1);
+    var R = [];
+    function g(code, v) { R.push(String(code), String(v)); }
+    function gs(arr) { for (var i = 0; i < arr.length; i += 2) g(arr[i], arr[i + 1]); }
+
+    var ents = [];
+    /* The entity forms are the ones bim_dxf.js already writes and the site
+       already ships: layer, then the points, and no Z on a flat drawing. */
+    function entHead(type, layer) { return ['0', type, '8', layer]; }
+    function line(layer, a, b, buf) {
+      (buf || ents).push(entHead('LINE', layer).concat(
+        ['10', dxfNum(a[0]), '20', dxfNum(a[1]),
+         '11', dxfNum(b[0]), '21', dxfNum(b[1])]));
+    }
+    // rot is degrees anticlockwise - DXF group 50, which is how a dimension
+    // number comes to lie along its own dimension line instead of across it
+    function text(layer, at, hgt, s, centre, rot, buf) {
+      var body = ['10', dxfNum(at[0]), '20', dxfNum(at[1]),
+                  '40', dxfNum(hgt), '1', dxfText(s), '7', DXF_STYLE];
+      if (rot) body = body.concat(['50', dxfNum(rot)]);
+      if (centre) body = body.concat(['72', '1',
+                                      '11', dxfNum(at[0]), '21', dxfNum(at[1])]);
+      (buf || ents).push(entHead('TEXT', layer).concat(body));
+    }
+    function circle(layer, c, r, buf) {
+      (buf || ents).push(entHead('CIRCLE', layer).concat(
+        ['10', dxfNum(c[0]), '20', dxfNum(c[1]), '40', dxfNum(r)]));
+    }
+    /* The arrowhead: a round filled dot. R12 has no filled circle, so it is a
+       fan of SOLID triangles with a CIRCLE laid over the top to keep the rim
+       clean at any zoom. A SOLID's corners go 1-2-4-3, not round the shape -
+       repeating the third point is what makes it a triangle rather than a
+       bowtie. Twelve segments is smooth at 1.1mm and costs 12 entities. */
+    function dot(layer, c, r, buf) {
+      var n = 12, prev = null, i, a, p;
+      for (i = 0; i <= n; i++) {
+        a = i * 2 * Math.PI / n;
+        p = [c[0] + r * Math.cos(a), c[1] + r * Math.sin(a)];
+        if (prev) (buf || ents).push(entHead('SOLID', layer).concat(
+          ['10', dxfNum(c[0]), '20', dxfNum(c[1]),
+           '11', dxfNum(prev[0]), '21', dxfNum(prev[1]),
+           '12', dxfNum(p[0]), '22', dxfNum(p[1]),
+           '13', dxfNum(p[0]), '23', dxfNum(p[1])]));
+        prev = p;
+      }
+      circle(layer, c, r, buf);
+    }
+    /* A leader's arrowhead: a filled triangle whose tip is on the thing being
+       pointed at and whose tail runs back up the leader. A dot is the right
+       mark on a dimension - it says "the measurement ends here" - but a leader
+       is pointing at something, and pointing wants a point. Length is the
+       registered leadArrow; the base is a third of that, the usual 3:1.
+       SOLID corners go 1-2-4-3, so repeating the third point makes a triangle
+       and not a bowtie. */
+    function arrowHead(layer, tip, ux, uy, buf) {
+      var L = D.leadArrow, hw = L / 3 / 2;
+      var bx = tip[0] - ux * L, by = tip[1] - uy * L;      // centre of the base
+      var px = -uy * hw, py = ux * hw;                     // across the base
+      (buf || ents).push(entHead('SOLID', layer).concat(
+        ['10', dxfNum(tip[0]), '20', dxfNum(tip[1]),
+         '11', dxfNum(bx + px), '21', dxfNum(by + py),
+         '12', dxfNum(bx - px), '22', dxfNum(by - py),
+         '13', dxfNum(bx - px), '23', dxfNum(by - py)]));
+    }
+    /* A note on a leader: the arrow sits on the thing, the leg leaves it at 45
+       degrees, then it turns horizontal for a shoulder the text sits on - the
+       shoulder is as long as the text needs, so the text never overhangs it.
+       Every length here is the note's own size - leadRun and the text - and
+       none of it is the part's. Running the leg out until the shoulder left the
+       steel, which is what it used to do, made the leader as long as the plate
+       was wide: a 900mm plate with a hole in the middle got half a metre of
+       leader to say D130. A number sitting on blank steel beside its hole is
+       normal drafting and reads better. */
+    function leaderAt(p0, s, dirX, dirY, step) {
+      var TH = D.text.dim, TG = D.textGap, k = Math.SQRT1_2;
+      var sx = dirX < 0 ? -1 : 1, sy = dirY < 0 ? -1 : 1;
+      // each further call in the same direction runs out a step longer, so two
+      // call-outs land on their own shoulders instead of on each other
+      var run = D.leadRun * (1 + (step || 0) * 0.9);
+      var p1 = [p0[0] + run * k * sx, p0[1] + run * k * sy];
+      var sh = noteRun(s, D);
+      var p2 = [p1[0] + sh * sx, p1[1]];
+      // the leg starts at the back of the arrowhead, not under it
+      var a0 = [p0[0] + D.leadArrow * k * sx, p0[1] + D.leadArrow * k * sy];
+      line('PL3D-DIM', a0, p1);
+      line('PL3D-DIM', p1, p2);
+      arrowHead('PL3D-DIM', p0, -k * sx, -k * sy);
+      text('PL3D-DIM', [(p1[0] + p2[0]) / 2, p1[1] + TG], TH, s, true, 0);
+    }
+    /* A diameter, called out on a leader rather than measured across. A circle
+       has no meaningful width and height, and two linear dimensions on one say
+       nothing a single D does not.
+       The dimension line runs through the centre and terminates on the rim at
+       both ends, arrows pointing out - which is what makes it read as a
+       diameter rather than as a note that happens to touch a circle. It then
+       carries on past the near rim to a shoulder for the number, because the
+       circles here are far too small to letter across.
+       An arc gets exactly this: the arrow on the side a CUT took away lands in
+       air, and that is still where that circle's rim would be. */
+    function leaderDia(c, r, dia, dirX, dirY, step) {
+      var k = Math.SQRT1_2, TH = D.text.dim, TG = D.textGap;
+      var sx = dirX < 0 ? -1 : 1, sy = dirY < 0 ? -1 : 1;
+      var far  = [c[0] - r * k * sx, c[1] - r * k * sy];
+      var near = [c[0] + r * k * sx, c[1] + r * k * sy];
+      var s = 'D' + rnd(dia * 2);
+      var run = D.leadRun * (1 + (step || 0) * 0.9);
+      var p1 = [near[0] + run * k * sx, near[1] + run * k * sy];
+      var sh = noteRun(s, D);
+      var p2 = [p1[0] + sh * sx, p1[1]];
+      line('PL3D-DIM', far, p1);           // through the centre and on out
+      line('PL3D-DIM', p1, p2);
+      arrowHead('PL3D-DIM', far, -k * sx, -k * sy);
+      arrowHead('PL3D-DIM', near, k * sx, k * sy);
+      text('PL3D-DIM', [(p1[0] + p2[0]) / 2, p1[1] + TG], TH, s, true, 0);
+    }
+
+    /* A linear dimension, drawn: two extension lines, the dimension line, a dot
+       at each end, and the measurement lying along the line. Not a DIMENSION
+       entity - see the note at the top of this module.
+
+       Every length is a registered DIMSTYLE value multiplied by the scale, and
+       nothing here is a number of my own:
+
+         D.base     how far off the measured edge the dimension line sits
+         D.stack    the step when dimensions are stacked one past another
+         D.origin   the gap the extension line leaves at the measured point
+         D.extend   how far the extension line runs past the dimension line
+         D.arrow    the dot
+         D.textGap  text to dimension line
+         D.text.dim the number's height
+
+       The dimension line stands off by D.origin + D.base, not D.base alone.
+       A and B are consecutive bands on the style dialog's preview, not two
+       measurements of the same distance: A is the gap the extension line leaves
+       at the measured point, B is the run of extension line past it. Both are
+       10, so treating B as the distance from the object put the dimension line
+       exactly where the extension line starts and the extension line came out
+       0.5 long - the plate floating with nothing joining it to its dimension.
+
+       `level` is which stacked line this is, counting from the object out:
+       level 0 sits origin + base away, level 1 a further D.stack, and so on.
+       `side` is which way that offset goes: -1 (the default) puts the line left
+       of a vertical dimension and below a horizontal one, +1 the other way. */
+    // extension line: starts D.origin clear of the measured point, finishes
+    // D.extend past the dimension line
+    function extLine(p, q) {
+      var dx = q[0] - p[0], dy = q[1] - p[1], L = Math.hypot(dx, dy);
+      if (L < 1e-9) return;
+      var ux = dx / L, uy = dy / L;
+      line('PL3D-DIM', [p[0] + ux * D.origin, p[1] + uy * D.origin],
+           [q[0] + ux * D.extend, q[1] + uy * D.extend]);
+    }
+    function dimLinear(p1, p2, at, vertical, level, side) {
+      var A = D.arrow, TG = D.textGap, TH = D.text.dim;
+      var v = vertical, sd = side > 0 ? 1 : -1;
+      var val = Math.abs(v ? p2[1] - p1[1] : p2[0] - p1[0]);
+      if (!(val > 1e-9)) return;
+      // `at` is the edge being dimensioned; the line stands off it by the style
+      var off = at + sd * (D.origin + D.base + D.stack * (level || 0));
+      var q1 = v ? [off, p1[1]] : [p1[0], off];
+      var q2 = v ? [off, p2[1]] : [p2[0], off];
+      extLine(p1, q1);
+      extLine(p2, q2);
+      line('PL3D-DIM', q1, q2);
+      dot('PL3D-DIM', q1, A / 2);
+      dot('PL3D-DIM', q2, A / 2);
+      /* The number reads along its own dimension line: upright on a horizontal
+         one, turned 90 degrees on a vertical one. Rotated text grows away from
+         its baseline in the direction 90 degrees further round, so on a vertical
+         dimension the baseline sits TG to the left of the line and the glyphs
+         fill the space beyond it - the same clearance as the horizontal case. */
+      var mid = [(q1[0] + q2[0]) / 2, (q1[1] + q2[1]) / 2];
+      var tp = v ? [mid[0] - TG, mid[1]] : [mid[0], mid[1] + TG];
+      text('PL3D-DIM', tp, TH, String(Math.round(val)), true, v ? 90 : 0);
+    }
+
+    /* A thickness dimension where the thing measured is thinner than the
+       number measuring it - a web, a flange, at any scale a section is drawn
+       at. These stay dimensions and keep the dot: a thickness is measured, not
+       noted, and only a note gets a leader's arrow. What changes is where the
+       number goes, because it will not fit between its own two dots.
+
+       Vertical - a flange. Extension lines out to the right as usual, the
+       dimension line run a little past both dots, and the number stood beside
+       it rather than laid along it. This is the t2 of a section table.
+       Falls through to the ordinary dimension when the span is deep enough to
+       hold the text, which it is at 1:1 and never is at 1:10. */
+    function dimThinV(p1, p2, at, s) {
+      var TH = D.text.dim, TG = D.textGap, A = D.arrow;
+      var y0 = Math.min(p1[1], p2[1]), y1 = Math.max(p1[1], p2[1]);
+      if (!(y1 - y0 > 1e-9)) return;
+      if (y1 - y0 > TH * 1.8) { dimLinear(p1, p2, at, true, 0, 1); return; }
+      var off = at + D.origin + D.base, tail = A * 2;
+      extLine([p1[0], y0], [off, y0]);
+      extLine([p1[0], y1], [off, y1]);
+      line('PL3D-DIM', [off, y0 - tail], [off, y1 + tail]);
+      dot('PL3D-DIM', [off, y0], A / 2);
+      dot('PL3D-DIM', [off, y1], A / 2);
+      // clear of the dot, not just of the line the dot sits on
+      text('PL3D-DIM', [off + A / 2 + TG * 2, (y0 + y1) / 2 - TH / 2], TH, s, false, 0);
+    }
+    /* Horizontal - a web. There is nothing to run an extension line to, so the
+       dimension line is the web's own centreline: dots on the two faces, and
+       the number carried straight out of the section on the same line.
+       `textFrom` is where that carried number starts. */
+    function dimNarrow(x0, x1, y, textFrom, s, up) {
+      var TH = D.text.dim, TG = D.textGap, A = D.arrow;
+      var lo = Math.min(x0, x1), hi = Math.max(x0, x1);
+      if (!(hi - lo > 1e-9)) return;
+      var sh = noteRun(s, D);
+      var ly = y;
+      if (up) {                               // lifted clear on extension lines
+        ly = y + D.origin + D.base;
+        extLine([lo, y], [lo, ly]);
+        extLine([hi, y], [hi, ly]);
+      }
+      var tail = A * 2;                       // the stub past the near dot
+      line('PL3D-DIM', [lo - tail, ly], [textFrom + sh, ly]);
+      dot('PL3D-DIM', [lo, ly], A / 2);
+      dot('PL3D-DIM', [hi, ly], A / 2);
+      text('PL3D-DIM', [textFrom + sh / 2, ly + TG], TH, s, true, 0);
+    }
+
+    /* ---- the drawing, in up to three blocks ---- */
+    /* Each block is drawn at its own scale, so a 63m assembly and a 300mm
+       gusset can each be annotated at a size that reads. The steel stays 1:1 in
+       millimetres throughout - only the annotation changes size - so the blocks
+       sit in one coordinate system and a viewport plotted at each block's scale
+       comes out right. */
+    // cursorY walks down the sheet in model mm; sheetW is the widest block so
+    // far measured **on paper**, which is the only width comparable between
+    // blocks drawn at different scales
+    var cursorY = 0, sheetW = 0;
+
+    function gap() { return D.base * 2.5; }     // 25mm on the sheet, at this block's scale
+
+    // six views of one set of members, laid out 3 x 2, drawn from (x0, yTop)
+    // downward. Returns how much room it took.
+    function viewGrid(members, x0, yTop) {
+      var vs = DXF_VIEWS.map(function (vw) {
+        var segs = [];
+        members.forEach(function (it) { dxfMemberEdges(it, vw, segs); });
+        segs = dxfDedupe(segs);
+        return { key: vw.key, segs: segs, box: segsBox(segs) };
+      });
+      var G = gap();
+      var colW = [0, 0, 0], rowH = [0, 0];
+      vs.forEach(function (v, i) {
+        var c = i % 3, r = Math.floor(i / 3);
+        colW[c] = Math.max(colW[c], v.box.x1 - v.box.x0);
+        rowH[r] = Math.max(rowH[r], v.box.y1 - v.box.y0);
+      });
+      var colX = [x0 + G, 0, 0];
+      colX[1] = colX[0] + colW[0] + G * 2;
+      colX[2] = colX[1] + colW[1] + G * 2;
+      /* Each row carries its view names above it, so the row hangs that much
+         further down. Leaving it out is how ASSEMBLY 1:20 and FRONT VIEW came
+         to be written on the same line. */
+      var band = D.base + D.text.section * 1.4;
+      // rows are laid out downward from yTop, each row hanging by its own height
+      var rowY = [yTop - band - rowH[0], 0];
+      rowY[1] = rowY[0] - rowH[1] - band - G * 1.5;
+      vs.forEach(function (v, i) {
+        var ox = colX[i % 3], oy = rowY[Math.floor(i / 3)];
+        var w = v.box.x1 - v.box.x0, h = v.box.y1 - v.box.y0;
+        v.segs.forEach(function (sg) {
+          line('PL3D-OUTLINE', [sg[0][0] - v.box.x0 + ox, sg[0][1] - v.box.y0 + oy],
+               [sg[1][0] - v.box.x0 + ox, sg[1][1] - v.box.y0 + oy]);
+        });
+        text('PL3D-TITLE', [ox + w / 2, oy + h + D.base], D.text.section,
+             v.key + ' VIEW', true, 0);
+        if (w > 0) dimLinear([ox, oy], [ox + w, oy], oy, false, 0);
+        if (h > 0) dimLinear([ox, oy], [ox, oy + h], ox, true, 0);
+      });
+      return { w: colX[2] + colW[2] - x0, h: yTop - (rowY[1] - G * 2) };
+    }
+
+    /* The distinct parts, shelf-packed. A 9m section and a 100mm gusset in one
+       grid would both get a 9m cell, so rows fill until the budget runs out and
+       each row is as tall as its tallest part. A cell is as wide as the part OR
+       its label rule, whichever is wider. */
+    function partShelf(parts, x0, yTop, budget) {
+      var G = gap();
+      /* What hangs off a part, worked out before anything is placed. The
+         leaders run up and to the right, so a shelf needs headroom above it or
+         a D22 lands on the block title; the name, its rule and the count hang
+         below, so it needs room under it too. Both are the same for every part
+         at this scale, so they are bands, not per-part measurements. */
+      var most = 0, lift = 0;
+      parts.forEach(function (p) {
+        most = Math.max(most, leadCount(p));
+        lift = Math.max(lift, partPadTop(p, D));
+      });
+      var topBand = Math.max(lift, most > 0
+        ? D.leadRun * (1 + (most - 1) * 0.9) * Math.SQRT1_2
+          + D.textGap + D.text.dim * 1.2
+        : 0);
+      var lowBand = D.origin + D.base + D.text.dim
+                  + D.text.member * 1.9 + D.text.note * 1.5;
+      var px = x0 + G, py = yTop - topBand, shelf = 0, wide = 0;
+      parts.forEach(function (p) {
+        var w = p.box.x1 - p.box.x0, h = p.box.y1 - p.box.y0;
+        var nameStr = p.it.plateId.toUpperCase() + ', ' + p.it.dims;
+        var rule = Math.max(D.markLen, dxfTextWidth(nameStr, D.text.member));
+        // a section's thickness dimensions stand off its right-hand side, so
+        // its cell is wider than its steel or the next part sits on them
+        var pad = Math.max(cutPadRight(p), p.it.spec.SHAPE === 'SECT'
+          ? sectPadRight(p.it.spec, w, h, D) : 0);
+        var cell = Math.max(w + pad, rule);
+        if (px > x0 + G && px + cell > x0 + budget) {
+          py -= shelf + lowBand + topBand + G * 1.5;
+          px = x0 + G;
+          shelf = 0;
+        }
+        // hangs down from the shelf line, never up: a tall part would otherwise
+        // grow through whatever is above it. The pad is all on the right, so
+        // the steel is centred in what is left.
+        var ox = px + (cell - w - pad) / 2, oy = py - h;
+        var mid = px + cell / 2;
+        px += cell + G * 2.5;
+        wide = Math.max(wide, px - x0);
+        shelf = Math.max(shelf, h);
+        p.segs.forEach(function (sg) {
+          line('PL3D-OUTLINE', [sg[0][0] - p.box.x0 + ox, sg[0][1] - p.box.y0 + oy],
+               [sg[1][0] - p.box.x0 + ox, sg[1][1] - p.box.y0 + oy]);
+        });
+
+        // a round part gets a diameter, not a width and a height
+        var lead = 0;
+        var outerC = partCircle(p);
+        if (outerC) {
+          leaderDia([ox + w / 2, oy + h / 2], outerC.r, outerC.r, 1, 1, lead++);
+        } else {
+          /* Width is the edge that is actually there, not the box round it. On
+             a trapezoid the two parallel sides are different lengths and both
+             are wanted; below the part goes the bottom edge, above it the top,
+             and a rectangle - whose two agree - still says it once. */
+          var top = topEdgeDim(p);
+          var bot = p.it.spec.SHAPE === 'SECT' ? null : edgeSpan(p, p.box.y0);
+          if (bot) dimLinear([ox + bot[0] - p.box.x0, oy],
+                             [ox + bot[1] - p.box.x0, oy], oy, false, 0);
+          else if (!top && w > 0) dimLinear([ox, oy], [ox + w, oy], oy, false, 0);
+          if (top) dimLinear([ox + top[0] - p.box.x0, oy + h],
+                             [ox + top[1] - p.box.x0, oy + h], oy + h, false, 0, 1);
+          if (h > 0) dimLinear([ox, oy], [ox, oy + h], ox, true, 0);
+        }
+
+        var cf = cutFeatures(p);
+        var CX = function (x) { return x - p.box.x0 + ox; };
+        var CY = function (y) { return y - p.box.y0 + oy; };
+        // one call-out per distinct round cut, from the one furthest up-right
+        cf.round.forEach(function (hc) {
+          leaderDia([CX(hc.c[0]), CY(hc.c[1])], hc.r, hc.r, 1, 1, lead++);
+        });
+        /* The rest of the CUTs, dimensioned by the same rules as the outline
+           but with A and B at the inside offsets - a dimension line standing
+           20mm clear on paper is right in the margin round a part and is most
+           of a small plate's interior. D is swapped for the inside style and
+           put back: every helper reads it when it is called, so the two kinds
+           of dimension come out of one piece of code. */
+        var Dout = D;
+        D = dimStyleInner(D);
+        cf.poly.forEach(function (c) {
+          var b = c.bot || [c.x0, c.x1];
+          dimLinear([CX(b[0]), CY(c.y0)], [CX(b[1]), CY(c.y0)], CY(c.y0), false, 0);
+          if (c.showTop)
+            dimLinear([CX(c.top[0]), CY(c.y1)], [CX(c.top[1]), CY(c.y1)],
+                      CY(c.y1), false, 0, 1);
+          dimLinear([CX(c.x0), CY(c.y0)], [CX(c.x0), CY(c.y1)], CX(c.x0), true, 0);
+        });
+        D = Dout;
+        if (p.it.spec.SHAPE === 'SECT') {
+          var sc = sectCallouts(p.it.spec, w, h);
+          // flange thicknesses: dimensioned off the tip, line to the right
+          sc.dims.forEach(function (dm) {
+            dimThinV([ox + dm.x, oy + dm.y0], [ox + dm.x, oy + dm.y1],
+                     ox + w, dm.txt);
+          });
+          /* The web: too thin to letter across, so its number is carried out on
+             its own dimension line - out of the web, not out of the section.
+             Measuring that from the section's right-hand edge is what made the
+             line on an H-700 twice as long as the flange is wide. */
+          sc.narrow.forEach(function (nd) {
+            dimNarrow(ox + nd.x0, ox + nd.x1, oy + nd.y,
+                      ox + nd.x1 + D.leadRun, nd.txt, nd.up);
+          });
+          // steps are counted per direction and come with the call-out
+          sc.leads.forEach(function (c) {
+            leaderAt([ox + c.u, oy + c.v], c.txt, c.dx, c.dy, c.step);
+          });
+        }
+
+        var lblY = oy - D.origin - D.base - D.text.dim - D.text.member * 1.4;
+        text('PL3D-TEXT', [mid, lblY], D.text.member, nameStr, true, 0);
+        var ruleY = lblY - D.text.member * 0.5;
+        line('PL3D-DIM', [mid - rule / 2, ruleY], [mid + rule / 2, ruleY]);
+        text('PL3D-TEXT', [mid, ruleY - D.text.note * 1.3], D.text.note,
+             p.n + 'EA', true, 0);
+      });
+      return { w: wide, h: yTop - (py - shelf - lowBand - G) };
+    }
+
+    function blockTitle(s2, y) {
+      text('PL3D-TITLE', [gap(), y], D.text.heading, s2, false, 0);
+      return D.text.heading * 2.2;
+    }
+
+    // ---- 1. the assembly, as six views ----
+    if (opts.assembly && opts.assembly.on) {
+      D = dimStyle(opts.assembly.scale);
+      cursorY -= blockTitle('ASSEMBLY  1:' + opts.assembly.scale, cursorY);
+      var a = viewGrid(list, 0, cursorY);
+      cursorY -= a.h + gap() * 4;
+      sheetW = Math.max(sheetW, a.w / D.scale);
+    }
+
+    // ---- 2. each module, as six views of its own ----
+    if (opts.module && opts.module.on) {
+      D = dimStyle(opts.module.scale);
+      cursorY -= blockTitle('MODULES  1:' + opts.module.scale, cursorY);
+      Object.keys(lastParts).forEach(function (id) {
+        var mem = moduleItems(id);
+        if (!mem.length) return;
+        cursorY -= blockTitle(id.toUpperCase(), cursorY);
+        var m = viewGrid(mem, 0, cursorY);
+        cursorY -= m.h + gap() * 3;
+        sheetW = Math.max(sheetW, m.w / D.scale);
+      });
+      cursorY -= gap() * 2;
+    }
+
+    // ---- 3. the parts, one standard section each ----
+    if (opts.part && opts.part.on) {
+      D = dimStyle(opts.part.scale);
+      cursorY -= blockTitle('PARTS  1:' + opts.part.scale, cursorY);
+      /* Round bars are left out. A bar is a length of stock, not a part to be
+         cut to a shape, and a circle with a diameter beside it tells a
+         fabricator nothing the take-off does not. Sections stay - they carry a
+         profile worth drawing. */
+      var parts = dxfParts(list.filter(function (it) {
+        return !(it.spec.__bar && !it.spec.__sect);
+      })).map(function (p) {
+        var segs = [];
+        p.it.rings.outers.forEach(function (o, i) {
+          for (var k = 0; k < o.length; k++) segs.push([o[k], o[(k + 1) % o.length]]);
+          (p.it.rings.holes[i] || []).forEach(function (hole) {
+            for (var jj = 0; jj < hole.length; jj++)
+              segs.push([hole[jj], hole[(jj + 1) % hole.length]]);
+          });
+        });
+        p.segs = segs;
+        p.box = segsBox(segs);
+        return p;
+      });
+      /* The shelf wraps at the width of the widest block above it - but that
+         width has to be compared on paper, not in the model. The blocks are at
+         different scales, so 200m of tower at 1:100 is 2m of paper while the
+         same 200m of parts at 1:10 is twenty. Taking the model width straight
+         across put every part of the tower on one 200m row. */
+      var budget = (sheetW > 0 ? sheetW : DXF_SHEET_W) * D.scale;
+      var pr = partShelf(parts, 0, cursorY, budget);
+      cursorY -= pr.h;
+      sheetW = Math.max(sheetW, pr.w / D.scale);
+    }
+
+    /* ---- assemble the file ---- */
+    /* The file, in the shape bim_dxf.js writes and the site's other tools have
+       been shipping: AC1009, one header variable, the LTYPE and LAYER tables,
+       the entities. Nothing else. Everything I had added beyond that - VPORT,
+       STYLE, VIEW, UCS, APPID, DIMSTYLE, BLOCKS - was written from memory and
+       was what AutoCAD refused. */
+    g(0, 'SECTION'); g(2, 'HEADER');
+    g(9, '$ACADVER'); g(1, 'AC1009');
+    g(0, 'ENDSEC');
+
+    g(0, 'SECTION'); g(2, 'TABLES');
+    g(0, 'TABLE'); g(2, 'LTYPE'); g(70, 4);
+    gs([0, 'LTYPE', 2, 'CONTINUOUS', 70, '0', 3, 'Solid', 72, '65', 73, '0', 40, '0.0']);
+    gs([0, 'LTYPE', 2, 'CENTER', 70, '0', 3, 'Center', 72, '65', 73, '2', 40, '2.0',
+        49, '1.25', 49, '-0.25']);
+    gs([0, 'LTYPE', 2, 'HIDDEN', 70, '0', 3, 'Hidden', 72, '65', 73, '2', 40, '1.0',
+        49, '0.5', 49, '-0.5']);
+    gs([0, 'LTYPE', 2, 'PHANTOM', 70, '0', 3, 'Phantom', 72, '65', 73, '2', 40, '2.5',
+        49, '1.25', 49, '-0.25']);
+    g(0, 'ENDTAB');
+
+    g(0, 'TABLE'); g(2, 'LAYER'); g(70, DXF_LAYERS.length + 1);
+    g(0, 'LAYER'); g(2, '0'); g(70, 0); g(62, 7); g(6, 'CONTINUOUS');
+    DXF_LAYERS.forEach(function (L) {
+      g(0, 'LAYER'); g(2, L[0]); g(70, 0); g(62, L[1]); g(6, 'CONTINUOUS');
+    });
+    g(0, 'ENDTAB');
+
+    /* One more table than bim_dxf.js writes, and the only one added back so far:
+       without a STYLE record there is no way to name a font, and the default
+       stick font is what the numbers were coming out in. Ten group codes, all
+       of them documented - not the forty-odd of the VPORT record that helped
+       sink the R2000 attempt. */
+    g(0, 'TABLE'); g(2, 'STYLE'); g(70, 1);
+    g(0, 'STYLE'); g(2, DXF_STYLE); g(70, 0);
+    gs([40, '0.0',                      // fixed height, 0 = set per text entity
+        41, '1.0',                      // width factor
+        50, '0.0',                      // oblique angle
+        71, '0',                        // generation flags: not mirrored
+        42, dxfNum(D.text.dim),         // last height used
+        3, DXF_FONT,                    // the font
+        4, '']);                        // no bigfont
+    g(0, 'ENDTAB');
+    g(0, 'ENDSEC');
+
+    g(0, 'SECTION'); g(2, 'ENTITIES');
+    ents.forEach(function (e) { for (var i = 0; i < e.length; i += 2) g(e[i], e[i + 1]); });
+    g(0, 'ENDSEC');
+    g(0, 'EOF');
+
+    return R.join('\n') + '\n';
+  }
+
+  /* The File menu closes on the next click anywhere - including the item you
+     just picked, so a save does not leave the menu hanging open over the model.
+     Bound once, on the document, rather than per open. */
+  function toggleMenu(id, ev) {
+    if (ev && ev.stopPropagation) ev.stopPropagation();
+    var el = document.getElementById(id);
+    if (!el) return;
+    var was = el.classList.contains('open');
+    closeMenus();                       // only one of them open at a time
+    if (!was) el.classList.add('open');
+  }
+  function closeMenus() {
+    ['pb-fmenu', 'pb-vmenu'].forEach(function (id) {
+      var el = document.getElementById(id);
+      if (el) el.classList.remove('open');
+    });
+  }
+  function toggleFileMenu(ev) { toggleMenu('pb-fmenu', ev); }
+  function toggleViewMenu(ev) { toggleMenu('pb-vmenu', ev); }
+  function closeFileMenu() { closeMenus(); }
+
+  /* The drawing is three blocks and each is plotted at its own scale, so the
+     question is asked three times over. Remembered for the session, because
+     the second export of a sheet is nearly always the first one again with one
+     number changed. The ladder is the usual one: the whole assembly small, a
+     module bigger, a single part biggest. */
+  var dxfBlocks = {
+    assembly: { on: true, scale: 50 },
+    module:   { on: true, scale: 20 },
+    part:     { on: true, scale: 10 }
+  };
+  var DXF_BLOCK_KEYS = ['assembly', 'module', 'part'];
+  function dxfBlockRow(key, name, note) {
+    return '    <div class="blk" id="pb-sc-' + key + '-row">' +
+           '      <label class="on"><input type="checkbox" id="pb-sc-' + key + '"' +
+           '        onchange="plateBuilder.scaleRowSync()"> ' + name +
+           '        <small>' + note + '</small></label>' +
+           '      <span class="sc">1 :&nbsp;<input type="number" min="1" step="1"' +
+           '        id="pb-sc-' + key + '-v"' +
+           '        onkeydown="if(event.key===\'Enter\')plateBuilder.confirmScale();' +
+           '                   if(event.key===\'Escape\')plateBuilder.closeScaleAsk()">' +
+           '      </span></div>';
+  }
+  function saveDXF() {
+    var list = visibleItems();
+    if (!list.length) {
+      alert('Nothing to draw.\n\n' +
+            'A drawing is made from what the ASSY rows placed, so load a sheet ' +
+            'with Load Excel first — or tick at least one assembly back on.');
+      return;
+    }
+    openScaleAsk();
+  }
+  // greys out the scale of a block you are not drawing, so the dialog says
+  // what it is going to do without being read twice
+  function scaleRowSync() {
+    DXF_BLOCK_KEYS.forEach(function (k) {
+      var c = document.getElementById('pb-sc-' + k);
+      var row = document.getElementById('pb-sc-' + k + '-row');
+      var v = document.getElementById('pb-sc-' + k + '-v');
+      if (!c || !row || !v) return;
+      row.classList.toggle('off', !c.checked);
+      v.disabled = !c.checked;
+    });
+  }
+  function openScaleAsk() {
+    var el = document.getElementById('pb-scale');
+    if (!el) return;
+    el.style.display = 'flex';
+    DXF_BLOCK_KEYS.forEach(function (k) {
+      var c = document.getElementById('pb-sc-' + k);
+      var v = document.getElementById('pb-sc-' + k + '-v');
+      if (c) c.checked = !!dxfBlocks[k].on;
+      if (v) v.value = dxfBlocks[k].scale;
+    });
+    scaleRowSync();
+    var first = document.getElementById('pb-sc-assembly-v');
+    if (first) { first.focus(); first.select(); }
+  }
+  function closeScaleAsk() {
+    var el = document.getElementById('pb-scale');
+    if (el) el.style.display = 'none';
+  }
+  function confirmScale() {
+    var opts = {}, on = 0, bad = null;
+    DXF_BLOCK_KEYS.forEach(function (k) {
+      var c = document.getElementById('pb-sc-' + k);
+      var v = document.getElementById('pb-sc-' + k + '-v');
+      var s = Number(v && v.value);
+      var want = !!(c && c.checked);
+      if (want) { on++; if (!(s > 0)) bad = k; }
+      opts[k] = { on: want, scale: s > 0 ? s : dxfBlocks[k].scale };
+    });
+    if (!on) {
+      alert('Nothing ticked.\n\nPick at least one of ASSEMBLY, MODULE or PART ' +
+            'to draw — an empty drawing is a file that looks fine and is not.');
+      return;
+    }
+    if (bad) {
+      alert('The ' + bad.toUpperCase() + ' scale has to be a number greater ' +
+            'than 0 — 20 means 1:20.');
+      return;
+    }
+    dxfBlocks = opts;
+    closeScaleAsk();
+    var list = visibleItems();
+    if (!list.length) return;
+    // the name carries the scales, because two exports of one sheet differ by
+    // nothing else: plate_builder_A50-M20-P10.dxf
+    var tag = DXF_BLOCK_KEYS.filter(function (k) { return opts[k].on; })
+      .map(function (k) { return k.charAt(0).toUpperCase() + opts[k].scale; })
+      .join('-');
+    download(buildDXF(list, opts), 'plate_builder_' + tag + '.dxf');
   }
 
   /* ================= BOQ: the take-off, as a workbook =================
@@ -5156,6 +6471,7 @@
     for (var i = 0; i < btns.length; i++) {      // mark the one being looked through
       btns[i].className = 'vw' + (VIEWS[i] === v ? ' active' : '');
     }
+    closeMenus();
     // each view gets its own distance - the same model is not the same size
     // seen down its length as it is across it
     var off = viewOffset(v);
@@ -5831,12 +7147,14 @@
 
     '<h3>The menu bar</h3>',
     '<table class="gt"><thead><tr><th>control</th><th>what it does</th></tr></thead><tbody>',
+    '<tr><td><b>File</b></td><td>everything that reads or writes a file, on one menu</td></tr>',
+    '<tr><td><b>Save DXF</b></td><td>the drawing, in up to three blocks. See below</td></tr>',
     '<tr><td><b>Save STL</b></td><td>the model as a triangle mesh</td></tr>',
     '<tr><td><b>Save IFC</b></td><td>the model as real BIM solids - each part its exact profile,',
     ' holes as voids, extruded by its thickness</td></tr>',
     '<tr><td><b>Save BOQ</b></td><td>the take-off, as a workbook. See below</td></tr>',
-    '<tr><td><b>ISO / Front / Side / Top</b></td><td>standard views. The one you are looking',
-    ' through fills in</td></tr>',
+    '<tr><td><b>View</b></td><td>the standard views - <b>ISO / Front / Side / Top</b>. The one',
+    ' you are looking through fills in</td></tr>',
     '<tr><td><b>ortho</b></td><td>parallel projection - Front, Side and Top become true',
     ' elevations and plans. The framing is kept across the switch</td></tr>',
     '<tr><td><b>clash</b></td><td>draws the volume two members share, in red. Faces touching',
@@ -5859,6 +7177,36 @@
     ' highlights in the model instead of opening a drawing.</p>',
     '<p>The floor grid lies on z = 0 and its centre cross is the origin, so a grid crossing',
     ' reads a round coordinate straight off.</p>',
+
+    '<h3>Save DXF - the drawing</h3>',
+    '<p>The drawing comes out in <b>three blocks</b>, and each is plotted at its own scale.',
+    ' One scale cannot serve a 60&nbsp;m assembly and a 200&nbsp;mm gusset, so the dialog asks',
+    ' three times: tick the blocks you want and give each a scale.</p>',
+    '<table class="gt"><thead><tr><th>block</th><th>what it draws</th></tr></thead><tbody>',
+    '<tr><td><b>ASSEMBLY</b></td><td>six views - front, back, left, right, top, bottom - of',
+    ' everything the ASSY rows placed</td></tr>',
+    '<tr><td><b>MODULE</b></td><td>the same six views of each module on its own</td></tr>',
+    '<tr><td><b>PART / SECT</b></td><td>every distinct part once at its standard section,',
+    ' with how many were placed. Round <b>bars are not drawn</b> - a bar is a length of stock,',
+    ' and a circle with a diameter beside it says nothing the take-off does not</td></tr>',
+    '</tbody></table>',
+    '<p><b>The steel is written 1:1 in millimetres throughout.</b> Only the annotation changes',
+    ' size, so the three blocks share one coordinate system and a viewport plotted at each',
+    ' block&rsquo;s scale comes out right. The file is DXF R12 and the annotation is drawn -',
+    ' lines, text and filled marks - rather than left to the CAD&rsquo;s dimension style, so it',
+    ' reads the same wherever it is opened.</p>',
+    '<p>What is dimensioned, at every scale:</p>',
+    '<table class="gt"><thead><tr><th>on</th><th>what you get</th></tr></thead><tbody>',
+    '<tr><td>a plate</td><td>the bottom edge and the top edge when they differ - a trapezoid',
+    ' gives up both parallel sides - and the height</td></tr>',
+    '<tr><td>a CUT</td><td>the same, one per distinct shape, at closer offsets so the inside',
+    ' of a small plate does not fill up. A round cut gets a diameter instead: the line runs',
+    ' through the centre with an arrow on each side of it</td></tr>',
+    '<tr><td>a section</td><td>overall height and width, flange thicknesses off the flange tip,',
+    ' the web carried out of the section, and the root and toe radii on leaders</td></tr>',
+    '</tbody></table>',
+    '<p>A cut is measured at the size the sheet wrote, even where it hangs over an edge -',
+    ' only the overlap comes out of the steel, but the whole shape is what gets cut.</p>',
 
     '<h3>Save BOQ - the take-off</h3>',
     '<p>A workbook of four sheets, written from the model on screen. Weights are computed',
@@ -5981,17 +7329,34 @@
     app.id = 'pb-app';
     app.innerHTML =
       '<div id="pb-bar">' +
-      '  <button class="accent" onclick="plateBuilder.pickExcel()">&#8682; Load Excel</button>' +
-      '  <button onclick="plateBuilder.exportSTL()">Save STL</button>' +
-      '  <button onclick="plateBuilder.exportIFC()">Save IFC</button>' +
-      '  <button onclick="plateBuilder.exportBOQ()" title="quantities and weights' +
+      '  <span class="fmenu" id="pb-fmenu">' +
+      '    <button class="accent" onclick="plateBuilder.toggleFileMenu(event)">' +
+      '      File <span class="car">&#9662;</span></button>' +
+      '    <span class="drop">' +
+      '      <button onclick="plateBuilder.pickExcel()">&#8682; Load Excel&hellip;</button>' +
+      '      <i></i>' +
+      '      <button onclick="plateBuilder.exportDXF()" title="the drawing, in three blocks' +
+      ' - assembly, modules, parts - each at its own scale">Save DXF&hellip;</button>' +
+      '      <button onclick="plateBuilder.exportBOQ()" title="quantities and weights' +
       ' as a workbook">Save BOQ</button>' +
+      '      <i></i>' +
+      '      <button onclick="plateBuilder.exportSTL()" title="the model as a triangle' +
+      ' mesh">Save STL</button>' +
+      '      <button onclick="plateBuilder.exportIFC()" title="the model as BIM solids">' +
+      'Save IFC</button>' +
+      '    </span>' +
+      '  </span>' +
       '  <input type="file" id="pb-file" accept=".xlsx,.xls" style="display:none">' +
-      '  <span class="sep"></span>' +
-      '  <button class="vw active" onclick="plateBuilder.setView(\'iso\')">ISO</button>' +
-      '  <button class="vw" onclick="plateBuilder.setView(\'front\')">Front</button>' +
-      '  <button class="vw" onclick="plateBuilder.setView(\'side\')">Side</button>' +
-      '  <button class="vw" onclick="plateBuilder.setView(\'top\')">Top</button>' +
+      '  <span class="fmenu" id="pb-vmenu">' +
+      '    <button onclick="plateBuilder.toggleViewMenu(event)">' +
+      '      View <span class="car">&#9662;</span></button>' +
+      '    <span class="drop">' +
+      '      <button class="vw active" onclick="plateBuilder.setView(\'iso\')">ISO</button>' +
+      '      <button class="vw" onclick="plateBuilder.setView(\'front\')">Front</button>' +
+      '      <button class="vw" onclick="plateBuilder.setView(\'side\')">Side</button>' +
+      '      <button class="vw" onclick="plateBuilder.setView(\'top\')">Top</button>' +
+      '    </span>' +
+      '  </span>' +
       '  <span class="sep"></span>' +
       '  <label class="chk"><input type="checkbox" id="pb-ortho"' +
       '    onchange="plateBuilder.setOrtho(this.checked)"> ortho</label>' +
@@ -6036,6 +7401,21 @@
       '</div>' +
       '</div>' +
       '<div id="pb-pal"></div>' +
+      '<div id="pb-scale" onclick="if(event.target===this)plateBuilder.closeScaleAsk()">' +
+      '  <div class="box">' +
+      '    <h2>Drawing scale</h2>' +
+      '    <p>The steel is drawn 1:1 in millimetres &mdash; the scale sizes the' +
+      '      annotation. The drawing comes out in three blocks, each at its own' +
+      '      scale, so a 60m assembly and a 200mm gusset can both read. Round' +
+      '      bars are not drawn.</p>' +
+      dxfBlockRow('assembly', 'ASSEMBLY', 'six views of everything placed') +
+      dxfBlockRow('module', 'MODULE', 'six views of each module') +
+      dxfBlockRow('part', 'PART / SECT', 'one of each, with a count') +
+      '    <div class="row">' +
+      '      <button onclick="plateBuilder.closeScaleAsk()">Cancel</button>' +
+      '      <button class="accent" onclick="plateBuilder.confirmScale()">Save DXF</button>' +
+      '    </div>' +
+      '  </div></div>' +
       '<div id="pb-ex" onclick="if(event.target===this)plateBuilder.closeSamples()">' +
       '  <div class="box">' +
       '    <h2><span class="close" onclick="plateBuilder.closeSamples()"' +
@@ -6111,6 +7491,17 @@
     }
     window.addEventListener('mousedown', function (e) {
       if (palPending && !document.getElementById('pb-pal').contains(e.target)) closePalette();
+      // NOT the menus - see the click listener below. Shutting them on mousedown
+      // hides the item before mouseup lands on it, and the click event then
+      // never reaches the item at all: hold the button down for even a moment
+      // and nothing happens.
+    });
+    /* A menu shuts on the next click anywhere, its own items included - on
+       click, after the item's own handler has run, not on mousedown before it.
+       The toggle buttons stop propagation and handle themselves. */
+    window.addEventListener('click', function (e) {
+      if (e.target.closest && e.target.closest('#pb-fmenu > button, #pb-vmenu > button')) return;
+      closeMenus();
     });
     // The example window covers the viewport, so its own backdrop click closes
     // it; Escape is the other way out people reach for.
@@ -6370,6 +7761,41 @@
       mainAspect = cw / ch;
       applyMainCam();
       renderer.setSize(cw, ch);
+      /* The list panel matches the view. It is a flex item, so by default it
+         stretched to the full body height while the 16:9 view sat centred and
+         shorter - two boxes of different heights side by side, and the panel
+         scrolling because it thought it had more room than it was showing. */
+      var sd = document.getElementById('pb-side');
+      if (sd) sd.style.height = ch + 'px';
+      tellHost();
+    }
+    /* How tall this page needs to be, told to whoever framed it. In an iframe
+       the height is a guess made outside - the macroBIM layout reserved a
+       constant for whatever sits above the frame - and a guess that is a few
+       pixels short scrolls the host page while one that is long leaves white
+       under the drawing. Neither is reachable from inside a fixed-height frame.
+
+       The number is worked out from the WIDTH alone and never from the height
+       the view currently has. Asking for the current height looks equivalent
+       and is not: fitRenderer floors the view's height, the frame comes back
+       that little bit shorter, the next pass floors a slightly smaller number,
+       and the frame walks itself down to nothing. It did exactly that. Width
+       does not depend on the answer, so there is no loop to walk. */
+    var toldHost = 0;
+    function tellHost() {
+      if (window.parent === window) return;
+      var bar = document.getElementById('pb-bar');
+      var bd = document.getElementById('pb-body');
+      if (!bar || !bd) return;
+      var bcs = getComputedStyle(bd);
+      var availW = wrap.clientWidth - wpx;
+      if (!(availW > 0)) return;
+      var need = Math.ceil(bar.offsetTop + bar.offsetHeight +
+                           parseFloat(bcs.paddingTop) + parseFloat(bcs.paddingBottom) +
+                           availW * 9 / 16);
+      if (!(need > 0) || Math.abs(need - toldHost) < 2) return;
+      toldHost = need;
+      try { window.parent.postMessage({ plate3d: 'height', h: need }, '*'); } catch (e) {}
     }
     fitRenderer();
     if (onResize) window.removeEventListener('resize', onResize);
@@ -6705,7 +8131,13 @@
     setClash: setClash, setClashPv: setClashPv,
     openGuide: openGuide, closeGuide: closeGuide,
     openSamples: openSamples, closeSamples: closeSamples, getSample: getSample,
-    toggleMemberAxis: toggleMemberAxis
+    toggleMemberAxis: toggleMemberAxis,
+    toggleFileMenu: toggleFileMenu, toggleViewMenu: toggleViewMenu,
+    closeFileMenu: closeMenus,
+    exportDXF: saveDXF, closeScaleAsk: closeScaleAsk, confirmScale: confirmScale,
+    scaleRowSync: scaleRowSync,
+    // the annotation style, at scale 1 and at any scale - see DIMSTYLE.md
+    dimStyleBase: DIMSTYLE, dimStyle: dimStyle, buildDXF: buildDXF
   };
 
   /* ---- auto-run: use window.PLATE_DATA if present, else empty default.
