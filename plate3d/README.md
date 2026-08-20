@@ -70,7 +70,19 @@
 ```bash
 cp plate3d/plate_builder_test.js plate3d/plate_builder.js   # 엔진 복사
 # plate3d/embed.html 의 ?v= 를 올리고, design/layout_body.js 의 ?v= 도 같이 올린다
+# design/layout_body.js 의 ensurePlate3d() 가 테스트본과 다르면 그 함수만 옮긴다
 ```
+
+> **`layout_body.js` 는 통째로 복사하면 안 된다.** 테스트본에는 운영이 일부러 빼 놓은
+> Dashboard·PSCBOX 같은 페이지가 들어 있다 — 두 파일은 PLATE3D 사본이 아니라 각자
+> 다른 사이트 레이아웃이다. **`ensurePlate3d()` 그 함수만** 옮긴다.
+>
+> 실제로 한 번 놓쳤다. 엔진과 `?v=` 만 올리고 이 함수를 두고 갔더니 운영 페이지가
+> 프레임 높이를 옛 상수 `calc(100vh - 120px)` 로 잡은 채 남았고, 그 상수는 프레임
+> 위쪽 여백을 108px 로 **추정**한 값이라 실제 사이트(≈145px)에서는 25px 넘쳐
+> **페이지가 스크롤되고 도면 아래로 빈 칸이 남았다.** 높이를 실측으로 잡는
+> postMessage 핸드셰이크가 바로 이 추정을 없애려고 들어간 것인데, 정작 운영에는
+> 오지 않았던 것이다.
 
 `embed_test.html` 은 **오른쪽 아래에 빨간 `TEST BUILD` 배지**를 띄운다 — 어느 쪽을 보고 있는지
 헷갈릴 일이 없도록. embed 두 개는 이 배지와 로드하는 엔진 파일 이름만 다르다.
