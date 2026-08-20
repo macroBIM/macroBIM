@@ -693,6 +693,7 @@
   var camPersp = null, camOrtho = null, orthoView = false;
   var MAIN_FOV = 40, mainAspect = 1.6;
   var lastPlates = {}, lastCuts = [], lastColors = {}, lastParts = {};  // for preview modals
+  var lastViews = [];                   // VIEW rows, read by Save DXF
   var shapeLib = {};        // HOLE definitions - cut shapes, never members
   /* ---- the example workbook ----
      It sits next to this file, so the button works from wherever the engine was
@@ -982,7 +983,9 @@
              (numbered ? (n < 1000 ? ('000' + n).slice(-3) : String(n)) : '');
     }
     var palias = PLANE_ALIAS, yup = false;   // switched by a COORD row
-    var counts = { plate: 0, hole: 0, bar: 0, sect: 0, cut: 0, module: 0, assy: 0 };
+    var counts = { plate: 0, hole: 0, bar: 0, sect: 0, cut: 0, module: 0, assy: 0,
+                   view: 0 };
+    var views = [];                      // VIEW rows: drawings the sheet asked for
     var current = null, currentPart = null, counter = {};
     // Two severities. warn() is a row the parser could not honour - skipped, or
     // a name that did not resolve - so what lands on screen is not what the
@@ -1329,6 +1332,25 @@
           'parameter less than RECT, so dx/dy/repeat shift one column left)');
         cuts.push(c);
         counts.cut++;
+      } else if (kw === 'VIEW') {         // VIEW <module> <direction> [title]
+        /* A drawing the sheet asks for by name: which module, seen from where,
+           and what to call it. All three are content - the person who knows
+           them is whoever wrote the workbook, not whoever presses Save DXF.
+           The scale is not among them. A scale is a property of the paper
+           rather than of the model, which is why the dialog asks for it, the
+           same as it does for the other three blocks. */
+        var vmod = str(v[0]).toUpperCase(), vdir = str(v[1]).toUpperCase();
+        var vttl = str(v[2]);
+        if (!vmod) { warn('row ' + (r + 1) + ': VIEW without a module'); continue; }
+        if (!DXF_VIEW_KEY[vdir]) {
+          warn('row ' + (r + 1) + ': VIEW ' + vmod + ' — unknown direction "' +
+               (str(v[1]) || '(blank)') + '" (use ' +
+               DXF_VIEWS.map(function (x) { return x.key; }).join(' / ') + ')');
+          continue;
+        }
+        views.push({ MODULE: vmod, DIR: vdir,
+                     TITLE: vttl || (vmod + ' ' + vdir), ROW: r + 1 });
+        counts.view++;
       } else if (kw === 'COORD') {        // COORD ZUP (default) | YUP — frame the sheet is written in
         yup = str(v[0]).toUpperCase() === 'YUP';
         palias = yup ? PLANE_ALIAS_YUP : PLANE_ALIAS;
@@ -1598,8 +1620,19 @@
         warn('MODULE ' + id + ': BASE instance ' + parts[id].base.inst +
              ' not found among its members — falling back to the local origin (0,0,0)');
     });
+    /* VIEW rows may sit above the MODULE rows they name, so the module is
+       looked for once the whole sheet has been read rather than as the row
+       goes by. A view of nothing is dropped: better no drawing than an empty
+       frame with a title over it. */
+    views = views.filter(function (vw) {
+      if (parts[vw.MODULE]) return true;
+      warn('row ' + vw.ROW + ': VIEW names module ' + vw.MODULE +
+           ', which the sheet never defines — no drawing is made');
+      counts.view--;
+      return false;
+    });
     return { plates: plates, holes: holes, parts: parts, cuts: cuts, assy: assy,
-             log: log, counts: counts, yup: yup,
+             views: views, log: log, counts: counts, yup: yup,
              fatal: fatals.length ? fatals : null };
   }
 
@@ -1653,7 +1686,8 @@
             (c.sect ? ' &middot; sections ' + c.sect : '') +
             ' &middot; cuts ' + c.cut +
             ' &middot; modules ' + (c.module || 0) +
-            ' &middot; assy ' + c.assy + ' &rarr; placed ' + placed;
+            ' &middot; assy ' + c.assy + ' &rarr; placed ' + placed +
+            (c.view ? ' &middot; views ' + c.view : '');
     if (log.length) {
       var ranked = bad.concat(log.filter(function (e) { return e.s !== 'e'; }));
       h += '<ul>' + ranked.slice(0, 10).map(function (e) {
@@ -2423,6 +2457,7 @@
     lastCuts = cuts;
     lastColors = colors;
     lastParts = parts;
+    lastViews = (data.__parsed && data.__parsed.views) || [];
     var inst = {};                       // NO → {matrix, pts, thk} for EDGE references
     var bbox = new THREE.Box3();
 
@@ -4667,12 +4702,15 @@
   // us - the silhouette test needs it.
   var DXF_VIEWS = [
     { key: 'FRONT',  right: [1, 0, 0],  up: [0, 0, 1], dir: [0, -1, 0] },
+    // (DXF_VIEW_KEY, below, is this list by key - VIEW rows are checked against it)
     { key: 'BACK',   right: [-1, 0, 0], up: [0, 0, 1], dir: [0, 1, 0] },
     { key: 'LEFT',   right: [0, -1, 0], up: [0, 0, 1], dir: [-1, 0, 0] },
     { key: 'RIGHT',  right: [0, 1, 0],  up: [0, 0, 1], dir: [1, 0, 0] },
     { key: 'TOP',    right: [1, 0, 0],  up: [0, 1, 0], dir: [0, 0, 1] },
     { key: 'BOTTOM', right: [-1, 0, 0], up: [0, 1, 0], dir: [0, 0, -1] }
   ];
+  var DXF_VIEW_KEY = {};
+  DXF_VIEWS.forEach(function (vw) { DXF_VIEW_KEY[vw.key] = vw; });
 
   // DXF is a code-page file, not UTF-8. Anything outside ASCII is transliterated
   // rather than escaped, so a label reads the same in every CAD.
@@ -5336,13 +5374,30 @@
 
     // six views of one set of members, laid out 3 x 2, drawn from (x0, yTop)
     // downward. Returns how much room it took.
-    function viewGrid(members, x0, yTop) {
-      var vs = DXF_VIEWS.map(function (vw) {
-        var segs = [];
-        members.forEach(function (it) { dxfMemberEdges(it, vw, segs); });
-        segs = dxfDedupe(segs);
-        return { key: vw.key, segs: segs, box: segsBox(segs) };
+    /* One projection of a set of members, ready to be put somewhere. */
+    function viewOf(members, vw) {
+      var segs = [];
+      members.forEach(function (it) { dxfMemberEdges(it, vw, segs); });
+      segs = dxfDedupe(segs);
+      return { key: vw.key, segs: segs, box: segsBox(segs) };
+    }
+    /* ...and drawn where it is put, with its title over it and its overall
+       size under and beside it. The grid below places six; a VIEW row places
+       one. Same picture either way, which is the point of it being one call. */
+    function placeView(v, ox, oy, title) {
+      var w = v.box.x1 - v.box.x0, h = v.box.y1 - v.box.y0;
+      v.segs.forEach(function (sg) {
+        line('PL3D-OUTLINE', [sg[0][0] - v.box.x0 + ox, sg[0][1] - v.box.y0 + oy],
+             [sg[1][0] - v.box.x0 + ox, sg[1][1] - v.box.y0 + oy]);
       });
+      text('PL3D-TITLE', [ox + w / 2, oy + h + D.base], D.text.section, title, true, 0);
+      if (w > 0) dimLinear([ox, oy], [ox + w, oy], oy, false, 0);
+      if (h > 0) dimLinear([ox, oy], [ox, oy + h], ox, true, 0);
+      return { w: w, h: h };
+    }
+
+    function viewGrid(members, x0, yTop) {
+      var vs = DXF_VIEWS.map(function (vw) { return viewOf(members, vw); });
       var G = gap();
       var colW = [0, 0, 0], rowH = [0, 0];
       vs.forEach(function (v, i) {
@@ -5361,16 +5416,7 @@
       var rowY = [yTop - band - rowH[0], 0];
       rowY[1] = rowY[0] - rowH[1] - band - G * 1.5;
       vs.forEach(function (v, i) {
-        var ox = colX[i % 3], oy = rowY[Math.floor(i / 3)];
-        var w = v.box.x1 - v.box.x0, h = v.box.y1 - v.box.y0;
-        v.segs.forEach(function (sg) {
-          line('PL3D-OUTLINE', [sg[0][0] - v.box.x0 + ox, sg[0][1] - v.box.y0 + oy],
-               [sg[1][0] - v.box.x0 + ox, sg[1][1] - v.box.y0 + oy]);
-        });
-        text('PL3D-TITLE', [ox + w / 2, oy + h + D.base], D.text.section,
-             v.key + ' VIEW', true, 0);
-        if (w > 0) dimLinear([ox, oy], [ox + w, oy], oy, false, 0);
-        if (h > 0) dimLinear([ox, oy], [ox, oy + h], ox, true, 0);
+        placeView(v, colX[i % 3], rowY[Math.floor(i / 3)], v.key + ' VIEW');
       });
       return { w: colX[2] + colW[2] - x0, h: yTop - (rowY[1] - G * 2) };
     }
@@ -5563,6 +5609,30 @@
       sheetW = Math.max(sheetW, pr.w / D.scale);
     }
 
+    /* ---- 4. the drawings the sheet asked for by name ----
+       Not in the dialog, and no tick box: a VIEW row is a decision already
+       taken by whoever wrote the workbook, so it carries its own scale and
+       its own title and is simply drawn. A sheet with no VIEW rows gets no
+       such block and exports exactly what it always did. To drop one, comment
+       the row out - the same way anything else in the sheet is turned off. */
+    if (opts.views && opts.views.on && lastViews && lastViews.length) {
+      D = dimStyle(opts.views.scale);
+      cursorY -= blockTitle('VIEWS  1:' + opts.views.scale, cursorY);
+      lastViews.forEach(function (vr) {
+        var mem = moduleItems(vr.MODULE);
+        if (!mem.length) return;              // every member hidden, or an empty module
+        var v = viewOf(mem, DXF_VIEW_KEY[vr.DIR]);
+        var band = D.base + D.text.section * 1.4;
+        var oy = cursorY - band - (v.box.y1 - v.box.y0);
+        var r2 = placeView(v, gap(), oy, vr.TITLE);
+        // the overall dimension hangs below the steel, so the next view starts
+        // clear of it rather than on top of its number
+        cursorY = oy - (D.origin + D.base + D.text.dim * 1.4) - gap() * 2;
+        sheetW = Math.max(sheetW, (gap() + r2.w) / D.scale);
+      });
+      cursorY -= gap() * 2;
+    }
+
     /* ---- assemble the file ---- */
     /* The file, in the shape bim_dxf.js writes and the site's other tools have
        been shipping: AC1009, one header variable, the LTYPE and LAYER tables,
@@ -5645,14 +5715,15 @@
   var dxfBlocks = {
     assembly: { on: true, scale: 50 },
     module:   { on: true, scale: 20 },
-    part:     { on: true, scale: 10 }
+    part:     { on: true, scale: 10 },
+    views:    { on: true, scale: 10 }
   };
-  var DXF_BLOCK_KEYS = ['assembly', 'module', 'part'];
+  var DXF_BLOCK_KEYS = ['assembly', 'module', 'part', 'views'];
   function dxfBlockRow(key, name, note) {
     return '    <div class="blk" id="pb-sc-' + key + '-row">' +
            '      <label class="on"><input type="checkbox" id="pb-sc-' + key + '"' +
            '        onchange="plateBuilder.scaleRowSync()"> ' + name +
-           '        <small>' + note + '</small></label>' +
+           '        <small id="pb-sc-' + key + '-note">' + note + '</small></label>' +
            '      <span class="sc">1 :&nbsp;<input type="number" min="1" step="1"' +
            '        id="pb-sc-' + key + '-v"' +
            '        onkeydown="if(event.key===\'Enter\')plateBuilder.confirmScale();' +
@@ -5691,6 +5762,18 @@
       if (c) c.checked = !!dxfBlocks[k].on;
       if (v) v.value = dxfBlocks[k].scale;
     });
+    /* The VIEWS line is the one block the sheet decides the existence of, so
+       the dialog says how many it found rather than offering a drawing that is
+       not there. Which module, seen from where, called what - all of that came
+       off the sheet. The scale did not: that is a property of the paper, not of
+       the model, which is why it is asked for here like the other three. */
+    var nv = (lastViews && lastViews.length) || 0;
+    var vc = document.getElementById('pb-sc-views');
+    var vn = document.getElementById('pb-sc-views-note');
+    if (vc) { vc.disabled = !nv; if (!nv) vc.checked = false; }
+    if (vn) vn.textContent = nv
+      ? nv + (nv > 1 ? ' drawings' : ' drawing') + ' the sheet names'
+      : 'none - this sheet does not name any';
     scaleRowSync();
     var first = document.getElementById('pb-sc-assembly-v');
     if (first) { first.focus(); first.select(); }
@@ -5710,8 +5793,8 @@
       opts[k] = { on: want, scale: s > 0 ? s : dxfBlocks[k].scale };
     });
     if (!on) {
-      alert('Nothing ticked.\n\nPick at least one of ASSEMBLY, MODULE or PART ' +
-            'to draw — an empty drawing is a file that looks fine and is not.');
+      alert('Nothing ticked.\n\nPick at least one block to draw — an empty ' +
+            'drawing is a file that looks fine and is not.');
       return;
     }
     if (bad) {
@@ -7492,12 +7575,13 @@
       '  <div class="box">' +
       '    <h2>Drawing scale</h2>' +
       '    <p>The steel is drawn 1:1 in millimetres &mdash; the scale sizes the' +
-      '      annotation. The drawing comes out in three blocks, each at its own' +
+      '      annotation. The drawing comes out in blocks, each at its own' +
       '      scale, so a 60m assembly and a 200mm gusset can both read. Round' +
       '      bars are not drawn.</p>' +
       dxfBlockRow('assembly', 'ASSEMBLY', 'six views of everything placed') +
       dxfBlockRow('module', 'MODULE', 'six views of each module') +
       dxfBlockRow('part', 'PART / SECT', 'one of each, with a count') +
+      dxfBlockRow('views', 'VIEWS', 'named on the input tab') +
       '    <div class="row">' +
       '      <button onclick="plateBuilder.closeScaleAsk()">Cancel</button>' +
       '      <button class="accent" onclick="plateBuilder.confirmScale()">Save DXF</button>' +
