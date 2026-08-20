@@ -76,6 +76,13 @@
     extend:  1.25,   // D  Extend Beyond Dim
     arrow:   1.1,    // E  Arrow Size
     textGap: 0.5,    // F  Text Offset From Dim
+    /* Not on the dialog. E is a *dot* diameter and reads at 1.1; a filled
+       triangle 1.1 long is a speck. Leaders point with a triangle - a dot says
+       "this is a measured end", an arrow says "this thing here" - so the
+       arrowhead has its own length. 2.5 is AutoCAD's own DIMASZ default. */
+    leadArrow: 2.5,
+    // and how far a leader's diagonal leg runs before it turns for its shoulder
+    leadRun:   6.7,
     // rebar marking: the bubble and the length bar beside it
     markLen:    100,
     markSize:   2.5,
@@ -106,6 +113,7 @@
     }
   };
   var DIMSTYLE_SCALED = ['origin', 'base', 'stack', 'extend', 'arrow', 'textGap',
+                         'leadArrow', 'leadRun',
                          'markLen', 'markSize', 'markRadius'];
   // scale = the drawing's scale denominator: 50 for 1:50. Everything that is a
   // length comes back multiplied by it; `pick` is choices and comes back as is.
@@ -4712,7 +4720,8 @@
   function leadCount(p) {
     var n = holeDias(p).length + (partCircle(p) ? 1 : 0);
     if (p.it.spec.SHAPE === 'SECT')
-      n += sectCallouts(p.it.spec, p.box.x1 - p.box.x0, p.box.y1 - p.box.y0).length;
+      n += sectCallouts(p.it.spec, p.box.x1 - p.box.x0,
+                        p.box.y1 - p.box.y0).leads.length;
     return n;
   }
 
@@ -4743,10 +4752,18 @@
      to go and look the rest up; the profile is drawn from those numbers, so the
      drawing may as well say them.
 
+     A thickness is a measurement, not a note, so it comes back as a dimension
+     and not as something on a leader. Flange thicknesses are dimensioned off
+     the flange tip to a line on the **right** of the section, the way a section
+     table draws t2; the web is too thin to letter between its own dots, so it
+     is a narrow dimension whose number is carried out clear of the steel - the
+     t1 of the same table. Only the root radius stays on a leader: it is a note
+     about a shape, and there is no pair of faces to measure it between.
+
      Points come back in coordinates measured from the section's own bounding box
      - u right from its left edge, v up from its bottom - because that is what
      the part layout can place without knowing how the profile was parametrised.
-     Each carries the direction its leader should run so it leaves the steel at
+     Each leader carries the direction it should run so it leaves the steel at
      once rather than crossing it.
 
      Field names are the sheet's own:
@@ -4754,32 +4771,88 @@
        C   h b tw tf rw rf               rw web root, rf flange toe
        L   a b t1 t2 r1 r2               t1 the a leg, t2 the b leg           */
   function sectCallouts(sp, w, h) {
-    var out = [], n = function (v) { return rnd(num(v, 0)); };
-    function add(u, v, txt, dx, dy) {
-      if (u == null || !isFinite(u) || !isFinite(v)) return;
-      out.push({ u: u, v: v, txt: txt, dx: dx, dy: dy });
+    var dims = [], narrow = [], leads = [];
+    var n = function (v) { return rnd(num(v, 0)); };
+    // a flange thickness: measured up the flange tip, dimensioned to the right
+    function vdim(x, y0, y1, t) {
+      if (!isFinite(x) || !isFinite(y0) || !isFinite(y1)) return;
+      if (Math.abs(y1 - y0) < 1e-9) return;
+      dims.push({ x: x, y0: Math.min(y0, y1), y1: Math.max(y0, y1),
+                  txt: String(n(t)) });
     }
+    /* A web thickness: dots on the two faces, number carried out to the right.
+       `up` lifts the whole thing above the section on extension lines instead
+       of laying it across at height y - for a shape whose thin part is open at
+       the top, which an angle's leg is and a web between two flanges is not. */
+    function hnarrow(x0, x1, y, t, up) {
+      if (!isFinite(x0) || !isFinite(x1) || Math.abs(x1 - x0) < 1e-9) return;
+      narrow.push({ x0: x0, x1: x1, y: y, txt: String(n(t)), up: !!up });
+    }
+    function lead(u, v, txt, dx, dy) {
+      if (u == null || !isFinite(u) || !isFinite(v)) return;
+      leads.push({ u: u, v: v, txt: txt, dx: dx, dy: dy });
+    }
+    /* A root fillet is concave: its centre of curvature sits in the open air
+       off the corner, so the point of the arc nearest that air is centre minus
+       r/sqrt2 each way - 0.293 r from the corner - and the leader runs on
+       towards the centre. That is the one direction out of the corner that
+       does not cut back through the steel. */
+    var K = 1 - Math.SQRT1_2;                     // 0.2929
     if (sp.SECT === 'H') {
       var cx = w / 2, tw = num(sp.tw, 0), t1 = num(sp.tf1, 0), t2 = num(sp.tf2, 0);
       var r1 = num(sp.r1, 0);
-      add(cx + num(sp.bt, 0) / 4, h - t2 / 2, 'tf ' + n(t2), 1, 1);
-      // one call-out when the flanges match, two when they do not
-      if (Math.abs(t1 - t2) > 1e-6)
-        add(cx + num(sp.bb, 0) / 4, t1 / 2, 'tf ' + n(t1), 1, -1);
-      add(cx, h / 2, 'tw ' + n(tw), -1, 1);
-      if (r1 > 0) add(cx + tw / 2 + r1 * 0.3, h - t2 - r1 * 0.3, 'r ' + n(r1), 1, -1);
+      var bt = num(sp.bt, 0), bb = num(sp.bb, 0);
+      vdim(bt > 0 ? cx + bt / 2 : w, h - t2, h, t2);
+      vdim(bb > 0 ? cx + bb / 2 : w, 0, t1, t1);
+      hnarrow(cx - tw / 2, cx + tw / 2, h / 2, tw);
+      if (r1 > 0) lead(cx + tw / 2 + r1 * K, h - t2 - r1 * K, 'r ' + n(r1), 1, -1);
     } else if (sp.SECT === 'C') {
       var ctw = num(sp.tw, 0), ctf = num(sp.tf, 0), rw = num(sp.rw, 0);
-      add(ctw / 2, h / 2, 'tw ' + n(ctw), -1, 1);
-      add(w * 0.7, ctf / 2, 'tf ' + n(ctf), 1, -1);
-      if (rw > 0) add(ctw + rw * 0.3, ctf + rw * 0.3, 'r ' + n(rw), 1, 1);
+      vdim(w, h - ctf, h, ctf);
+      vdim(w, 0, ctf, ctf);
+      hnarrow(0, ctw, h / 2, ctw);
+      if (rw > 0) lead(ctw + rw * K, ctf + rw * K, 'r ' + n(rw), 1, 1);
     } else if (sp.SECT === 'L') {
       var la = num(sp.t1, 0), lb = num(sp.t2, 0), lr = num(sp.r1, 0);
-      add(la / 2, h * 0.7, 't ' + n(la), -1, 1);
-      if (Math.abs(la - lb) > 1e-6) add(w * 0.7, lb / 2, 't ' + n(lb), 1, -1);
-      if (lr > 0) add(la + lr * 0.3, lb + lr * 0.3, 'r ' + n(lr), 1, 1);
+      vdim(w, 0, lb, lb);                    // the b leg, measured at its tip
+      /* Lifted above the section, not laid across it. An angle's root leader
+         is the only thing that can leave the corner, and it runs up and to the
+         right through exactly the space a carried number would use - on a 90mm
+         angle at 1:10 the leader's own text is a third of the section deep, so
+         there is no band inside the steel that holds both. The leg is open at
+         the top; the dimension goes there. */
+      hnarrow(0, la, h, la, true);
+      if (lr > 0) lead(la + lr * K, lb + lr * K, 'r ' + n(lr), 1, 1);
     }
-    return out;
+    return { dims: dims, narrow: narrow, leads: leads };
+  }
+  /* How much room the section's right-hand annotation needs beyond its own
+     width: the dimension line, one stack past it for the carried web number,
+     and the number itself. */
+  function sectPadRight(sp, w, h, D) {
+    var sc = sectCallouts(sp, w, h);
+    if (!sc.dims.length && !sc.narrow.length) return 0;
+    var pad = 0, base = D.origin + D.base, k = Math.SQRT1_2;
+    sc.dims.forEach(function (dm) {                    // number beside the line
+      pad = Math.max(pad, base + D.arrow / 2 + D.textGap * 2
+                        + dxfTextWidth(dm.txt, D.text.dim));
+    });
+    sc.narrow.forEach(function (nd) {                  // number carried out on it
+      pad = Math.max(pad, base + Math.max(D.base, dxfTextWidth(nd.txt, D.text.dim)));
+    });
+    // and the root radius's leader, which also runs out to the right
+    sc.leads.forEach(function (c) {
+      if (c.dx < 0) return;
+      var end = c.u + D.leadRun * k
+              + Math.max(D.base, dxfTextWidth(c.txt, D.text.dim));
+      pad = Math.max(pad, end - w);
+    });
+    return pad;
+  }
+  // and above it, for the shapes whose thin part is dimensioned over the top
+  function sectPadTop(sp, w, h, D) {
+    var lifted = sectCallouts(sp, w, h).narrow.some(function (nd) { return nd.up; });
+    return lifted ? D.origin + D.base + D.textGap + D.text.dim * 1.2 : 0;
   }
 
   /* opts says which of the three blocks to draw and at what scale:
@@ -4844,32 +4917,61 @@
       }
       circle(layer, c, r, buf);
     }
-    /* A diameter, called out on a leader rather than measured across. A circle
-       has no meaningful width and height, and two linear dimensions on one say
-       nothing a single D does not.
-       The leader leaves the rim at 45 degrees, runs out, then turns horizontal
-       for a shoulder the text sits on - the shoulder is as long as the text
-       needs, so the text never overhangs it. */
-    function leaderAt(p0, s, dirX, dirY, step) {
+    /* A leader's arrowhead: a filled triangle whose tip is on the thing being
+       pointed at and whose tail runs back up the leader. A dot is the right
+       mark on a dimension - it says "the measurement ends here" - but a leader
+       is pointing at something, and pointing wants a point. Length is the
+       registered leadArrow; the base is a third of that, the usual 3:1.
+       SOLID corners go 1-2-4-3, so repeating the third point makes a triangle
+       and not a bowtie. */
+    function arrowHead(layer, tip, ux, uy, buf) {
+      var L = D.leadArrow, hw = L / 3 / 2;
+      var bx = tip[0] - ux * L, by = tip[1] - uy * L;      // centre of the base
+      var px = -uy * hw, py = ux * hw;                     // across the base
+      (buf || ents).push(entHead('SOLID', layer).concat(
+        ['10', dxfNum(tip[0]), '20', dxfNum(tip[1]),
+         '11', dxfNum(bx + px), '21', dxfNum(by + py),
+         '12', dxfNum(bx - px), '22', dxfNum(by - py),
+         '13', dxfNum(bx - px), '23', dxfNum(by - py)]));
+    }
+    /* A note on a leader: the arrow sits on the thing, the leg leaves it at 45
+       degrees, then it turns horizontal for a shoulder the text sits on - the
+       shoulder is as long as the text needs, so the text never overhangs it.
+       `minRun` is for a call-out that starts inside the outline, a hole in a
+       plate: the leg is lengthened until the shoulder is clear of the steel,
+       because a number written across the part it belongs to is a number you
+       have to hunt for. */
+    function leaderAt(p0, s, dirX, dirY, step, minRun) {
       var TH = D.text.dim, TG = D.textGap, k = Math.SQRT1_2;
       var sx = dirX < 0 ? -1 : 1, sy = dirY < 0 ? -1 : 1;
-      // each further call runs out a step longer, so two callouts on one part
-      // land on their own shoulders instead of crossing
-      var run = (D.origin + D.base) * (1 + (step || 0) * 0.9);
+      /* Each further call runs out a step longer, so two call-outs on one part
+         land on their own shoulders instead of crossing. The step is added on
+         top of the clearance run, not compared against it: a plate with a hole
+         in the middle and one in the corner needs a long run for the first and
+         a short one for the second, and taking the larger of the two put both
+         shoulders at the same height with the numbers written over each other. */
+      var stagger = D.leadRun * 0.9 * (step || 0);
+      var run = D.leadRun + stagger;
+      if (minRun > 0) run = Math.max(run, minRun + stagger);
       var p1 = [p0[0] + run * k * sx, p0[1] + run * k * sy];
       var sh = Math.max(D.base, dxfTextWidth(s, TH));
       var p2 = [p1[0] + sh * sx, p1[1]];
-      line('PL3D-DIM', p0, p1);
+      // the leg starts at the back of the arrowhead, not under it
+      var a0 = [p0[0] + D.leadArrow * k * sx, p0[1] + D.leadArrow * k * sy];
+      line('PL3D-DIM', a0, p1);
       line('PL3D-DIM', p1, p2);
-      dot('PL3D-DIM', p0, D.arrow / 2);
+      arrowHead('PL3D-DIM', p0, -k * sx, -k * sy);
       text('PL3D-DIM', [(p1[0] + p2[0]) / 2, p1[1] + TG], TH, s, true, 0);
     }
-    // a circle's diameter, called out from a point on its rim at 45 degrees
-    function leaderDia(c, r, dia, dirX, dirY, step) {
+    /* A diameter, called out on a leader rather than measured across. A circle
+       has no meaningful width and height, and two linear dimensions on one say
+       nothing a single D does not. The arrow lands on the rim pointing in at
+       the centre, so the call-out reads off the circle it belongs to. */
+    function leaderDia(c, r, dia, dirX, dirY, step, minRun) {
       var k = Math.SQRT1_2;
       var sx = dirX < 0 ? -1 : 1, sy = dirY < 0 ? -1 : 1;
       leaderAt([c[0] + r * k * sx, c[1] + r * k * sy],
-               'D' + rnd(dia * 2), sx, sy, step);
+               'D' + rnd(dia * 2), sx, sy, step, minRun);
     }
 
     /* A linear dimension, drawn: two extension lines, the dimension line, a dot
@@ -4896,24 +4998,27 @@
        0.5 long - the plate floating with nothing joining it to its dimension.
 
        `level` is which stacked line this is, counting from the object out:
-       level 0 sits origin + base away, level 1 a further D.stack, and so on. */
-    function dimLinear(p1, p2, at, vertical, level) {
-      var A = D.arrow, EXO = D.origin, EXE = D.extend, TG = D.textGap, TH = D.text.dim;
-      var v = vertical;
+       level 0 sits origin + base away, level 1 a further D.stack, and so on.
+       `side` is which way that offset goes: -1 (the default) puts the line left
+       of a vertical dimension and below a horizontal one, +1 the other way. */
+    // extension line: starts D.origin clear of the measured point, finishes
+    // D.extend past the dimension line
+    function extLine(p, q) {
+      var dx = q[0] - p[0], dy = q[1] - p[1], L = Math.hypot(dx, dy);
+      if (L < 1e-9) return;
+      var ux = dx / L, uy = dy / L;
+      line('PL3D-DIM', [p[0] + ux * D.origin, p[1] + uy * D.origin],
+           [q[0] + ux * D.extend, q[1] + uy * D.extend]);
+    }
+    function dimLinear(p1, p2, at, vertical, level, side) {
+      var A = D.arrow, TG = D.textGap, TH = D.text.dim;
+      var v = vertical, sd = side > 0 ? 1 : -1;
       var val = Math.abs(v ? p2[1] - p1[1] : p2[0] - p1[0]);
       if (!(val > 1e-9)) return;
       // `at` is the edge being dimensioned; the line stands off it by the style
-      var off = at - D.origin - D.base - D.stack * (level || 0);
+      var off = at + sd * (D.origin + D.base + D.stack * (level || 0));
       var q1 = v ? [off, p1[1]] : [p1[0], off];
       var q2 = v ? [off, p2[1]] : [p2[0], off];
-      // extension lines: start EXO clear of the point, finish EXE past the line
-      function extLine(p, q) {
-        var dx = q[0] - p[0], dy = q[1] - p[1], L = Math.hypot(dx, dy);
-        if (L < 1e-9) return;
-        var ux = dx / L, uy = dy / L;
-        line('PL3D-DIM', [p[0] + ux * EXO, p[1] + uy * EXO],
-             [q[0] + ux * EXE, q[1] + uy * EXE]);
-      }
       extLine(p1, q1);
       extLine(p2, q2);
       line('PL3D-DIM', q1, q2);
@@ -4927,6 +5032,53 @@
       var mid = [(q1[0] + q2[0]) / 2, (q1[1] + q2[1]) / 2];
       var tp = v ? [mid[0] - TG, mid[1]] : [mid[0], mid[1] + TG];
       text('PL3D-DIM', tp, TH, String(Math.round(val)), true, v ? 90 : 0);
+    }
+
+    /* A thickness dimension where the thing measured is thinner than the
+       number measuring it - a web, a flange, at any scale a section is drawn
+       at. These stay dimensions and keep the dot: a thickness is measured, not
+       noted, and only a note gets a leader's arrow. What changes is where the
+       number goes, because it will not fit between its own two dots.
+
+       Vertical - a flange. Extension lines out to the right as usual, the
+       dimension line run a little past both dots, and the number stood beside
+       it rather than laid along it. This is the t2 of a section table.
+       Falls through to the ordinary dimension when the span is deep enough to
+       hold the text, which it is at 1:1 and never is at 1:10. */
+    function dimThinV(p1, p2, at, s) {
+      var TH = D.text.dim, TG = D.textGap, A = D.arrow;
+      var y0 = Math.min(p1[1], p2[1]), y1 = Math.max(p1[1], p2[1]);
+      if (!(y1 - y0 > 1e-9)) return;
+      if (y1 - y0 > TH * 1.8) { dimLinear(p1, p2, at, true, 0, 1); return; }
+      var off = at + D.origin + D.base, tail = A * 2;
+      extLine([p1[0], y0], [off, y0]);
+      extLine([p1[0], y1], [off, y1]);
+      line('PL3D-DIM', [off, y0 - tail], [off, y1 + tail]);
+      dot('PL3D-DIM', [off, y0], A / 2);
+      dot('PL3D-DIM', [off, y1], A / 2);
+      // clear of the dot, not just of the line the dot sits on
+      text('PL3D-DIM', [off + A / 2 + TG * 2, (y0 + y1) / 2 - TH / 2], TH, s, false, 0);
+    }
+    /* Horizontal - a web. There is nothing to run an extension line to, so the
+       dimension line is the web's own centreline: dots on the two faces, and
+       the number carried straight out of the section on the same line.
+       `textFrom` is where that carried number starts. */
+    function dimNarrow(x0, x1, y, textFrom, s, up) {
+      var TH = D.text.dim, TG = D.textGap, A = D.arrow;
+      var lo = Math.min(x0, x1), hi = Math.max(x0, x1);
+      if (!(hi - lo > 1e-9)) return;
+      var sh = Math.max(D.base, dxfTextWidth(s, TH));
+      var ly = y;
+      if (up) {                               // lifted clear on extension lines
+        ly = y + D.origin + D.base;
+        extLine([lo, y], [lo, ly]);
+        extLine([hi, y], [hi, ly]);
+      }
+      var tail = A * 2;                       // the stub past the near dot
+      line('PL3D-DIM', [lo - tail, ly], [textFrom + sh, ly]);
+      dot('PL3D-DIM', [lo, ly], A / 2);
+      dot('PL3D-DIM', [hi, ly], A / 2);
+      text('PL3D-DIM', [textFrom + sh / 2, ly + TG], TH, s, true, 0);
     }
 
     /* ---- the drawing, in up to three blocks ---- */
@@ -4994,12 +5146,17 @@
          a D22 lands on the block title; the name, its rule and the count hang
          below, so it needs room under it too. Both are the same for every part
          at this scale, so they are bands, not per-part measurements. */
-      var most = 0;
-      parts.forEach(function (p) { most = Math.max(most, leadCount(p)); });
-      var topBand = most > 0
-        ? (D.origin + D.base) * (1 + (most - 1) * 0.9) * Math.SQRT1_2
+      var most = 0, lift = 0;
+      parts.forEach(function (p) {
+        most = Math.max(most, leadCount(p));
+        if (p.it.spec.SHAPE === 'SECT')
+          lift = Math.max(lift, sectPadTop(p.it.spec, p.box.x1 - p.box.x0,
+                                           p.box.y1 - p.box.y0, D));
+      });
+      var topBand = Math.max(lift, most > 0
+        ? D.leadRun * (1 + (most - 1) * 0.9) * Math.SQRT1_2
           + D.textGap + D.text.dim * 1.2
-        : 0;
+        : 0);
       var lowBand = D.origin + D.base + D.text.dim
                   + D.text.member * 1.9 + D.text.note * 1.5;
       var px = x0 + G, py = yTop - topBand, shelf = 0, wide = 0;
@@ -5007,15 +5164,20 @@
         var w = p.box.x1 - p.box.x0, h = p.box.y1 - p.box.y0;
         var nameStr = p.it.plateId.toUpperCase() + ', ' + p.it.dims;
         var rule = Math.max(D.markLen, dxfTextWidth(nameStr, D.text.member));
-        var cell = Math.max(w, rule);
+        // a section's thickness dimensions stand off its right-hand side, so
+        // its cell is wider than its steel or the next part sits on them
+        var pad = p.it.spec.SHAPE === 'SECT'
+          ? sectPadRight(p.it.spec, w, h, D) : 0;
+        var cell = Math.max(w + pad, rule);
         if (px > x0 + G && px + cell > x0 + budget) {
           py -= shelf + lowBand + topBand + G * 1.5;
           px = x0 + G;
           shelf = 0;
         }
         // hangs down from the shelf line, never up: a tall part would otherwise
-        // grow through whatever is above it
-        var ox = px + (cell - w) / 2, oy = py - h;
+        // grow through whatever is above it. The pad is all on the right, so
+        // the steel is centred in what is left.
+        var ox = px + (cell - w - pad) / 2, oy = py - h;
         var mid = px + cell / 2;
         px += cell + G * 2.5;
         wide = Math.max(wide, px - x0);
@@ -5035,13 +5197,30 @@
           if (h > 0) dimLinear([ox, oy], [ox, oy + h], ox, true, 0);
         }
 
-        // one leader per distinct hole size, from the hole furthest up and right
+        /* One leader per distinct hole size, from the hole furthest up and
+           right. A hole is inside the steel, so the leg is run out far enough
+           for the shoulder to leave the part - a diameter written across the
+           plate it is drilled in is a number you have to hunt for. */
+        var k = Math.SQRT1_2;
         holeDias(p).forEach(function (hc) {
-          leaderDia([hc.c[0] - p.box.x0 + ox, hc.c[1] - p.box.y0 + oy],
-                    hc.r, hc.r, 1, 1, lead++);
+          var cxh = hc.c[0] - p.box.x0 + ox, cyh = hc.c[1] - p.box.y0 + oy;
+          var rimX = cxh + hc.r * k, rimY = cyh + hc.r * k;
+          var out = Math.min(ox + w - rimX, oy + h - rimY) + D.origin;
+          leaderDia([cxh, cyh], hc.r, hc.r, 1, 1, lead++, out / k);
         });
         if (p.it.spec.SHAPE === 'SECT') {
-          sectCallouts(p.it.spec, w, h).forEach(function (c) {
+          var sc = sectCallouts(p.it.spec, w, h);
+          // flange thicknesses: dimensioned off the tip, line to the right
+          sc.dims.forEach(function (dm) {
+            dimThinV([ox + dm.x, oy + dm.y0], [ox + dm.x, oy + dm.y1],
+                     ox + w, dm.txt);
+          });
+          // the web: too thin to letter across, so its number is carried out
+          sc.narrow.forEach(function (nd) {
+            dimNarrow(ox + nd.x0, ox + nd.x1, oy + nd.y,
+                      ox + w + D.origin + D.base, nd.txt, nd.up);
+          });
+          sc.leads.forEach(function (c) {
             leaderAt([ox + c.u, oy + c.v], c.txt, c.dx, c.dy, lead++);
           });
         }
