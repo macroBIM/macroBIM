@@ -73,7 +73,8 @@ chip('v06', 'PARAM · Panels',    '15', '25',    'Height', '47.9 m', '71.9 m');
 chip('v07', 'PARAM · Jib bays',  '15', '22',    'Reach',  '48.5 m', '69.5 m');
 chip('v08', 'PARAM · Hook drop', '26020', '36000', 'Ground clearance', '12.1 m', '2.1 m');
 
-/* the slew chip counts round, so it is written per frame by the shoot */
+/* the slew chip: the jib passes every angle in the beat, so it states the
+   sweep rather than a number that would be wrong for all but one frame */
 w('v09', `<style>${BASE}
  body{background:transparent;display:flex;align-items:flex-start;justify-content:flex-end;
       padding:74px 92px 0 0}
@@ -85,7 +86,7 @@ w('v09', `<style>${BASE}
       color:#94a3b8;font-size:23px;font-weight:500}
 </style><div class="box">
  <div class="cell">PARAM · Jib angle</div>
- <div class="num" id="a">0&deg;</div>
+ <div class="num">0 &rarr; 360&deg;</div>
  <div class="r">the mast stays put</div></div>`);
 
 /* ---- outro, cut 11 ---- */
