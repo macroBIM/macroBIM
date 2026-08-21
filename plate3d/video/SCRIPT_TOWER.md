@@ -44,6 +44,11 @@ Change the panel count, the jib bays, the hook drop or the slew angle — the mo
 자막은 **어느 항목이 얼마로 변했는지만** 말합니다. 여기에 설명을 더 붙이면
 5번의 힘이 죽습니다.
 
+4번은 **소유**입니다 — 2번에서 통제권을 선언했으니, 예제를 받는 순간 크레인이
+자기 것이 되고, 그래서 5번에서 바꿔볼 수 있게 됩니다. 여기에 부재 수나 강재
+중량을 적지 않습니다. 기본 크레인의 물량은 두 컷 뒤에 745, 638, 808 로 변하니
+영상 안에서 곧 틀린 말이 되고, 애초에 크레인의 스펙도 아닙니다.
+
 ## 컷 리스트 — 85초 · 1920×1080 · 30 fps · 무음
 
 | # | 시간 | 화면 | 자막 |
@@ -51,7 +56,7 @@ Change the panel count, the jib bays, the hook drop or the slew angle — the mo
 | 1 | 0:00–0:05 | 완성된 크레인, 천천히 선회 | **What if you could transform a Tower Crane with a Spreadsheet?** |
 | 2 | 0:05–0:09 | 검은 화면, 타이틀 카드 | **TOWER CRANE.**<br>**UNDER YOUR CONTROL.** |
 | 3 | 0:09–0:15 | 브라우저 → 사이트 → 좌측 PLATE3D | *Runs in the browser. Nothing to install.* |
-| 4 | 0:15–0:21 | Examples → Tower crane 다운로드 | *575 members. 73.6 tonnes.* |
+| 4 | 0:15–0:21 | Examples → Tower crane 다운로드 | *Download the example. Now you have a crane.* |
 | 5 | 0:21–0:28 | 엑셀 PARAM 탭, 파란 칸 네 개에 링 | **Change one number.**<br>**See the model respond.** |
 | 6 | 0:28–0:39 | ① 마스트 `Panels 15 → 25` | *Mast · 47.9 m → 71.9 m* |
 | 7 | 0:39–0:50 | ② 지브 `Bays 15 → 22` | *Reach · 48.5 m → 69.5 m* |
