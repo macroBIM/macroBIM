@@ -88,7 +88,34 @@ const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${(W + 2 * PAD).toFi
   `height="${(H + 2 * PAD).toFixed(0)}" viewBox="0 0 ${(W + 2 * PAD).toFixed(2)} ${(H + 2 * PAD).toFixed(2)}">` +
   `<rect width="100%" height="100%" fill="#fff"/>` + out.join('') + `</svg>`;
 fs.writeFileSync(OUT, svg);
+
+/* A sidecar saying where each drawing sits on the sheet. The export stacks the
+   views down one long page with a lot of air between them, so a film that shows
+   the whole sheet shows mostly white. Each view is found by its own title text
+   and its band runs to the next one. */
+const BLOCK = /^\s*(VIEWS|ASSEMBLY|MODULES?|PARTS?)\s+1:/i;   // the block's own banner
+const titles = ents
+  .filter(e => e.t === 'TEXT' && (e['8'] || '') === 'PL3D-TITLE' &&
+               (e['1'] || '').trim() && !BLOCK.test(e['1']))
+  .map(e => ({ text: String(e['1']).trim(),
+               x: px(e['11'] !== undefined ? e['11'] : e['10']),
+               y: flip(e['21'] !== undefined ? e['21'] : e['20']) }))
+  .sort((a, b) => a.y - b.y);
+const PW = W + 2 * PAD, PH = H + 2 * PAD;
+/* A view's band starts just above its own title and runs to just above the
+   next one. Starting the first at the top of the page would drag the block
+   banner in and push the drawing itself down out of the middle. */
+const LEAD = 70;
+const views = titles.map((t, i) => ({
+  title: t.text, x: t.x, y: t.y,
+  top: Math.max(0, t.y - LEAD),
+  bottom: i === titles.length - 1 ? PH : Math.max(0, titles[i + 1].y - LEAD)
+}));
+fs.writeFileSync(OUT.replace(/\.svg$/, '.json'),
+  JSON.stringify({ width: PW, height: PH, views: views }, null, 1));
+
 const by = {};
 ents.forEach(e => { by[e.t] = (by[e.t] || 0) + 1; });
 console.log(ents.length + ' entities ' + JSON.stringify(by));
 console.log('extents ' + W.toFixed(0) + ' x ' + H.toFixed(0) + '  -> ' + OUT);
+console.log(views.length + ' views: ' + views.map(v => v.title).join(' · '));

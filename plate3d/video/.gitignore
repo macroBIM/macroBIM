@@ -42,3 +42,10 @@ tools/preview_*.jpg
 tools/pv_*.jpg
 tools/ph_*.jpg
 tools/pv_hoist.js
+
+# splice film: same rule, its own names. The generators are tools/mkcards_splice.js,
+# tools/mkcellcards_splice.js, tools/prep_splice.js and tools/shoot_splice.js.
+tools/src_splice/
+tools/splice/
+tools/shots_splice.json
+tools/shoot_splice.log

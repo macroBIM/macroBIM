@@ -1,12 +1,18 @@
 /* The PARAM tab, drawn as a page for the film - read back out of the shipped
    workbook cell by cell, so the sheet on screen is the sheet you download and
-   not a picture of one. Four cells get a ring: the ones the film types into. */
+   not a picture of one. The cells the film types into get a ring.
+
+   Defaults are the tower's. The splice film passes its own:
+     BOOK=../../PLATE3D_SPLICE.xlsx RING=C6,C16,F28 LAST=31 OUT=t_param_splice \
+       node mkparampage.js                                                    */
 const ExcelJS = require('./node_modules/exceljs');
 const fs = require('fs');
-const SRC = __dirname + '/../../PLATE3D_TOWER.xlsx';
+const SRC = __dirname + '/' + (process.env.BOOK || '../../PLATE3D_TOWER.xlsx');
 const FONTCSS = fs.readFileSync(__dirname + '/v_font.css', 'utf8');
-const LAST = 26;                       // down to the slew row; the pictures follow
-const RING = ['D6', 'D12', 'D19', 'C25'];
+const LAST = +(process.env.LAST || 26);   // the tower's: down to the slew row
+const RING = (process.env.RING || 'D6,D12,D19,C25').split(',');
+const OUT = __dirname + '/' + (process.env.OUT || 't_param') + '.html';
+const TABS = process.env.TABS || 'PARAM &middot; input';   // the tab strip as the book has it
 
 const esc = s => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;');
 const argb = a => a ? '#' + String(a).slice(2) : null;
@@ -38,6 +44,15 @@ const argb = a => a ? '#' + String(a).slice(2) : null;
       merged[r + ',' + ci] = (r === A[1] && ci === A[0]) ? [B[0] - A[0] + 1] : null;
   });
 
+  /* a cell counts as empty for spilling if it holds nothing to draw */
+  const isEmpty = (r, ci) => {
+    if ((r + ',' + ci) in merged) return false;
+    let v = ws.getCell(r, ci).value;
+    if (v && typeof v === 'object' && v.formula !== undefined)
+      v = v.result !== undefined ? v.result : '';
+    return v === null || v === undefined || v === '';
+  };
+
   const o = [`<svg xmlns="http://www.w3.org/2000/svg" width="${W}" height="${H}" viewBox="0 0 ${W} ${H}">`,
              `<rect width="${W}" height="${H}" fill="#ffffff"/>`];
   const at = {};                        // where a ringed cell landed
@@ -60,11 +75,28 @@ const argb = a => a ? '#' + String(a).slice(2) : null;
       if (v === null || v === undefined || v === '') continue;
       if (typeof v === 'number') v = Math.round(v * 1e6) / 1e6;
       const f = cell.font || {}, al = cell.alignment || {};
-      const size = (f.size || 10) * 1.42;
+      /* points to pixels is 96/72 = 1.333. It was 1.42 here, which is 7 % too
+         big against the 7.6 px column unit below, and that is enough to clip a
+         section heading that fits in Excel. */
+      const size = (f.size || 10) * 1.3333;
       const col = f.color && f.color.argb ? argb(f.color.argb) : '#0f172a';
       const anc = al.horizontal === 'center' ? 'middle' : al.horizontal === 'right' ? 'end' : 'start';
       const tx = anc === 'middle' ? cx + cw / 2 : anc === 'end' ? cx + cw - 5 : cx + 5;
-      o.push(`<text x="${tx}" y="${cy + ch / 2 + size * 0.36}" font-size="${size.toFixed(1)}"` +
+      /* Excel spills a long entry into the next cell only while that cell is
+         empty, and clips it the moment something is in there. Without this the
+         section headings get written over by the note beside them; with a flat
+         clip to the cell box, the title and the notes get cut instead. So the
+         run of empty neighbours is measured, the way Excel measures it. */
+      let lx = cx, rx = cx + cw;
+      if (!(key in merged)) {                       // a merge already has its box
+        if (anc !== 'end')
+          for (let k = ci + span; k <= NC && isEmpty(r, k); k++) rx += w[k - 1];
+        if (anc !== 'start')
+          for (let k = ci - 1; k >= 1 && isEmpty(r, k); k--) lx -= w[k - 1];
+      }
+      const cid = 'c' + r + '_' + ci;
+      o.push(`<clipPath id="${cid}"><rect x="${lx}" y="${cy}" width="${rx - lx + 2}" height="${ch}"/></clipPath>`);
+      o.push(`<text clip-path="url(#${cid})" x="${tx}" y="${cy + ch / 2 + size * 0.36}" font-size="${size.toFixed(1)}"` +
         ` fill="${col}" text-anchor="${anc}" font-family="Arial, Helvetica, sans-serif"` +
         (f.bold ? ' font-weight="700"' : '') + (f.italic ? ' font-style="italic"' : '') +
         `>${esc(v)}</text>`);
@@ -77,7 +109,7 @@ const argb = a => a ? '#' + String(a).slice(2) : null;
   o.push('</svg>');
 
   const scale = Math.min(1860 / W, 1000 / H);
-  fs.writeFileSync(__dirname + '/t_param.html',
+  fs.writeFileSync(OUT,
 `<meta charset="utf-8"><style>${FONTCSS}</style><style>
  *{margin:0;padding:0;box-sizing:border-box}
  html,body{width:1920px;height:1080px;overflow:hidden;background:#fff}
@@ -87,8 +119,8 @@ const argb = a => a ? '#' + String(a).slice(2) : null;
  .wrap{transform:scale(${scale.toFixed(4)});transform-origin:top left;margin:12px 0 0 46px}
  .ring{opacity:0}
  body.lit .ring{opacity:1}
-</style><div class="tab">PARAM<i>PARAM &middot; input</i></div>
+</style><div class="tab">PARAM<i>${TABS}</i></div>
 <div class="wrap">${o.join('')}</div>`);
-  console.log('t_param.html  ' + W + 'x' + H + '  scale ' + scale.toFixed(3) +
+  console.log(require('path').basename(OUT) + '  ' + W + 'x' + H + '  scale ' + scale.toFixed(3) +
               '  rings: ' + RING.join(', '));
 })();
