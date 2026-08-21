@@ -18,3 +18,7 @@ tools/shots.json
 tools/filter.txt
 tools/shoot.log
 tools/v_font.css
+# preview crops pulled out of the film while checking a beat
+tools/crop_*.jpg
+tools/seq_*.jpg
+tools/preview_*.jpg

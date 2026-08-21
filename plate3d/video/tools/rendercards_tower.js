@@ -6,7 +6,7 @@ const fs = require('fs'); const SP = __dirname;
   const b = await chromium.launch({ executablePath: '/opt/pw-browsers/chromium', args: ['--no-sandbox'] });
   const p = await b.newPage({ viewport: { width: 1920, height: 1080 } });
   await p.route('**/fonts.{googleapis,gstatic}.com/**', r => r.abort());
-  const files = fs.readdirSync(SP).filter(f => /^t_(c\d\d|v\d\d|t\d\d|o\d\d)\.html$/.test(f));
+  const files = fs.readdirSync(SP).filter(f => /^t_(c\d\d|v\d\d|t\d\d|o\d\d|x.\d)\.html$/.test(f));
   for (const f of files) {
     await p.goto('file://' + SP + '/' + f, { waitUntil: 'load', timeout: 20000 }).catch(() => {});
     await p.waitForTimeout(350);
