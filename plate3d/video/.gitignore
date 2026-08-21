@@ -22,3 +22,5 @@ tools/v_font.css
 tools/crop_*.jpg
 tools/seq_*.jpg
 tools/preview_*.jpg
+# staging stills pulled while checking a beat
+tools/pv_*.jpg

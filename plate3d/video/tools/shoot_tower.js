@@ -85,16 +85,58 @@ async function page2(file) {
 const still = dur => doc.screenshot({ type: 'jpeg', quality: 92 }).then(b => put(b, dur));
 const chrome = dur => app.screenshot({ type: 'jpeg', quality: 92 }).then(b => put(b, dur));
 
+/* A pointer the film can drive. Drawn into the page rather than composited
+   afterwards, so it is occluded and shadowed by the same page it points at -
+   and so the zoom below magnifies it along with everything else. */
+async function pointer() {
+  await app.evaluate(() => {
+    if (document.getElementById('__cur')) return;
+    const d = document.createElement('div');
+    d.id = '__cur';
+    d.style.cssText = 'position:fixed;z-index:99999;pointer-events:none;left:-99px;top:-99px;' +
+      'filter:drop-shadow(0 3px 7px rgba(0,0,0,.55))';
+    d.innerHTML = '<svg viewBox="0 0 24 32" width="30" height="40">' +
+      '<path d="M2 1 L2 25 L8 19.6 L12.2 29 L16.4 27 L12.2 17.8 L20 17.8 Z"' +
+      ' fill="#fff" stroke="#0f172a" stroke-width="1.7" stroke-linejoin="round"/></svg>';
+    document.body.appendChild(d);
+  });
+}
+const curTo = (x, y) => app.evaluate(p => {
+  const d = document.getElementById('__cur');
+  if (d) { d.style.left = p.x + 'px'; d.style.top = p.y + 'px'; }
+}, { x: Math.round(x), y: Math.round(y) });
+// where something is on screen, so the shot can aim at it by name
+const boxOf = sel => app.evaluate(q => {
+  const e = document.querySelector(q); if (!e) return null;
+  const r = e.getBoundingClientRect();
+  return { x: r.left, y: r.top, w: r.width, h: r.height, cx: r.left + r.width / 2,
+           cy: r.top + r.height / 2 };
+}, sel);
+/* A clip rectangle at the film's aspect, centred on a point, `f` of full width.
+   Kept inside the viewport so the crop never runs off the edge. */
+function clipAt(cx, cy, f) {
+  const w = Math.max(320, VW * f), h = w * VH / VW;
+  let x = Math.min(Math.max(0, cx - w / 2), VW - w);
+  let y = Math.min(Math.max(0, cy - h / 2), VH - h);
+  return { x: Math.round(x), y: Math.round(y), width: Math.round(w), height: Math.round(h) };
+}
+const clipShot = (clip, dur) =>
+  app.screenshot({ type: 'jpeg', quality: 92, clip: clip }).then(b => put(b, dur));
+
 /* One change beat: frame on the big one, hold the small one, then swap. */
-async function beat(before, after, chip, hold, swap, orbit) {
+async function beat(before, after, id, hold, swap, orbit) {
   await load(after);
   const wide = await cam();
   await load(before);
   await aim(wide);
-  caption(chip, T + 0.35, hold + swap + orbit - 0.5);
+  // the sheet is shown as it is, then cleared, then typed - so the derived
+  // cells beside the one being changed are seen to move with it
+  caption('x' + id + '0', T + 0.25, hold - 0.30);
   await frame(hold);
+  caption('x' + id + '1', T - 0.15, 0.75);
   await load(after);
   await aim(wide);
+  caption('x' + id + '2', T + 0.30, swap + orbit - 0.45);
   await frame(swap);
   await move(orbit, u => aim({ ...wide, az: mix(wide.az, wide.az + 16, ease(u)),
                                dist: wide.dist * mix(1, 0.94, ease(u)) }));
@@ -102,7 +144,8 @@ async function beat(before, after, chip, hold, swap, orbit) {
 
 (async () => {
   const browser = await chromium.launch({ executablePath: '/opt/pw-browsers/chromium',
-    args: ['--no-sandbox', '--use-gl=angle', '--use-angle=swiftshader', '--enable-unsafe-swiftshader'] });
+    args: ['--no-sandbox', '--allow-file-access-from-files',
+            '--use-gl=angle', '--use-angle=swiftshader', '--enable-unsafe-swiftshader'] });
   app = await browser.newPage({ viewport: { width: VW, height: VH } });
   await wire(app);
   await app.goto('file://' + SP + '/video_page.html', { waitUntil: 'domcontentloaded' });
@@ -128,13 +171,40 @@ async function beat(before, after, chip, hold, swap, orbit) {
   await chrome(6.0);
   log('3 app chrome');
 
-  /* 4  take the example */
+  /* 4  take the example - reach for the button, close in on it, press it.
+     The click is the app's own: it fetches the workbook sitting next to the
+     engine and the button says so. Nothing is staged but the pointer. */
   await app.evaluate(() => plateBuilder.openSamples());
-  await app.waitForTimeout(500);
-  caption('c04', T + 0.3, 5.2);
-  await chrome(6.0);
-  await app.evaluate(() => plateBuilder.closeSamples());
-  log('4 examples');
+  await app.waitForTimeout(600);
+  await pointer();
+  const btn = await boxOf('#pb-exb2');            // the Tower crane row
+  const row = await boxOf('#pb-ex .ext tbody tr:nth-child(3)');
+  await curTo(VW * 0.42, VH * 0.72);
+  caption('c04', T + 0.3, 4.4);
+  await chrome(1.0);
+  // the hand goes over, and the frame closes in with it
+  const k = 16;
+  for (let i = 0; i < k; i++) {
+    const u = ease(i / (k - 1));
+    await curTo(mix(VW * 0.42, btn.cx - 6, u), mix(VH * 0.72, btn.cy - 5, u));
+    await clipShot(clipAt(mix(VW / 2, row.x + row.w * 0.62, u),
+                          mix(VH / 2, row.y + row.h / 2, u),
+                          mix(1, 0.34, u)), 1.7 / k);
+  }
+  const tight = clipAt(row.x + row.w * 0.62, row.y + row.h / 2, 0.34);
+  await clipShot(tight, 0.45);
+  await app.evaluate(() => { const b = document.getElementById('pb-exb2');
+    b.style.transform = 'scale(.94)'; b.style.filter = 'brightness(.92)'; });
+  await clipShot(tight, 0.25);                    // pressed
+  await app.evaluate(() => { const b = document.getElementById('pb-exb2');
+    b.style.transform = ''; b.style.filter = ''; plateBuilder.getSample(2); });
+  await app.waitForTimeout(700);
+  await clipShot(tight, 1.5);                     // 'saved'
+  await app.waitForTimeout(2400);
+  await app.evaluate(() => { const d = document.getElementById('__cur');
+    if (d) d.style.left = '-99px'; plateBuilder.closeSamples(); });
+  await chrome(1.1);
+  log('4 examples + download');
 
   /* 5  the four cells */
   await page2('t_param.html');
@@ -145,18 +215,18 @@ async function beat(before, after, chip, hold, swap, orbit) {
   log('5 PARAM');
 
   /* 6-8  one cell at a time */
-  await beat(V + 'TOWER_0_BASE.xlsx', V + 'TOWER_1_MAST.xlsx', 'v06', 2.6, 2.0, 6.4);
+  await beat(V + 'TOWER_0_BASE.xlsx', V + 'TOWER_1_MAST.xlsx', 'm', 2.6, 2.0, 6.4);
   log('6 mast');
-  await beat(V + 'TOWER_0_BASE.xlsx', V + 'TOWER_2_JIB.xlsx', 'v07', 2.6, 2.0, 6.4);
+  await beat(V + 'TOWER_0_BASE.xlsx', V + 'TOWER_2_JIB.xlsx', 'j', 2.6, 2.0, 6.4);
   log('7 jib');
-  await beat(V + 'TOWER_0_BASE.xlsx', V + 'TOWER_3_HOOK.xlsx', 'v08', 2.4, 1.8, 5.8);
+  await beat(V + 'TOWER_0_BASE.xlsx', V + 'TOWER_3_HOOK.xlsx', 'h', 2.4, 1.8, 5.8);
   log('8 hook');
 
   /* 9  the turn - one file per step, so the jib turns and the mast does not */
   const STEP = fs.readdirSync(V + 'slew').filter(f => /\.xlsx$/.test(f)).sort();
   await load(V + 'slew/' + STEP[0]);
   const turn = await cam();
-  caption('v09', T + 0.3, 12.4);
+  caption('xs2', T + 0.3, 12.4);
   for (const f of STEP) {
     await load(V + 'slew/' + f);
     await aim(turn);
