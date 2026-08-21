@@ -21,6 +21,9 @@ node_modules
 slew/
 tools/node_modules
 tools/src/
+tools/src2/
+tools/src6/
+tools/src_backup/
 tools/norm/
 tools/seq/
 # cards and the sheet page: tools/mkcards_tower.js, tools/mkparampage.js
