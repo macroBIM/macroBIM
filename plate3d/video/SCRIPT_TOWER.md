@@ -60,7 +60,7 @@ Change the panel count, the jib bays, the hook drop or the slew angle — the mo
 | 5 | 0:21–0:28 | 엑셀 PARAM 탭, 파란 칸 네 개에 링 | **Change one number.**<br>**See the model respond.** |
 | 6 | 0:28–0:39 | ① 마스트 `Panels 15 → 25` | *Mast · 47.9 m → 71.9 m* |
 | 7 | 0:39–0:50 | ② 지브 `Bays 15 → 22` | *Reach · 48.5 m → 69.5 m* |
-| 8 | 0:50–1:00 | ③ 호이스트 `Hook drop 26020 → 36000` | *Hook · down to 2.1 m* |
+| 8 | 0:49–1:03 | ③ 호이스트 — `Hook drop 26020 → 5000` 로 훅이 올라오고, 이어서 `Trolley R 30000 → 10000` 으로 안쪽으로 | *Hoist · the hook comes up, and comes in* |
 | 9 | 1:00–1:13 | ④ 선회 `Jib angle 0 → 360` 연속 | *Slew · the mast stays put* |
 | 10 | 1:13–1:20 | 네 개 다 적용한 크레인, 히어로 팬 | *One spreadsheet. Any crane.* |
 | 11 | 1:20–1:25 | 로고 | **PLATE3D by macroBIM** |
@@ -77,7 +77,8 @@ Change the panel count, the jib bays, the hook drop or the slew angle — the mo
 | 기본 | — | — | 높이 47.9 m · 반경 48.5 m | 575 |
 | ① 마스트 | `PARAM!D6` | 15 → **25** | 높이 **71.9 m** | 745 |
 | ② 지브 | `PARAM!D12` | 15 → **22** | 반경 **69.5 m** | 638 |
-| ③ 호이스트 | `PARAM!D19` | 26020 → **36000** | 훅 지상고 **2.1 m** | 575 |
+| ③ 호이스트 | `PARAM!D19` | 26020 → **5000** | 훅 지상고 12.1 → **33.1 m** | 575 |
+| ③b 트롤리 | `PARAM!C19` | 30000 → **10000** | 트롤리·훅이 마스트 쪽으로 | 575 |
 | ④ 선회 | `PARAM!C25` | 0 → **360** | 방향만 · 강재 동일 | 575 |
 | 합본 | 위 네 개 전부 | | 높이 71.9 m · 반경 69.5 m | 808 |
 
@@ -92,6 +93,12 @@ Change the panel count, the jib bays, the hook drop or the slew angle — the mo
 
 **④ 선회는 예외입니다.** 한 장씩 로드하면 뚝뚝 끊기므로, `Jib angle` 을 6° 간격
 60장으로 미리 만들어 연속 재생합니다.
+
+**호이스트는 드롭을 늘리지 않고 줄입니다.** 26 m 에서 36 m 로 늘리면 로프만 길어질 뿐
+화면에서 아무 일도 일어나지 않습니다. 5 m 로 줄이면 훅이 지브 바로 밑까지 올라와
+지상고가 12.1 → 33.1 m 로 바뀌고, 그 다음 트롤리 반경을 30 → 10 m 로 당기면 훅이
+마스트 쪽으로 크게 미끄러집니다. 두 칸 다 HOIST 한 행에 나란히 있어서 카드 하나로
+보여집니다.
 
 **엑셀과 실시간 연동이 아닙니다.** 저장한 뒤 Load Excel 을 다시 눌러야 합니다.
 5–9번 컷에서 이 동작이 보이는 편이 오히려 정직합니다.

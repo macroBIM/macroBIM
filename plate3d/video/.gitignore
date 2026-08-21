@@ -24,3 +24,5 @@ tools/seq_*.jpg
 tools/preview_*.jpg
 # staging stills pulled while checking a beat
 tools/pv_*.jpg
+tools/ph_*.jpg
+tools/pv_hoist.js

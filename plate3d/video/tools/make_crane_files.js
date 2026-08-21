@@ -74,8 +74,9 @@ async function build(set, out) {
     ['TOWER_0_BASE.xlsx', {}],
     ['TOWER_1_MAST.xlsx', { NM: 25 }],
     ['TOWER_2_JIB.xlsx',  { NJ: 22 }],
-    ['TOWER_3_HOOK.xlsx', { DROP: 36000 }],
-    ['TOWER_4_ALL.xlsx',  { NM: 25, NJ: 22, DROP: 36000, SLEW: 30 }]
+    ['TOWER_3_HOOK.xlsx', { DROP: 5000 }],
+    ['TOWER_4_TROLLEY.xlsx', { DROP: 5000, TRX: 10000 }],
+    ['TOWER_5_ALL.xlsx',  { NM: 25, NJ: 22, DROP: 5000, TRX: 10000, SLEW: 30 }]
   ];
   for (const [f, set] of CASES) {
     const r = await build(set, DIR + '/' + f);
