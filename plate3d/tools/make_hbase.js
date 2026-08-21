@@ -23,22 +23,25 @@
  *   3 HSL, 4 HVT2      Three haunches, not four. Three haunches round a square
  *                      box leave four free side edges - the two shared hips
  *                      plus the two open ends - and that is the four HVT2.
- *                      The fourth face carries no haunch; the HADD bracket
- *                      hangs off it.
+ *                      The fourth face carries no haunch and stays bare.
  *   1 HADD1, 2 HADD2   One end plate and two ribs - a bracket, not a pair of
  *                      shelves. And HADD2 is 100 long, which is the same 100
- *                      the haunches flare: standing on the base plate at the
- *                      box face, 71 + 100 = 171 puts the end plate at the
- *                      plate edge, 170. The rib length fixes the level, so
+ *                      the haunches flare: hung under the base plate from the
+ *                      box wall line, 71 + 100 = 171 puts the end plate at the
+ *                      plate edge, 170. The rib length fixes the reach, so
  *                      there is nothing left to assume about where it sits.
+ *                      It hangs below the plate, not on top of it, and on a
+ *                      haunched side - being under the plate, the haunch above
+ *                      it is no obstacle.
  *
  * That reading also keeps the four anchor holes clear: they sit at the corners
  * (+/-110, +/-110) and every haunch stops at +/-71 across, so nothing covers a
  * bolt. A reading that put a haunch on all four faces would bury two of them.
  *
  * What stays a guess is how far apart the two ribs stand - nothing on the
- * sheet sets it. Y_RIB below, one constant. If the real detail differs, the
- * fix is that constant and not the model.
+ * sheet sets it. Y_RIB below, one constant. They are kept well inside the
+ * anchor gauge so a spanner can still reach the four nuts under the plate.
+ * If the real detail differs, the fix is that constant and not the model.
  */
 const ExcelJS = require('/tmp/claude-0/-home-user/6cdc702a-24df-51eb-b9d9-9f399d189def/scratchpad/node_modules/exceljs');
 const OUT = process.argv[2] ||
@@ -78,14 +81,14 @@ const NX = HT / SLOPE, NZ = RUN / SLOPE;      // unit normal, out of the slope
 const UX = -RUN / SLOPE, UZ = HT / SLOPE;     // unit vector up the slope
 const HSL_X = TOE + NX * (T / 2) + UX * (HSL.h / 2);
 const HSL_Z = 0 + NZ * (T / 2) + UZ * (HSL.h / 2);
-/* the bracket on the free face. The ribs stand on the base plate against the
-   box face and run out their own 100, which lands them on the plate edge; the
-   end plate is welded across their ends and cantilevers the last 11 clear of
-   the plate, which is how it reads in the 3D view. */
-const X_RIB = -A;                    // rib inboard end, at the box face
-const X_END = -(A + HADD2.w) - T / 2;   // end plate, its inner face on the ribs
+/* the bracket hangs UNDER the base plate. The ribs are welded to its underside
+   on the box wall line and run out their own 100, which lands them on the
+   plate edge; the end plate is welded across their ends and cantilevers the
+   last 11 clear of the plate, which is how it reads in the 3D view. */
+const Z_UND = -T;                    // the base plate's underside
+const X_RIB = A;                     // rib inboard end, under the box wall
+const X_END = TOE + T / 2;           // end plate, its inner face on the rib ends
 const Y_RIB = 50;                    // GUESS - nothing on the sheet sets this
-const Z_TOP = HADD2.h;               // ribs are 40 tall
 
 const R = [];
 const push = (...r) => R.push(r);
@@ -168,12 +171,12 @@ M('pl.hsl_2', 'mc', 0, HSL_X, HSL_Z, 'XZ', ANG, 0, 0);
 M('pl.hsl_3', 'mc', 0, -HSL_X, HSL_Z, 'XZ', -ANG, 0, 0);
 blank();
 
-/* the free face, -X: the HADD bracket. Two ribs standing on the base plate,
-   one end plate across their ends. Every joint here is a butt - the ribs stop
-   on the box face and on the plate, the end plate stops on the ribs. */
-M('pl.hadd2_1', 'br', X_RIB, Y_RIB, 0, 'XZ');
-M('pl.hadd2_2', 'br', X_RIB, -Y_RIB, 0, 'XZ');
-M('pl.hadd1_1', 'bc', X_END, 0, 0, 'YZ');
+/* the HADD bracket, hung under the base plate on the +X side. Two ribs down
+   from the underside, one end plate across their outer ends. Every joint here
+   is a butt - the ribs stop on the plate, the end plate stops on the ribs. */
+M('pl.hadd2_1', 'tl', X_RIB, Y_RIB, Z_UND, 'XZ');
+M('pl.hadd2_2', 'tl', X_RIB, -Y_RIB, Z_UND, 'XZ');
+M('pl.hadd1_1', 'tc', X_END, 0, Z_UND, 'YZ');
 blank();
 
 /* datum = the top face of the base plate, which is z 0 as written above -
