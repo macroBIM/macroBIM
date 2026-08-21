@@ -23,17 +23,22 @@
  *   3 HSL, 4 HVT2      Three haunches, not four. Three haunches round a square
  *                      box leave four free side edges - the two shared hips
  *                      plus the two open ends - and that is the four HVT2.
- *                      The fourth face carries no haunch; the two HADD plates
- *                      hang off it.
+ *                      The fourth face carries no haunch; the HADD bracket
+ *                      hangs off it.
+ *   1 HADD1, 2 HADD2   One end plate and two ribs - a bracket, not a pair of
+ *                      shelves. And HADD2 is 100 long, which is the same 100
+ *                      the haunches flare: standing on the base plate at the
+ *                      box face, 71 + 100 = 171 puts the end plate at the
+ *                      plate edge, 170. The rib length fixes the level, so
+ *                      there is nothing left to assume about where it sits.
  *
  * That reading also keeps the four anchor holes clear: they sit at the corners
  * (+/-110, +/-110) and every haunch stops at +/-71 across, so nothing covers a
  * bolt. A reading that put a haunch on all four faces would bury two of them.
  *
- * What stays a guess is where the two HADD brackets sit on the free face. The
- * elevation shows them low and outboard and gives no level, so they are two
- * shelf-and-lip brackets at Z_ADD_HI / Z_ADD_LO below - one constant each.
- * If the real detail differs, the fix is that constant and not the model.
+ * What stays a guess is how far apart the two ribs stand - nothing on the
+ * sheet sets it. Y_RIB below, one constant. If the real detail differs, the
+ * fix is that constant and not the model.
  */
 const ExcelJS = require('/tmp/claude-0/-home-user/6cdc702a-24df-51eb-b9d9-9f399d189def/scratchpad/node_modules/exceljs');
 const OUT = process.argv[2] ||
@@ -48,8 +53,8 @@ const HSL = { w: 142, h: 220 };                // sloped haunch plate   3 EA
 const HVT1 = { wb: 242, wt: 142, h: 200 };     // box face + flare      2 EA
 const HVT2 = { wb: 100, h: 200 };              // haunch side gusset    4 EA
 const HVT3 = { w: 122, h: 200 };               // box face              2 EA
-const HADD1 = { w: 142, h: 50 };               // bracket shelf         2 EA
-const HADD2 = { w: 100, h: 40 };               // bracket lip           2 EA
+const HADD1 = { w: 142, h: 50 };               // bracket end plate     1 EA
+const HADD2 = { w: 100, h: 40 };               // bracket rib           2 EA
 const MAT = 'SS275';                           // not on the drawing - assumed
 
 /* ===================== inferred - the set-out ===================== */
@@ -73,9 +78,14 @@ const NX = HT / SLOPE, NZ = RUN / SLOPE;      // unit normal, out of the slope
 const UX = -RUN / SLOPE, UZ = HT / SLOPE;     // unit vector up the slope
 const HSL_X = TOE + NX * (T / 2) + UX * (HSL.h / 2);
 const HSL_Z = 0 + NZ * (T / 2) + UZ * (HSL.h / 2);
-const Z_ADD_HI = 140, Z_ADD_LO = 60; // GUESS - the two shelves on the free face
-const X_ADD = -(A + HADD1.h / 2);    // shelf centre, 50 out from the free face
-const X_LIP = -(A + HADD1.h) + T / 2;   // lip, outer face flush with the shelf
+/* the bracket on the free face. The ribs stand on the base plate against the
+   box face and run out their own 100, which lands them on the plate edge; the
+   end plate is welded across their ends and cantilevers the last 11 clear of
+   the plate, which is how it reads in the 3D view. */
+const X_RIB = -A;                    // rib inboard end, at the box face
+const X_END = -(A + HADD2.w) - T / 2;   // end plate, its inner face on the ribs
+const Y_RIB = 50;                    // GUESS - nothing on the sheet sets this
+const Z_TOP = HADD2.h;               // ribs are 40 tall
 
 const R = [];
 const push = (...r) => R.push(r);
@@ -158,11 +168,12 @@ M('pl.hsl_2', 'mc', 0, HSL_X, HSL_Z, 'XZ', ANG, 0, 0);
 M('pl.hsl_3', 'mc', 0, -HSL_X, HSL_Z, 'XZ', -ANG, 0, 0);
 blank();
 
-/* the free face, -X: two shelf-and-lip brackets. Levels are the guess. */
-M('pl.hadd1_1', 'mc', X_ADD, 0, Z_ADD_HI, 'XY', 0, 0, 90);
-M('pl.hadd1_2', 'mc', X_ADD, 0, Z_ADD_LO, 'XY', 0, 0, 90);
-M('pl.hadd2_1', 'bc', X_LIP, 0, Z_ADD_HI + T / 2, 'YZ');
-M('pl.hadd2_2', 'bc', X_LIP, 0, Z_ADD_LO + T / 2, 'YZ');
+/* the free face, -X: the HADD bracket. Two ribs standing on the base plate,
+   one end plate across their ends. Every joint here is a butt - the ribs stop
+   on the box face and on the plate, the end plate stops on the ribs. */
+M('pl.hadd2_1', 'br', X_RIB, Y_RIB, 0, 'XZ');
+M('pl.hadd2_2', 'br', X_RIB, -Y_RIB, 0, 'XZ');
+M('pl.hadd1_1', 'bc', X_END, 0, 0, 'YZ');
 blank();
 
 /* datum = the top face of the base plate, which is z 0 as written above -
@@ -188,8 +199,8 @@ push('END');
   put(at('PLATE', 'pl.hvt1'), 'PL HVT1  10T  2 EA/SET  - 242 -> 142 over 200, flare on one side');
   put(at('PLATE', 'pl.hvt2'), 'PL HVT2  10T  4 EA/SET  - 100x200 triangle, the same flare loose');
   put(at('PLATE', 'pl.hvt3'), 'PL HVT3  10T  2 EA/SET  - 122x200, butts between the HVT1');
-  put(at('PLATE', 'pl.hadd1'), 'PL HADD1 10T  2 EA/SET  - 142x50');
-  put(at('PLATE', 'pl.hadd2'), 'PL HADD2 10T  2 EA/SET  - 100x40');
+  put(at('PLATE', 'pl.hadd1'), 'PL HADD1 10T  1 EA/SET  - 142x50, the bracket end plate');
+  put(at('PLATE', 'pl.hadd2'), 'PL HADD2 10T  2 EA/SET  - 100x40, the two ribs under it');
   put(at('# HOLE'), 'the 122 square opening and the D22 anchor hole');
   put(at('# CUT'), 'both cuts are in the base plate - opening, then 4 anchors in one row');
   put(at('# ASSY'), 'one set, on the frame it was set out in');
