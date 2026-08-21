@@ -16,7 +16,6 @@ const FONTCSS = fs.readFileSync(__dirname + '/v_font.css', 'utf8');
 const BEATS = [
   { id: 'm', file: 'TOWER_1_MAST.xlsx', head: 4, cols: 5, val: 6, hot: 4 },   // D = Panels
   { id: 'j', file: 'TOWER_2_JIB.xlsx',  head: 10, cols: 11, val: 12, hot: 4 },
-  { id: 'h', file: 'TOWER_3_HOOK.xlsx', head: 17, cols: 18, val: 19, hot: 4 },
   { id: 's', file: 'slew/TOWER_S15.xlsx', head: 23, cols: 24, val: 25, hot: 3 }
 ];
 const C0 = 2, C1 = 10;                    // the columns worth showing: B..J
@@ -31,7 +30,7 @@ function cellText(c) {
   return String(v);
 }
 
-async function strip(file, b, typing) {
+async function strip(file, b, typing, hotOver) {
   const wb = new ExcelJS.Workbook();
   await wb.xlsx.readFile(V + file);
   const ws = wb.getWorksheet('PARAM');
@@ -45,12 +44,14 @@ async function strip(file, b, typing) {
     const lab = esc(cellText(ws.getCell(b.cols, ci)));
     labels += `<td style="width:${wid[k]}px" class="lab">${lab}</td>`;
     const cell = ws.getCell(b.val, ci);
-    const txt = ci === b.hot && typing === 'caret' ? '' : esc(cellText(cell));
+    const txt = ci === (hotOver === undefined ? b.hot : hotOver) && typing === 'caret'
+      ? '' : esc(cellText(cell));
     const isIn = !!(cell.fill && cell.fill.fgColor);           // a blue input cell
     const isCalc = !!(cell.value && typeof cell.value === 'object' && cell.value.formula);
+    const hot = hotOver === undefined ? b.hot : hotOver;
     const cls = [ci === C0 ? 'nm' : isIn ? 'in' : isCalc ? 'ca' : 'pl',
-                 ci === b.hot ? 'hot' : ''].join(' ');
-    values += `<td class="${cls}">${txt}${typing === 'caret' && ci === b.hot ? '<i></i>' : ''}</td>`;
+                 ci === hot ? 'hot' : ''].join(' ');
+    values += `<td class="${cls}">${txt}${typing === 'caret' && ci === hot ? '<i></i>' : ''}</td>`;
   }
   return `<div class="card">
  <div class="band">${band}</div>
@@ -92,4 +93,20 @@ const PAGE = inner => `<meta charset="utf-8"><style>${FONTCSS}</style><style>
       PAGE(await strip(b.file, b)));                              // after
     console.log('t_x' + b.id + '0/1/2.html   ' + b.file);
   }
+
+  /* The hoist is two moves in one row: the hook comes up, then it comes in.
+     Five cards rather than three, because the second change starts from where
+     the first one left off. */
+  const H = { head: 17, cols: 18, val: 19, hot: 4 };          // D = Hook drop
+  const seq = [
+    ['h0', 'TOWER_0_BASE.xlsx',    undefined, 4],             // as it stands
+    ['h1', 'TOWER_0_BASE.xlsx',    'caret',   4],             // hook drop cleared
+    ['h2', 'TOWER_3_HOOK.xlsx',    undefined, 4],             // 5000 - the hook is up
+    ['h3', 'TOWER_3_HOOK.xlsx',    'caret',   3],             // trolley R cleared
+    ['h4', 'TOWER_4_TROLLEY.xlsx', undefined, 3]              // 10000 - and in
+  ];
+  for (const [id, file, typing, hot] of seq)
+    fs.writeFileSync(__dirname + '/t_x' + id + '.html',
+      PAGE(await strip(file, H, typing, hot)));
+  console.log('t_xh0..h4.html   hoist, two moves');
 })();

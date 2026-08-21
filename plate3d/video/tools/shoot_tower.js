@@ -247,8 +247,26 @@ async function beat(before, after, id, hold, swap, orbit) {
   log('6 mast');
   await beat(V + 'TOWER_0_BASE.xlsx', V + 'TOWER_2_JIB.xlsx', 'j', 2.6, 2.0, 6.4);
   log('7 jib');
-  await beat(V + 'TOWER_0_BASE.xlsx', V + 'TOWER_3_HOOK.xlsx', 'h', 2.4, 1.8, 5.8);
-  log('8 hook');
+  /* 8  the hoist is two moves in one row - the hook comes up, then it comes in.
+     Framed on the state that reaches furthest so neither move leaves the shot. */
+  await load(V + 'TOWER_0_BASE.xlsx');
+  const hw = await cam();
+  caption('xh0', T + 0.25, 2.3);
+  await frame(2.6);
+  caption('xh1', T - 0.15, 0.75);
+  await load(V + 'TOWER_3_HOOK.xlsx');
+  await aim(hw);
+  caption('xh2', T + 0.30, 3.6);
+  await frame(1.8);
+  await move(2.4, u => aim({ ...hw, az: mix(hw.az, hw.az + 5, ease(u)) }));
+  caption('xh3', T - 0.15, 0.75);
+  await load(V + 'TOWER_4_TROLLEY.xlsx');
+  await aim(hw);
+  caption('xh4', T + 0.30, 4.6);
+  await frame(1.8);
+  await move(4.0, u => aim({ ...hw, az: mix(hw.az + 5, hw.az + 16, ease(u)),
+                             dist: hw.dist * mix(1, 0.94, ease(u)) }));
+  log('8 hoist - up, then in');
 
   /* 9  the turn - one file per step, so the jib turns and the mast does not */
   const STEP = fs.readdirSync(V + 'slew').filter(f => /\.xlsx$/.test(f)).sort();
@@ -263,7 +281,7 @@ async function beat(before, after, id, hold, swap, orbit) {
   log('9 slew');
 
   /* 10  all four at once */
-  await load(V + 'TOWER_4_ALL.xlsx');
+  await load(V + 'TOWER_5_ALL.xlsx');
   c = await cam();
   caption('c10', T + 0.8, 5.6);
   await move(7.0, u => aim({ ...c, az: mix(c.az - 14, c.az + 10, ease(u)),
