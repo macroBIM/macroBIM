@@ -166,45 +166,73 @@ async function beat(before, after, id, hold, swap, orbit) {
   await still(4.0);
   log('2 title');
 
-  /* 3  it runs in the browser */
-  caption('c03', T + 0.3, 5.2);
-  await chrome(6.0);
-  log('3 app chrome');
-
-  /* 4  take the example - reach for the button, close in on it, press it.
-     The click is the app's own: it fetches the workbook sitting next to the
-     engine and the button says so. Nothing is staged but the pointer. */
-  await app.evaluate(() => plateBuilder.openSamples());
-  await app.waitForTimeout(600);
+  /* 3  it runs in the browser - and the example is one button away.
+     The pointer is drawn into the page, so the zoom magnifies it with
+     everything else and it is shadowed by the page it points at. */
   await pointer();
-  const btn = await boxOf('#pb-exb2');            // the Tower crane row
-  const row = await boxOf('#pb-ex .ext tbody tr:nth-child(3)');
-  await curTo(VW * 0.42, VH * 0.72);
-  caption('c04', T + 0.3, 4.4);
+  const ex = await boxOf('button.guide.ex');
+  await curTo(VW * 0.62, VH * 0.46);
+  caption('c03', T + 0.3, 4.6);
+  await chrome(1.6);
+  // The button sits in the top-right corner, so a box centred on it clamps
+  // against two edges and fills with empty viewport. Aim below and left: the
+  // button lands in the corner of the crop, where the eye expects it anyway.
+  const kA = 12;
+  for (let i = 0; i < kA; i++) {
+    const u = ease(i / (kA - 1));
+    await curTo(mix(VW * 0.62, ex.cx - 4, u), mix(VH * 0.46, ex.cy - 4, u));
+    await clipShot(clipAt(mix(VW / 2, ex.cx - 260, u), mix(VH / 2, ex.cy + 250, u),
+                          mix(1, 0.44, u)), 1.5 / kA);
+  }
+  const exTight = clipAt(ex.cx - 260, ex.cy + 250, 0.44);
+  await clipShot(exTight, 0.4);
+  await app.evaluate(() => { const b = document.querySelector('button.guide.ex');
+    b.style.transform = 'scale(.94)'; b.style.filter = 'brightness(.9)'; });
+  await clipShot(exTight, 0.28);                              // pressed
+  await app.evaluate(() => { const b = document.querySelector('button.guide.ex');
+    b.style.transform = ''; b.style.filter = ''; plateBuilder.openSamples(); });
+  await app.waitForTimeout(700);
+  await clipShot(exTight, 0.5);                               // the list comes up
   await chrome(1.0);
-  // the hand goes over, and the frame closes in with it
-  const k = 16;
-  for (let i = 0; i < k; i++) {
-    const u = ease(i / (k - 1));
-    await curTo(mix(VW * 0.42, btn.cx - 6, u), mix(VH * 0.72, btn.cy - 5, u));
+  log('3 reach for Example');
+
+  /* 4  take the crane - the row is ringed, the pointer crosses to its button,
+     and the app's own handler runs: it really fetches the workbook sitting
+     next to the engine, and the button says so. Only the pointer is staged. */
+  await app.evaluate(() => {
+    const tr = document.querySelector('#pb-ex .ext tbody tr:nth-child(3)');
+    tr.style.outline = '3px solid #b45309';
+    tr.style.outlineOffset = '-1px';
+    tr.style.background = '#fffbeb';
+    tr.style.borderRadius = '6px';
+  });
+  const btn = await boxOf('#pb-exb2');
+  const row = await boxOf('#pb-ex .ext tbody tr:nth-child(3)');
+  await curTo(VW * 0.42, VH * 0.74);
+  caption('c04', T + 0.3, 4.6);
+  await chrome(1.3);
+  const kB = 14;
+  for (let i = 0; i < kB; i++) {
+    const u = ease(i / (kB - 1));
+    await curTo(mix(VW * 0.42, btn.cx - 6, u), mix(VH * 0.74, btn.cy - 5, u));
     await clipShot(clipAt(mix(VW / 2, row.x + row.w * 0.62, u),
                           mix(VH / 2, row.y + row.h / 2, u),
-                          mix(1, 0.34, u)), 1.7 / k);
+                          mix(1, 0.34, u)), 1.6 / kB);
   }
   const tight = clipAt(row.x + row.w * 0.62, row.y + row.h / 2, 0.34);
-  await clipShot(tight, 0.45);
+  await clipShot(tight, 0.4);
   await app.evaluate(() => { const b = document.getElementById('pb-exb2');
     b.style.transform = 'scale(.94)'; b.style.filter = 'brightness(.92)'; });
-  await clipShot(tight, 0.25);                    // pressed
+  await clipShot(tight, 0.26);                                // pressed
   await app.evaluate(() => { const b = document.getElementById('pb-exb2');
     b.style.transform = ''; b.style.filter = ''; plateBuilder.getSample(2); });
-  await app.waitForTimeout(700);
-  await clipShot(tight, 1.5);                     // 'saved'
-  await app.waitForTimeout(2400);
+  await app.waitForTimeout(900);
+  await clipShot(tight, 1.6);                                 // 'saved'
+  await app.waitForTimeout(2200);
   await app.evaluate(() => { const d = document.getElementById('__cur');
     if (d) d.style.left = '-99px'; plateBuilder.closeSamples(); });
-  await chrome(1.1);
-  log('4 examples + download');
+  await chrome(0.9);
+  log('4 take the crane');
 
   /* 5  the four cells */
   await page2('t_param.html');

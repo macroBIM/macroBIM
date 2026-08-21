@@ -1,6 +1,10 @@
-/* Four stills out of the download beat, so the staging can be looked at before
-   an hour of capture is spent on it: the pointer arriving, the frame closing in,
-   the button under the pointer, and what the app says after it is pressed.   */
+/* Stills out of the two staged beats, so they can be looked at before an hour
+   of capture is spent on them.
+
+   A: reaching for Example in the menu bar - pointer over, frame closing in,
+      pressed, and the list it opens.
+   B: taking the crane - the row ringed, the pointer crossing to its DOWNLOAD,
+      the frame tight on the button, and what the app says once it is pressed. */
 const { chromium } = require('playwright-core');
 const fs = require('fs');
 const SP = __dirname;
@@ -33,8 +37,6 @@ const mix = (a, b, u) => a + (b - a) * u;
   await app.waitForFunction(() => { const r = document.getElementById('pb-result');
     return r && /Succeed/.test(r.innerText); }, null, { timeout: 180000 });
 
-  await app.evaluate(() => plateBuilder.openSamples());
-  await app.waitForTimeout(600);
   await app.evaluate(() => {
     const d = document.createElement('div');
     d.id = '__cur';
@@ -49,13 +51,28 @@ const mix = (a, b, u) => a + (b - a) * u;
     const r = e.getBoundingClientRect();
     return { x: r.left, y: r.top, w: r.width, h: r.height,
              cx: r.left + r.width / 2, cy: r.top + r.height / 2 }; }, sel);
-  const btn = await boxOf('#pb-exb2');
-  const row = await boxOf('#pb-ex .ext tbody tr:nth-child(3)');
   const cur = (x, y) => app.evaluate(p => { const d = document.getElementById('__cur');
     d.style.left = p.x + 'px'; d.style.top = p.y + 'px'; }, { x: Math.round(x), y: Math.round(y) });
 
   const shot = (name, clip) => app.screenshot(Object.assign(
     { path: SP + '/pv_' + name + '.jpg', type: 'jpeg', quality: 92 }, clip ? { clip: clip } : {}));
+
+  /* ---- A. reaching for Example ---- */
+  const ex = await boxOf('button.guide.ex');
+  await cur(VW * 0.62, VH * 0.46);
+  await shot('a1wide', null);                                  // pointer, still down the page
+  // The button lives in the top-right corner, so a box centred on it clamps
+  // against two edges and fills with empty viewport. Aim below and left of it
+  // instead: the button lands in the corner of the crop, which is where the eye
+  // already expects it, and the toolbar it belongs to stays in shot.
+  await cur(ex.cx - 4, ex.cy - 4);
+  await shot('a2over', clipAt(ex.cx - 420, ex.cy + 400, 0.66));
+  await app.evaluate(() => { const b = document.querySelector('button.guide.ex');
+    b.style.transform = 'scale(.94)'; b.style.filter = 'brightness(.9)'; });
+  await shot('a3press', clipAt(ex.cx - 260, ex.cy + 250, 0.44));
+  await app.evaluate(() => { const b = document.querySelector('button.guide.ex');
+    b.style.transform = ''; b.style.filter = ''; plateBuilder.openSamples(); });
+  await app.waitForTimeout(700);
 
   /* the row the film is after, ringed - so the eye is on the right line before
      the pointer ever moves */
@@ -66,20 +83,25 @@ const mix = (a, b, u) => a + (b - a) * u;
     tr.style.background = '#fffbeb';
     tr.style.borderRadius = '6px';
   });
+  const btn = await boxOf('#pb-exb2');
+  const row = await boxOf('#pb-ex .ext tbody tr:nth-child(3)');
 
+  /* ---- B. taking the crane ---- */
   await cur(VW * 0.42, VH * 0.72);
-  await shot('1wide', null);                                            // pointer arrives
+  await shot('b1wide', null);                                           // the list, row ringed
   const u = 0.55;
   await cur(mix(VW * 0.42, btn.cx - 6, u), mix(VH * 0.72, btn.cy - 5, u));
-  await shot('2mid', clipAt(mix(VW / 2, row.x + row.w * 0.62, u),
-                            mix(VH / 2, row.y + row.h / 2, u), mix(1, 0.34, u)));
+  await shot('b2mid', clipAt(mix(VW / 2, row.x + row.w * 0.62, u),
+                             mix(VH / 2, row.y + row.h / 2, u), mix(1, 0.34, u)));
   const tight = clipAt(row.x + row.w * 0.62, row.y + row.h / 2, 0.34);
   await cur(btn.cx - 6, btn.cy - 5);
-  await shot('3tight', tight);                                          // on the button
+  await shot('b3tight', tight);                                         // on the button
   await app.evaluate(() => plateBuilder.getSample(2));
   await app.waitForTimeout(1100);
-  await shot('4saved', tight);                                          // what the app says
-  console.log('pv_1wide / 2mid / 3tight / 4saved  ·  button at ' +
+  await shot('b4saved', tight);                                         // what the app says
+  console.log('A: a1wide a2over a3press   ·  Example at ' +
+              Math.round(ex.cx) + ',' + Math.round(ex.cy));
+  console.log('B: b1wide b2mid b3tight b4saved  ·  DOWNLOAD at ' +
               Math.round(btn.cx) + ',' + Math.round(btn.cy));
   await br.close();
 })();
