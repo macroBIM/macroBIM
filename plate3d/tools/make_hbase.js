@@ -24,15 +24,20 @@
  *                      box leave four free side edges - the two shared hips
  *                      plus the two open ends - and that is the four HVT2.
  *                      The fourth face carries no haunch and stays bare.
- *   1 HADD1, 2 HADD2   One end plate and two ribs - a bracket, not a pair of
- *                      shelves. And HADD2 is 100 long, which is the same 100
- *                      the haunches flare: hung under the base plate from the
- *                      box wall line, 71 + 100 = 171 puts the end plate at the
- *                      plate edge, 170. The rib length fixes the reach, so
- *                      there is nothing left to assume about where it sits.
- *                      It hangs below the plate, not on top of it, and on a
- *                      haunched side - being under the plate, the haunch above
- *                      it is no obstacle.
+ *   1 HADD1, 2 HADD2   One end plate and two ribs, hung under the base plate.
+ *                      50 = 10 + 40 is the whole set-out: the end plate is the
+ *                      plate thickness plus the rib, so its top finishes flush
+ *                      with the top of the base plate and its bottom finishes
+ *                      level with the ribs. Both figures are on the schedule
+ *                      and neither is free.
+ *                      HADD1 is 142 wide, which is HSL's width, and it stands
+ *                      directly under the haunch toe: the elevation puts the
+ *                      sloped plate's landing right on top of it. The bracket
+ *                      is what carries that toe through the base plate, which
+ *                      is why it is on a haunched side and not the bare one.
+ *                      The ribs then run their own 100 back in under the plate
+ *                      from its edge, which is the box wall line to within the
+ *                      1 the drawing itself carries between 340 and 2 x 171.
  *
  * That reading also keeps the four anchor holes clear: they sit at the corners
  * (+/-110, +/-110) and every haunch stops at +/-71 across, so nothing covers a
@@ -81,13 +86,13 @@ const NX = HT / SLOPE, NZ = RUN / SLOPE;      // unit normal, out of the slope
 const UX = -RUN / SLOPE, UZ = HT / SLOPE;     // unit vector up the slope
 const HSL_X = TOE + NX * (T / 2) + UX * (HSL.h / 2);
 const HSL_Z = 0 + NZ * (T / 2) + UZ * (HSL.h / 2);
-/* the bracket hangs UNDER the base plate. The ribs are welded to its underside
-   on the box wall line and run out their own 100, which lands them on the
-   plate edge; the end plate is welded across their ends and cantilevers the
-   last 11 clear of the plate, which is how it reads in the 3D view. */
+/* the bracket hangs UNDER the base plate, set out from its edge: the end plate
+   butts the edge and rises the full thickness to finish flush with the top,
+   the ribs hang from the underside and run 100 back in, and both finish level
+   at the bottom because 50 - 10 = 40. */
 const Z_UND = -T;                    // the base plate's underside
-const X_RIB = A;                     // rib inboard end, under the box wall
-const X_END = TOE + T / 2;           // end plate, its inner face on the rib ends
+const X_EDGE = HB.w / 2;             // the plate edge, and the bracket's datum
+const X_END = X_EDGE + T / 2;        // end plate, its inner face on that edge
 const Y_RIB = 50;                    // GUESS - nothing on the sheet sets this
 
 const R = [];
@@ -171,12 +176,13 @@ M('pl.hsl_2', 'mc', 0, HSL_X, HSL_Z, 'XZ', ANG, 0, 0);
 M('pl.hsl_3', 'mc', 0, -HSL_X, HSL_Z, 'XZ', -ANG, 0, 0);
 blank();
 
-/* the HADD bracket, hung under the base plate on the +X side. Two ribs down
-   from the underside, one end plate across their outer ends. Every joint here
-   is a butt - the ribs stop on the plate, the end plate stops on the ribs. */
-M('pl.hadd2_1', 'tl', X_RIB, Y_RIB, Z_UND, 'XZ');
-M('pl.hadd2_2', 'tl', X_RIB, -Y_RIB, Z_UND, 'XZ');
-M('pl.hadd1_1', 'tc', X_END, 0, Z_UND, 'YZ');
+/* the HADD bracket, hung under the base plate on the +X side, beneath the
+   haunch toe. Two ribs down from the underside, one end plate closing the
+   edge. Every joint here is a butt - the ribs stop on the plate underside,
+   the end plate on the plate edge and on the rib ends. */
+M('pl.hadd2_1', 'tr', X_EDGE, Y_RIB, Z_UND, 'XZ');
+M('pl.hadd2_2', 'tr', X_EDGE, -Y_RIB, Z_UND, 'XZ');
+M('pl.hadd1_1', 'tc', X_END, 0, 0, 'YZ');
 blank();
 
 /* datum = the top face of the base plate, which is z 0 as written above -
