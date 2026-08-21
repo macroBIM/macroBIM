@@ -27,6 +27,7 @@ tools/seq/
 tools/t_*.html
 tools/t_*.png
 tools/shots.json
+tools/shots_recovered.json
 tools/filter.txt
 tools/shoot.log
 tools/v_font.css
