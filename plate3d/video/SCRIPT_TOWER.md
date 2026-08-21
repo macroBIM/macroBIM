@@ -49,7 +49,7 @@ Change the panel count, the jib bays, the hook drop or the slew angle — the mo
 중량을 적지 않습니다. 기본 크레인의 물량은 두 컷 뒤에 745, 638, 808 로 변하니
 영상 안에서 곧 틀린 말이 되고, 애초에 크레인의 스펙도 아닙니다.
 
-## 컷 리스트 — 85초 · 1920×1080 · 30 fps · 무음
+## 컷 리스트 — 88초 · 1920×1080 · 30 fps · 무음
 
 | # | 시간 | 화면 | 자막 |
 |---|---|---|---|
@@ -61,16 +61,18 @@ Change the panel count, the jib bays, the hook drop or the slew angle — the mo
 | 6 | 0:28–0:39 | ① 마스트 `Panels 15 → 25` | *Mast · 47.9 m → 71.9 m* |
 | 7 | 0:39–0:50 | ② 지브 `Bays 15 → 22` | *Reach · 48.5 m → 69.5 m* |
 | 8 | 0:49–1:03 | ③ 호이스트 — `Hook drop 26020 → 5000` 로 훅이 올라오고, 이어서 `Trolley R 30000 → 10000` 으로 안쪽으로 | *Hoist · the hook comes up, and comes in* |
-| 9 | 1:00–1:13 | ④ 선회 `Jib angle 0 → 360` 연속 | *Slew · the mast stays put* |
-| 10 | 1:13–1:20 | 네 개 다 적용한 크레인, 히어로 팬 | *One spreadsheet. Any crane.* |
-| 11 | 1:20–1:25 | 로고 | **PLATE3D by macroBIM** |
+| 9 | 1:03–1:16 | ④ 선회 `Jib angle 0 → 360` 연속 | *Slew · the mast stays put* |
+| 10 | 1:16–1:23 | 네 개 다 적용한 크레인, 히어로 팬 | *One spreadsheet. Any crane.* |
+| 11 | 1:23–1:28 | 로고 | **PLATE3D by macroBIM** |
 
 타이틀 카드(2번)는 두 줄 모두 마침표로 끊습니다 — 그게 문구의 리듬입니다.
 
-## 네 가지 경우
+## 다섯 가지 경우
 
 각 케이스는 **기본값에서 한 칸만** 바꿉니다. "숫자 하나 → 크레인이 변한다"가
-영상의 주장이므로, 두 칸을 동시에 바꾸면 주장이 흐려집니다.
+영상의 주장이므로, 두 칸을 동시에 바꾸면 주장이 흐려집니다. 호이스트만 예외로 두
+칸을 연달아 바꾸는데, 둘 다 HOIST 한 행에 나란히 있고 하나씩 순서대로 움직이므로
+"한 칸씩"이라는 규칙은 지켜집니다.
 
 | | 셀 | 값 | 결과 | 부재 |
 |---|---|---|---|---|
@@ -80,7 +82,7 @@ Change the panel count, the jib bays, the hook drop or the slew angle — the mo
 | ③ 호이스트 | `PARAM!D19` | 26020 → **5000** | 훅 지상고 12.1 → **33.1 m** | 575 |
 | ③b 트롤리 | `PARAM!C19` | 30000 → **10000** | 트롤리·훅이 마스트 쪽으로 | 575 |
 | ④ 선회 | `PARAM!C25` | 0 → **360** | 방향만 · 강재 동일 | 575 |
-| 합본 | 위 네 개 전부 | | 높이 71.9 m · 반경 69.5 m | 808 |
+| 합본 | 위 전부 | | 높이 71.9 m · 반경 69.5 m | 808 |
 
 부재 수는 `140 + 17×마스트단수 + 9×지브단수 + 8×카운터단수 + 슬래브수` 입니다.
 8 / 15 / 22단 세 점에서 실측(393 / 575 / 757)과 정확히 일치합니다.
@@ -109,8 +111,9 @@ Change the panel count, the jib bays, the hook drop or the slew angle — the mo
 video/TOWER_0_BASE.xlsx      기본값
 video/TOWER_1_MAST.xlsx      Panels 25
 video/TOWER_2_JIB.xlsx       Bays 22
-video/TOWER_3_HOOK.xlsx      Hook drop 36000
-video/TOWER_4_ALL.xlsx       위 세 개 + Jib angle
+video/TOWER_3_HOOK.xlsx      Hook drop 5000
+video/TOWER_4_TROLLEY.xlsx   + Trolley R 10000
+video/TOWER_5_ALL.xlsx       위 넷 + Jib angle
 video/slew/TOWER_S00.xlsx …  6° 간격 60장
 ```
 
