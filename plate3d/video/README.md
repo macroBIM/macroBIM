@@ -79,7 +79,7 @@ node tools/assemble.js                           # 조립
 
 # 타워크레인 영상
 
-`PLATE3D_TOWER.mp4` — 85초 · 1920×1080 · 30 fps · 16 MB · 무음
+`PLATE3D_TOWER.mp4` — 84초 · 1920×1080 · 30 fps · 18 MB · 무음
 
 앞의 홍보영상과 주장이 다릅니다. `PLATE3D_promo.mp4` 는 **"그림이 행에서 나왔다"**
 였고, 이것은 **"그 행을 당신이 바꿀 수 있다"** 입니다. 그래서 사이트 접속과 예제
@@ -92,15 +92,24 @@ node tools/assemble.js                           # 조립
 |---|---|---|
 | 1 | 0–5 | 크레인 선회 · *What if you could transform a Tower Crane with a Spreadsheet?* |
 | 2 | 5–9 | 타이틀 카드 · **TOWER CRANE. UNDER YOUR CONTROL.** |
-| 3 | 9–15 | 앱 화면 · *Runs in the browser* |
-| 4 | 15–21 | Examples 패널 · *Download the example. Now you have a crane.* |
-| 5 | 21–28 | PARAM 네 칸에 링 · *Change one number. See the model respond.* |
+| 3 | 9–14 | 커서가 메뉴 끝 **Example** 로 → 줌 → 클릭 · *Runs in the browser* |
+| 4 | 14–20 | Tower crane 행 테두리 → **DOWNLOAD** 클릭 → SAVED · *Download the example. Now you have a crane.* |
+| 5 | 20–27 | PARAM 네 칸에 링 · *Change one number. See the model respond.* |
 | 6 | 28–39 | 마스트 15 → 25 단 · 47.9 → 71.9 m |
 | 7 | 39–50 | 지브 15 → 22 단 · 48.5 → 69.5 m |
 | 8 | 50–60 | 훅 드롭 26020 → 36000 · 지상고 12.1 → 2.1 m |
 | 9 | 60–73 | 선회 0 → 360° · 워크북 60장 연속 |
 | 10 | 73–80 | 네 개 다 적용 · *One spreadsheet. Any crane.* |
 | 11 | 80–85 | **PLATE3D by macroBIM** |
+
+3–4번의 커서·줌·클릭은 연출이지만 **누르는 것은 앱의 진짜 핸들러**입니다. 두 번째
+클릭은 엔진 옆의 워크북을 실제로 fetch 하고, 그래서 버튼이 스스로 `SAVED` 로 바뀝니다.
+줌은 합성이 아니라 **스크린샷 클립을 좁히는 것**이라 가장 조인 프레임에서도 글자가
+선명합니다. 연출한 것은 커서 위치와 행 테두리뿐입니다.
+
+6–9번의 값 표시는 **워크북의 PARAM 행을 그대로 잘라 띄웁니다.** 원래값 → 커서 → 새 값
+3단으로 넘어가고, 바뀐 칸 오른쪽의 회색 파생칸들이 같이 움직이는 것이 요점입니다 —
+"숫자 하나 바꾸면 나머지가 따라온다"를 설명하지 않고 엑셀이 직접 보여줍니다.
 
 6–8번은 **큰 쪽으로 화면을 잡아 놓고 작은 쪽을 그 카메라에 불러들입니다.** 그냥 두면
 엔진이 로드마다 다시 맞추기 때문에, 24 m 자란 크레인이 똑같아 보입니다 — 자라는 것이
@@ -116,7 +125,9 @@ cp <scratch>/v_font.css .                     # Inter woff2 를 data URI 로
 
 node make_crane_files.js     # 워크북 65장 (기본 5 + 선회 60)
 node mkparampage.js          # PARAM 탭을 페이지로
-node mkcards_tower.js && node rendercards_tower.js   # 카드 11장
+node mkcards_tower.js        # 자막·타이틀·아웃트로
+node mkcellcards.js          # 셀 카드 (원래값 / 커서 / 새 값)
+node rendercards_tower.js    # 전부 PNG 로
 node shoot_tower.js          # 촬영 — 531 스틸, 약 1시간
 node assemble_tower.js       # 조립
 ```
