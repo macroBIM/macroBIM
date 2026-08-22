@@ -100,10 +100,15 @@ BASIC + CUT sc.col 0 0 ho.m26  1672.002 kg     ← 28.878 kg
 | 화면 타이틀 | `HOW TO USE` / `BAR & SECT` |
 | 설명 1행 | `A section you dimension yourself, stretched between two work points, and trimmed back to the steel.` |
 | 설명 2행 | `Everything here is one shipped example: Example ▸ Basic.` |
+| 태그 | PLATE3D tutorial · BIM tutorial · steel detailing · spreadsheet BIM · parametric model · steel section · H beam · built-up girder · 3D modelling · macroBIM |
 | 규격 | 4:04 · 2560×1440 · 30 fps · **무음 · 영어 자막만** |
-| 썸네일 | `01 BASICS` 자리에 `02 BASICS`, 문구 `HOW TO USE` / `BAR & SECT` |
+| 썸네일 | `01 BASICS` 자리에 `02 BASICS`, 문구 `HOW TO USE` / `BAR & SECT` — 만들어 둠 (`PLATE3D_BARSECT_thumb.jpg`) |
 
 ## 4. 챕터
+
+**촬영 결과에 맞춘 시각입니다.** `shoot_barsect.log` 의 컷 끝 시각에서 읽었고,
+각 구간은 유튜브가 챕터로 인식하는 10초를 넘습니다. 마지막 구간만 계획(3:42)과
+달라졌습니다 — 25~30번이 예정보다 길어져 CUT 이 3:51 로 밀렸습니다.
 
 ```
 0:00  A plate, a bar, a section
@@ -112,8 +117,47 @@ BASIC + CUT sc.col 0 0 ho.m26  1672.002 kg     ← 28.878 kg
 1:26  Two ways to place it
 2:05  Work points, and the steel
 2:51  Repeating, and placing
-3:42  What a CUT does to a section
+3:51  What a CUT does to a section
 ```
+
+### 설명문 — 그대로 붙여넣기
+
+```
+A section you dimension yourself, stretched between two work points, and
+trimmed back to the steel.
+
+Everything here is one shipped example: Example ▸ Basic. Nothing in this
+video is a model built for the video.
+
+A bar is a round bar — material, diameter, length, and that is the row.
+A section is a steel profile: H, C or L, and you type its dimensions
+yourself. There is no catalogue inside the app, so a standard shape and a
+1200-deep built-up girder are the same row with different numbers.
+
+Placing one is the eighth column of a MODULE row. Put a plane name there
+and the member is aimed by an angle, with the length taken from the row.
+Put a number there and it is stretched between two work points, and the
+row's length becomes a reference the app marks "ref". OFF_B and OFF_E then
+trim it back from each node - or run it past, if you make them negative.
+Alpha turns it about its own axis without moving either end.
+
+CUT works on a section exactly as it does on a plate: it edits the 2D
+profile, and the profile runs the whole length.
+
+CHAPTERS
+0:00  A plate, a bar, a section
+0:24  BAR — a round bar
+0:38  SECT — H, C and L, dimensioned by you
+1:26  Two ways to place it
+2:05  Work points, and the steel
+2:51  Repeating, and placing
+3:51  What a CUT does to a section
+
+PLATE3D — a spreadsheet-driven 3D steel plate modeller.
+```
+
+마지막 줄 아래에 사이트 주소를 넣을 자리를 비워 뒀습니다. 01편 설명문에도 주소가
+없으니, 넣기로 한다면 **두 편을 같이** 고쳐야 합니다.
 
 ## 5. 컷 리스트 — 4:04
 
