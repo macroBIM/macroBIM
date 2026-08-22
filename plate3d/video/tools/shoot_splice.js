@@ -311,19 +311,27 @@ async function beat(before, after, id, hold, swap, orbit, withLoad) {
   await beat(V + 'SPLICE_2_PLATE.xlsx', V + 'SPLICE_3_BOLT.xlsx', 'b', 2.4, 1.8, 5.4, false);
   log('8 bolts');
 
-  /* 9  the take-off. Held at the totals, then walked down into the part list,
-     where the two rows the last two beats changed are sitting. */
-  await page2(CARD + 's_boq.html');
+  /* 9  the take-off: SUMMARY, then PART LIST, where the two rows the last two
+     beats changed are sitting.
+
+     Two pages, not one scrolled page, and this is the beat the whole format
+     rule came out of. The first cut of this film re-typeset the take-off as an
+     HTML document - its own headings, its own column widths, labels in capitals
+     - and shipped, and the difference was spotted in the finished video weeks
+     later. prep_splice.js was fixed then to draw the workbook the way Excel
+     draws it, one sheet per page, and it has produced s_boq1 and s_boq2 ever
+     since. This file was not fixed with it and still asked for the single
+     re-typeset page, so the correction never actually reached the screen. It
+     does now.
+
+     What is on screen has to be what opening the file looks like. The film's
+     claim is "press the button and this is what you get", and a tidier version
+     of the take-off is a lie about the one thing being claimed. */
   caption('c09', T + 0.3, 11.6);
-  await still(2.6);
-  const H = await doc.evaluate(() => document.body.scrollHeight);
-  const kC = Math.round(7.0 * 8);
-  for (let i = 0; i < kC; i++) {
-    const u = ease(i / (kC - 1));
-    await doc.evaluate(y => window.scrollTo(0, y), Math.round(u * (H - 1080)));
-    await still(7.0 / kC);
-  }
-  await still(2.4);
+  await page2(CARD + 's_boq1.html');
+  await still(5.4);
+  await page2(CARD + 's_boq2.html');
+  await still(6.6);
   log('9 take-off');
 
   /* 10  the drawing. Five views, one frame each, then in on the web - the pitch
