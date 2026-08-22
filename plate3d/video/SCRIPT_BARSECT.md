@@ -1,4 +1,4 @@
-# 교육 영상 03 스크립트 — BAR & SECT
+# 교육 영상 02 스크립트 — BAR & SECT
 
 ## 1. 개념 — 세 키워드가 각각 무엇인가
 
@@ -96,12 +96,12 @@ BASIC + CUT sc.col 0 0 ho.m26  1672.002 kg     ← 28.878 kg
 
 | 항목 | 내용 |
 |---|---|
-| 유튜브 제목 | `How to Model Bars and Sections in a Spreadsheet \| PLATE3D Basics 03` |
+| 유튜브 제목 | `How to Model Bars and Sections in a Spreadsheet \| PLATE3D Basics 02` |
 | 화면 타이틀 | `HOW TO USE` / `BAR & SECT` |
 | 설명 1행 | `A section you dimension yourself, stretched between two work points, and trimmed back to the steel.` |
 | 설명 2행 | `Everything here is one shipped example: Example ▸ Basic.` |
 | 규격 | 4:04 · 2560×1440 · 30 fps · **무음 · 영어 자막만** |
-| 썸네일 | `01 BASICS` 자리에 `03 BASICS`, 문구 `HOW TO USE` / `BAR & SECT` |
+| 썸네일 | `01 BASICS` 자리에 `02 BASICS`, 문구 `HOW TO USE` / `BAR & SECT` |
 
 ## 4. 챕터
 
@@ -243,9 +243,21 @@ H-200×200×8×12 r16 · L 3000 · cuts 2 · SM490 · 145.398 kg
 **`C23` 의 중량이 소수점까지 같아야 합니다.** Alpha 는 부재를 돌릴 뿐 옮기지도 자르지도
 않으므로, 달라지면 그 컷의 자막이 거짓이 됩니다.
 
-## 7. 다음 편으로 넘기는 것
+## 7. 시리즈 순서
 
-- `VIEW` 키워드와 도면 목록 — **02편** (BOQ & DXF)
+| 편 | 다룰 것 | 상태 |
+|---|---|---|
+| **01 · PLATE & CUT** | 판을 만들고, 구멍을 뚫고, 모듈과 조립체에 넣기 | 완성 |
+| **02 · BAR & SECT** | **이 영상** — 봉·형강, 두 배치 방식, OFF·Alpha, 명령 | 제작 중 |
+| 03 · BOQ & DXF | 산출서와 도면, 그리고 축척을 왜 물어보는가 | |
+| 04 · PARAM | 앞시트로 모델 전체를 몰기 (타워·스플라이스가 쓴 방식) | |
+
+**01편 유튜브 설명문의 시리즈 목록을 고쳐야 합니다** — 거기에는 02가 BOQ & DXF 로
+적혀 있습니다.
+
+### 다음 편으로 넘기는 것
+
+- `VIEW` 키워드와 도면 목록 — **03편** (BOQ & DXF)
 - 시트 안 규격표 + `VLOOKUP` 으로 단면 고르기 — **04편** (PARAM)
 - 부재 ID 를 수식으로 비워 행을 끄는 방법 (`=IF(조건,"bo.M22","")`) — **04편**
 - `COORD YUP` — 예전 Y-up 시트 읽기
