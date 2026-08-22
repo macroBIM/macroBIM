@@ -4,15 +4,38 @@
 
    Defaults are the tower's. The splice film passes its own:
      BOOK=../../PLATE3D_SPLICE.xlsx RING=C6,C16,F28 LAST=31 OUT=t_param_splice \
-       node mkparampage.js                                                    */
+       node mkparampage.js
+
+   The teaching film draws blocks out of the middle of an `input` sheet rather
+   than a whole PARAM tab, so it also sets SHEET, FIRST and NC:
+
+     BOOK=../../PLATE3D_BASIC.xlsx SHEET=input FIRST=1 LAST=7 NC=11 \
+       RING=G2 OUT=basic/b_sh_plate TABS=input node mkparampage.js
+
+   FIRST is a real crop, not a scroll: rows above it are not drawn and the
+   block sits at the top of the page. Row numbers down the gutter stay the
+   sheet's own, because the point of showing the sheet is that the viewer can
+   find the same row in the file they downloaded.                            */
 const ExcelJS = require('./node_modules/exceljs');
 const fs = require('fs');
 const SRC = __dirname + '/' + (process.env.BOOK || '../../PLATE3D_TOWER.xlsx');
 const FONTCSS = fs.readFileSync(__dirname + '/v_font.css', 'utf8');
+const SHEET = process.env.SHEET || 'PARAM';
+const FIRST = +(process.env.FIRST || 1);
 const LAST = +(process.env.LAST || 26);   // the tower's: down to the slew row
-const RING = (process.env.RING || 'D6,D12,D19,C25').split(',');
+/* An empty RING means "no ring on this page", which `||` would read as unset
+   and answer with the tower's four. Only an absent variable takes the default. */
+const RING = (process.env.RING === undefined ? 'D6,D12,D19,C25' : process.env.RING)
+  .split(',').map(s => s.trim()).filter(Boolean);
 const OUT = __dirname + '/' + (process.env.OUT || 't_param') + '.html';
 const TABS = process.env.TABS || 'PARAM &middot; input';   // the tab strip as the book has it
+/* Both of these default to what the tower and splice films already produce, so
+   adding them cannot move a frame of those two. ACTIVE is the tab drawn in bold
+   - BASIC has no PARAM tab, its sheet is called input. VALIGN centres a short
+   block in the frame; a full PARAM tab fills the height anyway and does not
+   care, but a six-row PLATE block pinned to the top leaves the screen empty. */
+const ACTIVE = process.env.ACTIVE || 'PARAM';
+const VALIGN = process.env.VALIGN || 'top';
 
 const esc = s => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;');
 const argb = a => a ? '#' + String(a).slice(2) : null;
@@ -20,19 +43,20 @@ const argb = a => a ? '#' + String(a).slice(2) : null;
 (async () => {
   const wb = new ExcelJS.Workbook();
   await wb.xlsx.readFile(SRC);
-  const ws = wb.getWorksheet('PARAM');
+  const ws = wb.getWorksheet(SHEET);
+  if (!ws) throw new Error('no sheet named ' + SHEET + ' in ' + SRC);
 
-  const NC = 11, w = [], x = [0];
+  const NC = +(process.env.NC || 11), w = [], x = [0];
   for (let ci = 1; ci <= NC; ci++) {
     const px = Math.round((ws.getColumn(ci).width || 9) * 7.6 + 5);
     w.push(px); x.push(x[x.length - 1] + px);
   }
   const y = [0], h = [];
-  for (let r = 1; r <= LAST; r++) {
+  for (let r = FIRST; r <= LAST; r++) {
     const hh = Math.round((ws.getRow(r).height || 15) * 1.42);
     h.push(hh); y.push(y[y.length - 1] + hh);
   }
-  const W = x[NC], H = y[LAST];
+  const W = x[NC], H = y[y.length - 1];
 
   const merged = {};
   (ws.model.merges || []).forEach(m => {
@@ -56,13 +80,13 @@ const argb = a => a ? '#' + String(a).slice(2) : null;
   const o = [`<svg xmlns="http://www.w3.org/2000/svg" width="${W}" height="${H}" viewBox="0 0 ${W} ${H}">`,
              `<rect width="${W}" height="${H}" fill="#ffffff"/>`];
   const at = {};                        // where a ringed cell landed
-  for (let r = 1; r <= LAST; r++) {
+  for (let r = FIRST; r <= LAST; r++) {
     for (let ci = 1; ci <= NC; ci++) {
       const key = r + ',' + ci;
       if (key in merged && merged[key] === null) continue;
       const span = (merged[key] || [1])[0];
       const cell = ws.getCell(r, ci);
-      const cx = x[ci - 1], cy = y[r - 1], ch = h[r - 1];
+      const cx = x[ci - 1], cy = y[r - FIRST], ch = h[r - FIRST];
       let cw = 0; for (let k = 0; k < span; k++) cw += w[ci - 1 + k];
       at[cell.address.replace(/\$/g, '')] = [cx, cy, cw, ch];
       const fill = cell.fill && cell.fill.fgColor ? argb(cell.fill.fgColor.argb) : null;
@@ -109,6 +133,8 @@ const argb = a => a ? '#' + String(a).slice(2) : null;
   o.push('</svg>');
 
   const scale = Math.min(1860 / W, 1000 / H);
+  const top = VALIGN === 'center'
+    ? Math.max(12, Math.round((1080 - 64 - H * scale) / 2)) : 12;
   fs.writeFileSync(OUT,
 `<meta charset="utf-8"><style>${FONTCSS}</style><style>
  *{margin:0;padding:0;box-sizing:border-box}
@@ -116,10 +142,10 @@ const argb = a => a ? '#' + String(a).slice(2) : null;
  body{font-family:Inter,system-ui,sans-serif;-webkit-font-smoothing:antialiased}
  .tab{font:600 21px/1 Inter,sans-serif;color:#0f172a;padding:22px 0 0 46px}
  .tab i{color:#94a3b8;font-style:normal;font-weight:500;margin-left:16px}
- .wrap{transform:scale(${scale.toFixed(4)});transform-origin:top left;margin:12px 0 0 46px}
+ .wrap{transform:scale(${scale.toFixed(4)});transform-origin:top left;margin:${top}px 0 0 46px}
  .ring{opacity:0}
  body.lit .ring{opacity:1}
-</style><div class="tab">PARAM<i>${TABS}</i></div>
+</style><div class="tab">${ACTIVE}<i>${TABS}</i></div>
 <div class="wrap">${o.join('')}</div>`);
   console.log(require('path').basename(OUT) + '  ' + W + 'x' + H + '  scale ' + scale.toFixed(3) +
               '  rings: ' + RING.join(', '));
