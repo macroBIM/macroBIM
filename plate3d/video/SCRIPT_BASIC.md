@@ -53,11 +53,11 @@
 | 항목 | 내용 |
 |---|---|
 | 유튜브 제목 | `How to Model Plates and Holes in a Spreadsheet \| PLATE3D Basics 01` |
-| 화면 타이틀 | `HOW TO` / `PLATE & CUT` |
+| 화면 타이틀 | `HOW TO USE` / `PLATE & CUT` |
 | 설명 1행 | `How a plate is defined, where its origin is, and how a hole gets cut — the first hour with PLATE3D.` |
 | 설명 2행 | `Everything here is one shipped example: Example ▸ Basic.` |
 | 태그 | PLATE3D tutorial · BIM tutorial · steel detailing · spreadsheet BIM · parametric model · plate · bolt hole · BOQ · DXF · macroBIM |
-| 규격 | 3:12 · 1920×1080 · 30 fps · 무음 |
+| 규격 | 3:24 · 1920×1080 · 30 fps · 무음 |
 
 ### 제목이 둘인 이유
 
@@ -68,7 +68,11 @@
 | | 문구 | 노리는 것 |
 |---|---|---|
 | 유튜브 | `How to Model Plates and Holes in a Spreadsheet \| PLATE3D Basics 01` | `how to` + 검색어. 66자라 검색결과에서 안 잘림 |
-| 화면 | `HOW TO` / `PLATE & CUT` | 4초에 읽히는 두 줄. 처음 주신 목차 문구 그대로 |
+| 화면 | `HOW TO USE` / `PLATE & CUT` | 4초에 읽히는 두 줄 |
+
+`use` 가 들어가야 합니다. 영어에서 **plate 와 cut 은 그 자체가 동사**입니다 — plate 는
+"판을 대다", cut 은 "자르다". 그래서 `how to plate & cut` 은 소프트웨어 사용법이 아니라
+**제작 공정** 설명처럼 읽힙니다. `use` 를 넣으면 둘이 시트의 **키워드**라는 게 분명해집니다.
 
 `Basics 01` 이 붙었으니 다음 편이 예약됩니다. 이 편에서 다루지 않은 것들이 그대로 목차입니다:
 
@@ -89,20 +93,21 @@
 0:38  The nine reference points
 1:00  Thickness, and the + / − face
 1:20  HOLE and CUT
-1:45  MODULE — standing a plate up
-2:09  BASE — the module's datum
-2:23  ASSY — placing the module
-2:39  The take-off
-2:52  The drawing, and scale
+1:55  MODULE — standing a plate up
+2:21  BASE — the module's datum
+2:35  ASSY — placing the module
+2:51  The take-off
+3:04  The drawing, and scale
 ```
 
 
-## 6. 컷 리스트 — 3:12
+
+## 6. 컷 리스트 — 3:24
 
 | # | 시작 | 길이 | 화면 | 자막 |
 |---|---|---|---|---|
 | **1** | 0:00 | 6s | 완성된 BASIC 모델이 `__reveal` 로 아래에서부터 쌓여 올라감 | **This is one spreadsheet.**<br>**By the end you will be able to write it.** |
-| **2** | 0:06 | 4s | 타이틀 카드 | **HOW TO**<br>**PLATE & CUT** |
+| **2** | 0:06 | 4s | 타이틀 카드 | **HOW TO USE**<br>**PLATE & CUT** |
 | 3 | 0:10 | 6s | Example ▸ **Basic** 행 테두리 → DOWNLOAD | *The file this video uses.* |
 | **4** | 0:16 | 7s | input 시트 PLATE 블록 6행, 열 제목에 링 | **One PLATE row is one part.** |
 | 5 | 0:23 | 7s | RECT / TRAP / CIRC 세 판이 하나씩 떠오름 | *Three shapes. RECT, TRAP, CIRC.* |
@@ -114,25 +119,45 @@
 | 11 | 1:06 | 7s | Guide 의 **bc / bc+ / bc−** 그림 | *bc+ puts the plus face on the line.* |
 | **12** | 1:13 | 7s | `MODULE md.col pl.base mc- 0 0 0 XY` · 판이 z=0 위로 올라앉음 | **Type the drawing's dimension —**<br>**not the dimension plus half the thickness.** |
 | **13** | 1:20 | 6s | HOLE 3행 · 재질도 두께도 없음 | **HOLE is a shape, not a part.** |
-| 14 | 1:26 | 7s | `CUT pl.base -150 -150 ho.m26` — 구멍 하나 | *Which plate, where on it, which shape.* |
-| 15 | 1:33 | 6s | 뒤에 `300 0 1` 이 붙으며 구멍이 둘로 | *dx dy repeat — one row is a row of holes.* |
-| 16 | 1:39 | 6s | `CUT pl.cap -130 -130 pl.stf` — 스티프너 자국이 뚜껑에서 빠짐 | *A shape can be another plate.* |
-| **17** | 1:45 | 7s | MODULE 블록 · PLATE 행과 나란히 | **PLATE defines. MODULE uses.** |
-| 18 | 1:52 | 9s | PLANE 세 개: 판이 눕고(XY) · 서고(XZ) · 옆으로 선다(YZ) | *XY, XZ, YZ — which plane the plate lies in.* |
-| 19 | 2:01 | 8s | 반복 8칸 · 같은 판이 격자로 늘어남 | *(repeat+1) × (repeat2+1) copies.* |
-| **20** | 2:09 | 7s | `MODULE md.col BASE pl.base mc-` · 그 점에 마커 | **BASE is the module's datum. Required.** |
-| 21 | 2:16 | 7s | 같은 모듈을 BASE 만 바꿔 두 번 배치 | *Read where it sits, and type that in ASSY.* |
-| **22** | 2:23 | 7s | ASSY ADD 행 · 모듈이 글로벌 좌표에 | **ASSY places a module in the world.** |
-| 23 | 2:30 | 9s | MIR / COPY / ROT — 하나가 넷이 되고, 줄이 되고, 원이 됨 | *MIR mirrors. COPY repeats. ROT swings it round an axis.* |
-| **24** | 2:39 | 13s | File ▸ Save BOQ · SUMMARY 와 PART LIST 스크롤 | **Save BOQ.**<br>**Weights are still live formulas.** |
-| **25** | 2:52 | 15s | File ▸ Save DXF · **네 블록 대화상자**에 링 → 도면 | **Four blocks, each at its own scale.**<br>**Scale belongs to the paper, not the model.** |
-| **26** | 3:07 | 5s | 로고 | **PLATE3D by macroBIM** |
+| 14 | 1:26 | 7s | `CUT pl.clt -50 -50 ho.m26` — 구멍 하나 | *Which plate, where on it, which shape.* |
+| **15** | 1:33 | 7s | 뒤에 `0 50 2` 가 붙으며 구멍이 세로로 셋 | **dx dy repeat — the first axis.** |
+| **16** | 1:40 | 9s | 다시 `100 0 1` 이 붙으며 **격자 3 × 2** · 옆에 있던 두 번째 CUT 행이 사라짐 | **dx2 dy2 repeat2 — the second.**<br>**Two rows just became one.** |
+| 17 | 1:49 | 6s | `CUT pl.cap -130 -130 pl.stf` — 스티프너 자국이 뚜껑에서 빠짐 | *A shape can be another plate.* |
+| **18** | 1:55 | 7s | MODULE 블록 · PLATE 행과 나란히 | **PLATE defines. MODULE uses.** |
+| 19 | 2:02 | 9s | PLANE 세 개: 판이 눕고(XY) · 서고(XZ) · 옆으로 선다(YZ) | *XY, XZ, YZ — which plane the plate lies in.* |
+| **20** | 2:11 | 10s | 앵커볼트 **MODULE 4행이 1행으로** — `300 0 0 1` `0 300 0 1` · **모델은 그대로** | **The same eight columns, in MODULE.**<br>**Four rows became one. The model did not move.** |
+| **21** | 2:21 | 7s | `MODULE md.col BASE pl.base mc-` · 그 점에 마커 | **BASE is the module's datum. Required.** |
+| 22 | 2:28 | 7s | 같은 모듈을 BASE 만 바꿔 두 번 배치 | *Read where it sits, and type that in ASSY.* |
+| **23** | 2:35 | 7s | ASSY ADD 행 · 모듈이 글로벌 좌표에 | **ASSY places a module in the world.** |
+| 24 | 2:42 | 9s | MIR / COPY / ROT — 하나가 넷이 되고, 줄이 되고, 원이 됨 | *MIR mirrors. COPY repeats. ROT swings it round an axis.* |
+| **25** | 2:51 | 13s | File ▸ Save BOQ · SUMMARY 와 PART LIST 스크롤 | **Save BOQ.**<br>**Weights are still live formulas.** |
+| **26** | 3:04 | 15s | File ▸ Save DXF · **네 블록 대화상자**에 링 → 도면 | **Four blocks, each at its own scale.**<br>**Scale belongs to the paper, not the model.** |
+| **27** | 3:19 | 5s | 로고 | **PLATE3D by macroBIM** |
 
 **자막은 3~5초, 컷 길이는 화면이 정한다.** 처음 잡았던 "두 줄이면 12초"는 자막 읽는
-시간과 컷 길이를 같은 것으로 본 잘못이었다. 자막은 짧게 지나가고, 컷은 판이 도는
-동안·구멍이 뚫리는 동안 이어진다.
+시간과 컷 길이를 같은 것으로 본 잘못이었다.
 
-## 7. 24·25번이 왜 제일 긴가 (13s · 15s)
+### 15·16·20번 — 격자 복사
+
+같은 여덟 칸이 **CUT 과 MODULE 에 똑같이** 붙는다. 한 번 배우면 두 군데 쓴다는 것이
+요점이고, 그래서 세 컷을 붙여 놓았다.
+
+```
+dx  dy  [dz]  repeat        dx2  dy2  [dz2]  repeat2      →  (repeat+1) × (repeat2+1)
+```
+
+교재 안에 보여줄 자리가 이미 있다.
+
+| | BASIC 이 지금 쓰는 방식 | 한 행으로 |
+|---|---|---|
+| CUT (16번) | `CUT pl.clt -50 -50 ho.m26 0 50 2`<br>`CUT pl.clt 50 -50 ho.m26 0 50 2` | `CUT pl.clt -50 -50 ho.m26 0 50 2 100 0 1` |
+| MODULE (20번) | `bar.anch_1` … `bar.anch_4` 네 행 | `-150 -150 25 → -150 -150 -250` 한 행 +<br>`300 0 0 1` `0 300 0 1` |
+
+**16·20번의 요점은 모델이 안 변한다는 것이다.** 화면에서 볼 것은 3D 가 아니라 시트다 —
+행이 줄고 구멍·볼트는 그 자리에 그대로 있다. 자막이 그것을 말한다:
+*Two rows just became one* · *Four rows became one. The model did not move.*
+
+## 7. 25·26번이 왜 제일 긴가 (13s · 15s)
 
 앞의 23컷은 **문법**입니다. 마지막 둘은 **왜 이걸 배웠는지**입니다.
 시트를 쓸 줄 알게 되면 그 다음 질문이 "그래서 뭐가 나오는데"이고, 답이 이 둘입니다.
@@ -170,11 +195,12 @@
 | **시트 행은 셀 카드로** | 스플라이스와 같은 방식. 설명하는 열에 링 |
 | **자막 3~5초, 컷은 그보다 길게** | 자막은 읽히면 끝이고, 컷은 화면의 동작이 끝날 때까지 간다 |
 | **챕터 경계에서 끊는다** | 유튜브 목차로 뛰어들어와도 문장 중간이 아니게 |
+| **15·16·20번은 워크북 변형이 필요하다** | 구멍 1개 → 한 줄 → 격자, 앵커 4행 → 1행. 전부 BASIC 의 CUT/MODULE 행만 고친 것이고 모델은 같아야 한다 — 같지 않으면 그 컷이 거짓말이 된다 |
 | `shots.json` 을 **컷마다 저장** | 타워에서 52분 촬영 후 크래시로 타임라인을 잃음 |
 
 ## 9. 남은 결정
 
 | | |
 |---|---|
-| 3:12 이 짧은가 | 26컷을 다 넣고도 이 길이다. 더 필요하면 늘릴 곳은 18·19·23번(동작이 있는 컷)이지 자막이 아니다 |
+| 3:24 이 짧은가 | 27컷을 다 넣고도 이 길이다. 더 필요하면 늘릴 곳은 19·20·24번(동작이 있는 컷)이지 자막이 아니다 |
 | 한국어 자막 | 지금 자막은 영어. 유튜브 자막 트랙으로 한국어를 얹을지 |
