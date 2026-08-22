@@ -55,6 +55,11 @@ tools/norm_splice/
 tools/seq_splice/
 tools/filter_splice.txt
 
+# Run logs of every pass, named one at a time until now. A shoot or an encode
+# writes one each time it runs and none of them is worth keeping - the tool that
+# produced the log is what is worth keeping.
+tools/*.log
+
 # teaching film: same rule, its own names. The generators are tools/mkcards_basic.js,
 # tools/rendercards_basic.js and tools/make_basic_cases.js.
 tools/basic/
