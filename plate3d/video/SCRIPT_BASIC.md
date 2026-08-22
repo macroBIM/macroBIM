@@ -54,10 +54,10 @@
 |---|---|
 | 유튜브 제목 | `How to Model Plates and Holes in a Spreadsheet \| PLATE3D Basics 01` |
 | 화면 타이틀 | `HOW TO USE` / `PLATE & CUT` |
-| 설명 1행 | `How a plate is defined, where its origin is, and how a hole gets cut — the first hour with PLATE3D.` |
+| 설명 1행 | `How a plate is defined, where its origin is, how a hole gets cut, and how the parts come together.` |
 | 설명 2행 | `Everything here is one shipped example: Example ▸ Basic.` |
-| 태그 | PLATE3D tutorial · BIM tutorial · steel detailing · spreadsheet BIM · parametric model · plate · bolt hole · BOQ · DXF · macroBIM |
-| 규격 | 3:24 · 1920×1080 · 30 fps · 무음 |
+| 태그 | PLATE3D tutorial · BIM tutorial · steel detailing · spreadsheet BIM · parametric model · plate · bolt hole · 3D modelling · macroBIM |
+| 규격 | 3:04 · 1920×1080 · 30 fps · 무음 |
 
 ### 제목이 둘인 이유
 
@@ -78,10 +78,14 @@
 
 | 편 | 다룰 것 |
 |---|---|
-| **01 · PLATE & CUT** | 이 영상 |
-| 02 · BAR & SECT | 봉·형강, 좌표 배치, `OFF_B` / `OFF_E` / `Alpha` |
-| 03 · VIEW & DXF | 시트가 도면을 이름 붙이는 법, 치수·피치 체인 |
+| **01 · PLATE & CUT** | **이 영상 — 판을 만들고, 구멍을 뚫고, 모듈과 조립체에 넣는 데까지** |
+| 02 · BOQ & DXF | 산출서와 도면, 그리고 축척을 왜 물어보는가 |
+| 03 · BAR & SECT | 봉·형강, 좌표 배치, `OFF_B` / `OFF_E` / `Alpha` |
 | 04 · PARAM | 앞시트로 모델 전체를 몰기 (타워·스플라이스가 쓴 방식) |
+
+**이 편은 모델이 서는 데서 끊습니다.** 시트를 읽고 모양이 서기까지가 한 덩어리이고,
+거기서 뭘 뽑아내는지는 다른 이야기입니다. 한 영상에 둘 다 넣으면 배우는 사람이
+어디까지가 "만들기"이고 어디부터가 "뽑기"인지 헷갈립니다.
 
 ## 5. 챕터
 
@@ -96,13 +100,11 @@
 1:55  MODULE — standing a plate up
 2:21  BASE — the module's datum
 2:35  ASSY — placing the module
-2:51  The take-off
-3:04  The drawing, and scale
 ```
 
 
 
-## 6. 컷 리스트 — 3:24
+## 6. 컷 리스트 — 3:04
 
 | # | 시작 | 길이 | 화면 | 자막 |
 |---|---|---|---|---|
@@ -130,9 +132,8 @@
 | 22 | 2:28 | 7s | 같은 모듈을 BASE 만 바꿔 두 번 배치 | *Read where it sits, and type that in ASSY.* |
 | **23** | 2:35 | 7s | ASSY ADD 행 · 모듈이 글로벌 좌표에 | **ASSY places a module in the world.** |
 | 24 | 2:42 | 9s | MIR / COPY / ROT — 하나가 넷이 되고, 줄이 되고, 원이 됨 | *MIR mirrors. COPY repeats. ROT swings it round an axis.* |
-| **25** | 2:51 | 13s | File ▸ Save BOQ · SUMMARY 와 PART LIST 스크롤 | **Save BOQ.**<br>**Weights are still live formulas.** |
-| **26** | 3:04 | 15s | File ▸ Save DXF · **네 블록 대화상자**에 링 → 도면 | **Four blocks, each at its own scale.**<br>**Scale belongs to the paper, not the model.** |
-| **27** | 3:19 | 5s | 로고 | **PLATE3D by macroBIM** |
+| **25** | 2:51 | 8s | 1번과 같은 모델, 이번엔 완성된 채로 천천히 돈다 | **PLATE. CUT. MODULE. ASSY.**<br>**That is the whole model.** |
+| **26** | 2:59 | 5s | 로고 | **PLATE3D by macroBIM** |
 
 **자막은 3~5초, 컷 길이는 화면이 정한다.** 처음 잡았던 "두 줄이면 12초"는 자막 읽는
 시간과 컷 길이를 같은 것으로 본 잘못이었다.
@@ -157,10 +158,9 @@ dx  dy  [dz]  repeat        dx2  dy2  [dz2]  repeat2      →  (repeat+1) × (re
 행이 줄고 구멍·볼트는 그 자리에 그대로 있다. 자막이 그것을 말한다:
 *Two rows just became one* · *Four rows became one. The model did not move.*
 
-## 7. 25·26번이 왜 제일 긴가 (13s · 15s)
+## 7. 02편으로 넘긴 것 — BOQ 와 도면
 
-앞의 23컷은 **문법**입니다. 마지막 둘은 **왜 이걸 배웠는지**입니다.
-시트를 쓸 줄 알게 되면 그 다음 질문이 "그래서 뭐가 나오는데"이고, 답이 이 둘입니다.
+이 편에서 뺐지만 조사는 끝나 있으므로 02편 스크립트의 출발점으로 남겨 둡니다.
 
 **BOQ** — `File ▸ Save BOQ`
 
@@ -182,9 +182,9 @@ dx  dy  [dz]  repeat        dx2  dy2  [dz2]  repeat2      →  (repeat+1) × (re
 | PART / SECT | 부재 1종씩, 수량 표기 | 1:10 |
 | VIEWS | 시트의 `VIEW` 행이 이름 붙인 도면 | 1:10 |
 
-**여기서 가르칠 것은 축척이 왜 물어보는 항목인가**입니다. 무엇을·어디서 볼지는
-시트가 정했지만, **몇 분의 일로 그릴지는 종이의 성질**이라 시트가 알 수 없습니다.
-파일 이름에 그대로 박힙니다 — `..._A50-M20-P10.dxf`.
+가르칠 것은 **축척을 왜 물어보는가**입니다. 무엇을·어디서 볼지는 시트가 정했지만,
+도면마다 크기가 달라서 **몇 분의 일로 그릴지는 종이의 성질**이고 시트가 알 수 없습니다.
+그래서 내보낼 때 한 번 묻고, 고른 값을 파일 이름에 그대로 박습니다 — `..._A50-M20-P10.dxf`.
 
 ## 8. 촬영
 
@@ -195,6 +195,7 @@ dx  dy  [dz]  repeat        dx2  dy2  [dz2]  repeat2      →  (repeat+1) × (re
 | **시트 행은 셀 카드로** | 스플라이스와 같은 방식. 설명하는 열에 링 |
 | **자막 3~5초, 컷은 그보다 길게** | 자막은 읽히면 끝이고, 컷은 화면의 동작이 끝날 때까지 간다 |
 | **챕터 경계에서 끊는다** | 유튜브 목차로 뛰어들어와도 문장 중간이 아니게 |
+| **1번과 25번은 같은 모델** | 쌓아 올리며 열고, 완성된 채로 닫는다 — 그 사이가 이 영상이 가르친 것 |
 | **15·16·20번은 워크북 변형이 필요하다** | 구멍 1개 → 한 줄 → 격자, 앵커 4행 → 1행. 전부 BASIC 의 CUT/MODULE 행만 고친 것이고 모델은 같아야 한다 — 같지 않으면 그 컷이 거짓말이 된다 |
 | `shots.json` 을 **컷마다 저장** | 타워에서 52분 촬영 후 크래시로 타임라인을 잃음 |
 
@@ -202,5 +203,5 @@ dx  dy  [dz]  repeat        dx2  dy2  [dz2]  repeat2      →  (repeat+1) × (re
 
 | | |
 |---|---|
-| 3:24 이 짧은가 | 27컷을 다 넣고도 이 길이다. 더 필요하면 늘릴 곳은 19·20·24번(동작이 있는 컷)이지 자막이 아니다 |
+| 3:04 이 짧은가 | 26컷이 다 들어간 길이다. 더 필요하면 늘릴 곳은 19·20·24번(동작이 있는 컷)이지 자막이 아니다 |
 | 한국어 자막 | 지금 자막은 영어. 유튜브 자막 트랙으로 한국어를 얹을지 |
