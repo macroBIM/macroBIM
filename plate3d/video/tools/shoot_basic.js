@@ -168,6 +168,33 @@ async function guide(headings, dur) {
    Ids are upper case inside the engine - preview('pl.stf') finds nothing and
    returns quietly, which is how the first probe came back with the main view
    screenshotted and no error anywhere. */
+const boxOf = sel => app.evaluate(q => {
+  const e = document.querySelector(q); if (!e) return null;
+  const r = e.getBoundingClientRect();
+  return { x: r.left, y: r.top, w: r.width, h: r.height };
+}, sel);
+
+/* Frame on the preview card rather than the whole browser.
+
+   The first re-shoot got the right picture and then showed it small: the card
+   is about half the width of the window, so the plate drawing inside it landed
+   at roughly a quarter of the frame with app chrome all round. In a teaching
+   film the thing being taught should be the picture, not a window in it. A
+   little of the app is kept at the edges so it still reads as the real screen.
+
+   Clipping is in CSS pixels and the page runs at deviceScaleFactor 2, so a
+   1140-wide card comes out 2280 wide - all but native for a 2560 frame. */
+async function cardShot(dur, pad) {
+  const b = await boxOf('#pb-modal .box');
+  if (!b) return chrome(dur);
+  const m = (pad === undefined ? 0.07 : pad);
+  const w = Math.min(VW, b.w * (1 + m * 2)), h = w * VH / VW;
+  const x = Math.min(Math.max(0, b.x + b.w / 2 - w / 2), VW - w);
+  const y = Math.min(Math.max(0, b.y + b.h / 2 - h / 2), VH - h);
+  return app.screenshot({ type: 'png', clip: { x: Math.round(x), y: Math.round(y),
+    width: Math.round(w), height: Math.round(h) } }).then(buf => put(buf, dur));
+}
+
 async function part(id, dur) {
   await app.evaluate(i => plateBuilder.preview(i), id.toUpperCase());
   await app.waitForTimeout(1400);
@@ -176,7 +203,7 @@ async function part(id, dur) {
     return !!m && getComputedStyle(m).display !== 'none';
   });
   if (!open) throw new Error('preview(' + id + ') did not open - check the id');
-  await chrome(dur);
+  await cardShot(dur);
   await app.evaluate(() => plateBuilder.closePreview());
   await app.waitForTimeout(400);
 }
@@ -193,15 +220,7 @@ async function unit(id, dur, hide) {
     return !!m && getComputedStyle(m).display !== 'none';
   });
   if (!open) throw new Error('previewModule(' + id + ') did not open - check the id');
-  if (hide && hide.length) {
-    await app.evaluate(a => {
-      const rows = [...document.querySelectorAll('#pb-pv-tree tbody tr')];
-      a.forEach(i => { const c = rows[i] && rows[i].querySelector('input[type=checkbox]');
-        if (c && c.checked) c.click(); });
-    }, hide);
-    await app.waitForTimeout(900);
-  }
-  await chrome(dur);
+  await cardShot(dur, 0.02);
   await app.evaluate(() => plateBuilder.closePreview());
   await app.waitForTimeout(400);
 }
@@ -217,10 +236,16 @@ async function swap(a, b, dur, show) {
 
 /* Turn the model a little while holding it - a still 3D shot reads as a
    screenshot, and the point of the viewport is that it is not one. */
-async function orbit(dur, sweep, zoom) {
+async function orbit(dur, sweep, zoom, pull) {
   const c = await cam();
+  /* `pull` stands the camera further back before the move starts. The engine
+     fits the view to whatever it just loaded, and on the one-command assembly
+     workbooks that fit is tight enough to run the columns off the bottom of a
+     16:9 frame. A model half out of frame is not a picture of what the command
+     did. */
+  const d0 = c.dist * (pull === undefined ? 1 : pull);
   await move(dur, u => aim({ ...c, az: mix(c.az - sweep / 2, c.az + sweep / 2, u),
-                             dist: c.dist * mix(1, zoom === undefined ? 1 : zoom, ease(u)) }));
+                             dist: d0 * mix(1, zoom === undefined ? 1 : zoom, ease(u)) }));
 }
 
 (async () => {
@@ -364,12 +389,15 @@ async function orbit(dur, sweep, zoom) {
   await unit('MD.COL', 3.5);
   log('17 MODULE block');
 
-  /* PLANE, one member at a time: the column alone, then the plates that lie in
-     XY, then the cleat that stands in YZ. The list carries the column name. */
+  /* PLANE. Switching members off left the 3D empty - the view does not refit
+     when something is hidden, so what was framed for eight members showed one
+     small plate in the middle of a black panel. The list is the picture here
+     anyway: a PLANE column reading XY, XY, XY, YZ beside a module where three
+     plates lie flat and the cleat stands on edge. Two modules, not one member
+     at a time, so the cut is not a still of the one before it. */
   caption('c18', T + 0.3, 4.8);
-  await unit('MD.COL', 3.0, [2, 3, 4, 5, 6, 7]);
-  await unit('MD.COL', 3.0, [3, 4, 5, 6, 7]);
-  await unit('MD.COL', 3.0);
+  await unit('MD.COL', 4.5);
+  await unit('MD.BAY', 4.5);
   log('18 PLANE');
 
   caption('c19', T + 0.3, 4.6);
@@ -412,15 +440,15 @@ async function orbit(dur, sweep, zoom) {
   log('25 ASSY block');
 
   caption('c26', T + 0.3, 4.6);
-  await swap(CASE + 'B26A.xlsx', CASE + 'B26B.xlsx', 6.0, d => orbit(d, 18));
+  await swap(CASE + 'B26A.xlsx', CASE + 'B26B.xlsx', 6.0, d => orbit(d, 18, 1, 1.35));
   log('26 MIR - one column becomes two');
 
   caption('c27', T + 0.3, 4.6);
-  await swap(CASE + 'B26B.xlsx', CASE + 'B27.xlsx', 6.0, d => orbit(d, 20));
+  await swap(CASE + 'B26B.xlsx', CASE + 'B27.xlsx', 6.0, d => orbit(d, 20, 1, 1.35));
   log('27 COPY - one bent becomes three');
 
   caption('c28', T + 0.3, 4.6);
-  await swap(CASE + 'B28A.xlsx', CASE + 'B28B.xlsx', 6.0, d => orbit(d, 26));
+  await swap(CASE + 'B28A.xlsx', CASE + 'B28B.xlsx', 6.0, d => orbit(d, 26, 1, 1.45));
   log('28 ROT - one stiffener becomes four');
 
   await load(BOOK);
