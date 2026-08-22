@@ -41,6 +41,27 @@ const R = {
   str:     61         // MODULE md.bay sc.str   ... 110 110 90
 };
 
+/* Strip the sheet to two definitions and an ASSY that never mentions a module -
+   the thing cut 30 is about. Verified before it went in the script: three ASSY
+   rows, no MODULE row at all, and the panel reports modules 0 with six members
+   placed. */
+function bare(ws) {
+  ws.spliceRows(2, ws.rowCount);
+  let r = 2;
+  const put = a => { const row = ws.getRow(r++);
+    a.forEach((v, i) => { if (v !== null) row.getCell(i + 2).value = v; }); };
+  put(['# BAR', 'id', 'mat', 'dia', 'length']);
+  put(['BAR', 'bar.t', 'SS400', 24, 2000]);
+  put(['# SECT', 'id', 'mat', 'length', 'TYPE', 'base.pt',
+       'v1', 'v2', 'v3', 'v4', 'v5', 'v6', 'v7']);
+  put(['SECT', 'sc.t', 'SM490', 1500, 'H', 'mc', 200, 200, 200, 8, 12, 12, 16]);
+  put(['# ASSY', 'id', 'ref', 'cmd', 'p1', 'p2', 'p3', 'p4']);
+  put(['ASSY', 'as.t', 'bar.t', 'ADD', 0, 0, 0]);
+  put(['ASSY', 'as.t', 'sc.t', 'ADD', 600, 0, 0]);
+  put(['ASSY', 'as.t', 'as.t', 'COPY', 0, 800, 0, 2]);
+  put(['END']);
+}
+
 const CASES = [
   {
     id: 'c12', same: false,
@@ -71,6 +92,12 @@ const CASES = [
        not change, no steel is removed. A different weight would mean the film
        is telling the viewer something the engine does not do. */
     edit: ws => { ws.getRow(R.str).getCell(C.N).value = 0; }
+  },
+  {
+    id: 'c30', members: 6,
+    what: 'a bar and a section into an ASSY, no MODULE',
+    why: 'cut 30 - modules 0, and six members still stand',
+    edit: ws => bare(ws)
   },
   {
     id: 'c31', same: false,
@@ -176,14 +203,17 @@ async function weigh(page, file) {
     const g = await weigh(page, OUT + '/PLATE3D_' + c.id.toUpperCase() + '.xlsx');
     const same = g.members === base.members && g.kg === base.kg;
     let verdict;
-    if (c.same) verdict = same ? 'identical to BASIC  OK' : 'CHANGED - must not';
+    if (c.members !== undefined)
+      verdict = g.members === c.members ? c.members + ' members  OK'
+                                        : 'want ' + c.members + ', got ' + g.members;
+    else if (c.same) verdict = same ? 'identical to BASIC  OK' : 'CHANGED - must not';
     else if (g.members !== base.members) verdict = 'member count moved - should not';
     else verdict = (g.kg > base.kg ? '+' : '') +
                    (Math.round((g.kg - base.kg) * 1000) / 1000) + ' kg';
-    if (/must|should/.test(verdict)) bad++;
+    if (/must|should|want/.test(verdict)) bad++;
     console.log('  ' + c.id.padEnd(6) + String(g.members).padStart(3) + ' members  ' +
                 String(g.kg).padStart(10) + ' kg   ' + verdict);
-    if (/must|should/.test(verdict)) console.log('         ' + c.why);
+    if (/must|should|want/.test(verdict)) console.log('         ' + c.why);
   }
   await browser.close();
   console.log('\n' + (bad ? bad + ' case(s) wrong - do not shoot these'

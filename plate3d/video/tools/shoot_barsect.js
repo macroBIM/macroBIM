@@ -195,6 +195,20 @@ async function cardShot(dur, pad) {
     width: Math.round(w), height: Math.round(h) } }).then(buf => put(buf, dur));
 }
 
+/* Frame on one panel of the app rather than the whole window. The lists on the
+   left carry the three tables, and at full width they are a strip down the edge
+   of a 2336-wide frame - readable on a monitor, not in a video. */
+async function panelShot(sel, dur, pad) {
+  const b = await boxOf(sel);
+  if (!b) return chrome(dur);
+  const m = (pad === undefined ? 0.10 : pad);
+  const w = Math.min(VW, b.w * (1 + m * 2)), h = w * VH / VW;
+  const x = Math.min(Math.max(0, b.x + b.w / 2 - w / 2), VW - w);
+  const y = Math.min(Math.max(0, b.y + b.h / 2 - h / 2), VH - h);
+  return app.screenshot({ type: 'png', clip: { x: Math.round(x), y: Math.round(y),
+    width: Math.round(w), height: Math.round(h) } }).then(buf => put(buf, dur));
+}
+
 async function part(id, dur) {
   await app.evaluate(i => plateBuilder.preview(i), id.toUpperCase());
   await app.waitForTimeout(1400);
@@ -257,8 +271,9 @@ async function orbit(dur, sweep, zoom, pull) {
     .concat([1, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 14, 15, 16, 17, 19, 20, 21, 22, 23,
              25, 26, 27, 28, 29, 30, 31, 32]
              .map(i => CARD + 's3_c' + String(i).padStart(2, '0') + '.png'))
-    .concat(['C12', 'C20', 'C23', 'C31'].map(i => 'barsect/PLATE3D_' + i + '.xlsx'))
-    .concat(['basic/PLATE3D_B22.xlsx']);
+    .concat(['C12', 'C20', 'C23', 'C30', 'C31'].map(i => 'barsect/PLATE3D_' + i + '.xlsx'))
+    .concat(['B22', 'B26A', 'B26B', 'B27', 'B28A', 'B28B']
+      .map(i => 'basic/PLATE3D_' + i + '.xlsx'));
   const missing = need.filter(f => !fs.existsSync(SP + '/' + f));
   if (missing.length) {
     console.log('missing before the shoot starts:\n  ' + missing.join('\n  '));
@@ -308,7 +323,14 @@ async function orbit(dur, sweep, zoom, pull) {
   /* ---- 3-4  three tables, three keywords ---- */
   await load(BOOK);
   caption('c03', T + 0.3, 4.6);
-  await chrome(6.0);
+  await app.evaluate(() => {
+    ['pb-holes', 'pb-plates', 'pb-bars', 'pb-sects', 'pb-mods'].forEach(id => {
+      const e = document.getElementById(id);
+      if (e && e.previousElementSibling) e.previousElementSibling.click();
+    });
+  }).catch(() => {});
+  await app.waitForTimeout(500);
+  await panelShot('#pb-side, .side, #pb-list', 6.0);
   log('3 three tables');
 
   caption('c04', T + 0.3, 4.8);
@@ -375,8 +397,10 @@ async function orbit(dur, sweep, zoom, pull) {
   await unit('MD.BAY', 5.0);
   log('16 two points');
 
+  /* the `ref` the app writes beside a stretched member's length - a five-pixel
+     word that is the whole point of the cut, so the camera goes to it */
   caption('c17', T + 0.3, 4.6);
-  await chrome(7.0);
+  await panelShot('#pb-sects', 7.0, 0.30);
   log('17 ref on the length');
 
   /* ---- 18  section card ---- */
@@ -438,21 +462,29 @@ async function orbit(dur, sweep, zoom, pull) {
   await sheet(CARD + 's3_sh_assy.html', 8.0, true);
   log('26 ASSY block');
 
+  /* 27-29 - one command at a time, so each cut shows what its own command did.
+     Running the finished bent three times under three captions is what episode
+     01 did before it was re-shot; these are that episode's own case books,
+     already verified at 8, 16, 48 members and 1, 4 stiffeners. */
+  const EP1 = SP + '/basic/PLATE3D_';
   caption('c27', T + 0.3, 4.6);
-  await orbit(7.0, 20, 1.04);
-  log('27 MIR');
+  await swap(EP1 + 'B26A.xlsx', EP1 + 'B26B.xlsx', 7.0, d => orbit(d, 18, 1, 1.35));
+  log('27 MIR - one column becomes two');
 
   caption('c28', T + 0.3, 4.6);
-  await orbit(7.0, -22, 1.06);
-  log('28 COPY');
+  await swap(EP1 + 'B26B.xlsx', EP1 + 'B27.xlsx', 7.0, d => orbit(d, 20, 1, 1.35));
+  log('28 COPY - one bent becomes three');
 
   caption('c29', T + 0.3, 4.6);
-  await orbit(7.0, 24, 0.94);
-  log('29 ROT');
+  await swap(EP1 + 'B28A.xlsx', EP1 + 'B28B.xlsx', 7.0, d => orbit(d, 26, 1, 1.45));
+  log('29 ROT - one stiffener becomes four');
 
-  /* 30 - a bar straight into an assembly, no module at all */
+  /* 30 - a bar and a section into an ASSY with no MODULE row anywhere. The
+     result panel saying `modules 0` is the evidence, so it is on screen. */
   caption('c30', T + 0.3, 4.8);
-  await chrome(8.0);
+  await load(CASE + 'C30.xlsx');
+  await panelShot('#pb-result', 3.4, 0.55);
+  await orbit(4.6, 22, 0.95);
   log('30 skip the module');
 
   /* ---- 31  a CUT on a section: the profile first, then the solid ---- */
