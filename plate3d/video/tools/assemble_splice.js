@@ -16,7 +16,16 @@
       filter_complex - one encode, no generation loss from stacking passes.
 
    Directory names come out of the capture's own json rather than being written
-   here twice, so the two films cannot end up reading each other's frames.   */
+   here twice, so the two films cannot end up reading each other's frames.
+
+   Second pass, to 2560x1440. The stills were captured at 2x for it, so this is
+   a fit and not an upscale, and they stay PNG through normalise - the first
+   pass re-encoded to JPEG here, baking a second generation of loss into a
+   picture that was already JPEG, and bought nothing but disk. CRF 16 rather
+   than 21: flat panels compress to almost nothing and the bits go to the thin
+   lines and small type a bolted joint is made of. 1440p is also the tier where
+   YouTube switches to VP9, so a viewer watching at 1080p gets the better
+   stream too.                                                                */
 const fs = require('fs');
 const cp = require('child_process');
 const FF = require('ffmpeg-static');
@@ -24,7 +33,7 @@ const SP = __dirname;
 const meta = JSON.parse(fs.readFileSync(SP + '/shots_splice.json', 'utf8'));
 const SRC = SP + '/' + (meta.dir || 'src_splice');
 const NORM = SP + '/norm_splice', SEQ = SP + '/seq_splice';
-const W = 1920, H = 1080;
+const W = meta.w || 1920, H = meta.h || 1080;
 const FPS = meta.fps;
 
 /* ---- 1. normalise ---- */
@@ -35,9 +44,10 @@ console.log('normalising ' + meta.shots.length + ' stills to ' + W + 'x' + H + '
 // without it on the output the sequence is written from s0001 and every shot
 // ends up showing the picture of the one after it.
 cp.execFileSync(FF, ['-hide_banner', '-loglevel', 'error',
-  '-start_number', '0', '-i', SRC + '/s%04d.jpg',
-  '-vf', 'scale=' + W + ':' + H + ':force_original_aspect_ratio=increase,crop=' + W + ':' + H,
-  '-q:v', '2', '-start_number', '0', NORM + '/s%04d.jpg']);
+  '-start_number', '0', '-i', SRC + '/s%04d.png',
+  '-vf', 'scale=' + W + ':' + H + ':force_original_aspect_ratio=increase:flags=lanczos,' +
+         'crop=' + W + ':' + H,
+  '-start_number', '0', NORM + '/s%04d.png'], { stdio: 'inherit' });
 const got = fs.readdirSync(NORM).length;
 if (got !== meta.shots.length || !fs.existsSync(NORM + '/' + meta.shots[0].file))
   throw new Error('normalise produced ' + got + ' of ' + meta.shots.length + ' frames');
@@ -50,13 +60,13 @@ meta.shots.forEach(s => {
   acc += s.dur;
   const want = Math.round(acc * FPS);            // absorb rounding into the next hold
   const src = '../norm_splice/' + s.file;
-  while (k < want) fs.symlinkSync(src, SEQ + '/f' + String(k++).padStart(5, '0') + '.jpg');
+  while (k < want) fs.symlinkSync(src, SEQ + '/f' + String(k++).padStart(5, '0') + '.png');
 });
 const DUR = k / FPS;
 console.log(k + ' frames @ ' + FPS + ' fps = ' + DUR.toFixed(2) + ' s');
 
 /* ---- 3. captions ---- */
-const inputs = ['-framerate', String(FPS), '-i', SEQ + '/f%05d.jpg'];
+const inputs = ['-framerate', String(FPS), '-i', SEQ + '/f%05d.png'];
 const parts = [];
 let last = '[0:v]';
 meta.caps.forEach((c, i) => {
@@ -64,7 +74,7 @@ meta.caps.forEach((c, i) => {
   if (!fs.existsSync(png)) throw new Error('missing caption card: ' + c.png);
   inputs.push('-loop', '1', '-t', String(c.dur + 1), '-i', png);
   const FD = 0.35;
-  parts.push('[' + (i + 1) + ':v]format=rgba,' +
+  parts.push('[' + (i + 1) + ':v]format=rgba,scale=' + W + ':' + H + ':flags=lanczos,' +
              'fade=t=in:st=0:d=' + FD + ':alpha=1,' +
              'fade=t=out:st=' + (c.dur - FD).toFixed(2) + ':d=' + FD + ':alpha=1,' +
              'setpts=PTS-STARTPTS+' + c.start.toFixed(3) + '/TB[ov' + i + ']');
@@ -81,10 +91,11 @@ cp.execFileSync(FF, ['-hide_banner', '-loglevel', 'error', '-y',
   ...inputs,
   '-filter_complex_script', SP + '/filter_splice.txt', '-map', '[vout]',
   '-t', DUR.toFixed(3),
-  '-c:v', 'libx264', '-preset', 'veryslow', '-crf', '21',
+  '-c:v', 'libx264', '-preset', 'veryslow', '-crf', '16',
   '-pix_fmt', 'yuv420p', '-movflags', '+faststart', '-r', String(FPS),
   OUT], { stdio: 'inherit' });
 
 const sz = fs.statSync(OUT).size;
 console.log('\n' + OUT);
-console.log((sz / 1048576).toFixed(1) + ' MB  ·  ' + DUR.toFixed(1) + ' s  ·  ' + W + 'x' + H + ' @ ' + FPS);
+console.log((sz / 1048576).toFixed(1) + ' MB  ·  ' + DUR.toFixed(1) + ' s  ·  ' +
+            W + 'x' + H + ' @ ' + FPS + '  ·  CRF 16');

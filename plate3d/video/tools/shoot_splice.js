@@ -15,7 +15,19 @@
 
    shots.json is written after every cut. The tower's pass wrote it once at the
    end, and when the browser died 52 minutes in, 562 good frames were left with
-   no record of how long each is held.                                       */
+   no record of how long each is held.
+
+   Second pass, at 2x and in PNG. The first went out at 1920x1080 and looked
+   soft on YouTube, because the picture went through JPEG at capture, JPEG again
+   at normalise and H.264 last, and 1080p is the tier YouTube gives its thinnest
+   bitrate. A bolted joint is small type and thin lines - exactly what that
+   ruins. The engine already caps its own pixel ratio at 2, so deviceScaleFactor
+   is the whole change on this side.
+
+   The take-off and drawing pages are NOT regenerated. They are drawn from the
+   workbook the app exported, by xlsxpreview, and that rendering is the one the
+   first promo used. Re-running prep would risk moving a format that is now
+   fixed, for no gain: the pages are screenshotted here at 2x either way.     */
 const { chromium } = require('playwright-core');
 const fs = require('fs');
 const path = require('path');
@@ -33,7 +45,7 @@ fs.mkdirSync(SRC, { recursive: true });
 let n = 0, T = 0;
 const shots = [], caps = [];
 function put(buf, dur) {
-  const f = 's' + String(n++).padStart(4, '0') + '.jpg';
+  const f = 's' + String(n++).padStart(4, '0') + '.png';
   fs.writeFileSync(SRC + '/' + f, buf);
   shots.push({ file: f, dur: dur });
   T += dur;
@@ -41,7 +53,8 @@ function put(buf, dur) {
 }
 const caption = (id, start, dur) => caps.push({ png: CARD + 's_' + id + '.png', start: start, dur: dur });
 const save = () => fs.writeFileSync(SP + '/shots_splice.json',
-  JSON.stringify({ fps: FPS, dir: 'src_splice', cards: CARD, shots: shots, caps: caps }, null, 1));
+  JSON.stringify({ fps: FPS, dir: 'src_splice', cards: CARD, w: 2560, h: 1440,
+                   shots: shots, caps: caps }, null, 1));
 
 const LIB = f => {
   let p = SP + '/node_modules/three/build/three.min.js';
@@ -69,7 +82,11 @@ async function load(file) {
 const cam = () => app.evaluate(() => window.__cam());
 const aim = c => app.evaluate(a => window.__aim(a.tx, a.ty, a.tz, a.dist, a.az, a.el), c);
 async function frame(dur) {
-  const d = await app.evaluate(() => window.__grab(0.92));
+  /* PNG off the canvas - the first of three generations the first pass lost. */
+  const d = await app.evaluate(() => {
+    window.__pbDraw();
+    return window.__pbCanvas.toDataURL('image/png');
+  });
   return put(Buffer.from(d.split(',')[1], 'base64'), dur);
 }
 async function move(dur, fn) {
@@ -85,8 +102,8 @@ async function page2(file) {
     .then(() => document.fonts.load('800 40px Inter')).then(() => document.fonts.ready)).catch(() => {});
   await doc.waitForTimeout(450);
 }
-const still = dur => doc.screenshot({ type: 'jpeg', quality: 92 }).then(b => put(b, dur));
-const chrome = dur => app.screenshot({ type: 'jpeg', quality: 92 }).then(b => put(b, dur));
+const still = dur => doc.screenshot({ type: 'png' }).then(b => put(b, dur));
+const chrome = dur => app.screenshot({ type: 'png' }).then(b => put(b, dur));
 
 async function pointer() {
   await app.evaluate(() => {
@@ -120,7 +137,7 @@ function clipAt(cx, cy, f) {
   return { x: Math.round(x), y: Math.round(y), width: Math.round(w), height: Math.round(h) };
 }
 const clipShot = (clip, dur) =>
-  app.screenshot({ type: 'jpeg', quality: 92, clip: clip }).then(b => put(b, dur));
+  app.screenshot({ type: 'png', clip: clip }).then(b => put(b, dur));
 
 /* File > Load Excel, driven through the app's own handlers. The pointer is the
    only staged thing; the menu opens and the item highlights because the app
@@ -189,11 +206,11 @@ async function beat(before, after, id, hold, swap, orbit, withLoad) {
   const browser = await chromium.launch({ executablePath: '/opt/pw-browsers/chromium',
     args: ['--no-sandbox', '--allow-file-access-from-files',
            '--use-gl=angle', '--use-angle=swiftshader', '--enable-unsafe-swiftshader'] });
-  app = await browser.newPage({ viewport: { width: VW, height: VH } });
+  app = await browser.newPage({ viewport: { width: VW, height: VH }, deviceScaleFactor: 2 });
   await wire(app);
   await app.goto('file://' + SP + '/video_page.html', { waitUntil: 'domcontentloaded' });
   await app.waitForTimeout(3500);
-  doc = await browser.newPage({ viewport: { width: 1920, height: 1080 } });
+  doc = await browser.newPage({ viewport: { width: 1920, height: 1080 }, deviceScaleFactor: 2 });
   await wire(doc);
   const log = m => { save(); console.log('  [' + T.toFixed(2) + 's] ' + m); };
 
@@ -344,17 +361,17 @@ async function beat(before, after, id, hold, swap, orbit, withLoad) {
      film just produced, grabbed here rather than drawn: the model off the
      canvas, and the two pages as they stood in cuts 9 and 10. An empty
      three-panel graphic would be the one place the film illustrated itself. */
-  const shot = await app.evaluate(() => window.__grab(0.94));
-  fs.writeFileSync(SP + '/' + CARD + 'd12_model.jpg',
+  const shot = await app.evaluate(() => (function(){window.__pbDraw();return window.__pbCanvas.toDataURL('image/png');})());
+  fs.writeFileSync(SP + '/' + CARD + 'd12_model.png',
                    Buffer.from(shot.split(',')[1], 'base64'));
   await page2(CARD + 's_boq.html');
   await doc.evaluate(() => window.scrollTo(0, 0));
-  await doc.screenshot({ path: SP + '/' + CARD + 'd12_boq.jpg', type: 'jpeg', quality: 92 });
+  await doc.screenshot({ path: SP + '/' + CARD + 'd12_boq.png', type: 'png' });
   await page2(CARD + 's_dxf.html');
   await doc.evaluate(() => window.__view(window.__meta.views.length - 1));
   await doc.waitForTimeout(200);
-  await doc.screenshot({ path: SP + '/' + CARD + 'd12_dxf.jpg', type: 'jpeg', quality: 92 });
-  const b64 = f => 'data:image/jpeg;base64,' +
+  await doc.screenshot({ path: SP + '/' + CARD + 'd12_dxf.png', type: 'png' });
+  const b64 = f => 'data:image/png;base64,' +
     fs.readFileSync(SP + '/' + CARD + f).toString('base64');
   await page2(CARD + 's_d12.html');
   await doc.evaluate(u => {
@@ -362,7 +379,7 @@ async function beat(before, after, id, hold, swap, orbit, withLoad) {
       const e = document.getElementById(id);
       if (e) e.style.backgroundImage = 'url(' + u[i] + ')';
     });
-  }, [b64('d12_model.jpg'), b64('d12_boq.jpg'), b64('d12_dxf.jpg')]);
+  }, [b64('d12_model.png'), b64('d12_boq.png'), b64('d12_dxf.png')]);
   await doc.waitForTimeout(400);
   caption('c12', T + 0.4, 4.4);
   await still(5.0);
