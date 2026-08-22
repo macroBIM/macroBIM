@@ -64,20 +64,23 @@ const CAPS = [
   ['c15', ['A shape can be another plate —',
            'and it lands by its own base.pt.'], 46],
   ['c17', ['PLATE defines. MODULE uses.'], 50],
-  ['c18', ['XY, XZ, YZ — which plane the plate lies in.'], 44],
-  ['c19', ['Thickness straddles that face.'], 48],
-  ['c20', ['bc+ puts the plus face on the line.'], 46],
-  ['c21', ['Type the drawing\'s dimension —',
-           'not the dimension plus half the thickness.'], 44],
-  ['c22', ['The same eight columns, in MODULE.',
+  ['c18', ['PLANE is a column in the MODULE row.'], 44],
+  ['c19', ['One plate. Three planes.',
+           'XY lies flat. XZ and YZ stand it up.'], 46],
+  ['c20', ['Tick local axes —',
+           'the arrow points at the plus side.'], 46],
+  ['c21', ['One coordinate typed.',
+           'Three different faces landing on it.'], 46],
+  ['c22', ['Tick + / − face to check which is which.'], 44],
+  ['c23', ['The same eight columns, in MODULE.',
            'Four rows became one. The model did not move.'], 42],
-  ['c23', ['BASE is the module\'s datum. Required.'], 46],
-  ['c24', ['Read where it sits, and type that in ASSY.'], 46],
-  ['c25', ['ASSY places a module in the world.'], 48],
-  ['c26', ['MIR — mirrored about a plane you name.'], 46],
-  ['c27', ['COPY — pushed along, repeat times.'], 46],
-  ['c28', ['ROT — swung round an axis, repeat times.'], 46],
-  ['c29', ['PLATE. CUT. MODULE. ASSY.',
+  ['c24', ['BASE is the module\'s datum. Required.'], 46],
+  ['c25', ['Read where it sits, and type that in ASSY.'], 46],
+  ['c26', ['ASSY places a module in the world.'], 48],
+  ['c27', ['MIR — mirrored about a plane you name.'], 46],
+  ['c28', ['COPY — pushed along, repeat times.'], 46],
+  ['c29', ['ROT — swung round an axis, repeat times.'], 46],
+  ['c30', ['PLATE. CUT. MODULE. ASSY.',
            'That is the whole model.'], 48]
 ];
 CAPS.forEach(c => pill(c[0], c[1], c[2]));
@@ -116,8 +119,8 @@ function section(id, a, b) {
 section('s10', 'Every plate has holes.', 'Where do they come from?');
 section('s16', 'The parts exist.', 'Now stand them up.');
 
-/* ---- outro, cut 30. Same card the splice film closes on. ---- */
-w('o30', `<style>${BASE}
+/* ---- outro, cut 31. Same card the splice film closes on. ---- */
+w('o31', `<style>${BASE}
  body{background:#fff;display:flex;flex-direction:column;align-items:center;
       justify-content:center;gap:34px}
  .w{font-weight:800;font-size:130px;letter-spacing:-.045em;color:#0f172a}

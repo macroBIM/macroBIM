@@ -22,7 +22,14 @@ const OUT = 'basic';
 const BOOK = '../../PLATE3D_BASIC.xlsx';
 fs.mkdirSync(SP + '/' + OUT, { recursive: true });
 
-/* cut, name, first row, last row, columns to draw, cells to ring */
+/* cut, name, first row, last row, columns to draw, cells to ring.
+
+   `book` names a case workbook when the page has to show the collapsed form.
+   Cuts 14 and 23 were the reason this exists: both said "two rows became one"
+   and "four rows became one" over a page drawn from the ORIGINAL sheet, so the
+   film asserted a collapse and then showed only the thing before it. The row
+   numbers differ in a case book because rows were deleted from it, which is
+   why each page carries its own. */
 const PAGES = [
   { cut:  4, id: 'plate',  first:  1, last:  7, nc: 11, ring: '',
     head: 'PLATE',  note: 'six rows, six parts' },
@@ -36,6 +43,9 @@ const PAGES = [
     head: 'CUT',    note: 'which plate the L.X L.Y are measured on' },
   { cut: 13, id: 'cutrep', first: 23, last: 28, nc: 12, ring: 'I27',
     head: 'CUT',    note: 'dx dy repeat, the first axis' },
+  { cut: 14, id: 'cutone', first: 23, last: 27, nc: 13, ring: 'L27',
+    book: 'basic/PLATE3D_B14.xlsx',
+    head: 'CUT',    note: 'the same six holes, on one row' },
   { cut: 15, id: 'cutpl',  first: 23, last: 28, nc: 11, ring: 'F26',
     head: 'CUT',    note: 'the shape is another plate' },
   { cut: 17, id: 'module', first: 36, last: 40, nc: 12, ring: 'D37',
@@ -46,6 +56,9 @@ const PAGES = [
     head: 'MODULE', note: 'mc- and mc+, the two faces' },
   { cut: 22, id: 'anchor', first: 41, last: 46, nc: 13, ring: '',
     head: 'MODULE', note: 'four anchor rows, before they collapse' },
+  { cut: 22, id: 'anchone', first: 41, last: 43, nc: 22, ring: '',
+    book: 'basic/PLATE3D_B22.xlsx',
+    head: 'MODULE', note: 'and the one row that replaces them' },
   { cut: 23, id: 'base',   first: 44, last: 49, nc: 11, ring: 'D46',
     head: 'MODULE', note: 'BASE - the module datum row' },
   { cut: 26, id: 'assy',   first: 64, last: 76, nc: 11, ring: '',
@@ -56,11 +69,15 @@ const PAGES = [
   /* Check the rows still hold what they are named for before drawing anything.
      A page that quietly shows the wrong block would be discovered in the edit,
      with the shoot already done. */
-  const wb = new ExcelJS.Workbook();
-  await wb.xlsx.readFile(path.resolve(SP, BOOK));
-  const ws = wb.getWorksheet('input');
+  const sheets = {};
+  for (const f of [...new Set(PAGES.map(p => p.book || BOOK))]) {
+    const wb = new ExcelJS.Workbook();
+    await wb.xlsx.readFile(path.resolve(SP, f));
+    sheets[f] = wb.getWorksheet('input');
+  }
   let bad = 0;
   PAGES.forEach(p => {
+    const ws = sheets[p.book || BOOK];
     let found = '';
     for (let r = p.first; r <= p.last && !found; r++) {
       const v = String(ws.getCell(r, 2).value || '').replace('#', '').trim().toUpperCase();
@@ -82,7 +99,7 @@ const PAGES = [
     execFileSync(process.execPath, [SP + '/mkparampage.js'], {
       cwd: SP, stdio: 'inherit',
       env: Object.assign({}, process.env, {
-        BOOK: BOOK, SHEET: 'input', ACTIVE: 'input', TABS: '',
+        BOOK: p.book || BOOK, SHEET: 'input', ACTIVE: 'input', TABS: '',
         FIRST: String(p.first), LAST: String(p.last), NC: String(p.nc),
         RING: p.ring, VALIGN: 'center',
         OUT: OUT + '/b_sh_' + p.id

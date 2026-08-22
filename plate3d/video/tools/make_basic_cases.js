@@ -66,6 +66,41 @@ function keepAssy(ws, keep) {
   }
 }
 
+/* Strip the sheet back to one plate and write a MODULE block that places it a
+   few times over, for the two beats that are about placement itself.
+
+   These two are not BASIC with cells changed - they are one row of BASIC and a
+   demonstration built round it, and that is deliberate. "How does a plate stand
+   up in XY, XZ and YZ" cannot be shown on a model that has a column, four
+   anchors and a beam in the way; the answer is one plate, three times, with
+   nothing else on screen.
+
+   The demonstration plate is a 300 x 300 slab 80 thick, and the proportions are
+   the whole reason it works. At BASIC's 400 x 400 x 25 the step between mc-, mc
+   and mc+ is 12.5mm against a 400mm plate - three percent, invisible at any
+   framing that also shows the plate. At 80 on 300 the thickness is better than
+   a quarter of the width, the three sit a clear 40mm apart, and the rule being
+   demonstrated is identical. */
+function demo(ws, thk, rows) {
+  ws.spliceRows(3, 5);                                  // keep pl.base's row
+  ws.spliceRows(4, ws.rowCount);                        // and nothing after it
+  const b = ws.getRow(2);
+  b.getCell(C.C).value = 'pl.demo';
+  b.getCell(C.E).value = thk;
+  b.getCell(C.G).value = 'mc';
+  b.getCell(C.H).value = 300;
+  b.getCell(C.I).value = 300;
+  let r = 4;
+  const put = a => { const row = ws.getRow(r++);
+    a.forEach((v, i) => { if (v !== null) row.getCell(i + 2).value = v; }); };
+  put(['# MODULE', 'id', 'member', 'Ref.Pt', 'L.X', 'L.Y', 'L.Z', 'PLANE']);
+  rows.forEach(put);
+  put(['MODULE', 'md.d', 'BASE', 'pl.demo', 'mc']);
+  put(['# ASSY', 'id', 'ref', 'cmd', 'p1', 'p2', 'p3']);
+  put(['ASSY', 'as.d', 'md.d', 'ADD', 0, 0, 0]);
+  put(['END']);
+}
+
 /* Each case is a function handed the input worksheet. `same: true` means the
    model it produces has to match BASIC exactly - same members, same weight.
    `members` is an exact count instead, for the cases that are meant to differ
@@ -117,6 +152,24 @@ const CASES = [
       ws.spliceRows(R.cutClt2, 1);
     }
   },
+  /* 19-22: placement itself, on one plate with nothing else in the way. */
+  { id: 'bplane', members: 3, what: 'one plate in XY, XZ, YZ',
+    why: 'cut 19 - the same plate lying flat, standing, standing crossways',
+    edit: ws => demo(ws, 80, [
+      ['MODULE', 'md.d', 'pl.demo', 'mc', 0,    0, 0, 'XY'],
+      ['MODULE', 'md.d', 'pl.demo', 'mc', 520,  0, 0, 'XZ'],
+      ['MODULE', 'md.d', 'pl.demo', 'mc', 1040, 0, 0, 'YZ']]) },
+  { id: 'bface', members: 3, what: 'mc- / mc / mc+ on the same z',
+    why: 'cut 21 - one coordinate typed, three faces landing on it',
+    /* Spread by 360 - a fraction over the plate width - so the three read as
+       three and not as one solid. Every one is placed at z 0, so the grid line
+       through them is the coordinate that was typed and the only thing that
+       differs is which face of the steel sits on it. */
+    edit: ws => demo(ws, 80, [
+      ['MODULE', 'md.d', 'pl.demo', 'mc-', 0,   0, 0, 'XY'],
+      ['MODULE', 'md.d', 'pl.demo', 'mc',  360, 0, 0, 'XY'],
+      ['MODULE', 'md.d', 'pl.demo', 'mc+', 720, 0, 0, 'XY']]) },
+
   /* 26-28: one ASSY command at a time. md.col is 8 members and md.stf is 1, so
      the counts say outright whether the command did what the caption claims. */
   { id: 'b26a', members: 8,  what: 'ADD only - one column',
@@ -198,8 +251,13 @@ async function weigh(page, file) {
     return r && r.innerText.indexOf(b) >= 0 && /Succeed/.test(r.innerText);
   }, path.basename(file), { timeout: 300000 });
   await page.waitForTimeout(900);
-  const line = (await page.evaluate(() =>
-    document.getElementById('pb-result').innerText)).trim().split('\n').pop();
+  /* The count is read out of the whole panel rather than its last line: a
+     sheet that also has something to say adds a line after the summary, and
+     taking the last one then finds no "placed N" at all. */
+  const txt = (await page.evaluate(() =>
+    document.getElementById('pb-result').innerText)).trim();
+  const line = txt.split('\n').filter(l => /placed \d+/.test(l)).pop() ||
+               txt.split('\n').pop();
 
   const tmp = SP + '/.case_boq.xlsx';
   const [dl] = await Promise.all([page.waitForEvent('download', { timeout: 180000 }),

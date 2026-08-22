@@ -251,12 +251,12 @@ async function orbit(dur, sweep, zoom, pull) {
 (async () => {
   /* Everything the cut list needs, checked before the browser starts. A missing
      card is 20 minutes of shooting thrown away if it is found at the encode. */
-  const need = ['t02', 's10', 's16', 'o30'].map(i => CARD + 'b_' + i + '.png')
-    .concat(['plate', 'trap', 'basept', 'hole', 'cut1', 'cutrep', 'cutpl', 'module',
-             'plane', 'thick', 'anchor', 'base', 'assy'].map(i => CARD + 'b_sh_' + i + '.html'))
+  const need = ['t02', 's10', 's16', 'o31'].map(i => CARD + 'b_' + i + '.png')
+    .concat(['plate', 'trap', 'basept', 'hole', 'cut1', 'cutrep', 'cutone', 'cutpl',
+             'module', 'plane', 'thick', 'anchor', 'anchone', 'base', 'assy'].map(i => CARD + 'b_sh_' + i + '.html'))
     .concat([1, 3, 4, 5, 6, 7, 8, 9, 11, 12, 13, 14, 15, 17, 18, 19, 20, 21, 22, 23, 24, 25,
-             26, 27, 28, 29].map(i => CARD + 'b_c' + String(i).padStart(2, '0') + '.png'))
-    .concat(['B13A', 'B13B', 'B14', 'B22', 'B26A', 'B26B', 'B27', 'B28A', 'B28B']
+             26, 27, 28, 29, 30].map(i => CARD + 'b_c' + String(i).padStart(2, '0') + '.png'))
+    .concat(['B13A', 'B13B', 'B14', 'B22', 'B26A', 'B26B', 'B27', 'B28A', 'B28B', 'BPLANE', 'BFACE']
       .map(i => 'basic/PLATE3D_' + i + '.xlsx'));
   const missing = need.filter(f => !fs.existsSync(SP + '/' + f));
   if (missing.length) {
@@ -366,10 +366,14 @@ async function orbit(dur, sweep, zoom, pull) {
   log('13 dx dy repeat');
 
   /* 14 - and the second axis, where a row disappears and the holes do not */
+  /* Two rows, then one row, then the plate that did not change. Showing only
+     the two-row page while the caption said a row disappeared was the film
+     asserting a collapse and never showing it. */
   caption('c14', T + 0.3, 4.8);
-  await sheet(CARD + 'b_sh_cutrep.html', 3.5, true);
+  await sheet(CARD + 'b_sh_cutrep.html', 2.6);
+  await sheet(CARD + 'b_sh_cutone.html', 3.0, true);
   await load(CASE + 'B14.xlsx');
-  await part('PL.CLT', 5.5);
+  await part('PL.CLT', 3.4);
   log('14 dx2 dy2 repeat2');
 
   caption('c15', T + 0.3, 4.6);
@@ -400,70 +404,111 @@ async function orbit(dur, sweep, zoom, pull) {
   await unit('MD.BAY', 4.5);
   log('18 PLANE');
 
-  caption('c19', T + 0.3, 4.6);
-  const g2 = await guide(['BASE.pt', 'nine points'], 6.0);
-  log('19 guide: ' + g2);
+  /* 19-22: what MODULE actually does, on one plate with nothing in the way.
 
+     These four used to be two Guide diagrams and a sheet, which named the rule
+     and never demonstrated it. Now the same plate is placed three times and the
+     viewer watches it lie down and stand up, sees the app's own +Z arrow say
+     which side is plus, and sees three faces land on one typed coordinate. The
+     demonstration plate is a 300 x 300 slab 80 thick so the half-thickness step
+     is a step and not a hairline. */
+  caption('c19', T + 0.3, 4.8);
+  await load(CASE + 'BPLANE.xlsx');
+  await app.evaluate(() => { plateBuilder.setAxes(true); plateBuilder.setFaces(true); });
+  await app.waitForTimeout(700);
+  await sheet(CARD + 'b_sh_plane.html', 3.5, true);
+  await orbit(5.5, 26, 0.92);
+  log('19 one plate, three planes');
+
+  /* the local axes, close enough to read the labels the app puts on each plate */
   caption('c20', T + 0.3, 4.6);
-  const g3 = await guide(['Ref.Pt and the', 'BASE.pt'], 7.0);
-  log('20 guide: ' + g3);
+  {
+    const c = await cam();
+    await move(6.0, u => aim({ ...c, dist: c.dist * mix(0.92, 0.62, ease(u)),
+                               az: c.az + 10 * ease(u), el: 14 }));
+  }
+  log('20 local axes - the arrow is the plus side');
 
-  caption('c21', T + 0.3, 4.8);
-  await sheet(CARD + 'b_sh_thick.html', 3.5, true);
-  await unit('MD.COL', 3.5);
-  log('21 mc- on the drawing dimension');
+  /* one coordinate, three faces on it. az 90 puts the three side by side
+     instead of one behind another, and the step reads straight off. */
+  caption('c21', T + 0.3, 5.0);
+  await load(CASE + 'BFACE.xlsx');
+  await app.evaluate(() => { plateBuilder.setAxes(true); plateBuilder.setFaces(true); });
+  await app.waitForTimeout(700);
+  await sheet(CARD + 'b_sh_thick.html', 2.5, true);
+  {
+    const c = await cam();
+    await move(5.5, u => aim({ tx: 360, ty: 0, tz: 0, dist: c.dist * mix(1.0, 0.88, ease(u)),
+                               az: 90, el: mix(26, 15, ease(u)) }));
+  }
+  log('21 mc- / mc / mc+ on one coordinate');
 
-  /* 22 - four anchor rows become one. The member list is the picture: four
-     BAR.ANCH rows, then one, with the bolts in the same places. */
-  caption('c22', T + 0.3, 5.0);
-  await sheet(CARD + 'b_sh_anchor.html', 3.0);
-  await unit('MD.COL', 3.5);
-  await load(CASE + 'B22.xlsx');
-  await unit('MD.COL', 3.5);
-  log('22 four rows became one');
+  /* and how you check it for yourself */
+  caption('c22', T + 0.3, 4.8);
+  {
+    const c = await cam();
+    await app.evaluate(() => plateBuilder.setFaces(false));
+    await app.waitForTimeout(500);
+    await move(2.6, u => aim({ ...c, az: 90 + 6 * u, el: 15 }));
+    await app.evaluate(() => plateBuilder.setFaces(true));
+    await app.waitForTimeout(500);
+    await move(3.4, u => aim({ ...c, az: 96 - 10 * ease(u), el: 15,
+                               dist: c.dist * mix(1, 0.9, ease(u)) }));
+  }
+  await app.evaluate(() => { plateBuilder.setAxes(false); plateBuilder.setFaces(false); });
+  log('22 +/- face, to check it yourself');
 
-  /* ---- 23-24  BASE ---- */
+  /* 23 - four anchor rows become one, both pages and the model unmoved */
   await load(BOOK);
-  caption('c23', T + 0.3, 4.6);
+  caption('c23', T + 0.3, 5.0);
+  await sheet(CARD + 'b_sh_anchor.html', 2.6);
+  await sheet(CARD + 'b_sh_anchone.html', 3.0);
+  await load(CASE + 'B22.xlsx');
+  await unit('MD.COL', 4.4);
+  log('23 four rows became one');
+
+  /* ---- 24-25  BASE ---- */
+  await load(BOOK);
+  caption('c24', T + 0.3, 4.6);
   await sheet(CARD + 'b_sh_base.html', 3.0, true);
   await unit('MD.COL', 4.0);
-  log('23 BASE');
+  log('24 BASE');
 
-  caption('c24', T + 0.3, 4.6);
+  caption('c25', T + 0.3, 4.6);
   await unit('MD.SHOE', 3.5);
   await unit('MD.BM', 3.5);
-  log('24 read where it sits');
+  log('25 read where it sits');
 
-  /* ---- 25-28  ASSY, one command per cut, each on its own workbook ---- */
-  caption('c25', T + 0.3, 4.6);
-  await sheet(CARD + 'b_sh_assy.html', 6.0, true);
-  log('25 ASSY block');
-
+  /* ---- 26-29  ASSY, one command per cut, each on its own workbook ---- */
   caption('c26', T + 0.3, 4.6);
-  await swap(CASE + 'B26A.xlsx', CASE + 'B26B.xlsx', 6.0, d => orbit(d, 18, 1, 1.35));
-  log('26 MIR - one column becomes two');
+  await sheet(CARD + 'b_sh_assy.html', 6.0, true);
+  log('26 ASSY block');
 
   caption('c27', T + 0.3, 4.6);
-  await swap(CASE + 'B26B.xlsx', CASE + 'B27.xlsx', 6.0, d => orbit(d, 20, 1, 1.35));
-  log('27 COPY - one bent becomes three');
+  await swap(CASE + 'B26A.xlsx', CASE + 'B26B.xlsx', 6.0, d => orbit(d, 18, 1, 1.35));
+  log('27 MIR - one column becomes two');
 
   caption('c28', T + 0.3, 4.6);
+  await swap(CASE + 'B26B.xlsx', CASE + 'B27.xlsx', 6.0, d => orbit(d, 20, 1, 1.35));
+  log('28 COPY - one bent becomes three');
+
+  caption('c29', T + 0.3, 4.6);
   await swap(CASE + 'B28A.xlsx', CASE + 'B28B.xlsx', 6.0, d => orbit(d, 26, 1, 1.45));
-  log('28 ROT - one stiffener becomes four');
+  log('29 ROT - one stiffener becomes four');
 
   await load(BOOK);
-  /* ---- 29  the whole model again, finished ---- */
-  caption('c29', T + 0.3, 5.0);
+  /* ---- 30  the whole model again, finished ---- */
+  caption('c30', T + 0.3, 5.0);
   const cz = await cam();
   await move(8.0, u => aim({ ...cz, az: mix(cz.az - 16, cz.az + 16, ease(u)),
                              el: cz.el + 3 * Math.sin(Math.PI * u),
                              dist: cz.dist * mix(1.04, 0.96, ease(u)) }));
-  log('29 closing orbit');
+  log('30 closing orbit');
 
-  /* ---- 30  logo ---- */
-  await page2(CARD + 'b_o30.html');
+  /* ---- 31  logo ---- */
+  await page2(CARD + 'b_o31.html');
   await still(5.0);
-  log('30 outro');
+  log('31 outro');
 
   await browser.close();
   save();
