@@ -372,8 +372,9 @@ async function beat(before, after, id, hold, swap, orbit, withLoad) {
   const shot = await app.evaluate(() => (function(){window.__pbDraw();return window.__pbCanvas.toDataURL('image/png');})());
   fs.writeFileSync(SP + '/' + CARD + 'd12_model.png',
                    Buffer.from(shot.split(',')[1], 'base64'));
-  await page2(CARD + 's_boq.html');
-  await doc.evaluate(() => window.scrollTo(0, 0));
+  /* the take-off panel is SUMMARY - the sheet that opens first, and the one a
+     glance at a three-panel graphic can actually read */
+  await page2(CARD + 's_boq1.html');
   await doc.screenshot({ path: SP + '/' + CARD + 'd12_boq.png', type: 'png' });
   await page2(CARD + 's_dxf.html');
   await doc.evaluate(() => window.__view(window.__meta.views.length - 1));
