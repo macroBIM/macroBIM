@@ -155,6 +155,66 @@ async function guide(headings, dur) {
   return ok;
 }
 
+/* The part preview - the app's own drawing of one plate, flat on, with its
+   nine points named on the outline, its origin marked, its holes dimensioned
+   and its weight along the bottom.
+
+   This is what the first pass should have been built on and was not. Every
+   caption about shapes, points, origins and holes was read over the finished
+   frame turning, which showed none of them: the film said "three shapes" while
+   a bent rotated, and said "on the real outline, not a bounding box" while
+   nothing with an outline was on screen. The app draws all of it already.
+
+   Ids are upper case inside the engine - preview('pl.stf') finds nothing and
+   returns quietly, which is how the first probe came back with the main view
+   screenshotted and no error anywhere. */
+async function part(id, dur) {
+  await app.evaluate(i => plateBuilder.preview(i), id.toUpperCase());
+  await app.waitForTimeout(1400);
+  const open = await app.evaluate(() => {
+    const m = document.getElementById('pb-modal');
+    return !!m && getComputedStyle(m).display !== 'none';
+  });
+  if (!open) throw new Error('preview(' + id + ') did not open - check the id');
+  await chrome(dur);
+  await app.evaluate(() => plateBuilder.closePreview());
+  await app.waitForTimeout(400);
+}
+
+/* The module preview - the members of one module listed with their PLANE and
+   Ref.Pt beside the 3D of just that module, and the BASE point labelled on it.
+   `hide` switches members off by row number so a plane or a datum can be shown
+   one part at a time. */
+async function unit(id, dur, hide) {
+  await app.evaluate(i => plateBuilder.previewModule(i), id.toUpperCase());
+  await app.waitForTimeout(2200);
+  const open = await app.evaluate(() => {
+    const m = document.getElementById('pb-modal');
+    return !!m && getComputedStyle(m).display !== 'none';
+  });
+  if (!open) throw new Error('previewModule(' + id + ') did not open - check the id');
+  if (hide && hide.length) {
+    await app.evaluate(a => {
+      const rows = [...document.querySelectorAll('#pb-pv-tree tbody tr')];
+      a.forEach(i => { const c = rows[i] && rows[i].querySelector('input[type=checkbox]');
+        if (c && c.checked) c.click(); });
+    }, hide);
+    await app.waitForTimeout(900);
+  }
+  await chrome(dur);
+  await app.evaluate(() => plateBuilder.closePreview());
+  await app.waitForTimeout(400);
+}
+
+/* Two states of the same thing, cut between: load the first, hold, load the
+   second, hold. Used for every beat whose point is what changed. */
+async function swap(a, b, dur, show) {
+  await load(a);
+  await show(dur * 0.45);
+  await load(b);
+  await show(dur * 0.55);
+}
+
 /* Turn the model a little while holding it - a still 3D shot reads as a
    screenshot, and the point of the viewport is that it is not one. */
 async function orbit(dur, sweep, zoom) {
@@ -171,7 +231,8 @@ async function orbit(dur, sweep, zoom) {
              'plane', 'thick', 'anchor', 'base', 'assy'].map(i => CARD + 'b_sh_' + i + '.html'))
     .concat([1, 3, 4, 5, 6, 7, 8, 9, 11, 12, 13, 14, 15, 17, 18, 19, 20, 21, 22, 23, 24, 25,
              26, 27, 28, 29].map(i => CARD + 'b_c' + String(i).padStart(2, '0') + '.png'))
-    .concat(['B13A', 'B13B', 'B14', 'B22'].map(i => 'basic/PLATE3D_' + i + '.xlsx'));
+    .concat(['B13A', 'B13B', 'B14', 'B22', 'B26A', 'B26B', 'B27', 'B28A', 'B28B']
+      .map(i => 'basic/PLATE3D_' + i + '.xlsx'));
   const missing = need.filter(f => !fs.existsSync(SP + '/' + f));
   if (missing.length) {
     console.log('missing before the shoot even starts:\n  ' + missing.join('\n  '));
@@ -232,25 +293,30 @@ async function orbit(dur, sweep, zoom) {
   await sheet(CARD + 'b_sh_plate.html', 7.0);
   log('4 PLATE block');
 
+  /* Three shapes, three seconds each, each one actually drawn. This is the cut
+     the whole re-shoot is for. */
   caption('c05', T + 0.3, 4.6);
-  await orbit(7.0, 26, 0.92);
-  log('5 three shapes');
+  for (const id of ['PL.BASE', 'PL.STF', 'PL.FLG']) await part(id, 3.0);
+  log('5 RECT, TRAP, CIRC');
 
   caption('c06', T + 0.3, 4.6);
-  await sheet(CARD + 'b_sh_trap.html', 8.0, true);
-  log('6 TRAP');
+  await sheet(CARD + 'b_sh_trap.html', 4.0, true);
+  await part('PL.STF', 4.0);
+  log('6 TRAP - WT 0 is a triangle');
 
   /* ---- 7-9  the nine points ---- */
   caption('c07', T + 0.3, 4.6);
   const g1 = await guide(['nine points', 'reference point'], 7.0);
   log('7 guide: ' + g1);
 
+  /* the trapezoid, where ml and mr sit on the slope rather than on a box */
   caption('c08', T + 0.3, 4.6);
-  await orbit(7.0, -22, 0.90);
+  await part('PL.STF', 7.0);
   log('8 points on the real outline');
 
   caption('c09', T + 0.3, 4.8);
-  await sheet(CARD + 'b_sh_basept.html', 8.0, true);
+  await sheet(CARD + 'b_sh_basept.html', 4.0, true);
+  await part('PL.BASE', 4.0);
   log('9 base.pt column');
 
   /* ---- 10  section card ---- */
@@ -260,38 +326,31 @@ async function orbit(dur, sweep, zoom) {
 
   /* ---- 11-15  HOLE and CUT ---- */
   caption('c11', T + 0.3, 4.6);
-  await sheet(CARD + 'b_sh_hole.html', 7.0, true);
+  await sheet(CARD + 'b_sh_hole.html', 3.5, true);
+  await part('HO.M26', 3.5);
   log('11 HOLE block');
 
   caption('c12', T + 0.3, 4.8);
-  await sheet(CARD + 'b_sh_cut1.html', 7.0, true);
+  await sheet(CARD + 'b_sh_cut1.html', 3.5, true);
+  await part('PL.BASE', 3.5);
   log('12 CUT measured from the plate origin');
 
-  /* 13 - one hole becomes three. The sheet says it and the model shows it, so
-     the two case workbooks are loaded either side of the sheet page. */
-  await load(CASE + 'B13A.xlsx');
-  const cl = await cam();
+  /* 13 - one hole becomes three, on the plate itself */
   caption('c13', T + 0.3, 4.6);
-  await move(2.2, u => aim({ ...cl, az: cl.az + 6 * u }));
-  await sheet(CARD + 'b_sh_cutrep.html', 2.4, true);
-  await load(CASE + 'B13B.xlsx');
-  await aim(cl);
-  await move(2.4, u => aim({ ...cl, az: cl.az + 6 + 8 * ease(u), dist: cl.dist * (1 - 0.05 * ease(u)) }));
+  await swap(CASE + 'B13A.xlsx', CASE + 'B13B.xlsx', 7.0, d => part('PL.CLT', d));
   log('13 dx dy repeat');
 
-  /* 14 - and the second axis, which is where a row disappears */
+  /* 14 - and the second axis, where a row disappears and the holes do not */
   caption('c14', T + 0.3, 4.8);
+  await sheet(CARD + 'b_sh_cutrep.html', 3.5, true);
   await load(CASE + 'B14.xlsx');
-  await aim(cl);
-  await move(3.0, u => aim({ ...cl, az: cl.az - 8 * ease(u) }));
-  await sheet(CARD + 'b_sh_cutrep.html', 3.0, true);
-  await load(BOOK);
-  await aim(cl);
-  await move(3.0, u => aim({ ...cl, az: cl.az + 10 * ease(u), dist: cl.dist * (1 - 0.06 * ease(u)) }));
+  await part('PL.CLT', 5.5);
   log('14 dx2 dy2 repeat2');
 
   caption('c15', T + 0.3, 4.6);
-  await sheet(CARD + 'b_sh_cutpl.html', 7.0, true);
+  await load(BOOK);
+  await sheet(CARD + 'b_sh_cutpl.html', 3.0, true);
+  await part('PL.CAP', 4.0);
   log('15 a shape can be another plate');
 
   /* ---- 16  section card ---- */
@@ -301,12 +360,16 @@ async function orbit(dur, sweep, zoom) {
 
   /* ---- 17-22  MODULE ---- */
   caption('c17', T + 0.3, 4.6);
-  await sheet(CARD + 'b_sh_module.html', 7.0, true);
+  await sheet(CARD + 'b_sh_module.html', 3.5, true);
+  await unit('MD.COL', 3.5);
   log('17 MODULE block');
 
+  /* PLANE, one member at a time: the column alone, then the plates that lie in
+     XY, then the cleat that stands in YZ. The list carries the column name. */
   caption('c18', T + 0.3, 4.8);
-  await sheet(CARD + 'b_sh_plane.html', 4.5, true);
-  await orbit(4.5, 30, 0.9);
+  await unit('MD.COL', 3.0, [2, 3, 4, 5, 6, 7]);
+  await unit('MD.COL', 3.0, [3, 4, 5, 6, 7]);
+  await unit('MD.COL', 3.0);
   log('18 PLANE');
 
   caption('c19', T + 0.3, 4.6);
@@ -318,47 +381,49 @@ async function orbit(dur, sweep, zoom) {
   log('20 guide: ' + g3);
 
   caption('c21', T + 0.3, 4.8);
-  await sheet(CARD + 'b_sh_thick.html', 7.0, true);
+  await sheet(CARD + 'b_sh_thick.html', 3.5, true);
+  await unit('MD.COL', 3.5);
   log('21 mc- on the drawing dimension');
 
-  /* 22 - four anchor rows become one, and the model must not move */
+  /* 22 - four anchor rows become one. The member list is the picture: four
+     BAR.ANCH rows, then one, with the bolts in the same places. */
   caption('c22', T + 0.3, 5.0);
-  await load(BOOK);
-  const ca = await cam();
-  await move(3.0, u => aim({ ...ca, az: ca.az + 8 * ease(u), dist: ca.dist * (1 - 0.10 * ease(u)) }));
-  await sheet(CARD + 'b_sh_anchor.html', 3.5);
+  await sheet(CARD + 'b_sh_anchor.html', 3.0);
+  await unit('MD.COL', 3.5);
   await load(CASE + 'B22.xlsx');
-  await aim(ca);
-  await move(3.5, u => aim({ ...ca, az: ca.az + 8 - 14 * ease(u), dist: ca.dist * 0.90 }));
+  await unit('MD.COL', 3.5);
   log('22 four rows became one');
 
-  /* ---- 23-25  BASE ---- */
+  /* ---- 23-24  BASE ---- */
+  await load(BOOK);
   caption('c23', T + 0.3, 4.6);
-  await sheet(CARD + 'b_sh_base.html', 7.0, true);
+  await sheet(CARD + 'b_sh_base.html', 3.0, true);
+  await unit('MD.COL', 4.0);
   log('23 BASE');
 
   caption('c24', T + 0.3, 4.6);
-  await load(BOOK);
-  await orbit(7.0, 24, 0.88);
+  await unit('MD.SHOE', 3.5);
+  await unit('MD.BM', 3.5);
   log('24 read where it sits');
 
-  /* ---- 25-28  ASSY, one command per cut ---- */
+  /* ---- 25-28  ASSY, one command per cut, each on its own workbook ---- */
   caption('c25', T + 0.3, 4.6);
   await sheet(CARD + 'b_sh_assy.html', 6.0, true);
   log('25 ASSY block');
 
   caption('c26', T + 0.3, 4.6);
-  await orbit(6.0, 20, 1.06);
-  log('26 MIR');
+  await swap(CASE + 'B26A.xlsx', CASE + 'B26B.xlsx', 6.0, d => orbit(d, 18));
+  log('26 MIR - one column becomes two');
 
   caption('c27', T + 0.3, 4.6);
-  await orbit(6.0, -24, 1.08);
-  log('27 COPY');
+  await swap(CASE + 'B26B.xlsx', CASE + 'B27.xlsx', 6.0, d => orbit(d, 20));
+  log('27 COPY - one bent becomes three');
 
   caption('c28', T + 0.3, 4.6);
-  await orbit(6.0, 26, 0.92);
-  log('28 ROT');
+  await swap(CASE + 'B28A.xlsx', CASE + 'B28B.xlsx', 6.0, d => orbit(d, 26));
+  log('28 ROT - one stiffener becomes four');
 
+  await load(BOOK);
   /* ---- 29  the whole model again, finished ---- */
   caption('c29', T + 0.3, 5.0);
   const cz = await cam();

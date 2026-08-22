@@ -44,13 +44,32 @@ const R = {
   hoSlot:  11,        // HOLE ho.slot RECT mc 40 22   - base.pt is in E, not G:
                       //   a HOLE row has no mat and no thk, so its columns are
                       //   id shape base.pt p1 p2 and everything shifts left two
+  assy:   [65, 75],   // the ASSY block, as.stf 65-68 then as.bent 70-75
   cutClt1: 27,        // CUT pl.clt -50 -50 ho.m26 0 50 2
   cutClt2: 28,        // CUT pl.clt  50 -50 ho.m26 0 50 2
   anch1:   42, anch4: 45   // MODULE md.col bar.anch_1..4, coordinate form
 };
 
+/* Delete every ASSY row except the ones named, bottom-up so the earlier row
+   numbers stay valid while the later ones are removed.
+
+   This is how the four ASSY commands get a cut each. BASIC's assembly block
+   builds the whole three-bent frame in ten rows, and running the finished model
+   under all four captions is what the first pass did - the same picture turning
+   four times while the words changed underneath. Stripping the block back to
+   one command at a time is the only way MIR, COPY and ROT show what they do. */
+function keepAssy(ws, keep) {
+  for (let r = R.assy[1]; r >= R.assy[0]; r--) {
+    if (keep.indexOf(r) >= 0) continue;
+    if (String(ws.getCell(r, C.B).value || '').trim().toUpperCase() !== 'ASSY') continue;
+    ws.spliceRows(r, 1);
+  }
+}
+
 /* Each case is a function handed the input worksheet. `same: true` means the
-   model it produces has to match BASIC exactly - same members, same weight. */
+   model it produces has to match BASIC exactly - same members, same weight.
+   `members` is an exact count instead, for the cases that are meant to differ
+   and whose whole point is how many of something there now are. */
 const CASES = [
   /* There is no case here for "move the origin and watch the cuts move", and
      the absence was measured rather than assumed. It was going to be cut 13.
@@ -98,6 +117,19 @@ const CASES = [
       ws.spliceRows(R.cutClt2, 1);
     }
   },
+  /* 26-28: one ASSY command at a time. md.col is 8 members and md.stf is 1, so
+     the counts say outright whether the command did what the caption claims. */
+  { id: 'b26a', members: 8,  what: 'ADD only - one column',
+    why: 'cut 26 before', edit: ws => keepAssy(ws, [70]) },
+  { id: 'b26b', members: 16, what: 'ADD + MIR - two columns',
+    why: 'cut 26 after - mirrored about x=1200', edit: ws => keepAssy(ws, [70, 71]) },
+  { id: 'b27',  members: 48, what: 'and COPY - three bents of two',
+    why: 'cut 27 after - the pair pushed along y, twice', edit: ws => keepAssy(ws, [70, 71, 75]) },
+  { id: 'b28a', members: 1,  what: 'one stiffener',
+    why: 'cut 28 before', edit: ws => keepAssy(ws, [65]) },
+  { id: 'b28b', members: 4,  what: 'and ROT - four round the column',
+    why: 'cut 28 after - swung 90 degrees about Z, three times',
+    edit: ws => keepAssy(ws, [65, 66]) },
   {
     id: 'b22', same: true,
     what: 'one MODULE row, two axes',
@@ -226,15 +258,18 @@ async function weigh(page, file) {
     const g = await weigh(page, OUT + '/PLATE3D_' + c.id.toUpperCase() + '.xlsx');
     const identical = g.members === base.members && g.kg === base.kg;
     let verdict;
-    if (c.same) verdict = identical ? 'same as BASIC  OK' : 'CHANGED - must not';
+    if (c.members !== undefined)
+      verdict = g.members === c.members ? c.members + ' members  OK'
+                                        : 'want ' + c.members + ' members, got ' + g.members;
+    else if (c.same) verdict = identical ? 'same as BASIC  OK' : 'CHANGED - must not';
     else if (c.moves) verdict = identical ? 'UNCHANGED - must move'
                                           : (g.kg > base.kg ? 'holes LOST off the plate'
                                                             : 'moved, all still cutting  OK');
     else verdict = String(Math.round((g.kg - base.kg) * 100) / 100) + ' kg vs BASIC';
-    if (/must|LOST/.test(verdict)) bad++;
+    if (/must|LOST|want/.test(verdict)) bad++;
     console.log('  ' + c.id.padEnd(6) + String(g.members).padStart(3) + ' members  ' +
                 String(g.kg).padStart(9) + ' kg   ' + verdict);
-    if (/must|LOST/.test(verdict)) console.log('         ' + c.why);
+    if (/must|LOST|want/.test(verdict)) console.log('         ' + c.why);
   }
   await browser.close();
   console.log('\n' + (bad ? bad + ' case(s) wrong - do not shoot these'

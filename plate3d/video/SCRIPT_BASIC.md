@@ -58,7 +58,7 @@
 | 설명 1행 | `How a plate is defined, where its origin is, how a hole gets cut, and how the parts come together.` |
 | 설명 2행 | `Everything here is one shipped example: Example ▸ Basic.` |
 | 태그 | PLATE3D tutorial · BIM tutorial · steel detailing · spreadsheet BIM · parametric model · plate · bolt hole · 3D modelling · macroBIM |
-| 규격 | 3:25 · 2560×1440 · 30 fps · **무음 · 영어 자막만** |
+| 규격 | 3:27 · 2560×1440 · 30 fps · **무음 · 영어 자막만** |
 
 ### 제목이 둘인 이유
 
@@ -104,7 +104,7 @@
 
 
 
-## 6. 컷 리스트 — 3:25
+## 6. 컷 리스트 — 3:27
 
 `S` = 섹션 카드 · `T` = 타이틀/로고
 
@@ -114,32 +114,32 @@
 | **2** | T | 0:06 | 4s | 타이틀 카드 | **HOW TO USE**<br>**PLATE & CUT** |
 | 3 |  | 0:10 | 6s | Example ▸ **Basic** 행 테두리 → DOWNLOAD | *The file this video uses.* |
 | **4** |  | 0:16 | 7s | input 시트 PLATE 블록 6행, 열 제목에 링 | **One PLATE row is one part.** |
-| 5 |  | 0:23 | 7s | RECT / TRAP / CIRC 세 판이 하나씩 떠오름 | *Three shapes. RECT, TRAP, CIRC.* |
-| 6 |  | 0:30 | 8s | TRAP 파라미터 · WT 를 WB→0 으로 줄이면 사각형이 삼각형 | *WT = WB is a rectangle. WT = 0 is a triangle.* |
-| **7** |  | 0:38 | 7s | Guide 의 **9점 그림** | **Nine points. t/m/b × l/c/r.** |
-| 8 |  | 0:45 | 7s | 사다리꼴 판 위에 9점 — ml/mr 이 **빗변 중점** | *On the real outline, not a bounding box.* |
-| 9 |  | 0:52 | 8s | 같은 판을 `bc` → `mc` → `tl` 로 바꿔가며 배치 | *base.pt lands on the coordinate you type.* |
-| **10** | S | 1:00 | 6s | **섹션 카드** — 판 하나가 화면에 남아 있고 그 위로 | **Every plate has holes.**<br>**Where do they come from?** |
-| **11** |  | 1:06 | 7s | HOLE 3행 · 재질도 두께도 없는데 **base.pt 칸은 있다** | **HOLE is a shape, not a part.**<br>**No steel — but it still has an origin.** |
-| **12** |  | 1:13 | 7s | `CUT pl.base -150 -150 ho.m26` · 판 한가운데 `mc` 마커 → 거기서 −150,−150 화살표 → 구멍 | **L.X L.Y is measured from the plate's origin —**<br>**the nine-point you chose on the PLATE row.** |
-| **13** |  | 1:20 | 7s | 뒤에 `0 50 2` 가 붙으며 구멍이 세로로 셋 | **dx dy repeat — the first axis.** |
-| **14** |  | 1:27 | 9s | 다시 `100 0 1` · **격자 3 × 2**, 옆의 두 번째 CUT 행이 사라짐 | **dx2 dy2 repeat2 — the second.**<br>**Two rows just became one.** |
-| **15** |  | 1:36 | 7s | `CUT pl.cap -130 -130 pl.stf` — 뚜껑의 `mc` 에서 잰 자리에 삼각형의 `bl` 이 와서 **모서리가 정확히 깎임** | **A shape can be another plate —**<br>**and it lands by its own base.pt.** |
-| **16** | S | 1:43 | 5s | **섹션 카드** — 판들이 바닥에 흩어져 누워 있는 화면 위로 | **The parts exist.**<br>**Now stand them up.** |
-| **17** |  | 1:48 | 7s | MODULE 블록 · PLATE 행과 나란히 | **PLATE defines. MODULE uses.** |
-| 18 |  | 1:55 | 9s | PLANE 세 개: 판이 눕고(XY) · 서고(XZ) · 옆으로 선다(YZ) | *XY, XZ, YZ — which plane the plate lies in.* |
-| **19** |  | 2:04 | 6s | 두께 그림 — 면 기준 ±THK/2 | **Thickness straddles that face.** |
-| 20 |  | 2:10 | 7s | Guide 의 **bc / bc+ / bc−** 그림 | *bc+ puts the plus face on the line.* |
-| **21** |  | 2:17 | 7s | `MODULE md.col pl.base mc- 0 0 0 XY` · 판이 z=0 위로 올라앉음 | **Type the drawing's dimension —**<br>**not the dimension plus half the thickness.** |
-| **22** |  | 2:24 | 10s | 앵커볼트 **MODULE 4행이 1행으로** · **모델은 그대로** | **The same eight columns, in MODULE.**<br>**Four rows became one. The model did not move.** |
-| **23** |  | 2:34 | 7s | `MODULE md.col BASE pl.base mc-` · 그 점에 마커 | **BASE is the module's datum. Required.** |
-| 24 |  | 2:41 | 7s | 같은 모듈을 BASE 만 바꿔 두 번 배치 | *Read where it sits, and type that in ASSY.* |
-| **25** |  | 2:48 | 6s | `ASSY as.bent md.col ADD 0 0 0` · 기둥 모듈이 원점에 | **ASSY places a module in the world.** |
-| 26 |  | 2:54 | 6s | `MIR 1200 0 0 YZ` — 기둥이 x=1200 면 기준으로 **둘** | *MIR — mirrored about a plane you name.* |
-| 27 |  | 3:00 | 6s | `COPY 0 3000 0 2` — 벤트가 3,000 씩 **셋** | *COPY — pushed along, repeat times.* |
-| 28 |  | 3:06 | 6s | `ROT 0 0 25 Z 90 3` — 스티프너가 Z축 90°로 **넷** | *ROT — swung round an axis, repeat times.* |
-| **29** |  | 3:12 | 8s | 1번과 같은 모델, 이번엔 완성된 채로 천천히 돈다 | **PLATE. CUT. MODULE. ASSY.**<br>**That is the whole model.** |
-| **30** | T | 3:20 | 5s | 로고 | **PLATE3D by macroBIM** |
+| 5 |  | 0:23 | 9s | **`preview` PL.BASE → PL.STF → PL.FLG** — 형상 하나씩 3초 | *Three shapes. RECT, TRAP, CIRC.* |
+| 6 |  | 0:32 | 8s | 시트 TRAP 행 + **`preview` PL.STF** — WT=0 인 삼각형 실물 | *WT = WB is a rectangle. WT = 0 is a triangle.* |
+| **7** |  | 0:40 | 7s | Guide 의 **9점 그림** | **Nine points. t/m/b × l/c/r.** |
+| 8 |  | 0:47 | 7s | **`preview` PL.STF** — 9점 이름표가 **빗변 위**에 찍혀 있다 | *On the real outline, not a bounding box.* |
+| 9 |  | 0:54 | 8s | 시트 base.pt 열 + **`preview`** — `origin/mc` 표시가 판 위에 | *base.pt lands on the coordinate you type.* |
+| **10** | S | 1:02 | 6s | **섹션 카드** — 판 하나가 화면에 남아 있고 그 위로 | **Every plate has holes.**<br>**Where do they come from?** |
+| **11** |  | 1:08 | 7s | 시트 HOLE 3행 + **`preview` HO.M26** — 재질도 두께도 없는 형상 하나 | **HOLE is a shape, not a part.**<br>**No steel — but it still has an origin.** |
+| **12** |  | 1:15 | 7s | 시트 CUT 행 + **`preview` PL.BASE** — `origin/mc` 에서 구멍까지 | **L.X L.Y is measured from the plate's origin —**<br>**the nine-point you chose on the PLATE row.** |
+| **13** |  | 1:22 | 7s | **`preview` PL.CLT** — 구멍 1개 → **세로 3개** | **dx dy repeat — the first axis.** |
+| **14** |  | 1:29 | 9s | **`preview` PL.CLT** — **3 × 2 격자**, 두 번째 CUT 행이 사라짐 | **dx2 dy2 repeat2 — the second.**<br>**Two rows just became one.** |
+| **15** |  | 1:38 | 7s | **`preview` PL.CAP** — 삼각형 자국으로 **모서리가 깎인 판** | **A shape can be another plate —**<br>**and it lands by its own base.pt.** |
+| **16** | S | 1:45 | 5s | **섹션 카드** — 판들이 바닥에 흩어져 누워 있는 화면 위로 | **The parts exist.**<br>**Now stand them up.** |
+| **17** |  | 1:50 | 7s | 시트 MODULE 블록 + **`previewModule` MD.COL 부재 목록** | **PLATE defines. MODULE uses.** |
+| 18 |  | 1:57 | 9s | **`previewModule`** — PLANE 열(XY·XZ·YZ) + 부재를 하나씩 켜서 평면 확인 | *XY, XZ, YZ — which plane the plate lies in.* |
+| **19** |  | 2:06 | 6s | 두께 그림 — 면 기준 ±THK/2 | **Thickness straddles that face.** |
+| 20 |  | 2:12 | 7s | Guide 의 **bc / bc+ / bc−** 그림 | *bc+ puts the plus face on the line.* |
+| **21** |  | 2:19 | 7s | 시트 + **`previewModule` REF.PT 열 `mc−`** · 판이 z=0 위에 올라앉음 | **Type the drawing's dimension —**<br>**not the dimension plus half the thickness.** |
+| **22** |  | 2:26 | 10s | **`previewModule`** — BAR.ANCH_1..4 네 줄이 **한 줄로**, 모델은 그대로 | **The same eight columns, in MODULE.**<br>**Four rows became one. The model did not move.** |
+| **23** |  | 2:36 | 7s | **`previewModule`** — 모델 위 **노란 BASE 마커** | **BASE is the module's datum. Required.** |
+| 24 |  | 2:43 | 7s | **`previewModule`** 하단 `base PL.BASE.mc−` → 그 값을 ASSY 에 적는다 | *Read where it sits, and type that in ASSY.* |
+| **25** |  | 2:50 | 6s | `ASSY as.bent md.col ADD 0 0 0` · 기둥 모듈이 원점에 | **ASSY places a module in the world.** |
+| 26 |  | 2:56 | 6s | **B26A → B26B** — 기둥 **1개 → 2개**, x=1200 면 기준 | *MIR — mirrored about a plane you name.* |
+| 27 |  | 3:02 | 6s | **B26B → B27** — 벤트 **2 → 6부재**, 3,000 씩 셋 | *COPY — pushed along, repeat times.* |
+| 28 |  | 3:08 | 6s | **B28A → B28B** — 스티프너 **1개 → 4개**, Z축 90°씩 | *ROT — swung round an axis, repeat times.* |
+| **29** |  | 3:14 | 8s | 1번과 같은 모델, 이번엔 완성된 채로 천천히 돈다 | **PLATE. CUT. MODULE. ASSY.**<br>**That is the whole model.** |
+| **30** | T | 3:22 | 5s | 로고 | **PLATE3D by macroBIM** |
 
 ### 11-12·15번 — CUT 이 어디서부터 재는가
 
