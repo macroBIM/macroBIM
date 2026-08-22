@@ -54,3 +54,14 @@ tools/shoot_splice.log
 tools/norm_splice/
 tools/seq_splice/
 tools/filter_splice.txt
+
+# teaching film: same rule, its own names. The generators are tools/mkcards_basic.js,
+# tools/rendercards_basic.js and tools/make_basic_cases.js.
+tools/basic/
+tools/src_basic/
+tools/norm_basic/
+tools/seq_basic/
+tools/shots_basic.json
+tools/shoot_basic.log
+tools/filter_basic.txt
+tools/.case_boq.xlsx
