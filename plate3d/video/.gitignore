@@ -49,3 +49,8 @@ tools/src_splice/
 tools/splice/
 tools/shots_splice.json
 tools/shoot_splice.log
+
+# splice film build products
+tools/norm_splice/
+tools/seq_splice/
+tools/filter_splice.txt
