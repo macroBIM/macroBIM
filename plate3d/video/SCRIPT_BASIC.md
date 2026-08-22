@@ -57,7 +57,7 @@
 | 설명 1행 | `How a plate is defined, where its origin is, how a hole gets cut, and how the parts come together.` |
 | 설명 2행 | `Everything here is one shipped example: Example ▸ Basic.` |
 | 태그 | PLATE3D tutorial · BIM tutorial · steel detailing · spreadsheet BIM · parametric model · plate · bolt hole · 3D modelling · macroBIM |
-| 규격 | 3:04 · 1920×1080 · 30 fps · 무음 |
+| 규격 | 3:23 · 1920×1080 · 30 fps · 무음 |
 
 ### 제목이 둘인 이유
 
@@ -95,68 +95,115 @@
 0:00  What you will be able to write
 0:16  PLATE — one row is one part
 0:38  The nine reference points
-1:00  Thickness, and the + / − face
-1:20  HOLE and CUT
-1:55  MODULE — standing a plate up
-2:21  BASE — the module's datum
-2:35  ASSY — placing the module
+1:00  Where do the holes come from?
+1:41  Standing the plates up
+2:32  BASE — the module's datum
+2:46  ASSY — placing the module
 ```
 
 
 
-## 6. 컷 리스트 — 3:04
+## 6. 컷 리스트 — 3:23
 
-| # | 시작 | 길이 | 화면 | 자막 |
-|---|---|---|---|---|
-| **1** | 0:00 | 6s | 완성된 BASIC 모델이 `__reveal` 로 아래에서부터 쌓여 올라감 | **This is one spreadsheet.**<br>**By the end you will be able to write it.** |
-| **2** | 0:06 | 4s | 타이틀 카드 | **HOW TO USE**<br>**PLATE & CUT** |
-| 3 | 0:10 | 6s | Example ▸ **Basic** 행 테두리 → DOWNLOAD | *The file this video uses.* |
-| **4** | 0:16 | 7s | input 시트 PLATE 블록 6행, 열 제목에 링 | **One PLATE row is one part.** |
-| 5 | 0:23 | 7s | RECT / TRAP / CIRC 세 판이 하나씩 떠오름 | *Three shapes. RECT, TRAP, CIRC.* |
-| 6 | 0:30 | 8s | TRAP 파라미터 그림 · WT 를 WB→0 으로 줄이며 사각형이 삼각형이 됨 | *WT = WB is a rectangle. WT = 0 is a triangle.* |
-| **7** | 0:38 | 7s | Guide 의 **9점 그림** | **Nine points. t/m/b × l/c/r.** |
-| 8 | 0:45 | 7s | 사다리꼴 판 위에 9점 — ml/mr 이 **빗변 중점** | *On the real outline, not a bounding box.* |
-| 9 | 0:52 | 8s | 같은 판을 `bc` → `mc` → `tl` 로 바꿔가며 배치 | *base.pt lands on the coordinate you type.* |
-| **10** | 1:00 | 6s | 두께 그림 — 면 기준 ±THK/2 | **Thickness straddles that face.** |
-| 11 | 1:06 | 7s | Guide 의 **bc / bc+ / bc−** 그림 | *bc+ puts the plus face on the line.* |
-| **12** | 1:13 | 7s | `MODULE md.col pl.base mc- 0 0 0 XY` · 판이 z=0 위로 올라앉음 | **Type the drawing's dimension —**<br>**not the dimension plus half the thickness.** |
-| **13** | 1:20 | 6s | HOLE 3행 · 재질도 두께도 없음 | **HOLE is a shape, not a part.** |
-| 14 | 1:26 | 7s | `CUT pl.clt -50 -50 ho.m26` — 구멍 하나 | *Which plate, where on it, which shape.* |
-| **15** | 1:33 | 7s | 뒤에 `0 50 2` 가 붙으며 구멍이 세로로 셋 | **dx dy repeat — the first axis.** |
-| **16** | 1:40 | 9s | 다시 `100 0 1` 이 붙으며 **격자 3 × 2** · 옆에 있던 두 번째 CUT 행이 사라짐 | **dx2 dy2 repeat2 — the second.**<br>**Two rows just became one.** |
-| 17 | 1:49 | 6s | `CUT pl.cap -130 -130 pl.stf` — 스티프너 자국이 뚜껑에서 빠짐 | *A shape can be another plate.* |
-| **18** | 1:55 | 7s | MODULE 블록 · PLATE 행과 나란히 | **PLATE defines. MODULE uses.** |
-| 19 | 2:02 | 9s | PLANE 세 개: 판이 눕고(XY) · 서고(XZ) · 옆으로 선다(YZ) | *XY, XZ, YZ — which plane the plate lies in.* |
-| **20** | 2:11 | 10s | 앵커볼트 **MODULE 4행이 1행으로** — `300 0 0 1` `0 300 0 1` · **모델은 그대로** | **The same eight columns, in MODULE.**<br>**Four rows became one. The model did not move.** |
-| **21** | 2:21 | 7s | `MODULE md.col BASE pl.base mc-` · 그 점에 마커 | **BASE is the module's datum. Required.** |
-| 22 | 2:28 | 7s | 같은 모듈을 BASE 만 바꿔 두 번 배치 | *Read where it sits, and type that in ASSY.* |
-| **23** | 2:35 | 7s | ASSY ADD 행 · 모듈이 글로벌 좌표에 | **ASSY places a module in the world.** |
-| 24 | 2:42 | 9s | MIR / COPY / ROT — 하나가 넷이 되고, 줄이 되고, 원이 됨 | *MIR mirrors. COPY repeats. ROT swings it round an axis.* |
-| **25** | 2:51 | 8s | 1번과 같은 모델, 이번엔 완성된 채로 천천히 돈다 | **PLATE. CUT. MODULE. ASSY.**<br>**That is the whole model.** |
-| **26** | 2:59 | 5s | 로고 | **PLATE3D by macroBIM** |
+`S` = 섹션 카드 · `T` = 타이틀/로고
 
-**자막은 3~5초, 컷 길이는 화면이 정한다.** 처음 잡았던 "두 줄이면 12초"는 자막 읽는
-시간과 컷 길이를 같은 것으로 본 잘못이었다.
+| # | | 시작 | 길이 | 화면 | 자막 |
+|---|---|---|---|---|---|
+| **1** |  | 0:00 | 6s | 완성된 BASIC 모델이 `__reveal` 로 아래에서부터 쌓여 올라감 | **This is one spreadsheet.**<br>**By the end you will be able to write it.** |
+| **2** | T | 0:06 | 4s | 타이틀 카드 | **HOW TO USE**<br>**PLATE & CUT** |
+| 3 |  | 0:10 | 6s | Example ▸ **Basic** 행 테두리 → DOWNLOAD | *The file this video uses.* |
+| **4** |  | 0:16 | 7s | input 시트 PLATE 블록 6행, 열 제목에 링 | **One PLATE row is one part.** |
+| 5 |  | 0:23 | 7s | RECT / TRAP / CIRC 세 판이 하나씩 떠오름 | *Three shapes. RECT, TRAP, CIRC.* |
+| 6 |  | 0:30 | 8s | TRAP 파라미터 · WT 를 WB→0 으로 줄이면 사각형이 삼각형 | *WT = WB is a rectangle. WT = 0 is a triangle.* |
+| **7** |  | 0:38 | 7s | Guide 의 **9점 그림** | **Nine points. t/m/b × l/c/r.** |
+| 8 |  | 0:45 | 7s | 사다리꼴 판 위에 9점 — ml/mr 이 **빗변 중점** | *On the real outline, not a bounding box.* |
+| 9 |  | 0:52 | 8s | 같은 판을 `bc` → `mc` → `tl` 로 바꿔가며 배치 | *base.pt lands on the coordinate you type.* |
+| **10** | S | 1:00 | 6s | **섹션 카드** — 판 하나가 화면에 남아 있고 그 위로 | **Every plate has holes.**<br>**Where do they come from?** |
+| **11** |  | 1:06 | 6s | HOLE 3행 · 재질도 두께도 없음 | **HOLE is a shape, not a part.** |
+| 12 |  | 1:12 | 7s | `CUT pl.clt -50 -50 ho.m26` — 구멍 하나 | *Which plate, where on it, which shape.* |
+| **13** |  | 1:19 | 7s | 뒤에 `0 50 2` 가 붙으며 구멍이 세로로 셋 | **dx dy repeat — the first axis.** |
+| **14** |  | 1:26 | 9s | 다시 `100 0 1` · **격자 3 × 2**, 옆의 두 번째 CUT 행이 사라짐 | **dx2 dy2 repeat2 — the second.**<br>**Two rows just became one.** |
+| 15 |  | 1:35 | 6s | `CUT pl.cap -130 -130 pl.stf` — 스티프너 자국이 뚜껑에서 빠짐 | *A shape can be another plate.* |
+| **16** | S | 1:41 | 5s | **섹션 카드** — 판들이 바닥에 흩어져 누워 있는 화면 위로 | **The parts exist.**<br>**Now stand them up.** |
+| **17** |  | 1:46 | 7s | MODULE 블록 · PLATE 행과 나란히 | **PLATE defines. MODULE uses.** |
+| 18 |  | 1:53 | 9s | PLANE 세 개: 판이 눕고(XY) · 서고(XZ) · 옆으로 선다(YZ) | *XY, XZ, YZ — which plane the plate lies in.* |
+| **19** |  | 2:02 | 6s | 두께 그림 — 면 기준 ±THK/2 | **Thickness straddles that face.** |
+| 20 |  | 2:08 | 7s | Guide 의 **bc / bc+ / bc−** 그림 | *bc+ puts the plus face on the line.* |
+| **21** |  | 2:15 | 7s | `MODULE md.col pl.base mc- 0 0 0 XY` · 판이 z=0 위로 올라앉음 | **Type the drawing's dimension —**<br>**not the dimension plus half the thickness.** |
+| **22** |  | 2:22 | 10s | 앵커볼트 **MODULE 4행이 1행으로** · **모델은 그대로** | **The same eight columns, in MODULE.**<br>**Four rows became one. The model did not move.** |
+| **23** |  | 2:32 | 7s | `MODULE md.col BASE pl.base mc-` · 그 점에 마커 | **BASE is the module's datum. Required.** |
+| 24 |  | 2:39 | 7s | 같은 모듈을 BASE 만 바꿔 두 번 배치 | *Read where it sits, and type that in ASSY.* |
+| **25** |  | 2:46 | 6s | `ASSY as.bent md.col ADD 0 0 0` · 기둥 모듈이 원점에 | **ASSY places a module in the world.** |
+| 26 |  | 2:52 | 6s | `MIR 1200 0 0 YZ` — 기둥이 x=1200 면 기준으로 **둘** | *MIR — mirrored about a plane you name.* |
+| 27 |  | 2:58 | 6s | `COPY 0 3000 0 2` — 벤트가 3,000 씩 **셋** | *COPY — pushed along, repeat times.* |
+| 28 |  | 3:04 | 6s | `ROT 0 0 25 Z 90 3` — 스티프너가 Z축 90°로 **넷** | *ROT — swung round an axis, repeat times.* |
+| **29** |  | 3:10 | 8s | 1번과 같은 모델, 이번엔 완성된 채로 천천히 돈다 | **PLATE. CUT. MODULE. ASSY.**<br>**That is the whole model.** |
+| **30** | T | 3:18 | 5s | 로고 | **PLATE3D by macroBIM** |
 
-### 15·16·20번 — 격자 복사
+### 10·16번 — 섹션 카드
 
-같은 여덟 칸이 **CUT 과 MODULE 에 똑같이** 붙는다. 한 번 배우면 두 군데 쓴다는 것이
-요점이고, 그래서 세 컷을 붙여 놓았다.
+갑자기 시작하지 않기 위한 두 장입니다. **질문으로 열고 다음 챕터가 답이 됩니다.**
+
+```
+10   Every plate has holes.        →  11-15 이 HOLE 과 CUT
+     Where do they come from?
+
+16   The parts exist.              →  17-22 가 MODULE
+     Now stand them up.
+```
+
+타이틀 카드(2번)와 같은 판이되 글자를 작게 씁니다 — 영상의 제목이 아니라 **장의 제목**입니다.
+유튜브 챕터 경계도 이 두 장에 맞춰 놓았으므로, 목차로 뛰어들어와도 질문부터 보게 됩니다.
+
+### 순서를 바꾼 이유 — 두께 ±면이 19-21번으로 내려간 것
+
+`bc+` / `bc−` 는 **MODULE 행의 `Ref.Pt` 칸**입니다. 처음 판에서는 MODULE 을 소개하기
+전에 이 셋을 넣어 뒀는데, 그러면 아직 본 적 없는 행을 예로 들어 설명하게 됩니다.
+지금은 MODULE 을 먼저 세우고(17-18) 그 다음에 그 행의 칸으로 다룹니다.
+
+배우는 순서가 이렇게 정리됩니다:
+
+```
+판을 그린다        PLATE          모양 세 가지
+어디를 잡을지       base.pt        9점
+구멍을 뚫는다       HOLE + CUT     격자 복사
+세운다             MODULE         PLANE · 두께 면 · 격자 복사
+어디에 놓을지       BASE           모듈의 기준점
+놓는다             ASSY           ADD · MIR · COPY · ROT
+```
+
+**자막은 3~5초, 컷 길이는 화면이 정한다.**
+
+### 25-28번 — 네 명령을 하나씩
+
+한 컷에 셋을 몰아넣으면 3초씩이라 **결과가 안 읽힙니다.** 명령마다 컷을 줍니다.
+넷이 다 교재 안에 있어서 워크북 변형도 필요 없습니다 — BASIC 의 ASSY 블록 그대로입니다:
+
+| 컷 | BASIC 의 행 | 화면에서 일어나는 일 |
+|---|---|---|
+| 25 ADD | `as.bent md.col ADD 0 0 0` | 기둥 모듈이 원점에 선다 |
+| 26 MIR | `as.bent md.col MIR 1200 0 0 YZ` | 기둥이 둘이 된다 |
+| 27 COPY | `as.bent as.bent COPY 0 3000 0 2` | 벤트 전체가 셋이 된다 |
+| 28 ROT | `as.stf as.stf ROT 0 0 25 Z 90 3` | 삼각 스티프너가 기둥을 돌아 넷이 된다 |
+
+27·28번이 **`as.bent`·`as.stf` 자기 자신을 참조**한다는 점도 화면에 남습니다 —
+조립체는 만들어 놓고 다시 재료로 쓸 수 있습니다.
+
+### 13·14·22번 — 격자 복사
+
+같은 여덟 칸이 **CUT 과 MODULE 에 똑같이** 붙는다. 한 번 배우면 두 군데 쓴다는 것이 요점.
 
 ```
 dx  dy  [dz]  repeat        dx2  dy2  [dz2]  repeat2      →  (repeat+1) × (repeat2+1)
 ```
 
-교재 안에 보여줄 자리가 이미 있다.
-
 | | BASIC 이 지금 쓰는 방식 | 한 행으로 |
 |---|---|---|
-| CUT (16번) | `CUT pl.clt -50 -50 ho.m26 0 50 2`<br>`CUT pl.clt 50 -50 ho.m26 0 50 2` | `CUT pl.clt -50 -50 ho.m26 0 50 2 100 0 1` |
-| MODULE (20번) | `bar.anch_1` … `bar.anch_4` 네 행 | `-150 -150 25 → -150 -150 -250` 한 행 +<br>`300 0 0 1` `0 300 0 1` |
+| CUT (14번) | `CUT pl.clt -50 -50 ho.m26 0 50 2`<br>`CUT pl.clt 50 -50 ho.m26 0 50 2` | `CUT pl.clt -50 -50 ho.m26 0 50 2 100 0 1` |
+| MODULE (22번) | `bar.anch_1` … `bar.anch_4` 네 행 | 한 행 + `300 0 0 1` `0 300 0 1` |
 
-**16·20번의 요점은 모델이 안 변한다는 것이다.** 화면에서 볼 것은 3D 가 아니라 시트다 —
-행이 줄고 구멍·볼트는 그 자리에 그대로 있다. 자막이 그것을 말한다:
-*Two rows just became one* · *Four rows became one. The model did not move.*
+**요점은 모델이 안 변한다는 것.** 화면에서 볼 것은 3D 가 아니라 시트다 — 행이 줄고
+구멍·볼트는 그 자리에 그대로 있다.
 
 ## 7. 02편으로 넘긴 것 — BOQ 와 도면
 
@@ -195,13 +242,13 @@ dx  dy  [dz]  repeat        dx2  dy2  [dz2]  repeat2      →  (repeat+1) × (re
 | **시트 행은 셀 카드로** | 스플라이스와 같은 방식. 설명하는 열에 링 |
 | **자막 3~5초, 컷은 그보다 길게** | 자막은 읽히면 끝이고, 컷은 화면의 동작이 끝날 때까지 간다 |
 | **챕터 경계에서 끊는다** | 유튜브 목차로 뛰어들어와도 문장 중간이 아니게 |
-| **1번과 25번은 같은 모델** | 쌓아 올리며 열고, 완성된 채로 닫는다 — 그 사이가 이 영상이 가르친 것 |
-| **15·16·20번은 워크북 변형이 필요하다** | 구멍 1개 → 한 줄 → 격자, 앵커 4행 → 1행. 전부 BASIC 의 CUT/MODULE 행만 고친 것이고 모델은 같아야 한다 — 같지 않으면 그 컷이 거짓말이 된다 |
+| **1번과 29번은 같은 모델** | 쌓아 올리며 열고, 완성된 채로 닫는다 — 그 사이가 이 영상이 가르친 것 |
+| **13·14·22번은 워크북 변형이 필요하다** | 구멍 1개 → 한 줄 → 격자, 앵커 4행 → 1행. 전부 BASIC 의 CUT/MODULE 행만 고친 것이고 모델은 같아야 한다 — 같지 않으면 그 컷이 거짓말이 된다 |
 | `shots.json` 을 **컷마다 저장** | 타워에서 52분 촬영 후 크래시로 타임라인을 잃음 |
 
 ## 9. 남은 결정
 
 | | |
 |---|---|
-| 3:04 이 짧은가 | 26컷이 다 들어간 길이다. 더 필요하면 늘릴 곳은 19·20·24번(동작이 있는 컷)이지 자막이 아니다 |
+| 3:23 이 짧은가 | 30컷이 다 들어간 길이다. 더 필요하면 늘릴 곳은 18·22번(동작이 있는 컷)이지 자막이 아니다 |
 | 한국어 자막 | 지금 자막은 영어. 유튜브 자막 트랙으로 한국어를 얹을지 |
