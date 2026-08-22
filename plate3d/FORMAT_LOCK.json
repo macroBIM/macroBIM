@@ -1,0 +1,418 @@
+{
+ "books": {
+  "PLATE3D_BASIC.xlsx": {
+   "boq": [
+    {
+     "sheet": "SUMMARY",
+     "cols": 14,
+     "labels": [
+      "PLATE3D — BILL OF QUANTITIES",
+      "source | <book>",
+      "generated | <when>",
+      "units | mm · kg — steel at 7.85 t/m³",
+      "scope | every placed member",
+      "weights | live formulas — area × thickness × density, up through every subtotal. Edit a dimension and the book follows.",
+      "BY CATEGORY | ITEMS | QTY | WEIGHT kg | SHARE",
+      "MODEL | COUNT"
+     ]
+    },
+    {
+     "sheet": "PART LIST",
+     "cols": 15,
+     "labels": [
+      "PART LIST — every distinct part in the model",
+      "Grouped by the input fields it was written with, so one section definition cut to several lengths gives one line per length. UNIT kg is a formula on the dimensions to its left.",
+      "PLATE — RECT",
+      "ID | MAT | THK | B | H | AREA m² | CUTS | UNIT kg | QTY | WEIGHT kg",
+      "PLATE — TRAP",
+      "ID | MAT | THK | WB | WT | H | OFF_T | AREA m² | CUTS | UNIT kg | QTY | WEIGHT kg",
+      "PLATE — CIRC",
+      "ID | MAT | THK | D | AREA m² | CUTS | UNIT kg | QTY | WEIGHT kg",
+      "BAR",
+      "ID | MAT | DIA | LENGTH | AREA mm² | kg/m | UNIT kg | QTY | WEIGHT kg",
+      "SECT — H",
+      "ID | MAT | h | bb | bt | tw | tf1 | tf2 | r1 | LENGTH | AREA mm² | kg/m | UNIT kg | QTY",
+      "SECT — C",
+      "ID | MAT | h | b | tw | tf | rw | rf | LENGTH | AREA mm² | kg/m | UNIT kg | QTY | WEIGHT kg",
+      "SECT — L",
+      "ID | MAT | a | b | t1 | t2 | r1 | r2 | LENGTH | AREA mm² | kg/m | UNIT kg | QTY | WEIGHT kg"
+     ]
+    },
+    {
+     "sheet": "MODULES",
+     "cols": 17,
+     "labels": [
+      "MODULES — one block per module type",
+      "QTY / UNIT is how many of that part go into one module; kg / UNIT and TOTAL kg are formulas on it. The banner adds its blocks up and multiplies by how many units the model holds.",
+      "SECT — C",
+      "ID | MAT | h | b | tw | tf | rw | rf | LENGTH | AREA mm² | kg/m | UNIT kg | QTY / UNIT | kg / UNIT",
+      "SECT — L",
+      "ID | MAT | a | b | t1 | t2 | r1 | r2 | LENGTH | AREA mm² | kg/m | UNIT kg | QTY / UNIT | kg / UNIT",
+      "SECT — H",
+      "ID | MAT | h | bb | bt | tw | tf1 | tf2 | r1 | LENGTH | AREA mm² | kg/m | UNIT kg | QTY / UNIT",
+      "PLATE — RECT",
+      "ID | MAT | THK | B | H | AREA m² | CUTS | UNIT kg | QTY / UNIT | kg / UNIT | TOTAL QTY | TOTAL kg",
+      "BAR",
+      "ID | MAT | DIA | LENGTH | AREA mm² | kg/m | UNIT kg | QTY / UNIT | kg / UNIT | TOTAL QTY | TOTAL kg",
+      "SECT — H",
+      "ID | MAT | h | bb | bt | tw | tf1 | tf2 | r1 | LENGTH | AREA mm² | kg/m | UNIT kg | QTY / UNIT",
+      "PLATE — RECT",
+      "ID | MAT | THK | B | H | AREA m² | CUTS | UNIT kg | QTY / UNIT | kg / UNIT | TOTAL QTY | TOTAL kg",
+      "PLATE — CIRC",
+      "ID | MAT | THK | D | AREA m² | CUTS | UNIT kg | QTY / UNIT | kg / UNIT | TOTAL QTY | TOTAL kg",
+      "PLATE — TRAP",
+      "ID | MAT | THK | WB | WT | H | OFF_T | AREA m² | CUTS | UNIT kg | QTY / UNIT | kg / UNIT | TOTAL QTY | TOTAL kg"
+     ]
+    },
+    {
+     "sheet": "ASSEMBLY",
+     "cols": 14,
+     "labels": [
+      "ASSEMBLY — modules only, no part detail",
+      "Part detail lives on MODULES. Here a module is one line: how many of it this assembly holds, what one weighs, what they come to.",
+      "MODULE | MEMBERS / UNIT | QTY | MEMBERS | UNIT kg | WEIGHT kg",
+      "MODULE | MEMBERS / UNIT | QTY | MEMBERS | UNIT kg | WEIGHT kg"
+     ]
+    }
+   ],
+   "boqName": "<book>_BOQ.xlsx",
+   "dxfBlocks": {
+    "assembly": true,
+    "module": true,
+    "part": true,
+    "views": "unavailable"
+   },
+   "dxf": {
+    "layers": [
+     "PL3D-DIM",
+     "PL3D-OUTLINE",
+     "PL3D-TEXT",
+     "PL3D-TITLE"
+    ],
+    "entities": [
+     "CIRCLE",
+     "LINE",
+     "SOLID",
+     "TEXT"
+    ],
+    "banners": [
+     "ASSEMBLY  1:<scale>",
+     "MODULES  1:<scale>",
+     "PARTS  1:<scale>"
+    ]
+   },
+   "dxfName": "plate_builder_A<scale>-M<scale>-P<scale>.dxf"
+  },
+  "PLATE3D_SPLICE.xlsx": {
+   "boq": [
+    {
+     "sheet": "SUMMARY",
+     "cols": 14,
+     "labels": [
+      "PLATE3D — BILL OF QUANTITIES",
+      "source | <book>",
+      "generated | <when>",
+      "units | mm · kg — steel at 7.85 t/m³",
+      "scope | every placed member",
+      "weights | live formulas — area × thickness × density, up through every subtotal. Edit a dimension and the book follows.",
+      "BY CATEGORY | ITEMS | QTY | WEIGHT kg | SHARE",
+      "MODEL | COUNT"
+     ]
+    },
+    {
+     "sheet": "PART LIST",
+     "cols": 14,
+     "labels": [
+      "PART LIST — every distinct part in the model",
+      "Grouped by the input fields it was written with, so one section definition cut to several lengths gives one line per length. UNIT kg is a formula on the dimensions to its left.",
+      "PLATE — RECT",
+      "ID | MAT | THK | B | H | AREA m² | CUTS | UNIT kg | QTY | WEIGHT kg",
+      "BAR",
+      "ID | MAT | DIA | LENGTH | AREA mm² | kg/m | UNIT kg | QTY | WEIGHT kg"
+     ]
+    },
+    {
+     "sheet": "MODULES",
+     "cols": 14,
+     "labels": [
+      "MODULES — one block per module type",
+      "QTY / UNIT is how many of that part go into one module; kg / UNIT and TOTAL kg are formulas on it. The banner adds its blocks up and multiplies by how many units the model holds.",
+      "PLATE — RECT",
+      "ID | MAT | THK | B | H | AREA m² | CUTS | UNIT kg | QTY / UNIT | kg / UNIT | TOTAL QTY | TOTAL kg",
+      "PLATE — RECT",
+      "ID | MAT | THK | B | H | AREA m² | CUTS | UNIT kg | QTY / UNIT | kg / UNIT | TOTAL QTY | TOTAL kg",
+      "BAR",
+      "ID | MAT | DIA | LENGTH | AREA mm² | kg/m | UNIT kg | QTY / UNIT | kg / UNIT | TOTAL QTY | TOTAL kg",
+      "PLATE — RECT",
+      "ID | MAT | THK | B | H | AREA m² | CUTS | UNIT kg | QTY / UNIT | kg / UNIT | TOTAL QTY | TOTAL kg",
+      "PLATE — RECT",
+      "ID | MAT | THK | B | H | AREA m² | CUTS | UNIT kg | QTY / UNIT | kg / UNIT | TOTAL QTY | TOTAL kg",
+      "PLATE — RECT",
+      "ID | MAT | THK | B | H | AREA m² | CUTS | UNIT kg | QTY / UNIT | kg / UNIT | TOTAL QTY | TOTAL kg",
+      "PLATE — RECT",
+      "ID | MAT | THK | B | H | AREA m² | CUTS | UNIT kg | QTY / UNIT | kg / UNIT | TOTAL QTY | TOTAL kg",
+      "PLATE — RECT",
+      "ID | MAT | THK | B | H | AREA m² | CUTS | UNIT kg | QTY / UNIT | kg / UNIT | TOTAL QTY | TOTAL kg"
+     ]
+    },
+    {
+     "sheet": "ASSEMBLY",
+     "cols": 14,
+     "labels": [
+      "ASSEMBLY — modules only, no part detail",
+      "Part detail lives on MODULES. Here a module is one line: how many of it this assembly holds, what one weighs, what they come to.",
+      "MODULE | MEMBERS / UNIT | QTY | MEMBERS | UNIT kg | WEIGHT kg"
+     ]
+    }
+   ],
+   "boqName": "<book>_BOQ.xlsx",
+   "dxfBlocks": {
+    "assembly": true,
+    "module": true,
+    "part": true,
+    "views": true
+   },
+   "dxf": {
+    "layers": [
+     "PL3D-DIM",
+     "PL3D-HIDDEN",
+     "PL3D-OUTLINE",
+     "PL3D-TEXT",
+     "PL3D-TITLE"
+    ],
+    "entities": [
+     "ARC",
+     "CIRCLE",
+     "LINE",
+     "SOLID",
+     "TEXT"
+    ],
+    "banners": [
+     "ASSEMBLY  1:<scale>",
+     "MODULES  1:<scale>",
+     "PARTS  1:<scale>",
+     "VIEWS  1:<scale>"
+    ]
+   },
+   "dxfName": "plate_builder_A<scale>-M<scale>-P<scale>-V<scale>.dxf"
+  }
+ },
+ "dimstyle": {
+  "base": {
+   "origin": 10,
+   "base": 10,
+   "stack": 10,
+   "extend": 1.25,
+   "arrow": 1.1,
+   "textGap": 0.5,
+   "leadArrow": 2.5,
+   "leadRun": 6.7,
+   "innerOrigin": 4,
+   "innerBase": 4,
+   "markLen": 100,
+   "markSize": 2.5,
+   "markRadius": 4,
+   "text": {
+    "dim": 2.5,
+    "note": 2.5,
+    "member": 2.5,
+    "section": 5,
+    "heading": 6,
+    "title": 8
+   },
+   "pick": {
+    "arrowHead": "dot",
+    "unit": "dot",
+    "angle": "dms",
+    "spec": "comma",
+    "specForm": "1 - PL - W x T x L",
+    "specAt": "X",
+    "simpleMarking": false
+   }
+  },
+  "at50": {
+   "scale": 50,
+   "pick": {
+    "arrowHead": "dot",
+    "unit": "dot",
+    "angle": "dms",
+    "spec": "comma",
+    "specForm": "1 - PL - W x T x L",
+    "specAt": "X",
+    "simpleMarking": false
+   },
+   "text": {
+    "dim": 125,
+    "note": 125,
+    "member": 125,
+    "section": 250,
+    "heading": 300,
+    "title": 400
+   },
+   "origin": 500,
+   "base": 500,
+   "stack": 500,
+   "extend": 62.5,
+   "arrow": 55,
+   "textGap": 25,
+   "leadArrow": 125,
+   "leadRun": 335,
+   "innerOrigin": 200,
+   "innerBase": 200,
+   "markLen": 5000,
+   "markSize": 125,
+   "markRadius": 200
+  }
+ },
+ "grammar": [
+  [
+   " A B C D E F G H",
+   "1 # PLATE id mat thk shape base.pt ... ",
+   "2 PLATE pl.T1 SM400 10 RECT bc 350 300"
+  ],
+  [
+   " A B C D E F G H I",
+   "1 tower frame  # PLATE id mat thk shape base.pt ...",
+   "2 deck to soffit =B4-B3 PLATE pl.T1 SM400 10 RECT bc 350",
+   "3   PLATE pl.C1 SM400 10 RECT bc 100",
+   "4   END      "
+  ],
+  [
+   " A B C D E F G H I J",
+   "1 PLATE id mat thk TRAP base.pt WB WT H OFF_T",
+   "2 PLATE id mat thk RECT base.pt B H  ",
+   "3 PLATE id mat thk CIRC base.pt D   "
+  ],
+  [
+   " A B C D E F G H",
+   "1 HOLE id TRAP base.pt WB WT H OFF_T",
+   "2 HOLE id RECT base.pt B H  ",
+   "3 HOLE id CIRC base.pt D   "
+  ],
+  [
+   " A B C D E F G H I J K",
+   "1 CUT plate.id L.X L.Y shape.id dx dy repeat dx2 dy2 repeat2"
+  ],
+  [
+   " A B C D E F G H",
+   "1 # HOLE id shape base.pt d   ",
+   "2 HOLE h.M22 CIRC mc 22   ",
+   "3 # CUT plate L.X L.Y shape dx dy repeat",
+   "4 CUT pl.T1 -110 90 h.M22 0 220 1"
+  ],
+  [
+   " A B C D E F G H I J K",
+   "1 # CUT plate L.X L.Y shape dx dy repeat dx2 dy2 repeat2",
+   "2 CUT pl.T1 35 85 h.M22 75 0 1 0 -170 1"
+  ],
+  [
+   " A B C D E",
+   "1 BAR id mat dia length"
+  ],
+  [
+   " A B C D E F G H",
+   "1 # BAR id mat dia length   ",
+   "2 BAR bar.pt3m SAS1030 28 3000   ",
+   "3 # MODULE id member Ref.Pt L.X L.Y L.Z PLANE",
+   "4 MODULE md.tower bar.pt3m  0 0 0 XY"
+  ],
+  [
+   " A B C D E F G H I J",
+   "1 SECT id mat length TYPE base.pt v1 v2 v3 ..."
+  ],
+  [
+   " A B C D E F G H I J K L M",
+   "1 # SECT id mat length TYPE base.pt v1 v2 v3 v4 v5 v6 v7",
+   "2 SECT s.H SM490 6000 H bc 400 200 200 8 13 13 16",
+   "3 SECT s.C SS275 3000 C bc 300 90 12 16 19 9 ",
+   "4 SECT s.L SS275 2400 L bc 90 75 9 9 8.5 6 "
+  ],
+  [
+   " A B C D E F G H I J K L M N O P Q R S",
+   "1 MODULE id member.id Ref.Pt L.X L.Y L.Z PLANE ROT.X ROT.Y ROT.Z dx dy dz repeat dx2 dy2 dz2 repeat2",
+   "2 MODULE id BASE member.no point              "
+  ],
+  [
+   " A B C D E F G H",
+   "1 # MODULE id member Ref.Pt L.X L.Y L.Z PLANE",
+   "2 MODULE md.tower pl.T1 bc+ 140 0 0 XZ",
+   "3 MODULE md.tower pl.C1 bc+ 0 0 0 XY",
+   "4 MODULE md.tower pl.C1 bc- 0 200 0 XY",
+   "5 MODULE md.tower pl.C2 bc -60 0 60 YZ",
+   "6 MODULE md.tower BASE pl.T1 bc-   "
+  ],
+  [
+   " A B C D E F G H I J K L M N O P Q R S",
+   "1 # MODULE id member Ref.Pt L.X L.Y L.Z PLANE RX RY RZ dx dy dz rep dx2 dy2 dz2 rep2",
+   "2 MODULE md.blt bo.M22  35 50 110 XY 0 0 0 75 0 0 3 0 55 0 2"
+  ],
+  [
+   " A B C D E F G H I J K L M N O P Q R S T U",
+   "1 MODULE id member.id Ref.Pt LX1 LY1 LZ1 LX2 LY2 LZ2 OFF_B OFF_E Alpha dx dy dz repeat dx2 dy2 dz2 repeat2"
+  ],
+  [
+   " A B C D E F G H I J K L M",
+   "1 # SECT id mat length TYPE base.pt v1 v2 v3 v4 v5 v6 ",
+   "2 SECT s.brc SS275 6000 L bc 65 65 6 6 8 4 ",
+   "3 # MODULE id member Ref.Pt LX1 LY1 LZ1 LX2 LY2 LZ2 OFF_B OFF_E Alpha",
+   "4 MODULE md.bay s.brc_1  0 0 0 1200 0 1800 -40 -40 ",
+   "5 MODULE md.bay s.brc_2  1200 0 0 0 0 1800 -40 -40 ",
+   "6 MODULE md.bay s.brc_3  0 0 1800 1200 0 1800 30 30 90",
+   "7 MODULE md.bay BASE s.brc_1 bc        "
+  ],
+  [
+   " A B C D E F G H I J K L M N O P Q R S T U",
+   "1 # MODULE id member Ref.Pt LX1 LY1 LZ1 LX2 LY2 LZ2 OFF_B OFF_E Alpha dx dy dz rep dx2 dy2 dz2 rep2",
+   "2 MODULE md.rail s.brc  0 0 0 0 0 900 0 0 0 1500 0 0 5 0 2400 0 1"
+  ],
+  [
+   " A B C D E F G H I J",
+   "1 ASSY id ref ADD G.X G.Y G.Z ROT.X ROT.Y ROT.Z",
+   "2 ASSY id ref MIR G.X G.Y G.Z PLANE  ",
+   "3 ASSY id ref COPY d.X d.Y d.Z repeat  ",
+   "4 ASSY id ref ROT C.X C.Y C.Z AXIS angle repeat"
+  ],
+  [
+   " A B C D E F G H I J",
+   "1 # ASSY id ref cmd G / d / C   extra  ",
+   "2 ASSY as.comb md.tower ADD 0 0 0   ",
+   "3 ASSY as.comb bar.pt3m ADD 0 0 0   ",
+   "4 ASSY as.comb.cp md.tower COPY 0 800 0 4  ",
+   "5 ASSY as.comb.rot md.tower ROT -2000 0 0 Z 30 3",
+   "6          ",
+   "7 END         "
+  ],
+  [
+   " A B C D E F G H",
+   "1 # ASSY id ref cmd G.X G.Y G.Z PLANE",
+   "2 ASSY as.half md.tower ADD 0 0 0 ",
+   "3 ASSY as.half as.half MIR 900 0 0 YZ",
+   "4 ASSY as.big as.half ADD 0 0 900 "
+  ],
+  [
+   " A B C D E F G H I J K L",
+   "1 # PLATE id mat thk shape base.pt p1 p2    ",
+   "2 PLATE pl.T1 SM400 10 RECT bc 350 300    ",
+   "3 PLATE pl.C1 SM400 10 RECT bc 100 300    ",
+   "4 # HOLE id shape base.pt d       ",
+   "5 HOLE h.M22 CIRC mc 22       ",
+   "6 # CUT plate L.X L.Y shape dx dy repeat    ",
+   "7 CUT pl.T1 -110 90 h.M22 220 0 1    ",
+   "8 # BAR id mat dia length       ",
+   "9 BAR bar.pt3m SAS1030 28 3000       ",
+   "10 # SECT id mat length TYPE base.pt v1 v2 v3 v4 v5 v6",
+   "11 SECT sc.brc SS275 6000 L bc 65 65 6 6 8 4",
+   "12 # MODULE id member Ref.Pt L.X L.Y L.Z PLANE    ",
+   "13 MODULE md.tower pl.T1 bc+ 140 0 0 XZ    ",
+   "14 MODULE md.tower pl.C1 bc 0 0 0 XY    ",
+   "15 MODULE md.tower bar.pt3m  0 0 0 XY    ",
+   "16 # MODULE id member Ref.Pt LX1 LY1 LZ1 LX2 LY2 LZ2 OFF_B OFF_E",
+   "17 MODULE md.tower sc.brc_1  300 0 0 0 0 2600 60 60",
+   "18 MODULE md.tower BASE pl.T1 bc-       ",
+   "19 # ASSY id ref cmd G.X G.Y G.Z repeat    ",
+   "20 ASSY as.comb md.tower ADD 0 0 0     ",
+   "21 ASSY as.comb md.tower COPY 2000 0 0 2    ",
+   "22 END           "
+  ]
+ ]
+}

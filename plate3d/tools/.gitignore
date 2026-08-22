@@ -1,0 +1,6 @@
+# A symlink to whatever scratch npm tree the machine has - three, polybooljs,
+# exceljs, playwright-core. lock_format.js serves them to the browser off disk
+# so the fingerprint does not depend on a CDN being up.
+node_modules
+# what lock_format.js pulls out of the app and reads back
+.lock_boq.xlsx

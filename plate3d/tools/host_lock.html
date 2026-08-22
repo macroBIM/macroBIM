@@ -1,0 +1,20 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>PLATE3D — format lock</title>
+<!--
+  Host page for tools/lock_format.js. It loads the SHIPPED engine off disk,
+  not the test build: the lock is a promise about what a customer receives,
+  so it has to be taken from the file a customer runs.
+-->
+<style>html,body{margin:0;padding:0;height:100%;background:#f8fafc;overflow:hidden}</style>
+</head>
+<body>
+<script src="https://unpkg.com/three@0.147.0/build/three.min.js"></script>
+<script src="https://unpkg.com/three@0.147.0/examples/js/controls/OrbitControls.js"></script>
+<script src="https://unpkg.com/polybooljs@1.1.0/dist/polybool.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/exceljs/4.3.0/exceljs.min.js"></script>
+<script src="../plate_builder.js"></script>
+</body>
+</html>
