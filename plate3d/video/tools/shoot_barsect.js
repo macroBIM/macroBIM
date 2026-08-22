@@ -199,7 +199,21 @@ async function cardShot(dur, pad) {
    left carry the three tables, and at full width they are a strip down the edge
    of a 2336-wide frame - readable on a monitor, not in a video. */
 async function panelShot(sel, dur, pad) {
-  const b = await boxOf(sel);
+  /* One selector or several. Several are unioned, because the three tables the
+     film wants together are three separate elements and a box round any one of
+     them is not the picture. */
+  const b = await app.evaluate(qs => {
+    let x0 = 1e9, y0 = 1e9, x1 = -1e9, y1 = -1e9, hit = 0;
+    [].concat(qs).forEach(q => {
+      const e = document.querySelector(q);
+      if (!e) return;
+      const r = e.getBoundingClientRect();
+      if (r.width < 2 || r.height < 2) return;
+      x0 = Math.min(x0, r.left); y0 = Math.min(y0, r.top);
+      x1 = Math.max(x1, r.right); y1 = Math.max(y1, r.bottom); hit++;
+    });
+    return hit ? { x: x0, y: y0, w: x1 - x0, h: y1 - y0 } : null;
+  }, sel);
   if (!b) return chrome(dur);
   const m = (pad === undefined ? 0.10 : pad);
   const w = Math.min(VW, b.w * (1 + m * 2)), h = w * VH / VW;
@@ -322,15 +336,12 @@ async function orbit(dur, sweep, zoom, pull) {
 
   /* ---- 3-4  three tables, three keywords ---- */
   await load(BOOK);
+  /* The five group tables are five elements; the shot is the box round all of
+     them. They arrive folded, which is right here - the counts are the point,
+     not the contents. */
   caption('c03', T + 0.3, 4.6);
-  await app.evaluate(() => {
-    ['pb-holes', 'pb-plates', 'pb-bars', 'pb-sects', 'pb-mods'].forEach(id => {
-      const e = document.getElementById(id);
-      if (e && e.previousElementSibling) e.previousElementSibling.click();
-    });
-  }).catch(() => {});
-  await app.waitForTimeout(500);
-  await panelShot('#pb-side, .side, #pb-list', 6.0);
+  await panelShot(['#pb-holes', '#pb-plates', '#pb-bars', '#pb-sects', '#pb-modules'],
+                  6.0, 0.06);
   log('3 three tables');
 
   caption('c04', T + 0.3, 4.8);
@@ -399,8 +410,13 @@ async function orbit(dur, sweep, zoom, pull) {
 
   /* the `ref` the app writes beside a stretched member's length - a five-pixel
      word that is the whole point of the cut, so the camera goes to it */
+  /* the `ref` the app writes beside a stretched member's length. The section
+     arrives folded, so it is opened first - a shot of a closed heading proves
+     nothing. */
   caption('c17', T + 0.3, 4.6);
-  await panelShot('#pb-sects', 7.0, 0.30);
+  await app.evaluate(() => plateBuilder.toggleSection('sect'));
+  await app.waitForTimeout(500);
+  await panelShot('#pb-sects', 7.0, 0.12);
   log('17 ref on the length');
 
   /* ---- 18  section card ---- */
