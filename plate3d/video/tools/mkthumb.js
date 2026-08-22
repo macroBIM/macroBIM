@@ -46,6 +46,16 @@ const FILMS = [
     badge: '01', badgeNote: 'BASICS',
     l1: 'HOW TO USE', l2: 'PLATE &amp; CUT' },
 
+  { id: 'barsect',
+    out: 'PLATE3D_BARSECT_thumb.jpg',
+    book: P3 + '/PLATE3D_BASIC.xlsx',
+    /* The H section's own drawing - fillets, seven dimensions, the thing the
+       episode is about. A section drawn flat survives being shrunk for the same
+       reason the plate did: a few heavy shapes rather than thin lines. */
+    hero: { kind: 'part', id: 'SC.COL' },
+    badge: '02', badgeNote: 'BASICS',
+    l1: 'HOW TO USE', l2: 'BAR &amp; SECT' },
+
   { id: 'splice',
     out: 'PLATE3D_SPLICE_thumb.jpg',
     book: SP + '/../SPLICE_3_BOLT.xlsx',
