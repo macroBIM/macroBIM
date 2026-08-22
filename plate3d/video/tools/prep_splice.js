@@ -40,87 +40,23 @@ const cellText = c => {
   return String(v);
 };
 
-/* ---------- the take-off, as a page ---------- */
-async function boqPage(file) {
-  const wb = new ExcelJS.Workbook();
-  await wb.xlsx.readFile(file);
-  const blocks = [];
-  for (const name of ['SUMMARY', 'PART LIST']) {
-    const ws = wb.getWorksheet(name);
-    if (!ws) continue;
-    const rows = [];
-    ws.eachRow((r, i) => {
-      const cells = [];
-      for (let c = 1; c <= 9; c++) cells.push(cellText(r.getCell(c)));
-      while (cells.length && cells[cells.length - 1] === '') cells.pop();
-      rows.push({ i: i, cells: cells });
-    });
-    blocks.push({ name: name, rows: rows });
-  }
+/* ---------- the take-off, as pages ---------- */
 
-  /* The sheet mixes three kinds of row and they cannot share one grid: a
-     heading, a table row of numbers, and a sentence of prose sitting in one
-     cell. Left in the same fixed columns the prose row stretches the table
-     until the numbers fall off the right-hand edge, so it is taken out of the
-     grid and allowed to wrap across the width instead. */
-  const NC = 9;
-  const isNum = v => v !== '' && !isNaN(Number(String(v).replace(/,/g, '')));
-  const html = blocks.map(b => {
-    const body = b.rows.map(r => {
-      if (!r.cells.length) return '<tr class="sp"><td colspan="' + NC + '"></td></tr>';
-      const filled = r.cells.filter(Boolean);
-      const num = r.cells.map(isNum);
-      const long = filled.some(v => String(v).length > 44);
-      if (filled.length === 1)
-        return `<tr class="hd"><td colspan="${NC}">${esc(filled[0])}</td></tr>`;
-      if (long)
-        return `<tr class="no"><td>${esc(r.cells[0])}</td>` +
-               `<td colspan="${NC - 1}">${esc(filled.slice(1).join(' '))}</td></tr>`;
-      /* a key and one word of text is not a table row - given a grid column it
-         gets clipped, so it spans like the prose does */
-      if (filled.length === 2 && !isNum(filled[1]) && !isNum(r.cells[0]))
-        return `<tr class="kv"><td>${esc(r.cells[0])}</td>` +
-               `<td colspan="${NC - 1}">${esc(filled[1])}</td></tr>`;
-      const cls = num.filter(Boolean).length >= 1 ? 'dt' : 'lb';
-      const pad = r.cells.concat(Array(Math.max(0, NC - r.cells.length)).fill(''));
-      return '<tr class="' + cls + '">' + pad.slice(0, NC).map((v, k) =>
-        `<td class="${num[k] ? 'n' : ''}">${esc(v)}</td>`).join('') + '</tr>';
-    }).join('');
-    const cols = '<col class="k">' + '<col class="c">'.repeat(NC - 1);
-    return `<section><h2>${esc(b.name)}</h2><table>${cols}${body}</table></section>`;
-  }).join('');
+/* Drawn by xlsxpreview.js, which reads the column widths, fonts, fills,
+   borders, alignment and number formats the workbook actually stores.
 
-  fs.writeFileSync(OUT + '/s_boq.html', `<meta charset="utf-8"><style>${FONTCSS}</style><style>
- *{margin:0;padding:0;box-sizing:border-box}
- html{background:#fff}
- body{width:1920px;font-family:Inter,system-ui,sans-serif;-webkit-font-smoothing:antialiased;
-      padding:46px 70px 90px;color:#0f172a}
- .tab{font:600 21px/1 Inter,sans-serif;color:#0f172a;margin-bottom:26px}
- .tab i{color:#94a3b8;font-style:normal;font-weight:500;margin-left:16px}
- h2{font:800 40px/1 Inter,sans-serif;letter-spacing:-.02em;margin:34px 0 16px}
- table{border-collapse:collapse;width:100%;table-layout:fixed;font-size:23px;
-       font-variant-numeric:tabular-nums}
- col.k{width:22%} col.c{width:9.75%}
- td{padding:9px 14px;border-bottom:1px solid #eef2f7;white-space:nowrap;
-    overflow:hidden;text-overflow:ellipsis}
- td.n{text-align:right}
- tr.hd td{font-weight:700;font-size:26px;padding-top:22px;border-bottom:2px solid #0f172a;
-          letter-spacing:-.01em;white-space:normal;line-height:1.3}
- tr.lb td{color:#64748b;font-weight:600;font-size:19px;letter-spacing:.03em;
-          text-transform:uppercase}
- tr.no td{color:#94a3b8;font-size:19px;font-weight:500;white-space:normal;
-          line-height:1.4;border-bottom:none;padding-top:2px}
- tr.no td:first-child{color:#64748b;font-weight:600;text-transform:uppercase;font-size:18px}
- tr.kv td{white-space:normal}
- tr.kv td:first-child{color:#64748b;font-weight:600;text-transform:uppercase;font-size:19px;
-                      letter-spacing:.03em}
- tr.sp td{border:none;height:14px}
- tr.dt td:first-child{font-weight:700}
-</style><div class="tab">${esc(BOOK.replace('.xlsx', '_BOQ.xlsx'))}<i>SUMMARY &middot; PART LIST &middot; MODULES &middot; ASSEMBLY</i></div>
-${html}`);
-  const h = await pageHeight(OUT + '/s_boq.html');
-  console.log('s_boq.html   ' + blocks.map(b => b.name + ' ' + b.rows.length + ' rows').join(' · ') +
-              '   page ' + h + ' px');
+   The first cut of this film re-typeset the take-off as an HTML document -
+   big headings, its own column widths, labels in capitals. It looked tidier
+   and it was wrong: the film says "press the button and this is what you
+   get", so what is on screen has to be what opening the file looks like. It
+   also broke step with the first promo, which drew it correctly. One sheet,
+   one page; SUMMARY and PART LIST are the two the film shows.              */
+function boqPages(file) {
+  [['0', 's_boq1', 20], ['1', 's_boq2', 26]].forEach(function (a) {
+    execFileSync(process.execPath,
+      [SP + '/xlsxpreview.js', file, a[0], OUT + '/' + a[1] + '.html', String(a[2])],
+      { stdio: 'inherit' });
+  });
 }
 
 /* ---------- the drawing, as a page ---------- */
@@ -161,15 +97,6 @@ window.__at = function (x, y, k) {
               Math.round(meta.width) + ' x ' + Math.round(meta.height));
 }
 
-async function pageHeight(file) {
-  const b = await chromium.launch({ executablePath: '/opt/pw-browsers/chromium', args: ['--no-sandbox'] });
-  const p = await b.newPage({ viewport: { width: 1920, height: 1080 } });
-  await p.goto('file://' + file, { waitUntil: 'load' });
-  const h = await p.evaluate(() => document.body.scrollHeight);
-  await b.close();
-  return h;
-}
-
 /* --pages rebuilds only the two pages from files already exported, which is
    what you want while their layout is being worked out. */
 const PAGES_ONLY = process.argv.includes('--pages');
@@ -179,7 +106,7 @@ const PAGES_ONLY = process.argv.includes('--pages');
     execFileSync(process.execPath, [SP + '/dxf2svg.js', OUT + '/s_views.dxf', OUT + '/s_views.svg'],
                  { stdio: 'inherit' });
     dxfPage();
-    await boqPage(OUT + '/s_boq.xlsx');
+    boqPages(OUT + '/s_boq.xlsx');
     return;
   }
   const browser = await chromium.launch({ executablePath: '/opt/pw-browsers/chromium',
@@ -231,5 +158,5 @@ const PAGES_ONLY = process.argv.includes('--pages');
   execFileSync(process.execPath, [SP + '/dxf2svg.js', OUT + '/s_views.dxf', OUT + '/s_views.svg'],
                { stdio: 'inherit' });
   dxfPage();
-  await boqPage(OUT + '/s_boq.xlsx');
+  boqPages(OUT + '/s_boq.xlsx');
 })();
