@@ -681,10 +681,29 @@
     [].concat(o.material).forEach(function (m) { m.depthWrite = false; });
     return o;
   }
-  function plateGeom(shape, thk) {      // local plane = mid-thickness
+  function plateGeom(shape, thk, caps) {      // local plane = mid-thickness
     if (flatMode) return new THREE.ShapeGeometry(shape);
     var g = new THREE.ExtrudeGeometry(shape, { depth: thk, bevelEnabled: false, curveSegments: 24 });
     g.translate(0, 0, -thk / 2);
+    return shearGeom(g, caps);
+  }
+  /* Lay the two end caps of an extrusion onto their planes. Every vertex an
+     ExtrudeGeometry makes sits at exactly one of the two z levels, the side
+     walls included, so moving each one to the plane of the end it belongs to
+     leaves the triangulation alone - holes, fillets and cut outlines all come
+     through as they were, and the result is still a closed solid, because a
+     side wall is a plane that contains both of its edges however they lean.
+     This is what makes an angled cut cost no solid modeller: the profile was
+     never the problem, only where the extrusion was allowed to stop. */
+  function shearGeom(g, caps) {
+    if (!caps || (!caps.b && !caps.e)) return g;
+    var pos = g.getAttribute('position');
+    for (var i = 0; i < pos.count; i++) {
+      var c = pos.getZ(i) >= 0 ? caps.e : caps.b;
+      if (c) pos.setZ(i, c.a * pos.getX(i) + c.b * pos.getY(i) + c.c);
+    }
+    pos.needsUpdate = true;
+    g.computeVertexNormals();
     return g;
   }
   var scene, camera, renderer, controls;
@@ -1012,7 +1031,7 @@
     }
     var palias = PLANE_ALIAS, yup = false;   // switched by a COORD row
     var counts = { plate: 0, hole: 0, bar: 0, sect: 0, cut: 0, module: 0, assy: 0,
-                   view: 0 };
+                   view: 0, fit: 0 };
     var views = [];                      // VIEW rows: drawings the sheet asked for
     var current = null, currentPart = null, counter = {};
     // Two severities. warn() is a row the parser could not honour - skipped, or
@@ -1048,6 +1067,26 @@
        given out after the sheet has been read, in numberMembers below. */
     function addMember(part, row) {
       part.pos.push(row);
+    }
+    /* FIT <member> B|E <target> [GAP] - cut one end of a member to the face it
+       runs into. The sheet names who it lands on; which face, and at what
+       angle, is read off the model. Both spellings are taken, the same two the
+       BASE row has: as a MODULE row, and on its own inside a block. */
+    function addFit(part, v, r) {
+      var fno = str(v[0]).toUpperCase(), fend = str(v[1]).toUpperCase().charAt(0);
+      var fto = str(v[2]).toUpperCase();
+      if (!fno || !fto) {
+        warn('row ' + (r + 1) + ': FIT needs a member, an end (B or E) and the member ' +
+             'to cut it against');
+        return;
+      }
+      if (fend !== 'B' && fend !== 'E') {
+        warn('row ' + (r + 1) + ': FIT ' + fno + ' — the end must be B (start) or E (end), ' +
+             'found ' + (str(v[1]) || '(blank)'));
+        return;
+      }
+      part.fits.push({ NO: fno, END: fend, TO: fto, GAP: num(v[3], 0), ROW: r + 1 });
+      counts.fit++;
     }
     function resolvePlate(pid) {          // exact id, or instance suffix PL.C1_2 → PL.C1
       if (plates[pid]) return pid;
@@ -1429,13 +1468,20 @@
       } else if (kw === 'MODULE' || kw === 'PART') {   // module row (PART = legacy alias)
         var partId = str(v[0]).toUpperCase();
         if (!partId) { warn('row ' + (r + 1) + ': MODULE without ID'); continue; }
-        if (!parts[partId]) { parts[partId] = { ID: partId, pos: [], base: null }; counts.module++; }
+        if (!parts[partId]) {
+          parts[partId] = { ID: partId, pos: [], base: null, fits: [] };
+          counts.module++;
+        }
         currentPart = parts[partId];
         if (v.length <= 1) continue;      // block style: POS/BASE rows follow
         var msub = str(v[1]).toUpperCase();
         if (msub === 'BASE') {            // MODULE id BASE <instance> <point>
           currentPart.base = { inst: str(v[2]).toUpperCase(), pt: normPoint(v[3]),
                                face: faceOf(v[3]) };
+          continue;
+        }
+        if (msub === 'FIT') {             // MODULE id FIT <member> <B|E> <target> [GAP]
+          addFit(currentPart, v.slice(2), r);
           continue;
         }
         // the same switched-off row, on the placing side: no member, nothing to place
@@ -1512,6 +1558,9 @@
         if (!currentPart) { warn('row ' + (r + 1) + ': BASE outside of a MODULE'); continue; }
         currentPart.base = { inst: str(v[0]).toUpperCase(), pt: normPoint(v[1]),
                              face: faceOf(v[1]) };
+      } else if (kw === 'FIT') {          // FIT MEMBER B|E TARGET [GAP]
+        if (!currentPart) { warn('row ' + (r + 1) + ': FIT outside of a MODULE'); continue; }
+        addFit(currentPart, v, r);
       } else if (kw === 'ASSY') {
         var acmd = str(v[2]).toUpperCase();
         if (acmd === 'MIRROR') acmd = 'MIR';
@@ -1709,6 +1758,29 @@
              '. Name a copy directly to choose another.');
         b.inst = firstOf[b.inst];
       }
+      /* A FIT row names two members, and it is read after the numbering for the
+         same reason BASE is: what the sheet wrote is a part name, and by now a
+         part used twice answers to pl.c1_1 and pl.c1_2 instead. Same rule as
+         BASE - a name covering several means the first of them, and says so. */
+      var live = {};
+      part.pos.forEach(function (p) { live[p.NO] = true; });
+      part.fits = (part.fits || []).filter(function (ft) {
+        return ['NO', 'TO'].every(function (k) {
+          var nm = ft[k];
+          if (live[nm]) return true;
+          if (firstOf[nm]) {
+            hint('MODULE ' + id + ' row ' + ft.ROW + ': FIT ' + nm + ' names ' +
+                 used[nm] + ' members — taking the first, ' + firstOf[nm] +
+                 '. Name a copy directly to choose another.');
+            ft[k] = firstOf[nm];
+            return true;
+          }
+          warn('MODULE ' + id + ' row ' + ft.ROW + ': FIT names ' + nm +
+               ', which this module does not place. A FIT row can only reach the ' +
+               'members of its own module.');
+          return false;
+        });
+      });
     });
     Object.keys(parts).forEach(function (id) {
       if (!parts[id].pos.length) hint('MODULE ' + id + ': has no POS rows');
@@ -1785,6 +1857,7 @@
             ' &middot; cuts ' + c.cut +
             ' &middot; modules ' + (c.module || 0) +
             ' &middot; assy ' + c.assy + ' &rarr; placed ' + placed +
+            (c.fit ? ' &middot; fits ' + c.fit : '') +
             (c.view ? ' &middot; views ' + c.view : '');
     if (log.length) {
       var ranked = bad.concat(log.filter(function (e) { return e.s !== 'e'; }));
@@ -2495,6 +2568,238 @@
     return m;
   }
 
+
+  /* ---------------- FIT — cutting an end to the face it lands on ----------------
+     A member placed between two points is a prism with square ends. Where it
+     butts straight onto another member - a truss diagonal welded to its chord,
+     a raking column onto a beam flange, nothing between them - that end has to
+     be cut to the face it meets, and the cut is not square: the plane leans by
+     whatever angle the two axes make.
+
+     The sheet names who it lands on and stops there. Which face, and at what
+     angle, is already in the model: extend the member's own axis and it runs
+     into exactly one face first. That one is the cut plane. No solid modeller
+     is needed for it - every face of a prism is a plane, the two caps and one
+     per outline edge, so the whole question is a ray against a polygon and a z
+     range.
+
+     What comes back is written in the cut member's own frame, as the height of
+     the end face over the section: z = a*x + b*y + c. A square end is the same
+     shape with a = b = 0, which is why the rest of the engine only ever reads
+     one thing. And because it is local it rides along with the member wherever
+     the module is later placed, copied, mirrored or spun.
+
+     This handles the end that is cut right across. An end where only part of
+     the section lands on the other member is a different shape - the rest of it
+     keeps its square end, or is sawn through on an extended plane, and which of
+     those is wanted is a detailing decision the geometry cannot make. So the
+     section is checked vertex by vertex, and a joint that does not come out as
+     one plane is reported rather than cut on a guess. */
+
+  var FIT_MIN_COS = 0.02;             // ~88.9 deg: past this the cut face runs away
+  var FIT_SAME_TOL = 0.1;             // mm: two vertices are on one face within this
+
+  // The nearest face a ray meets, in the prism's own frame: the outline lies in
+  // xy and the solid runs from -h to h. Returns the hit distance and the face
+  // normal, or null when the ray misses the solid entirely.
+  function rayPrismFace(rings, h, o, d) {
+    var best = null;
+    function keep(t, nx, ny, nz) {
+      if (t <= 1e-6) return;
+      if (!best || t < best.t) best = { t: t, n: new THREE.Vector3(nx, ny, nz) };
+    }
+    function solid(p) {                        // inside the outline, outside its holes
+      for (var i = 0; i < rings.outers.length; i++) {
+        if (!pointInRing(p, rings.outers[i])) continue;
+        var hs = rings.holes[i] || [];
+        for (var j = 0; j < hs.length; j++) if (pointInRing(p, hs[j])) return false;
+        return true;
+      }
+      return false;
+    }
+    if (Math.abs(d.z) > 1e-9) {                // the two caps
+      [-h, h].forEach(function (z) {
+        var t = (z - o.z) / d.z;
+        if (t <= 1e-6) return;
+        if (solid([o.x + d.x * t, o.y + d.y * t])) keep(t, 0, 0, z < 0 ? -1 : 1);
+      });
+    }
+    var walls = [];                            // a hole's wall is a face like any other
+    rings.outers.forEach(function (r, i) {
+      walls.push(r);
+      (rings.holes[i] || []).forEach(function (q) { walls.push(q); });
+    });
+    walls.forEach(function (ring) {
+      for (var i = 0; i < ring.length; i++) {
+        var a = ring[i], b = ring[(i + 1) % ring.length];
+        var ex = b[0] - a[0], ey = b[1] - a[1];
+        var len2 = ex * ex + ey * ey;
+        if (len2 < 1e-12) continue;
+        var den = d.x * ey - d.y * ex;
+        if (Math.abs(den) < 1e-12) continue;   // running along the wall, never into it
+        var t = ((a[0] - o.x) * ey - (a[1] - o.y) * ex) / den;
+        if (t <= 1e-6) continue;
+        var z = o.z + d.z * t;
+        if (z < -h - 1e-6 || z > h + 1e-6) continue;
+        var u = ((o.x + d.x * t - a[0]) * ex + (o.y + d.y * t - a[1]) * ey) / len2;
+        if (u < -1e-6 || u > 1 + 1e-6) continue;
+        keep(t, ey, -ex, 0);
+      }
+    });
+    if (best) best.n.normalize();
+    return best;
+  }
+
+  function rotOf(m) { return new THREE.Matrix4().extractRotation(m); }
+
+  /* One end of one member, cut to the first face of another that its axis runs
+     into. Both arrive positioned in module coordinates.
+
+     The rays start in the middle of the member and leave through the end being
+     cut. Starting at the end itself would be wrong the moment a member runs
+     past its work point into the other one - a negative OFF, a brace lapping in
+     - because the end is then already inside the target and the first face
+     ahead of it is the far one. The middle is outside both targets in anything
+     that is not already a clash, so it reads the same for either end. */
+  function fitOneCap(A, B, end, gap, ringsOf, say) {
+    var tag = 'FIT ' + A.row.NO + ' ' + end + ' ' + B.row.NO + ' — ';
+    if (!A.row.__ax) {
+      say(tag + A.row.NO + ' is not placed between two points, so it has no axis to cut ' +
+          'across. FIT reads the end of a BAR or a SECT stretched from LX1/LY1/LZ1 to ' +
+          'LX2/LY2/LZ2.');
+      return null;
+    }
+    if (isBarSpec(B.spec)) {
+      say(tag + B.row.NO + ' is a round bar. Its surface is curved, so there is no one ' +
+          'plane to cut to — it is drawn as a 48-sided prism, and cutting to a facet of ' +
+          'that would be an answer about the drawing rather than about the steel.');
+      return null;
+    }
+    var sgn = end === 'E' ? 1 : -1;
+    var Bi = B.mloc.clone().invert();
+    var dB = new THREE.Vector3(0, 0, sgn).applyMatrix4(rotOf(A.mloc))
+               .applyMatrix4(rotOf(Bi)).normalize();
+    var tgt = ringsOf(B.spec), th = (B.spec.THK || 0) / 2;
+    function shoot(x, y) {             // up the axis from one point of the section
+      return rayPrismFace(tgt, th,
+        new THREE.Vector3(x, y, 0).applyMatrix4(A.mloc).applyMatrix4(Bi), dB);
+    }
+    var pa = A.row.REFPT ? (A.pts[A.row.REFPT] || [0, 0]) : [0, 0];
+    var hit = shoot(pa[0], pa[1]);
+    if (!hit) {
+      say(tag + 'the axis of ' + A.row.NO + ', run out past its ' +
+          (end === 'E' ? 'end' : 'start') + ', never reaches ' + B.row.NO + '. Check that ' +
+          'the two really do meet, and that the end named is the one facing it.');
+      return null;
+    }
+    // the hit face, carried back into the cut member's own frame
+    var P = new THREE.Vector3(pa[0], pa[1], 0).applyMatrix4(A.mloc).applyMatrix4(Bi)
+              .addScaledVector(dB, hit.t).applyMatrix4(B.mloc);
+    var N = hit.n.clone().applyMatrix4(rotOf(B.mloc)).normalize();
+    var Ai = A.mloc.clone().invert();
+    var n = N.clone().applyMatrix4(rotOf(Ai)).normalize();
+    if (Math.abs(n.z) < FIT_MIN_COS) {
+      say(tag + 'the face it lands on is all but parallel to the member — the cut would ' +
+          'run off down the length instead of across it. This is a joint that wants a ' +
+          'notch, not an end cut.');
+      return null;
+    }
+    var q = P.clone().applyMatrix4(Ai);
+    var cap = { a: -n.x / n.z, b: -n.y / n.z, c: n.dot(q) / n.z };
+
+    /* Does that one plane account for the whole end? Every vertex of the
+       section is shot down the same axis, and each has to land on the same
+       face at the same depth. One that misses, or lands on another face, means
+       the section is only partly caught - a real joint, but not one plane, and
+       cutting it as if it were would quietly saw off steel the sheet never
+       asked to lose. */
+    var own = ringsOf(A.spec), bad = '';
+    own.outers.forEach(function (ring) {
+      ring.forEach(function (v) {
+        if (bad) return;
+        var h2 = shoot(v[0], v[1]);
+        if (!h2) { bad = 'part of the section runs clear past ' + B.row.NO; return; }
+        if (Math.abs(sgn * h2.t - (cap.a * v[0] + cap.b * v[1] + cap.c)) > FIT_SAME_TOL) {
+          bad = 'different parts of the section land on different faces of ' + B.row.NO;
+        }
+      });
+    });
+    if (bad) {
+      say(tag + bad + ', so this end is not cut right through by one plane. Only a cut ' +
+          'that takes the whole section is read for now: the rest is a choice between ' +
+          'sawing through on the extended plane and coping round the other member, and ' +
+          'the model cannot make it for you.');
+      return null;
+    }
+    // the gap is a root gap: measured square off the cut face, and it always
+    // shortens - the same sign OFF uses, positive pulls the steel back
+    if (gap) cap.c += -sgn * gap / Math.abs(n.z);
+    cap.ang = Math.acos(Math.min(1, Math.abs(n.z))) * 180 / Math.PI;
+    return cap;
+  }
+
+  // The two end faces of a member as z over its section. Nearly every member
+  // has them flat at -thk/2 and +thk/2; a FIT row tilts one or both.
+  function capZ(cap, dflt) {
+    if (!cap) return function () { return dflt; };
+    return function (x, y) { return cap.a * x + cap.b * y + cap.c; };
+  }
+  function capPlanes(thk, caps) {
+    var h = (thk || 0) / 2;
+    return { lo: capZ(caps && caps.b, -h), hi: capZ(caps && caps.e, h),
+             tilted: !!(caps && (caps.b || caps.e)) };
+  }
+  // A capped member no longer runs -thk/2 .. thk/2. Its real z range, which is
+  // what a bounding box has to cover.
+  function capRange(rings, thk, caps) {
+    var Z = capPlanes(thk, caps), h = (thk || 0) / 2;
+    if (!Z.tilted) return { lo: -h, hi: h };
+    var lo = Infinity, hi = -Infinity;
+    rings.outers.forEach(function (r) {
+      r.forEach(function (q) {
+        lo = Math.min(lo, Z.lo(q[0], q[1]));
+        hi = Math.max(hi, Z.hi(q[0], q[1]));
+      });
+    });
+    return isFinite(lo) ? { lo: lo, hi: hi } : { lo: -h, hi: h };
+  }
+  // Area centroid of a finished section, holes taken out. The volume of a
+  // member cut by planes is its area times the axial length at this one point:
+  // the length varies linearly over the section, so its mean is its value at
+  // the centroid, and the weight comes out exact rather than sampled.
+  function ringsCentroid(rings) {
+    var ax = 0, ay = 0, aa = 0;
+    function add(ring, sign) {
+      var a = Math.abs(ringArea(ring)) * sign, c = polyCentroid(ring);
+      ax += c[0] * a; ay += c[1] * a; aa += a;
+    }
+    rings.outers.forEach(function (r, i) {
+      add(r, 1);
+      (rings.holes[i] || []).forEach(function (h) { add(h, -1); });
+    });
+    return Math.abs(aa) < 1e-9 ? [0, 0] : [ax / aa, ay / aa];
+  }
+  function capLength(rings, thk, caps) {
+    var Z = capPlanes(thk, caps);
+    if (!Z.tilted) return thk || 0;
+    var c = ringsCentroid(rings);
+    return Z.hi(c[0], c[1]) - Z.lo(c[0], c[1]);
+  }
+  // Mirroring an instance reflects its section in x (see flipRingsX), so an end
+  // plane written over that section has to be read the same way round.
+  function flipCaps(caps) {
+    if (!caps) return caps;
+    function f(c) { return c ? { a: -c.a, b: c.b, c: c.c, ang: c.ang } : null; }
+    return { b: f(caps.b), e: f(caps.e) };
+  }
+  function capKey(caps) {                 // two ends cut differently are two parts
+    if (!caps) return '';
+    return [caps.b, caps.e].map(function (c) {
+      return c ? [c.a, c.b, c.c].map(function (v) { return Math.round(v * 1e3) / 1e3; }).join(':')
+               : '-';
+    }).join('/');
+  }
+
   function edgeMatrix(row, inst, myPts, myTHK) {
     var tgt = inst[row.TO];
     if (!tgt) throw new Error(row.NO + ': TO=' + row.TO + ' undefined (only earlier rows can be referenced)');
@@ -2560,9 +2865,10 @@
     var bbox = new THREE.Box3();
 
     function buildErr(m) { buildLog.push({ s: 'e', m: m }); console.error('[plateBuilder] ' + m); }
+    function buildHint(m) { buildLog.push({ s: 'w', m: m }); console.warn('[plateBuilder] ' + m); }
 
     // create geometry for one plate instance with a final world matrix
-    function buildInstance(spec, matrix, no, group, remark, mirror, moduleId, memberKey, flip, member) {
+    function buildInstance(spec, matrix, no, group, remark, mirror, moduleId, memberKey, flip, member, caps) {
       var world = yupFix(matrix);        // EDGE chaining keeps using the raw matrix
       var thk = spec.THK;
       var g2d = buildPlate2D(spec, cuts, plates);
@@ -2577,6 +2883,7 @@
         outers = flipRingsX(outers);
         holesArr = holesArr.map(flipRingsX);
         cutRings = flipRingsX(cutRings);
+        caps = flipCaps(caps);
       }
       var groupObj = new THREE.Group();
       var mat = new THREE.MeshPhongMaterial({ color: colors[spec.ID], shininess: 28,
@@ -2587,23 +2894,24 @@
         holesArr[i].forEach(function (h) {
           shape.holes.push(new THREE.Path(h.map(function (q) { return new THREE.Vector2(q[0], q[1]); })));
         });
-        var geo = plateGeom(shape, thk);
+        var geo = plateGeom(shape, thk, caps);
         var mesh = new THREE.Mesh(geo, mat);
         mesh.matrixAutoUpdate = false;
         mesh.matrix.copy(world);
-        mesh.userData = { shape: shape, thk: thk };
+        mesh.userData = { shape: shape, thk: thk, caps: caps };
         groupObj.add(mesh);
         geo.computeBoundingBox();
         bbox.union(geo.boundingBox.clone().applyMatrix4(world));
         var edge = new THREE.LineSegments(new THREE.EdgesGeometry(geo, 25), edgeMat);
         edge.matrixAutoUpdate = false;
         edge.matrix.copy(world);
-        edge.userData = { shape: shape, thk: thk };
+        edge.userData = { shape: shape, thk: thk, caps: caps };
         groupObj.add(edge);
       });
       scene.add(groupObj);
+      var axLen = capLength({ outers: outers, holes: holesArr }, thk, caps);
       var dims = spec.SHAPE === 'SECT'
-        ? sectLabel(spec) + ' L' + thk
+        ? sectLabel(spec) + ' L' + (caps ? rnd(axLen) + '\u2220' : thk)
         : spec.SHAPE === 'CIRC'
         ? 'D' + spec.D + '×' + thk
         : (spec.WT === spec.WB && spec.OFF_T === spec.OFF_B
@@ -2618,9 +2926,10 @@
                  moduleId: moduleId || null,
                  memberKey: memberKey || null,
                  instKey: gname + '/' + (mem || moduleId || '#' + spec.ID),
-                 groupObj: groupObj, mass: g2d.area * thk * RHO,
+                 groupObj: groupObj, mass: g2d.area * axLen * RHO,
                  dims: dims, remark: remark || '',
-                 spec: spec, thk: thk, matrix: world, mat: mat, edgeMat: edgeMat,
+                 spec: spec, thk: thk, caps: caps || null, axLen: axLen,
+                 matrix: world, mat: mat, edgeMat: edgeMat,
                  baseColor: colors[spec.ID],
                  rings: { outers: outers, holes: holesArr, cuts: cutRings } };
       items.push(it);
@@ -2628,12 +2937,92 @@
       return { pts: namedPoints(spec, mirror), thk: thk };
     }
 
+    /* The end planes a module's FIT rows ask for. Read once per module, for
+       every module, placed or not: the members sit in module coordinates, and a
+       plane written there is the same plane however the module is later placed,
+       copied or mirrored. Reading it per ASSY row would repeat the work and,
+       worse, repeat every warning it raised. A FIT row that cannot be honoured
+       is a fault in the sheet whether or not an ASSY row happens to use it. */
+    var fitRingCache = {};
+    function fitRings(spec) {
+      var k = spec.ID + '|' + spec.THK;
+      if (!fitRingCache[k]) fitRingCache[k] = buildPlate2D(spec, cuts, plates);
+      return fitRingCache[k];
+    }
+    function fitPart(part) {
+      if (part.__caps || !part.fits || !part.fits.length) return;
+      var locals;
+      try {
+        locals = part.pos.map(function (p) {
+          var spec = specOf(p, plates);
+          var pts = namedPoints(spec, false);
+          return { row: p, spec: spec, pts: pts, mloc: memberMatrix(p, pts, spec.THK) };
+        });
+      } catch (err) {
+        buildErr('MODULE ' + part.ID + ': ' + err.message +
+                 ' — its FIT rows cannot be read until that is fixed.');
+        part.__caps = {};
+        return;
+      }
+      var by = {}, caps = {};
+      locals.forEach(function (L) { by[L.row.NO] = L; });
+      part.fits.forEach(function (ft) {
+        var where = 'MODULE ' + part.ID + ' row ' + ft.ROW + ': ';
+        var A = by[ft.NO], B = by[ft.TO];
+        if (!A || !B) return;                      // already said so at parse time
+        if (A === B) {
+          buildErr(where + 'FIT ' + ft.NO + ' is cut against itself.');
+          return;
+        }
+        var key = ft.END === 'B' ? 'b' : 'e';
+        var got = caps[ft.NO] || (caps[ft.NO] = { b: null, e: null });
+        if (got[key]) {
+          buildErr(where + 'FIT ' + ft.NO + ' ' + ft.END + ' is cut twice. An end has ' +
+                   'one face; delete one of the two rows.');
+          return;
+        }
+        var cap = fitOneCap(A, B, ft.END, num(ft.GAP, 0), fitRings, function (m) {
+          buildErr(where + m);
+        });
+        if (!cap) return;
+        got[key] = cap;
+        var off = num(ft.END === 'B' ? A.row.OFB : A.row.OFE, 0);
+        if (off) {
+          buildHint(where + 'FIT ' + ft.NO + ' ' + ft.END + ' also has ' +
+                    (ft.END === 'B' ? 'OFF_B' : 'OFF_E') + ' = ' + off + '. The face ' +
+                    'decides where this end stops, so that trim no longer does — clear ' +
+                    'it, or use GAP to stand the member off the face.');
+        }
+      });
+      /* A plane that has crossed the far end of the member has not cut it, it
+         has consumed it. Better to draw the member square and say so than to
+         hand back a solid folded through itself. */
+      Object.keys(caps).forEach(function (no) {
+        var A = by[no], c = caps[no];
+        if (!A || (!c.b && !c.e)) return;
+        var Z = capPlanes(A.spec.THK, c), worst = Infinity;
+        fitRings(A.spec).outers.forEach(function (r) {
+          r.forEach(function (q) {
+            worst = Math.min(worst, Z.hi(q[0], q[1]) - Z.lo(q[0], q[1]));
+          });
+        });
+        if (worst <= 0) {
+          buildErr('MODULE ' + part.ID + ': FIT leaves ' + no + ' with no steel — the ' +
+                   'two end faces cross inside the section. The member is drawn with ' +
+                   'square ends instead.');
+          caps[no] = { b: null, e: null };
+        }
+      });
+      part.__caps = caps;
+    }
+
     // part-local placements + base point (3D, part-local)
     function partLocals(part) {
       var locals = part.pos.map(function (p) {
         var spec = specOf(p, plates);
         var pts = namedPoints(spec, false);
-        return { row: p, spec: spec, pts: pts, mloc: memberMatrix(p, pts, spec.THK) };
+        return { row: p, spec: spec, pts: pts, mloc: memberMatrix(p, pts, spec.THK),
+                 caps: capsOfPart(part, p.NO) };
       });
       var base = new THREE.Vector3(0, 0, 0);
       if (part.base) {
@@ -2691,6 +3080,8 @@
       return new THREE.Vector3(q.x, q.y, q.z);
     }
 
+    Object.keys(parts).forEach(function (id) { fitPart(parts[id]); });
+
     var assyDefs = {};                 // ASSY id -> members in that assembly's own frame
     var assyAt = {};                   // ASSY id -> where that assembly was placed
     var srcSnap = {};                  // sheet row -> the source it started from
@@ -2709,20 +3100,20 @@
         var toBase = new THREE.Matrix4().makeTranslation(-B.x, -B.y, -B.z);
         return pl.locals.map(function (L) {
           return { spec: L.spec, no: L.row.NO, moduleId: row.REF,
-                   memberKey: row.REF + '/' + L.row.NO, flip: false,
+                   memberKey: row.REF + '/' + L.row.NO, flip: false, caps: L.caps || null,
                    mloc: toBase.clone().multiply(L.mloc) };
         });
       }
       if (assyDefs[row.REF]) {                           // an earlier ASSY: reference = its origin
         return assyDefs[row.REF].map(function (L) {
           return { spec: L.spec, no: L.no, moduleId: L.moduleId, memberKey: L.memberKey,
-                   flip: L.flip, mloc: L.mloc.clone() };
+                   flip: L.flip, caps: L.caps || null, mloc: L.mloc.clone() };
         });
       }
       var sp = plates[row.REF];         // a single PLATE: reference = bc (a BAR: its start)
       if (!sp) throw new Error(row.NO + ': unknown MODULE/ASSY/PLATE ' + row.REF);
       var p0 = refAnchor(sp, 'bc', 0);
-      return [{ spec: sp, no: sp.ID, moduleId: null, memberKey: null, flip: false,
+      return [{ spec: sp, no: sp.ID, moduleId: null, memberKey: null, flip: false, caps: null,
                 mloc: new THREE.Matrix4().makeTranslation(-p0[0], -p0[1], -p0[2]) }];
     }
 
@@ -2776,13 +3167,14 @@
           var ml = pre ? pre.clone().multiply(L.mloc) : L.mloc.clone();
           if (rel) ml = rel.clone().multiply(ml);
           return { spec: L.spec, no: L.no, moduleId: L.moduleId, memberKey: L.memberKey,
-                   flip: flipAll ? !L.flip : L.flip, mloc: ml };
+                   flip: flipAll ? !L.flip : L.flip, caps: L.caps || null, mloc: ml };
         });
         assyDefs[row.NO] = joins ? assyDefs[row.NO].concat(made) : made;
         if (!joins) assyAt[row.NO] = G;
         made.forEach(function (L) {
           buildInstance(L.spec, anchor.clone().multiply(L.mloc), instName(row.MEMBER || row.NO, L.no),
-                        row.GROUP || row.NO, '', false, L.moduleId, L.memberKey, L.flip, row.MEMBER);
+                        row.GROUP || row.NO, '', false, L.moduleId, L.memberKey, L.flip,
+                        row.MEMBER, L.caps);
         });
         return;
       }
@@ -2800,7 +3192,7 @@
         pl.locals.forEach(function (L) {
           var world = M.clone().multiply(L.mloc);
           buildInstance(L.spec, world, row.NO + '/' + L.row.NO, row.NO, '', false, row.PART,
-                        row.PART + '/' + L.row.NO);
+                        row.PART + '/' + L.row.NO, false, null, L.caps);
         });
         return;
       }
@@ -3414,7 +3806,8 @@
       var m;
       try { m = yupFix(memberMatrix(row, namedPoints(spec, false), spec.THK)); } catch (e) { return; }
       var g2 = buildPlate2D(spec, lastCuts, lastPlates);
-      out = out.concat(snapPointsOf({ outers: g2.outers, holes: g2.holes }, spec.THK, m, spec));
+      out = out.concat(snapPointsOf({ outers: g2.outers, holes: g2.holes }, spec.THK, m, spec,
+                                    capsOfPart(part, row.NO)));
     });
     var bp = pvBasePoint(id);
     if (bp) out.push(bp);
@@ -3438,27 +3831,39 @@
   // Snap targets: every vertex of a plate's cut outline on both faces, the
   // centre of every hole (both faces and mid-thickness), and the nine named
   // points the sheet is written with.
-  function snapPointsOf(rings, thk, matrix, spec) {
-    var out = [], half = flatMode ? 0 : thk / 2;
+  // The end planes worked out for a module member, as fitPart left them. Every
+  // reader - the placement, the preview, the exports - asks through here.
+  function capsOfPart(part, no) {
+    var c = part && part.__caps && part.__caps[no];
+    return c && (c.b || c.e) ? c : null;
+  }
+  function snapPointsOf(rings, thk, matrix, spec, caps) {
+    var out = [], flat = flatMode, half = flat ? 0 : (thk || 0) / 2;
+    var Z = capPlanes(thk, flat ? null : caps);
+    function hi(x, y) { return flat ? 0 : Z.hi(x, y); }
+    function lo(x, y) { return flat ? 0 : Z.lo(x, y); }
     function push(x, y, z) { out.push(new THREE.Vector3(x, y, z).applyMatrix4(matrix)); }
     // A round bar's outline is a 48-gon. Those rim vertices are not measuring
     // points, and 96 of them per bar crowd out everything else within snapping
     // range of an end. The two end-face centres are what a bar is measured by.
     if (isBarSpec(spec)) {
       var c = (namedPoints(spec, false) || {}).mc || [0, 0];
-      push(c[0], c[1], half);
-      if (half) push(c[0], c[1], -half);
+      push(c[0], c[1], hi(c[0], c[1]));
+      if (half) push(c[0], c[1], lo(c[0], c[1]));
       return out;
     }
     rings.outers.forEach(function (ring, i) {
       ring.forEach(function (q) {
-        push(q[0], q[1], half);
-        if (half) push(q[0], q[1], -half);
+        push(q[0], q[1], hi(q[0], q[1]));
+        if (half) push(q[0], q[1], lo(q[0], q[1]));
       });
       (rings.holes[i] || []).forEach(function (h) {
         var c = polyCentroid(h);
-        push(c[0], c[1], half);
-        if (half) { push(c[0], c[1], 0); push(c[0], c[1], -half); }
+        push(c[0], c[1], hi(c[0], c[1]));
+        if (half) {
+          push(c[0], c[1], (hi(c[0], c[1]) + lo(c[0], c[1])) / 2);
+          push(c[0], c[1], lo(c[0], c[1]));
+        }
       });
     });
     /* The nine points the sheet places parts by - bl bc br / ml mc mr / tl tc
@@ -3473,10 +3878,11 @@
       POINT_KEYS.forEach(function (k) {
         var q = p9[k];
         if (!q) return;
-        push(q[0], q[1], half);
-        if (half) push(q[0], q[1], -half);
+        push(q[0], q[1], hi(q[0], q[1]));
+        if (half) push(q[0], q[1], lo(q[0], q[1]));
       });
-      if (half && p9.mc) push(p9.mc[0], p9.mc[1], 0);
+      if (half && p9.mc) push(p9.mc[0], p9.mc[1],
+                              (hi(p9.mc[0], p9.mc[1]) + lo(p9.mc[0], p9.mc[1])) / 2);
     }
     return out;
   }
@@ -3731,13 +4137,22 @@
 
   // thin coloured skins on both faces: warm = +side (thickness direction), cool = -side
   var TINT_PLUS = 0xffb45a, TINT_MINUS = 0x5aa0ff;
-  function faceTint(rings, thk, matrix) {
+  function faceTint(rings, thk, matrix, caps) {
     var g = new THREE.Group();
-    var off = (flatMode ? 0 : thk / 2) + 0.25;
+    var off = (flatMode ? 0 : (thk || 0) / 2) + 0.25;
+    var Z = flatMode ? null : capPlanes(thk, caps);
     shapesFromRings(rings).forEach(function (shape) {
       [[off, TINT_PLUS], [-off, TINT_MINUS]].forEach(function (side) {
         var geo = new THREE.ShapeGeometry(shape);
         geo.translate(0, 0, side[0]);
+        if (Z && Z.tilted) {                  // lay the skin on the cut face
+          var pos = geo.getAttribute('position'), up = side[0] > 0;
+          for (var i = 0; i < pos.count; i++) {
+            var x = pos.getX(i), y = pos.getY(i);
+            pos.setZ(i, up ? Z.hi(x, y) + 0.25 : Z.lo(x, y) - 0.25);
+          }
+          pos.needsUpdate = true;
+        }
         var mesh = new THREE.Mesh(geo, new THREE.MeshBasicMaterial({
           color: side[1], transparent: true, opacity: 0.5, side: THREE.DoubleSide,
           depthWrite: false }));
@@ -3919,11 +4334,11 @@
 
   function itemBox3(it) {                       // world AABB, for the broad phase
     if (it.__cbox) return it.__cbox;
-    var b = new THREE.Box3(), h = (it.thk || 0) / 2, v = new THREE.Vector3();
+    var b = new THREE.Box3(), Z = capPlanes(it.thk, it.caps), v = new THREE.Vector3();
     it.rings.outers.forEach(function (r) {
       r.forEach(function (q) {
-        b.expandByPoint(v.set(q[0], q[1], -h).applyMatrix4(it.matrix));
-        b.expandByPoint(v.set(q[0], q[1], h).applyMatrix4(it.matrix));
+        b.expandByPoint(v.set(q[0], q[1], Z.lo(q[0], q[1])).applyMatrix4(it.matrix));
+        b.expandByPoint(v.set(q[0], q[1], Z.hi(q[0], q[1])).applyMatrix4(it.matrix));
       });
     });
     it.__cbox = b;
@@ -3957,6 +4372,11 @@
      clearance hole came back red: the exact test cleared it, and then the box
      test, which knows nothing about holes, condemned it. */
   function prismClash(a, b) {
+    // The exact path measures the overlap of two z ranges, which only means
+    // anything while both ends are square. A member cut to a face goes to the
+    // box test instead: it over-reports rather than reading a depth the member
+    // does not have.
+    if (a.caps || b.caps) return null;
     var M = new THREE.Matrix4().copy(a.matrix).invert().multiply(b.matrix);
     var e = M.elements;
     if (Math.abs(e[8]) > 1e-4 || Math.abs(e[9]) > 1e-4 || Math.abs(e[10]) < 0.9999) return null;
@@ -3991,13 +4411,14 @@
   function obbOf(it) {
     if (it.__obb) return it.__obb;
     var bb = localBox2(it.rings), m = it.matrix.elements;
+    var zr = capRange(it.rings, it.thk, it.caps);
     var u = [new THREE.Vector3(m[0], m[1], m[2]).normalize(),
              new THREE.Vector3(m[4], m[5], m[6]).normalize(),
              new THREE.Vector3(m[8], m[9], m[10]).normalize()];
-    it.__obb = { c: new THREE.Vector3((bb.x0 + bb.x1) / 2, (bb.y0 + bb.y1) / 2, 0)
-                        .applyMatrix4(it.matrix),
+    it.__obb = { c: new THREE.Vector3((bb.x0 + bb.x1) / 2, (bb.y0 + bb.y1) / 2,
+                                      (zr.lo + zr.hi) / 2).applyMatrix4(it.matrix),
                  u: u,
-                 e: [(bb.x1 - bb.x0) / 2, (bb.y1 - bb.y0) / 2, (it.thk || 0) / 2] };
+                 e: [(bb.x1 - bb.x0) / 2, (bb.y1 - bb.y0) / 2, (zr.hi - zr.lo) / 2] };
     return it.__obb;
   }
   // smallest overlap over the 15 separating axes; <= 0 means they are apart
@@ -4215,7 +4636,8 @@
         basePt = new THREE.Vector3(a[0], a[1], a[2]).applyMatrix4(m);
       }
       var g2d = buildPlate2D(spec, lastCuts, lastPlates);
-      mass += g2d.area * spec.THK * RHO;
+      var mcaps = capsOfPart(part, row.NO);
+      mass += g2d.area * capLength(g2d, spec.THK, mcaps) * RHO;
       var mkey = id + '/' + row.NO;
       var mg = new THREE.Group();            // one group per member, so it can be hidden
       mg.visible = !memberHidden[mkey];
@@ -4224,12 +4646,12 @@
       if (memberAxes[mkey]) axRows.push({ spec: spec, m: m, rp: memberRef(spec, row), g: mg });
       if (showIdsPv) idRows.push({ text: row.NO,
                                  pos: ringsCenter({ outers: g2d.outers }).applyMatrix4(m), g: mg });
-      if (showFacesPv) mg.add(faceTint({ outers: g2d.outers, holes: g2d.holes }, spec.THK, m));
+      if (showFacesPv) mg.add(faceTint({ outers: g2d.outers, holes: g2d.holes }, spec.THK, m, mcaps));
       if (mg.visible) {
         pvSnaps = pvSnaps.concat(
-          snapPointsOf({ outers: g2d.outers, holes: g2d.holes }, spec.THK, m, spec));
+          snapPointsOf({ outers: g2d.outers, holes: g2d.holes }, spec.THK, m, spec, mcaps));
         clashRows.push({ rings: { outers: g2d.outers, holes: g2d.holes },
-                         thk: spec.THK, matrix: m });
+                         thk: spec.THK, caps: mcaps, matrix: m });
       }
       var pop = resolveOpac({ plateId: row.PLATE, moduleId: id, memberKey: id + '/' + row.NO });
       var mat = new THREE.MeshPhongMaterial({
@@ -4241,7 +4663,7 @@
         (g2d.holes[i] || []).forEach(function (h) {
           shape.holes.push(new THREE.Path(h.map(function (q) { return new THREE.Vector2(q[0], q[1]); })));
         });
-        var geo = plateGeom(shape, spec.THK);
+        var geo = plateGeom(shape, spec.THK, mcaps);
         var mesh = new THREE.Mesh(geo, mat);
         mesh.matrixAutoUpdate = false;
         mesh.matrix.copy(m);
@@ -4645,6 +5067,7 @@
         });
         var geo = new THREE.ExtrudeGeometry(shape, { depth: it.thk, bevelEnabled: false, curveSegments: 24 });
         geo.translate(0, 0, -it.thk / 2);
+        shearGeom(geo, it.caps);
         var pos = geo.getAttribute('position');
         var idx = geo.getIndex();
         var n = idx ? idx.count / 3 : pos.count / 3;
@@ -4692,8 +5115,9 @@
       var m;
       try { m = yupFix(memberMatrix(row, namedPoints(spec, false), spec.THK)); } catch (e) { return; }
       var g2 = buildPlate2D(spec, lastCuts, lastPlates);
-      out.push({ no: row.NO, spec: spec, thk: spec.THK, matrix: m,
-                 mass: g2.area * spec.THK * RHO, dims: '',
+      var cp = capsOfPart(part, row.NO), aL = capLength(g2, spec.THK, cp);
+      out.push({ no: row.NO, spec: spec, thk: spec.THK, caps: cp, axLen: aL, matrix: m,
+                 mass: g2.area * aL * RHO, dims: '',
                  rings: { outers: g2.outers, holes: g2.holes, cuts: g2.cuts } });
     });
     return out;
@@ -4829,7 +5253,7 @@
      lines with nothing joining them; without the corner test a plate loses its
      four vertical edges. */
   function dxfMemberEdges(it, view, segs, arcs, holes, outlineOnly) {
-    var m = it.matrix, half = (it.thk || 0) / 2;
+    var m = it.matrix, half = (it.thk || 0) / 2, Z = capPlanes(it.thk, it.caps);
     var vd = new THREE.Vector3(view.dir[0], view.dir[1], view.dir[2]);
     var R = new THREE.Vector3(view.right[0], view.right[1], view.right[2]);
     var U = new THREE.Vector3(view.up[0], view.up[1], view.up[2]);
@@ -4850,7 +5274,7 @@
     if (faceOn) (it.rings.cuts || []).forEach(function (rg) {
       var k = ringCircle(rg);
       if (!k) return;
-      var pc = proj(k.c[0], k.c[1], -half);
+      var pc = proj(k.c[0], k.c[1], Z.lo(k.c[0], k.c[1]));
       flat.push({ c: pc, r: k.r });
       if (holes) holes.push(pc);            // for the pitch chain
     });
@@ -4862,8 +5286,8 @@
       var lo = [], hi = [];
       for (var i = 0; i < n; i++) {
         var a = pts[i], b = pts[(i + 1) % n];
-        lo.push(proj(a[0], a[1], -half));
-        if (half) hi.push(proj(a[0], a[1], half));
+        lo.push(proj(a[0], a[1], Z.lo(a[0], a[1])));
+        if (half) hi.push(proj(a[0], a[1], Z.hi(a[0], a[1])));
         // side face i is spanned by edge a->b and the extrusion direction
         var ea = new THREE.Vector3(b[0] - a[0], b[1] - a[1], 0)
                    .applyMatrix4(new THREE.Matrix4().extractRotation(m));
@@ -4888,7 +5312,8 @@
           corner = cosT < Math.cos(25 * Math.PI / 180);   // same 25 deg the 3D view creases at
         }
         var sil = faceFront[(j - 1 + n) % n] !== faceFront[j];
-        if (corner || sil) segs.push([proj(cur[0], cur[1], -half), proj(cur[0], cur[1], half)]);
+        if (corner || sil) segs.push([proj(cur[0], cur[1], Z.lo(cur[0], cur[1])),
+                                      proj(cur[0], cur[1], Z.hi(cur[0], cur[1]))]);
       }
     }
     it.rings.outers.forEach(function (o, i) {
@@ -4902,12 +5327,12 @@
      picture - looking down at a top flange you would get the bottom flange, its
      plates and every bolt drawn through it. */
   function memberDepth(it, view) {
-    var m = it.matrix, half = (it.thk || 0) / 2;
+    var m = it.matrix, Z = capPlanes(it.thk, it.caps);
     var vd = new THREE.Vector3(view.dir[0], view.dir[1], view.dir[2]);
     var lo = Infinity, hi = -Infinity;
     (it.rings.outers || []).forEach(function (o) {
       o.forEach(function (p) {
-        [-half, half].forEach(function (z) {
+        [Z.lo(p[0], p[1]), Z.hi(p[0], p[1])].forEach(function (z) {
           var q = new THREE.Vector3(p[0], p[1], z).applyMatrix4(m).dot(vd);
           if (q < lo) lo = q;
           if (q > hi) hi = q;
@@ -4973,7 +5398,7 @@
   function dxfParts(list) {
     var by = {}, order = [];
     list.forEach(function (it) {
-      var k = it.plateId + '|' + it.thk;
+      var k = it.plateId + '|' + it.thk + '|' + capKey(it.caps);
       if (!by[k]) { by[k] = { it: it, n: 0, key: k }; order.push(k); }
       by[k].n++;
     });
@@ -6868,6 +7293,53 @@
       return nx('IFCPOLYLINE((' + ids.join(',') + '))');
     }
 
+    /* A member cut to a face is no longer a sweep - its ends lean, and
+       IFCEXTRUDEDAREASOLID has one length and one direction to say it with. It
+       goes out as an explicit boundary instead: the two end faces on their own
+       planes, and one quad per outline edge joining them.
+
+       The other way round would have been IFCBOOLEANCLIPPINGRESULT over a half
+       space, which is shorter to write and is what a modeller would emit. It is
+       not written that way here because it turns on IFCHALFSPACESOLID's
+       AgreementFlag, and a boolean flag read the wrong way round produces a
+       file that opens cleanly and shows the offcut instead of the member. A
+       brep cannot be misread: the faces are the faces.
+
+       Winding: outlines are turned CCW and holes CW first, so one rule serves
+       every loop - a wall runs a.lo, b.lo, b.hi, a.hi and comes out facing away
+       from the material, holes included. */
+    function brepOf(rings, thk, caps) {
+      var Z = capPlanes(thk, caps), faces = [];
+      function loop(pts) { return nx('IFCPOLYLOOP((' + pts.join(',') + '))'); }
+      function face(bounds) { return nx('IFCFACE((' + bounds.join(',') + '))'); }
+      rings.outers.forEach(function (raw, i) {
+        var loops = [ccw(raw)].concat((rings.holes[i] || []).map(cw));
+        // one point per loop, vertex and end, shared by the cap and both walls
+        var P = loops.map(function (ring) {
+          return ring.map(function (q) {
+            return { lo: pt3(q[0], q[1], Z.lo(q[0], q[1])),
+                     hi: pt3(q[0], q[1], Z.hi(q[0], q[1])) };
+          });
+        });
+        [['hi', false], ['lo', true]].forEach(function (cap) {   // outward +z, then -z
+          faces.push(face(loops.map(function (ring, k) {
+            var pts = P[k].map(function (p) { return p[cap[0]]; });
+            if (cap[1]) pts = pts.slice().reverse();
+            return nx((k ? 'IFCFACEBOUND(' : 'IFCFACEOUTERBOUND(') + loop(pts) + ',.T.)');
+          })));
+        });
+        loops.forEach(function (ring, k) {
+          for (var j = 0; j < ring.length; j++) {
+            var a = P[k][j], b = P[k][(j + 1) % ring.length];
+            faces.push(face([nx('IFCFACEOUTERBOUND(' +
+              loop([a.lo, b.lo, b.hi, a.hi]) + ',.T.)')]));
+          }
+        });
+      });
+      if (!faces.length) return null;
+      return nx('IFCFACETEDBREP(' + nx('IFCCLOSEDSHELL((' + faces.join(',') + '))') + ')');
+    }
+
     var oPerson = nx("IFCPERSON($,$,'',$,$,$,$,$)");
     var oOrg = nx("IFCORGANIZATION($,'macroBIM',$,$,$)");
     var oPO = nx('IFCPERSONANDORGANIZATION(' + oPerson + ',' + oOrg + ',$)');
@@ -6900,6 +7372,21 @@
     var solidPos = {};   // one placement per thickness (extrusion starts at -t/2)
 
     var elements = [];
+    function emit(it, lp, solids, repType) {
+      var shape = nx('IFCSHAPEREPRESENTATION(' + oCtx + ",'Body'," + sq(repType) + ',(' +
+                     solids.join(',') + '))');
+      var pds = nx('IFCPRODUCTDEFINITIONSHAPE($,$,(' + shape + '))');
+      var ent = it.spec.SHAPE === 'CIRC'
+        ? nx('IFCMEMBER(' + guid() + ',' + oOH + ',' + sq(it.no) + ',$,$,' + lp + ',' + pds + ',$)')
+        : nx('IFCPLATE(' + guid() + ',' + oOH + ',' + sq(it.no) + ',$,$,' + lp + ',' + pds + ',$)');
+      elements.push(ent);
+      var pv1 = nx("IFCPROPERTYSINGLEVALUE('Material',$,IFCTEXT(" + sq(it.spec.MAT || '') + '),$)');
+      var pv2 = nx("IFCPROPERTYSINGLEVALUE('Weight_kg',$,IFCREAL(" + f(it.mass) + '),$)');
+      var pv3 = nx("IFCPROPERTYSINGLEVALUE('Dims',$,IFCTEXT(" + sq(it.dims) + '),$)');
+      var ps = nx('IFCPROPERTYSET(' + guid() + ',' + oOH + ",'Pset_PlateBuilder',$,(" +
+                  [pv1, pv2, pv3].join(',') + '))');
+      nx('IFCRELDEFINESBYPROPERTIES(' + guid() + ',' + oOH + ',$,$,(' + ent + '),' + ps + ')');
+    }
     list.forEach(function (it) {
       var m = it.matrix.elements;                         // column-major, already Z-up
       var loc = pt3(m[12], m[13], m[14]);
@@ -6907,6 +7394,10 @@
       var ref = dir3(m[0], m[1], m[2]);
       var a2p = nx('IFCAXIS2PLACEMENT3D(' + loc + ',' + axis + ',' + ref + ')');
       var lp = nx('IFCLOCALPLACEMENT(' + plSt + ',' + a2p + ')');
+      if (it.caps) {                                    // an end cut to a face
+        var brep = brepOf(it.rings, it.thk, it.caps);
+        if (brep) { emit(it, lp, [brep], 'Brep'); return; }
+      }
       var solids = it.rings.outers.map(function (ring, i) {
         var holes = it.rings.holes[i] || [];
         var profile;
@@ -6926,18 +7417,7 @@
         return nx('IFCEXTRUDEDAREASOLID(' + profile + ',' + solidPos[it.thk] + ',' + oZ + ',' + f(it.thk) + ')');
       });
       if (!solids.length) return;
-      var shape = nx('IFCSHAPEREPRESENTATION(' + oCtx + ",'Body','SweptSolid',(" + solids.join(',') + '))');
-      var pds = nx('IFCPRODUCTDEFINITIONSHAPE($,$,(' + shape + '))');
-      var ent = it.spec.SHAPE === 'CIRC'
-        ? nx('IFCMEMBER(' + guid() + ',' + oOH + ',' + sq(it.no) + ',$,$,' + lp + ',' + pds + ',$)')
-        : nx('IFCPLATE(' + guid() + ',' + oOH + ',' + sq(it.no) + ',$,$,' + lp + ',' + pds + ',$)');
-      elements.push(ent);
-      var pv1 = nx("IFCPROPERTYSINGLEVALUE('Material',$,IFCTEXT(" + sq(it.spec.MAT || '') + '),$)');
-      var pv2 = nx("IFCPROPERTYSINGLEVALUE('Weight_kg',$,IFCREAL(" + f(it.mass) + '),$)');
-      var pv3 = nx("IFCPROPERTYSINGLEVALUE('Dims',$,IFCTEXT(" + sq(it.dims) + '),$)');
-      var ps = nx('IFCPROPERTYSET(' + guid() + ',' + oOH + ",'Pset_PlateBuilder',$,(" +
-                  [pv1, pv2, pv3].join(',') + '))');
-      nx('IFCRELDEFINESBYPROPERTIES(' + guid() + ',' + oOH + ',$,$,(' + ent + '),' + ps + ')');
+      emit(it, lp, solids, 'SweptSolid');
     });
     if (elements.length) {
       nx('IFCRELCONTAINEDINSPATIALSTRUCTURE(' + guid() + ',' + oOH + ',$,$,(' +
@@ -7707,6 +8187,56 @@
     '<p class="warn">Coordinates place a <b>BAR or a SECT only</b>. A plate is placed with Ref.Pt,',
     ' L.X, L.Y, L.Z and a PLANE, because stretching a plate would stretch its thickness. Two',
     ' identical points, or offsets that eat the whole member, are reported and the row is skipped.</p>',
+
+    '<h3>FIT - cut an end to the member it lands on</h3>',
+    sheet([['FIT', 'member', 'B | E', 'target', 'GAP'],
+           ['MODULE', 'id', 'FIT', 'member', 'B | E', 'target', 'GAP']]),
+    '<p>Two members meeting at a skew with nothing between them - a truss diagonal welded',
+    ' straight to its chord, a raking column onto a beam flange - need the end cut to the face',
+    ' it lands on, and that cut is not square: the plane leans by whatever angle the two axes',
+    ' make. <b>OFF trims square across the member; FIT cuts to a face.</b></p>',
+    '<p>The row names who it lands on and stops there. Which face, and at what angle, is',
+    ' already in the model: run the member&rsquo;s own axis out past that end and it meets one',
+    ' face first. That is the cut plane. So the sheet says what the joint <i>is</i>, not what',
+    ' the saw setting works out to.</p>',
+    '<table class="gt"><thead><tr><th>column</th><th>what it does</th></tr></thead><tbody>',
+    '<tr><td><b>member</b></td><td>The member being cut. It has to be one placed <b>between two',
+    ' points</b> - a plate has no axis to cut across. Name a copy in full (<code>s.brc_2</code>);',
+    ' a bare name means the first one, and says so.</td></tr>',
+    '<tr><td><b>B / E</b></td><td>Which end. <b>B</b> is the (LX1, LY1, LZ1) end, <b>E</b> the',
+    ' (LX2, LY2, LZ2) end - the same two ends OFF_B and OFF_E trim. One row per end; both ends',
+    ' of one member may be fitted.</td></tr>',
+    '<tr><td><b>target</b></td><td>The member to cut against, <b>in the same module</b>. Any',
+    ' plate or section; not a round bar, whose surface is curved and has no one plane to cut',
+    ' to.</td></tr>',
+    '<tr><td><b>GAP</b></td><td>Root gap, measured square off the cut face. Positive pulls the',
+    ' steel back from the face, the same sense OFF_B has. Blank is 0 - hard against it.</td></tr>',
+    '</tbody></table>',
+    sheet([['# SECT', 'id', 'mat', 'length', 'TYPE', 'base.pt', 'v1', 'v2', 'v3', 'v4', 'v5', 'v6', 'v7'],
+           ['SECT', 's.col', 'SM490', 3000, 'H', 'mc', 400, 200, 200, 8, 13, 13, 16],
+           ['SECT', 's.brc', 'SM490', 2000, 'H', 'mc', 300, 150, 150, 6.5, 9, 9, 13],
+           ['# MODULE', 'id', 'member', 'Ref.Pt', 'LX1', 'LY1', 'LZ1', 'LX2', 'LY2', 'LZ2'],
+           ['MODULE', 'md.j', 's.col', '', 0, 0, 0, 0, 0, 3000],
+           ['MODULE', 'md.j', 's.brc', '', 0, 1400, 0, 0, 0, 1400],
+           ['MODULE', 'md.j', 'FIT', 's.brc', 'E', 's.col', 0],
+           ['MODULE', 'md.j', 'BASE', 's.col', 'mc']],
+          'The brace is drawn to the column axis and cut back to the flange face it meets. ' +
+          'Work point to work point is 1979.9; what gets built is 1697.1, cut at 45\u00b0. ' +
+          'Move the column and the brace re-cuts itself.'),
+    '<p><b>The whole section, or nothing.</b> Every vertex of the section is shot down the axis,',
+    ' and all of them have to land on the same face. A joint where only part of the section is',
+    ' caught - a flange overhanging the member it lands on - is <b>reported and left square</b>,',
+    ' not cut on a guess. The rest of that end is a choice between sawing through on the extended',
+    ' plane and coping round the other member, and the model cannot make it for you.</p>',
+    '<p>What follows the cut: the weight is the section area times the length <b>at the',
+    ' centroid</b>, which is exact for a plane cut, not an estimate. The SECTIONS length reads',
+    ' <code>L1697.06&ang;</code>, and two members cut at different angles are two parts in the',
+    ' take-off. Drawings, measure snaps and the clash check all follow the real end face. IFC',
+    ' carries the member as an explicit brep, since a leaning end is no longer a sweep.</p>',
+    '<p class="warn">A face nearly parallel to the member, two faces that cross inside the',
+    ' section, a target the axis never reaches, or an end fitted twice - each is reported and',
+    ' that row is skipped. <code>OFF</code> on an end that is also fitted no longer decides',
+    ' where the steel stops; use <code>GAP</code> instead.</p>',
 
     '<h3>ASSY - units into the model</h3>',
     '<p>Four commands. Column D picks which.</p>',
@@ -8549,7 +9079,7 @@
     sceneFaces = new THREE.Group();
     items.forEach(function (it) {
       if (!it.groupObj.visible) return;
-      sceneFaces.add(faceTint(it.rings, it.thk, it.matrix));
+      sceneFaces.add(faceTint(it.rings, it.thk, it.matrix, it.caps));
     });
     scene.add(sceneFaces);
   }
@@ -8558,7 +9088,7 @@
     var out = [];
     items.forEach(function (it) {
       if (!it.groupObj.visible) return;
-      out = out.concat(snapPointsOf(it.rings, it.thk, it.matrix, it.spec));
+      out = out.concat(snapPointsOf(it.rings, it.thk, it.matrix, it.spec, it.caps));
     });
     out.push(new THREE.Vector3(0, 0, 0));          // the global origin measures too
     return out;
@@ -8699,7 +9229,7 @@
       it.groupObj.children.forEach(function (obj) {
         var d = obj.userData;
         if (!d || !d.shape) return;
-        var geo = plateGeom(d.shape, d.thk);
+        var geo = plateGeom(d.shape, d.thk, d.caps);
         obj.geometry.dispose();
         obj.geometry = obj.isMesh ? geo : new THREE.EdgesGeometry(geo, 25);
         if (obj.isMesh) {                          // a flat sheet has no inside
