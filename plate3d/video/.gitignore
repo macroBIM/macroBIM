@@ -75,3 +75,15 @@ tools/.case_boq.xlsx
 # mkthumb.js redraws all of them; the finished 1280x720 jpg is what is kept.
 tools/thumb_*.html
 tools/thumb_*.png
+
+# Basics 03 (BAR & SECT): same rule, its own names. Generators are
+# tools/mkcards_barsect.js, tools/mksheets_barsect.js, tools/make_barsect_cases.js,
+# tools/shoot_barsect.js and tools/assemble_barsect.js.
+tools/barsect/
+tools/src_barsect/
+tools/norm_barsect/
+tools/seq_barsect/
+tools/shots_barsect.json
+tools/shoot_barsect.log
+tools/filter_barsect.txt
+tools/.bs_boq.xlsx

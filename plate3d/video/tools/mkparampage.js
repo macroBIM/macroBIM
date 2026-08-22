@@ -28,7 +28,10 @@ const LAST = +(process.env.LAST || 26);   // the tower's: down to the slew row
 const RING = (process.env.RING === undefined ? 'D6,D12,D19,C25' : process.env.RING)
   .split(',').map(s => s.trim()).filter(Boolean);
 const OUT = __dirname + '/' + (process.env.OUT || 't_param') + '.html';
-const TABS = process.env.TABS || 'PARAM &middot; input';   // the tab strip as the book has it
+/* Empty means "no other tabs", which `||` would read as unset and answer with
+   the tower's strip. Only an absent variable takes the default - same trap RING
+   fell into. */
+const TABS = process.env.TABS === undefined ? 'PARAM &middot; input' : process.env.TABS;
 /* Both of these default to what the tower and splice films already produce, so
    adding them cannot move a frame of those two. ACTIVE is the tab drawn in bold
    - BASIC has no PARAM tab, its sheet is called input. VALIGN centres a short
