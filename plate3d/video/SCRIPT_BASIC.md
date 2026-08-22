@@ -52,11 +52,32 @@
 
 | 항목 | 내용 |
 |---|---|
-| 제목 | `PLATE3D BASICS — Plates, Cuts and the Nine Reference Points \| macroBIM` |
+| 유튜브 제목 | `How to Model Plates and Holes in a Spreadsheet \| PLATE3D Basics 01` |
+| 화면 타이틀 | `HOW TO` / `PLATE & CUT` |
 | 설명 1행 | `How a plate is defined, where its origin is, and how a hole gets cut — the first hour with PLATE3D.` |
 | 설명 2행 | `Everything here is one shipped example: Example ▸ Basic.` |
 | 태그 | PLATE3D tutorial · BIM tutorial · steel detailing · spreadsheet BIM · parametric model · plate · bolt hole · BOQ · DXF · macroBIM |
 | 규격 | 3:12 · 1920×1080 · 30 fps · 무음 |
+
+### 제목이 둘인 이유
+
+**유튜브 제목은 검색되라고, 화면 카드는 읽히라고** 있습니다. 같은 문구를 두 군데 쓰면
+둘 다 나빠집니다 — 검색어를 다 넣은 제목은 화면에서 길고, 화면에 좋은 두 단어는
+검색되지 않습니다.
+
+| | 문구 | 노리는 것 |
+|---|---|---|
+| 유튜브 | `How to Model Plates and Holes in a Spreadsheet \| PLATE3D Basics 01` | `how to` + 검색어. 66자라 검색결과에서 안 잘림 |
+| 화면 | `HOW TO` / `PLATE & CUT` | 4초에 읽히는 두 줄. 처음 주신 목차 문구 그대로 |
+
+`Basics 01` 이 붙었으니 다음 편이 예약됩니다. 이 편에서 다루지 않은 것들이 그대로 목차입니다:
+
+| 편 | 다룰 것 |
+|---|---|
+| **01 · PLATE & CUT** | 이 영상 |
+| 02 · BAR & SECT | 봉·형강, 좌표 배치, `OFF_B` / `OFF_E` / `Alpha` |
+| 03 · VIEW & DXF | 시트가 도면을 이름 붙이는 법, 치수·피치 체인 |
+| 04 · PARAM | 앞시트로 모델 전체를 몰기 (타워·스플라이스가 쓴 방식) |
 
 ## 5. 챕터
 
@@ -81,7 +102,7 @@
 | # | 시작 | 길이 | 화면 | 자막 |
 |---|---|---|---|---|
 | **1** | 0:00 | 6s | 완성된 BASIC 모델이 `__reveal` 로 아래에서부터 쌓여 올라감 | **This is one spreadsheet.**<br>**By the end you will be able to write it.** |
-| **2** | 0:06 | 4s | 타이틀 카드 | **PLATE & CUT**<br>**the first hour** |
+| **2** | 0:06 | 4s | 타이틀 카드 | **HOW TO**<br>**PLATE & CUT** |
 | 3 | 0:10 | 6s | Example ▸ **Basic** 행 테두리 → DOWNLOAD | *The file this video uses.* |
 | **4** | 0:16 | 7s | input 시트 PLATE 블록 6행, 열 제목에 링 | **One PLATE row is one part.** |
 | 5 | 0:23 | 7s | RECT / TRAP / CIRC 세 판이 하나씩 떠오름 | *Three shapes. RECT, TRAP, CIRC.* |
@@ -155,6 +176,5 @@
 
 | | |
 |---|---|
-| 2번 타이틀 문구 | `PLATE & CUT / the first hour` 로 두었는데, 시리즈로 갈 거면 `PLATE3D BASICS / 01 · PLATE & CUT` 이 낫다 |
 | 3:12 이 짧은가 | 26컷을 다 넣고도 이 길이다. 더 필요하면 늘릴 곳은 18·19·23번(동작이 있는 컷)이지 자막이 아니다 |
 | 한국어 자막 | 지금 자막은 영어. 유튜브 자막 트랙으로 한국어를 얹을지 |
