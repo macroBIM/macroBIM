@@ -49,7 +49,12 @@ const FILMS = [
   { id: 'splice',
     out: 'PLATE3D_SPLICE_thumb.jpg',
     book: SP + '/../SPLICE_3_BOLT.xlsx',
-    hero: { kind: 'model', az: -34, el: 16, dist: 0.42 },
+    /* az 200, not -34. The joint has to sit on the RIGHT of the hero image,
+       because the card bleeds off the right edge of the thumbnail and its left
+       third is under the wash the type sits on - frame the connection on the
+       left and the thumbnail shows a wall of flange. At 0.42 it was closer
+       still and showed nothing but web. */
+    hero: { kind: 'model', az: 200, el: 24, dist: 0.85 },
     l1: 'BOLTED SPLICE', l2: 'MADE SIMPLE' }
 ];
 

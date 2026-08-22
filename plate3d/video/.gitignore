@@ -70,3 +70,8 @@ tools/shots_basic.json
 tools/shoot_basic.log
 tools/filter_basic.txt
 tools/.case_boq.xlsx
+
+# thumbnail intermediates - the hero grabs, the pages and the 2x renders.
+# mkthumb.js redraws all of them; the finished 1280x720 jpg is what is kept.
+tools/thumb_*.html
+tools/thumb_*.png
