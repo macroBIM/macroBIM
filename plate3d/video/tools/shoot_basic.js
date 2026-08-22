@@ -123,7 +123,18 @@ async function sheet(file, dur, ring) {
 
 /* The Guide panel, scrolled to a heading by its text. The film shows the app's
    own drawings rather than new ones: found again later inside the app, and they
-   cannot drift from the engine the way a redrawn copy would. */
+   cannot drift from the engine the way a redrawn copy would.
+
+   The headings have to be the ones the guide actually writes, and guessing at
+   them fails silently - the panel opens, nothing matches, and it is captured
+   sitting at the top. The first pass did exactly that on two cuts and the only
+   sign was a null in the log, which is why the found heading is returned and
+   printed. The real ones, for reference:
+
+     h2  The nine points
+     h3  BASE.pt - a shape's own origin
+     h3  Ref.Pt and the +- faces          <- the thickness faces
+     h3  MODULE - parts into a unit                                          */
 async function guide(headings, dur) {
   await app.evaluate(() => plateBuilder.openGuide());
   await app.waitForTimeout(500);
@@ -299,11 +310,11 @@ async function orbit(dur, sweep, zoom) {
   log('18 PLANE');
 
   caption('c19', T + 0.3, 4.6);
-  const g2 = await guide(['thickness', 'the two faces', 'mid-plane'], 6.0);
+  const g2 = await guide(['BASE.pt', 'nine points'], 6.0);
   log('19 guide: ' + g2);
 
   caption('c20', T + 0.3, 4.6);
-  const g3 = await guide(['mid-plane', 'thickness', 'the two faces'], 7.0);
+  const g3 = await guide(['Ref.Pt and the', 'BASE.pt'], 7.0);
   log('20 guide: ' + g3);
 
   caption('c21', T + 0.3, 4.8);
