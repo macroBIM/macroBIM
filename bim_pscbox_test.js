@@ -754,8 +754,9 @@
       _focusStyle: function (id) {
         if (!this._focusId) return { color: '#8A2BE2', opacity: 1, focused: false };
         var on = String(id) === String(this._focusId);
+        // 비선택 철근은 흐리되 형상은 남긴다 (0.13 은 사실상 안 보였음)
         return on ? { color: '#FF3D00', opacity: 1, focused: true }
-                  : { color: '#8A2BE2', opacity: 0.13, focused: false };
+                  : { color: '#8A2BE2', opacity: 0.4, focused: false };
       },
 
       // 표 ID 클릭 → 해당 철근만 강조 (같은 id 재클릭이면 해제)
