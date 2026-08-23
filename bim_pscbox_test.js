@@ -114,6 +114,10 @@
     '.px-root .draw-card-title::before{content:"";display:inline-block;width:4px;height:15px;border-radius:2px;background:#2563eb;margin-right:9px;flex-shrink:0;}' +
     '.px-root .draw-card-desc{display:block;font-size:12.5px;color:#94a3b8;font-weight:400;margin:2px 0 0 13px;}' +
     '.px-root .draw-card-body{padding:12px 14px;}' +
+    '.px-root .phys-id{cursor:pointer;font-weight:700;color:#1d4ed8;text-decoration:underline dotted;text-underline-offset:2px;}' +
+    '.px-root .phys-id:hover{background:#eff6ff;color:#1e40af;}' +
+    '.px-root tr.phys-focus td{background:#fff1ee !important;}' +
+    '.px-root tr.phys-focus .phys-id{color:#c2410c;background:#ffe4dc;}' +
     '.px-btn{font:inherit;font-size:10.5px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:#fff;background:var(--dim);border:1px solid var(--dim);border-radius:6px;padding:5px 12px;cursor:pointer;transition:background .12s,border-color .12s,box-shadow .12s,transform .06s;}' +
     '.px-btn:hover{background:#1d4ed8;border-color:#1d4ed8;box-shadow:0 2px 8px rgba(37,99,235,.35);}' +
     '.px-btn:active{transform:translateY(1px) scale(.97);box-shadow:none;}' +
@@ -166,7 +170,7 @@
 
   var PXBOX = {
     _mountId: 'mount-draw-pscbox',
-    _vars: null, _excelData: null, _rebarData: null,
+    _vars: null, _excelData: null, _rebarData: null, _focusId: null,
     _lines: [], _arcs: [], _circs: [],
     _uiInited: false, _settleTimer: null, _rebarSettled: false, _lastAp: null, _lastStuckMsg: null,
     _showEngNormals: false, _showEngNodes: false, _engNormGroup: null, _engNodeGroup: null,
@@ -517,6 +521,10 @@
           for (var i = 0; i < n; i++) s += (vals[i] == null) ? '<td class="phys-na">&mdash;</td>' : '<td>' + fmt(vals[i]) + '</td>';
           return s;
         }
+        function idCell(id, settled) {
+          var cls = 'phys-id' + (settled ? '' : ' phys-moving');
+          return '<td class="' + cls + '" title="클릭하면 이 철근만 강조 (다시 클릭 시 해제)" onclick="PXBOX.focusRebar(&quot;' + self._esc(String(id)) + '&quot;)">' + self._esc(String(id)) + '</td>';
+        }
         function rspBtn(id) {
           return '<td><button type="button" class="px-btn phys-rsp" title="Respawn this rebar" onclick="PXBOX.respawnOne(&quot;' + self._esc(String(id)) + '&quot;)">&#8635;</button></td>';
         }
@@ -543,11 +551,13 @@
           var inter = [], i;
           for (i = 0; i < 6; i++) inter.push(segs[i] != null ? segs[i] : null);
           for (i = 0; i < 5; i++) inter.push(arcs[i] != null ? arcs[i] : null);
-          h += '<tr><td class="' + (t.state === 'FORMED' ? '' : 'phys-moving') + '">' + self._esc(t.id) + '</td>' + codeCell(t.id) +
+          h += '<tr class="' + (String(self._focusId) === String(t.id) ? 'phys-focus' : '') + '">' +
+               idCell(t.id, t.state === 'FORMED') + codeCell(t.id) +
                '<td><b>' + fmt(total) + '</b></td><td>' + fmt(t.dia) + '</td>' + cells(inter, 11) + rspBtn(t.id) + '</tr>';
         });
         (Domain.lrebarList || []).forEach(function (g) {
-          h += '<tr><td class="' + (g.state === 'SETTLED' ? '' : 'phys-moving') + '">' + self._esc(g.id) + '</td>' + codeCell(g.id) +
+          h += '<tr class="' + (String(self._focusId) === String(g.id) ? 'phys-focus' : '') + '">' +
+               idCell(g.id, g.state === 'SETTLED') + codeCell(g.id) +
                '<td class="phys-na">&mdash;</td><td>' + fmt(g.dia) + '</td>' + cells([], 11) + rspBtn(g.id) + '</tr>';
         });
         if (!h) h = '<tr><td colspan="16" style="text-align:center;color:#94a3b8;padding:14px;">No rebar loaded.</td></tr>';
@@ -733,8 +743,26 @@
             arr.forEach(function (p) { pushPt(p[0], p[1]); });
           }
         });
-        var dia = t.dia || 13;
-        group.add(new Konva.Line({ points: pts, stroke: '#8A2BE2', strokeWidth: (dia > 0 ? dia : 5), lineCap: 'round', lineJoin: 'round', strokeScaleEnabled: true }));
+        var dia = t.dia || 13, st = this._focusStyle(t.id);
+        group.add(new Konva.Line({ points: pts, stroke: st.color, strokeWidth: (dia > 0 ? dia : 5), lineCap: 'round', lineJoin: 'round', strokeScaleEnabled: true, opacity: st.opacity }));
+        if (st.focused) {   // 강조 외곽선(글로우) — 두껍게 한 겹 덧그림
+          group.add(new Konva.Line({ points: pts, stroke: '#FF3D00', strokeWidth: (dia > 0 ? dia : 5) * 2.1, lineCap: 'round', lineJoin: 'round', strokeScaleEnabled: true, opacity: 0.22 }));
+        }
+      },
+
+      // 표에서 클릭한 철근(_focusId) 강조 스타일 — 없으면 전체 기본
+      _focusStyle: function (id) {
+        if (!this._focusId) return { color: '#8A2BE2', opacity: 1, focused: false };
+        var on = String(id) === String(this._focusId);
+        return on ? { color: '#FF3D00', opacity: 1, focused: true }
+                  : { color: '#8A2BE2', opacity: 0.13, focused: false };
+      },
+
+      // 표 ID 클릭 → 해당 철근만 강조 (같은 id 재클릭이면 해제)
+      focusRebar: function (id) {
+        this._focusId = (String(this._focusId) === String(id)) ? null : String(id);
+        if (this._rebarSettled) this._finalizeArcs(); else if (typeof UI !== 'undefined' && UI.mainLayer) UI.mainLayer.draw();
+        this._renderPhysicsTable();
       },
 
       _watchSettle: function () {
@@ -867,22 +895,28 @@
       _drawLrebarTrue: function () {
         if (typeof UI === 'undefined' || !UI.lrebarGroup || typeof Konva === 'undefined') return;
         UI.lrebarGroup.destroyChildren();
+        var self = this;
         (Domain.lrebarList || []).forEach(function (g) {
           if (!g || !g.particles) return;
-          var r = (g.dia || 13) / 2;
+          var r = (g.dia || 13) / 2, st = self._focusStyle(g.id);
           g.particles.forEach(function (p) {
-            UI.lrebarGroup.add(new Konva.Circle({ x: p.x, y: p.y, radius: r, fill: '#FFD700', stroke: '#B8860B', strokeWidth: Math.max(r * 0.18, 0.8), strokeScaleEnabled: true }));
+            UI.lrebarGroup.add(new Konva.Circle({
+              x: p.x, y: p.y, radius: st.focused ? r * 1.15 : r,
+              fill: st.focused ? '#FF3D00' : '#FFD700',
+              stroke: st.focused ? '#7F1D1D' : '#B8860B',
+              strokeWidth: Math.max(r * 0.18, 0.8), strokeScaleEnabled: true, opacity: st.opacity
+            }));
           });
         });
       },
 
       _drawStraightTrebar: function (t, group) {
-        var segs = t.segments || [], dia = t.dia || 13;
+        var segs = t.segments || [], dia = t.dia || 13, st = this._focusStyle(t.id);
         segs.forEach(function (s) {
           var pts = (s.state === 'SETTLED')
             ? [s.p1.x, s.p1.y, s.p2.x, s.p2.y]
             : [s.nodes[0].x, s.nodes[0].y, s.nodes[1].x, s.nodes[1].y];
-          group.add(new Konva.Line({ points: pts, stroke: '#8A2BE2', strokeWidth: (dia > 0 ? dia : 5), lineCap: 'round', strokeScaleEnabled: true }));
+          group.add(new Konva.Line({ points: pts, stroke: st.color, strokeWidth: (dia > 0 ? dia : 5), lineCap: 'round', strokeScaleEnabled: true, opacity: st.opacity }));
         });
       },
 
