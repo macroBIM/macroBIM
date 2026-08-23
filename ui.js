@@ -107,46 +107,6 @@ const UI = {
                 let formedW = (trebar.dia && trebar.dia > 0) ? trebar.dia : 5;
                 UI.trebarGroup.add(new Konva.Line({ points: pts, stroke: color, strokeWidth: (trebar.state==="FORMED"? formedW : 2), lineCap: 'round', strokeScaleEnabled: (trebar.state==="FORMED") }));
 
-                // ── 안착 중 세그먼트의 '진로' 표시 ─────────────────────────────
-                //  · 노랑 파선 화살표 : 각 노드가 법선 방향으로 향하는 경로 (= 어디로 떨어지는지)
-                //  · 청록 굵은 선     : 목표 벽 (그 노드가 찾아간 면)
-                //  · 노랑 점선 밴드   : 세그먼트가 쓸고 가는 진로 범위
-                if (seg.state === "FITTING" && seg.aimPoints && seg.aimPoints.length) {
-                    let aimW = secType === "TBEAM" ? 1.5 : 12;
-                    let tgtWalls = {};
-                    seg.aimPoints.forEach(function (ap) {
-                        UI.trebarGroup.add(new Konva.Arrow({
-                            points: [ap.fx, ap.fy, ap.tx, ap.ty],
-                            stroke: '#FFEB3B', fill: '#FFEB3B', strokeWidth: aimW,
-                            dash: [aimW * 3, aimW * 2],
-                            pointerLength: aimW * 3, pointerWidth: aimW * 2.4,
-                            opacity: 0.9, strokeScaleEnabled: false
-                        }));
-                        UI.trebarGroup.add(new Konva.Circle({
-                            x: ap.tx, y: ap.ty, radius: aimW * 1.3,
-                            fill: '#FFEB3B', opacity: 0.85, strokeScaleEnabled: false
-                        }));
-                        if (ap.wall && ap.wall.id) tgtWalls[ap.wall.id] = ap.wall;
-                    });
-                    // 진로 범위 : 시작 세그먼트와 도달 지점을 잇는 밴드
-                    if (seg.aimPoints.length >= 2) {
-                        let f = seg.aimPoints[0], l = seg.aimPoints[seg.aimPoints.length - 1];
-                        UI.trebarGroup.add(new Konva.Line({
-                            points: [f.fx, f.fy, l.fx, l.fy, l.tx, l.ty, f.tx, f.ty],
-                            closed: true, fill: '#FFEB3B', opacity: 0.10, strokeScaleEnabled: false
-                        }));
-                    }
-                    // 목표 벽 강조
-                    Object.keys(tgtWalls).forEach(function (wid) {
-                        let w = tgtWalls[wid];
-                        UI.trebarGroup.add(new Konva.Line({
-                            points: [w.x1, w.y1, w.x2, w.y2],
-                            stroke: '#00E5FF', strokeWidth: aimW * 1.6, opacity: 0.75,
-                            lineCap: 'round', strokeScaleEnabled: false
-                        }));
-                    });
-                }
-
                 if (seg.label) {
                     let midX = (seg.p1.x + seg.p2.x) / 2;
                     let midY = (seg.p1.y + seg.p2.y) / 2;

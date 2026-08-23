@@ -236,7 +236,6 @@ const Physics = {
 
             if (seg.state === "FITTING") {
                 allSegmentsSettled = false;
-                seg.aimPoints = [];                 // 매 프레임 새로 수집 (진로 표시)
 
                 let segEnergy = 0;
                 let maxPosError = 0;
@@ -253,9 +252,6 @@ const Physics = {
 
                         validTargets++;
                         trebar.debugPoints.push(target);
-                        // 진로 표시용 — 이 노드가 향하는 지점/벽 (ui.js 가 화살표·목표벽 강조에 사용)
-                        seg.aimPoints = seg.aimPoints || [];
-                        seg.aimPoints.push({ fx: node.x, fy: node.y, tx: target.x, ty: target.y, wall: target.wall });
 
                         seg.contactWall = target.wall;
                         hitInfos.push({ wall: target.wall, dist: err });
@@ -276,7 +272,6 @@ const Physics = {
 
                 if (validTargets === seg.nodes.length && segEnergy < CONVERGE && maxPosError < 1.0) {
                     seg.state = "SETTLED";
-                    seg.aimPoints = null;           // 안착 완료 → 진로 표시 종료
                     seg.fitWall = Physics.resolveSegmentFitWall(seg, hitInfos);
                     seg.nodeWalls = hitInfos.map(h => h.wall);   // 노드별 안착 벽 (p1쪽 → p2쪽 순) — FIT 이 끝단별로 사용
                     Physics.restoreSegmentLine(seg);
