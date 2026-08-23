@@ -9507,6 +9507,14 @@
      the list is to compare the examples at a glance and pick one, not to read a
      paragraph about each. The long version is the model itself. */
   var SAMPLES = [
+    /* First, and the only one that builds nothing. Every other example teaches
+       the grammar by using it, which leaves the reader separating what is
+       grammar from what is that particular structure. This one is only the
+       grammar, commented out, with room to type between the lines. Basic keeps
+       its "Start here": the two say different things - write your own, or watch
+       one work. */
+    { f: 'PLATE3D_TEMPLATE.xlsx', n: 'Template', s: '149 rows → 0 members, by design',
+      d: 'Every keyword and form, commented out. Write your own.' },
     { f: 'PLATE3D_BASIC.xlsx', n: 'Basic', s: '76 rows → 90 members · 1.70 t',
       d: 'Every keyword once, in one real model. Start here.' },
     { f: 'PLATE3D_SAMPLE.xlsx', n: 'Sample', s: '38 rows → 48 members · 803 kg',
