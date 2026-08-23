@@ -188,6 +188,26 @@
 
         function esc(v) { return String(v == null ? '' : v).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;'); }
 
+        // 셀 안의 수식 토큰을 변수값으로 치환해 표시 (예: a=th/2 → a=400). 평가 실패 토큰은 원문 유지.
+        var scope = (typeof Calc !== 'undefined') ? Calc.buildScope(this._vars || []).scope : {};
+        function evalTok(t) {
+          t = String(t).trim(); if (t === '') return t;
+          if (!isNaN(Number(t))) return t;                       // 순수 숫자는 그대로
+          if (typeof Calc === 'undefined') return t;
+          var r = Calc.eval(t, scope);
+          if (r.error == null && isFinite(r.value)) return String(Math.round(r.value * 1000) / 1000);
+          return t;                                              // 벽id(e5)·fit·ray 등 비수식은 원문
+        }
+        function evalCell(cell) {
+          var raw = String(cell == null ? '' : cell); if (raw.trim() === '') return { txt: raw, changed: false };
+          var out = raw.split(',').map(function (part) {
+            var m = part.split('=');
+            if (m.length === 2) return m[0].trim() + '=' + evalTok(m[1]);
+            return part.trim() === '' ? part : part.replace(part.trim(), evalTok(part.trim()));
+          }).join(', ');
+          return { txt: out, changed: out.replace(/\s/g, '') !== raw.replace(/\s/g, '') };
+        }
+
         var h = '<div class="rebar-table-wrap"><table class="rebar-table"><thead>';
         SCHEMA.forEach(function (row) {
           h += '<tr class="rebar-schema-row">';
@@ -196,7 +216,17 @@
         });
         h += '</thead><tbody>';
         if (dataRows.length) {
-          dataRows.forEach(function (r) { h += '<tr>'; for (var i = 0; i < ncol; i++) h += '<td>' + esc(r[i]) + '</td>'; h += '</tr>'; });
+          dataRows.forEach(function (r) {
+            h += '<tr>';
+            for (var i = 0; i < ncol; i++) {
+              if (i < 2) { h += '<td>' + esc(r[i]) + '</td>'; continue; }        // type/id 는 평가 제외
+              var ec = evalCell(r[i]);
+              h += ec.changed
+                ? '<td title="' + esc(r[i]) + '">' + esc(ec.txt) + '</td>'      // 툴팁 = 원본 수식
+                : '<td>' + esc(r[i]) + '</td>';
+            }
+            h += '</tr>';
+          });
         } else {
           h += '<tr><td colspan="' + ncol + '" style="text-align:center;color:#94a3b8;padding:14px;">Load rebar data with [Load Excel].</td></tr>';
         }
@@ -1062,6 +1092,7 @@
         // 변수 변경 → 철근 수식(th/2 등)도 새 값으로 재평가 후 재작도
         if (this._excelData) {
           this._rebarData = this._parseRebar(this._excelData);
+          this._renderRebarTables();            // 표의 수식 표시값도 새 변수로 갱신
           if (this._evalErrs && this._evalErrs.length) {
             this._toast('철근 수식 오류 — 미정의 변수 확인: ' + this._evalErrs.join(' / ') + ' — 철근 로딩 중단', 'err');
           }
