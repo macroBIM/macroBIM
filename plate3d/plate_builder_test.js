@@ -5151,7 +5151,11 @@
     listGroups = [];
     var groups = [], gmap = {};
     items.forEach(function (it) {
-      total += it.mass;
+      /* Bolts are counted, never weighed - see BOQ_KIND.BOLT - so they stay out
+         of every figure that says kilograms, this panel included. Steel is
+         bought by the tonne and bolts by the box; adding the two gives a number
+         nobody can buy. */
+      if (!BOQ_KIND[boqKind(it.spec)].count) total += it.mass;
       var g = gmap[it.group];
       if (!g) { g = gmap[it.group] = { name: it.group, rows: [], rmap: {} }; groups.push(g); }
       var r = g.rmap[it.instKey];
@@ -7225,7 +7229,14 @@
        the length and how many - and the hole it needs, which is the number the
        shop drills to. It is still weighed, because a thousand M20s are not
        nothing, but the count is the column people read. */
-    BOLT:   { t: 'BOLT', f: [['DIA', 'D'], ['LENGTH', 'THK'], ['HOLE', 'HOLE']] },
+    /* count: true - counted, never weighed. Steel is bought by the tonne and
+       bolts by the box, so a take-off lists them by size and length and says
+       how many; putting a kilogram against them invites someone to add it to
+       the steel, which is not how either is priced. So the BOLT block carries
+       no area, no kg/m and no weight column, and the bolts stay out of the
+       weight totals. */
+    BOLT:   { t: 'BOLT', count: true,
+              f: [['DIA', 'D'], ['LENGTH', 'THK'], ['HOLE', 'HOLE']] },
     SECT_P: { t: 'SECT — P', f: [['d', 'd'], ['t', 't'], ['LENGTH', 'THK']] },
     SECT_R: { t: 'SECT — R', f: [['h', 'h'], ['b', 'b'], ['t', 't'], ['r', 'r'],
                                  ['LENGTH', 'THK']] }
@@ -7282,7 +7293,7 @@
         keys.push(key);
       }
       e.qty++;
-      total += it.mass;
+      if (!def.count) total += it.mass;          // bolts are counted, not weighed
     });
     var rows = keys.map(function (k) { var e = map[k]; e.wt = e.unit * e.qty; return e; });
     rows.sort(function (a, b) {
@@ -7427,7 +7438,9 @@
     def.f.forEach(function (p, i) {
       cols.push({ h: p[0], f: BQ_DIM_FMT, k: function (r) { return r.vals[i]; } });
     });
-    if (def.area) {                                // a plate: face area, thickness
+    if (def.count) {                               // a bolt: nothing but how many
+      // no area, no kg/m, no unit weight - see BOQ_KIND
+    } else if (def.area) {                         // a plate: face area, thickness
       cols.push({ h: 'AREA m²', f: BQ_AREA, k: function (r) { return r.area; } });
       cols.push({ h: 'CUTS', f: '#,##0', k: function (r) { return r.cuts; } });
       cols.push({ h: 'UNIT kg', f: BQ_WT, k: function (r) { return r.unit; },
@@ -7443,18 +7456,21 @@
     }
     if (mode === 'module') {
       cols.push({ h: 'QTY / UNIT', f: BQ_QTY, sum: 1, k: function (r) { return r.per; } });
-      cols.push({ h: 'kg / UNIT', f: BQ_WT, sum: 1, k: function (r) { return r.unit * r.per; },
-                 fm: function (rn, ix) {
-                   return ref(ix, 'UNIT kg', rn) + '*' + ref(ix, 'QTY / UNIT', rn); } });
+      if (!def.count)
+        cols.push({ h: 'kg / UNIT', f: BQ_WT, sum: 1, k: function (r) { return r.unit * r.per; },
+                   fm: function (rn, ix) {
+                     return ref(ix, 'UNIT kg', rn) + '*' + ref(ix, 'QTY / UNIT', rn); } });
       cols.push({ h: 'TOTAL QTY', f: '#,##0', sum: 1, k: function (r) { return r.qty; } });
-      cols.push({ h: 'TOTAL kg', f: BQ_WT, sum: 1, k: function (r) { return r.wt; },
-                 fm: function (rn, ix) {
-                   return ref(ix, 'UNIT kg', rn) + '*' + ref(ix, 'TOTAL QTY', rn); } });
+      if (!def.count)
+        cols.push({ h: 'TOTAL kg', f: BQ_WT, sum: 1, k: function (r) { return r.wt; },
+                   fm: function (rn, ix) {
+                     return ref(ix, 'UNIT kg', rn) + '*' + ref(ix, 'TOTAL QTY', rn); } });
     } else {
       cols.push({ h: 'QTY', f: '#,##0', sum: 1, k: function (r) { return r.qty; } });
-      cols.push({ h: 'WEIGHT kg', f: BQ_WT, sum: 1, k: function (r) { return r.wt; },
-                 fm: function (rn, ix) {
-                   return ref(ix, 'UNIT kg', rn) + '*' + ref(ix, 'QTY', rn); } });
+      if (!def.count)
+        cols.push({ h: 'WEIGHT kg', f: BQ_WT, sum: 1, k: function (r) { return r.wt; },
+                   fm: function (rn, ix) {
+                     return ref(ix, 'UNIT kg', rn) + '*' + ref(ix, 'QTY', rn); } });
     }
     var ix = {};
     cols.forEach(function (c, i) { ix[c.h] = i + 1; });
@@ -7671,14 +7687,16 @@
       var blocks = pb.filter(function (b) { return BOQ_CAT[b.kind] === cat; });
       if (!blocks.length) return;
       var q = 0, w = 0, nItem = 0;
+      var counted = blocks.every(function (b) { return BOQ_KIND[b.kind].count; });
       blocks.forEach(function (b) {
         nItem += b.n;
         agg.rows.forEach(function (r) { if (r.kind === b.kind) { q += r.qty; w += r.wt; } });
       });
+      if (counted) w = 0;                 // bolts are counted, never weighed
       var pre = function (a) { return "'PART LIST'!" + a; };
       var row = s1.addRow([cat, nItem, null, null, null]);
       row.getCell(3).value = fxSum(bqPick(blocks, 'QTY').map(pre), q);
-      row.getCell(4).value = fxSum(bqPick(blocks, 'WEIGHT kg').map(pre), w);
+      if (!counted) row.getCell(4).value = fxSum(bqPick(blocks, 'WEIGHT kg').map(pre), w);
       bqStyle(row, { bottom: 'thin' });
       catRows.push({ n: row.number, w: w });
       row.getCell(2).numFmt = '#,##0'; row.getCell(3).numFmt = '#,##0';
