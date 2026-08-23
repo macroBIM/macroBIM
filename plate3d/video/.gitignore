@@ -87,3 +87,11 @@ tools/shots_barsect.json
 tools/shoot_barsect.log
 tools/filter_barsect.txt
 tools/.bs_boq.xlsx
+
+# Probe workbooks. probe_tube.js / probe_scale.js write them in seconds; the
+# question they answer is in the scripts, not in the files.
+tools/probe/
+
+# Probe workbooks. probe_tube.js / probe_scale.js write them in seconds; the
+# question they answer is in the scripts, not in the files.
+tools/probe/
