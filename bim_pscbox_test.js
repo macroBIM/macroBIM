@@ -262,6 +262,7 @@
       _parseRebar: function (fullData) {
         // Variables 카드의 변수들을 스코프로 — 철근 수치 칸(segs/init/angs/dia 등)에서 th/2 같은 수식 사용 가능
         this._rbVarScope = (typeof Calc !== 'undefined') ? Calc.buildScope(this._vars || []).scope : {};
+        this._evalErrs = [];                    // 미정의 변수/수식 평가 실패 수집 → 있으면 로딩 중단
         var rows = this._extractRebarDataRows(fullData), out = [], self = this;
         rows.forEach(function (row) {
           var type = self._rbStr(row[0]).toLowerCase();
@@ -276,6 +277,10 @@
           seen[k] = seen[k] || o.id;
         });
         this._dupIds = dups;
+        if (this._evalErrs.length) {
+          console.error('[PSCBOX] 철근 수식 오류 — 철근 로딩 중단: ' + this._evalErrs.join(' / '));
+          return [];
+        }
         if (dups.length) {
           console.error('[PSCBOX] 철근 id 중복: ' + dups.join(', ') + ' — 철근 로딩 중단');
           return [];
@@ -285,6 +290,7 @@
 
       _parseTrebarRow: function (row) {
         var o = { type: 'trebar', id: this._rbStr(row[1]) };
+        this._rbCurId = o.id;
         if (this._rbHas(row[2])) o.code = Number(row[2]);
         if (this._rbHas(row[3])) o.dia = this._rbNum(row[3]);
         var init = this._rbInit(row[4], ['x', 'y', 'rot']); if (init) o.init = init;
@@ -301,6 +307,7 @@
 
       _parseLrebarRow: function (row) {
         var o = { type: 'lrebar', id: this._rbStr(row[1]), bar: {} };
+        this._rbCurId = o.id;
         if (this._rbHas(row[2])) o.bar.dia = this._rbNum(row[2]);
         if (this._rbHas(row[3])) o.bar.num = this._rbNum(row[3]);
         if (this._rbHas(row[8])) o.bar.ctc = this._rbNum(row[8]);
@@ -326,7 +333,9 @@
         if (typeof Calc !== 'undefined') {                          // 변수/수식 (예: th/2, W-100) → Variables 스코프로 평가
           var r = Calc.eval(v, this._rbVarScope || {});
           if (r.error == null && isFinite(r.value)) return r.value;
-          console.warn('[PSCBOX] 수식 평가 실패:', v, '—', r.error);
+          var where = (this._rbCurId ? this._rbCurId + '의 ' : '') + '"' + v + '"';
+          if (this._evalErrs) this._evalErrs.push(where + ' (' + r.error + ')');
+          console.error('[PSCBOX] 수식 평가 실패:', where, '—', r.error);
         }
         return v;
       },
@@ -1051,7 +1060,12 @@
 
       onVarChange: function () {
         // 변수 변경 → 철근 수식(th/2 등)도 새 값으로 재평가 후 재작도
-        if (this._excelData) this._rebarData = this._parseRebar(this._excelData);
+        if (this._excelData) {
+          this._rebarData = this._parseRebar(this._excelData);
+          if (this._evalErrs && this._evalErrs.length) {
+            this._toast('철근 수식 오류 — 미정의 변수 확인: ' + this._evalErrs.join(' / ') + ' — 철근 로딩 중단', 'err');
+          }
+        }
         this.redraw();
       },
 
@@ -1240,7 +1254,9 @@
               'Rebar     : ' + nre + '  (trebar ' + ntre + ', lrebar ' + nlre + ')'
             ] };
             // 최종 결과 토스트 — 철근 id 중복이면 오류 상태로 (성공 토스트가 덮지 않게)
-            if (self._dupIds && self._dupIds.length) {
+            if (self._evalErrs && self._evalErrs.length) {
+              self._toast('철근 수식 오류 — 미정의 변수 확인: ' + self._evalErrs.join(' / ') + ' — 철근 로딩 중단', 'err');
+            } else if (self._dupIds && self._dupIds.length) {
               self._loadLog.ok = false;
               self._loadLog.lines.push('ERROR     : duplicate rebar id ' + self._dupIds.join(', ') + ' \u2014 rebar loading skipped');
               self._toast('Duplicate rebar id: ' + self._dupIds.join(', ') + ' \u2014 rebar loading skipped (variables/dims loaded)', 'err');
