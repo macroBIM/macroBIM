@@ -768,15 +768,20 @@
                                                the shape's own origin (0,0). Blank -> bc
                                                for a plate, mc for a circle or a HOLE)
        SECT  ID MAT Length TYPE BASE.pt <values>
-                                              (rolled section, TYPE = H / C / L. The
-                                               values run straight on with no gaps and
-                                               each type has its own list:
+                                              (steel section, TYPE = H / C / L / P / R.
+                                               The values run straight on with no gaps
+                                               and each type has its own list:
                                                  H : h bb bt tw tf1 tf2 r1 r2
                                                      tf1 = bottom flange, tf2 = top
                                                  C : h b tw tf rw rf
                                                      rw = web root, rf = flange toe
                                                  L : a b t1 t2 r1 r2
                                                      t1 = a leg, t2 = b leg
+                                                 P : d t          round tube
+                                                     d over the outside, t the wall
+                                                 R : h b t r      rectangular tube
+                                                     r = OUTER corner; the inner one
+                                                     is r - t and is not asked for
                                                A radius of 0 or blank is fine - the
                                                corner just comes out square. Fillets are -
                                                both drawn, not approximated; dropping
@@ -1288,12 +1293,23 @@
         //   H : h bb bt tw tf1 tf2 r1 r2      (tf1 = bottom, tf2 = top)
         //   C : h b tw tf rw rf               (rw = web root, rf = flange toe)
         //   L : a b t1 t2 r1 r2               (t1 = a leg, t2 = b leg)
+        //   P : d t                           round tube, d over the outside
+        //   R : h b t r                       rectangular tube, r = OUTER corner
+        // P and R are hollow. Their two extra rules are worth saying once:
+        // the wall is uniform, so a rectangular tube's inner corner is r - t
+        // and is not asked for; and r left blank is a square corner, exactly
+        // as leaving an H's r1 blank gives a square root.
         var ids = str(v[0]).toUpperCase();
         if (!ids) continue;
         var st = str(v[3]).toUpperCase();
         if (st === 'I') st = 'H';
+        // The names a fabricator would write. CHS/SHS/RHS are the standards'
+        // own, PIPE and BOX are what people say.
+        if (st === 'PIPE' || st === 'CHS' || st === 'O') st = 'P';
+        if (st === 'BOX' || st === 'RHS' || st === 'SHS') st = 'R';
         if (!SECT_FIELDS[st]) {
-          warn('row ' + (r + 1) + ': SECT ' + ids + ' — TYPE must be H, C or L, found ' +
+          warn('row ' + (r + 1) + ': SECT ' + ids +
+               ' — TYPE must be H, C, L, P or R, found ' +
                (str(v[3]) || '(blank)'));
           continue;
         }
@@ -2007,7 +2023,13 @@
   }
 
 
-  /* ---------------- rolled sections: H / C / L ----------------
+  /* ---------------- steel sections: H / C / L / P / R ----------------
+     H, C and L are rolled and solid; P and R are tubes and are the same
+     machinery with a bore taken out of the middle - see sectInner. Nothing
+     below is special-cased for hollowness: the ring is the outside, the bore
+     is subtracted where a CUT would be, and the area falls out of the same
+     outers-minus-holes sum.
+     ---------------- rolled sections: H / C / L ----------------
      One field set for all three - h b tw tf r r2 (+ b2 tf2 for an
      asymmetric H). Anything a shape does not need mirrors another value, so
      an equal angle needs no extra columns and an unequal one just fills them
@@ -2080,10 +2102,68 @@
     g.push([0, b]);
     return cleanRing(g);
   }
+  /* A rectangle w wide and h tall, standing on y = 0 and centred on x = 0, its
+     corners rounded by r. CCW, like every other outline here, and with r left
+     at 0 it is four corners and nothing else - the same thing leaving an H's
+     r1 blank does. r is clamped rather than refused because sectErrors has
+     already refused anything that does not fit; this is the drawing, not the
+     gate. */
+  function roundRect(w, h, r) {
+    var seg = SECT_SEG, x = w / 2, g = [];
+    r = Math.max(0, Math.min(num(r, 0), Math.min(w, h) / 2));
+    if (!(r > 0)) return [[-x, 0], [x, 0], [x, h], [-x, h]];
+    g.push([-x + r, 0], [x - r, 0]);
+    arcInto(g, x - r, r, r, 270, 360, seg);
+    g.push([x, h - r]);
+    arcInto(g, x - r, h - r, r, 0, 90, seg);
+    g.push([-x + r, h]);
+    arcInto(g, -x + r, h - r, r, 90, 180, seg);
+    g.push([-x, r]);
+    arcInto(g, -x + r, r, r, 180, 270, seg);
+    return cleanRing(g);
+  }
+  /* 48, which is what outlineOf already gives a BAR, and the match is the
+     whole point: a solid Ø48.6 BAR and a P-48.6 tube have to be drawn on the
+     same circle or the two disagree about a diameter they both call 48.6.
+     A 48-gon is 0.29% under the true area - always under, never over, and the
+     same 0.29% on the bore, so the wall it leaves is right to that figure. */
+  var PIPE_SEG = 48;
+  // P - a round tube. Origin bottom centre like an H, so it stands in
+  // x -d/2..d/2, y 0..d. Only the outside is here; the bore comes out in
+  // sectInner.
+  function outlineP(d) { return circleOutline(d.d, 0, d.d / 2, PIPE_SEG); }
+  // R - a rectangular tube, origin bottom centre. r is the OUTER corner.
+  function outlineR(d) { return roundRect(d.b, d.h, d.r || 0); }
+  /* The bore of a hollow section, in the same raw coordinates as sectRing.
+     It is subtracted rather than carried alongside as a second ring, because
+     subtraction is the path the area, the DXF and the 3D shape already take
+     for a CUT. A hollow section is not a new kind of geometry here - it is a
+     profile with a hole in it, which this file has always been able to hold.
+     The inner corner of a rectangular tube is not asked for on the row. A
+     formed tube keeps its wall thickness round the bend, so the inner radius
+     is the outer less the wall, and square when the wall is the thicker of
+     the two. One number in, and it stays physically true. */
+  function sectInner(spec) {
+    if (spec.SHAPE !== 'SECT') return null;
+    if (spec.SECT === 'P') {
+      var di = num(spec.d, 0) - 2 * num(spec.t, 0);
+      return di > 0 ? circleOutline(di, 0, num(spec.d, 0) / 2, PIPE_SEG) : null;
+    }
+    if (spec.SECT === 'R') {
+      var t = num(spec.t, 0),
+          bi = num(spec.b, 0) - 2 * t, hi = num(spec.h, 0) - 2 * t;
+      if (!(bi > 0 && hi > 0)) return null;
+      return roundRect(bi, hi, Math.max(0, num(spec.r, 0) - t))
+        .map(function (p) { return [p[0], p[1] + t]; });
+    }
+    return null;
+  }
   function sectRing(spec) {                      // raw profile, before BASE.pt
     if (spec.__ring) return spec.__ring;
     spec.__ring = spec.SECT === 'C' ? outlineC(spec)
-                : spec.SECT === 'L' ? outlineL(spec) : outlineH(spec);
+                : spec.SECT === 'L' ? outlineL(spec)
+                : spec.SECT === 'P' ? outlineP(spec)
+                : spec.SECT === 'R' ? outlineR(spec) : outlineH(spec);
     return spec.__ring;
   }
   // Where to hang an R dimension. One leader per distinct radius - an H section
@@ -2107,6 +2187,13 @@
     } else if (spec.SECT === 'L') {
       add(spec.t2 + spec.r1, spec.t1 + spec.r1, spec.r1, 225, -1);          // heel root
       add(spec.a - spec.r2, spec.t1 - spec.r2, spec.r2, 45, 1);             // a-leg toe
+    } else if (spec.SECT === 'R') {
+      // the outer corner, convex, so the leader heads away from the steel.
+      // Only one: all four are the same number, and add() refuses a repeat.
+      add(spec.b / 2 - spec.r, spec.h - spec.r, spec.r, 45, 1);
+    } else if (spec.SECT === 'P') {
+      // nothing. A pipe's only curvature is its diameter and the label
+      // already carries it - an R arrow on the barrel would say it twice.
     } else {
       var xw = spec.tw / 2;
       add(-xw - spec.r1, spec.tf1 + spec.r1, spec.r1, -45, -1);             // web root
@@ -2118,8 +2205,10 @@
   // area, which is worse than no section at all.
   var SECT_FIELDS = { H: ['h', 'bb', 'bt', 'tw', 'tf1', 'tf2', 'r1'],
                       C: ['h', 'b', 'tw', 'tf', 'rw', 'rf'],
-                      L: ['a', 'b', 't1', 't2', 'r1', 'r2'] };
-  var SECT_RADII = { H: 1, C: 2, L: 2 };       // trailing fields allowed to be 0
+                      L: ['a', 'b', 't1', 't2', 'r1', 'r2'],
+                      P: ['d', 't'],
+                      R: ['h', 'b', 't', 'r'] };
+  var SECT_RADII = { H: 1, C: 2, L: 2, P: 0, R: 1 };  // trailing fields allowed to be 0
   function sectErrors(d) {
     var e = [], t = d.SECT, f = SECT_FIELDS[t], nr = SECT_RADII[t];
     f.slice(0, f.length - nr).forEach(function (k) {         // the radii may be 0
@@ -2143,6 +2232,14 @@
       if (d.rw && d.rw > (d.h - 2 * d.tf) / 2) e.push('rw ' + d.rw + ' too big for the clear web depth — max ' + ((d.h - 2 * d.tf) / 2).toFixed(1));
       if (d.rw && d.rw > d.b - d.tw) e.push('rw ' + d.rw + ' does not fit along the flange — max ' + (d.b - d.tw));
       if (d.rf && d.rf > d.tf) e.push('rf ' + d.rf + ' is bigger than the flange thickness — max ' + d.tf);
+    } else if (t === 'P') {
+      // a wall that meets itself in the middle is a solid bar, and one that
+      // passes itself is nothing at all - both are refused rather than drawn
+      if (2 * d.t >= d.d) e.push('wall too thick: 2 x t (' + 2 * d.t + ') >= d (' + d.d + ') — a pipe this thick is a solid bar');
+    } else if (t === 'R') {
+      if (2 * d.t >= d.h) e.push('wall too thick: 2 x t (' + 2 * d.t + ') >= h (' + d.h + ')');
+      if (2 * d.t >= d.b) e.push('wall too thick: 2 x t (' + 2 * d.t + ') >= b (' + d.b + ')');
+      if (d.r && d.r > Math.min(d.h, d.b) / 2) e.push('r ' + d.r + ' does not fit in the corner — max ' + (Math.min(d.h, d.b) / 2));
     } else {
       if (d.t2 >= d.a) e.push('leg too short: t2 (' + d.t2 + ') >= a (' + d.a + ')');
       if (d.t1 >= d.b) e.push('leg too short: t1 (' + d.t1 + ') >= b (' + d.b + ')');
@@ -2168,6 +2265,13 @@
       return 'L-' + n(spec.a) + X + n(spec.b) + X + n(spec.t1) +
              (spec.t2 !== spec.t1 ? X + n(spec.t2) : '') +
              radLabel(spec.r1, spec.r2);
+    }
+    if (spec.SECT === 'P') return 'P-' + n(spec.d) + X + n(spec.t);
+    // h x b even when they are equal. A square tube is a rectangular one whose
+    // two numbers match, and writing it once would make the reader work out
+    // which of the two it was.
+    if (spec.SECT === 'R') {
+      return 'R-' + n(spec.h) + X + n(spec.b) + X + n(spec.t) + radLabel(spec.r, 0);
     }
     var t = 'H-' + n(spec.h) + X + n(spec.bb) + X + n(spec.tw) + X + n(spec.tf1);
     if (spec.bt !== spec.bb || spec.tf2 !== spec.tf1) t += ' / ' + n(spec.bt) + X + n(spec.tf2);
@@ -2371,6 +2475,18 @@
     });
 
     var region = { regions: [outline], inverted: false };
+    /* The bore of a hollow section goes first, and deliberately not through
+       `cutters`: those go back out to the caller as `cuts`, which is what
+       draws a CUT's own shape on the part drawing. The wall of a tube is not
+       something the sheet asked to be cut out - it is what the section is -
+       and drawing it as a cut would put a CUT outline round every pipe. */
+    var bore = sectInner(spec);
+    if (bore) {
+      var ob = baseOffset(spec);
+      region = PolyBool.difference(region, {
+        regions: [bore.map(function (q) { return [q[0] - ob[0], q[1] - ob[1]]; })],
+        inverted: false });
+    }
     cutters.forEach(function (cu) {
       region = PolyBool.difference(region, { regions: [cu], inverted: false });
     });
@@ -5833,6 +5949,18 @@
       hnarrow(0, t2b, h, t2b, true);         // the b leg, over the top
       radLead(t2b + lr1 * K, t1a + lr1 * K, lr1, 1, 1);                 // heel root
       radLead(w - lr2 * K, t1a - lr2 * K, lr2, 1, 1);                   // a-leg toe
+    } else if (sp.SECT === 'P') {
+      /* d t - and d is on the label, so only the wall is dimensioned. It is
+         measured across the left-hand wall at half height, which is where the
+         barrel is vertical and the two faces are a clean t apart. */
+      var pt = num(sp.t, 0);
+      hnarrow(0, pt, h / 2, pt);
+    } else if (sp.SECT === 'R') {
+      // h b t r - the wall on the left face, the corner once. All four
+      // corners carry the same r and radLead refuses the repeats.
+      var rt = num(sp.t, 0), rr = num(sp.r, 0);
+      hnarrow(0, rt, h / 2, rt);
+      radLead(w - rr * K, h - rr * K, rr, 1, 1);                        // outer corner
     }
     return { dims: dims, narrow: narrow, leads: leads };
   }
@@ -6729,11 +6857,21 @@
     SECT_C: { t: 'SECT — C', f: [['h', 'h'], ['b', 'b'], ['tw', 'tw'], ['tf', 'tf'],
                                  ['rw', 'rw'], ['rf', 'rf'], ['LENGTH', 'THK']] },
     SECT_L: { t: 'SECT — L', f: [['a', 'a'], ['b', 'b'], ['t1', 't1'], ['t2', 't2'],
-                                 ['r1', 'r1'], ['r2', 'r2'], ['LENGTH', 'THK']] }
+                                 ['r1', 'r1'], ['r2', 'r2'], ['LENGTH', 'THK']] },
+    /* The hollow pair. Both list only what was typed on the row - a P's inner
+       diameter and an R's inner corner are worked out from the wall and are not
+       columns, because a take-off has to be checkable against the row it came
+       from, and a derived number sends the reader looking for a cell that is
+       not there. */
+    SECT_P: { t: 'SECT — P', f: [['d', 'd'], ['t', 't'], ['LENGTH', 'THK']] },
+    SECT_R: { t: 'SECT — R', f: [['h', 'h'], ['b', 'b'], ['t', 't'], ['r', 'r'],
+                                 ['LENGTH', 'THK']] }
   };
-  var BOQ_ORDER = ['RECT', 'TRAP', 'CIRC', 'BAR', 'SECT_H', 'SECT_C', 'SECT_L'];
+  var BOQ_ORDER = ['RECT', 'TRAP', 'CIRC', 'BAR',
+                   'SECT_H', 'SECT_C', 'SECT_L', 'SECT_P', 'SECT_R'];
   var BOQ_CAT = { RECT: 'PLATE', TRAP: 'PLATE', CIRC: 'PLATE', BAR: 'BAR',
-                  SECT_H: 'SECT', SECT_C: 'SECT', SECT_L: 'SECT' };
+                  SECT_H: 'SECT', SECT_C: 'SECT', SECT_L: 'SECT',
+                  SECT_P: 'SECT', SECT_R: 'SECT' };
   function boqKind(spec) {
     if (isSectSpec(spec)) return 'SECT_' + spec.SECT;
     if (isBarSpec(spec)) return 'BAR';
@@ -6749,6 +6887,16 @@
     var map = {}, keys = [], total = 0;
     list.forEach(function (it) {
       var spec = it.spec, k = boqKind(spec), def = BOQ_KIND[k];
+      /* A shape with no block in BOQ_KIND used to take the whole workbook down
+         with "cannot read properties of undefined" - thrown inside a promise,
+         so the only sign was a take-off that never arrived and no error
+         anywhere. Adding a SECT type and forgetting this table is the easy
+         mistake; losing the BOQ over it is not an acceptable price. */
+      if (!def) {
+        console.error('[plateBuilder] BOQ: no take-off block for ' + k +
+                      ' (' + spec.ID + ') - the part is in the model, not on the list');
+        return;
+      }
       var vals = def.f.map(function (p) { return +num(spec[p[1]], 0).toFixed(4); });
       var key = k + '|' + spec.ID + '|' + vals.join(',');
       var e = map[key];
@@ -7705,6 +7853,44 @@
     ' <b>r1</b> is always the fillet in the corner, <b>r2</b> the rounding at the' +
     ' free ends.</figcaption></figure>';
 
+  /* The hollow pair get their own figure rather than a fourth and fifth panel
+     beside H, C and L. They are not more rolled shapes - they are the two the
+     bore is subtracted from, and every question a reader has about them (where
+     is the wall measured, which corner is r) is about that bore. Both are drawn
+     with fill-rule evenodd, so what shows through the middle really is a hole
+     and not a white shape laid on top. */
+  var GUIDE_SVG_TUBE =
+    '<figure><svg class="gsvg" viewBox="0 0 520 180" role="img">' +
+    // P - a round tube
+    '<g fill="#dbeafe" stroke="#2563eb" stroke-width="1.4" fill-rule="evenodd">' +
+    '<path d="M100 80 A50 50 0 1 0 200 80 A50 50 0 1 0 100 80 Z' +
+    'M108 80 A42 42 0 1 0 192 80 A42 42 0 1 0 108 80 Z"/></g>' +
+    '<g stroke="#94a3b8" stroke-width="0.8" fill="none">' +
+    '<path d="M114 45 L186 115"/><path d="M205 47 L221 33"/></g>' +
+    '<g font-size="10" fill="#64748b">' +
+    '<text x="150" y="86" text-anchor="middle">d</text>' +
+    '<text x="224" y="32">t</text></g>' +
+    '<text x="150" y="168" font-size="12" font-weight="700" fill="#0f172a" text-anchor="middle">P</text>' +
+    // R - a rectangular tube
+    '<g fill="#dbeafe" stroke="#2563eb" stroke-width="1.4" fill-rule="evenodd">' +
+    '<path d="M344 30 H456 A14 14 0 0 1 470 44 V116 A14 14 0 0 1 456 130 H344' +
+    'A14 14 0 0 1 330 116 V44 A14 14 0 0 1 344 30 Z' +
+    'M344 38 H456 A6 6 0 0 1 462 44 V116 A6 6 0 0 1 456 122 H344' +
+    'A6 6 0 0 1 338 116 V44 A6 6 0 0 1 344 38 Z"/></g>' +
+    '<g stroke="#94a3b8" stroke-width="0.8" fill="none">' +
+    '<path d="M463 37 L479 23"/></g>' +
+    '<g font-size="10" fill="#64748b">' +
+    '<text x="400" y="24" text-anchor="middle">b</text>' +
+    '<text x="318" y="84">h</text>' +
+    '<text x="348" y="84">t</text>' +
+    '<text x="482" y="22">r</text></g>' +
+    '<text x="400" y="168" font-size="12" font-weight="700" fill="#0f172a" text-anchor="middle">R</text>' +
+    '</svg>' +
+    '<figcaption><b>d</b> and <b>h</b>/<b>b</b> are over the <b>outside</b>, and <b>t</b> is' +
+    ' the wall. <b>r</b> is the <b>outer</b> corner; the inner one follows from it as' +
+    ' <code>r - t</code> and is not written on the row. Leave <b>r</b> blank and the corner' +
+    ' comes out square.</figcaption></figure>';
+
   // Every example here is spreadsheet rows, so it is drawn as a spreadsheet -
   // column letters, row numbers, cell borders. A black code block made the
   // input look like a text file being piped somewhere, which is the wrong idea.
@@ -7827,7 +8013,8 @@
     GUIDE_SVG_TIERS,
     '<table class="gt"><thead><tr><th>tier</th><th>what it is</th><th>keywords</th></tr></thead><tbody>',
     '<tr><td><b>PART</b></td><td>one piece of steel, defined once and used as often as you',
-    ' like. A <b>PLATE</b> is a flat outline; a <b>SECT</b> is a rolled H, C or L; a',
+    ' like. A <b>PLATE</b> is a flat outline; a <b>SECT</b> is a steel section - a rolled',
+    ' H, C or L, or a hollow P or R; a',
     ' <b>BAR</b> is a round bar. A <b>HOLE</b> is not a part at all - it is a shape you',
     ' subtract from a plate with <b>CUT</b>, which is how holes, notches and slots are made.</td>',
     '<td><code>PLATE</code> <code>HOLE</code> <code>CUT</code> <code>SECT</code> <code>BAR</code></td></tr>',
@@ -8037,8 +8224,10 @@
 
     '<h3>SECT - a rolled section</h3>',
     sheet([['SECT', 'id', 'mat', 'length', 'TYPE', 'base.pt', 'v1', 'v2', 'v3', '...']]),
-    '<p>TYPE is <b>H</b>, <b>C</b> or <b>L</b>. The values follow from column G in order with',
-    ' <b>no blank cells between them</b> - each type has its own list.</p>',
+    '<p>TYPE is <b>H</b>, <b>C</b>, <b>L</b>, <b>P</b> or <b>R</b>. The values follow from',
+    ' column G in order with <b>no blank cells between them</b> - each type has its own list.',
+    ' The first three are rolled open sections; <b>P</b> is a round tube and <b>R</b> a',
+    ' rectangular one.</p>',
     GUIDE_SVG_SECT,
     '<table class="gt"><thead><tr><th>TYPE</th><th>values, in order</th></tr></thead><tbody>',
     '<tr><td><b>H</b></td><td><code>h bb bt tw tf1 tf2 r1</code><br>' +
@@ -8050,14 +8239,32 @@
     '<tr><td><b>L</b></td><td><code>a b t1 t2 r1 r2</code><br>' +
     'leg along x &middot; leg along y &middot; <b>thickness of the a leg</b> &middot;',
     ' <b>thickness of the b leg</b> &middot; root fillet &middot; toe radius</td></tr>',
+    '<tr><td><b>P</b></td><td><code>d t</code><br>' +
+    '<b>outside</b> diameter &middot; wall thickness</td></tr>',
+    '<tr><td><b>R</b></td><td><code>h b t r</code><br>' +
+    'depth &middot; width &middot; wall thickness &middot; <b>outer</b> corner radius</td></tr>',
     '</tbody></table>',
     sheet([['# SECT', 'id', 'mat', 'length', 'TYPE', 'base.pt', 'v1', 'v2', 'v3', 'v4', 'v5', 'v6', 'v7'],
            ['SECT', 's.H', 'SM490', 6000, 'H', 'bc', 400, 200, 200, 8, 13, 13, 16],
            ['SECT', 's.C', 'SS275', 3000, 'C', 'bc', 300, 90, 12, 16, 19, 9],
-           ['SECT', 's.L', 'SS275', 2400, 'L', 'bc', 90, 75, 9, 9, 8.5, 6]]),
+           ['SECT', 's.L', 'SS275', 2400, 'L', 'bc', 90, 75, 9, 9, 8.5, 6],
+           ['SECT', 's.P', 'SS275', 3500, 'P', 'mc', 48.6, 2.5],
+           ['SECT', 's.R', 'SS275', 3500, 'R', 'mc', 100, 100, 6, 12]]),
     '<p>An H takes seven values, C and L six. C and L take the same <i>number</i> but they',
     ' mean different things, so the type decides how they are read. An equal angle still',
     ' writes all four: <code>100 100 10 10</code>.</p>',
+    '<p><b>P and R are hollow, and the wall is uniform.</b> That is what lets each of them',
+    ' be described by so few numbers. A P is the outside diameter and the wall - a',
+    ' <code>48.6 2.5</code> scaffold tube is 2.83 kg/m, where the same 48.6 written as a',
+    ' solid <code>BAR</code> would be 14.56 - and an R is the two outside faces, the wall,',
+    ' and the radius of the <b>outer</b> corner. The inner corner is not asked for: a formed',
+    ' tube keeps its wall round the bend, so it is <code>r - t</code>, and square whenever the',
+    ' wall is the thicker of the two. A square tube is an R whose <code>h</code> and',
+    ' <code>b</code> match - there is no separate type for it.</p>',
+    GUIDE_SVG_TUBE,
+    '<p>The names on the standards are taken too: <code>CHS</code>, <code>PIPE</code> and',
+    ' <code>O</code> read as P; <code>RHS</code>, <code>SHS</code> and <code>BOX</code> read',
+    ' as R - the same courtesy <code>I</code> has always had for H.</p>',
     '<p>Fillets are drawn as real arcs (eight segments per quarter, area within 0.06%).',
     ' Leaving them out of an H-400&times;200&times;8&times;13 loses about 2.6% of the area. Put',
     ' <b>0</b> or leave the cell blank and that corner comes out square - no error.</p>',
