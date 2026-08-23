@@ -155,7 +155,9 @@ class TrebarBase {
                 } else {
                     // 각 조각은 자기 안착 직선 위에 남긴다. 코너는 '덜 끌려가는 쪽'의 끝점을
                     // 그대로 쓰고, 반대쪽 조각만 그 점까지 자기 방향으로 이동시킨다.
-                    if (pull1 <= pull2) {
+                    //  · followFirst(15번)은 먼저 안착한 앞 조각이 기준 — 뒤 조각을 맞춘다.
+                    //    (거리 비교로 고르면 a 가 자기 지지면에서 밀려나 배근이 어긋난다)
+                    if (this.followFirst || pull1 <= pull2) {
                         let c = { x: seg1.p2.x, y: seg1.p2.y };            // seg1 유지
                         seg2.p1 = { x: c.x, y: c.y };
                         seg2.p2 = { x: c.x + seg2.uDir.x * seg2.initialLen, y: c.y + seg2.uDir.y * seg2.initialLen };
