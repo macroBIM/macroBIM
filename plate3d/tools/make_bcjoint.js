@@ -40,7 +40,9 @@ const gX     = cFaceX + BOLT.gauge;
 const z0     = -BOLT.pitch * (BOLT.n - 1) / 2;
 const ALPHA  = Number(process.env.ALPHA || 0);
 const NUT    = BOLT.d * 0.9;                 // the default nut height, 0.9d
-const PROJ   = BOLT.d * 0.2;                 // and the thread it shows past the nut
+const BLEN   = 45;                           // and one catalogue length for both
+const gripC  = L.t + C.tf;                   // flange + cleat
+const gripB  = 2 * L.t + B.tw;               // cleat + web + cleat
 
 const rows = [];
 const R = (...c) => rows.push(c);
@@ -57,15 +59,17 @@ R('SECT', 'sc.col', 'SS275', C.len, 'H', 'mc', C.h, C.b, C.b, C.tw, C.tf, C.tf, 
 R('SECT', 'sc.bm',  'SS275', B.len, 'H', 'mc', B.h, B.b, B.b, B.tw, B.tf, B.tf, B.r);
 R('SECT', 'sc.cl',  'SS275', L.len, 'L', 'mc', L.a, L.b, L.t, L.t, L.r, L.r2);
 X();
-R('# BOLT', 'id', 'mat', 'dia', 'length', '[hole]', '[head_af]', '[head_h]', '[nut_af]', '[nut_h]');
+R('# BOLT', 'id', 'mat', 'dia', 'length', '[hole]', '[head_af]', '[head_h]', '[nut_af]',
+  '[nut_h]', '[proj]');
 R('#   the point on the MODULE row is the underside of the head, so these start');
 R('#   on the steel face and the head stands off behind it');
-R('#   length = grip + nut + proj. proj is the thread showing past the nut, and');
-R('#   written longer than that stands its nut off the steel - which is the right');
-R('#   way for a wrong length to show itself. Grip here is flange + cleat, and');
-R('#   cleat + web + cleat.');
-R('BOLT', 'bo.c', 'F10T', BOLT.d, L.t + C.tf + NUT + PROJ);
-R('BOLT', 'bo.b', 'F10T', BOLT.d, 2 * L.t + B.tw + NUT + PROJ);
+R('#   length = grip + nut + proj, and proj is the thread showing past the nut.');
+R('#   Grip is flange + cleat, 23, and cleat + web + cleat, 22.5. Bolts come in');
+R('#   catalogue lengths, so both are written 45 and proj takes up the rest -');
+R('#   7.6 and 8.1. Left blank proj would be 0.2d and the lengths would come out');
+R('#   40.6 and 40.1: two take-off lines for a bolt nobody orders twice.');
+R('BOLT', 'bo.c', 'F10T', BOLT.d, BLEN, '', '', '', '', '', BLEN - gripC - NUT);
+R('BOLT', 'bo.b', 'F10T', BOLT.d, BLEN, '', '', '', '', '', BLEN - gripB - NUT);
 X();
 R('# MODULE', 'id', 'member', 'Ref.Pt', 'L.X', 'L.Y', 'L.Z', 'PLANE', 'ROT.X', 'ROT.Y', 'ROT.Z',
   'dx', 'dy', 'dz', 'repeat');
