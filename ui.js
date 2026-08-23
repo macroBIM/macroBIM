@@ -110,22 +110,32 @@ const UI = {
                 if (seg.label) {
                     let midX = (seg.p1.x + seg.p2.x) / 2;
                     let midY = (seg.p1.y + seg.p2.y) / 2;
-                    
-                    let offsetDist = secType === "TBEAM" ? 20 : 150; 
+
+                    // 활성(재스폰) 철근의 세그먼트 라벨도 함께 강조 — 크게·주황색·배경칩
+                    let baseFS = secType === "TBEAM" ? 16 : 60;
+                    let fs = isActive ? baseFS * 1.5 : baseFS;
+                    let offsetDist = (secType === "TBEAM" ? 20 : 150) * (isActive ? 1.25 : 1);
                     let textX = midX + seg.normal.x * offsetDist;
                     let textY = midY + seg.normal.y * offsetDist;
+
+                    if (isActive) {                       // 가독성용 배경칩 (라벨 뒤)
+                        UI.trebarGroup.add(new Konva.Circle({
+                            x: textX, y: textY, radius: fs * 0.72,
+                            fill: 'rgba(0,0,0,0.55)', stroke: '#FF9800', strokeWidth: fs * 0.07
+                        }));
+                    }
 
                     UI.trebarGroup.add(new Konva.Text({
                         x: textX,
                         y: textY,
                         text: seg.label,
-                        fontSize: secType === "TBEAM" ? 16 : 60,
+                        fontSize: fs,
                         fontFamily: 'Arial',
                         fontStyle: 'bold',
-                        fill: '#00FFFF', 
-                        scaleY: -1,      
-                        offsetX: secType === "TBEAM" ? 5 : 20,
-                        offsetY: secType === "TBEAM" ? 8 : 30
+                        fill: isActive ? '#FF9800' : '#00FFFF',
+                        scaleY: -1,
+                        offsetX: (secType === "TBEAM" ? 5 : 20) * (fs / baseFS),
+                        offsetY: (secType === "TBEAM" ? 8 : 30) * (fs / baseFS)
                     }));
                 }
             });
