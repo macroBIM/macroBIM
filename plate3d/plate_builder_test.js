@@ -7273,7 +7273,14 @@
         return;
       }
       var vals = def.f.map(function (p) { return +num(spec[p[1]], 0).toFixed(4); });
-      var key = k + '|' + spec.ID + '|' + vals.join(',');
+      /* A counted item merges on WHAT IT IS, not on what the sheet called it.
+         Two BOLT rows of the same size are the same bolt however they were
+         named - you buy M16x50 by the box and nobody orders BO.A separately
+         from BO.B - so the id is left out of the key and the line is named for
+         the size instead. Everything fabricated keeps its id in the key,
+         because PL.A and PL.B really are two parts even at the same size. */
+      var key = def.count ? k + '|' + (spec.MAT || '') + '|' + vals.join(',')
+                          : k + '|' + spec.ID + '|' + vals.join(',');
       var e = map[key];
       if (!e) {
         // The engine's own area, back out of the mass it already computed, so a
@@ -7284,7 +7291,9 @@
         // segments a quarter, so the take-off matches the solid, not a handbook.
         var thk = num(spec.THK, 0);
         var aMM = thk ? it.mass / (thk * RHO) : 0;
-        e = map[key] = { kind: k, id: spec.ID, mat: spec.MAT || '—', vals: vals,
+        e = map[key] = { kind: k,
+                         id: def.count ? 'M' + rnd(num(spec.D, 0)) : spec.ID,
+                         mat: spec.MAT || '—', vals: vals,
                          area: def.area ? aMM / 1e6 : null,
                          cuts: def.area ? cutCount(spec.ID) : null,
                          areaMM: def.area ? null : aMM,
