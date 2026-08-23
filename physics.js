@@ -518,7 +518,16 @@ const Physics = {
                     return Math.max(0, a - need / Math.max(0.2, cosA));
                 };
                 let tMid = (mid.x - o.x) * u.x + (mid.y - o.y) * u.y;
-                if (side === 'start') lo = tMid - reach(-1); else hi = tMid + reach(1);
+                // 경사면에서 need/cosA 후퇴가 과도해 세그가 뒤집히거나 사라지지 않도록,
+                // 확장 결과가 원래 세그 길이의 절반 미만이면 FIT 확장을 포기하고 원래 끝을 유지.
+                let rch = reach(side === 'start' ? -1 : 1);
+                let half = seg.initialLen / 2;
+                if (!isFinite(rch) || rch < half * 0.5) {
+                    console.warn(`[FIT] ${trebar.id || '?'} 의 '${seg.label}' ${side} 확장이 과소(${Math.round(rch)}mm < ` +
+                                 `${Math.round(half)}mm) — 경사면 후퇴 과다로 판단해 원래 길이 유지`);
+                    rch = half;
+                }
+                if (side === 'start') lo = tMid - rch; else hi = tMid + rch;
             }
 
             return {
