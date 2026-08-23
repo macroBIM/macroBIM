@@ -23,7 +23,12 @@ const path = require('path');
 
 const SP = path.resolve(__dirname, '../video/tools');
 const P3 = path.resolve(__dirname, '..');
-const OUT = P3 + '/PLATE3D_BCJOINT.xlsx';
+/* The shipped PLATE3D_BCJOINT.xlsx is now the parametric book that
+   make_bcjoint_book.js writes. This generator stays because the typed version
+   is the shorter thing to read - every number is where it lands, with no
+   formula between - but it writes somewhere harmless so a stray run cannot
+   overwrite the example. Pass a path to put it where you want it. */
+const OUT = process.argv[2] || '/tmp/PLATE3D_BCJOINT_typed.xlsx';
 
 const C = { h: 300, b: 300, tw: 10, tf: 15, r: 13, len: 1600 };
 const B = { h: 300, b: 150, tw: 6.5, tf: 9, r: 13, len: 900 };

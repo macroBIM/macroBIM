@@ -9922,8 +9922,8 @@
        connection had to be built from plates so the holes could be cut, which
        cost the fillets, the section names in the take-off and three times the
        rows. This sheet says CUT nowhere. */
-    { f: 'PLATE3D_BCJOINT.xlsx', n: 'Beam to column', s: '55 rows → 13 members · 184 kg',
-      d: 'Double angle cleat. The bolts find their own holes - no CUT row.' },
+    { f: 'PLATE3D_BCJOINT.xlsx', n: 'Beam to column', s: '36 rows → 13 members · 186 kg',
+      d: 'A front sheet picks the sections. Nothing here says CUT.' },
     { f: 'PLATE3D_TANK.xlsx', n: 'Tank', s: '54 rows → 16 members · 4.9 kg',
       d: 'Reverse-engineered from a five-sheet A4 drawing set.' },
     { f: 'PLATE3D_TURRET.xlsx', n: 'Turret', s: '56 rows → 12 members · 0.65 kg',
