@@ -161,7 +161,8 @@ const Domain = {
             let cType = targetWall.tag ? targetWall.tag.toLowerCase() : 'outer';
             let coverVal = Domain.currentSection.covers[cType] || 50;
             // ⭐ set anchor도 wallStack 반영 (이전 적층 위로 spawn)
-            let stackOffset = Domain.wallStack[targetWall.id] || 0;
+            let stackOffset = Physics.stackAt(Domain.wallStack, targetWall,
+                (targetWall.x1 + targetWall.x2) / 2, (targetWall.y1 + targetWall.y2) / 2);
             let spawnDist = coverVal + stackOffset + (rb.dia || 0) / 2;
 
             let tcx = ((targetWall.x1 + targetWall.x2) / 2) + (targetWall.nx * spawnDist);
@@ -272,15 +273,17 @@ const Domain = {
             const trebar = item.obj;
             Physics.updatePhysics(trebar, Domain.currentSection.walls, Domain.wallStack);
             if (trebar.state === "FORMED") {
-                const hitWalls = Domain._collectTrebarWalls(trebar);
-                // 적층 진단 로그 — 세그별 안착 벽 + 적층 후 각 벽의 누적 두께
+                const spanMap = Domain._collectTrebarWalls(trebar);
+                // 적층 진단 로그 — 세그별 안착 벽 + 벽별 적층 구간
                 const segInfo = trebar.segments.map(s => {
                     const w = s.fitWall || s.anchorWall || s.contactWall;
                     return s.label + '=' + ((w && w.id) || '?');
                 }).join(', ');
-                Domain._accumulateStack(trebar.dia || 0, hitWalls);
-                const stackInfo = Array.from(hitWalls).map(id => id + ':' + Domain.wallStack[id]).join(', ');
-                console.log('[STACK] ' + (trebar.id || '?') + ' (dia ' + (trebar.dia || 0) + ') 세그[' + segInfo + '] → 적층 {' + stackInfo + '}');
+                Domain._accumulateStack(trebar.dia || 0, spanMap);
+                const stackInfo = Object.keys(spanMap).map(id =>
+                    id + '[' + spanMap[id].spans.map(sp => Math.round(sp[0]) + '~' + Math.round(sp[1])).join(',') + ']'
+                ).join(', ');
+                console.log('[STACK] ' + (trebar.id || '?') + ' (dia ' + (trebar.dia || 0) + ') 세그[' + segInfo + '] → 구간적층 {' + stackInfo + '}');
                 Domain.activeQueueIndex++;
             }
         } else if (item.kind === "lrebar") {
@@ -294,36 +297,59 @@ const Domain = {
         }
     },
 
+    // 철근이 실제로 얹힌 벽 + 그 벽 위의 축방향 구간(세그먼트 투영) 수집
+    //  · fitWall/nodeWalls/spanWalls 모두 등록 (크라운 분할 하면의 양쪽 포함)
+    //  · 구간 단위라, 같은 벽의 서로 다른 영역에 있는 철근끼리는 적층되지 않음
     _collectTrebarWalls: (trebar) => {
-        const ids = new Set();
+        const map = {};   // id → { wall, spans: [[lo, hi], ...] }
+        const wallById = {};
+        ((Domain.currentSection && Domain.currentSection.walls) || []).forEach(w => { if (w.id) wallById[w.id] = w; });
+        const addSpan = (wall, seg) => {
+            if (!wall || !wall.id || !seg || !seg.p1 || !seg.p2) return;
+            const orig = wallById[wall.id] || wall;
+            const dx = orig.x2 - orig.x1, dy = orig.y2 - orig.y1;
+            const L = MathUtils.hypot(dx, dy) || 1;
+            const t1 = ((seg.p1.x - orig.x1) * dx + (seg.p1.y - orig.y1) * dy) / L;
+            const t2 = ((seg.p2.x - orig.x1) * dx + (seg.p2.y - orig.y1) * dy) / L;
+            const lo = Math.max(0, Math.min(t1, t2)), hi = Math.min(L, Math.max(t1, t2));
+            if (hi <= lo + 0.5) return;
+            if (!map[orig.id]) map[orig.id] = { wall: orig, spans: [] };
+            map[orig.id].spans.push([lo, hi]);
+        };
         trebar.segments.forEach(seg => {
-            const w = seg.fitWall || seg.anchorWall || seg.contactWall;
-            const wid = w && w.id;
-            if (wid) ids.add(wid);
-            // 세그먼트가 실제로 얹힌 모든 벽에 적층 등록:
-            //  · nodeWalls — 물리 노드들이 안착한 벽 (안착 시 기록)
-            //  · spanWalls — FIT 이 양 끝단 기준으로 사용한 벽 (크라운 분할 하면의 반대쪽 포함)
-            //  한쪽 벽만 등록되면 TSB 직경이 왼쪽 벽에만 쌓여 좌우 철근 위치가 어긋난다.
-            (seg.nodeWalls || []).forEach(nw => { if (nw && nw.id) ids.add(nw.id); });
-            (seg.spanWalls || []).forEach(id => ids.add(id));
+            addSpan(seg.fitWall || seg.anchorWall || seg.contactWall, seg);
+            (seg.nodeWalls || []).forEach(nw => addSpan(nw, seg));
+            (seg.spanWalls || []).forEach(id => addSpan(wallById[id], seg));
         });
-        return ids;
+        return map;
     },
 
     _collectLrebarWalls: (group) => {
-        const ids = new Set();
+        const map = {};   // 종방향은 경로 벽 전체 구간에 적층 (기존 동작 유지)
         const pathWalls = group._pathWalls || [];
         pathWalls.forEach(w => {
-            const wid = w.id || (w.origWall && w.origWall.id);
-            if (wid) ids.add(wid);
+            const orig = w.origWall || w;
+            if (!orig.id) return;
+            const L = MathUtils.hypot(orig.x2 - orig.x1, orig.y2 - orig.y1) || 1;
+            if (!map[orig.id]) map[orig.id] = { wall: orig, spans: [] };
+            map[orig.id].spans.push([0, L]);
         });
-        return ids;
+        return map;
     },
 
-    _accumulateStack: (inc, wallIds) => {
-        if (!inc || !wallIds || wallIds.size === 0) return;
-        wallIds.forEach(wid => {
-            Domain.wallStack[wid] = (Domain.wallStack[wid] || 0) + inc;
+    _accumulateStack: (inc, spanMap) => {
+        if (!inc || !spanMap) return;
+        Object.keys(spanMap).forEach(id => {
+            // 같은 철근이 한 벽에 여러 구간을 등록하면 겹침 병합 후 1회만 적층 (이중 적층 방지)
+            const spans = spanMap[id].spans.slice().sort((a, b) => a[0] - b[0]);
+            const merged = [];
+            spans.forEach(sp => {
+                const last = merged[merged.length - 1];
+                if (last && sp[0] <= last[1] + 1) last[1] = Math.max(last[1], sp[1]);
+                else merged.push([sp[0], sp[1]]);
+            });
+            if (!Domain.wallStack[id]) Domain.wallStack[id] = [];
+            merged.forEach(sp => Domain.wallStack[id].push({ lo: sp[0], hi: sp[1], th: inc }));
         });
     }
 };

@@ -87,10 +87,10 @@ const LRebarEngine = {
         });
     },
 
-    _getWallStackVal: (wallStack, w) => {
-        if (!wallStack) return 0;
-        const wid = w.id || (w.origWall && w.origWall.id);
-        return (wid && wallStack[wid]) ? wallStack[wid] : 0;
+    _getWallStackVal: (wallStack, w, px, py) => {
+        if (!wallStack || !w) return 0;
+        const orig = w.origWall || w;
+        return (typeof Physics !== 'undefined' && Physics.stackAt) ? Physics.stackAt(wallStack, orig, px, py) : 0;
     },
 
     _computePathTRange: (group, pathWalls) => {
@@ -127,7 +127,7 @@ const LRebarEngine = {
                         const gamma = (wx * dx + wy * dy) / (dx * dx + dy * dy);
                         if (gamma < 0 || gamma > 1) return;
                         minDist = hit.dist;
-                        const priorStack = LRebarEngine._getWallStackVal(wallStack, w);
+                        const priorStack = LRebarEngine._getWallStackVal(wallStack, w, hit.x, hit.y);
                         let travelOffset = (priorStack + dia / 2) / Math.abs(dotNormal);
                         foundTarget = {
                             x: hit.x - gravDir.x * travelOffset,
@@ -178,8 +178,7 @@ const LRebarEngine = {
             const t1 = (w.x1 - cx) * ux + (w.y1 - cy) * uy;
             const t2 = (w.x2 - cx) * ux + (w.y2 - cy) * uy;
             const dotN = gravDir.x * w.nx + gravDir.y * w.ny;
-            const priorStack = LRebarEngine._getWallStackVal(wallStack, w);
-            return { w, t1, t2, dotN, priorStack };
+            return { w, t1, t2, dotN };
         });
 
         const findOnWall = (t) => {
@@ -193,7 +192,8 @@ const LRebarEngine = {
                     const wallX = seg.w.x1 + frac * (seg.w.x2 - seg.w.x1);
                     const wallY = seg.w.y1 + frac * (seg.w.y2 - seg.w.y1);
                     if (Math.abs(seg.dotN) > 0.01) {
-                        const offset = (seg.priorStack + dia / 2) / Math.abs(seg.dotN);
+                        const priorStack = LRebarEngine._getWallStackVal(wallStack, seg.w, wallX, wallY);
+                        const offset = (priorStack + dia / 2) / Math.abs(seg.dotN);
                         return { x: wallX - gravDir.x * offset, y: wallY - gravDir.y * offset };
                     }
                 }
@@ -208,7 +208,8 @@ const LRebarEngine = {
                         const wallX = endpoint === 0 ? seg.w.x1 : seg.w.x2;
                         const wallY = endpoint === 0 ? seg.w.y1 : seg.w.y2;
                         if (Math.abs(seg.dotN) > 0.01) {
-                            const offset = (seg.priorStack + dia / 2) / Math.abs(seg.dotN);
+                            const priorStack = LRebarEngine._getWallStackVal(wallStack, seg.w, wallX, wallY);
+                            const offset = (priorStack + dia / 2) / Math.abs(seg.dotN);
                             closestTarget = { x: wallX - gravDir.x * offset, y: wallY - gravDir.y * offset };
                         }
                     }
