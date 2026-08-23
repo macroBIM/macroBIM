@@ -25,7 +25,7 @@
     // 단일 수식 평가 → { value:Number, error:String|null }
     eval: function (expr, scope) {
       scope = scope || {};
-      var s = String(expr == null ? '' : expr).trim();
+      var s = String(expr == null ? '' : expr).trim().toLowerCase();   // 대소문자 무시 (변수·함수명 모두 소문자로 정규화)
       if (s === '') return { value: NaN, error: 'empty value' };
       if (/^[-+]?(\d+\.?\d*|\.\d+)([eE][-+]?\d+)?$/.test(s)) return { value: Number(s), error: null };  // 순수 숫자
       var body = s.replace(/\*\*/g, '^').replace(/\^/g, '**').replace(/@/g, '*');   // ^ → ** (기존 ** 보존)
@@ -52,7 +52,7 @@
       var scope = {}, errors = [];
       (varList || []).forEach(function (v) {
         if (!v || v.name == null || String(v.name).trim() === '') return;
-        var name = String(v.name).trim();
+        var name = String(v.name).trim().toLowerCase();   // 변수명 대소문자 무시
         if (!IDENT.test(name)) { errors.push({ name: name, msg: 'invalid variable name' }); return; }
         var r = Calc.eval(v.expr, scope);
         if (r.error) { errors.push({ name: name, msg: r.error }); scope[name] = NaN; }
