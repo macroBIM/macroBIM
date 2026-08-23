@@ -25,8 +25,8 @@
     // 단일 수식 평가 → { value:Number, error:String|null }
     eval: function (expr, scope) {
       scope = scope || {};
-      var s = String(expr == null ? '' : expr).trim();
-      if (s === '') return { value: NaN, error: '빈 값' };
+      var s = String(expr == null ? '' : expr).trim().toLowerCase();   // 대소문자 무시 (변수·함수명 모두 소문자로 정규화)
+      if (s === '') return { value: NaN, error: 'empty value' };
       if (/^[-+]?(\d+\.?\d*|\.\d+)([eE][-+]?\d+)?$/.test(s)) return { value: Number(s), error: null };  // 순수 숫자
       var body = s.replace(/\*\*/g, '^').replace(/\^/g, '**').replace(/@/g, '*');   // ^ → ** (기존 ** 보존)
       var names = [], vals = [];
@@ -36,9 +36,9 @@
       try {
         var fn = Function.apply(null, names.concat([PRE + 'return (' + body + ');']));
         var v = fn.apply(null, vals);
-        if (typeof v !== 'number' || !isFinite(v)) return { value: NaN, error: '결과가 숫자가 아님' };
+        if (typeof v !== 'number' || !isFinite(v)) return { value: NaN, error: 'result is not a number' };
         return { value: v, error: null };
-      } catch (e) { return { value: NaN, error: (e && e.message) || '수식 오류' }; }
+      } catch (e) { return { value: NaN, error: (e && e.message) || 'formula error' }; }
     },
 
     // 숫자만 반환 (오류/NaN 이면 fallback)
@@ -52,8 +52,8 @@
       var scope = {}, errors = [];
       (varList || []).forEach(function (v) {
         if (!v || v.name == null || String(v.name).trim() === '') return;
-        var name = String(v.name).trim();
-        if (!IDENT.test(name)) { errors.push({ name: name, msg: '변수명 형식 오류' }); return; }
+        var name = String(v.name).trim().toLowerCase();   // 변수명 대소문자 무시
+        if (!IDENT.test(name)) { errors.push({ name: name, msg: 'invalid variable name' }); return; }
         var r = Calc.eval(v.expr, scope);
         if (r.error) { errors.push({ name: name, msg: r.error }); scope[name] = NaN; }
         else scope[name] = r.value;

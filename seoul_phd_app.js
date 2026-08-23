@@ -1292,7 +1292,7 @@
         (this._vars || []).forEach(function (v, i) {
           var span = document.getElementById('varval-' + i);
           if (!span) return;
-          var nm = String(v.name || '').trim();
+          var nm = String(v.name || '').trim().toLowerCase();   // Calc 스코프 키가 소문자 정규화됨
           if (!nm) { span.textContent = ''; span.className = 'var-val'; return; }
           if (errMap[nm] || !(nm in scope) || !isFinite(scope[nm])) { span.textContent = '⚠ ' + (errMap[nm] || '오류'); span.className = 'var-val err'; }
           else { span.textContent = '= ' + (Math.round(scope[nm] * 1000) / 1000); span.className = 'var-val ok'; }
