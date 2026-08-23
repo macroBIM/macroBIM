@@ -130,11 +130,58 @@ class TrebarBase {
             this.segments.push(this.makeSeg(p1, p2, { x: nx, y: ny }, state, segmentLabel));
         }
 
+        // 설계 사이각(내각) 기록 — 카탈로그 형상의 불변량. 안착 후 이 각으로 복원한다
+        // (각 다리를 제 면에 밀착시키면 면이 이루는 각이 형상을 덮어써 15번이 99.5° 로 변형됨)
+        for (let i = 0; i < this.segments.length - 1; i++) {
+            let s1 = this.segments[i], s2 = this.segments[i + 1];
+            let d1 = { x: -s1.uDir.x, y: -s1.uDir.y }, d2 = s2.uDir;
+            let dot = Math.max(-1, Math.min(1, d1.x * d2.x + d1.y * d2.y));
+            let cross = d1.x * d2.y - d1.y * d2.x;
+            this.segments[i].designTurn = Math.atan2(cross, dot);   // 부호 있는 회전(라디안)
+        }
+
         this.applyRotation();
         return this;
     }
 
+    // 안착 후 설계 사이각 복원 (A 방식: 형상 우선)
+    //  · 기준 = 가장 먼저 안착한 조각(보통 a). 그 조각의 방향·위치는 그대로 둔다.
+    //  · 뒤따르는 조각은 designTurn 만큼 회전시켜 표준 사이각으로 되돌린다.
+    //    → 한쪽 다리는 면에서 뜰 수 있으나, 실제 철근은 정해진 각으로 가공되므로 이쪽이 맞다.
+    restoreDesignAngles() {
+        for (let i = 0; i < this.segments.length - 1; i++) {
+            let s1 = this.segments[i], s2 = this.segments[i + 1];
+            if (s1.designTurn === undefined) continue;
+            let a1 = Math.atan2(s1.uDir.y, s1.uDir.x);
+            let want = a1 + Math.PI - s1.designTurn;                 // s2 가 가져야 할 방향
+            let have = Math.atan2(s2.uDir.y, s2.uDir.x);
+            let diff = want - have;
+            while (diff > Math.PI) diff -= 2 * Math.PI;
+            while (diff < -Math.PI) diff += 2 * Math.PI;
+            if (Math.abs(diff) < 1e-6) continue;
+            // s2 와 그 뒤의 모든 조각을 코너(= s1 의 끝점) 중심으로 함께 회전
+            //  (s2 만 돌리면 s3 이후와 끊긴다 — 21/41 처럼 조각이 3개 이상일 때)
+            let cx = s1.p2.x, cy = s1.p2.y;
+            let cos = Math.cos(diff), sin = Math.sin(diff);
+            let rot = (p) => {
+                let dx = p.x - cx, dy = p.y - cy;
+                return { x: cx + dx * cos - dy * sin, y: cy + dx * sin + dy * cos };
+            };
+            let rotV = (v) => ({ x: v.x * cos - v.y * sin, y: v.x * sin + v.y * cos });
+            s2.p1 = { x: cx, y: cy };
+            for (let k = i + 1; k < this.segments.length; k++) {
+                let sk = this.segments[k];
+                if (k > i + 1) sk.p1 = rot(sk.p1);
+                sk.p2 = rot(sk.p2);
+                sk.uDir = rotV(sk.uDir);
+                sk.normal = rotV(sk.normal);
+                if (sk.nodes) sk.nodes.forEach((n) => { let r = rot(n); n.x = r.x; n.y = r.y; });
+            }
+        }
+    }
+
     finalize() {
+        this.restoreDesignAngles();       // 면이 아니라 카탈로그 각이 형상을 정한다
         // 인접 조각의 코너를 서로의 직선 교점으로 맞춘다.
         //  ⚠ 교점이 두 조각의 안착 구간에서 크게 벗어나면(예: 완만한 헌치 + 수직 웹처럼
         //    두 면에 동시에 밀착할 수 없는 형상) 그 교점으로 끌고 가면 안 된다.
