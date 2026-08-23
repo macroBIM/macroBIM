@@ -161,10 +161,12 @@ class TrebarBase {
                         let c = { x: seg1.p2.x, y: seg1.p2.y };            // seg1 유지
                         seg2.p1 = { x: c.x, y: c.y };
                         seg2.p2 = { x: c.x + seg2.uDir.x * seg2.initialLen, y: c.y + seg2.uDir.y * seg2.initialLen };
+                        seg2.displaced = true;    // 코너를 맞추려 옮겨진 조각 — 안착면이 무의미해져 FIT 확장 금지
                     } else {
                         let c = { x: seg2.p1.x, y: seg2.p1.y };            // seg2 유지
                         seg1.p2 = { x: c.x, y: c.y };
                         seg1.p1 = { x: c.x - seg1.uDir.x * seg1.initialLen, y: c.y - seg1.uDir.y * seg1.initialLen };
+                        seg1.displaced = true;
                     }
                 }
             }

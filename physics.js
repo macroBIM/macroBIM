@@ -344,6 +344,7 @@ const Physics = {
                     n.x = s2.p1.x + (s2.p2.x - s2.p1.x) * r;
                     n.y = s2.p1.y + (s2.p2.y - s2.p1.y) * r;
                 });
+                s2.displaced = true;   // 재구성됨 → 안착면 없음, FIT 확장 금지
                 console.log(`[SHAPE] ${trebar.id || '?'} 의 '${s2.label}' 가 ${Math.round(ang)}° 로 펴짐 → ${want}° 로 복원`);
                 continue;
             }
@@ -363,6 +364,7 @@ const Physics = {
                 n.x = s2.p1.x + (s2.p2.x - s2.p1.x) * r;
                 n.y = s2.p1.y + (s2.p2.y - s2.p1.y) * r;
             });
+            s2.displaced = true;       // 되접힘 → 안착면 없음, FIT 확장 금지
             console.log(`[SHAPE] ${trebar.id || '?'} 의 '${s2.label}' 가 예각으로 안착 → 둔각으로 되접음`);
         }
     },
@@ -633,8 +635,10 @@ const Physics = {
         // FIT 스팬은 p1/p2 를 바꾸기 전에 미리 계산 (start 적용이 end 계산에 영향 주지 않도록)
         const firstSeg = trebar.segments[0];
         const lastSeg = trebar.segments[trebar.segments.length - 1];
-        const startSpan = (startRule && startRule.type === "FIT") ? getFitSpan(firstSeg, 'start') : null;
-        const endSpan = (endRule && endRule.type === "FIT") ? getFitSpan(lastSeg, 'end') : null;
+        // 코너 맞춤으로 옮겨진 조각(displaced)은 더 이상 어느 면에도 안착해 있지 않으므로
+        // FIT 으로 확장하지 않는다 — 확장하면 지지면 없이 단면 밖까지 뻗는다.
+        const startSpan = (startRule && startRule.type === "FIT" && !firstSeg.displaced) ? getFitSpan(firstSeg, 'start') : null;
+        const endSpan = (endRule && endRule.type === "FIT" && !lastSeg.displaced) ? getFitSpan(lastSeg, 'end') : null;
         // FIT 끝단 기준 벽 기록 → 적층(wallStack)이 바가 걸친 모든 벽에 등록되도록
         //  (예: 크라운 분할 하면의 TSB — 시점 E15·종점 E28 둘 다. 한쪽만 등록되면 좌우 적층 어긋남)
         if (startSpan && startSpan.refId) { firstSeg.spanWalls = firstSeg.spanWalls || []; if (firstSeg.spanWalls.indexOf(startSpan.refId) < 0) firstSeg.spanWalls.push(startSpan.refId); }
