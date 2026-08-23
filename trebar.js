@@ -229,7 +229,11 @@ class Shape15 extends TrebarBase {
     generate() {
         let A = this.dims.A || 400;
         let B = this.dims.B || 400;
-        return this.buildSequential([A, B], -22.5, [45], [-1, -1], (pts) => pts[1]);
+        let r = this.buildSequential([A, B], -22.5, [45], [-1, -1], (pts) => pts[1]);
+        r.followFirst = true;   // a 가 안착하며 움직인 만큼 b 의 '초기 위치'도 함께 옮긴다
+        r.keepObtuse = true;    // 두 다리 사이각은 둔각(>90°) 유지
+        r.segments[0].designTurnDeg = 135;   // 거의 펴졌을 때 되돌릴 기준 사이각
+        return r;
     }
 }
 

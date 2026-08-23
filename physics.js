@@ -271,19 +271,99 @@ const Physics = {
                 });
 
                 if (validTargets === seg.nodes.length && segEnergy < CONVERGE && maxPosError < 1.0) {
+                    let beforeMid = { x: (seg.p1.x + seg.p2.x) / 2, y: (seg.p1.y + seg.p2.y) / 2 };
+                    let beforeDir = { x: seg.uDir.x, y: seg.uDir.y };
                     seg.state = "SETTLED";
                     seg.fitWall = Physics.resolveSegmentFitWall(seg, hitInfos);
                     seg.nodeWalls = hitInfos.map(h => h.wall);   // 노드별 안착 벽 (p1쪽 → p2쪽 순) — FIT 이 끝단별로 사용
                     Physics.restoreSegmentLine(seg);
+
+                    // followFirst(15번): 이 조각이 안착하며 이동·회전한 만큼 아직 대기 중인
+                    // 뒤 조각의 '초기 위치'도 같이 옮긴다. 그 뒤 조각은 그 자리에서 스스로 안착한다.
+                    if (trebar.followFirst) {
+                        let afterMid = { x: (seg.p1.x + seg.p2.x) / 2, y: (seg.p1.y + seg.p2.y) / 2 };
+                        let mvx = afterMid.x - beforeMid.x, mvy = afterMid.y - beforeMid.y;
+                        let rotA = Math.atan2(seg.uDir.y, seg.uDir.x) - Math.atan2(beforeDir.y, beforeDir.x);
+                        while (rotA > Math.PI) rotA -= 2 * Math.PI;
+                        while (rotA < -Math.PI) rotA += 2 * Math.PI;
+                        let cosR = Math.cos(rotA), sinR = Math.sin(rotA);
+                        let move = (p) => {
+                            let px = p.x + mvx, py = p.y + mvy;
+                            if (Math.abs(rotA) < 1e-9) return { x: px, y: py };
+                            let dx0 = px - afterMid.x, dy0 = py - afterMid.y;
+                            return { x: afterMid.x + dx0 * cosR - dy0 * sinR, y: afterMid.y + dx0 * sinR + dy0 * cosR };
+                        };
+                        let rv = (v) => (Math.abs(rotA) < 1e-9) ? v
+                            : { x: v.x * cosR - v.y * sinR, y: v.x * sinR + v.y * cosR };
+                        for (let k = idx + 1; k < trebar.segments.length; k++) {
+                            let sk = trebar.segments[k];
+                            if (sk.state === "SETTLED") continue;
+                            let n1 = move(sk.p1), n2 = move(sk.p2);
+                            sk.p1.x = n1.x; sk.p1.y = n1.y;
+                            sk.p2.x = n2.x; sk.p2.y = n2.y;
+                            sk.nodes.forEach(n => { let m = move(n); n.x = m.x; n.y = m.y; n.vx = 0; n.vy = 0; });
+                            sk.uDir = rv(sk.uDir);
+                            sk.normal = rv(sk.normal);
+                        }
+                    }
                 }
             }
         });
 
         if (allSegmentsSettled && trebar.state !== "FORMED") {
+            if (trebar.keepObtuse) Physics.enforceObtuse(trebar);
             if (trebar.finalize) trebar.finalize();
             Physics.applyTrebarEnds(trebar, walls, wallStack);
             Physics.checkFormed(trebar);
             trebar.state = "FORMED";
+        }
+    },
+
+    // 두 다리 사이각이 둔각(>90°) 이어야 하는 형상(15번)에서, 안착 결과가 예각이면
+    // 뒤 조각을 코너 기준으로 되접어 둔각으로 만든다. 이미 둔각이면 그대로 둔다.
+    enforceObtuse: (trebar) => {
+        const segs = trebar.segments || [];
+        for (let i = 0; i < segs.length - 1; i++) {
+            let s1 = segs[i], s2 = segs[i + 1];
+            let d1 = { x: -s1.uDir.x, y: -s1.uDir.y }, d2 = s2.uDir;
+            let dot = d1.x * d2.x + d1.y * d2.y;
+            // 유효 범위: 90° < 내각 < 175° (거의 펴진 상태도 '꺾인 철근'이 아니므로 제외)
+            let ang = Math.acos(Math.max(-1, Math.min(1, dot))) * 180 / Math.PI;
+            if (ang > 90 && ang < 175) continue;          // 정상 둔각
+            if (ang >= 175) {                             // 거의 직선 → 설계 사이각으로 되돌림
+                let want = s1.designTurnDeg !== undefined ? s1.designTurnDeg : 135;
+                let a1 = Math.atan2(s1.uDir.y, s1.uDir.x);
+                let sign = (s1.uDir.x * s2.uDir.y - s1.uDir.y * s2.uDir.x) >= 0 ? 1 : -1;
+                let dir = a1 + sign * (180 - want) * Math.PI / 180;
+                let nu2 = { x: Math.cos(dir), y: Math.sin(dir) };
+                s2.uDir = nu2;
+                s2.p1 = { x: s1.p2.x, y: s1.p2.y };
+                s2.p2 = { x: s2.p1.x + nu2.x * s2.initialLen, y: s2.p1.y + nu2.y * s2.initialLen };
+                s2.nodes.forEach((n, ni) => {
+                    let r = CONFIG.PHYSICS.NODE_POS[ni] !== undefined ? CONFIG.PHYSICS.NODE_POS[ni] : 0.5;
+                    n.x = s2.p1.x + (s2.p2.x - s2.p1.x) * r;
+                    n.y = s2.p1.y + (s2.p2.y - s2.p1.y) * r;
+                });
+                console.log(`[SHAPE] ${trebar.id || '?'} 의 '${s2.label}' 가 ${Math.round(ang)}° 로 펴짐 → ${want}° 로 복원`);
+                continue;
+            }
+            // 예각 → s2 를 s1 축에 대해 반사 (길이·연결 유지, 방향만 둔각 쪽으로)
+            let ax = s1.uDir.x, ay = s1.uDir.y;
+            let refl = (v) => {
+                let d = v.x * ax + v.y * ay;
+                return { x: 2 * d * ax - v.x, y: 2 * d * ay - v.y };
+            };
+            let nu = refl(s2.uDir);
+            s2.uDir = nu;
+            s2.normal = refl(s2.normal);
+            s2.p1 = { x: s1.p2.x, y: s1.p2.y };
+            s2.p2 = { x: s2.p1.x + nu.x * s2.initialLen, y: s2.p1.y + nu.y * s2.initialLen };
+            s2.nodes.forEach((n, ni) => {
+                let r = CONFIG.PHYSICS.NODE_POS[ni] !== undefined ? CONFIG.PHYSICS.NODE_POS[ni] : 0.5;
+                n.x = s2.p1.x + (s2.p2.x - s2.p1.x) * r;
+                n.y = s2.p1.y + (s2.p2.y - s2.p1.y) * r;
+            });
+            console.log(`[SHAPE] ${trebar.id || '?'} 의 '${s2.label}' 가 예각으로 안착 → 둔각으로 되접음`);
         }
     },
 
