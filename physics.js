@@ -206,6 +206,20 @@ const Physics = {
         return res;
     },
 
+    // finalize 후 형상 붕괴 감지 — 코너 교점이 원래 길이보다 훨씬 멀면 각 세그가 거의 평행해진 것
+    checkFormed: (trebar) => {
+        const segs = trebar.segments || [];
+        for (let i = 0; i < segs.length; i++) {
+            const L = MathUtils.hypot(segs[i].p2.x - segs[i].p1.x, segs[i].p2.y - segs[i].p1.y);
+            if (!isFinite(L) || L > segs[i].initialLen * 4 + 100) {
+                console.warn(`[FORM] ${trebar.id || '?'} 의 '${segs[i].label}' 조각이 ${Math.round(L)}mm 로 늘어남 ` +
+                             `(입력 ${Math.round(segs[i].initialLen)}mm) — 이웃 조각과 거의 평행해 코너 교점이 멀어짐. rot/angs 확인`);
+                return false;
+            }
+        }
+        return true;
+    },
+
     updatePhysics: (trebar, walls, wallStack = {}) => {
         if (trebar.state === "FORMED") return;
 
@@ -268,6 +282,7 @@ const Physics = {
         if (allSegmentsSettled && trebar.state !== "FORMED") {
             if (trebar.finalize) trebar.finalize();
             Physics.applyTrebarEnds(trebar, walls, wallStack);
+            Physics.checkFormed(trebar);
             trebar.state = "FORMED";
         }
     },

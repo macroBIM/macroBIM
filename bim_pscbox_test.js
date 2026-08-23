@@ -780,7 +780,26 @@
           // 정체 지속 → 현재 철근 강제 안착 처리 후 다음으로 (전체 정지 방지)
           if (stallTicks > STALL_LIMIT && idx < Domain.queue.length) {
             var it = Domain.queue[idx], id = (it && it.obj && it.obj.id) || ('#' + idx), kind = it && it.kind;
-            console.warn('[SeoulPhD] 철근 안착 실패 → 스킵:', id, '(' + kind + ') — num 미입력/0, init·range NaN, 또는 path 벽 id 불일치 확인');
+            // 왜 멈췄는지 세그먼트별 진단 — 상태 / 타깃 벽 유무 / 잔여 오차
+            var why = '';
+            if (kind === 'trebar' && it.obj && it.obj.segments) {
+              why = it.obj.segments.map(function (sg) {
+                var d = sg.label + ':' + sg.state;
+                if (sg.state === 'FITTING' && sg.nodes && sg.nodes.length) {
+                  var miss = 0, maxErr = 0;
+                  sg.nodes.forEach(function (nd) {
+                    var tg = Physics.getGravityTarget(nd.x, nd.y, sg.normal, Domain.currentSection.walls, Domain.wallStack, it.obj.dia || 0);
+                    if (!tg) miss++;
+                    else maxErr = Math.max(maxErr, Math.hypot(tg.x - nd.x, tg.y - nd.y));
+                  });
+                  d += (miss ? '(타깃없음 ' + miss + '/' + sg.nodes.length + ' — nors/rot 로 법선이 벽 바깥을 향함)'
+                             : '(오차 ' + maxErr.toFixed(1) + 'mm — 수렴 실패)');
+                }
+                return d;
+              }).join(', ');
+              why = ' 세그[' + why + ']';
+            }
+            console.warn('[PSCBOX] 철근 안착 실패 → 스킵:', id, '(' + kind + ')' + why);
             stuck.push(id + '(' + kind + ')');
             if (it && it.obj) {
               if (kind === 'trebar') {
@@ -803,6 +822,7 @@
             clearInterval(self._settleTimer); self._settleTimer = null;
             self._finalizeArcs();     // FORMED 된 것만 아크, 미안착은 직선 유지
             if (stuck.length) {
+              self._toast('안착 실패로 건너뜀: ' + stuck.join(', ') + ' — 콘솔(F12)에 세그먼트별 원인', 'err');
               var msg = '철근 ' + stuck.length + '개가 안착 실패로 건너뛰어졌습니다: ' + stuck.join(', ') +
                 '\n\n확인: 해당 행의 num(개수)이 비었거나 0인지, init/range 값이 올바른지, path 벽 id 가 단면에 있는지(Toggle Nodes). 콘솔(F12)에 상세 로그가 있습니다.';
               if (self._lastStuckMsg !== msg) { self._lastStuckMsg = msg; try { alert(msg); } catch (e) {} }
