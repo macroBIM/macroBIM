@@ -300,6 +300,12 @@ const Domain = {
             const w = seg.fitWall || seg.anchorWall || seg.contactWall;
             const wid = w && w.id;
             if (wid) ids.add(wid);
+            // 세그먼트가 실제로 얹힌 모든 벽에 적층 등록:
+            //  · nodeWalls — 물리 노드들이 안착한 벽 (안착 시 기록)
+            //  · spanWalls — FIT 이 양 끝단 기준으로 사용한 벽 (크라운 분할 하면의 반대쪽 포함)
+            //  한쪽 벽만 등록되면 TSB 직경이 왼쪽 벽에만 쌓여 좌우 철근 위치가 어긋난다.
+            (seg.nodeWalls || []).forEach(nw => { if (nw && nw.id) ids.add(nw.id); });
+            (seg.spanWalls || []).forEach(id => ids.add(id));
         });
         return ids;
     },

@@ -488,6 +488,7 @@ const Physics = {
 
             return {
                 wallId: cw.id || (cw.origWall && cw.origWall.id) || '?',
+                refId: refWall.id || null,
                 lo: { x: o.x + u.x * lo, y: o.y + u.y * lo },
                 hi: { x: o.x + u.x * hi, y: o.y + u.y * hi }
             };
@@ -505,6 +506,10 @@ const Physics = {
         const lastSeg = trebar.segments[trebar.segments.length - 1];
         const startSpan = (startRule && startRule.type === "FIT") ? getFitSpan(firstSeg, 'start') : null;
         const endSpan = (endRule && endRule.type === "FIT") ? getFitSpan(lastSeg, 'end') : null;
+        // FIT 끝단 기준 벽 기록 → 적층(wallStack)이 바가 걸친 모든 벽에 등록되도록
+        //  (예: 크라운 분할 하면의 TSB — 시점 E15·종점 E28 둘 다. 한쪽만 등록되면 좌우 적층 어긋남)
+        if (startSpan && startSpan.refId) { firstSeg.spanWalls = firstSeg.spanWalls || []; if (firstSeg.spanWalls.indexOf(startSpan.refId) < 0) firstSeg.spanWalls.push(startSpan.refId); }
+        if (endSpan && endSpan.refId) { lastSeg.spanWalls = lastSeg.spanWalls || []; if (lastSeg.spanWalls.indexOf(endSpan.refId) < 0) lastSeg.spanWalls.push(endSpan.refId); }
         if (startSpan || endSpan) {
             console.log(`[FIT] ${trebar.id || ''} → ` +
                 (startSpan ? `시점: ${startSpan.wallId}` : '') +
