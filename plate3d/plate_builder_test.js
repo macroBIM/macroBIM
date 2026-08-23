@@ -8655,8 +8655,7 @@
     ' of the steel the bolt is pulled against, and the one number you already know from the',
     ' drawing - the outside of a flange, the face of a cleat. The head stands off behind it,',
     ' the shank runs <code>length</code> forward, the nut sits at the far end - inside the',
-    ' length, not hung off it. So <code>length</code> is <b>grip plus nut</b>, which is how a',
-    ' bolt length is chosen anyway.</p>',
+    ' length, not hung off it.</p>',
     '<p><code>proj</code> is the thread left showing past the nut. It is <b>0.2 &times; dia</b>',
     ' unless you say otherwise, because a bolt that finishes flush with its nut has been cut',
     ' short - a real one runs a little past. So <code>length</code> is <b>grip + nut +',
@@ -9892,6 +9891,12 @@
       d: 'A four-way beam connection: one arm, turned four ways.' },
     { f: 'PLATE3D_SPLICE.xlsx', n: 'Beam splice', s: '106 rows → 66 members · 208 kg',
       d: 'A front sheet fills in the input tab, and names its own drawings.' },
+    /* Sections, not plates, and that is the point of it. Before BOLT a
+       connection had to be built from plates so the holes could be cut, which
+       cost the fillets, the section names in the take-off and three times the
+       rows. This sheet says CUT nowhere. */
+    { f: 'PLATE3D_BCJOINT.xlsx', n: 'Beam to column', s: '55 rows → 13 members · 184 kg',
+      d: 'Double angle cleat. The bolts find their own holes - no CUT row.' },
     { f: 'PLATE3D_TANK.xlsx', n: 'Tank', s: '54 rows → 16 members · 4.9 kg',
       d: 'Reverse-engineered from a five-sheet A4 drawing set.' },
     { f: 'PLATE3D_TURRET.xlsx', n: 'Turret', s: '56 rows → 12 members · 0.65 kg',

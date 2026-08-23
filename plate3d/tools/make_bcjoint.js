@@ -1,32 +1,21 @@
 /* PLATE3D_BCJOINT.xlsx - a bolted beam-to-column connection, double angle cleat.
 
-   The second connection example, after the beam splice. Same lesson as that
-   one and it is the whole reason the sheet looks the way it does: a CUT edits
-   a 2D profile and the profile runs the length of the member, so a bolt hole
-   only exists where the thing it goes through is a PLATE and the hole runs
-   through its thickness. A beam written as SECT H is one tidy row and cannot
-   be drilled - the "hole" would be a slot down the whole beam. So the beam,
-   the column and the cleats are built from plates, exactly as SPLICE builds
-   its beam.
+   Written with sections, one row each, because BOLT removed the reason not to.
+   A CUT cannot drill a section - the profile runs the length - so until the
+   bolts could find their own holes a connection had to be built from plates,
+   which cost the fillets, the section names in the take-off, and three times
+   the rows. The plate version of this file existed for that reason and has
+   been deleted; nothing in the sheet says CUT or HOLE now.
 
-   Geometry, Z up, column standing on Z, beam framing along +X into the
-   column's front flange:
+   The take-off names H-300x300x10x15 and L-60x60x8, the fillets are real, and
+   the fifteen holes on the part drawings were never typed.
 
-              Z                          column  H-300x300x10x15
-              |     ___________          beam    H-300x150x6.5x9
-        ______|____|  beam     |         cleats  2 x L-60x60x8, 140 long
-       |  col |    |___________|         bolts   M16, 3 per leg at 40 pitch
-       |      |    |  cleats             gap     10 mm beam end to flange face
-       |______|____|
-              |
-                          ---> X
+   Orientation is not guessed. A bar or a section STARTS at the point given and
+   runs its Length along the plane's thickness axis - XY +Z, XZ -Y, YZ +X - and
+   Alpha rolls it about that axis. Which Alpha puts a web where it belongs is
+   read off the model, not remembered.
 
-   Two definitions exist only because one face is drilled and the other is not:
-   pl.cfb is the flange the beam lands on, pl.cf the one behind it. Giving both
-   the same id would put six holes in the back of the column.
-
-     node tools/make_bcjoint.js            build, then verify
-     node tools/make_bcjoint.js --build    build only                        */
+     node tools/make_bcjoint.js                                         */
 const ExcelJS = require('../video/tools/node_modules/exceljs');
 const { chromium } = require('../video/tools/node_modules/playwright-core');
 const fs = require('fs');
@@ -36,105 +25,82 @@ const SP = path.resolve(__dirname, '../video/tools');
 const P3 = path.resolve(__dirname, '..');
 const OUT = P3 + '/PLATE3D_BCJOINT.xlsx';
 
-/* ---- the numbers, in one place, so a reader can change the joint ---- */
-const C = { h: 300, b: 300, tw: 10, tf: 15, len: 1600 };   // column
-const B = { h: 300, b: 150, tw: 6.5, tf: 9, len: 900 };    // beam
-const L = { leg: 60, t: 8, len: 140 };                     // cleat angle
-const BOLT = { d: 16, hole: 18, pitch: 40, n: 3, gauge: 35 };
-const GAP = 10;                                            // beam end to flange face
+const C = { h: 300, b: 300, tw: 10, tf: 15, r: 13, len: 1600 };
+const B = { h: 300, b: 150, tw: 6.5, tf: 9, r: 13, len: 900 };
+const L = { a: 60, b: 60, t: 8, r: 8, r2: 4, len: 140 };
+const BOLT = { d: 16, pitch: 40, n: 3, gauge: 35 };
+const GAP = 10;
 
-const cFaceX = C.h / 2;                       // 150 - front flange outer face
-const cFlgX  = cFaceX - C.tf / 2;             // 142.5 - flange mid-plane
-const bWebT  = B.tw / 2;                      // 3.25
-const bX0    = cFaceX + GAP;                  // 160 - beam starts here
-const bXc    = bX0 + B.len / 2;               // beam centre
-const legAx  = cFaceX + L.t / 2;              // 154 - leg A mid-plane
-const legAyc = bWebT + L.leg / 2;             // 33.25 - leg A centre in Y
-const legBy  = bWebT + L.t / 2;               // 7.25 - leg B mid-plane
-const legBw  = L.leg - L.t;                   // 52 - leg B, so the corner is not counted twice
-const legBx0 = cFaceX + L.t;                  // 158
-const legBxc = legBx0 + legBw / 2;            // 184
-const gY     = bWebT + BOLT.gauge;            // 38.25 - bolt line off the heel
-const gX     = cFaceX + BOLT.gauge;           // 185 - bolt line off the flange face
-const z0     = -BOLT.pitch * (BOLT.n - 1) / 2;   // -40
+const cFaceX = C.h / 2;
+const bWebT  = B.tw / 2;
+const bX0    = cFaceX + GAP;
+const legAx  = cFaceX;                       // cleat back face on the flange
+const gY     = bWebT + BOLT.gauge;
+const gX     = cFaceX + BOLT.gauge;
+const z0     = -BOLT.pitch * (BOLT.n - 1) / 2;
+const ALPHA  = Number(process.env.ALPHA || 0);
+const NUT    = BOLT.d * 0.9;                 // the default nut height, 0.9d
+const PROJ   = BOLT.d * 0.2;                 // and the thread it shows past the nut
 
 const rows = [];
 const R = (...c) => rows.push(c);
 const X = () => rows.push([]);
 
-R('# PLATE3D  ·  bolted beam-to-column connection, double angle cleat');
-R('#   column  H-' + C.h + 'x' + C.b + 'x' + C.tw + 'x' + C.tf +
-  '   beam  H-' + B.h + 'x' + B.b + 'x' + B.tw + 'x' + B.tf +
-  '   cleats  L-' + L.leg + 'x' + L.leg + 'x' + L.t);
-R('#   Built from plates, not sections. A CUT edits a 2D profile and the profile');
-R('#   runs the whole length, so a bolt hole is only a hole where it goes through');
-R('#   a plate’s thickness. A beam written as SECT H cannot be drilled.');
+R('# PLATE3D  ·  beam-to-column connection, written with SECT');
+R('#   Members are one row each and the take-off names them H-300x300x10x15 and');
+R('#   L-60x60x8. The fillets are real. What is missing is the bolt holes: a CUT');
+R('#   edits a 2D profile and the profile runs the length, so a hole in a section');
+R('#   would be a slot down the whole member. The bolts are shown instead.');
 X();
-R('# HOLE', 'id', 'TYPE', 'base.pt', 'D');
-R('HOLE', 'ho.b', 'CIRC', 'mc', BOLT.hole);
+R('# SECT', 'id', 'mat', 'length', 'TYPE', 'base.pt', 'v1', 'v2', 'v3', 'v4', 'v5', 'v6', 'v7');
+R('SECT', 'sc.col', 'SS275', C.len, 'H', 'mc', C.h, C.b, C.b, C.tw, C.tf, C.tf, C.r);
+R('SECT', 'sc.bm',  'SS275', B.len, 'H', 'mc', B.h, B.b, B.b, B.tw, B.tf, B.tf, B.r);
+R('SECT', 'sc.cl',  'SS275', L.len, 'L', 'mc', L.a, L.b, L.t, L.t, L.r, L.r2);
 X();
-R('# PLATE', 'id', 'mat', 'thk', 'shape', 'base.pt', 'p1', 'p2');
-R('PLATE', 'pl.cfb', 'SS275', C.tf, 'RECT', 'mc', C.b, C.len);      // front flange, drilled
-R('PLATE', 'pl.cf',  'SS275', C.tf, 'RECT', 'mc', C.b, C.len);      // back flange, plain
-R('PLATE', 'pl.cw',  'SS275', C.tw, 'RECT', 'mc', C.h - 2 * C.tf, C.len);
-R('PLATE', 'pl.bf',  'SS275', B.tf, 'RECT', 'mc', B.len, B.b);
-R('PLATE', 'pl.bw',  'SS275', B.tw, 'RECT', 'mc', B.len, B.h - 2 * B.tf);
-R('PLATE', 'pl.la',  'SS275', L.t,  'RECT', 'mc', L.leg, L.len);    // cleat leg on the column
-R('PLATE', 'pl.lb',  'SS275', L.t,  'RECT', 'mc', legBw, L.len);    // cleat leg on the beam web
+R('# BOLT', 'id', 'mat', 'dia', 'length', '[hole]', '[head_af]', '[head_h]', '[nut_af]', '[nut_h]');
+R('#   the point on the MODULE row is the underside of the head, so these start');
+R('#   on the steel face and the head stands off behind it');
+R('#   length = grip + nut + proj. proj is the thread showing past the nut, and');
+R('#   written longer than that stands its nut off the steel - which is the right');
+R('#   way for a wrong length to show itself. Grip here is flange + cleat, and');
+R('#   cleat + web + cleat.');
+R('BOLT', 'bo.c', 'F10T', BOLT.d, L.t + C.tf + NUT + PROJ);
+R('BOLT', 'bo.b', 'F10T', BOLT.d, 2 * L.t + B.tw + NUT + PROJ);
 X();
-R('# BAR', 'id', 'mat', 'dia', 'length');
-R('BAR', 'bo.c', 'SS275', BOLT.d, L.t + C.tf + 25);                  // through cleat + flange
-R('BAR', 'bo.b', 'SS275', BOLT.d, 2 * L.t + B.tw + 25);              // through cleat + web + cleat
-X();
-R('# CUT', 'target', 'L.X', 'L.Y', 'shape', 'dx', 'dy', 'repeat');
-R('CUT', 'pl.cfb',  gY, z0, 'ho.b', 0, BOLT.pitch, BOLT.n - 1);
-R('CUT', 'pl.cfb', -gY, z0, 'ho.b', 0, BOLT.pitch, BOLT.n - 1);
-R('CUT', 'pl.bw', gX - bXc, z0, 'ho.b', 0, BOLT.pitch, BOLT.n - 1);
-R('CUT', 'pl.la', BOLT.gauge - L.leg / 2, z0, 'ho.b', 0, BOLT.pitch, BOLT.n - 1);
-R('CUT', 'pl.lb', gX - legBxc, z0, 'ho.b', 0, BOLT.pitch, BOLT.n - 1);
-X();
-R('# MODULE', 'id', 'member', 'Ref.Pt', 'L.X', 'L.Y', 'L.Z', 'PLANE');
-R('#   Each module is written in ITS OWN local frame, with BASE on a point that');
-R('#   sits at that frame’s origin, and the ASSY row decides where it lands.');
-R('#   Writing world coordinates inside a module and then adding a BASE row');
-R('#   drags the whole module back so that BASE meets the ASSY point - which is');
-R('#   what BASE is for, and is exactly how the first draft of this sheet put');
-R('#   the beam through the middle of the column.');
-X();
-R('MODULE', 'md.col', 'pl.cfb', 'mc',  cFlgX, 0, 0, 'YZ');
-R('MODULE', 'md.col', 'pl.cf',  'mc', -cFlgX, 0, 0, 'YZ');
-R('MODULE', 'md.col', 'pl.cw',  'mc', 0, 0, 0, 'XZ');
-R('MODULE', 'md.col', 'BASE', 'pl.cw', 'mc');
-X();
-R('#   beam, local origin at its own centre');
-R('MODULE', 'md.beam', 'pl.bf', 'mc', 0, 0,  B.h / 2 - B.tf / 2, 'XY');
-R('MODULE', 'md.beam', 'pl.bf', 'mc', 0, 0, -(B.h / 2 - B.tf / 2), 'XY');
-R('MODULE', 'md.beam', 'pl.bw', 'mc', 0, 0, 0, 'XZ');
-R('MODULE', 'md.beam', 'BASE', 'pl.bw', 'mc');
-X();
-R('#   one cleat and the bolts that hold it to the column, local origin on leg A.');
-R('#   The pair is made by mirroring this, so it is written once.');
 R('# MODULE', 'id', 'member', 'Ref.Pt', 'L.X', 'L.Y', 'L.Z', 'PLANE', 'ROT.X', 'ROT.Y', 'ROT.Z',
   'dx', 'dy', 'dz', 'repeat');
-R('MODULE', 'md.cl', 'pl.la', 'mc', 0, 0, 0, 'YZ');
-R('MODULE', 'md.cl', 'pl.lb', 'mc', legBxc - legAx, legBy - legAyc, 0, 'XZ');
-R('MODULE', 'md.cl', 'bo.c', '', -(L.t / 2 + C.tf + 10), gY - legAyc, z0, 'YZ',
-  0, 0, 0, 0, 0, BOLT.pitch, BOLT.n - 1);
-R('MODULE', 'md.cl', 'BASE', 'pl.la', 'mc');
+R('#   Every module starts at ITS OWN origin and the ASSY row places it. A');
+R('#   section held by BASE is held at the centre of its STARTING face, so');
+R('#   writing a world coordinate in the MODULE row and adding BASE as well');
+R('#   drags the member back - which is what put the column at z 0..1600.');
+R('#   ROT.Z 90 turns the column so its FLANGES face the beam. Without it the');
+R('#   flanges face across and the beam lands on the web edge - which a 300x300');
+R('#   bounding box cannot show, being square either way. What showed it was');
+R('#   the bolts finding nothing to drill.');
+R('MODULE', 'md.col', 'sc.col', '', 0, 0, 0, 'XY', 0, 0, 90);
+R('MODULE', 'md.col', 'BASE', 'sc.col', 'mc');
 X();
-R('#   the bolts through both cleats and the beam web, local origin on the first');
+R('MODULE', 'md.bm', 'sc.bm', '', 0, 0, 0, 'YZ');
+R('MODULE', 'md.bm', 'BASE', 'sc.bm', 'mc');
+X();
+R('#   the cleat, and the bolts that hold it to the column. Local z runs from');
+R('#   the cleat’s starting face, so the bolt line sits at half the length in.');
+R('MODULE', 'md.cl', 'sc.cl', '', 0, 0, 0, 'XY');
+R('MODULE', 'md.cl', 'bo.c', '', -(L.a / 2 + C.tf), BOLT.gauge - L.b / 2, L.len / 2 + z0, 'YZ',
+  0, 0, 0, 0, 0, BOLT.pitch, BOLT.n - 1);
+R('MODULE', 'md.cl', 'BASE', 'sc.cl', 'mc');
+X();
 R('MODULE', 'md.bb', 'bo.b', '', 0, 0, 0, 'XZ', 0, 0, 0, 0, 0, BOLT.pitch, BOLT.n - 1);
 R('MODULE', 'md.bb', 'BASE', 'bo.b_1', 'mc');
 X();
 R('# ASSY', 'id', 'ref', 'cmd', 'p1', 'p2', 'p3', 'p4');
-R('ASSY', 'as.j', 'md.col',  'ADD', 0, 0, 0);
-R('ASSY', 'as.j', 'md.beam', 'ADD', bXc, 0, 0);
-R('#   as.cl is an assembly in its own right - placing it once is enough, and');
-R('#   the mirror reflects it where it stands. Adding as.cl into as.j as well');
-R('#   put a second cleat back at the origin: an ADD row re-places its source.');
-R('ASSY', 'as.cl', 'md.cl',  'ADD', legAx, legAyc, 0);
+R('ASSY', 'as.j', 'md.col', 'ADD', 0, 0, -C.len / 2);
+R('ASSY', 'as.j', 'md.bm',  'ADD', bX0, 0, 0);
+R('#   the L is held on its bbox centre, which sits 30 in from the heel on both');
+R('#   legs - so the heel lands at the flange face and the beam web');
+R('ASSY', 'as.cl', 'md.cl', 'ADD', legAx + L.a / 2, bWebT + L.b / 2, -L.len / 2);
 R('ASSY', 'as.clm', 'as.cl', 'MIR', 0, 0, 0, 'XZ');
-R('ASSY', 'as.j', 'md.bb',   'ADD', gX, legBy + L.t / 2 + 10, z0);
+R('ASSY', 'as.j', 'md.bb',  'ADD', gX, bWebT + L.t, z0);
 X();
 R('END');
 
@@ -149,12 +115,10 @@ R('END');
     const head = String(r[0] || '');
     if (head.charAt(0) === '#')
       row.eachCell(c => { c.font = { italic: true, size: 10, color: { argb: 'FF64748B' } }; });
-    else if (head)
-      row.getCell(2).font = { bold: true, color: { argb: 'FF1D4ED8' } };
+    else if (head) row.getCell(2).font = { bold: true, color: { argb: 'FF1D4ED8' } };
   });
   await wb.xlsx.writeFile(OUT);
   console.log('  PLATE3D_BCJOINT.xlsx  ' + rows.length + ' rows');
-  if (process.argv.includes('--build')) return;
 
   const LIB = f => {
     let p = SP + '/node_modules/three/build/three.min.js';
@@ -165,19 +129,37 @@ R('END');
   };
   const browser = await chromium.launch({ executablePath: '/opt/pw-browsers/chromium',
     args: ['--no-sandbox', '--use-gl=angle', '--use-angle=swiftshader', '--enable-unsafe-swiftshader'] });
-  const page = await browser.newPage({ viewport: { width: 1500, height: 950 }, acceptDownloads: true });
+  const page = await browser.newPage({ viewport: { width: 1400, height: 900 }, acceptDownloads: true });
   await page.route('**/{unpkg.com,cdnjs.cloudflare.com}/**', r =>
     r.fulfill({ contentType: 'application/javascript', body: LIB(r.request().url()) }));
   await page.route('**/fonts.{googleapis,gstatic}.com/**', r => r.abort());
-  await page.goto('file://' + P3 + '/tools/host_lock.html', { waitUntil: 'domcontentloaded' });
+  await page.goto('file://' + SP + '/video_page.html', { waitUntil: 'domcontentloaded' });
   await page.waitForTimeout(2500);
   await page.setInputFiles('#pb-file', OUT);
   await page.waitForFunction(b => {
     const r = document.getElementById('pb-result');
     return r && r.innerText.indexOf(b) >= 0;
   }, path.basename(OUT), { timeout: 120000 });
-  await page.waitForTimeout(2500);
+  await page.waitForTimeout(2000);
   console.log('\n' + (await page.evaluate(() =>
-    document.getElementById('pb-result').innerText)).trim());
+    document.getElementById('pb-result').innerText)).trim().slice(0, 400));
+  const bb = await page.evaluate(() => {
+    const out = [];
+    window.__pbS.traverse(o => {
+      if (!o.isMesh || !o.geometry || !o.geometry.attributes) return;
+      o.updateWorldMatrix(true, false);
+      const g = o.geometry; if (!g.boundingBox) g.computeBoundingBox();
+      const b = g.boundingBox.clone().applyMatrix4(o.matrixWorld);
+      out.push([+b.min.x.toFixed(1), +b.max.x.toFixed(1), +b.min.y.toFixed(1),
+                +b.max.y.toFixed(1), +b.min.z.toFixed(1), +b.max.z.toFixed(1)]);
+    });
+    const seen = {}, u = [];
+    out.forEach(r => { const k = r.join(','); if (!seen[k]) { seen[k] = 1; u.push(r); } });
+    return u;
+  });
+  console.log('\n  X min..max        Y min..max        Z min..max');
+  bb.forEach(r => console.log('  ' + String(r[0]).padStart(7) + ' ..' + String(r[1]).padStart(7) +
+    '   ' + String(r[2]).padStart(7) + ' ..' + String(r[3]).padStart(7) +
+    '   ' + String(r[4]).padStart(7) + ' ..' + String(r[5]).padStart(7)));
   await browser.close();
 })();
