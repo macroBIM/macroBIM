@@ -5844,12 +5844,80 @@
     return out;
   }
   // every round CUT on a plate, in the plate's own 2D frame
+  /* ---------------- which members does a bolt go through ----------------
+
+     The hole is written once, as the bolt, and the members it crosses are
+     worked out rather than typed. That is the whole reason BOLT exists as
+     something separate from BAR: a bar is stock and knows nothing about what
+     it lies next to, and asking the sheet to say "there is a bolt here" and
+     then "there is a hole here" and "and here" and "and here" is asking it to
+     say one fact four times, which is four chances to say it differently.
+
+     The test is done in each member's OWN frame, which is the frame its
+     profile and its part drawing are already in - so a hit comes back as an
+     (x, y) that can be drawn without converting anything.
+
+     A member is its profile swept over local z from -thk/2 to +thk/2. The
+     bolt's shank is a segment. Clip the segment to that slab, take the middle
+     of what is left, and ask whether that point is inside the profile. Perpen-
+     dicular or skew, the same three lines answer it.
+
+     What is deliberately NOT done here: the area is not touched. A drilled
+     hole is not deducted from a steel take-off, and a bolt that quietly made
+     every plate lighter would be a worse lie than no hole at all. */
+  var DRILL_SKEW_COS = Math.cos(5 * Math.PI / 180);   // 5 deg off the face normal
+  var drillsFor = null;
+  function assignDrills() {
+    if (drillsFor === items) return;
+    drillsFor = items;
+    items.forEach(function (it) { it.drills = []; });
+    var bolts = items.filter(function (it) { return it.spec && it.spec.__bolt; });
+    if (!bolts.length || typeof THREE === 'undefined') return;
+    var inv = new THREE.Matrix4(), A = new THREE.Vector3(), B = new THREE.Vector3();
+    bolts.forEach(function (b) {
+      var dia = num(b.spec.HOLE, 0) || num(b.spec.D, 0) + 2;
+      var half = num(b.thk, 0) / 2;
+      items.forEach(function (m) {
+        if (m === b || !m.spec || m.spec.__bolt) return;      // a bolt drills no bolt
+        var mh = num(m.thk, 0) / 2;
+        if (!(mh > 0)) return;
+        inv.copy(m.matrix).invert();
+        A.set(0, 0, -half).applyMatrix4(b.matrix).applyMatrix4(inv);
+        B.set(0, 0,  half).applyMatrix4(b.matrix).applyMatrix4(inv);
+        var dz = B.z - A.z, t0 = 0, t1 = 1;
+        if (Math.abs(dz) < 1e-9) {
+          if (A.z < -mh || A.z > mh) return;                  // parallel and outside
+        } else {
+          var ta = (-mh - A.z) / dz, tb = (mh - A.z) / dz;
+          t0 = Math.max(0, Math.min(ta, tb));
+          t1 = Math.min(1, Math.max(ta, tb));
+          if (t1 <= t0) return;                               // never in the slab
+        }
+        var t = (t0 + t1) / 2;
+        var x = A.x + (B.x - A.x) * t, y = A.y + (B.y - A.y) * t;
+        var pt = [x, y], hit = false;
+        (m.rings.outers || []).forEach(function (o, i) {
+          if (hit || !pointInRing(pt, o)) return;
+          var inHole = (m.rings.holes[i] || []).some(function (h) { return pointInRing(pt, h); });
+          if (!inHole) hit = true;
+        });
+        if (!hit) return;
+        var L = Math.hypot(B.x - A.x, B.y - A.y, B.z - A.z);
+        var cos = L > 0 ? Math.abs(B.z - A.z) / L : 1;
+        m.drills.push({ x: x, y: y, d: dia, bolt: b.spec.ID, skew: cos < DRILL_SKEW_COS });
+      });
+    });
+  }
   function holeCentres(it) {
     var out = [];
     (it.rings && it.rings.cuts || []).forEach(function (rg) {
       var k = ringCircle(rg);
       if (k) out.push(k.c);
     });
+    /* a drilled hole is a hole for the pitch chain as much as a CUT one is -
+       the chain is what makes three holes readable as 40, 40 rather than as
+       three numbers off an edge */
+    (it.drills || []).forEach(function (h) { out.push([h.x, h.y]); });
     return out;
   }
   /* ---------------- context: what is behind the part ----------------
@@ -6659,6 +6727,7 @@
          cut to a shape, and a circle with a diameter beside it tells a
          fabricator nothing the take-off does not. Sections stay - they carry a
          profile worth drawing. */
+      assignDrills();
       var parts = dxfParts(list.filter(function (it) {
         return !(it.spec.__bar && !it.spec.__sect);
       })).map(function (p) {
@@ -6701,6 +6770,12 @@
         p.it.rings.outers.forEach(function (o, i) {
           take(o);
           (p.it.rings.holes[i] || []).forEach(take);
+        });
+        /* the holes the bolts made. They go in as full arcs, which is what the
+           writer turns into a CIRCLE, and they ride the same offset every
+           other arc does when the part is placed on the sheet. */
+        (p.it.drills || []).forEach(function (h) {
+          arcs.push({ c: [h.x, h.y], r: h.d / 2, full: true });
         });
         p.segs = segs;
         p.arcs = arcDedupe(arcs);
