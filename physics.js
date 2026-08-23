@@ -475,13 +475,18 @@ const Physics = {
                 };
                 let base = probe(mid.x, mid.y);
                 let baseT = base ? base.t : 0;
+                // 지지면 연속성 판정 — 바가 얹힌 면을 따라가되:
+                //  · 면이 (거의) 평행하게 이어지고 높이 단차가 없으면 계속 (크라운처럼 조각난 같은 평면 통과)
+                //  · 면이 꺾여도, 바가 그 면 위에 계속 얹혀 있으면(지지 거리 유지) 계속 전진
+                //    → 45° 다리가 헌치→바닥으로 넘어가는 지점에서 멈추던 문제 해소
                 let supportOK = (px, py) => {
                     if (!base) return true;                        // 지지면을 못 찾으면 이 조건은 생략
                     let q = probe(px, py);
                     if (!q) return false;
                     let ex = q.w.x2 - q.w.x1, ey = q.w.y2 - q.w.y1, el = Math.hypot(ex, ey) || 1;
-                    if (Math.abs((ex * u.x + ey * u.y) / el) < 0.9999985) return false;   // 0.1° 초과로 꺾임
-                    return Math.abs(q.t - baseT) <= 3.0;           // 같은 높이(단차 없음)
+                    let parallel = Math.abs((ex * u.x + ey * u.y) / el) >= 0.9999985;   // 0.1° 이내 = 같은 평면 연속
+                    if (parallel) return Math.abs(q.t - baseT) <= 3.0;
+                    return q.t <= baseT + 3.0;                     // 꺾인 면이라도 더 멀어지지 않으면(=얹혀 있으면) 계속
                 };
 
                 // 축을 따라 전진 : 콘크리트를 벗어나거나(→ 그 면의 피복만큼 후퇴)
