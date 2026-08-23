@@ -135,6 +135,9 @@ class TrebarBase {
     }
 
     finalize() {
+        // 강체 형상(15번 등)은 통째로 평행이동만 했으므로 조각들이 이미 정확히 이어져 있고
+        // 사이각도 설계값 그대로다. 코너 보정을 하면 그 각을 다시 흐트러뜨리므로 건너뛴다.
+        if (this.rigidBody) return;
         // 인접 조각의 코너를 서로의 직선 교점으로 맞춘다.
         //  ⚠ 교점이 두 조각의 안착 구간에서 크게 벗어나면(예: 완만한 헌치 + 수직 웹처럼
         //    두 면에 동시에 밀착할 수 없는 형상) 그 교점으로 끌고 가면 안 된다.
@@ -227,11 +230,16 @@ class Shape14 extends TrebarBase {
 //     A 가 -22.5° 로 내려와 꺾임점에서 +45° 턴 → +22.5° 로 상승. 수직축 대칭.
 class Shape15 extends TrebarBase {
     generate() {
-        let A = this.dims.A || 400;
-        let B = this.dims.B || 400;
-        return this.buildSequential([A, B], -22.5, [45], [-1, -1], (pts) => pts[1]);
+        let r = this.buildSequential([A_15(this), B_15(this)], -22.5, [45], [-1, -1], (pts) => pts[1]);
+        // 15번은 '강체'로 다룬다 — 첫 조각이 안착하면 나머지는 같은 변위로 따라가고
+        // 스스로 안착하지 않는다. 각 조각을 따로 붙이면 두 면이 이루는 각(예: 헌치 9.5° +
+        // 웹 90° = 99.5°)이 카탈로그 사이각 135° 를 덮어써 형상이 변형되기 때문.
+        r.rigidBody = true;
+        return r;
     }
 }
+function A_15(o) { return o.dims.A || 400; }
+function B_15(o) { return o.dims.B || 400; }
 
 class Shape21 extends TrebarBase {
     generate() {

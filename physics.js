@@ -231,6 +231,14 @@ const Physics = {
         trebar.segments.forEach((seg, idx) => {
             if (seg.state === "WAITING") {
                 allSegmentsSettled = false;
+                // 강체 형상(예: 15번)은 첫 조각만 안착하고 나머지는 따라 움직인 자리에 그대로 확정
+                if (trebar.rigidBody && idx > 0) {
+                    if (trebar.segments[idx - 1].state === "SETTLED") {
+                        seg.state = "SETTLED";
+                        seg.fitWall = seg.fitWall || null;
+                    }
+                    return;
+                }
                 if (idx === 0 || trebar.segments[idx - 1].state === "SETTLED") seg.state = "FITTING";
             }
 
@@ -271,10 +279,44 @@ const Physics = {
                 });
 
                 if (validTargets === seg.nodes.length && segEnergy < CONVERGE && maxPosError < 1.0) {
+                    let beforeMid = { x: (seg.p1.x + seg.p2.x) / 2, y: (seg.p1.y + seg.p2.y) / 2 };
+                    let beforeDir = { x: seg.uDir.x, y: seg.uDir.y };
                     seg.state = "SETTLED";
                     seg.fitWall = Physics.resolveSegmentFitWall(seg, hitInfos);
                     seg.nodeWalls = hitInfos.map(h => h.wall);   // 노드별 안착 벽 (p1쪽 → p2쪽 순) — FIT 이 끝단별로 사용
                     Physics.restoreSegmentLine(seg);
+
+                    // 강체 이동: 이 조각이 안착하며 움직인 만큼 '아직 안착 안 한 뒤쪽 조각'도 함께 옮긴다.
+                    //  각 조각이 따로 떨어지면 조각 사이 각도가 면 각도로 덮어써져 카탈로그 형상이
+                    //  무너진다(15번 135° → 99.5°). 통째로 따라가면 사이각이 그대로 보존된다.
+                    let afterMid = { x: (seg.p1.x + seg.p2.x) / 2, y: (seg.p1.y + seg.p2.y) / 2 };
+                    let mvx = afterMid.x - beforeMid.x, mvy = afterMid.y - beforeMid.y;
+                    // 안착하며 생긴 회전량 — 강체는 뒤 조각도 같은 각만큼 돌려야 사이각이 보존된다
+                    //  (평행이동만 하면 a 가 벽 각도로 돌아간 만큼 사이각이 틀어진다: 135° → 122°)
+                    let rotA = Math.atan2(seg.uDir.y, seg.uDir.x) - Math.atan2(beforeDir.y, beforeDir.x);
+                    while (rotA > Math.PI) rotA -= 2 * Math.PI;
+                    while (rotA < -Math.PI) rotA += 2 * Math.PI;
+                    let cosR = Math.cos(rotA), sinR = Math.sin(rotA);
+                    let pivot = afterMid;
+                    for (let k = idx + 1; k < trebar.segments.length; k++) {
+                        let sk = trebar.segments[k];
+                        if (!trebar.rigidBody && sk.state === "SETTLED") continue;   // 이미 자리 잡은 조각은 건드리지 않음
+                        let move = (p) => {
+                            let px = p.x + mvx, py = p.y + mvy;                     // 1) 같이 이동
+                            if (!trebar.rigidBody || Math.abs(rotA) < 1e-9) return { x: px, y: py };
+                            let dx0 = px - pivot.x, dy0 = py - pivot.y;             // 2) 같은 각만큼 회전
+                            return { x: pivot.x + dx0 * cosR - dy0 * sinR, y: pivot.y + dx0 * sinR + dy0 * cosR };
+                        };
+                        let np1 = move(sk.p1), np2 = move(sk.p2);
+                        sk.p1.x = np1.x; sk.p1.y = np1.y;
+                        sk.p2.x = np2.x; sk.p2.y = np2.y;
+                        sk.nodes.forEach(n => { let m = move(n); n.x = m.x; n.y = m.y; });
+                        if (trebar.rigidBody && Math.abs(rotA) > 1e-9) {
+                            let rv = (v) => ({ x: v.x * cosR - v.y * sinR, y: v.x * sinR + v.y * cosR });
+                            sk.uDir = rv(sk.uDir);
+                            sk.normal = rv(sk.normal);
+                        }
+                    }
                 }
             }
         });
