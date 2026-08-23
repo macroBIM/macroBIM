@@ -2493,9 +2493,9 @@
 
     var c = classifyRings(region.regions);
     var area = 0;
-    c.outers.forEach(function (r) { area += Math.abs(ringArea(r)); });
+    c.outers.forEach(function (r) { area += ringAreaTrue(r); });
     c.holes.forEach(function (hs) {
-      hs.forEach(function (r) { area -= Math.abs(ringArea(r)); });
+      hs.forEach(function (r) { area -= ringAreaTrue(r); });
     });
 
     /* The cutters go out with the result. They are what the sheet asked for,
@@ -5839,7 +5839,28 @@
       if (d > hi) hi = d;
     }
     if (!(hi > 0) || (hi - lo) / hi > 0.02) return null;
-    return { c: [cx, cy], r: (lo + hi) / 2 };
+    /* hi, the circumradius, not the mean of hi and lo.
+       Every circle in this file is drawn by circleOutline, which puts its
+       vertices ON the true circle and leaves the flats inside it. So hi IS the
+       radius that was asked for, and the fitted mean sits 0.1% inside it - which
+       is a Ø22 bolt hole exported at 21.95. */
+    return { c: [cx, cy], r: hi };
+  }
+  /* The area of a ring, with a circle counted as a circle.
+
+     Curves here are polygons: a circle is 48 straight edges inscribed in the
+     true one, so it has always measured UNDER - 99.71% of the circle it stands
+     for. That was defensible while the drawing was also 48 lines. It stopped
+     being defensible when the DXF started going out as a real CIRCLE, because
+     then one app hands a fabricator a Ø48.6 circle and prices something 0.29%
+     smaller.
+
+     So a ring the drawing would call a circle is weighed as one. Everything
+     else - an H, a rounded rectangle, a plate - is the polygon it is, and its
+     fillets are still eight segments a quarter. */
+  function ringAreaTrue(r) {
+    var k = ringCircle(r);
+    return k ? Math.PI * k.r * k.r : Math.abs(ringArea(r));
   }
   // Arial has no fixed advance, so this is an estimate - deliberately generous,
   // because a rule that comes up short of its own text is the visible failure.
