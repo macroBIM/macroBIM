@@ -325,7 +325,9 @@
    "1 # SECT id mat length TYPE base.pt v1 v2 v3 v4 v5 v6 v7",
    "2 SECT s.H SM490 6000 H bc 400 200 200 8 13 13 16",
    "3 SECT s.C SS275 3000 C bc 300 90 12 16 19 9 ",
-   "4 SECT s.L SS275 2400 L bc 90 75 9 9 8.5 6 "
+   "4 SECT s.L SS275 2400 L bc 90 75 9 9 8.5 6 ",
+   "5 SECT s.P SS275 3500 P mc 48.6 2.5     ",
+   "6 SECT s.R SS275 3500 R mc 100 100 6 12   "
   ],
   [
    " A B C D E F G H I J K L M N O P Q R S",
@@ -364,6 +366,22 @@
    " A B C D E F G H I J K L M N O P Q R S T U",
    "1 # MODULE id member Ref.Pt LX1 LY1 LZ1 LX2 LY2 LZ2 OFF_B OFF_E Alpha dx dy dz rep dx2 dy2 dz2 rep2",
    "2 MODULE md.rail s.brc  0 0 0 0 0 900 0 0 0 1500 0 0 5 0 2400 0 1"
+  ],
+  [
+   " A B C D E F G",
+   "1 FIT member B | E target GAP  ",
+   "2 MODULE id FIT member B | E target GAP"
+  ],
+  [
+   " A B C D E F G H I J K L M",
+   "1 # SECT id mat length TYPE base.pt v1 v2 v3 v4 v5 v6 v7",
+   "2 SECT s.col SM490 3000 H mc 400 200 200 8 13 13 16",
+   "3 SECT s.brc SM490 2000 H mc 300 150 150 6.5 9 9 13",
+   "4 # MODULE id member Ref.Pt LX1 LY1 LZ1 LX2 LY2 LZ2   ",
+   "5 MODULE md.j s.col  0 0 0 0 0 3000   ",
+   "6 MODULE md.j s.brc  0 1400 0 0 0 1400   ",
+   "7 MODULE md.j FIT s.brc E s.col 0      ",
+   "8 MODULE md.j BASE s.col mc        "
   ],
   [
    " A B C D E F G H I J",
