@@ -11,6 +11,21 @@ const Physics = {
         return covers[cType] || 50;
     },
 
+    // 구간(interval) 적층 조회 — wallStack[id] = [{lo, hi, th}] (벽 시점부터 축방향 거리 구간)
+    //  해당 위치에 걸친 구간 두께의 합. 같은 벽이라도 다른 영역이면 0 →
+    //  서로 겹치지 않는 철근끼리는 적층되지 않는다 (좌/우 철근이 하면 벽을 공유해도 독립).
+    stackAt: (wallStack, wall, px, py) => {
+        if (!wallStack || !wall) return 0;
+        const list = wallStack[wall.id];
+        if (!list || !list.length) return 0;
+        const dx = wall.x2 - wall.x1, dy = wall.y2 - wall.y1;
+        const L = MathUtils.hypot(dx, dy) || 1;
+        const t = ((px - wall.x1) * dx + (py - wall.y1) * dy) / L;
+        let sum = 0;
+        list.forEach(iv => { if (t >= iv.lo - 1 && t <= iv.hi + 1) sum += iv.th; });
+        return sum;
+    },
+
     buildShiftedWall: (wall, extraOffset = 0) => {
         let coverVal = Physics.getWallCoverValue(wall);
         let total = coverVal + extraOffset;
@@ -59,7 +74,7 @@ const Physics = {
 
     trimShiftedLoop: (loopWalls, wallStack = {}, currentDia = 0) => {
         let shifted = loopWalls.map(w => {
-            let extra = (wallStack[w.id] || 0) + currentDia / 2;
+            let extra = currentDia / 2;   // 적층은 벽 전체가 아니라 위치별(stackAt)로 반영
             return Physics.buildShiftedWall(w, extra);
         });
         let n = shifted.length;
@@ -183,7 +198,12 @@ const Physics = {
         // 전방(법선 방향) 우선. 실패 시 후방 폴백:
         // 노드가 피복선을 지나쳐(벽보다 안쪽에) 스폰되면 전방 광선이 벽을 영영 못 잡아
         // 안착 불가 → barEnds(fit) 도 실행되지 않음. 뒤로 끌어올려 벽에 되붙인다.
-        return scan(segNormal) || scan({ x: -segNormal.x, y: -segNormal.y });
+        const res = scan(segNormal) || scan({ x: -segNormal.x, y: -segNormal.y });
+        if (res && res.wall) {
+            const st = Physics.stackAt(wallStack, res.wall, res.x, res.y);
+            if (st) { res.x += res.wall.nx * st; res.y += res.wall.ny * st; }
+        }
+        return res;
     },
 
     updatePhysics: (trebar, walls, wallStack = {}) => {
@@ -478,7 +498,7 @@ const Physics = {
                         if (dd < nd2) { nd2 = dd; near = w; }
                     }
                     if (!near) return a;
-                    let need = Physics.getWallCoverValue(near) + (wallStack[near.id] || 0) + dia / 2;
+                    let need = Physics.getWallCoverValue(near) + Physics.stackAt(wallStack, near, ex, ey) + dia / 2;
                     let cosA = Math.abs(near.nx * dx + near.ny * dy);  // 비스듬한 면이면 축방향 후퇴량 증가
                     return Math.max(0, a - need / Math.max(0.2, cosA));
                 };
