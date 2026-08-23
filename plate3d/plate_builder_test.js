@@ -5866,14 +5866,28 @@
      hole is not deducted from a steel take-off, and a bolt that quietly made
      every plate lighter would be a worse lie than no hole at all. */
   var DRILL_SKEW_COS = Math.cos(5 * Math.PI / 180);   // 5 deg off the face normal
+  var DRILL_ALONG = Math.SQRT1_2;                    // 45 deg: through, or across
+  var DRILL_SAMPLES = 41;
   var drillsFor = null;
+  /* Sampled rather than clipped, and the first version was clipped. Clipping
+     the shank to the member's z slab and taking the middle of what is left is
+     right only while the slab is what bounds the member in the bolt's own
+     direction. Through a plate it is. Across a section it is not - the slab is
+     the whole 1600 of a column and the thing that bounds the bolt is the
+     profile - so the midpoint of a bolt that only clips a flange landed in the
+     cleat beyond it and the column came out undrilled.
+
+     Walking the shank and keeping the points that are inside the member has no
+     such case to get wrong, and 41 samples over a 50mm bolt is finer than any
+     hole it could be reporting. */
   function assignDrills() {
     if (drillsFor === items) return;
     drillsFor = items;
     items.forEach(function (it) { it.drills = []; });
     var bolts = items.filter(function (it) { return it.spec && it.spec.__bolt; });
     if (!bolts.length || typeof THREE === 'undefined') return;
-    var inv = new THREE.Matrix4(), A = new THREE.Vector3(), B = new THREE.Vector3();
+    var inv = new THREE.Matrix4(), A = new THREE.Vector3(), B = new THREE.Vector3(),
+        P = new THREE.Vector3();
     bolts.forEach(function (b) {
       var dia = num(b.spec.HOLE, 0) || num(b.spec.D, 0) + 2;
       var half = num(b.thk, 0) / 2;
@@ -5884,27 +5898,35 @@
         inv.copy(m.matrix).invert();
         A.set(0, 0, -half).applyMatrix4(b.matrix).applyMatrix4(inv);
         B.set(0, 0,  half).applyMatrix4(b.matrix).applyMatrix4(inv);
-        var dz = B.z - A.z, t0 = 0, t1 = 1;
-        if (Math.abs(dz) < 1e-9) {
-          if (A.z < -mh || A.z > mh) return;                  // parallel and outside
-        } else {
-          var ta = (-mh - A.z) / dz, tb = (mh - A.z) / dz;
-          t0 = Math.max(0, Math.min(ta, tb));
-          t1 = Math.min(1, Math.max(ta, tb));
-          if (t1 <= t0) return;                               // never in the slab
+        var n = 0, sx = 0, sy = 0, sz = 0;
+        for (var i = 0; i < DRILL_SAMPLES; i++) {
+          var t = i / (DRILL_SAMPLES - 1);
+          P.copy(A).lerp(B, t);
+          if (P.z < -mh || P.z > mh) continue;
+          var pt = [P.x, P.y], inside = false;
+          for (var k = 0; k < m.rings.outers.length && !inside; k++) {
+            if (!pointInRing(pt, m.rings.outers[k])) continue;
+            inside = !(m.rings.holes[k] || []).some(function (h) { return pointInRing(pt, h); });
+          }
+          if (!inside) continue;
+          n++; sx += P.x; sy += P.y; sz += P.z;
         }
-        var t = (t0 + t1) / 2;
-        var x = A.x + (B.x - A.x) * t, y = A.y + (B.y - A.y) * t;
-        var pt = [x, y], hit = false;
-        (m.rings.outers || []).forEach(function (o, i) {
-          if (hit || !pointInRing(pt, o)) return;
-          var inHole = (m.rings.holes[i] || []).some(function (h) { return pointInRing(pt, h); });
-          if (!inHole) hit = true;
-        });
-        if (!hit) return;
-        var L = Math.hypot(B.x - A.x, B.y - A.y, B.z - A.z);
-        var cos = L > 0 ? Math.abs(B.z - A.z) / L : 1;
-        m.drills.push({ x: x, y: y, d: dia, bolt: b.spec.ID, skew: cos < DRILL_SKEW_COS });
+        if (!n) return;
+        var dx = B.x - A.x, dy = B.y - A.y, dz = B.z - A.z;
+        var len = Math.hypot(dx, dy, dz) || 1;
+        var along = Math.abs(dz) / len;
+        /* Through the thickness the hole belongs on the profile the part
+           drawing already shows. Across the member it belongs on a side
+           elevation, at how far along it is and how high up - which is a view
+           that has to be drawn. AXIS says which way the bolt ran, because a
+           section can be drilled through the web and through a flange and
+           those are two different elevations. */
+        m.drills.push(along >= DRILL_ALONG
+          ? { view: 'face', x: sx / n, y: sy / n, d: dia,
+              bolt: b.spec.ID, skew: along < DRILL_SKEW_COS }
+          : { view: 'side', z: sz / n, x: sx / n, y: sy / n, d: dia,
+              axis: Math.abs(dx) >= Math.abs(dy) ? 'x' : 'y',
+              bolt: b.spec.ID, skew: false });
       });
     });
   }
@@ -5917,7 +5939,13 @@
     /* a drilled hole is a hole for the pitch chain as much as a CUT one is -
        the chain is what makes three holes readable as 40, 40 rather than as
        three numbers off an edge */
-    (it.drills || []).forEach(function (h) { out.push([h.x, h.y]); });
+    (it.drills || []).forEach(function (h) {
+      if (h.view === 'face') out.push([h.x, h.y]);
+    });
+    /* The side-elevation holes are deliberately left out of the pitch chain.
+       The chain works across one view and these sit in another, so feeding it
+       both would dimension from a hole in the section to a hole in the
+       elevation - a number measured across a gap that is not a distance. */
     return out;
   }
   /* ---------------- context: what is behind the part ----------------
@@ -6775,8 +6803,44 @@
            writer turns into a CIRCLE, and they ride the same offset every
            other arc does when the part is placed on the sheet. */
         (p.it.drills || []).forEach(function (h) {
-          arcs.push({ c: [h.x, h.y], r: h.d / 2, full: true });
+          if (h.view === 'face') arcs.push({ c: [h.x, h.y], r: h.d / 2, full: true });
         });
+        /* ---- the side elevation ----
+           A section's part drawing is its cross-section, and a bolt that goes
+           ACROSS the member - through a web, through a flange - is not in that
+           view at all. It is at some distance along the length, which the
+           cross-section has no axis for. So where such a hole exists, the
+           length view is drawn beside the section in the same coordinate
+           space: segsBox then grows on its own and partShelf lays the wider
+           box out with no change to the layout at all.
+
+           Only members that carry one get it. Every section drawing that has
+           ever been issued is a cross-section and stays exactly that. */
+        var side = (p.it.drills || []).filter(function (h) { return h.view === 'side'; });
+        if (side.length) {
+          var pb = segsBox(segs, arcs);
+          var mh2 = num(p.it.thk, 0) / 2;
+          var gapv = D.base * 3;
+          var ox = pb.x1 - (-mh2) + gapv;          // put local z = -mh2 just past the section
+          /* Which way across the member the bolt ran decides which axis of the
+             profile the elevation is looking at: a bolt through a web sees the
+             depth, one through a flange sees the width. */
+          var axis = side[0].axis === 'x' ? 'y' : 'x';
+          var lo = Infinity, hi = -Infinity;
+          p.it.rings.outers.forEach(function (o) {
+            o.forEach(function (q) {
+              var v = axis === 'y' ? q[1] : q[0];
+              if (v < lo) lo = v;
+              if (v > hi) hi = v;
+            });
+          });
+          var c0 = [ox + -mh2, lo], c1 = [ox + mh2, lo],
+              c2 = [ox + mh2, hi], c3 = [ox + -mh2, hi];
+          segs.push([c0, c1], [c1, c2], [c2, c3], [c3, c0]);
+          side.forEach(function (h) {
+            arcs.push({ c: [ox + h.z, axis === 'y' ? h.y : h.x], r: h.d / 2, full: true });
+          });
+        }
         p.segs = segs;
         p.arcs = arcDedupe(arcs);
         p.box = segsBox(segs, p.arcs);

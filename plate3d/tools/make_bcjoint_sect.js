@@ -50,9 +50,11 @@ R('SECT', 'sc.col', 'SS275', C.len, 'H', 'mc', C.h, C.b, C.b, C.tw, C.tf, C.tf, 
 R('SECT', 'sc.bm',  'SS275', B.len, 'H', 'mc', B.h, B.b, B.b, B.tw, B.tf, B.tf, B.r);
 R('SECT', 'sc.cl',  'SS275', L.len, 'L', 'mc', L.a, L.b, L.t, L.t, L.r, L.r2);
 X();
-R('# BAR', 'id', 'mat', 'dia', 'length');
-R('BAR', 'bo.c', 'SS275', BOLT.d, L.t + C.tf + 25);
-R('BAR', 'bo.b', 'SS275', BOLT.d, 2 * L.t + B.tw + 25);
+R('# BOLT', 'id', 'mat', 'dia', 'length', '[hole]', '[head_af]', '[head_h]', '[nut_af]', '[nut_h]');
+R('#   the point on the MODULE row is the underside of the head, so these start');
+R('#   on the steel face and the head stands off behind it');
+R('BOLT', 'bo.c', 'F10T', BOLT.d, L.t + C.tf + 20);
+R('BOLT', 'bo.b', 'F10T', BOLT.d, 2 * L.t + B.tw + 20);
 X();
 R('# MODULE', 'id', 'member', 'Ref.Pt', 'L.X', 'L.Y', 'L.Z', 'PLANE', 'ROT.X', 'ROT.Y', 'ROT.Z',
   'dx', 'dy', 'dz', 'repeat');
@@ -60,7 +62,11 @@ R('#   Every module starts at ITS OWN origin and the ASSY row places it. A');
 R('#   section held by BASE is held at the centre of its STARTING face, so');
 R('#   writing a world coordinate in the MODULE row and adding BASE as well');
 R('#   drags the member back - which is what put the column at z 0..1600.');
-R('MODULE', 'md.col', 'sc.col', '', 0, 0, 0, 'XY');
+R('#   ROT.Z 90 turns the column so its FLANGES face the beam. Without it the');
+R('#   flanges face across and the beam lands on the web edge - which a 300x300');
+R('#   bounding box cannot show, being square either way. What showed it was');
+R('#   the bolts finding nothing to drill.');
+R('MODULE', 'md.col', 'sc.col', '', 0, 0, 0, 'XY', 0, 0, 90);
 R('MODULE', 'md.col', 'BASE', 'sc.col', 'mc');
 X();
 R('MODULE', 'md.bm', 'sc.bm', '', 0, 0, 0, 'YZ');
@@ -69,7 +75,7 @@ X();
 R('#   the cleat, and the bolts that hold it to the column. Local z runs from');
 R('#   the cleat’s starting face, so the bolt line sits at half the length in.');
 R('MODULE', 'md.cl', 'sc.cl', '', 0, 0, 0, 'XY');
-R('MODULE', 'md.cl', 'bo.c', '', -(L.a / 2 + C.tf + 12), BOLT.gauge - L.b / 2, L.len / 2 + z0, 'YZ',
+R('MODULE', 'md.cl', 'bo.c', '', -(L.a / 2 + C.tf), BOLT.gauge - L.b / 2, L.len / 2 + z0, 'YZ',
   0, 0, 0, 0, 0, BOLT.pitch, BOLT.n - 1);
 R('MODULE', 'md.cl', 'BASE', 'sc.cl', 'mc');
 X();
@@ -83,7 +89,7 @@ R('#   the L is held on its bbox centre, which sits 30 in from the heel on both'
 R('#   legs - so the heel lands at the flange face and the beam web');
 R('ASSY', 'as.cl', 'md.cl', 'ADD', legAx + L.a / 2, bWebT + L.b / 2, -L.len / 2);
 R('ASSY', 'as.clm', 'as.cl', 'MIR', 0, 0, 0, 'XZ');
-R('ASSY', 'as.j', 'md.bb',  'ADD', gX, bWebT + L.t + 12, z0);
+R('ASSY', 'as.j', 'md.bb',  'ADD', gX, bWebT + L.t, z0);
 X();
 R('END');
 
