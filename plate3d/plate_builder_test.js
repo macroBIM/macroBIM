@@ -5951,15 +5951,23 @@
       radLead(w - lr2 * K, t1a - lr2 * K, lr2, 1, 1);                   // a-leg toe
     } else if (sp.SECT === 'P') {
       /* d t - and d is on the label, so only the wall is dimensioned. It is
-         measured across the left-hand wall at half height, which is where the
-         barrel is vertical and the two faces are a clean t apart. */
+         measured at half height, where the barrel is vertical and the two
+         faces are a clean t apart.
+
+         The RIGHT wall, not the left, and that is the whole difference between
+         a readable pipe and an unreadable one. dimNarrow carries its number
+         out to x1 + leadRun: off the left wall that lands inside the bore, so
+         the line crosses the entire section and the arrows - sized for the
+         part, not for the wall - close over a 2.5mm gap into a solid blob. Off
+         the right wall the number lands clear of the steel, which is the room
+         sectPadRight was already reserving. */
       var pt = num(sp.t, 0);
-      hnarrow(0, pt, h / 2, pt);
+      hnarrow(w - pt, w, h / 2, pt);
     } else if (sp.SECT === 'R') {
-      // h b t r - the wall on the left face, the corner once. All four
-      // corners carry the same r and radLead refuses the repeats.
+      // h b t r - the wall on the right face for the same reason as P, and the
+      // corner once: all four carry the same r and radLead refuses the repeats
       var rt = num(sp.t, 0), rr = num(sp.r, 0);
-      hnarrow(0, rt, h / 2, rt);
+      hnarrow(w - rt, w, h / 2, rt);
       radLead(w - rr * K, h - rr * K, rr, 1, 1);                        // outer corner
     }
     return { dims: dims, narrow: narrow, leads: leads };

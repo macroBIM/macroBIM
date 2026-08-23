@@ -155,9 +155,11 @@ function smallerLoopExtent(pts, closed) {
   await page.route('**/{unpkg.com,cdnjs.cloudflare.com}/**', r =>
     r.fulfill({ contentType: 'application/javascript', body: LIB(r.request().url()) }));
   await page.route('**/fonts.{googleapis,gstatic}.com/**', r => r.abort());
-  /* the shipped engine, off host_lock.html - the point is the file a customer
-     runs, not the build changes land in */
-  await page.goto('file://' + P3 + '/tools/host_lock.html', { waitUntil: 'domcontentloaded' });
+  /* the shipped engine by default - the point is the file a customer runs,
+     not the build changes land in. ENGINE=test to look at the other one while
+     a drawing change is being judged. */
+  const HOST = process.env.ENGINE === 'test' ? 'host_test.html' : 'host_lock.html';
+  await page.goto('file://' + P3 + '/tools/' + HOST, { waitUntil: 'domcontentloaded' });
   await page.addInitScript(() => {});
   await page.evaluate(() => {
     const c = HTMLAnchorElement.prototype.click;
