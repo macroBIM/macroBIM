@@ -215,8 +215,13 @@ function smallerLoopExtent(pts, closed) {
     fs.writeFileSync(dxf, txt);
 
     const g = outlinePoints(txt);
-    const lp = loops(g.pts);
-    const closed = lp.filter(l => l.closed);
+    /* A CIRCLE entity is a closed loop too - and once a pipe is exported as
+       one, counting only LINE loops reports the very fix that was asked for as
+       a failure. The first run of this after the change said "want 2, got 0"
+       on a file that had exactly the two circles wanted. */
+    const lp = loops(g.pts).filter(l => l.closed)
+      .concat(g.circles.map(c => ({ n: 0, closed: true, r: c.r })));
+    const closed = lp;
     const svg = OUT + '/PR_' + c.id + '.svg';
     try { execFileSync(process.execPath, [SP + '/dxf2svg.js', dxf, svg], { stdio: 'pipe' }); }
     catch (e) { }
@@ -228,16 +233,21 @@ function smallerLoopExtent(pts, closed) {
       bad++;
     } else if (c.ratio) {
       /* both loops measured the same way, so the ratio is the wall and not an
-         artefact of how either shape curves */
-      const byN = closed.slice().sort((a, b) => b.n - a.n);
-      const all = extents(g.pts);
-      const inner = smallerLoopExtent(g.pts, closed);
-      const got = inner / Math.max(all.w, all.h);
+         artefact of how either shape curves. Circles carry their radius, so
+         when the part came out as two of them the wall is read straight off
+         them rather than off a point cloud that no longer exists. */
+      let got;
+      if (g.circles.length === 2) {
+        const rr = g.circles.map(c2 => c2.r).sort((a, b) => a - b);
+        got = rr[0] / rr[1];
+      } else {
+        const all = extents(g.pts);
+        got = smallerLoopExtent(g.pts, closed) / Math.max(all.w, all.h);
+      }
       const off = Math.abs(got - c.ratio) / c.ratio * 100;
       verdict = 'bore/outside ' + got.toFixed(3) + ' vs ' + c.ratio.toFixed(3) +
                 (off < 1.5 ? '  OK' : '  OFF by ' + off.toFixed(1) + '%');
       if (off >= 1.5) bad++;
-      void byN;
     } else verdict = 'one loop - solid, as it should be';
 
     console.log('  ' + c.id + '  ' + c.what.padEnd(46));

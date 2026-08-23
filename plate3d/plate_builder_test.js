@@ -6587,11 +6587,30 @@
           var k = ringCircle(rg);
           if (k) circles.push(k);
         });
-        if (p.it.spec && p.it.spec.SHAPE === 'CIRC')
-          p.it.rings.outers.forEach(function (o) {
+        /* A round part's own outline. The test used to run only on SHAPE
+           'CIRC' - a round plate - which left a pipe out, because a SECT's
+           SHAPE is 'SECT' whatever its profile. So a P came out as the
+           forty-eight straight lines it is held as internally: measuring
+           right, reading wrong, and impossible to snap a centre on or offset
+           as a circle in the CAD it lands in.
+           Widening the test costs nothing, because ringCircle refuses anything
+           whose points are not one radius within 2%. An H is offered and
+           declined; the arithmetic is a few dozen hypots per part. */
+        p.it.rings.outers.forEach(function (o) {
+          var k = ringCircle(o);
+          if (k) circles.push(k);
+        });
+        /* And the holes, which were never offered at all. A hole cut by the
+           sheet is already in `cuts` above and was found there, so nothing
+           that draws today changes; what this reaches is the one ring that is
+           in neither list - the bore of a hollow section, which is not a CUT
+           the sheet asked for but the inside of the profile itself. */
+        (p.it.rings.holes || []).forEach(function (hs) {
+          (hs || []).forEach(function (o) {
             var k = ringCircle(o);
             if (k) circles.push(k);
           });
+        });
         function take(rg) {
           var d = ringDraw(rg, circles);
           d.lines.forEach(function (s) { segs.push(s); });

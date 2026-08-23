@@ -200,7 +200,20 @@ async function fingerprintBook(page, book) {
   await page.route('**/{unpkg.com,cdnjs.cloudflare.com}/**', r =>
     r.fulfill({ contentType: 'application/javascript', body: LIB(r.request().url()) }));
   await page.route('**/fonts.{googleapis,gstatic}.com/**', r => r.abort());
-  await page.goto('file://' + SP + '/host_lock.html', { waitUntil: 'domcontentloaded' });
+  /* the shipped engine, which is what the lock is a promise about. ENGINE=test
+     points at the other one so a change can be held against the lock BEFORE it
+     is promoted - the answer wanted there is "format unchanged", and getting it
+     after the sync instead of before is getting it too late. --update is
+     refused in that mode: the lock must never be written from a build nobody
+     has received. */
+  const HOST = process.env.ENGINE === 'test' ? 'host_test.html' : 'host_lock.html';
+  if (process.env.ENGINE === 'test' && UPDATE) {
+    console.log('--update reads the shipped engine only; drop ENGINE=test');
+    process.exitCode = 1;
+    await browser.close();
+    return;
+  }
+  await page.goto('file://' + SP + '/' + HOST, { waitUntil: 'domcontentloaded' });
   await page.waitForTimeout(2500);
 
   const now = { books: {} };
