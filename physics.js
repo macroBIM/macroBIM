@@ -152,6 +152,7 @@ const Physics = {
                 let dx = w.x2 - w.x1;
                 let dy = w.y2 - w.y1;
                 let len = Math.sqrt(dx * dx + dy * dy);
+                if (len < 0.5) return;               // 길이 0 벽(0값 치수의 퇴화 세그먼트) 무시
                 let p1 = { x: w.x1, y: w.y1 };
                 let p2 = { x: w.x2, y: w.y2 };
 
@@ -382,8 +383,112 @@ const Physics = {
             let t1 = endT(cw.x1, cw.y1);
             let t2 = endT(cw.x2, cw.y2);
             let lo = Math.min(t1, t2), hi = Math.max(t1, t2);
+
+            // ── 표면과 나란한 바(데크/슬래브 횡철근)는 콘크리트 경계까지 연장 ──
+            // 기준 벽의 끝(크라운 분할, 헌치 시작 등)에서 멈추면 슬래브 절반만 배근된다.
+            // 바 축을 따라 광선을 쏴 실제로 막히는 피복면(캔틸레버 선단, 복부 내측 등)을
+            // 찾아 그 지점까지 연장한다. 축과 기울어진 세그(15번 45° 다리 등)는 평행 조건을
+            // 만족하지 않으므로 기존의 '기준 벽 끝단면에서 정지' 규칙이 그대로 유지된다.
+            // 평행 판정은 '세그먼트가 안착한 벽'(다수결 fitWall) 기준 — 끝점 아래 벽으로 재면
+            // 끝이 우연히 단차/헌치 위에 걸렸을 때 한쪽만 연장되어 좌우 비대칭이 된다.
+            let baseWall = Physics.getSegmentFitWall(seg) || refWall;
+            let wdx = baseWall.x2 - baseWall.x1, wdy = baseWall.y2 - baseWall.y1;
+            let wlen = Math.hypot(wdx, wdy) || 1;
+            let par = Math.abs((wdx * u.x + wdy * u.y) / wlen);
+            if (par >= 0.9999985) {
+                // 표면과 나란한 바(데크/슬래브 횡철근)는 '콘크리트 안에서 피복을 확보한 채
+                // 갈 수 있는 데까지' 연장한다. 기준 벽 조각 단위로 끊으면 크라운 분할·단차에서
+                // 절반만 배근되고, 단순 광선만 쓰면 모따기·헌치를 지나쳐 단면 밖으로 나간다.
+                let mid = { x: (seg.p1.x + seg.p2.x) / 2, y: (seg.p1.y + seg.p2.y) / 2 };
+                let segDist = (px, py, ax, ay, bx, by) => {
+                    let ex = bx - ax, ey = by - ay, L2 = ex * ex + ey * ey;
+                    let s = L2 ? ((px - ax) * ex + (py - ay) * ey) / L2 : 0;
+                    s = s < 0 ? 0 : (s > 1 ? 1 : s);
+                    return Math.hypot(px - (ax + s * ex), py - (ay + s * ey));
+                };
+                // 콘크리트 내부 판정 (외곽 + 공동 루프 교차 홀짝)
+                let inside = (px, py) => {
+                    let cross = false;
+                    for (let wi = 0; wi < walls.length; wi++) {
+                        let w = walls[wi];
+                        if ((w.y1 > py) !== (w.y2 > py)) {
+                            let xx = (w.x2 - w.x1) * (py - w.y1) / (w.y2 - w.y1) + w.x1;
+                            if (px < xx) cross = !cross;
+                        }
+                    }
+                    return cross;
+                };
+                // 지지면 추적 : 바가 붙어 있는 면을 따라가되, 그 면이 꺾이거나(0.1° 초과)
+                // 멀어지면 거기서 끝낸다. 크라운처럼 같은 평면이 조각으로 나뉜 곳은 그대로 통과.
+                let nFit = { x: baseWall.nx, y: baseWall.ny };
+                let sup = { x: -nFit.x, y: -nFit.y };               // 바 → 지지면 방향
+                let probe = (px, py) => {                          // 지지면까지 거리와 그 면
+                    let best = null, bestT = Infinity;
+                    for (let wi = 0; wi < walls.length; wi++) {
+                        let w = walls[wi];
+                        let ex = w.x2 - w.x1, ey = w.y2 - w.y1;
+                        let den = sup.x * ey - sup.y * ex;
+                        if (Math.abs(den) < 1e-9) continue;
+                        let rx = w.x1 - px, ry = w.y1 - py;
+                        let tR = (rx * ey - ry * ex) / den;
+                        let sS = (rx * sup.y - ry * sup.x) / den;
+                        if (tR <= 0.01 || tR >= bestT) continue;
+                        if (sS < -1e-6 || sS > 1 + 1e-6) continue;
+                        bestT = tR; best = w;
+                    }
+                    return best ? { t: bestT, w: best } : null;
+                };
+                let base = probe(mid.x, mid.y);
+                let baseT = base ? base.t : 0;
+                let supportOK = (px, py) => {
+                    if (!base) return true;                        // 지지면을 못 찾으면 이 조건은 생략
+                    let q = probe(px, py);
+                    if (!q) return false;
+                    let ex = q.w.x2 - q.w.x1, ey = q.w.y2 - q.w.y1, el = Math.hypot(ex, ey) || 1;
+                    if (Math.abs((ex * u.x + ey * u.y) / el) < 0.9999985) return false;   // 0.1° 초과로 꺾임
+                    return Math.abs(q.t - baseT) <= 3.0;           // 같은 높이(단차 없음)
+                };
+
+                // 축을 따라 전진 : 콘크리트를 벗어나거나(→ 그 면의 피복만큼 후퇴)
+                //                  지지면 여유가 줄어들면(→ 그 지점에서 정지) 종료
+                let reach = (dSign) => {
+                    let dx = u.x * dSign, dy = u.y * dSign;
+                    const STEP = 25, LIMIT = 60000;
+                    let good = 0, exited = false, stopped = false;
+                    for (let s = STEP; s <= LIMIT; s += STEP) {
+                        let px = mid.x + dx * s, py = mid.y + dy * s;
+                        if (!inside(px, py)) { exited = true; break; }
+                        if (!supportOK(px, py)) { stopped = true; break; }
+                        good = s;
+                    }
+                    if (!exited && !stopped) return good;
+                    let a = good, b = good + STEP, test = exited
+                        ? function (m) { return inside(mid.x + dx * m, mid.y + dy * m); }
+                        : function (m) { return supportOK(mid.x + dx * m, mid.y + dy * m); };
+                    for (let it = 0; it < 14; it++) {                 // 경계 1mm 이내
+                        let m = (a + b) / 2;
+                        if (test(m)) a = m; else b = m;
+                    }
+                    if (!exited) return a;                            // 지지면이 끝남 → 추가 후퇴 없음
+                    let ex = mid.x + dx * a, ey = mid.y + dy * a;     // 콘크리트 경계 지점
+                    let near = null, nd2 = Infinity;
+                    for (let wi = 0; wi < walls.length; wi++) {
+                        let w = walls[wi];
+                        let dd = segDist(ex, ey, w.x1, w.y1, w.x2, w.y2);
+                        if (dd < nd2) { nd2 = dd; near = w; }
+                    }
+                    if (!near) return a;
+                    let need = Physics.getWallCoverValue(near) + (wallStack[near.id] || 0) + dia / 2;
+                    let cosA = Math.abs(near.nx * dx + near.ny * dy);  // 비스듬한 면이면 축방향 후퇴량 증가
+                    return Math.max(0, a - need / Math.max(0.2, cosA));
+                };
+                let tMid = (mid.x - o.x) * u.x + (mid.y - o.y) * u.y;
+                if (side === 'start') lo = tMid - reach(-1); else hi = tMid + reach(1);
+            }
+
             return {
                 wallId: cw.id || (cw.origWall && cw.origWall.id) || '?',
+                refId: refWall.id || null,
                 lo: { x: o.x + u.x * lo, y: o.y + u.y * lo },
                 hi: { x: o.x + u.x * hi, y: o.y + u.y * hi }
             };
@@ -401,6 +506,10 @@ const Physics = {
         const lastSeg = trebar.segments[trebar.segments.length - 1];
         const startSpan = (startRule && startRule.type === "FIT") ? getFitSpan(firstSeg, 'start') : null;
         const endSpan = (endRule && endRule.type === "FIT") ? getFitSpan(lastSeg, 'end') : null;
+        // FIT 끝단 기준 벽 기록 → 적층(wallStack)이 바가 걸친 모든 벽에 등록되도록
+        //  (예: 크라운 분할 하면의 TSB — 시점 E15·종점 E28 둘 다. 한쪽만 등록되면 좌우 적층 어긋남)
+        if (startSpan && startSpan.refId) { firstSeg.spanWalls = firstSeg.spanWalls || []; if (firstSeg.spanWalls.indexOf(startSpan.refId) < 0) firstSeg.spanWalls.push(startSpan.refId); }
+        if (endSpan && endSpan.refId) { lastSeg.spanWalls = lastSeg.spanWalls || []; if (lastSeg.spanWalls.indexOf(endSpan.refId) < 0) lastSeg.spanWalls.push(endSpan.refId); }
         if (startSpan || endSpan) {
             console.log(`[FIT] ${trebar.id || ''} → ` +
                 (startSpan ? `시점: ${startSpan.wallId}` : '') +
