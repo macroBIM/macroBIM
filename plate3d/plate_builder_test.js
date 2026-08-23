@@ -6632,15 +6632,33 @@
            made. It goes nearest the steel and pushes the overall size out one
            stack - a chain read after the number it adds up to is read twice. */
         var hcs = holeCentres(p.it), lv = 0;
+        /* The face chain runs to the edge of the FACE, not of the part box. With
+           an elevation beside it the box reaches past the section, and chaining
+           to that edge would put a number on the white space between the two
+           views. */
+        var fb = p.faceBox || p.box;
+        var fx0 = ox + fb.x0 - p.box.x0, fx1 = ox + fb.x1 - p.box.x0;
+        var fy0 = oy + fb.y0 - p.box.y0, fy1 = oy + fb.y1 - p.box.y0;
         if (hcs.length) {
           var chX = chainOps(hcs.map(function (hh) { return hh[0] - p.box.x0 + ox; }),
-                             ox, ox + w);
+                             fx0, fx1);
           var chY = chainOps(hcs.map(function (hh) { return hh[1] - p.box.y0 + oy; }),
-                             oy, oy + h);
+                             fy0, fy1);
           dimChain(chX, oy, false, 0, 0, oy);
           dimChain(chY, ox, true, 0, 0, ox);
           if (chX.length || chY.length) lv = 1;
         }
+        /* and the elevation's own chain: along its length under it, up its
+           depth on its right, both bounded by the elevation and nothing else */
+        (p.sides || []).forEach(function (sv) {
+          var sx0 = ox + sv.x0 - p.box.x0, sx1 = ox + sv.x1 - p.box.x0;
+          var sy0 = oy + sv.y0 - p.box.y0, sy1 = oy + sv.y1 - p.box.y0;
+          var shX = sv.holes.map(function (hh) { return ox + hh[0] - p.box.x0; });
+          var shY = sv.holes.map(function (hh) { return oy + hh[1] - p.box.y0; });
+          dimChain(chainOps(shX, sx0, sx1), oy, false, 0, 0, oy);
+          dimChain(chainOps(shY, sy0, sy1), sx1, true, 0, 0, sx1);
+          lv = 1;
+        });
 
         // a round part gets a diameter, not a width and a height
         var lead = 0;
@@ -6816,29 +6834,56 @@
 
            Only members that carry one get it. Every section drawing that has
            ever been issued is a cross-section and stays exactly that. */
+        /* ---- the side elevations ----
+           A section's part drawing is its cross-section, and a bolt that goes
+           ACROSS the member - through a web, through a flange - is not in that
+           view at all: it sits some distance along the length, which a cross-
+           section has no axis for. So the length view is drawn beside the
+           section in the same coordinate space; segsBox then grows on its own
+           and partShelf lays the wider box out with no layout change at all.
+
+           ONE ELEVATION PER BOLT DIRECTION. A cleat is bolted to the column one
+           way and to the beam the other, and putting both groups on a single
+           elevation stacks two sets of holes that were never on one face and
+           runs their two chains through each other - which is what the first
+           version of this did.
+
+           Only members with such a hole get one; every section drawing issued
+           so far is a cross-section and stays exactly that. */
         var side = (p.it.drills || []).filter(function (h) { return h.view === 'side'; });
         if (side.length) {
           var pb = segsBox(segs, arcs);
+          p.faceBox = pb;                        // the section alone, before any elevation
           var mh2 = num(p.it.thk, 0) / 2;
           var gapv = D.base * 3;
-          var ox = pb.x1 - (-mh2) + gapv;          // put local z = -mh2 just past the section
-          /* Which way across the member the bolt ran decides which axis of the
-             profile the elevation is looking at: a bolt through a web sees the
-             depth, one through a flange sees the width. */
-          var axis = side[0].axis === 'x' ? 'y' : 'x';
-          var lo = Infinity, hi = -Infinity;
-          p.it.rings.outers.forEach(function (o) {
-            o.forEach(function (q) {
-              var v = axis === 'y' ? q[1] : q[0];
-              if (v < lo) lo = v;
-              if (v > hi) hi = v;
+          var cur = pb.x1 + gapv + mh2;          // centre of the first elevation
+          p.sides = [];
+          ['x', 'y'].forEach(function (ax) {
+            var grp = side.filter(function (h) { return h.axis === ax; });
+            if (!grp.length) return;
+            /* which way across the member the bolt ran decides which axis of
+               the profile this elevation looks at: through a web you see the
+               depth, through a flange the width */
+            var vaxis = ax === 'x' ? 'y' : 'x';
+            var lo = Infinity, hi = -Infinity;
+            p.it.rings.outers.forEach(function (o) {
+              o.forEach(function (q) {
+                var v = vaxis === 'y' ? q[1] : q[0];
+                if (v < lo) lo = v;
+                if (v > hi) hi = v;
+              });
             });
-          });
-          var c0 = [ox + -mh2, lo], c1 = [ox + mh2, lo],
-              c2 = [ox + mh2, hi], c3 = [ox + -mh2, hi];
-          segs.push([c0, c1], [c1, c2], [c2, c3], [c3, c0]);
-          side.forEach(function (h) {
-            arcs.push({ c: [ox + h.z, axis === 'y' ? h.y : h.x], r: h.d / 2, full: true });
+            var c0 = [cur - mh2, lo], c1 = [cur + mh2, lo],
+                c2 = [cur + mh2, hi], c3 = [cur - mh2, hi];
+            segs.push([c0, c1], [c1, c2], [c2, c3], [c3, c0]);
+            var hs = grp.map(function (h) {
+              return [cur + h.z, vaxis === 'y' ? h.y : h.x];
+            });
+            hs.forEach(function (q, i) {
+              arcs.push({ c: q, r: grp[i].d / 2, full: true });
+            });
+            p.sides.push({ x0: cur - mh2, x1: cur + mh2, y0: lo, y1: hi, holes: hs });
+            cur += 2 * mh2 + gapv;
           });
         }
         p.segs = segs;
