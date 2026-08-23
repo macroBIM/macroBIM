@@ -111,17 +111,22 @@ const UI = {
                     let midX = (seg.p1.x + seg.p2.x) / 2;
                     let midY = (seg.p1.y + seg.p2.y) / 2;
 
-                    // 활성(재스폰) 철근의 세그먼트 라벨도 함께 강조 — 크게·주황색·배경칩
+                    // 지금 안착 중(FITTING)인 세그먼트의 라벨을 함께 강조 — 세그먼트 색과 동일하게
+                    //  · 안착 중  : 주황(#FF9800) 확대 + 배경칩   ← 빨간 노드로 표시되는 그 세그먼트
+                    //  · 안착 완료: 초록(#00FF00) 로 진행 표시
+                    //  · 그 외    : 기존 시안색
+                    let isFitting = isActive && seg.state === "FITTING";
+                    let isDone = isActive && seg.state === "SETTLED";
                     let baseFS = secType === "TBEAM" ? 16 : 60;
-                    let fs = isActive ? baseFS * 1.5 : baseFS;
-                    let offsetDist = (secType === "TBEAM" ? 20 : 150) * (isActive ? 1.25 : 1);
+                    let fs = isFitting ? baseFS * 1.6 : baseFS;
+                    let offsetDist = (secType === "TBEAM" ? 20 : 150) * (isFitting ? 1.3 : 1);
                     let textX = midX + seg.normal.x * offsetDist;
                     let textY = midY + seg.normal.y * offsetDist;
 
-                    if (isActive) {                       // 가독성용 배경칩 (라벨 뒤)
+                    if (isFitting) {                      // 가독성용 배경칩 (라벨 뒤)
                         UI.trebarGroup.add(new Konva.Circle({
                             x: textX, y: textY, radius: fs * 0.72,
-                            fill: 'rgba(0,0,0,0.55)', stroke: '#FF9800', strokeWidth: fs * 0.07
+                            fill: 'rgba(0,0,0,0.55)', stroke: '#FF9800', strokeWidth: fs * 0.08
                         }));
                     }
 
@@ -132,7 +137,7 @@ const UI = {
                         fontSize: fs,
                         fontFamily: 'Arial',
                         fontStyle: 'bold',
-                        fill: isActive ? '#FF9800' : '#00FFFF',
+                        fill: isFitting ? '#FF9800' : (isDone ? '#00FF00' : '#00FFFF'),
                         scaleY: -1,
                         offsetX: (secType === "TBEAM" ? 5 : 20) * (fs / baseFS),
                         offsetY: (secType === "TBEAM" ? 8 : 30) * (fs / baseFS)
