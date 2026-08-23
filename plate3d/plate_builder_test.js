@@ -800,6 +800,21 @@
                                                right-handed and are not a choice.
                                                The older "ID Dia Length" order is still
                                                read)
+       BOLT  ID MAT Dia Length [Hole] [head_af] [head_h] [nut_af] [nut_h]
+                                              (a BAR that knows it is a bolt. The point
+                                               on the MODULE row is the UNDERSIDE OF THE
+                                               HEAD - the steel face the bolt pulls
+                                               against - so the head stands off behind
+                                               it, the shank runs Length forward and the
+                                               nut sits at the far end. Turn one round
+                                               with the ROT columns: 180 about the axis
+                                               across it.
+                                               Only the first four are needed. The rest
+                                               come off the diameter, at the ISO hex
+                                               ratios: across-flats 1.5d, head 0.625d,
+                                               nut 0.9d, hole d+2. A high-strength bolt
+                                               is bigger than that, which is why each
+                                               one can be typed)
        CUT   plateID L.X L.Y shapeID dx dy repeat [dx2 dy2 repeat2]
                                               (put shapeID - a HOLE, or another PLATE's
                                                outline - on the plate at L.X/L.Y, both
@@ -1035,8 +1050,8 @@
              (numbered ? (n < 1000 ? ('000' + n).slice(-3) : String(n)) : '');
     }
     var palias = PLANE_ALIAS, yup = false;   // switched by a COORD row
-    var counts = { plate: 0, hole: 0, bar: 0, sect: 0, cut: 0, module: 0, assy: 0,
-                   view: 0, fit: 0 };
+    var counts = { plate: 0, hole: 0, bar: 0, sect: 0, bolt: 0, cut: 0, module: 0,
+                   assy: 0, view: 0, fit: 0 };
     var views = [];                      // VIEW rows: drawings the sheet asked for
     var current = null, currentPart = null, counter = {};
     // Two severities. warn() is a row the parser could not honour - skipped, or
@@ -1285,6 +1300,50 @@
         if (holes[idb]) warn('row ' + (r + 1) + ': BAR ' + idb + ' reuses a HOLE id');
         current = idb;
         counts.bar++;
+      } else if (kw === 'BOLT') {
+        /* BOLT ID MAT Dia Length [Hole] [head_af] [head_h] [nut_af] [nut_h]
+
+           A BAR that knows it is a bolt. The engine can then do what a bar
+           cannot: work out which members its axis passes through and put a
+           hole on each of their part drawings, so the hole is written once -
+           as the bolt - instead of twice.
+
+           The point given on the MODULE row is the UNDERSIDE OF THE HEAD,
+           which is the face of the steel the bolt is pulled against and the
+           one number a detailer actually knows. The head stands off behind it,
+           the shank runs Length forward, the nut sits at the far end. To turn
+           a bolt round, rotate it 180 with the ROT columns the MODULE row
+           already has - no extra column for something the sheet can say.
+
+           Only the first four values are needed. The rest come off the
+           diameter, and the ratios are the ISO hex ones rather than a table:
+           across-flats 1.5d is 24 at M16 and 30 at M20, head height 0.625d is
+           10 and 12.5, nut height 0.9d is 14.4 and 18. High-strength
+           structural bolts are bigger than that - an M20 F10T head is 32
+           across - which is exactly why every one of them can be typed. */
+        var idb2 = str(v[0]).toUpperCase();
+        if (!idb2) continue;
+        var bd = num(v[2], 0), bl = num(v[3], 0);
+        var bolt = { ID: idb2, SHAPE: 'CIRC', __bar: true, __bolt: true, BASEPT: 'mc',
+                     MAT: str(v[1]), D: bd, THK: bl,
+                     HOLE: num(v[4], 0) || bd + 2,
+                     HAF:  num(v[5], 0) || bd * 1.5,
+                     HH:   num(v[6], 0) || bd * 0.625,
+                     NAF:  num(v[7], 0) || num(v[5], 0) || bd * 1.5,
+                     NH:   num(v[8], 0) || bd * 0.9 };
+        var be = [];
+        if (!(bd > 0)) be.push('Dia is blank or not a positive number');
+        if (!(bl > 0)) be.push('Length is blank or not a positive number');
+        if (bd > 0 && bolt.HOLE < bd) be.push('the hole (' + bolt.HOLE + ') is smaller than the bolt (' + bd + ')');
+        if (bd > 0 && bolt.HAF <= bd) be.push('the head (' + bolt.HAF + ' across) is not bigger than the shank');
+        if (be.length) {
+          be.forEach(function (m) { warn('row ' + (r + 1) + ': BOLT ' + idb2 + ' — ' + m); });
+          continue;
+        }
+        if (holes[idb2]) warn('row ' + (r + 1) + ': BOLT ' + idb2 + ' reuses a HOLE id');
+        plates[idb2] = bolt;
+        current = idb2;
+        counts.bolt = (counts.bolt || 0) + 1;
       } else if (kw === 'SECT') {
         // SECT ID MAT Length TYPE BASE.pt <values>
         // The values run straight on with no gaps, and each type has its own
@@ -1870,6 +1929,7 @@
             (c.hole ? ' &middot; holes ' + c.hole : '') +
             (c.bar ? ' &middot; bars ' + c.bar : '') +
             (c.sect ? ' &middot; sections ' + c.sect : '') +
+            (c.bolt ? ' &middot; bolts ' + c.bolt : '') +
             ' &middot; cuts ' + c.cut +
             ' &middot; modules ' + (c.module || 0) +
             ' &middot; assy ' + c.assy + ' &rarr; placed ' + placed +
@@ -2625,6 +2685,7 @@
     return [a[0], a[1], (face || 0) * thk / 2];
   }
   function isBarSpec(spec) { return !!(spec && spec.__bar && !spec.__sect); }
+  function isBoltSpec(spec) { return !!(spec && spec.__bolt); }
   function isSectSpec(spec) { return !!(spec && spec.__sect); }
   // A stretched member is the same section at a different length, so it gets its
   // own copy of the definition with the length written in. Everything downstream
@@ -6911,17 +6972,23 @@
        columns, because a take-off has to be checkable against the row it came
        from, and a derived number sends the reader looking for a cell that is
        not there. */
+    /* A bolt is bought, not cut, so what a take-off wants from it is the size,
+       the length and how many - and the hole it needs, which is the number the
+       shop drills to. It is still weighed, because a thousand M20s are not
+       nothing, but the count is the column people read. */
+    BOLT:   { t: 'BOLT', f: [['DIA', 'D'], ['LENGTH', 'THK'], ['HOLE', 'HOLE']] },
     SECT_P: { t: 'SECT — P', f: [['d', 'd'], ['t', 't'], ['LENGTH', 'THK']] },
     SECT_R: { t: 'SECT — R', f: [['h', 'h'], ['b', 'b'], ['t', 't'], ['r', 'r'],
                                  ['LENGTH', 'THK']] }
   };
-  var BOQ_ORDER = ['RECT', 'TRAP', 'CIRC', 'BAR',
+  var BOQ_ORDER = ['RECT', 'TRAP', 'CIRC', 'BAR', 'BOLT',
                    'SECT_H', 'SECT_C', 'SECT_L', 'SECT_P', 'SECT_R'];
-  var BOQ_CAT = { RECT: 'PLATE', TRAP: 'PLATE', CIRC: 'PLATE', BAR: 'BAR',
+  var BOQ_CAT = { RECT: 'PLATE', TRAP: 'PLATE', CIRC: 'PLATE', BAR: 'BAR', BOLT: 'BOLT',
                   SECT_H: 'SECT', SECT_C: 'SECT', SECT_L: 'SECT',
                   SECT_P: 'SECT', SECT_R: 'SECT' };
   function boqKind(spec) {
     if (isSectSpec(spec)) return 'SECT_' + spec.SECT;
+    if (isBoltSpec(spec)) return 'BOLT';       // before BAR: a bolt is also a __bar
     if (isBarSpec(spec)) return 'BAR';
     if (spec.SHAPE === 'CIRC') return 'CIRC';
     return (spec.WT === spec.WB && spec.OFF_T === spec.OFF_B) ? 'RECT' : 'TRAP';
@@ -8326,6 +8393,38 @@
     ' and rolls the profile about its own axis with <code>Alpha</code>. That is the one to reach',
     ' for on bracing - <code>length</code> becomes the stock length and a single SECT row serves',
     ' every member cut from it.</p>',
+
+    '<h3>BOLT - a bar that knows it is a bolt</h3>',
+    sheet([['# BOLT', 'id', 'mat', 'dia', 'length', 'hole', 'head_af', 'head_h', 'nut_af', 'nut_h'],
+           ['BOLT', 'bo.m16', 'F10T', 16, 50],
+           ['BOLT', 'bo.m20', 'F10T', 20, 60, 24, 32, 13, 32, 19]]),
+    '<p>A <b>BAR</b> is a length of round stock and the engine treats it as one. A',
+    ' <b>BOLT</b> is the same shape with a job: it can say which members its axis passes',
+    ' through, so the hole is written <i>once</i> - as the bolt - instead of once as the',
+    ' bolt and again as a hole in every part it goes through.</p>',
+    '<p><b>The point on the MODULE row is the underside of the head.</b> That is the face',
+    ' of the steel the bolt is pulled against, and the one number you already know from the',
+    ' drawing - the outside of a flange, the face of a cleat. The head stands off behind it,',
+    ' the shank runs <code>length</code> forward, the nut sits at the far end. So',
+    ' <code>length</code> is grip plus nut plus the thread you want showing, which is how a',
+    ' bolt length is chosen anyway.</p>',
+    '<p>To turn one round, rotate it 180&deg; with the <b>ROT</b> columns the MODULE row',
+    ' already has - about whichever axis lies across the bolt. There is no head-side column,',
+    ' because the sheet can already say it.</p>',
+    '<p><b>Only the first four values are needed.</b> The rest come off the diameter:</p>',
+    '<table class="gt"><thead><tr><th>left blank</th><th>becomes</th><th>M16</th><th>M20</th></tr></thead><tbody>',
+    '<tr><td><code>hole</code></td><td>dia + 2</td><td>18</td><td>22</td></tr>',
+    '<tr><td><code>head_af</code></td><td>1.5 &times; dia &nbsp;(across the flats)</td><td>24</td><td>30</td></tr>',
+    '<tr><td><code>head_h</code></td><td>0.625 &times; dia</td><td>10</td><td>12.5</td></tr>',
+    '<tr><td><code>nut_af</code></td><td>same as the head</td><td>24</td><td>30</td></tr>',
+    '<tr><td><code>nut_h</code></td><td>0.9 &times; dia</td><td>14.4</td><td>18</td></tr>',
+    '</tbody></table>',
+    '<p>Those are the ISO hex numbers, and they are ratios rather than a table because five',
+    ' ratios are honest where a bolt catalogue would not be. <b>A high-strength structural',
+    ' bolt is bigger</b> - an M20 F10T head is 32 across, not 30 - which is exactly why every',
+    ' one of them can be typed instead.</p>',
+    '<p class="warn">A BOLT row is refused if the diameter or the length is missing, if the',
+    ' hole is smaller than the bolt, or if the head is no bigger than the shank.</p>',
 
     '<h3>MODULE - parts into a unit</h3>',
     sheet([['MODULE', 'id', 'member.id', 'Ref.Pt', 'L.X', 'L.Y', 'L.Z', 'PLANE',
