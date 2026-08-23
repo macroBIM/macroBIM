@@ -2493,9 +2493,9 @@
 
     var c = classifyRings(region.regions);
     var area = 0;
-    c.outers.forEach(function (r) { area += Math.abs(ringArea(r)); });
+    c.outers.forEach(function (r) { area += ringAreaTrue(r); });
     c.holes.forEach(function (hs) {
-      hs.forEach(function (r) { area -= Math.abs(ringArea(r)); });
+      hs.forEach(function (r) { area -= ringAreaTrue(r); });
     });
 
     /* The cutters go out with the result. They are what the sheet asked for,
@@ -5839,7 +5839,28 @@
       if (d > hi) hi = d;
     }
     if (!(hi > 0) || (hi - lo) / hi > 0.02) return null;
-    return { c: [cx, cy], r: (lo + hi) / 2 };
+    /* hi, the circumradius, not the mean of hi and lo.
+       Every circle in this file is drawn by circleOutline, which puts its
+       vertices ON the true circle and leaves the flats inside it. So hi IS the
+       radius that was asked for, and the fitted mean sits 0.1% inside it - which
+       is a Ø22 bolt hole exported at 21.95. */
+    return { c: [cx, cy], r: hi };
+  }
+  /* The area of a ring, with a circle counted as a circle.
+
+     Curves here are polygons: a circle is 48 straight edges inscribed in the
+     true one, so it has always measured UNDER - 99.71% of the circle it stands
+     for. That was defensible while the drawing was also 48 lines. It stopped
+     being defensible when the DXF started going out as a real CIRCLE, because
+     then one app hands a fabricator a Ø48.6 circle and prices something 0.29%
+     smaller.
+
+     So a ring the drawing would call a circle is weighed as one. Everything
+     else - an H, a rounded rectangle, a plate - is the polygon it is, and its
+     fillets are still eight segments a quarter. */
+  function ringAreaTrue(r) {
+    var k = ringCircle(r);
+    return k ? Math.PI * k.r * k.r : Math.abs(ringArea(r));
   }
   // Arial has no fixed advance, so this is an estimate - deliberately generous,
   // because a rule that comes up short of its own text is the visible failure.
@@ -5951,15 +5972,23 @@
       radLead(w - lr2 * K, t1a - lr2 * K, lr2, 1, 1);                   // a-leg toe
     } else if (sp.SECT === 'P') {
       /* d t - and d is on the label, so only the wall is dimensioned. It is
-         measured across the left-hand wall at half height, which is where the
-         barrel is vertical and the two faces are a clean t apart. */
+         measured at half height, where the barrel is vertical and the two
+         faces are a clean t apart.
+
+         The RIGHT wall, not the left, and that is the whole difference between
+         a readable pipe and an unreadable one. dimNarrow carries its number
+         out to x1 + leadRun: off the left wall that lands inside the bore, so
+         the line crosses the entire section and the arrows - sized for the
+         part, not for the wall - close over a 2.5mm gap into a solid blob. Off
+         the right wall the number lands clear of the steel, which is the room
+         sectPadRight was already reserving. */
       var pt = num(sp.t, 0);
-      hnarrow(0, pt, h / 2, pt);
+      hnarrow(w - pt, w, h / 2, pt);
     } else if (sp.SECT === 'R') {
-      // h b t r - the wall on the left face, the corner once. All four
-      // corners carry the same r and radLead refuses the repeats.
+      // h b t r - the wall on the right face for the same reason as P, and the
+      // corner once: all four carry the same r and radLead refuses the repeats
       var rt = num(sp.t, 0), rr = num(sp.r, 0);
-      hnarrow(0, rt, h / 2, rt);
+      hnarrow(w - rt, w, h / 2, rt);
       radLead(w - rr * K, h - rr * K, rr, 1, 1);                        // outer corner
     }
     return { dims: dims, narrow: narrow, leads: leads };
@@ -6579,11 +6608,30 @@
           var k = ringCircle(rg);
           if (k) circles.push(k);
         });
-        if (p.it.spec && p.it.spec.SHAPE === 'CIRC')
-          p.it.rings.outers.forEach(function (o) {
+        /* A round part's own outline. The test used to run only on SHAPE
+           'CIRC' - a round plate - which left a pipe out, because a SECT's
+           SHAPE is 'SECT' whatever its profile. So a P came out as the
+           forty-eight straight lines it is held as internally: measuring
+           right, reading wrong, and impossible to snap a centre on or offset
+           as a circle in the CAD it lands in.
+           Widening the test costs nothing, because ringCircle refuses anything
+           whose points are not one radius within 2%. An H is offered and
+           declined; the arithmetic is a few dozen hypots per part. */
+        p.it.rings.outers.forEach(function (o) {
+          var k = ringCircle(o);
+          if (k) circles.push(k);
+        });
+        /* And the holes, which were never offered at all. A hole cut by the
+           sheet is already in `cuts` above and was found there, so nothing
+           that draws today changes; what this reaches is the one ring that is
+           in neither list - the bore of a hollow section, which is not a CUT
+           the sheet asked for but the inside of the profile itself. */
+        (p.it.rings.holes || []).forEach(function (hs) {
+          (hs || []).forEach(function (o) {
             var k = ringCircle(o);
             if (k) circles.push(k);
           });
+        });
         function take(rg) {
           var d = ringDraw(rg, circles);
           d.lines.forEach(function (s) { segs.push(s); });
