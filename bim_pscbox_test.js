@@ -260,6 +260,8 @@
       },
 
       _parseRebar: function (fullData) {
+        // Variables 카드의 변수들을 스코프로 — 철근 수치 칸(segs/init/angs/dia 등)에서 th/2 같은 수식 사용 가능
+        this._rbVarScope = (typeof Calc !== 'undefined') ? Calc.buildScope(this._vars || []).scope : {};
         var rows = this._extractRebarDataRows(fullData), out = [], self = this;
         rows.forEach(function (row) {
           var type = self._rbStr(row[0]).toLowerCase();
@@ -284,7 +286,7 @@
       _parseTrebarRow: function (row) {
         var o = { type: 'trebar', id: this._rbStr(row[1]) };
         if (this._rbHas(row[2])) o.code = Number(row[2]);
-        if (this._rbHas(row[3])) o.dia = Number(row[3]);
+        if (this._rbHas(row[3])) o.dia = this._rbNum(row[3]);
         var init = this._rbInit(row[4], ['x', 'y', 'rot']); if (init) o.init = init;
         var segs = this._rbSegs(row[6], row[5]); if (segs) o.segs = segs;
         var angs = this._rbAngs(row[7]); if (angs) o.angs = angs;
@@ -292,18 +294,18 @@
         var be = {}, bs = this._rbEnd(row[9]), bee = this._rbEnd(row[10]);
         if (bs) be.start = bs; if (bee) be.end = bee;
         if (Object.keys(be).length) o.barEnds = be;
-        if (this._rbHas(row[11])) o.radius = Number(row[11]);   // 굴짐반경(선택) — 없으면 dia 기본값
+        if (this._rbHas(row[11])) o.radius = this._rbNum(row[11]);   // 굴짐반경(선택) — 없으면 dia 기본값
         o.z = this._rbHas(row[12]) ? Number(row[12]) : 0;       // z-order(층) — 미입력=0. 같은 z 끼리만 반발
         return o;
       },
 
       _parseLrebarRow: function (row) {
         var o = { type: 'lrebar', id: this._rbStr(row[1]), bar: {} };
-        if (this._rbHas(row[2])) o.bar.dia = Number(row[2]);
-        if (this._rbHas(row[3])) o.bar.num = Number(row[3]);
-        if (this._rbHas(row[8])) o.bar.ctc = Number(row[8]);
-        if (this._rbHas(row[9])) o.bar.max = Number(row[9]);
-        if (this._rbHas(row[10])) o.bar.min = Number(row[10]);
+        if (this._rbHas(row[2])) o.bar.dia = this._rbNum(row[2]);
+        if (this._rbHas(row[3])) o.bar.num = this._rbNum(row[3]);
+        if (this._rbHas(row[8])) o.bar.ctc = this._rbNum(row[8]);
+        if (this._rbHas(row[9])) o.bar.max = this._rbNum(row[9]);
+        if (this._rbHas(row[10])) o.bar.min = this._rbNum(row[10]);
         var init = this._rbInit(row[4], ['x', 'y', 'rot']); if (init) o.init = init;   // init 은 x,y,rot 만 (grav 분리)
         // nors(row[5]) = 종방향 철근 중력방향(-1/+1). init 에 섞지 않고 별도 칸에서 읽어 엔진이 쓰는 init.grav 로 전달
         if (this._rbHas(row[5])) { if (!o.init) o.init = {}; o.init.grav = Number(row[5]); }
@@ -318,7 +320,16 @@
 
       _rbHas: function (v) { return v != null && String(v).trim() !== ''; },
 
-      _rbNum: function (v) { v = this._rbStr(v); if (v === '') return undefined; return isNaN(Number(v)) ? v : Number(v); },
+      _rbNum: function (v) {
+        v = this._rbStr(v); if (v === '') return undefined;
+        var n = Number(v); if (!isNaN(n)) return n;
+        if (typeof Calc !== 'undefined') {                          // 변수/수식 (예: th/2, W-100) → Variables 스코프로 평가
+          var r = Calc.eval(v, this._rbVarScope || {});
+          if (r.error == null && isFinite(r.value)) return r.value;
+          console.warn('[PSCBOX] 수식 평가 실패:', v, '—', r.error);
+        }
+        return v;
+      },
 
       _rbList: function (v) { return this._rbStr(v).split(',').map(function (s) { return s.trim(); }).filter(function (s) { return s !== ''; }); },
 
@@ -1038,7 +1049,11 @@
         this._evalScope();   // 계산값 미리보기만 (재작도는 onchange)
       },
 
-      onVarChange: function () { this.redraw(); },
+      onVarChange: function () {
+        // 변수 변경 → 철근 수식(th/2 등)도 새 값으로 재평가 후 재작도
+        if (this._excelData) this._rebarData = this._parseRebar(this._excelData);
+        this.redraw();
+      },
 
       addVarRow: function () { if (!this._vars) this._vars = []; this._vars.push({ name: '', expr: '' }); this._renderVarRows(); },
 
