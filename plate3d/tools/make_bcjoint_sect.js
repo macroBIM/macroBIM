@@ -35,6 +35,7 @@ const gX     = cFaceX + BOLT.gauge;
 const z0     = -BOLT.pitch * (BOLT.n - 1) / 2;
 const ALPHA  = Number(process.env.ALPHA || 0);
 const NUT    = BOLT.d * 0.9;                 // the default nut height, 0.9d
+const PROJ   = BOLT.d * 0.2;                 // and the thread it shows past the nut
 
 const rows = [];
 const R = (...c) => rows.push(c);
@@ -54,12 +55,12 @@ X();
 R('# BOLT', 'id', 'mat', 'dia', 'length', '[hole]', '[head_af]', '[head_h]', '[nut_af]', '[nut_h]');
 R('#   the point on the MODULE row is the underside of the head, so these start');
 R('#   on the steel face and the head stands off behind it');
-R('#   length = grip + nut. The nut sits at the far end of the shank, so a bolt');
+R('#   length = grip + nut + proj. proj is the thread showing past the nut, and');
 R('#   written longer than that stands its nut off the steel - which is the right');
 R('#   way for a wrong length to show itself. Grip here is flange + cleat, and');
 R('#   cleat + web + cleat.');
-R('BOLT', 'bo.c', 'F10T', BOLT.d, L.t + C.tf + NUT);
-R('BOLT', 'bo.b', 'F10T', BOLT.d, 2 * L.t + B.tw + NUT);
+R('BOLT', 'bo.c', 'F10T', BOLT.d, L.t + C.tf + NUT + PROJ);
+R('BOLT', 'bo.b', 'F10T', BOLT.d, 2 * L.t + B.tw + NUT + PROJ);
 X();
 R('# MODULE', 'id', 'member', 'Ref.Pt', 'L.X', 'L.Y', 'L.Z', 'PLANE', 'ROT.X', 'ROT.Y', 'ROT.Z',
   'dx', 'dy', 'dz', 'repeat');

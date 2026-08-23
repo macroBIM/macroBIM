@@ -808,9 +808,10 @@
                                                it, the shank runs Length forward and the
                                                nut sits at the far end, inside the
                                                Length, with `proj` the thread left
-                                               showing past it - 0 by default, so the
-                                               nut's outer face is the shank's end and
-                                               Length is grip plus nut. Turn one round
+                                               showing past it - 0.2d unless said, because
+                                               a bolt run out flush with its nut has been
+                                               cut short. So Length is grip + nut + proj.
+                                               Turn one round
                                                with the ROT columns: 180 about the axis
                                                across it.
                                                Only the first four are needed. The rest
@@ -1335,7 +1336,11 @@
                      HH:   num(v[6], 0) || bd * 0.625,
                      NAF:  num(v[7], 0) || num(v[5], 0) || bd * 1.5,
                      NH:   num(v[8], 0) || bd * 0.9,
-                     PROJ: num(v[9], 0) };
+                     /* num(v, dflt) and not the `|| default` the others use,
+                        because 0 is a real answer here: it means the nut's
+                        outer face IS the shank's end. Blank means "the usual
+                        bit of thread", typed 0 means none. */
+                     PROJ: num(v[9], bd * 0.2) };
         var be = [];
         if (!(bd > 0)) be.push('Dia is blank or not a positive number');
         if (!(bl > 0)) be.push('Length is blank or not a positive number');
@@ -8641,7 +8646,7 @@
     '<h3>BOLT - a bar that knows it is a bolt</h3>',
     sheet([['# BOLT', 'id', 'mat', 'dia', 'length', 'hole', 'head_af', 'head_h', 'nut_af', 'nut_h', 'proj'],
            ['BOLT', 'bo.m16', 'F10T', 16, 50],
-           ['BOLT', 'bo.m20', 'F10T', 20, 60, 24, 32, 13, 32, 19, 5]]),
+           ['BOLT', 'bo.m20', 'F10T', 20, 60, 24, 32, 13, 32, 19, 0]]),
     '<p>A <b>BAR</b> is a length of round stock and the engine treats it as one. A',
     ' <b>BOLT</b> is the same shape with a job: it can say which members its axis passes',
     ' through, so the hole is written <i>once</i> - as the bolt - instead of once as the',
@@ -8652,12 +8657,18 @@
     ' the shank runs <code>length</code> forward, the nut sits at the far end - inside the',
     ' length, not hung off it. So <code>length</code> is <b>grip plus nut</b>, which is how a',
     ' bolt length is chosen anyway.</p>',
-    '<p><code>proj</code> is the thread left showing past the nut, and it is <b>0</b> unless you',
-    ' say otherwise - the nut&rsquo;s outer face is then the end of the shank. Write',
-    ' <code>length</code> = grip + nut + 5 and <code>proj</code> = 5 and the nut bears on the',
-    ' steel with five millimetres of thread beyond it. Write a length longer than the grip and',
-    ' the nut with no <code>proj</code> and the nut stands off the steel - visibly, which is the',
-    ' right way for a wrong length to show itself.</p>',
+    '<p><code>proj</code> is the thread left showing past the nut. It is <b>0.2 &times; dia</b>',
+    ' unless you say otherwise, because a bolt that finishes flush with its nut has been cut',
+    ' short - a real one runs a little past. So <code>length</code> is <b>grip + nut +',
+    ' proj</b>. Type <code>0</code> and you get the flush end; leave it blank and you get the',
+    ' usual stub.</p>',
+    '<p>That stub is also <b>how you tell which end is which</b> on screen. A head and a nut are',
+    ' both hexagons of the same size across the flats - only the nut is taller, 0.9d against',
+    ' 0.625d, which is real but not much to go on at a glance. The thread showing past the nut',
+    ' is unmistakable, and it is there because bolts are like that, not because the picture',
+    ' needed a hint.</p>',
+    '<p>Write a length longer than grip + nut + proj and the nut stands off the steel -',
+    ' visibly, which is the right way for a wrong length to show itself.</p>',
     '<p><b>The head and the nut are drawn and nothing more.</b> Every number the drawings and',
     ' the take-off use is the shank&rsquo;s: the hole is the shank plus the clearance, the pitch',
     ' chains run between shank axes, and the weight is the shank&rsquo;s. A head a millimetre out',
@@ -8672,7 +8683,7 @@
     '<tr><td><code>head_h</code></td><td>0.625 &times; dia</td><td>10</td><td>12.5</td></tr>',
     '<tr><td><code>nut_af</code></td><td>same as the head</td><td>24</td><td>30</td></tr>',
     '<tr><td><code>nut_h</code></td><td>0.9 &times; dia</td><td>14.4</td><td>18</td></tr>',
-    '<tr><td><code>proj</code></td><td>0 &nbsp;(thread showing past the nut)</td><td>0</td><td>0</td></tr>',
+    '<tr><td><code>proj</code></td><td>0.2 &times; dia &nbsp;(thread showing past the nut)</td><td>3.2</td><td>4</td></tr>',
     '</tbody></table>',
     '<p>Those are the ISO hex numbers, and they are ratios rather than a table because five',
     ' ratios are honest where a bolt catalogue would not be. <b>A high-strength structural',

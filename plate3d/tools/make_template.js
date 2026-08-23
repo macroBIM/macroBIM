@@ -69,6 +69,15 @@ H(['# PLATE', 'id', 'mat', 'thk', 'CIRC', 'base.pt', 'D']);
 X(3);
 H(['# BAR', 'id', 'mat', 'dia', 'length']);
 X(3);
+H(['# BOLT', 'id', 'mat', 'dia', 'length', '[hole]', '[head_af]', '[head_h]',
+   '[nut_af]', '[nut_h]', '[proj]']);
+N('A BOLT is a BAR that knows it is one: the engine works out which members its');
+N('axis crosses and puts the hole on their part drawings, so a hole is never typed.');
+N('The point it is placed on is the UNDERSIDE OF THE HEAD - the steel face the bolt');
+N('pulls against. length = grip + nut + proj. Only the first four are needed; the');
+N('rest come off the diameter (hole d+2, across-flats 1.5d, head 0.625d, nut 0.9d,');
+N('proj 0.2d). Turn one round with the ROT columns on its MODULE row.');
+X(3);
 H(['# SECT', 'id', 'mat', 'length', 'H', 'base.pt', 'h', 'bb', 'bt', 'tw', 'tf1', 'tf2', 'r1']);
 H(['# SECT', 'id', 'mat', 'length', 'C', 'base.pt', 'h', 'b', 'tw', 'tf', 'rw', 'rf']);
 H(['# SECT', 'id', 'mat', 'length', 'L', 'base.pt', 'a', 'b', 't1', 't2', 'r1', 'r2']);
