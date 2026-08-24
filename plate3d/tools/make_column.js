@@ -87,16 +87,48 @@ const V = {
      beam would have no web to bolt through and nothing to weld a fin to. */
   bmSec: 'H-300x150x6.5x9 r13',
   bmL: [900, 900, 900, 0],                 // X+  X-  Y+  Y-
-  /* end plate bolts through the column; fin plate is welded to it and bolts
-     through the BEAM'S web instead - which is the one that works on a tube,
-     because nothing has to reach inside the wall */
-  bmD: ['end plate', 'fin plate', 'fin plate', 'fin plate'],
-  /* 230, not 300: one plate serves all four faces, and a beam on the WEB face
-     has to fit between the flanges - h - 2tf - 2r, which is 234 on the default
-     column. A plate sized for the flange face drives straight through them. */
-  bepW: 230, bepT: 20, bepG: 140, bepE: 45, bepP: 70, bepN: 3,
-  finB: 140, finT: 10, finG: 60, finE: 45, finP: 70, finN: 3, finS: 10
+  /* Which connection each beam uses, by mark. A beam names one; the library
+     below says what that mark is. */
+  bmC: (process.env.BMC || 'C1,C3,C3,C3').split(','),   // X+  X-  Y+  Y-
+  /* THE CONNECTION LIBRARY. Six marks, declared once and picked by name, the
+     way a shop drawing calls up C1 rather than describing the detail again at
+     every beam. The mark carries no meaning of its own - the Type cell beside
+     it says whether it is a fin or an end plate, and the note says it in
+     words - which is exactly why a mark survives being re-tuned: change C3
+     from a fin to an end plate and "C3" is still true, where "FIN-A" would
+     have become a lie.
+
+     End plate bolts through the column; fin plate is welded to it and bolts
+     through the BEAM'S web instead - the one that works on a tube, because
+     nothing has to reach inside the wall.
+
+     Every type takes the same seven numbers, which is what lets one row shape
+     serve them all: how far the beam stops short, the plate's width and
+     thickness, and a bolt group as a gauge, an edge distance, a pitch and a
+     count. Width 230, not 300, on an end plate: one plate serves all four
+     faces and a beam on the WEB face has to fit between the flanges -
+     h - 2tf - 2r, which is 234 on the default column. */
+  conn: [
+    { m: 'C1', t: 'end plate', d: '3 rows, through the col',
+      sb: 0,  w: 230, th: 20, g: 140, e: 45, p: 70, n: 3 },
+    { m: 'C2', t: 'end plate', d: '4 rows, for a deep beam',
+      sb: 0,  w: 230, th: 20, g: 140, e: 45, p: 70, n: 4 },
+    { m: 'C3', t: 'fin plate', d: '3 bolts through the web',
+      sb: 10, w: 140, th: 10, g: 60,  e: 45, p: 70, n: 3 },
+    { m: 'C4', t: 'fin plate', d: '4 bolts through the web',
+      sb: 10, w: 140, th: 10, g: 60,  e: 45, p: 70, n: 4 },
+    { m: 'C5', t: 'fin plate', d: '2 bolts, a thinner fin',
+      sb: 10, w: 120, th: 9,  g: 55,  e: 40, p: 60, n: 2 },
+    { m: 'C6', t: '', d: 'spare — set a Type',
+      sb: 0,  w: 0,   th: 0,  g: 0,   e: 0,  p: 0,  n: 0 }
+  ]
 };
+/* Column D is 26 characters wide and its neighbour is never empty, so Excel
+   CLIPS a longer note rather than spilling it. Catch that here: a truncated
+   explanation is worse than none, and it is invisible in the generator. */
+V.conn.forEach(x => { if (x.d.length > 25)
+  throw new Error('connection note clipped at 26: ' + x.m + ' ' + x.d.length); });
+const CONNT = ['end plate', 'fin plate'];    // the types the engine can build
 /* The engine reads what a formula LAST EVALUATED TO, not the formula, so the
    cached results below have to follow Type. A generator that always caches
    the H branch ships a tube that loads as an H, which is what happened the
@@ -141,7 +173,14 @@ D.nE  = 2 * V.eNX + 2 * Math.max(0, V.eNY - 2);
 /* the beams */
 const BM = findH(V.bmSec);
 D.bmH = BM[1]; D.bmB = BM[2]; D.bmW = BM[3]; D.bmF = BM[4]; D.bmR = BM[5]; D.bmKg = BM[6];
-D.bepH = V.bepP * (V.bepN - 1) + 2 * V.bepE;
+/* Which connection each beam ended up with, resolved once here so the cached
+   results below can be read off it. A mark that is not in the library
+   resolves to nothing - no type, no plate - which is what the sheet's own
+   IFERROR does, so the cache and the formula agree even when a beam names a
+   mark that does not exist. */
+const NOCONN = { m: '', t: '', d: '', sb: 0, w: 0, th: 0, g: 0, e: 0, p: 0, n: 0 };
+D.cn = V.bmC.map(m => V.conn.find(c => c.m === m) || NOCONN);
+const cnH = c => c.p * (c.n - 1) + 2 * c.e;      // plate height, from its bolts
 /* Which face a beam meets depends on Alpha, because the directions are the
    world's and the column turns inside them. At 0 the flanges face X; at ±90
    they face Y, and an X beam then lands on the web. A tube has four alike
@@ -155,14 +194,15 @@ D.thruY = SQ ? D.tw : D.tf;
    A tube cannot be - nothing reaches in to hold it - so it takes a second
    plate welded to its wall and the two are bolted face to face, clear of the
    beam. That is the whole of the difference. */
-D.bGripX = H ? D.thruX + V.bepT : 2 * V.bepT;
-D.bGripY = H ? D.thruY + V.bepT : 2 * V.bepT;
-D.bLenX = up5(D.bGripX + D.nut + 0.2 * V.dia);
-D.bLenY = up5(D.bGripY + D.nut + 0.2 * V.dia);
-D.bOff  = H ? V.bepT : 2 * V.bepT;               // beam start, out from the face
-D.finH  = V.finP * (V.finN - 1) + 2 * V.finE;
-D.gripFin = V.finT + D.bmW;
-D.lenFin  = up5(D.gripFin + D.nut + 0.2 * V.dia);
+/* Per beam now, not per book: two beams can carry different marks, so the
+   grip a bolt has to cross - and therefore its length - is a beam's own. */
+D.bGrip = D.cn.map((c, i) => {
+  const thru = (i < 2 ? D.thruX : D.thruY);
+  return c.t === 'end plate' ? (H ? thru + c.th : 2 * c.th) : c.th + D.bmW;
+});
+D.bLen = D.bGrip.map(g => up5(g + D.nut + 0.2 * V.dia));
+// beam start, out from the column face
+D.bOff = D.cn.map(c => c.t === 'end plate' ? (H ? c.th : 2 * c.th) : c.sb);
 const rnd = x => +(+x).toFixed(4);
 const pick = (a, b) => (H ? a : b);
 /* the column stiffener. Horizontal plates inside the H, one sheet row per
@@ -218,10 +258,11 @@ const R = { title: 1, sub: 2,
             bHead: 22, bCols: 23, blt: 24, gCols: 25, gF: 26, gW: 27,
             eCols: 28, gE: 29, bNote: 30, bChk: 31,
             mHead: 33, mCols: 34, bm0: 35, mNote: 39, mChk: 40,
-            nHead: 42, nCols: 43, bep: 44, fin2: 45, nNote: 46, nChk: 47,
-            tHead: 49, tCols: 50, stf0: 51, tNote: 59, tChk: 60 };
+            nHead: 42, nCols: 43, cn0: 44, nNote: 50, nChk: 51,
+            tHead: 53, tCols: 54, stf0: 55, tNote: 63, tChk: 64 };
 const BMROW = [35, 36, 37, 38];                  // X+  X-  Y+  Y-
-const STFROW = Array.from({ length: NSTF }, (_, i) => R.stf0 + i);   // 51..58
+const CNROW = V.conn.map((_, i) => R.cn0 + i);                       // 44..49
+const STFROW = Array.from({ length: NSTF }, (_, i) => R.stf0 + i);   // 55..62
 const c = (col, row) => `${P}!$${col}$${row}`;
 const K = {
   typ: c('C', R.sec), sec: c('D', R.sec),
@@ -240,11 +281,7 @@ const K = {
   wNL: c('E', R.gW), wIL: c('F', R.gW), wOL: c('G', R.gW),
   wNT: c('H', R.gW), wIT: c('I', R.gW), wOT: c('J', R.gW),
   eNX: c('E', R.gE), eOX: c('F', R.gE), eNY: c('H', R.gE), eOY: c('I', R.gE),
-  epOV: c('J', R.ep),
-  bepW: c('E', R.bep), bepH: c('F', R.bep), bepT: c('G', R.bep),
-  bepG: c('H', R.bep), bepE: c('I', R.bep), bepP: c('J', R.bep), bepN: c('K', R.bep),
-  finS: c('D', R.fin2), finB: c('E', R.fin2), finH: c('F', R.fin2), finT: c('G', R.fin2),
-  finG: c('H', R.fin2), finE: c('I', R.fin2), finP: c('J', R.fin2), finN: c('K', R.fin2)
+  epOV: c('J', R.ep)
 };
 // one beam's cells, by its row
 const BMK = i => ({ det: c('C', BMROW[i]), sec: c('D', BMROW[i]), h: c('E', BMROW[i]), b: c('F', BMROW[i]),
@@ -253,6 +290,26 @@ const BMK = i => ({ det: c('C', BMROW[i]), sec: c('D', BMROW[i]), h: c('E', BMRO
 // one stiffener level's cells, by its row
 const SK = i => ({ off: c('E', STFROW[i]), w: c('F', STFROW[i]),
                    d: c('G', STFROW[i]), th: c('H', STFROW[i]) });
+/* The connection library, looked up by the mark a beam names. IFERROR is not
+   decoration: a mark that is not in the list would otherwise put #N/A through
+   every formula downstream and the whole sheet would go red. Falling back to
+   0 - and to "" for the type - makes an unknown mark behave as no connection
+   at all, which is what a person who has just mistyped one wants to see. The
+   check row says so in words. */
+const CNTAB = `${P}!$B$${R.cn0}:$K$${R.cn0 + V.conn.length - 1}`;
+const CNMARK = `${P}!$B$${R.cn0}:$B$${R.cn0 + V.conn.length - 1}`;
+const CNTYPE = `${P}!$C$${R.cn0}:$C$${R.cn0 + V.conn.length - 1}`;
+const CNW    = `${P}!$F$${R.cn0}:$F$${R.cn0 + V.conn.length - 1}`;
+// column numbers inside that table: B=1 mark, C=2 type, D=3 note, E=4 setback…
+const CC = { typ: 2, note: 3, sb: 4, w: 5, th: 6, g: 7, e: 8, p: 9, n: 10 };
+const cv  = (i, n) => `IFERROR(VLOOKUP(${BMK(i).det},${CNTAB},${n},FALSE),0)`;
+const cvt = i => `IFERROR(VLOOKUP(${BMK(i).det},${CNTAB},${CC.typ},FALSE),"")`;
+// one beam's connection, as formulas and as the values they cache to
+const CNK = i => ({
+  t: cvt(i), sb: cv(i, CC.sb), w: cv(i, CC.w), th: cv(i, CC.th),
+  g: cv(i, CC.g), e: cv(i, CC.e), p: cv(i, CC.p), n: cv(i, CC.n),
+  h: `(${cv(i, CC.p)}*(${cv(i, CC.n)}-1)+2*${cv(i, CC.e)})`
+});
 const isH = `${K.typ}="H"`;
 /* Where a beam meets the column, and how much steel its bolt has to cross.
    Both follow Alpha, because the four directions belong to the world and the
@@ -464,9 +521,13 @@ const bmLook = n => `IFERROR(VLOOKUP($D$ROW,SECT!$A:$G,${n},FALSE),"")`;
 BMDIR.forEach((dir, i) => {
   const row = BMROW[i];
   label(row, dir, { color: V.bmL[i] > 0 ? INK : OFFTXT });
-  inp(row, 3, V.bmD[i]).dataValidation = { type: 'list', allowBlank: false,
-    formulae: ['"end plate,fin plate"'], showErrorMessage: true,
-    error: 'end plate bolts through the column; fin plate bolts through the beam web.' };
+  /* The list is the library's own mark column, not a literal, so renaming C3
+     in chapter 5 renames it in this dropdown too. What it cannot do is follow
+     a mark a beam has ALREADY picked - that cell keeps the old text - which
+     is why chapter 5 checks that every beam still finds its mark. */
+  inp(row, 3, V.bmC[i]).dataValidation = { type: 'list', allowBlank: false,
+    formulae: [CNMARK], showErrorMessage: true,
+    error: 'Name one of the connections declared in chapter 5.' };
   inp(row, 4, V.bmSec);
   ps.getCell(row, 4).dataValidation = { type: 'list', allowBlank: false,
     formulae: [`SECT!$A$2:$A$${HS.length + 1}`], showErrorMessage: true,
@@ -487,45 +548,56 @@ checked(R.mChk, [
     `+IF(${BMK(3).len}>0,1,0))&" of 4"`, V.bmL.filter(x => x > 0).length + ' of 4']
 ]);
 
-/* ---- 5. the beam end plate ---- */
-head(R.nHead, 5, 'BEAM CONNECTION', 'end plate bolts through the column; fin plate is welded to it and bolts through the beam web — the one a tube can take');
-cols(R.nCols, ['', '', 'setback', 'width', 'height', 'thick', 'gauge', 'edge', 'pitch', 'count']);
-label(R.bep, 'End plate');
-inp(R.bep, 5, V.bepW);
-calc(R.bep, 6, `${K.bepP}*(${K.bepN}-1)+2*${K.bepE}`, D.bepH, '0.##');
-inp(R.bep, 7, V.bepT);
-inp(R.bep, 8, V.bepG);
-inp(R.bep, 9, V.bepE);
-inp(R.bep, 10, V.bepP);
-inp(R.bep, 11, V.bepN);
-label(R.fin2, 'Fin plate');
-inp(R.fin2, 4, V.finS);
-inp(R.fin2, 5, V.finB);
-calc(R.fin2, 6, `${K.finP}*(${K.finN}-1)+2*${K.finE}`, D.finH, '0.##');
-inp(R.fin2, 7, V.finT);
-inp(R.fin2, 8, V.finG);
-inp(R.fin2, 9, V.finE);
-inp(R.fin2, 10, V.finP);
-inp(R.fin2, 11, V.finN);
-sty(ps.getCell(R.bep, 4), { h: 'center', color: MUTE }).value = 0;
-note(R.nNote, 'Each height follows its own bolts. End plate gauge is across the beam web; fin plate gauge is out from the column face, setback the beam end short.');
+/* ---- 5. the connection library ----
+   Six marks, declared once. A beam names one in chapter 4 and every number
+   below follows by VLOOKUP - so a detail is described once however many beams
+   share it, and re-tuning C3 re-tunes all of them at once.
+
+   The mark is deliberately meaningless. The Type cell beside it says what the
+   connection IS and the note says it in words, which is what keeps a mark
+   honest: change C3 from a fin to an end plate and "C3" is still true, where
+   a name like "FIN-A" would quietly have become a lie.
+
+   One row shape serves both types because they take the same seven numbers.
+   The plate height is not among them - it follows from pitch, count and edge
+   - so it is worked out where it is used rather than typed here. */
+head(R.nHead, 5, 'CONNECTION', 'declare them here, then name one against each beam above — end plate bolts through the column, fin plate through the beam web');
+cols(R.nCols, ['', 'Type', 'what it is', 'setback', 'width', 'thick', 'gauge', 'edge', 'pitch', 'count']);
+V.conn.forEach((cn, i) => {
+  const rw = CNROW[i];
+  label(rw, cn.m, { color: cn.t ? INK : OFFTXT });
+  inp(rw, 3, cn.t || null).dataValidation = { type: 'list', allowBlank: true,
+    formulae: [`"${CONNT.join(',')}"`], showErrorMessage: true,
+    error: 'end plate bolts through the column; fin plate bolts through the beam web.' };
+  sty(inp(rw, 4, cn.d || null), { h: 'left', border: true, fill: INFILL,
+                                  color: BLUE, bold: true });
+  [[5, cn.sb], [6, cn.w], [7, cn.th], [8, cn.g], [9, cn.e], [10, cn.p], [11, cn.n]]
+    .forEach(([col, v]) => inp(rw, col, v, '0.##'));
+});
+note(R.nNote, 'The mark is just a mark — Type says what it is. End plate gauge is across the beam web, fin plate gauge out from the column face.');
 checked(R.nChk, [
-  ['gauge', `IF(${isH},IF(${K.bepG}>=${BMK(0).tw}+3*${K.dia},"ok","too tight for the web"),` +
-    `IF(${K.bepG}>=${BMK(0).b}+3*${K.dia},"ok","must clear the beam on a tube"))`,
-    H ? (V.bepG >= D.bmW + 3 * V.dia ? 'ok' : 'too tight for the web')
-      : (V.bepG >= D.bmB + 3 * V.dia ? 'ok' : 'must clear the beam on a tube')],
-  ['edge', `IF(${K.bepW}/2-${K.bepG}/2>=1.5*${K.dia},"ok","plate too narrow")`,
-    V.bepW / 2 - V.bepG / 2 >= 1.5 * V.dia ? 'ok' : 'plate too narrow'],
-  /* The web face is the tight one. A plate wide enough for a flange face
-     drives straight through the flanges when it is used on the web, and one
-     plate serves all four - so it has to suit the narrower of them. */
-  ['between flanges', `IF(${isH},IF(${K.bepW}<=${K.h}-2*${K.tf}-2*${K.r},` +
-    `${K.bepW}&" ≤ "&(${K.h}-2*${K.tf}-2*${K.r}),"hits the flanges on a web face"),"n/a")`,
-    pick(V.bepW <= D.h - 2 * D.tf - 2 * D.r
-         ? V.bepW + ' ≤ ' + (D.h - 2 * D.tf - 2 * D.r) : 'hits the flanges on a web face', 'n/a')],
-  ['bolt', `"M"&${K.dia}&" L"&IF(${isH},CEILING(MAX(${thruXf},${thruYf})+${K.bepT}+1.1*${K.dia},5),` +
-    `CEILING(2*${K.bepT}+1.1*${K.dia},5))`,
-    'M' + V.dia + ' L' + Math.max(D.bLenX, D.bLenY)],
+  /* The one failure this restructure introduces: a beam naming a mark that is
+     not in the list. VLOOKUP would give #N/A, IFERROR turns that into nothing
+     at all, and nothing at all is silent - so it has to be said here. */
+  ['marks', `IF(${[0, 1, 2, 3].map(i =>
+      `COUNTIF(${CNMARK},${BMK(i).det})`).join('+')}=4,"all 4 beams found theirs",` +
+    `"a beam names a mark that is not in the list")`,
+    V.bmC.every(m => V.conn.some(c => c.m === m))
+      ? 'all 4 beams found theirs' : 'a beam names a mark that is not in the list'],
+  /* SUMPRODUCT to get a conditional MAX without MAXIFS, which LibreOffice and
+     older Excel do not both have. Off rows carry 0 and cannot win a MAX. */
+  ['widest end plate', `IF(NOT(${isH}),"n/a",IF(SUMPRODUCT(MAX((${CNTYPE}="end plate")*` +
+    `(${CNW})))<=${K.h}-2*${K.tf}-2*${K.r},"fits between the flanges",` +
+    `"hits the flanges on a web face"))`,
+    pick(Math.max.apply(null, V.conn.filter(x => x.t === 'end plate').map(x => x.w).concat([0]))
+      <= D.h - 2 * D.tf - 2 * D.r ? 'fits between the flanges'
+      : 'hits the flanges on a web face', 'n/a')],
+  ['longest bolt', `"M"&${K.dia}&" L"&MAX(${[0, 1, 2, 3].map(i => {
+      const c = CNK(i), thru = i < 2 ? thruXf : thruYf;
+      return `IF(${c.t}="end plate",CEILING(IF(${isH},${thru}+${c.th},2*${c.th})+1.1*${K.dia},5),` +
+             `IF(${c.t}="fin plate",CEILING(${c.th}+${BMK(i).tw}+1.1*${K.dia},5),0))`;
+    }).join(',')})`,
+    'M' + V.dia + ' L' + Math.max.apply(null, D.bLen)],
   /* A beam on a WEB face sits between the flanges, and its own flange has to
      pass them. Where it does not, the detailer strips the beam flange back -
      and PLATE3D cannot do that yet: CUT edits a profile that runs the whole
@@ -862,23 +934,35 @@ BDIR.forEach((B, i) => {
        f(b.tf, D.bmF), f(b.tf, D.bmF), f(b.r, D.bmR)],
       i === 0 ? 'one per direction, so each can be its own section' : '');
 });
-row(['PLATE', 'pl.bep', f(K.steel, V.steel), f(K.bepT, V.bepT), 'RECT', 'mc',
-     f(K.bepW, V.bepW), f(K.bepH, D.bepH)], 'the beam end plate');
-row(['PLATE', 'pl.fin', f(K.steel, V.steel), f(K.finT, V.finT), 'RECT', 'mc',
-     f(K.finB, V.finB), f(K.finH, D.finH)], 'the fin plate — welded to the column, not the beam');
-row(['BOLT', 'bo.fin', f(K.grade, V.grade), f(K.dia, V.dia),
-     f(`CEILING(${K.finT}+${BMK(0).tw}+1.1*${K.dia},5)`, D.lenFin), f(K.hole, D.hole),
-     '', '', '', f(`0.9*${K.dia}`, D.nut),
-     f(`CEILING(${K.finT}+${BMK(0).tw}+1.1*${K.dia},5)-${K.finT}-${BMK(0).tw}-0.9*${K.dia}`,
-       rnd(D.lenFin - D.gripFin - D.nut))],
-    'the fin plate bolt: through plate and web, and never through the column');
-[['x', thruXf, D.bGripX, D.bLenX], ['y', thruYf, D.bGripY, D.bLenY]].forEach(([t, thru, grip, len]) => {
-  const lf = `IF(${isH},CEILING(${thru}+${K.bepT}+1.1*${K.dia},5),CEILING(2*${K.bepT}+1.1*${K.dia},5))`;
-  const gf = `IF(${isH},${thru}+${K.bepT},2*${K.bepT})`;
-  row(['BOLT', 'bo.b' + t, f(K.grade, V.grade), f(K.dia, V.dia), f(lf, len), f(K.hole, D.hole),
+/* One plate and one bolt PER BEAM, where there used to be one of each per
+   book. Two beams can now name different marks, so neither the plate nor the
+   bolt is a property of the column any more - it is a property of the beam
+   that carries it. The two types share a row because they take the same
+   numbers: width across or out, height from the bolt group, one thickness. */
+note2('');
+note2('One plate and one bolt for each beam, since each beam names its own connection. The plate is the end plate or the fin depending on that mark; MAX(1,..) keeps it defined when the mark is blank.');
+BDIR.forEach((B, i) => {
+  const b = BMK(i), C = CNK(i), cn = D.cn[i], isX = B.ax === 'X';
+  row(['PLATE', 'pl.cn' + B.k, f(K.steel, V.steel),
+       f(`MAX(1,${C.th})`, Math.max(1, cn.th)), 'RECT', 'mc',
+       f(`MAX(1,${C.w})`, Math.max(1, cn.w)),
+       f(`MAX(1,${C.h})`, Math.max(1, cnH(cn)))],
+      i === 0 ? 'the end plate or the fin, whichever this beam\'s mark names' : '');
+});
+BDIR.forEach((B, i) => {
+  const b = BMK(i), C = CNK(i), cn = D.cn[i];
+  const thru = i < 2 ? thruXf : thruYf;
+  /* An end plate bolt crosses the column wall and the plate; on a tube it
+     crosses two plates instead, nothing reaching inside to hold a nut. A fin
+     bolt crosses the fin and the beam's own web, and never the column. */
+  const gf = `IF(${C.t}="end plate",IF(${isH},${thru}+${C.th},2*${C.th}),${C.th}+${b.tw})`;
+  const lf = `CEILING(${gf}+1.1*${K.dia},5)`;
+  row(['BOLT', 'bo.cn' + B.k, f(K.grade, V.grade), f(K.dia, V.dia),
+       f(`MAX(1,${lf})`, Math.max(1, D.bLen[i])), f(K.hole, D.hole),
        '', '', '', f(`0.9*${K.dia}`, D.nut),
-       f(`(${lf})-(${gf})-0.9*${K.dia}`, rnd(len - grip - D.nut))],
-      t === 'x' ? 'through the flange on an H column, or through two plates on a tube' : '');
+       f(`MAX(0,(${lf})-(${gf})-0.9*${K.dia})`,
+         Math.max(0, rnd(D.bLen[i] - D.bGrip[i] - D.nut)))],
+      i === 0 ? 'its length follows the grip, and the grip follows the mark' : '');
 });
 
 note2('');
@@ -887,9 +971,12 @@ BDIR.forEach((B, i) => {
   const b = BMK(i), isX = B.ax === 'X';
   const thru = isX ? thruXf : thruYf;
   const thruV = isX ? D.thruX : D.thruY;
-  const bolt = 'bo.b' + (isX ? 'x' : 'y');
-  const ep = `${b.det}="end plate"`, fin = `${b.det}="fin plate"`;
-  const isEP = V.bmD[i] === 'end plate', isFin = V.bmD[i] === 'fin plate';
+  const bolt = 'bo.cn' + B.k, plate = 'pl.cn' + B.k;
+  /* The type no longer sits in the beam's own row - the beam names a mark and
+     the mark carries the type - so every branch below asks the library. */
+  const C = CNK(i), cn = D.cn[i];
+  const ep = `${C.t}="end plate"`, fin = `${C.t}="fin plate"`;
+  const isEP = cn.t === 'end plate', isFin = cn.t === 'fin plate';
   const live = V.bmL[i] > 0;
   const onEP  = m => f(`IF(AND(${b.len}>0,${ep}),"${m}","")`, (live && isEP) ? m : '');
   const onEPR = m => f(`IF(AND(${b.len}>0,${ep},NOT(${isH})),"${m}","")`, (live && isEP && !H) ? m : '');
@@ -908,21 +995,22 @@ BDIR.forEach((B, i) => {
   const zero = ['0', 0];
   const finPlane = B.plane === 'YZ' ? 'XZ' : 'YZ';
   note2('');
-  note2('beam ' + B.d + '  —  ' + (live ? V.bmD[i] : 'off, its Length being 0'));
+  note2('beam ' + B.d + '  —  ' + (live ? V.bmC[i] + ', ' + (cn.t || 'a mark with no type')
+                                        : 'off, its Length being 0'));
   // end plate on the beam end
-  row(['MODULE', 'md.bm' + B.k, onEP('pl.bep'), 'mc']
-      .concat(pair(out(`-${K.bepT}/2`, -V.bepT / 2), zero))
+  row(['MODULE', 'md.bm' + B.k, onEP(plate), 'mc']
+      .concat(pair(out(`-${C.th}/2`, -cn.th / 2), zero))
       .concat([0, B.plane, 0, 0, B.rot]),
       i === 0 ? 'end plate, on the beam end' : '');
   // and its twin on a tube wall, where the bolt cannot go through
-  row(['MODULE', 'md.bm' + B.k, onEPR('pl.bep'), 'mc']
-      .concat(pair(out(`-1.5*${K.bepT}`, -1.5 * V.bepT), zero))
+  row(['MODULE', 'md.bm' + B.k, onEPR(plate), 'mc']
+      .concat(pair(out(`-1.5*${C.th}`, -1.5 * cn.th), zero))
       .concat([0, B.plane, 0, 0, B.rot]),
       i === 0 ? 'on a tube column, a second one welded to the wall' : '');
   // fin plate, welded to the column and standing out beside the beam web
-  row(['MODULE', 'md.bm' + B.k, onFin('pl.fin'), 'mc']
-      .concat(pair(out(`${K.finB}/2-${K.finS}`, V.finB / 2 - V.finS),
-                   acr(`${b.tw}/2+${K.finT}/2`, rnd(D.bmW / 2 + V.finT / 2))))
+  row(['MODULE', 'md.bm' + B.k, onFin(plate), 'mc']
+      .concat(pair(out(`${C.w}/2-${C.sb}`, cn.w / 2 - cn.sb),
+                   acr(`${b.tw}/2+${C.th}/2`, rnd(D.bmW / 2 + cn.th / 2))))
       .concat([0, finPlane, 0, 0, B.rot]),
       i === 0 ? 'fin plate, reaching out from the column beside the web' : '');
   row(['MODULE', 'md.bm' + B.k, on('sc.bm' + B.k), '', 0, 0, 0, B.plane, 0, 0, B.rot],
@@ -930,20 +1018,18 @@ BDIR.forEach((B, i) => {
   // the bolts. An end plate bolt runs along the beam, two across the web; a
   // fin plate bolt runs across it, in one line.
   row(['MODULE', 'md.bm' + B.k,
-       f(`IF(${b.len}<=0,"",IF(${ep},"${bolt}","bo.fin"))`,
-         !live ? '' : (isEP ? bolt : 'bo.fin')), '']
-      .concat(pair(out(`IF(${ep},IF(${isH},-((${thru})+${K.bepT}),-2*${K.bepT}),${K.finG}-${K.finS})`,
-                       isEP ? (H ? -(thruV + V.bepT) : -2 * V.bepT) : V.finG - V.finS),
-                   acr(`IF(${ep},-${K.bepG}/2,${b.tw}/2+${K.finT})`,
-                       isEP ? -V.bepG / 2 : rnd(D.bmW / 2 + V.finT))))
-      .concat([f(`IF(${ep},-${K.bepP}*(${K.bepN}-1)/2,-${K.finP}*(${K.finN}-1)/2)`,
-                 isEP ? -V.bepP * (V.bepN - 1) / 2 : -V.finP * (V.finN - 1) / 2),
+       f(`IF(OR(${b.len}<=0,AND(NOT(${ep}),NOT(${fin}))),"","${bolt}")`,
+         (live && (isEP || isFin)) ? bolt : ''), '']
+      .concat(pair(out(`IF(${ep},IF(${isH},-((${thru})+${C.th}),-2*${C.th}),${C.g}-${C.sb})`,
+                       isEP ? (H ? -(thruV + cn.th) : -2 * cn.th) : cn.g - cn.sb),
+                   acr(`IF(${ep},-${C.g}/2,${b.tw}/2+${C.th})`,
+                       isEP ? -cn.g / 2 : rnd(D.bmW / 2 + cn.th))))
+      .concat([f(`-${C.p}*(${C.n}-1)/2`, -cn.p * (cn.n - 1) / 2),
                f(`IF(${ep},"${B.plane}","${finPlane}")`, isEP ? B.plane : finPlane),
                0, 0, B.rot])
-      .concat(pair(zero, acr(`IF(${ep},${K.bepG},0)`, isEP ? V.bepG : 0)))
+      .concat(pair(zero, acr(`IF(${ep},${C.g},0)`, isEP ? cn.g : 0)))
       .concat([0, f(`IF(${ep},1,0)`, isEP ? 1 : 0)])
-      .concat([0, 0, f(`IF(${ep},${K.bepP},${K.finP})`, isEP ? V.bepP : V.finP),
-               f(`IF(${ep},${K.bepN}-1,${K.finN}-1)`, isEP ? V.bepN - 1 : V.finN - 1)]),
+      .concat([0, 0, f(C.p, cn.p), f(`${C.n}-1`, cn.n - 1)]),
       i === 0 ? 'two across the web on an end plate, one line on a fin' : '');
   row(['MODULE', 'md.bm' + B.k, 'BASE', 'sc.bm' + B.k, 'mc']);
 });
@@ -953,8 +1039,9 @@ note2('The beams go on last. No spin: they belong to the grid, not to the column
 BDIR.forEach((B, i) => {
   const b = BMK(i), isX = B.ax === 'X';
   const face = isX ? faceXf : faceYf, faceV = isX ? D.faceX : D.faceY;
-  const at = `(${face})+IF(${b.det}="end plate",IF(${isH},${K.bepT},2*${K.bepT}),${K.finS})`;
-  const atV = faceV + (V.bmD[i] === 'end plate' ? D.bOff : V.finS);
+  const C = CNK(i);
+  const at = `(${face})+IF(${C.t}="end plate",IF(${isH},${C.th},2*${C.th}),${C.sb})`;
+  const atV = faceV + D.bOff[i];
   const cell = f(B.sg > 0 ? at : `-(${at})`, B.sg * atV);
   row(['ASSY', 'as.col', 'md.bm' + B.k, 'ADD',
        isX ? cell : 0, isX ? 0 : cell, 0],
@@ -986,4 +1073,10 @@ wb.xlsx.writeFile(OUT).then(() => {
                 V.eNY + ' each Y   lines at ±' + D.eX + ', ±' + D.eY +
                 '   pitch ' + rnd(D.pEX) + ' / ' + rnd(D.pEY) + '   ' + D.nE + ' bolts');
   }
+  console.log('  connections  ' + V.conn.map(x =>
+    x.m + '=' + (x.t || 'spare')).join('  '));
+  console.log('  beams  ' + BDIR.map((B, i) => B.d + ' ' + V.bmC[i] +
+    (V.bmL[i] > 0 ? '' : ' (off)')).join('   '));
+  console.log('  stiffener  ' + D.stfN + ' plates at ' +
+    (V.stf.filter(s => s.th > 0).map(s => s.off).join(', ') || '—'));
 });
