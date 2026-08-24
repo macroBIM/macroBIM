@@ -3090,7 +3090,15 @@
       outers.forEach(function (ring, i) {
         var shape = new THREE.Shape(ring.map(function (q) { return new THREE.Vector2(q[0], q[1]); }));
         holesArr[i].forEach(function (h) {
-          shape.holes.push(new THREE.Path(h.map(function (q) { return new THREE.Vector2(q[0], q[1]); })));
+          /* A hole's wall has to face INTO the hole, and ExtrudeGeometry builds
+             it from the winding it is handed. A hole wound the same way round
+             as its outer therefore comes out inside-out: the wall is there but
+             every one of its faces points away, so FrontSide culls the lot and
+             a tube's bore renders as a window you can see the grid through.
+             It cost nothing in weight or in the DXF - both read the 2D rings -
+             which is why it stood so long. */
+          var hh = ringArea(h) * ringArea(ring) > 0 ? h.slice().reverse() : h;
+          shape.holes.push(new THREE.Path(hh.map(function (q) { return new THREE.Vector2(q[0], q[1]); })));
         });
         var geo = plateGeom(shape, thk, caps);
         var mesh = new THREE.Mesh(geo, mat);
