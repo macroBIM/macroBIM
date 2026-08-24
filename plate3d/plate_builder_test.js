@@ -6065,6 +6065,20 @@
       if (d > hi) hi = d;
     }
     if (!(hi > 0) || (hi - lo) / hi > 0.02) return null;
+    /* Every point at one radius is not enough, and the way it fails is quiet.
+       A rounded rectangle carries vertices ONLY at its corners - the flats
+       have none to give them away - so a near-square tube with a small corner
+       passes this test outright. A 300x300x9 tube with an r18 corner has all
+       36 of its points between 193.19 and 195.68: 1.27% apart, well inside
+       the 2%. It was being weighed as a Ø391 disc, which came out NEGATIVE
+       once the bore was subtracted, and drawn in the DXF as a circle.
+
+       So ask the ring to have a circle's AREA as well as its radius. An
+       n-gon inscribed in radius r encloses n/2 sin(2pi/n) r^2 exactly, and a
+       ring that is not one is not close: the tube above sits at 66% of it. */
+    var poly = Math.abs(ringArea(pts));
+    var ngon = n / 2 * Math.sin(2 * Math.PI / n) * hi * hi;
+    if (!(ngon > 0) || Math.abs(poly - ngon) / ngon > 0.01) return null;
     /* hi, the circumradius, not the mean of hi and lo.
        Every circle in this file is drawn by circleOutline, which puts its
        vertices ON the true circle and leaves the flats inside it. So hi IS the
