@@ -86,7 +86,7 @@ const V = {
      there, the same switch the column pieces use. Beams are H only: a tube
      beam would have no web to bolt through and nothing to weld a fin to. */
   bmSec: 'H-300x150x6.5x9 r13',
-  bmL: [900, 900, 900, 0],                 // X+  X-  Y+  Y-
+  bmL: (process.env.BML || "900,900,900,0").split(",").map(Number),                 // X+  X-  Y+  Y-
   /* Which connection each beam uses, by mark. A beam names one; the library
      below says what that mark is. */
   bmC: (process.env.BMC || 'C1,C3,C3,C3').split(','),   // X+  X-  Y+  Y-
@@ -180,7 +180,8 @@ D.bmH = BM[1]; D.bmB = BM[2]; D.bmW = BM[3]; D.bmF = BM[4]; D.bmR = BM[5]; D.bmK
    mark that does not exist. */
 const NOCONN = { m: '', t: '', d: '', sb: 0, w: 0, th: 0, g: 0, e: 0, p: 0, n: 0 };
 D.cn = V.bmC.map(m => V.conn.find(c => c.m === m) || NOCONN);
-const cnH = c => c.p * (c.n - 1) + 2 * c.e;      // plate height, from its bolts
+// plate height, from its bolts. `|| 0` only so an empty row gives 0 and not -0
+const cnH = c => (c.p * (c.n - 1) + 2 * c.e) || 0;
 /* Which face a beam meets depends on Alpha, because the directions are the
    world's and the column turns inside them. At 0 the flanges face X; at ±90
    they face Y, and an X beam then lands on the web. A tube has four alike
@@ -300,8 +301,11 @@ const CNTAB = `${P}!$B$${R.cn0}:$K$${R.cn0 + V.conn.length - 1}`;
 const CNMARK = `${P}!$B$${R.cn0}:$B$${R.cn0 + V.conn.length - 1}`;
 const CNTYPE = `${P}!$C$${R.cn0}:$C$${R.cn0 + V.conn.length - 1}`;
 const CNW    = `${P}!$F$${R.cn0}:$F$${R.cn0 + V.conn.length - 1}`;
-// column numbers inside that table: B=1 mark, C=2 type, D=3 note, E=4 setback…
-const CC = { typ: 2, note: 3, sb: 4, w: 5, th: 6, g: 7, e: 8, p: 9, n: 10 };
+/* Column numbers inside that table: B=1 mark, C=2 type, D=3 note, then the
+   numbers. `h` is a shown-but-derived cell, so nothing looks it up - the
+   input tab builds the height from p, n and e directly rather than reading a
+   formula's cached result through a second formula. */
+const CC = { typ: 2, note: 3, sb: 4, w: 5, h: 6, th: 7, g: 8, e: 9, p: 10, n: 11 };
 const cv  = (i, n) => `IFERROR(VLOOKUP(${BMK(i).det},${CNTAB},${n},FALSE),0)`;
 const cvt = i => `IFERROR(VLOOKUP(${BMK(i).det},${CNTAB},${CC.typ},FALSE),"")`;
 // one beam's connection, as formulas and as the values they cache to
@@ -328,18 +332,25 @@ const F = {
 };
 F.fiY = `(${K.fIT}/2+(${F.pFT})/2)`;
 
+/* B..L carry the sheet, M is the right margin. The last data column was K
+   until the connection library needed a mark column and a note column ahead
+   of its numbers; rather than drop the plate height to make room, the sheet
+   got one column wider. Chapters that do not need L simply leave it empty -
+   the header bar and the notes still run the full width, so a block reads as
+   one block. */
+const LASTC = 12;                                // L
 ps.columns = [{ width: 3 }, { width: 21 }, { width: 9 }, { width: 26 }, { width: 10 },
               { width: 10 }, { width: 10 }, { width: 10 }, { width: 10 }, { width: 10 },
-              { width: 11 }, { width: 3 }];
+              { width: 10 }, { width: 11 }, { width: 3 }];
 ps.views = [{ showGridLines: false }];
 
 function head(row, n, text, note) {
   sty(ps.getCell(row, 2), { bold: true, size: 12, color: 'FFFFFFFF', fill: HEADFILL })
     .value = '  ' + n + '.  ' + text;
-  for (let col = 3; col <= 11; col++)
+  for (let col = 3; col <= LASTC; col++)
     sty(ps.getCell(row, col), { fill: HEADFILL, color: 'FFFFFFFF', size: 9 })
       .value = col === 3 && note ? note : null;
-  if (note) ps.mergeCells(row, 3, row, 11);
+  if (note) ps.mergeCells(row, 3, row, LASTC);
   ps.getRow(row).height = 20;
 }
 function cols(row, labels) {
@@ -361,7 +372,7 @@ function calc(row, col, formula, result, fmt, o) {
 }
 function note(row, t) {
   sty(ps.getCell(row, 2), { size: 9, italic: true, color: MUTE }).value = t;
-  ps.mergeCells(row, 2, row, 11);
+  ps.mergeCells(row, 2, row, LASTC);
   if (t.length > 150) throw new Error('note too long: ' + t.length);
 }
 function checked(row, pairs) {
@@ -411,7 +422,7 @@ label(R.steel, 'Steel');
 inp(R.steel, 3, V.steel);
 sty(ps.getCell(R.steel, 5), { size: 9, bold: true, color: WARN }).value =
   'put 0 in upper or lower if you do not want that piece — its splice goes with it';
-ps.mergeCells(R.steel, 5, R.steel, 11);
+ps.mergeCells(R.steel, 5, R.steel, LASTC);
 note(R.sNote, 'Pick "user define" at the top of either list and the five cells go blank — type over them. A tube has no flange, so its wall goes in tw and tf alike.');
 /* Alpha earns a line of its own: it is the one cell on the sheet that moves
    everything at once, and a reader who has just met Type needs telling that
@@ -562,7 +573,8 @@ checked(R.mChk, [
    The plate height is not among them - it follows from pitch, count and edge
    - so it is worked out where it is used rather than typed here. */
 head(R.nHead, 5, 'CONNECTION', 'declare them here, then name one against each beam above — end plate bolts through the column, fin plate through the beam web');
-cols(R.nCols, ['', 'Type', 'what it is', 'setback', 'width', 'thick', 'gauge', 'edge', 'pitch', 'count']);
+cols(R.nCols, ['', 'Type', 'what it is', 'setback', 'width', 'height', 'thick',
+               'gauge', 'edge', 'pitch', 'count']);
 V.conn.forEach((cn, i) => {
   const rw = CNROW[i];
   label(rw, cn.m, { color: cn.t ? INK : OFFTXT });
@@ -571,7 +583,11 @@ V.conn.forEach((cn, i) => {
     error: 'end plate bolts through the column; fin plate bolts through the beam web.' };
   sty(inp(rw, 4, cn.d || null), { h: 'left', border: true, fill: INFILL,
                                   color: BLUE, bold: true });
-  [[5, cn.sb], [6, cn.w], [7, cn.th], [8, cn.g], [9, cn.e], [10, cn.p], [11, cn.n]]
+  inp(rw, 5, cn.sb, '0.##');
+  inp(rw, 6, cn.w, '0.##');
+  // shown, not typed: the plate is exactly as deep as its bolt group needs
+  calc(rw, 7, `K${rw}*(L${rw}-1)+2*J${rw}`, cnH(cn), '0.##');
+  [[8, cn.th], [9, cn.g], [10, cn.e], [11, cn.p], [12, cn.n]]
     .forEach(([col, v]) => inp(rw, col, v, '0.##'));
 });
 note(R.nNote, 'The mark is just a mark — Type says what it is. End plate gauge is across the beam web, fin plate gauge out from the column face.');
