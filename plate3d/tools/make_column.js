@@ -69,6 +69,7 @@ const V = {
   fNT: 4, fIT: 100, fOT: 40,               //               across the flange
   wNL: 4, wIL: 60, wOL: 45,                // web group: along the column
   wNT: 3, wIT: 0,  wOT: 40,                //            through the web depth
+  alpha: Number(process.env.CALPHA || 0),  // spin the whole column about Z
   epT: 20, epOV: 60,                       // end plate thickness and overhang
   eNX: 3, eOX: 30, eNY: 3, eOY: 30,        // its bolts, one ring round the wall
   dia: 16, grade: 'F10T'
@@ -154,7 +155,7 @@ const c = (col, row) => `${P}!$${col}$${row}`;
 const K = {
   typ: c('C', R.sec), sec: c('D', R.sec),
   h: c('E', R.sec), b: c('F', R.sec), tw: c('G', R.sec), tf: c('H', R.sec),
-  r: c('I', R.sec), kg: c('J', R.sec),
+  r: c('I', R.sec), alpha: c('J', R.sec), kg: c('K', R.sec),
   up: c('E', R.len), mid: c('G', R.len), dn: c('I', R.len),
   steel: c('C', R.steel),
   foW: c('E', R.fo), foL: c('F', R.fo), foT: c('G', R.fo), gap: c('J', R.fo),
@@ -181,17 +182,17 @@ const F = {
 F.fiY = `(${K.fIT}/2+(${F.pFT})/2)`;
 
 ps.columns = [{ width: 3 }, { width: 21 }, { width: 9 }, { width: 26 }, { width: 10 },
-              { width: 10 }, { width: 10 }, { width: 10 }, { width: 10 }, { width: 11 },
-              { width: 3 }];
+              { width: 10 }, { width: 10 }, { width: 10 }, { width: 10 }, { width: 10 },
+              { width: 11 }, { width: 3 }];
 ps.views = [{ showGridLines: false }];
 
 function head(row, n, text, note) {
   sty(ps.getCell(row, 2), { bold: true, size: 12, color: 'FFFFFFFF', fill: HEADFILL })
     .value = '  ' + n + '.  ' + text;
-  for (let col = 3; col <= 10; col++)
+  for (let col = 3; col <= 11; col++)
     sty(ps.getCell(row, col), { fill: HEADFILL, color: 'FFFFFFFF', size: 9 })
       .value = col === 3 && note ? note : null;
-  if (note) ps.mergeCells(row, 3, row, 10);
+  if (note) ps.mergeCells(row, 3, row, 11);
   ps.getRow(row).height = 20;
 }
 function cols(row, labels) {
@@ -213,7 +214,7 @@ function calc(row, col, formula, result, fmt, o) {
 }
 function note(row, t) {
   sty(ps.getCell(row, 2), { size: 9, italic: true, color: MUTE }).value = t;
-  ps.mergeCells(row, 2, row, 10);
+  ps.mergeCells(row, 2, row, 11);
   if (t.length > 150) throw new Error('note too long: ' + t.length);
 }
 function checked(row, pairs) {
@@ -234,7 +235,7 @@ ps.getRow(R.title).height = 26;
 
 /* ---- 1. section ---- */
 head(R.sHead, 1, 'SECTION', 'Type decides which list the Section cell offers — H sections, or square tubes');
-cols(R.sCols, ['', 'Type', 'Section', 'h', 'b', 'tw / t', 'tf', 'r', 'kg/m']);
+cols(R.sCols, ['', 'Type', 'Section', 'h', 'b', 'tw / t', 'tf', 'r', 'Alpha', 'kg/m']);
 label(R.sec, 'Column');
 inp(R.sec, 3, V.type).dataValidation = { type: 'list', allowBlank: false,
   formulae: ['"H,R"'], showErrorMessage: true,
@@ -244,7 +245,13 @@ const look = n => `IF(${isH},IFERROR(VLOOKUP($D$${R.sec},SECT!$A:$G,${n},FALSE),
                   `IFERROR(VLOOKUP($D$${R.sec},TUBE!$A:$G,${n},FALSE),""))`;
 [[2, D.h], [3, D.b], [4, D.tw], [5, D.tf], [6, D.r]].forEach(([n, val], i) =>
   calc(R.sec, 5 + i, look(n), val, '0.##', { fill: INFILL, color: BLUE, bold: true }));
-calc(R.sec, 10, look(7), D.kg, '0.0');
+/* Alpha spins the whole column about its own axis - section, plates and
+   bolts together, because the ASSY row that places each module carries the
+   rotation and a module turns as one piece. 0 leaves the flanges facing X. */
+inp(R.sec, 10, V.alpha).dataValidation = { type: 'list', allowBlank: false,
+  formulae: ['"0,90,-90"'], showErrorMessage: true,
+  error: '0, 90 or -90 degrees about the column axis.' };
+calc(R.sec, 11, look(7), D.kg, '0.0');
 label(R.len, 'Length');
 [['upper', V.up], ['middle', V.mid], ['lower', V.dn]].forEach(([t, v], i) => {
   sty(ps.getCell(R.len, 4 + i * 2), { size: 9, bold: true, color: MUTE, h: 'right' }).value = t;
@@ -254,13 +261,14 @@ label(R.steel, 'Steel');
 inp(R.steel, 3, V.steel);
 sty(ps.getCell(R.steel, 5), { size: 9, bold: true, color: WARN }).value =
   'put 0 in upper or lower if you do not want that piece — its splice goes with it';
-ps.mergeCells(R.steel, 5, R.steel, 10);
+ps.mergeCells(R.steel, 5, R.steel, 11);
 note(R.sNote, 'Pick "user define" at the top of either list and the five cells go blank — type over them. A tube has no flange, so its wall goes in tw and tf alike.');
 checked(R.sChk, [
   ['section', `IF(${K.h}="","fill in the dimensions","ok")`, 'ok'],
   ['splices', `(IF(${K.up}>0,1,0)+IF(${K.dn}>0,1,0))&" of 2"`,
     ((V.up > 0 ? 1 : 0) + (V.dn > 0 ? 1 : 0)) + ' of 2'],
-  ['middle', `IF(${K.mid}>0,"ok","the middle piece has to be there")`, 'ok']
+  ['flanges face', `IF(${isH},IF(MOD(${K.alpha},180)=0,"X","Y"),"all four alike")`,
+    pick(V.alpha % 180 === 0 ? 'X' : 'Y', 'all four alike')]
 ]);
 
 /* ---- 2. plates ---- */
@@ -281,7 +289,7 @@ PLT.forEach(([row, t, w, l, th, q, only]) => {
   inp(row, 7, th);
   sty(ps.getCell(row, 8), { h: 'center', color: MUTE }).value = q;
   inp(row, 9, V.steel);
-  sty(ps.getCell(row, 10), { size: 9, italic: true, color: MUTE, h: 'center' })
+  sty(ps.getCell(row, 11), { size: 9, italic: true, color: MUTE, h: 'center' })
     .value = 'Type ' + only;
 });
 inp(R.fo, 10, V.gap);
@@ -530,16 +538,33 @@ const clearU  = `(${K.mid}/2+IF(${isH},${K.gap},2*${K.epT}))`;
 const clearUV = V.mid / 2 + pick(V.gap, 2 * V.epT);
 note2('');
 note2('ASSY  id  ref  cmd  p1 p2 p3        BASE holds pl.fo_1, so a splice row names where THAT plate sits, not where the joint is');
-row(['ASSY', 'as.col', 'md.c2', 'ADD', 0, 0, f(`-${K.mid}/2`, -V.mid / 2)], 'middle');
-row(['ASSY', 'as.col', 'md.c1', 'ADD', 0, 0, f(clearU, clearUV)], 'upper, clear of the joint');
+/* ASSY ... ADD takes a three-axis rotation after its point, so the whole
+   module turns as one piece - plates and bolts with the section, which is what
+   makes Alpha safe. A column piece is placed ON the axis, so spinning it about
+   its own base point is a spin in place. The splice is not: BASE holds
+   pl.fo_1, which sits out on the flange, so its point has to be carried round
+   the axis as well. Rotating a rigid body about P and then putting P where the
+   rotation would have sent it is the same as rotating the lot about the
+   origin. */
+const rotX = (e, v) => f(`ROUND((${e})*COS(RADIANS(${K.alpha})),6)`,
+                         rnd(v * Math.cos(V.alpha * Math.PI / 180)));
+const rotY = (e, v) => f(`ROUND((${e})*SIN(RADIANS(${K.alpha})),6)`,
+                         rnd(v * Math.sin(V.alpha * Math.PI / 180)));
+const spin = [0, 0, f(K.alpha, V.alpha)];
+row(['ASSY', 'as.col', 'md.c2', 'ADD', 0, 0, f(`-${K.mid}/2`, -V.mid / 2)].concat(spin),
+    'middle');
+row(['ASSY', 'as.col', 'md.c1', 'ADD', 0, 0, f(clearU, clearUV)].concat(spin),
+    'upper, clear of the joint');
 row(['ASSY', 'as.col', 'md.c3', 'ADD', 0, 0,
-     f(`-(${clearU}+MAX(1,${K.dn}))`, -(clearUV + Math.max(1, V.dn)))], 'lower');
+     f(`-(${clearU}+MAX(1,${K.dn}))`, -(clearUV + Math.max(1, V.dn)))].concat(spin), 'lower');
+const foxOn = `IF(${isH},${fox},0)`, foxOnV = pick(foxV, 0);
 row(['ASSY', 'as.col', 'md.spu', 'ADD',
-     f(`IF(${isH},${fox},0)`, pick(foxV, 0)), 0,
-     f(`${jointU}+IF(${isH},0,-${K.epT}/2)`, jointUV + pick(0, -V.epT / 2))]);
+     rotX(foxOn, foxOnV), rotY(foxOn, foxOnV),
+     f(`${jointU}+IF(${isH},0,-${K.epT}/2)`, jointUV + pick(0, -V.epT / 2))].concat(spin),
+    'the splice point goes round the axis with the rest of it');
 row(['ASSY', 'as.col', 'md.spd', 'ADD',
-     f(`IF(${isH},${fox},0)`, pick(foxV, 0)), 0,
-     f(`-${jointU}+IF(${isH},0,${K.epT}/2)`, -jointUV + pick(0, V.epT / 2))]);
+     rotX(foxOn, foxOnV), rotY(foxOn, foxOnV),
+     f(`-${jointU}+IF(${isH},0,${K.epT}/2)`, -jointUV + pick(0, V.epT / 2))].concat(spin));
 note2('');
 row(['END']);
 
