@@ -79,7 +79,23 @@ const V = {
   alpha: Number(process.env.CALPHA || 0),  // spin the whole column about Z
   epT: 20, epOV: 60,                       // end plate thickness and overhang
   eNX: 3, eOX: 30, eNY: 3, eOY: 30,        // its bolts, one ring round the wall
-  dia: 16, grade: 'F10T'
+  dia: 16, grade: 'F10T',
+  /* the beams. Four of them, named for the world direction they run in -
+     X+ X- Y+ Y- - because a beam follows the building grid and the column is
+     turned to suit it, not the other way round. Length 0 and that beam is not
+     there, the same switch the column pieces use. Beams are H only: a tube
+     beam would have no web to bolt through and nothing to weld a fin to. */
+  bmSec: 'H-300x150x6.5x9 r13',
+  bmL: [900, 900, 900, 0],                 // X+  X-  Y+  Y-
+  /* end plate bolts through the column; fin plate is welded to it and bolts
+     through the BEAM'S web instead - which is the one that works on a tube,
+     because nothing has to reach inside the wall */
+  bmD: ['end plate', 'fin plate', 'fin plate', 'fin plate'],
+  /* 230, not 300: one plate serves all four faces, and a beam on the WEB face
+     has to fit between the flanges - h - 2tf - 2r, which is 234 on the default
+     column. A plate sized for the flange face drives straight through them. */
+  bepW: 230, bepT: 20, bepG: 140, bepE: 45, bepP: 70, bepN: 3,
+  finB: 140, finT: 10, finG: 60, finE: 45, finP: 70, finN: 3, finS: 10
 };
 /* The engine reads what a formula LAST EVALUATED TO, not the formula, so the
    cached results below have to follow Type. A generator that always caches
@@ -122,6 +138,31 @@ D.eY  = D.epH / 2 - V.eOY;
 D.pEX = V.eNX <= 1 ? 0 : (D.epB - 2 * V.eOX) / (V.eNX - 1);
 D.pEY = V.eNY <= 1 ? 0 : (D.epH - 2 * V.eOY) / (V.eNY - 1);
 D.nE  = 2 * V.eNX + 2 * Math.max(0, V.eNY - 2);
+/* the beams */
+const BM = findH(V.bmSec);
+D.bmH = BM[1]; D.bmB = BM[2]; D.bmW = BM[3]; D.bmF = BM[4]; D.bmR = BM[5]; D.bmKg = BM[6];
+D.bepH = V.bepP * (V.bepN - 1) + 2 * V.bepE;
+/* Which face a beam meets depends on Alpha, because the directions are the
+   world's and the column turns inside them. At 0 the flanges face X; at ±90
+   they face Y, and an X beam then lands on the web. A tube has four alike
+   walls and does not care. */
+const SQ = V.alpha % 180 === 0;
+D.faceX = SQ ? D.h / 2 : (H ? D.tw / 2 : D.b / 2);
+D.faceY = SQ ? (H ? D.tw / 2 : D.b / 2) : D.h / 2;
+D.thruX = SQ ? D.tf : D.tw;
+D.thruY = SQ ? D.tw : D.tf;
+/* An H column is bolted through: the nut goes inside, between the flanges.
+   A tube cannot be - nothing reaches in to hold it - so it takes a second
+   plate welded to its wall and the two are bolted face to face, clear of the
+   beam. That is the whole of the difference. */
+D.bGripX = H ? D.thruX + V.bepT : 2 * V.bepT;
+D.bGripY = H ? D.thruY + V.bepT : 2 * V.bepT;
+D.bLenX = up5(D.bGripX + D.nut + 0.2 * V.dia);
+D.bLenY = up5(D.bGripY + D.nut + 0.2 * V.dia);
+D.bOff  = H ? V.bepT : 2 * V.bepT;               // beam start, out from the face
+D.finH  = V.finP * (V.finN - 1) + 2 * V.finE;
+D.gripFin = V.finT + D.bmW;
+D.lenFin  = up5(D.gripFin + D.nut + 0.2 * V.dia);
 const rnd = x => +(+x).toFixed(4);
 const pick = (a, b) => (H ? a : b);
 
@@ -160,7 +201,10 @@ const R = { title: 1, sub: 2,
             sNote: 9,  aNote: 10, sChk: 11,
             pHead: 13, pCols: 14, fo: 15, fi: 16, wp: 17, ep: 18, pNote: 19, pChk: 20,
             bHead: 22, bCols: 23, blt: 24, gCols: 25, gF: 26, gW: 27,
-            eCols: 28, gE: 29, bNote: 30, bChk: 31 };
+            eCols: 28, gE: 29, bNote: 30, bChk: 31,
+            mHead: 33, mCols: 34, bm0: 35, mNote: 39, mChk: 40,
+            nHead: 42, nCols: 43, bep: 44, fin2: 45, nNote: 46, nChk: 47 };
+const BMROW = [35, 36, 37, 38];                  // X+  X-  Y+  Y-
 const c = (col, row) => `${P}!$${col}$${row}`;
 const K = {
   typ: c('C', R.sec), sec: c('D', R.sec),
@@ -179,9 +223,25 @@ const K = {
   wNL: c('E', R.gW), wIL: c('F', R.gW), wOL: c('G', R.gW),
   wNT: c('H', R.gW), wIT: c('I', R.gW), wOT: c('J', R.gW),
   eNX: c('E', R.gE), eOX: c('F', R.gE), eNY: c('H', R.gE), eOY: c('I', R.gE),
-  epOV: c('J', R.ep)
+  epOV: c('J', R.ep),
+  bepW: c('E', R.bep), bepH: c('F', R.bep), bepT: c('G', R.bep),
+  bepG: c('H', R.bep), bepE: c('I', R.bep), bepP: c('J', R.bep), bepN: c('K', R.bep),
+  finS: c('D', R.fin2), finB: c('E', R.fin2), finH: c('F', R.fin2), finT: c('G', R.fin2),
+  finG: c('H', R.fin2), finE: c('I', R.fin2), finP: c('J', R.fin2), finN: c('K', R.fin2)
 };
+// one beam's cells, by its row
+const BMK = i => ({ det: c('C', BMROW[i]), sec: c('D', BMROW[i]), h: c('E', BMROW[i]), b: c('F', BMROW[i]),
+                   tw: c('G', BMROW[i]), tf: c('H', BMROW[i]), r: c('I', BMROW[i]),
+                   len: c('J', BMROW[i]), kg: c('K', BMROW[i]) });
 const isH = `${K.typ}="H"`;
+/* Where a beam meets the column, and how much steel its bolt has to cross.
+   Both follow Alpha, because the four directions belong to the world and the
+   column turns inside them: at 0 the flanges face X, at ±90 they face Y. */
+const SQf    = `MOD(${K.alpha},180)=0`;
+const faceXf = `IF(${SQf},${K.h}/2,IF(${isH},${K.tw}/2,${K.b}/2))`;
+const faceYf = `IF(${SQf},IF(${isH},${K.tw}/2,${K.b}/2),${K.h}/2)`;
+const thruXf = `IF(${SQf},${K.tf},${K.tw})`;
+const thruYf = `IF(${SQf},${K.tw},${K.tf})`;
 // the four pitches, as formulas, in the splice sheet's own two shapes
 const F = {
   pFL: `(${K.foL}/2-${K.fOL}-${K.fIL}/2)/(${K.fNL}/2-1)`,
@@ -374,6 +434,87 @@ checked(R.bChk, [
   ['bolts', `IF(${isH},2*${K.fNL}*${K.fNT}+${K.wNL}*${K.wNT},` +
     `2*${K.eNX}+2*MAX(0,${K.eNY}-2))&" per splice"`,
     pick(2 * V.fNL * V.fNT + V.wNL * V.wNT, D.nE) + ' per splice']
+]);
+
+/* ---- 4. the beams ---- */
+head(R.mHead, 4, 'BEAMS', 'four world directions - X+ X- Y+ Y-. Length 0 and that beam is not there');
+cols(R.mCols, ['', 'Detail', 'Section', 'h', 'b', 'tw', 'tf', 'r', 'Length', 'kg/m']);
+const BMDIR = ['X+', 'X-', 'Y+', 'Y-'];
+const bmLook = n => `IFERROR(VLOOKUP($D$ROW,SECT!$A:$G,${n},FALSE),"")`;
+BMDIR.forEach((dir, i) => {
+  const row = BMROW[i];
+  label(row, dir, { color: V.bmL[i] > 0 ? INK : OFFTXT });
+  inp(row, 3, V.bmD[i]).dataValidation = { type: 'list', allowBlank: false,
+    formulae: ['"end plate,fin plate"'], showErrorMessage: true,
+    error: 'end plate bolts through the column; fin plate bolts through the beam web.' };
+  inp(row, 4, V.bmSec);
+  ps.getCell(row, 4).dataValidation = { type: 'list', allowBlank: false,
+    formulae: [`SECT!$A$2:$A$${HS.length + 1}`], showErrorMessage: true,
+    error: 'Pick an H section — a beam has to have a web to bolt through.' };
+  [[2, D.bmH], [3, D.bmB], [4, D.bmW], [5, D.bmF], [6, D.bmR]].forEach(([n, val], j) =>
+    calc(row, 5 + j, bmLook(n).replace('ROW', row), val, '0.##',
+         { fill: INFILL, color: BLUE, bold: true }));
+  inp(row, 10, V.bmL[i]);
+  calc(row, 11, bmLook(7).replace('ROW', row), D.bmKg, '0.0');
+});
+note(R.mNote, 'Beams are H only: a tube has no web to bolt through. The direction is the world\'s, so Alpha decides whether a beam lands on a flange or on the web.');
+checked(R.mChk, [
+  ['X faces', `IF(${isH},IF(MOD(${K.alpha},180)=0,"flange","web"),"tube wall")`,
+    pick(SQ ? 'flange' : 'web', 'tube wall')],
+  ['Y faces', `IF(${isH},IF(MOD(${K.alpha},180)=0,"web","flange"),"tube wall")`,
+    pick(SQ ? 'web' : 'flange', 'tube wall')],
+  ['beams', `(IF(${BMK(0).len}>0,1,0)+IF(${BMK(1).len}>0,1,0)+IF(${BMK(2).len}>0,1,0)` +
+    `+IF(${BMK(3).len}>0,1,0))&" of 4"`, V.bmL.filter(x => x > 0).length + ' of 4']
+]);
+
+/* ---- 5. the beam end plate ---- */
+head(R.nHead, 5, 'BEAM CONNECTION', 'end plate bolts through the column; fin plate is welded to it and bolts through the beam web — the one a tube can take');
+cols(R.nCols, ['', '', 'setback', 'width', 'height', 'thick', 'gauge', 'edge', 'pitch', 'count']);
+label(R.bep, 'End plate');
+inp(R.bep, 5, V.bepW);
+calc(R.bep, 6, `${K.bepP}*(${K.bepN}-1)+2*${K.bepE}`, D.bepH, '0.##');
+inp(R.bep, 7, V.bepT);
+inp(R.bep, 8, V.bepG);
+inp(R.bep, 9, V.bepE);
+inp(R.bep, 10, V.bepP);
+inp(R.bep, 11, V.bepN);
+label(R.fin2, 'Fin plate');
+inp(R.fin2, 4, V.finS);
+inp(R.fin2, 5, V.finB);
+calc(R.fin2, 6, `${K.finP}*(${K.finN}-1)+2*${K.finE}`, D.finH, '0.##');
+inp(R.fin2, 7, V.finT);
+inp(R.fin2, 8, V.finG);
+inp(R.fin2, 9, V.finE);
+inp(R.fin2, 10, V.finP);
+inp(R.fin2, 11, V.finN);
+sty(ps.getCell(R.bep, 4), { h: 'center', color: MUTE }).value = 0;
+note(R.nNote, 'Each height follows its own bolts. End plate gauge is across the beam web; fin plate gauge is out from the column face, setback the beam end short.');
+checked(R.nChk, [
+  ['gauge', `IF(${isH},IF(${K.bepG}>=${BMK(0).tw}+3*${K.dia},"ok","too tight for the web"),` +
+    `IF(${K.bepG}>=${BMK(0).b}+3*${K.dia},"ok","must clear the beam on a tube"))`,
+    H ? (V.bepG >= D.bmW + 3 * V.dia ? 'ok' : 'too tight for the web')
+      : (V.bepG >= D.bmB + 3 * V.dia ? 'ok' : 'must clear the beam on a tube')],
+  ['edge', `IF(${K.bepW}/2-${K.bepG}/2>=1.5*${K.dia},"ok","plate too narrow")`,
+    V.bepW / 2 - V.bepG / 2 >= 1.5 * V.dia ? 'ok' : 'plate too narrow'],
+  /* The web face is the tight one. A plate wide enough for a flange face
+     drives straight through the flanges when it is used on the web, and one
+     plate serves all four - so it has to suit the narrower of them. */
+  ['between flanges', `IF(${isH},IF(${K.bepW}<=${K.h}-2*${K.tf}-2*${K.r},` +
+    `${K.bepW}&" ≤ "&(${K.h}-2*${K.tf}-2*${K.r}),"hits the flanges on a web face"),"n/a")`,
+    pick(V.bepW <= D.h - 2 * D.tf - 2 * D.r
+         ? V.bepW + ' ≤ ' + (D.h - 2 * D.tf - 2 * D.r) : 'hits the flanges on a web face', 'n/a')],
+  ['bolt', `"M"&${K.dia}&" L"&IF(${isH},CEILING(MAX(${thruXf},${thruYf})+${K.bepT}+1.1*${K.dia},5),` +
+    `CEILING(2*${K.bepT}+1.1*${K.dia},5))`,
+    'M' + V.dia + ' L' + Math.max(D.bLenX, D.bLenY)],
+  /* A beam on a WEB face sits between the flanges, and its own flange has to
+     pass them. Where it does not, the detailer strips the beam flange back -
+     and PLATE3D cannot do that yet: CUT edits a profile that runs the whole
+     length and FIT cuts one plane, neither of which is a notch at an end. So
+     it says so rather than letting the two quietly overlap. */
+  ['flange passes', `IF(NOT(${isH}),"n/a",IF(MOD(${K.alpha},180)=0,` +
+    `IF(MAX(${BMK(2).b},${BMK(3).b})<=${K.h}-2*${K.tf}-2*${K.r},"ok","strip the beam flange"),` +
+    `IF(MAX(${BMK(0).b},${BMK(1).b})<=${K.h}-2*${K.tf}-2*${K.r},"ok","strip the beam flange")))`,
+    pick(D.bmB <= D.h - 2 * D.tf - 2 * D.r ? 'ok' : 'strip the beam flange', 'n/a')]
 ]);
 
 /* ---- grey out whichever detail the section is not using ----
@@ -611,6 +752,125 @@ row(['ASSY', 'as.col', 'md.spu', 'ADD',
 row(['ASSY', 'as.col', 'md.spd', 'ADD',
      rotX(foxOn, foxOnV), rotY(foxOn, foxOnV),
      f(`-${jointU}+IF(${isH},0,${K.epT}/2)`, -jointUV + pick(0, V.epT / 2))].concat(spin));
+/* ---- the beams ---- */
+/* Four of them, in the world's directions. They carry no `spin`: a beam
+   follows the building grid and it is the column that turns inside it, which
+   is why Alpha reaches these rows only through the face it presents. */
+const BDIR = [
+  { k: 'a', d: 'X+', ax: 'X', sg:  1, plane: 'YZ', rot: 0   },
+  { k: 'b', d: 'X-', ax: 'X', sg: -1, plane: 'YZ', rot: 180 },
+  { k: 'c', d: 'Y+', ax: 'Y', sg:  1, plane: 'XZ', rot: 180 },
+  { k: 'd', d: 'Y-', ax: 'Y', sg: -1, plane: 'XZ', rot: 0   }
+];
+note2('');
+note2('SECT / PLATE / BOLT for the beams. One end plate serves all four; the bolt comes in two lengths because an X face and a Y face are not the same thickness of steel once Alpha has turned the column.');
+BDIR.forEach((B, i) => {
+  const b = BMK(i);
+  row(['SECT', 'sc.bm' + B.k, f(K.steel, V.steel),
+       f(`MAX(1,${b.len})`, Math.max(1, V.bmL[i])), 'H', 'mc',
+       f(b.h, D.bmH), f(b.b, D.bmB), f(b.b, D.bmB), f(b.tw, D.bmW),
+       f(b.tf, D.bmF), f(b.tf, D.bmF), f(b.r, D.bmR)],
+      i === 0 ? 'one per direction, so each can be its own section' : '');
+});
+row(['PLATE', 'pl.bep', f(K.steel, V.steel), f(K.bepT, V.bepT), 'RECT', 'mc',
+     f(K.bepW, V.bepW), f(K.bepH, D.bepH)], 'the beam end plate');
+row(['PLATE', 'pl.fin', f(K.steel, V.steel), f(K.finT, V.finT), 'RECT', 'mc',
+     f(K.finB, V.finB), f(K.finH, D.finH)], 'the fin plate — welded to the column, not the beam');
+row(['BOLT', 'bo.fin', f(K.grade, V.grade), f(K.dia, V.dia),
+     f(`CEILING(${K.finT}+${BMK(0).tw}+1.1*${K.dia},5)`, D.lenFin), f(K.hole, D.hole),
+     '', '', '', f(`0.9*${K.dia}`, D.nut),
+     f(`CEILING(${K.finT}+${BMK(0).tw}+1.1*${K.dia},5)-${K.finT}-${BMK(0).tw}-0.9*${K.dia}`,
+       rnd(D.lenFin - D.gripFin - D.nut))],
+    'the fin plate bolt: through plate and web, and never through the column');
+[['x', thruXf, D.bGripX, D.bLenX], ['y', thruYf, D.bGripY, D.bLenY]].forEach(([t, thru, grip, len]) => {
+  const lf = `IF(${isH},CEILING(${thru}+${K.bepT}+1.1*${K.dia},5),CEILING(2*${K.bepT}+1.1*${K.dia},5))`;
+  const gf = `IF(${isH},${thru}+${K.bepT},2*${K.bepT})`;
+  row(['BOLT', 'bo.b' + t, f(K.grade, V.grade), f(K.dia, V.dia), f(lf, len), f(K.hole, D.hole),
+       '', '', '', f(`0.9*${K.dia}`, D.nut),
+       f(`(${lf})-(${gf})-0.9*${K.dia}`, rnd(len - grip - D.nut))],
+      t === 'x' ? 'through the flange on an H column, or through two plates on a tube' : '');
+});
+
+note2('');
+note2('Each beam is one module, written for BOTH details at once. Its origin is the START FACE OF THE BEAM, which is the point BASE holds, so every other row is a distance measured back from there.');
+BDIR.forEach((B, i) => {
+  const b = BMK(i), isX = B.ax === 'X';
+  const thru = isX ? thruXf : thruYf;
+  const thruV = isX ? D.thruX : D.thruY;
+  const bolt = 'bo.b' + (isX ? 'x' : 'y');
+  const ep = `${b.det}="end plate"`, fin = `${b.det}="fin plate"`;
+  const isEP = V.bmD[i] === 'end plate', isFin = V.bmD[i] === 'fin plate';
+  const live = V.bmL[i] > 0;
+  const onEP  = m => f(`IF(AND(${b.len}>0,${ep}),"${m}","")`, (live && isEP) ? m : '');
+  const onEPR = m => f(`IF(AND(${b.len}>0,${ep},NOT(${isH})),"${m}","")`, (live && isEP && !H) ? m : '');
+  const onFin = m => f(`IF(AND(${b.len}>0,${fin}),"${m}","")`, (live && isFin) ? m : '');
+  const on    = m => f(`IF(${b.len}>0,"${m}","")`, live ? m : '');
+  /* ROT.Z 180 turns BOTH horizontal axes, so the across offset has to be
+     signed exactly as the outward one is. Leaving it unsigned looked right on
+     X+ and Y+ and put the X- fin bolt at Y 13.25..29.75 - past the web
+     entirely, bolted to nothing. Y+ survived only because the two planes
+     extrude opposite ways (YZ gives +X, XZ gives -Y) and the two errors
+     cancelled. */
+  const sgn = (e, v) => (B.sg > 0 ? [e, v] : [`-(${e})`, -v]);
+  const out = sgn, acr = sgn;
+  const XY = (o, a) => isX ? [o, a] : [a, o];
+  const pair = (o, a) => { const q = XY(o, a); return [f(q[0][0], q[0][1]), f(q[1][0], q[1][1])]; };
+  const zero = ['0', 0];
+  const finPlane = B.plane === 'YZ' ? 'XZ' : 'YZ';
+  note2('');
+  note2('beam ' + B.d + '  —  ' + (live ? V.bmD[i] : 'off, its Length being 0'));
+  // end plate on the beam end
+  row(['MODULE', 'md.bm' + B.k, onEP('pl.bep'), 'mc']
+      .concat(pair(out(`-${K.bepT}/2`, -V.bepT / 2), zero))
+      .concat([0, B.plane, 0, 0, B.rot]),
+      i === 0 ? 'end plate, on the beam end' : '');
+  // and its twin on a tube wall, where the bolt cannot go through
+  row(['MODULE', 'md.bm' + B.k, onEPR('pl.bep'), 'mc']
+      .concat(pair(out(`-1.5*${K.bepT}`, -1.5 * V.bepT), zero))
+      .concat([0, B.plane, 0, 0, B.rot]),
+      i === 0 ? 'on a tube column, a second one welded to the wall' : '');
+  // fin plate, welded to the column and standing out beside the beam web
+  row(['MODULE', 'md.bm' + B.k, onFin('pl.fin'), 'mc']
+      .concat(pair(out(`${K.finB}/2-${K.finS}`, V.finB / 2 - V.finS),
+                   acr(`${b.tw}/2+${K.finT}/2`, rnd(D.bmW / 2 + V.finT / 2))))
+      .concat([0, finPlane, 0, 0, B.rot]),
+      i === 0 ? 'fin plate, reaching out from the column beside the web' : '');
+  row(['MODULE', 'md.bm' + B.k, on('sc.bm' + B.k), '', 0, 0, 0, B.plane, 0, 0, B.rot],
+      i === 0 ? 'the beam, at the module origin' : '');
+  // the bolts. An end plate bolt runs along the beam, two across the web; a
+  // fin plate bolt runs across it, in one line.
+  row(['MODULE', 'md.bm' + B.k,
+       f(`IF(${b.len}<=0,"",IF(${ep},"${bolt}","bo.fin"))`,
+         !live ? '' : (isEP ? bolt : 'bo.fin')), '']
+      .concat(pair(out(`IF(${ep},IF(${isH},-((${thru})+${K.bepT}),-2*${K.bepT}),${K.finG}-${K.finS})`,
+                       isEP ? (H ? -(thruV + V.bepT) : -2 * V.bepT) : V.finG - V.finS),
+                   acr(`IF(${ep},-${K.bepG}/2,${b.tw}/2+${K.finT})`,
+                       isEP ? -V.bepG / 2 : rnd(D.bmW / 2 + V.finT))))
+      .concat([f(`IF(${ep},-${K.bepP}*(${K.bepN}-1)/2,-${K.finP}*(${K.finN}-1)/2)`,
+                 isEP ? -V.bepP * (V.bepN - 1) / 2 : -V.finP * (V.finN - 1) / 2),
+               f(`IF(${ep},"${B.plane}","${finPlane}")`, isEP ? B.plane : finPlane),
+               0, 0, B.rot])
+      .concat(pair(zero, acr(`IF(${ep},${K.bepG},0)`, isEP ? V.bepG : 0)))
+      .concat([0, f(`IF(${ep},1,0)`, isEP ? 1 : 0)])
+      .concat([0, 0, f(`IF(${ep},${K.bepP},${K.finP})`, isEP ? V.bepP : V.finP),
+               f(`IF(${ep},${K.bepN}-1,${K.finN}-1)`, isEP ? V.bepN - 1 : V.finN - 1)]),
+      i === 0 ? 'two across the web on an end plate, one line on a fin' : '');
+  row(['MODULE', 'md.bm' + B.k, 'BASE', 'sc.bm' + B.k, 'mc']);
+});
+
+note2('');
+note2('The beams go on last. No spin: they belong to the grid, not to the column.');
+BDIR.forEach((B, i) => {
+  const b = BMK(i), isX = B.ax === 'X';
+  const face = isX ? faceXf : faceYf, faceV = isX ? D.faceX : D.faceY;
+  const at = `(${face})+IF(${b.det}="end plate",IF(${isH},${K.bepT},2*${K.bepT}),${K.finS})`;
+  const atV = faceV + (V.bmD[i] === 'end plate' ? D.bOff : V.finS);
+  const cell = f(B.sg > 0 ? at : `-(${at})`, B.sg * atV);
+  row(['ASSY', 'as.col', 'md.bm' + B.k, 'ADD',
+       isX ? cell : 0, isX ? 0 : cell, 0],
+      i === 0 ? 'the beam start: the column face, plus the plate or plates in front of it' : '');
+});
+
 note2('');
 row(['END']);
 
