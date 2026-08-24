@@ -376,6 +376,29 @@ checked(R.bChk, [
     pick(2 * V.fNL * V.fNT + V.wNL * V.wNT, D.nE) + ' per splice']
 ]);
 
+/* ---- grey out whichever detail the section is not using ----
+   The labels were already dimmed, but the cells beside them stayed blue and
+   blue means "type here". A conditional format is the only way to say it in
+   the file itself: Excel re-reads the rule every time Type changes, which a
+   static style cannot. Everything stays editable - it is dimmed, not locked,
+   because a person may well be setting up the other detail before switching.
+   The preview tool here does not render conditional formats, so what is
+   checked below is that the rules are in the file, not how they look. */
+const DIMFONT = { color: { argb: 'FFB9C2CE' } };
+const DIMFILL = { type: 'pattern', pattern: 'solid', bgColor: { argb: 'FFF9FAFB' } };
+function dimWhen(ref, formula) {
+  ps.addConditionalFormatting({ ref: ref, rules: [{
+    type: 'expression', priority: 1, formulae: [formula],
+    style: { font: DIMFONT, fill: DIMFILL } }] });
+}
+const NOT_H = `$C$${R.sec}<>"H"`, IS_H = `$C$${R.sec}="H"`;
+// the cover plate detail, and its two bolt groups
+[`B${R.fo}:K${R.wp}`, `B${R.gF}:K${R.gW}`, `H${R.blt}:I${R.blt}`]
+  .forEach(ref => dimWhen(ref, NOT_H));
+// the end plate detail, its own bolt heading and row
+[`B${R.ep}:K${R.ep}`, `B${R.eCols}:K${R.gE}`, `J${R.blt}:J${R.blt}`]
+  .forEach(ref => dimWhen(ref, IS_H));
+
 /* ================= the two catalogue tabs ================= */
 function catalogue(name, rows) {
   const ws = wb.addWorksheet(name);
