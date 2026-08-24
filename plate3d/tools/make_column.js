@@ -156,10 +156,11 @@ const is = wb.addWorksheet('input');
    carries one Flange row for both. */
 const P = 'PARAM';
 const R = { title: 1, sub: 2,
-            sHead: 4,  sCols: 5,  sec: 6,  len: 7,  steel: 8, sNote: 9, sChk: 10,
-            pHead: 12, pCols: 13, fo: 14, fi: 15, wp: 16, ep: 17, pNote: 18, pChk: 19,
-            bHead: 21, bCols: 22, blt: 23, gCols: 24, gF: 25, gW: 26,
-            eCols: 27, gE: 28, bNote: 29, bChk: 30 };
+            sHead: 4,  sCols: 5,  sec: 6,  len: 7,  steel: 8,
+            sNote: 9,  aNote: 10, sChk: 11,
+            pHead: 13, pCols: 14, fo: 15, fi: 16, wp: 17, ep: 18, pNote: 19, pChk: 20,
+            bHead: 22, bCols: 23, blt: 24, gCols: 25, gF: 26, gW: 27,
+            eCols: 28, gE: 29, bNote: 30, bChk: 31 };
 const c = (col, row) => `${P}!$${col}$${row}`;
 const K = {
   typ: c('C', R.sec), sec: c('D', R.sec),
@@ -275,6 +276,10 @@ sty(ps.getCell(R.steel, 5), { size: 9, bold: true, color: WARN }).value =
   'put 0 in upper or lower if you do not want that piece — its splice goes with it';
 ps.mergeCells(R.steel, 5, R.steel, 11);
 note(R.sNote, 'Pick "user define" at the top of either list and the five cells go blank — type over them. A tube has no flange, so its wall goes in tw and tf alike.');
+/* Alpha earns a line of its own: it is the one cell on the sheet that moves
+   everything at once, and a reader who has just met Type needs telling that
+   this is not another kind of section but the same one, turned. */
+note(R.aNote, 'Alpha turns the whole column about its axis, plates and bolts with it. 0 faces the flanges along X, ±90 along Y; a tube looks alike either way.');
 checked(R.sChk, [
   ['section', `IF(${K.h}="","fill in the dimensions","ok")`, 'ok'],
   ['splices', `(IF(${K.up}>0,1,0)+IF(${K.dn}>0,1,0))&" of 2"`,
