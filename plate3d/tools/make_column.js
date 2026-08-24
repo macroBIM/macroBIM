@@ -48,6 +48,13 @@ const TB = [[USER, '', '', '', '', '', '']].concat(
                +r.A, +r.B, +r.t, +r.t, +r.r, +r['단위무게']]));
 const findH = k => HS.find(s => s[0] === k) || HS[1];
 const findT = k => TB.find(s => s[0] === k) || TB[1];
+/* UDEF=h,b,tw,tf,r writes the sheet the way a person leaves it after picking
+   "user define" and typing over the five cells: the Section name is the list's
+   own first entry, and the dimensions are literals rather than a VLOOKUP. It
+   is the only honest way to test that path - editing a finished file cannot,
+   because the input tab's IF formulas would need recalculating and only Excel
+   does that. */
+const UDEF = process.env.UDEF ? process.env.UDEF.split(',').map(Number) : null;
 
 /* ---------- what the sheet opens with ---------- */
 const TYPE = process.env.CTYPE === 'R' ? 'R' : 'H';
@@ -79,7 +86,9 @@ const V = {
    the H branch ships a tube that loads as an H, which is what happened the
    first time this was tested. */
 const H = V.type === 'H';
-const SEC = H ? findH(V.sec) : findT(V.sec);
+const SEC = UDEF ? [USER].concat(UDEF).concat([0])
+                 : (H ? findH(V.sec) : findT(V.sec));
+if (UDEF) V.sec = USER;
 const D = {};
 D.h = SEC[1]; D.b = SEC[2]; D.tw = SEC[3]; D.tf = SEC[4]; D.r = SEC[5]; D.kg = SEC[6];
 D.hole = V.dia + 2;
@@ -243,15 +252,18 @@ inp(R.sec, 3, V.type).dataValidation = { type: 'list', allowBlank: false,
 inp(R.sec, 4, V.sec);
 const look = n => `IF(${isH},IFERROR(VLOOKUP($D$${R.sec},SECT!$A:$G,${n},FALSE),""),` +
                   `IFERROR(VLOOKUP($D$${R.sec},TUBE!$A:$G,${n},FALSE),""))`;
-[[2, D.h], [3, D.b], [4, D.tw], [5, D.tf], [6, D.r]].forEach(([n, val], i) =>
-  calc(R.sec, 5 + i, look(n), val, '0.##', { fill: INFILL, color: BLUE, bold: true }));
+[[2, D.h], [3, D.b], [4, D.tw], [5, D.tf], [6, D.r]].forEach(([n, val], i) => {
+  if (UDEF) inp(R.sec, 5 + i, val, '0.##');            // typed over, as a person leaves it
+  else calc(R.sec, 5 + i, look(n), val, '0.##', { fill: INFILL, color: BLUE, bold: true });
+});
 /* Alpha spins the whole column about its own axis - section, plates and
    bolts together, because the ASSY row that places each module carries the
    rotation and a module turns as one piece. 0 leaves the flanges facing X. */
 inp(R.sec, 10, V.alpha).dataValidation = { type: 'list', allowBlank: false,
   formulae: ['"0,90,-90"'], showErrorMessage: true,
   error: '0, 90 or -90 degrees about the column axis.' };
-calc(R.sec, 11, look(7), D.kg, '0.0');
+if (UDEF) sty(ps.getCell(R.sec, 11), { h: 'center', color: MUTE }).value = '—';
+else calc(R.sec, 11, look(7), D.kg, '0.0');
 label(R.len, 'Length');
 [['upper', V.up], ['middle', V.mid], ['lower', V.dn]].forEach(([t, v], i) => {
   sty(ps.getCell(R.len, 4 + i * 2), { size: 9, bold: true, color: MUTE, h: 'right' }).value = t;
@@ -306,7 +318,13 @@ checked(R.pChk, [
   ['plate steel, kg', `ROUND(IF(${isH},${K.foW}*${K.foL}*${K.foT}*2+${K.fiW}*${K.fiL}*${K.fiT}*4` +
     `+${K.wpW}*${K.wpL}*${K.wpT}*2,${K.epW}*${K.epL}*${K.epT}*2)*7.85/1000000,1)`,
     Math.round(pick(plKg, epKg) * 10) / 10],
-  ['joint gap', `${K.gap}`, V.gap]
+  /* A plate narrower than the steel it covers is a detail; a plate wider is a
+     mistake, and changing the section is exactly how you get one without
+     noticing - the plate widths are typed, so they do not follow. */
+  ['plates fit', `IF(${isH},IF(AND(${K.foW}<=${K.b},${K.wpW}<=${K.h}-2*${K.tf}-2*${K.r}),"ok",` +
+    `IF(${K.foW}>${K.b},"flange plate too wide","web plate too deep")),"n/a")`,
+    pick(V.foW <= D.b && V.wpW <= D.h - 2 * D.tf - 2 * D.r ? 'ok'
+         : (V.foW > D.b ? 'flange plate too wide' : 'web plate too deep'), 'n/a')]
 ]);
 
 /* ---- 3. bolts ---- */
