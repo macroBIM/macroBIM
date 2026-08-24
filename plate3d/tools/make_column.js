@@ -165,6 +165,21 @@ D.gripFin = V.finT + D.bmW;
 D.lenFin  = up5(D.gripFin + D.nut + 0.2 * V.dia);
 const rnd = x => +(+x).toFixed(4);
 const pick = (a, b) => (H ? a : b);
+/* the column stiffener. Horizontal plates inside the H, one sheet row per
+   LEVEL - a signed height measured from the middle column's centre, which is
+   where the beams sit, so a beam's top flange and its bottom flange are two
+   rows. Eight rows because four beams have eight flanges between them. A tube
+   gets none: nothing reaches inside a closed wall to weld one in.
+   Thickness 0 and that row is not there, the switch the whole book uses. */
+const NSTF = 8;
+V.stf = [];
+[1, -1].forEach(s => V.stf.push({
+  t: s > 0 ? 'beam top flange' : 'beam bottom flange',
+  off: rnd(s * (D.bmH - D.bmF) / 2),      // the default beam's flange centre
+  w: rnd((D.b - D.tw) / 2), d: rnd(D.h - 2 * D.tf), th: 12
+}));
+while (V.stf.length < NSTF) V.stf.push({ t: '', off: 0, w: 0, d: 0, th: 0 });
+D.stfN = H ? V.stf.filter(s => s.th > 0).length * 2 : 0;
 
 /* ---------- style ---------- */
 const FONT = 'Arial';
@@ -203,8 +218,10 @@ const R = { title: 1, sub: 2,
             bHead: 22, bCols: 23, blt: 24, gCols: 25, gF: 26, gW: 27,
             eCols: 28, gE: 29, bNote: 30, bChk: 31,
             mHead: 33, mCols: 34, bm0: 35, mNote: 39, mChk: 40,
-            nHead: 42, nCols: 43, bep: 44, fin2: 45, nNote: 46, nChk: 47 };
+            nHead: 42, nCols: 43, bep: 44, fin2: 45, nNote: 46, nChk: 47,
+            tHead: 49, tCols: 50, stf0: 51, tNote: 59, tChk: 60 };
 const BMROW = [35, 36, 37, 38];                  // X+  X-  Y+  Y-
+const STFROW = Array.from({ length: NSTF }, (_, i) => R.stf0 + i);   // 51..58
 const c = (col, row) => `${P}!$${col}$${row}`;
 const K = {
   typ: c('C', R.sec), sec: c('D', R.sec),
@@ -233,6 +250,9 @@ const K = {
 const BMK = i => ({ det: c('C', BMROW[i]), sec: c('D', BMROW[i]), h: c('E', BMROW[i]), b: c('F', BMROW[i]),
                    tw: c('G', BMROW[i]), tf: c('H', BMROW[i]), r: c('I', BMROW[i]),
                    len: c('J', BMROW[i]), kg: c('K', BMROW[i]) });
+// one stiffener level's cells, by its row
+const SK = i => ({ off: c('E', STFROW[i]), w: c('F', STFROW[i]),
+                   d: c('G', STFROW[i]), th: c('H', STFROW[i]) });
 const isH = `${K.typ}="H"`;
 /* Where a beam meets the column, and how much steel its bolt has to cross.
    Both follow Alpha, because the four directions belong to the world and the
@@ -517,6 +537,37 @@ checked(R.nChk, [
     pick(D.bmB <= D.h - 2 * D.tf - 2 * D.r ? 'ok' : 'strip the beam flange', 'n/a')]
 ]);
 
+/* ---- 6. the column stiffener ----
+   Last, not first, though it is a column input: you cannot write an offset
+   until you know how deep the beams are, and putting it here leaves chapters
+   2 to 5 on the rows they already had. One sheet row is one LEVEL, and the
+   level is signed - up is positive - so a beam's two flanges are two rows. */
+head(R.tHead, 6, 'COLUMN STIFFENER', 'horizontal plates inside an H — a tube cannot take one, nothing reaches inside the wall');
+cols(R.tCols, ['', '', 'for', 'offset', 'width', 'depth', 'thick']);
+V.stf.forEach((s, i) => {
+  const rw = STFROW[i];
+  label(rw, String(i + 1), { color: (H && s.th > 0) ? INK : OFFTXT });
+  sty(inp(rw, 4, s.t || null), { h: 'left', border: true, fill: INFILL,
+                                 color: BLUE, bold: true });
+  [[5, s.off], [6, s.w], [7, s.d], [8, s.th]].forEach(([col, v]) => inp(rw, col, v, '0.##'));
+});
+note(R.tNote, 'Offset is signed, from the middle column\'s centre — where the beams sit. Width runs out from the web, depth between the flanges. Thick 0 = off.');
+checked(R.tChk, [
+  /* Two plates a level, always: the web splits the space between the flanges
+     in two and no single plate can span it. */
+  ['plates', `IF(${isH},${STFROW.map(r => `IF($H$${r}>0,2,0)`).join('+')},0)&" of ${NSTF * 2}"`,
+    D.stfN + ' of ' + NSTF * 2],
+  ['fits', `IF(NOT(${isH}),"n/a",IF(MAX($F$${R.stf0}:$F$${R.stf0 + NSTF - 1})>(${K.b}-${K.tw})/2,` +
+    `"too wide",IF(MAX($G$${R.stf0}:$G$${R.stf0 + NSTF - 1})>${K.h}-2*${K.tf},"too deep","ok")))`,
+    pick(Math.max.apply(null, V.stf.map(s => s.w)) > (D.b - D.tw) / 2 ? 'too wide'
+      : (Math.max.apply(null, V.stf.map(s => s.d)) > D.h - 2 * D.tf ? 'too deep' : 'ok'), 'n/a')],
+  /* The number a person actually wants while filling this block in: where
+     each beam's flange centre sits, which is what an offset is usually set to. */
+  ['beam flange at ±', [0, 1, 2, 3].map(i =>
+    `ROUND((${BMK(i).h}-${BMK(i).tf})/2,1)`).join('&" / "&'),
+    [0, 1, 2, 3].map(() => rnd((D.bmH - D.bmF) / 2)).join(' / ')]
+]);
+
 /* ---- grey out whichever detail the section is not using ----
    The labels were already dimmed, but the cells beside them stayed blue and
    blue means "type here". A conditional format is the only way to say it in
@@ -539,6 +590,8 @@ const NOT_H = `$C$${R.sec}<>"H"`, IS_H = `$C$${R.sec}="H"`;
 // the end plate detail, its own bolt heading and row
 [`B${R.ep}:K${R.ep}`, `B${R.eCols}:K${R.gE}`, `J${R.blt}:J${R.blt}`]
   .forEach(ref => dimWhen(ref, IS_H));
+// the stiffener block, which only an H can take
+dimWhen(`B${R.stf0}:K${R.stf0 + NSTF - 1}`, NOT_H);
 
 /* ================= the two catalogue tabs ================= */
 function catalogue(name, rows) {
@@ -622,6 +675,18 @@ row(['BOLT', 'bo.w', f(K.grade, V.grade), f(K.dia, V.dia),
      f(`IF(${isH},${K.lenW}-${K.tw}-2*${K.wpT}-0.9*${K.dia},0)`,
        pick(rnd(D.lenW - D.gripW - D.nut), 0))],
     'web bolt — H only');
+
+note2('');
+note2('the stiffeners, one plate per level. RECT takes B then H: B runs along the column\'s h and is the DEPTH between the flanges, H runs along b and is the WIDTH out from the web.');
+note2('MAX(1,..) once more — a plate of zero size is not defined at all, and the MODULE naming it would then fail rather than quietly skip.');
+V.stf.forEach((s, i) => {
+  const k = SK(i);
+  row(['PLATE', 'pl.stf' + (i + 1), f(K.steel, V.steel),
+       f(`MAX(1,${k.th})`, Math.max(1, s.th)), 'RECT', 'mc',
+       f(`MAX(1,${k.d})`, Math.max(1, s.d)),
+       f(`MAX(1,${k.w})`, Math.max(1, s.w))],
+      i === 0 ? 'level 1 — every row of chapter 6 gets one of these' : '');
+});
 
 note2('');
 note2('MODULE  id  member  Ref.Pt  L.X  L.Y  L.Z  PLANE  [ROT.X ROT.Y ROT.Z]  [dx dy dz repeat]  [dx2 dy2 dz2 repeat2]');
@@ -716,6 +781,31 @@ note2('The splice, its origin the middle of the joint. Every quadrant of a bolt 
         first && sz > 0 ? 'the web: no gap at the middle of the depth, so it is one run across' : '');
   });
   row(['MODULE', 'md.sp' + sd, 'BASE', 'pl.fo_1', 'mc']);
+});
+
+/* The stiffeners ride INSIDE md.c2 rather than in a module of their own, and
+   that one decision pays for the whole block: the ASSY row that places md.c2
+   carries `spin`, so Alpha turns the stiffeners with the section and not one
+   formula here has to know what Alpha is. md.c2's BASE is the centre of the
+   section's START face, so local z runs 0 to `mid` and the centre - which is
+   also where the beams sit - is at mid/2.
+   Inside the module the section carries ROT.Z 90, so its h lies along X and
+   its b along Y. The plates do not: each is laid flat in XY, which is why the
+   PLATE row above puts the depth first. The repeat then drops the second
+   plate on the far side of the web. */
+note2('');
+note2('the stiffeners, inside the middle column module so Alpha turns them with it. Local z 0 is the foot of that piece, so its centre — and the beams — are at mid/2.');
+note2('One row per level; the repeat puts the second plate the other side of the web, the web splitting the space between the flanges in two.');
+const stfHalf  = `(${K.b}+${K.tw})/4`;
+const stfHalfV = rnd((D.b + D.tw) / 4);
+V.stf.forEach((s, i) => {
+  const k = SK(i), live = H && s.th > 0;
+  row(['MODULE', 'md.c2',
+       f(`IF(AND(${isH},${k.th}>0),"pl.stf${i + 1}","")`, live ? 'pl.stf' + (i + 1) : ''),
+       'mc', 0, f(`-${stfHalf}`, -stfHalfV),
+       f(`${K.mid}/2+${k.off}`, rnd(V.mid / 2 + s.off)), 'XY', 0, 0, 0,
+       0, f(`2*${stfHalf}`, 2 * stfHalfV), 0, 1],
+      i === 0 ? 'level 1, one plate each side of the web' : '');
 });
 
 /* BASE holds pl.fo_1, so a splice ASSY row names where THAT plate goes. */
