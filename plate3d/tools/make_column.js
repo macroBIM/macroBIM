@@ -206,20 +206,29 @@ D.bLen = D.bGrip.map(g => up5(g + D.nut + 0.2 * V.dia));
 D.bOff = D.cn.map(c => c.t === 'end plate' ? (H ? c.th : 2 * c.th) : c.sb);
 const rnd = x => +(+x).toFixed(4);
 const pick = (a, b) => (H ? a : b);
-/* the column stiffener. Horizontal plates inside the H, one sheet row per
-   LEVEL - a signed height measured from the middle column's centre, which is
-   where the beams sit, so a beam's top flange and its bottom flange are two
-   rows. Eight rows because four beams have eight flanges between them. A tube
-   gets none: nothing reaches inside a closed wall to weld one in.
+/* The column stiffener. Horizontal plates welded inside the H - the COLUMN's
+   steel, not any beam's - one sheet row per LEVEL, a signed height measured
+   from the middle column's centre. That centre is where the beams sit, so a
+   pair of levels usually brackets one beam; eight rows because four beams
+   have eight flanges between them. A tube gets none: nothing reaches inside a
+   closed wall to weld one in.
    Thickness 0 and that row is not there, the switch the whole book uses. */
 const NSTF = 8;
 V.stf = [];
+/* These read "upper" and "lower", not "beam top flange". The offset IS a beam
+   flange height - that is what it is for - but naming the plate after the
+   beam made it look like part of the beam, and it is not: it is welded inside
+   the column and it is the column's steel. Where the height came from is
+   still on the sheet, in the check row's "beam flange at ±". */
 [1, -1].forEach(s => V.stf.push({
-  t: s > 0 ? 'beam top flange' : 'beam bottom flange',
+  t: s > 0 ? 'upper stiffener' : 'lower stiffener',
   off: rnd(s * (D.bmH - D.bmF) / 2),      // the default beam's flange centre
   w: rnd((D.b - D.tw) / 2), d: rnd(D.h - 2 * D.tf), th: 12
 }));
 while (V.stf.length < NSTF) V.stf.push({ t: '', off: 0, w: 0, d: 0, th: 0 });
+// column D is 26 wide with a filled neighbour, so Excel clips rather than spills
+V.stf.forEach(x => { if (x.t.length > 25)
+  throw new Error('stiffener note clipped at 26: ' + x.t.length); });
 D.stfN = H ? V.stf.filter(s => s.th > 0).length * 2 : 0;
 
 /* ---------- style ---------- */
