@@ -252,18 +252,34 @@ const is = wb.addWorksheet('input');
    where the beam sheet carries a Top flange row and a Bottom flange row this
    carries one Flange row for both. */
 const P = 'PARAM';
+/* Chapter order, and why it is this one:
+
+     1 SECTION            what the column is
+     2 COLUMN STIFFENER   what goes inside it
+     3 SPLICE PLATES      how its pieces join
+     4 BOLTS
+     5 CONNECTION         the library of details
+     6 BEAMS              each one names a detail from 5
+
+   The column is finished before anything hangs off it, and a connection is
+   declared before a beam can name one - so the sheet is read forwards, with
+   no cell pointing at a chapter you have not filled in yet. */
 const R = { title: 1, sub: 2,
             sHead: 4,  sCols: 5,  sec: 6,  len: 7,  steel: 8,
             sNote: 9,  aNote: 10, sChk: 11,
-            pHead: 13, pCols: 14, fo: 15, fi: 16, wp: 17, ep: 18, pNote: 19, pChk: 20,
-            bHead: 22, bCols: 23, blt: 24, gCols: 25, gF: 26, gW: 27,
-            eCols: 28, gE: 29, bNote: 30, bChk: 31,
-            mHead: 33, mCols: 34, bm0: 35, mNote: 39, mChk: 40,
-            nHead: 42, nCols: 43, cn0: 44, nNote: 50, nChk: 51,
-            tHead: 53, tCols: 54, stf0: 55, tNote: 63, tChk: 64 };
-const BMROW = [35, 36, 37, 38];                  // X+  X-  Y+  Y-
-const CNROW = V.conn.map((_, i) => R.cn0 + i);                       // 44..49
-const STFROW = Array.from({ length: NSTF }, (_, i) => R.stf0 + i);   // 55..62
+            tHead: 13, tCols: 14, stf0: 15, tNote: 23, tChk: 24,
+            pHead: 26, pCols: 27, fo: 28, fi: 29, wp: 30, ep: 31, pNote: 32, pChk: 33,
+            bHead: 35, bCols: 36, blt: 37, gCols: 38, gF: 39, gW: 40,
+            eCols: 41, gE: 42, bNote: 43, bChk: 44,
+            nHead: 46, nCols: 47, cn0: 48, nNote: 54, nChk: 55,
+            mHead: 57, mCols: 58, bm0: 59, mNote: 63, mChk: 64 };
+/* All three follow R, none of them a literal. BMROW was written out as
+   [35,36,37,38] and survived every earlier edit because the beams never
+   moved; the moment they did it wrote four rows straight over the BOLTS
+   chapter, and the header vanished under an X+. */
+const BMROW = V.bmC.map((_, i) => R.bm0 + i);    // X+  X-  Y+  Y-
+const CNROW = V.conn.map((_, i) => R.cn0 + i);
+const STFROW = Array.from({ length: NSTF }, (_, i) => R.stf0 + i);
 const c = (col, row) => `${P}!$${col}$${row}`;
 const K = {
   typ: c('C', R.sec), sec: c('D', R.sec),
@@ -436,8 +452,40 @@ checked(R.sChk, [
     pick(V.alpha % 180 === 0 ? 'X' : 'Y', 'all four alike')]
 ]);
 
-/* ---- 2. plates ---- */
-head(R.pHead, 2, 'SPLICE PLATES', 'cover plates on an H, an end plate on a tube — Type keeps whichever the section calls for');
+/* ---- 2. the column stiffener ----
+   Straight after the section, because that is what it belongs to: it is steel
+   welded inside the column, not part of any beam. One sheet row is one LEVEL,
+   and the level is signed - up is positive - so a beam's two flanges are two
+   rows. The offsets do depend on how deep the beams are, which is chapter 6,
+   so the check row carries each beam's flange height for copying up. */
+head(R.tHead, 2, 'COLUMN STIFFENER', 'horizontal plates inside an H — a tube cannot take one, nothing reaches inside the wall');
+cols(R.tCols, ['', '', 'for', 'offset', 'width', 'depth', 'thick']);
+V.stf.forEach((s, i) => {
+  const rw = STFROW[i];
+  label(rw, String(i + 1), { color: (H && s.th > 0) ? INK : OFFTXT });
+  sty(inp(rw, 4, s.t || null), { h: 'left', border: true, fill: INFILL,
+                                 color: BLUE, bold: true });
+  [[5, s.off], [6, s.w], [7, s.d], [8, s.th]].forEach(([col, v]) => inp(rw, col, v, '0.##'));
+});
+note(R.tNote, 'Offset is signed, from the middle column\'s centre — where the beams sit. Width runs out from the web, depth between the flanges. Thick 0 = off.');
+checked(R.tChk, [
+  /* Two plates a level, always: the web splits the space between the flanges
+     in two and no single plate can span it. */
+  ['plates', `IF(${isH},${STFROW.map(r => `IF($H$${r}>0,2,0)`).join('+')},0)&" of ${NSTF * 2}"`,
+    D.stfN + ' of ' + NSTF * 2],
+  ['fits', `IF(NOT(${isH}),"n/a",IF(MAX($F$${R.stf0}:$F$${R.stf0 + NSTF - 1})>(${K.b}-${K.tw})/2,` +
+    `"too wide",IF(MAX($G$${R.stf0}:$G$${R.stf0 + NSTF - 1})>${K.h}-2*${K.tf},"too deep","ok")))`,
+    pick(Math.max.apply(null, V.stf.map(s => s.w)) > (D.b - D.tw) / 2 ? 'too wide'
+      : (Math.max.apply(null, V.stf.map(s => s.d)) > D.h - 2 * D.tf ? 'too deep' : 'ok'), 'n/a')],
+  /* The number a person actually wants while filling this block in: where
+     each beam's flange centre sits, which is what an offset is usually set to. */
+  ['beam flange at ±', [0, 1, 2, 3].map(i =>
+    `ROUND((${BMK(i).h}-${BMK(i).tf})/2,1)`).join('&" / "&'),
+    [0, 1, 2, 3].map(() => rnd((D.bmH - D.bmF) / 2)).join(' / ')]
+]);
+
+/* ---- 3. plates ---- */
+head(R.pHead, 3, 'SPLICE PLATES', 'cover plates on an H, an end plate on a tube — Type keeps whichever the section calls for');
 cols(R.pCols, ['', '', '', 'Width', 'Length', 'Thick', 'Qty', 'Material', 'joint gap']);
 const PLT = [
   [R.fo, 'Flange plate',       V.foW, V.cpL, V.foT, 2, 'H'],
@@ -480,8 +528,8 @@ checked(R.pChk, [
          : (V.foW > D.b ? 'flange plate too wide' : 'web plate too deep'), 'n/a')]
 ]);
 
-/* ---- 3. bolts ---- */
-head(R.bHead, 3, 'BOLTS', 'the shank and the hole are different sizes, and each grip gets its own length');
+/* ---- 4. bolts ---- */
+head(R.bHead, 4, 'BOLTS', 'the shank and the hole are different sizes, and each grip gets its own length');
 cols(R.bCols, ['', '', '', 'dia', 'hole', 'grade', 'flange L', 'web L', 'end L']);
 label(R.blt, 'Bolt');
 inp(R.blt, 5, V.dia);
@@ -524,41 +572,6 @@ checked(R.bChk, [
     pick(2 * V.fNL * V.fNT + V.wNL * V.wNT, D.nE) + ' per splice']
 ]);
 
-/* ---- 4. the beams ---- */
-head(R.mHead, 4, 'BEAMS', 'four world directions - X+ X- Y+ Y-. Length 0 and that beam is not there');
-cols(R.mCols, ['', 'Detail', 'Section', 'h', 'b', 'tw', 'tf', 'r', 'Length', 'kg/m']);
-const BMDIR = ['X+', 'X-', 'Y+', 'Y-'];
-const bmLook = n => `IFERROR(VLOOKUP($D$ROW,SECT!$A:$G,${n},FALSE),"")`;
-BMDIR.forEach((dir, i) => {
-  const row = BMROW[i];
-  label(row, dir, { color: V.bmL[i] > 0 ? INK : OFFTXT });
-  /* The list is the library's own mark column, not a literal, so renaming C3
-     in chapter 5 renames it in this dropdown too. What it cannot do is follow
-     a mark a beam has ALREADY picked - that cell keeps the old text - which
-     is why chapter 5 checks that every beam still finds its mark. */
-  inp(row, 3, V.bmC[i]).dataValidation = { type: 'list', allowBlank: false,
-    formulae: [CNMARK], showErrorMessage: true,
-    error: 'Name one of the connections declared in chapter 5.' };
-  inp(row, 4, V.bmSec);
-  ps.getCell(row, 4).dataValidation = { type: 'list', allowBlank: false,
-    formulae: [`SECT!$A$2:$A$${HS.length + 1}`], showErrorMessage: true,
-    error: 'Pick an H section — a beam has to have a web to bolt through.' };
-  [[2, D.bmH], [3, D.bmB], [4, D.bmW], [5, D.bmF], [6, D.bmR]].forEach(([n, val], j) =>
-    calc(row, 5 + j, bmLook(n).replace('ROW', row), val, '0.##',
-         { fill: INFILL, color: BLUE, bold: true }));
-  inp(row, 10, V.bmL[i]);
-  calc(row, 11, bmLook(7).replace('ROW', row), D.bmKg, '0.0');
-});
-note(R.mNote, 'Beams are H only: a tube has no web to bolt through. The direction is the world\'s, so Alpha decides whether a beam lands on a flange or on the web.');
-checked(R.mChk, [
-  ['X faces', `IF(${isH},IF(MOD(${K.alpha},180)=0,"flange","web"),"tube wall")`,
-    pick(SQ ? 'flange' : 'web', 'tube wall')],
-  ['Y faces', `IF(${isH},IF(MOD(${K.alpha},180)=0,"web","flange"),"tube wall")`,
-    pick(SQ ? 'web' : 'flange', 'tube wall')],
-  ['beams', `(IF(${BMK(0).len}>0,1,0)+IF(${BMK(1).len}>0,1,0)+IF(${BMK(2).len}>0,1,0)` +
-    `+IF(${BMK(3).len}>0,1,0))&" of 4"`, V.bmL.filter(x => x > 0).length + ' of 4']
-]);
-
 /* ---- 5. the connection library ----
    Six marks, declared once. A beam names one in chapter 4 and every number
    below follows by VLOOKUP - so a detail is described once however many beams
@@ -572,7 +585,7 @@ checked(R.mChk, [
    One row shape serves both types because they take the same seven numbers.
    The plate height is not among them - it follows from pitch, count and edge
    - so it is worked out where it is used rather than typed here. */
-head(R.nHead, 5, 'CONNECTION', 'declare them here, then name one against each beam above — end plate bolts through the column, fin plate through the beam web');
+head(R.nHead, 5, 'CONNECTION', 'declare them here, then name one against each beam below — end plate bolts through the column, fin plate through the beam web');
 cols(R.nCols, ['', 'Type', 'what it is', 'setback', 'width', 'height', 'thick',
                'gauge', 'edge', 'pitch', 'count']);
 V.conn.forEach((cn, i) => {
@@ -625,35 +638,39 @@ checked(R.nChk, [
     pick(D.bmB <= D.h - 2 * D.tf - 2 * D.r ? 'ok' : 'strip the beam flange', 'n/a')]
 ]);
 
-/* ---- 6. the column stiffener ----
-   Last, not first, though it is a column input: you cannot write an offset
-   until you know how deep the beams are, and putting it here leaves chapters
-   2 to 5 on the rows they already had. One sheet row is one LEVEL, and the
-   level is signed - up is positive - so a beam's two flanges are two rows. */
-head(R.tHead, 6, 'COLUMN STIFFENER', 'horizontal plates inside an H — a tube cannot take one, nothing reaches inside the wall');
-cols(R.tCols, ['', '', 'for', 'offset', 'width', 'depth', 'thick']);
-V.stf.forEach((s, i) => {
-  const rw = STFROW[i];
-  label(rw, String(i + 1), { color: (H && s.th > 0) ? INK : OFFTXT });
-  sty(inp(rw, 4, s.t || null), { h: 'left', border: true, fill: INFILL,
-                                 color: BLUE, bold: true });
-  [[5, s.off], [6, s.w], [7, s.d], [8, s.th]].forEach(([col, v]) => inp(rw, col, v, '0.##'));
+/* ---- 6. the beams ---- */
+head(R.mHead, 6, 'BEAMS', 'four world directions - X+ X- Y+ Y-. Length 0 and that beam is not there');
+cols(R.mCols, ['', 'Detail', 'Section', 'h', 'b', 'tw', 'tf', 'r', 'Length', 'kg/m']);
+const BMDIR = ['X+', 'X-', 'Y+', 'Y-'];
+const bmLook = n => `IFERROR(VLOOKUP($D$ROW,SECT!$A:$G,${n},FALSE),"")`;
+BMDIR.forEach((dir, i) => {
+  const row = BMROW[i];
+  label(row, dir, { color: V.bmL[i] > 0 ? INK : OFFTXT });
+  /* The list is the library's own mark column, not a literal, so renaming C3
+     in chapter 5 renames it in this dropdown too. What it cannot do is follow
+     a mark a beam has ALREADY picked - that cell keeps the old text - which
+     is why chapter 5 checks that every beam still finds its mark. */
+  inp(row, 3, V.bmC[i]).dataValidation = { type: 'list', allowBlank: false,
+    formulae: [CNMARK], showErrorMessage: true,
+    error: 'Name one of the connections declared in chapter 5.' };
+  inp(row, 4, V.bmSec);
+  ps.getCell(row, 4).dataValidation = { type: 'list', allowBlank: false,
+    formulae: [`SECT!$A$2:$A$${HS.length + 1}`], showErrorMessage: true,
+    error: 'Pick an H section — a beam has to have a web to bolt through.' };
+  [[2, D.bmH], [3, D.bmB], [4, D.bmW], [5, D.bmF], [6, D.bmR]].forEach(([n, val], j) =>
+    calc(row, 5 + j, bmLook(n).replace('ROW', row), val, '0.##',
+         { fill: INFILL, color: BLUE, bold: true }));
+  inp(row, 10, V.bmL[i]);
+  calc(row, 11, bmLook(7).replace('ROW', row), D.bmKg, '0.0');
 });
-note(R.tNote, 'Offset is signed, from the middle column\'s centre — where the beams sit. Width runs out from the web, depth between the flanges. Thick 0 = off.');
-checked(R.tChk, [
-  /* Two plates a level, always: the web splits the space between the flanges
-     in two and no single plate can span it. */
-  ['plates', `IF(${isH},${STFROW.map(r => `IF($H$${r}>0,2,0)`).join('+')},0)&" of ${NSTF * 2}"`,
-    D.stfN + ' of ' + NSTF * 2],
-  ['fits', `IF(NOT(${isH}),"n/a",IF(MAX($F$${R.stf0}:$F$${R.stf0 + NSTF - 1})>(${K.b}-${K.tw})/2,` +
-    `"too wide",IF(MAX($G$${R.stf0}:$G$${R.stf0 + NSTF - 1})>${K.h}-2*${K.tf},"too deep","ok")))`,
-    pick(Math.max.apply(null, V.stf.map(s => s.w)) > (D.b - D.tw) / 2 ? 'too wide'
-      : (Math.max.apply(null, V.stf.map(s => s.d)) > D.h - 2 * D.tf ? 'too deep' : 'ok'), 'n/a')],
-  /* The number a person actually wants while filling this block in: where
-     each beam's flange centre sits, which is what an offset is usually set to. */
-  ['beam flange at ±', [0, 1, 2, 3].map(i =>
-    `ROUND((${BMK(i).h}-${BMK(i).tf})/2,1)`).join('&" / "&'),
-    [0, 1, 2, 3].map(() => rnd((D.bmH - D.bmF) / 2)).join(' / ')]
+note(R.mNote, 'Beams are H only: a tube has no web to bolt through. The direction is the world\'s, so Alpha decides whether a beam lands on a flange or on the web.');
+checked(R.mChk, [
+  ['X faces', `IF(${isH},IF(MOD(${K.alpha},180)=0,"flange","web"),"tube wall")`,
+    pick(SQ ? 'flange' : 'web', 'tube wall')],
+  ['Y faces', `IF(${isH},IF(MOD(${K.alpha},180)=0,"web","flange"),"tube wall")`,
+    pick(SQ ? 'web' : 'flange', 'tube wall')],
+  ['beams', `(IF(${BMK(0).len}>0,1,0)+IF(${BMK(1).len}>0,1,0)+IF(${BMK(2).len}>0,1,0)` +
+    `+IF(${BMK(3).len}>0,1,0))&" of 4"`, V.bmL.filter(x => x > 0).length + ' of 4']
 ]);
 
 /* ---- grey out whichever detail the section is not using ----
@@ -673,13 +690,13 @@ function dimWhen(ref, formula) {
 }
 const NOT_H = `$C$${R.sec}<>"H"`, IS_H = `$C$${R.sec}="H"`;
 // the cover plate detail, and its two bolt groups
-[`B${R.fo}:K${R.wp}`, `B${R.gF}:K${R.gW}`, `H${R.blt}:I${R.blt}`]
+[`B${R.fo}:L${R.wp}`, `B${R.gF}:L${R.gW}`, `H${R.blt}:I${R.blt}`]
   .forEach(ref => dimWhen(ref, NOT_H));
 // the end plate detail, its own bolt heading and row
-[`B${R.ep}:K${R.ep}`, `B${R.eCols}:K${R.gE}`, `J${R.blt}:J${R.blt}`]
+[`B${R.ep}:L${R.ep}`, `B${R.eCols}:L${R.gE}`, `J${R.blt}:J${R.blt}`]
   .forEach(ref => dimWhen(ref, IS_H));
 // the stiffener block, which only an H can take
-dimWhen(`B${R.stf0}:K${R.stf0 + NSTF - 1}`, NOT_H);
+dimWhen(`B${R.stf0}:L${R.stf0 + NSTF - 1}`, NOT_H);
 
 /* ================= the two catalogue tabs ================= */
 function catalogue(name, rows) {
