@@ -2042,6 +2042,68 @@
     reader.readAsArrayBuffer(file);
   }
 
+  /* ------- the second way in: rows handed over by the embedding page -------
+
+     A workbook reaches the model as `rows` - a plain array of arrays of
+     numbers and strings - and everything downstream of that knows nothing
+     about Excel. So a page that can produce those rows can drive this frame
+     without a file at all, which is what QuickPlate3D does: you type into a
+     form and the model under it redraws, with no save-and-load in between.
+
+     The last four lines below are the same four the file path runs. That is
+     deliberate: this is a second door into one room, not a second room.
+
+     Who is allowed to knock. `e.source` is set by the browser and cannot be
+     forged, and `window.parent` is whoever framed us - so this accepts the
+     embedding page and nothing else. A hostile page that opens this embed in
+     a popup is its `opener`, not its `parent`, and is turned away.
+
+     There is deliberately NO origin string. Hardcoding a domain would put the
+     site's address inside the engine, to be edited whenever the site moves or
+     is tested from somewhere else, and it would buy very little: this frame
+     holds nothing worth taking - no login, no stored files, no token - and
+     anyone who framed it could already drive it through the file picker. If
+     that ever stops being true, an origin check belongs here.
+
+     What is actually checked is the message: its shape, and its size. Beyond
+     that parseExcelRows is the guard, exactly as it is for a workbook - the
+     rows have to survive the same parser either way. */
+  var QUICK_MAX_ROWS = 5000;                     // a real sheet is a few hundred
+  window.addEventListener('message', function (e) {
+    if (e.source !== window.parent) return;      // only the page that framed us
+    var d = e && e.data;
+    if (!d || d.plate3d !== 'rows') return;
+    if (!Array.isArray(d.rows) || !d.rows.length || d.rows.length > QUICK_MAX_ROWS) return;
+    var name = typeof d.name === 'string' && d.name ? d.name : 'Quick input';
+    var parsed;
+    try {
+      parsed = parseExcelRows(d.rows, null);
+    } catch (err) {
+      fatalStop(name, ['Could not read the rows: ' + (err && err.message || err)]);
+      return;
+    }
+    if (parsed.fatal) { fatalStop(name, parsed.fatal); return; }
+    buildLog = [];
+    run({ title: 'PLATE3D',
+          subtitle: name + ' · PLATE/CUT/ASSY · unit: mm',
+          note: 'Built from the form above — edit a value and the model follows.',
+          __parsed: parsed });
+    showResult(name, parsed);
+    /* Tell the sender it landed, so the form can report without the reader
+       having to look down at the panel. `items` is the built scene, so its
+       length is the count the result panel shows - not a field on `parsed`,
+       which does not carry one. Errors are counted the same way the panel
+       counts them: the parser's log plus the build's. */
+    var qlog = (parsed.log || []).concat(buildLog);
+    try {
+      window.parent.postMessage({
+        plate3d: 'built', name: name,
+        placed: items.length,
+        errors: qlog.filter(function (x) { return x.s === 'e'; }).length
+      }, '*');
+    } catch (e2) {}
+  });
+
   /* ------- PLATE sheet parser: '#'-prefixed block headers ------- */
   function parsePlateSheet(sheet) {
     var out = [], colmap = null;
