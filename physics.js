@@ -281,10 +281,44 @@ const Physics = {
 
         if (allSegmentsSettled && trebar.state !== "FORMED") {
             if (trebar.finalize) trebar.finalize();
+            Physics.keepInsideConcrete(trebar, walls);
             Physics.applyTrebarEnds(trebar, walls, wallStack);
             Physics.checkFormed(trebar);
             trebar.state = "FORMED";
         }
+    },
+
+    // 콘크리트 내부 판정 (외곽/공동 루프 교차 홀짝)
+    insideConcrete: (walls, px, py) => {
+        let cross = false;
+        for (let wi = 0; wi < (walls || []).length; wi++) {
+            let w = walls[wi];
+            if ((w.y1 > py) !== (w.y2 > py)) {
+                let xx = (w.x2 - w.x1) * (py - w.y1) / ((w.y2 - w.y1) || 1e-9) + w.x1;
+                if (px < xx) cross = !cross;
+            }
+        }
+        return cross;
+    },
+
+    // 형상 각(예각/둔각) 조건 때문에 마지막 조각이 콘크리트 밖으로 뻗은 경우 되돌린다.
+    //  단면 안에 들어가는 방향이 없으면 그대로 두되, 콘크리트를 벗어나는 배근은 만들지 않는다.
+    keepInsideConcrete: (trebar, walls) => {
+        if (!trebar || !(trebar.acute || trebar.obtuse)) return;
+        const segs = trebar.segments || [];
+        if (segs.length < 2) return;
+        const last = segs[segs.length - 1];
+        const midOf = (p1, p2) => ({ x: (p1.x + p2.x) / 2, y: (p1.y + p2.y) / 2 });
+        let m = midOf(last.p1, last.p2);
+        if (Physics.insideConcrete(walls, m.x, m.y)) return;          // 이미 안쪽
+        let alt = { x: last.p1.x - (last.p2.x - last.p1.x), y: last.p1.y - (last.p2.y - last.p1.y) };
+        let am = midOf(last.p1, alt);
+        if (!Physics.insideConcrete(walls, am.x, am.y)) return;       // 반대쪽도 밖이면 유지
+        last.p2 = alt;
+        last.uDir = { x: -last.uDir.x, y: -last.uDir.y };
+        last.normal = { x: -last.normal.x, y: -last.normal.y };
+        console.log(`[SHAPE] ${trebar.id || '?'} 의 '${last.label}' 가 단면 밖으로 향해 안쪽 방향으로 되돌림 ` +
+                    `(형상 각 조건보다 콘크리트 내부 배치를 우선)`);
     },
 
     resolveSegmentFitWall: (seg, hitInfos = []) => {
