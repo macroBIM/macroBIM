@@ -192,14 +192,20 @@
     var status = wrap.querySelector('#qsc-status');
     var say = function (t, bad) { status.textContent = t; status.className = bad ? 'bad' : ''; };
 
-    /* the frame reports the height it wants; the room it can have is measured.
-       The form sits above it, so `room` shrinks as the form grows and the
-       frame gives way rather than pushing the page into a scroll. */
+    /* The view is sized by the frame's own request and by nothing else.
+
+       It used to take whatever the viewport had left after the form - which
+       was right when the frame was the only thing on the page, and wrong the
+       moment a six-chapter form sat above it: the model shrank every time the
+       form grew, so adding a row of inputs quietly cost you the drawing. The
+       size of the thing you are looking at should not depend on the length of
+       the thing you are typing into.
+
+       What the embed asks for is its toolbar plus a 16:9 view of its own
+       width, so it follows the window's WIDTH and holds still otherwise. */
     var want = 0;
     function sizeFrame() {
-      var top = fr.getBoundingClientRect().top;
-      var room = Math.floor(window.innerHeight - top - 12);
-      fr.style.height = Math.max(420, want ? Math.min(want, room) : room) + 'px';
+      fr.style.height = Math.max(460, want || 560) + 'px';
     }
     window.addEventListener('resize', sizeFrame);
     window.addEventListener('message', function (e) {
