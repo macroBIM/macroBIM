@@ -737,5 +737,105 @@
     });
   }
 
-  return { defaults: defaults, derive: derive, build: build, values: values };
+
+  /* ---------------- V <-> the PARAM sheet ----------------
+
+     Which cell holds which input, in one table, read in both directions.
+     Export writes V through it; Import reads V back through it. Two lists
+     would be two chances to be wrong about the same cell, and the failure
+     would be silent - a value written to the wrong box still looks like a
+     number in a box.
+
+     Only INPUTS are here. The derived cells - kg/m, the plate height, the
+     hole size - are formulas on the sheet and are recomputed by build(), so
+     writing them would be writing over Excel's own answer with our copy of it.
+
+     The addresses come from R and the row lists, never from a literal, so
+     moving a chapter moves this with it. */
+  function colL(n) { return String.fromCharCode(64 + n); }
+
+  function paramCells(V, m) {
+    var R = m.R, out = [];
+    var at = function (col, row, get, set) {
+      out.push({ a: colL(col) + row, get: get, set: set });
+    };
+    var numOr = function (d) { return function (x) { var n = parseFloat(x); return isFinite(n) ? n : d; }; };
+    var N = numOr(0);
+    var S = function (x) { return x === null || x === undefined ? '' : String(x); };
+
+    /* 1 SECTION */
+    at(3, R.sec, function () { return V.type; }, function (x) { V.type = S(x) === 'R' ? 'R' : 'H'; });
+    at(4, R.sec, function () { return V.sec; },  function (x) { V.sec = S(x); });
+    /* The five dimensions are a VLOOKUP unless the Section is "user define",
+       in which case they are typed and V.udef holds them. Round-tripping the
+       lookup case would write our numbers over Excel's formula. */
+    [0, 1, 2, 3, 4].forEach(function (i) {
+      at(5 + i, R.sec,
+         function () { return V.udef ? V.udef[i] : null; },
+         function (x) { if (V.udef) V.udef[i] = N(x); });
+    });
+    at(10, R.sec, function () { return V.alpha; }, function (x) { V.alpha = N(x); });
+    at(5, R.len, function () { return V.up; },  function (x) { V.up  = N(x); });
+    at(7, R.len, function () { return V.mid; }, function (x) { V.mid = N(x); });
+    at(9, R.len, function () { return V.dn; },  function (x) { V.dn  = N(x); });
+    at(3, R.steel, function () { return V.steel; }, function (x) { V.steel = S(x); });
+
+    /* 2 COLUMN STIFFENER */
+    m.STFROW.forEach(function (rw, i) {
+      var s = V.stf[i];
+      at(4, rw, function () { return s.t; },   function (x) { s.t   = S(x); });
+      at(5, rw, function () { return s.off; }, function (x) { s.off = N(x); });
+      at(6, rw, function () { return s.w; },   function (x) { s.w   = N(x); });
+      at(7, rw, function () { return s.d; },   function (x) { s.d   = N(x); });
+      at(8, rw, function () { return s.th; },  function (x) { s.th  = N(x); });
+    });
+
+    /* 3 SPLICE PLATES — Width, Length, Thick, (Qty), Material, gap/over */
+    at(5, R.fo, function () { return V.foW; }, function (x) { V.foW = N(x); });
+    at(6, R.fo, function () { return V.cpL; }, function (x) { V.cpL = N(x); });
+    at(7, R.fo, function () { return V.foT; }, function (x) { V.foT = N(x); });
+    at(9, R.fo, function () { return V.steel; }, function (x) { V.steel = S(x); });
+    at(10, R.fo, function () { return V.gap; }, function (x) { V.gap = N(x); });
+    at(5, R.fi, function () { return V.fiW; }, function (x) { V.fiW = N(x); });
+    at(7, R.fi, function () { return V.fiT; }, function (x) { V.fiT = N(x); });
+    at(5, R.wp, function () { return V.wpW; }, function (x) { V.wpW = N(x); });
+    at(7, R.wp, function () { return V.wpT; }, function (x) { V.wpT = N(x); });
+    at(7, R.ep, function () { return V.epT; }, function (x) { V.epT = N(x); });
+    at(10, R.ep, function () { return V.epOV; }, function (x) { V.epOV = N(x); });
+
+    /* 4 BOLTS */
+    at(5, R.blt, function () { return V.dia; }, function (x) { V.dia = N(x); });
+    at(7, R.blt, function () { return V.grade; }, function (x) { V.grade = S(x); });
+    [['gF', ['fNL', 'fIL', 'fOL', 'fNT', 'fIT', 'fOT']],
+     ['gW', ['wNL', 'wIL', 'wOL', 'wNT', 'wIT', 'wOT']]].forEach(function (p) {
+      p[1].forEach(function (k, i) {
+        at(5 + i, R[p[0]], function () { return V[k]; }, function (x) { V[k] = N(x); });
+      });
+    });
+    [[5, 'eNX'], [6, 'eOX'], [8, 'eNY'], [9, 'eOY']].forEach(function (p) {
+      at(p[0], R.gE, function () { return V[p[1]]; }, function (x) { V[p[1]] = N(x); });
+    });
+
+    /* 5 CONNECTION — mark, Type, note, setback, width, (height), thick… */
+    m.CNROW.forEach(function (rw, i) {
+      var c = V.conn[i];
+      at(2, rw, function () { return c.m; }, function (x) { c.m = S(x); });
+      at(3, rw, function () { return c.t; }, function (x) { c.t = S(x); });
+      at(4, rw, function () { return c.d; }, function (x) { c.d = S(x); });
+      [[5, 'sb'], [6, 'w'], [8, 'th'], [9, 'g'], [10, 'e'], [11, 'p'], [12, 'n']]
+        .forEach(function (p) {
+          at(p[0], rw, function () { return c[p[1]]; }, function (x) { c[p[1]] = N(x); });
+        });
+    });
+
+    /* 6 BEAMS */
+    m.BMROW.forEach(function (rw, i) {
+      at(3, rw, function () { return V.bmC[i]; }, function (x) { V.bmC[i] = S(x); });
+      at(4, rw, function () { return V.bmSec; }, function (x) { V.bmSec = S(x); });
+      at(10, rw, function () { return V.bmL[i]; }, function (x) { V.bmL[i] = N(x); });
+    });
+    return out;
+  }
+
+  return { defaults: defaults, derive: derive, build: build, values: values, paramCells: paramCells };
 });

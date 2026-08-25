@@ -97,4 +97,28 @@ const norm = v => (v === undefined || v === null || v === '' || v === 0) ? null
     process.exit(1);
   }
   console.log(`✓ ${name}: ${want.length} rows, every cell matches column_model.js`);
+
+  /* And the V <-> PARAM map. Export and Import read it in both directions, so
+     an address that points at the wrong box would write a value somewhere
+     plausible and read a different one back - silently, since a number in a
+     box looks like a number in a box. Compare every entry against the sheet
+     the generator actually wrote. */
+  const V = CM.defaults(process.env, cat);
+  const M = CM.build(V, cat);
+  const ps = wb.getWorksheet('PARAM');
+  let miss = 0;
+  CM.paramCells(V, M).forEach(c => {
+    const want2 = c.get();
+    if (want2 === null || want2 === undefined) return;   // not written in this mode
+    const got2 = cellVal(ps.getCell(c.a).value);
+    if (norm(got2) !== norm(want2)) {
+      if (miss < 12) console.log(`  ${c.a}: sheet=${JSON.stringify(got2)}  V=${JSON.stringify(want2)}`);
+      miss++;
+    }
+  });
+  if (miss) {
+    console.log(`\n✗ the V <-> PARAM map is wrong about ${miss} cell${miss > 1 ? 's' : ''}.`);
+    process.exit(1);
+  }
+  console.log(`✓ ${name}: the V <-> PARAM map agrees with the sheet`);
 })().catch(e => { console.error(e); process.exit(1); });

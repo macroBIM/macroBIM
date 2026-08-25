@@ -30,6 +30,14 @@
      not, with nothing on screen admitting it. */
   var FRAME = BASE + 'plate3d/embed_test.html?v=' + Date.now() + '&ui=quick';
   var MODEL = BASE + 'plate3d/column_model.js?v=' + Date.now();
+  /* Export patches the shipped workbook rather than building one. Everything
+     that makes that sheet a sheet - the dropdowns, the two defined names the
+     Section list depends on, seven conditional formats, the catalogue tabs,
+     every width and merge - is already in it. Rebuilding all of that in a
+     browser would be a second definition of the same layout, and the first one
+     to be edited would be the one nobody noticed. */
+  var TEMPLATE = BASE + 'plate3d/PLATE3D_COLUMN.xlsx?v=' + Date.now();
+  var EXCELJS  = 'https://cdnjs.cloudflare.com/ajax/libs/exceljs/4.3.0/exceljs.min.js';
   var USER  = 'user define';
 
   /* ---------------- style ---------------- */
@@ -820,6 +828,125 @@
       fr.contentWindow.postMessage(
         { plate3d: 'rows', rows: rows, name: 'Simple connector' }, '*');
     }
+
+
+    /* ---------------- Export / Import ----------------
+
+       Export takes the shipped workbook and writes this form's values into it:
+       the PARAM inputs through the shared map, and the input tab's cached
+       results from the model. Both, because the sheet is live for a person and
+       cached for the engine - Excel recalculates from the formulas when you
+       open it, and PLATE3D reads the cache without opening anything. Writing
+       only PARAM would hand back a file that draws the OLD model until Excel
+       had touched it, which is the quiet kind of wrong.
+
+       The formulas themselves are never written. Only their cached value is
+       replaced, exactly as the generator does it. */
+    var xlsxReady = null;
+    function needExcelJS() {
+      if (window.ExcelJS) return Promise.resolve();
+      if (!xlsxReady) xlsxReady = loadScript(EXCELJS);
+      return xlsxReady;
+    }
+
+    function download(blob, name) {
+      var u = URL.createObjectURL(blob);
+      var a = document.createElement('a');
+      a.href = u; a.download = name;
+      document.body.appendChild(a); a.click(); a.remove();
+      setTimeout(function () { URL.revokeObjectURL(u); }, 4000);
+    }
+
+    function doExport() {
+      say('building the workbook…');
+      Promise.all([needExcelJS(), fetch(TEMPLATE).then(function (r) {
+        if (!r.ok) throw new Error('template ' + r.status);
+        return r.arrayBuffer();
+      })]).then(function (r) {
+        var wb = new window.ExcelJS.Workbook();
+        return wb.xlsx.load(r[1]).then(function () {
+          var M = CM.build(V, cat);
+          var ps = wb.getWorksheet('PARAM');
+          CM.paramCells(V, M).forEach(function (c) {
+            var v = c.get();
+            if (v === null || v === undefined) return;   // a lookup cell, left alone
+            ps.getCell(c.a).value = v;
+          });
+          /* the input tab: same formulas, refreshed cache */
+          var is = wb.worksheets.filter(function (w) {
+            return String(w.name || '').trim().toLowerCase() === 'input';
+          })[0];
+          M.rows.forEach(function (r2, i) {
+            /* Column 1 is the comment margin. The parser ignores it, so the
+               model was right without this - but a reader is not the parser,
+               and the template's comment still named the connection the
+               TEMPLATE used. An exported sheet that says C1 beside a beam
+               bolted with C2 is the quiet kind of wrong. */
+            is.getCell(i + 1, 1).value = r2.comment || null;
+            r2.cells.forEach(function (cell, j) {
+              if (!cell || typeof cell !== 'object') return;
+              var t = is.getCell(i + 1, j + 2);
+              if (t.value && t.value.formula !== undefined) {
+                t.value = { formula: t.value.formula, result: cell.v };
+              }
+            });
+          });
+          return wb.xlsx.writeBuffer();
+        });
+      }).then(function (buf) {
+        download(new Blob([buf], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' }),
+                 'PLATE3D_COLUMN.xlsx');
+        say('exported');
+      }).catch(function (e) { say('export failed: ' + e.message, true); });
+    }
+
+    /* Import is the same map read the other way. Only the input cells are
+       touched, so a sheet someone has restyled still comes in. */
+    function doImport(file) {
+      say('reading ' + file.name + '…');
+      needExcelJS().then(function () {
+        return file.arrayBuffer();
+      }).then(function (buf) {
+        var wb = new window.ExcelJS.Workbook();
+        return wb.xlsx.load(buf).then(function () {
+          var ps = wb.getWorksheet('PARAM');
+          if (!ps) throw new Error('no PARAM sheet in that file');
+          var M = CM.build(V, cat);
+          var read = function (c) {
+            var x = ps.getCell(c.a).value;
+            if (x && typeof x === 'object') {
+              if (x.result !== undefined) return x.result;
+              if (x.text !== undefined) return x.text;
+              if (x.richText) return x.richText.map(function (t) { return t.text; }).join('');
+              return '';
+            }
+            return x;
+          };
+          /* Type and Section first and on their own: every other cell is read
+             against the section they choose, and V.udef has to be set up before
+             the five dimension cells are read into it. */
+          var cells = CM.paramCells(V, M);
+          cells.slice(0, 2).forEach(function (c) { c.set(read(c)); });
+          V.udef = (V.sec === USER) ? (V.udef || [0, 0, 0, 0, 0]) : null;
+          cells.slice(2).forEach(function (c) {
+            var x = read(c);
+            if (x !== null && x !== undefined) c.set(x);
+          });
+          redraw(true);
+          say('imported ' + file.name);
+        });
+      }).catch(function (e) { say('import failed: ' + e.message, true); });
+    }
+
+    wrap.querySelector('#qsc-export').addEventListener('click', doExport);
+    var picker = document.createElement('input');
+    picker.type = 'file'; picker.accept = '.xlsx'; picker.style.display = 'none';
+    wrap.appendChild(picker);
+    picker.addEventListener('change', function () {
+      if (picker.files.length) doImport(picker.files[0]);
+      picker.value = '';                       // so the same file can be picked twice
+    });
+    wrap.querySelector('#qsc-import').addEventListener('click', function () { picker.click(); });
 
     wrap.querySelector('#qsc-update').addEventListener('click', function () { push(); });
     redraw(false);
