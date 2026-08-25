@@ -65,7 +65,15 @@
          width/length/thickness, bolts by a count with a gap in the middle and an
          edge distance at the ends. A column splice is symmetric, so where the
          beam sheet has a Top flange row and a Bottom flange row this has one. */
-      gap: 10, cpL: 330,
+      /* 0, because a column splice bears. The upper piece sits on the lower
+         one - gravity does not offer the choice - so the ends are finished
+         and butted, and the plates hold it in line and take tension and shear
+         rather than the load. 10 came from PLATE3D_SPLICE.xlsx, where it is
+         right: a BEAM splice has nothing underneath it and takes a root gap.
+         Copying it here put the upper column 10mm in the air.
+         Leave the field: a shim or a division plate between the pieces is a
+         real detail, and then its thickness is what goes here. */
+      gap: 0, cpL: 330,
       foW: 300, foT: 12,                       // flange plate, outer
       fiW: 110, fiT: 10,                       // flange plate, inner - two per flange
       wpW: 234, wpT: 10,                       // web plate - two

@@ -296,7 +296,17 @@ checked(R.pChk, [
   ['plates fit', `IF(${isH},IF(AND(${K.foW}<=${K.b},${K.wpW}<=${K.h}-2*${K.tf}-2*${K.r}),"ok",` +
     `IF(${K.foW}>${K.b},"flange plate too wide","web plate too deep")),"n/a")`,
     pick(V.foW <= D.b && V.wpW <= D.h - 2 * D.tf - 2 * D.r ? 'ok'
-         : (V.foW > D.b ? 'flange plate too wide' : 'web plate too deep'), 'n/a')]
+         : (V.foW > D.b ? 'flange plate too wide' : 'web plate too deep'), 'n/a')],
+  /* A column splice bears: the upper piece stands on the lower one and the
+     plates hold it in line. Air between them is not a detail, it is a mistake
+     - and an invisible one, because a 10mm gap on a 2800 column looks like a
+     drawn line. So it is said in words. A tube is different: its two end
+     plates really are in there, so the pieces really are 2t apart. */
+  ['joint', `IF(NOT(${isH}),"two end plates, "&2*${K.epT}&" thick",` +
+    `IF(${K.gap}=0,"bearing — the ends meet",${K.gap}&"mm apart — shim or division plate?"))`,
+    pick(V.gap === 0 ? 'bearing — the ends meet'
+         : V.gap + 'mm apart — shim or division plate?',
+         'two end plates, ' + 2 * V.epT + ' thick')]
 ]);
 
 /* ---- 4. bolts ---- */

@@ -404,6 +404,12 @@
                      + V.wpW * V.cpL * V.wpT * 2) * 7.85e-6
                     : D.epB * D.epH * V.epT * 2 * 7.85e-6;
         return [['in use', Hs ? 'cover plates' : 'end plate'],
+                /* Air between column pieces is a mistake, not a detail, and an
+                   invisible one — a 10mm gap on a 2800 column looks like a
+                   drawn line. Say it in words. */
+                ['joint', !Hs ? 'two end plates, ' + 2 * V.epT + ' thick'
+                  : V.gap === 0 ? 'bearing — the ends meet'
+                  : V.gap + 'mm apart — shim or division plate?'],
                 ['plate steel, kg', Math.round(kg * 10) / 10],
                 ['plates fit', !Hs ? 'n/a'
                   : (V.foW > D.b ? 'flange plate too wide'
