@@ -146,6 +146,18 @@ class TrebarBase {
             let corner = MathUtils.getLineIntersection(seg1.p1, seg1.p2, seg2.p1, seg2.p2);
 
             if (corner) {
+                // 두 조각이 거의 평행하면 교점이 사실상 무한히 멀어진다(28km 짜리 철근이 나옴).
+                // 그런 교점은 쓰지 않고 기존 방식(양쪽 자유단을 그대로 유지)으로 둔다.
+                let farLimit = Math.max(seg1.initialLen, seg2.initialLen) * 6 + 2000;
+                let dc1 = Math.min(MathUtils.hypot(corner.x - seg1.p1.x, corner.y - seg1.p1.y),
+                                   MathUtils.hypot(corner.x - seg1.p2.x, corner.y - seg1.p2.y));
+                let dc2 = Math.min(MathUtils.hypot(corner.x - seg2.p1.x, corner.y - seg2.p1.y),
+                                   MathUtils.hypot(corner.x - seg2.p2.x, corner.y - seg2.p2.y));
+                if (!isFinite(dc1) || !isFinite(dc2) || dc1 > farLimit || dc2 > farLimit) {
+                    console.warn(`[SHAPE] ${this.id || '?'} 의 '${seg1.label}'-'${seg2.label}' 가 거의 평행해 ` +
+                                 `교점이 너무 멀다(${Math.round(Math.max(dc1, dc2))}mm) — 코너 맞춤 생략`);
+                    continue;
+                }
                 // 코너에는 '더 가까운 끝' 을 붙이고 먼 끝은 안착한 자리에 남긴다.
                 //  항상 seg1.p2 / seg2.p1 을 쓰면, 코너가 반대쪽에 생긴 경우(웹에 안착한 다리 등)
                 //  조각이 뒤집혀 사이각이 예각으로 계산된다.
