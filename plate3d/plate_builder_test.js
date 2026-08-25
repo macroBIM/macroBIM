@@ -5445,7 +5445,7 @@
   function nothing(list, what) {
     if (list.length) return false;
     alert('Nothing to export' + (what ? ' from ' + what : '') + '.\n\n' +
-          'Load a sheet with Load Excel, or tick at least one member back on.');
+          LOAD_HINT + ', or tick at least one member back on.');
     return true;
   }
   function visibleItems() {
@@ -7194,8 +7194,9 @@
     var list = visibleItems();
     if (!list.length) {
       alert('Nothing to draw.\n\n' +
-            'A drawing is made from what the ASSY rows placed, so load a sheet ' +
-            'with Load Excel first — or tick at least one assembly back on.');
+            'A drawing is made from what the ASSY rows placed, so ' +
+            LOAD_HINT.charAt(0).toLowerCase() + LOAD_HINT.slice(1) +
+            ' first — or tick at least one assembly back on.');
       return;
     }
     openScaleAsk();
@@ -9254,6 +9255,26 @@
     '</ul>'
   ].join('\n');
 
+  /* ?ui=quick — the viewer embedded under a form rather than standing alone.
+
+     There are three ways a file can replace the model: Load Excel, Example,
+     and dropping an .xlsx on the window. Under QuickPlate3D all three are
+     wrong, and quietly so: the form above would still show the values it was
+     left with while the model below came from somewhere else, and nothing on
+     screen would say they had parted company. So the three are removed.
+
+     Removed, not disabled - a greyed button invites a click and then explains
+     itself, and there is nothing to explain here. The Save items stay: a model
+     built from the form is exactly as worth exporting as one built from a
+     file, and they cannot desynchronise anything because they only read.
+
+     A flag in the URL rather than a message, because the bar is built once at
+     load time and the mode has to be known before it is. */
+  var QUICK_UI = /(^|[?&])ui=quick(&|$)/.test(location.search);
+  // what to tell someone whose model is empty - and it depends which door in
+  var LOAD_HINT = QUICK_UI ? 'Fill in the form above'
+                           : 'Load a sheet with Load Excel';
+
   // title/subtitle are no longer painted - the bar starts with Load Excel, and
   // the page around the viewer already says what it is - but the data file may
   // still carry them, so the signature stays put.
@@ -9286,8 +9307,9 @@
       '    <button class="accent" onclick="plateBuilder.toggleFileMenu(event)">' +
       '      File <span class="car">&#9662;</span></button>' +
       '    <span class="drop">' +
+      (QUICK_UI ? '' :
       '      <button onclick="plateBuilder.pickExcel()">&#8682; Load Excel&hellip;</button>' +
-      '      <i></i>' +
+      '      <i></i>') +
       '      <button onclick="plateBuilder.exportDXF()" title="the drawing, in three blocks' +
       ' - assembly, modules, parts - each at its own scale">Save DXF&hellip;</button>' +
       '      <button onclick="plateBuilder.exportBOQ()" title="quantities and weights' +
@@ -9330,9 +9352,10 @@
       '    onchange="plateBuilder.setMeasure(this.checked)"> measure</label>' +
       '  <button class="guide" onclick="plateBuilder.openGuide()"' +
       '    title="how to write the spreadsheet">' + ICON_HELP + 'Guide</button>' +
+      (QUICK_UI ? '' :
       '  <button class="guide ex" onclick="plateBuilder.openSamples(event)"' +
       '    title="download a worked sheet to start from">' +
-      ICON_DL + 'Example</button>' +
+      ICON_DL + 'Example</button>') +
       '</div>' +
       '<div id="pb-body">' +
       '<div id="pb-side">' +
@@ -9677,17 +9700,23 @@
     if (showIds) { document.getElementById('pb-ids').checked = true; updateSceneIds(); }
     if (showClash) updateSceneClash();
 
-    // Excel loading: file picker + drag & drop anywhere on the app
-    var fileInput = document.getElementById('pb-file');
-    fileInput.addEventListener('change', function () {
-      if (fileInput.files.length) loadExcelFile(fileInput.files[0]);
-    });
-    var app = document.getElementById('pb-app');
-    app.addEventListener('dragover', function (e) { e.preventDefault(); });
-    app.addEventListener('drop', function (e) {
-      e.preventDefault();
-      if (e.dataTransfer.files.length) loadExcelFile(e.dataTransfer.files[0]);
-    });
+    /* Excel loading: file picker + drag & drop anywhere on the app. Both are
+       off under ?ui=quick - the third door, and the easy one to forget, since
+       a drop needs no button to be visible to work. Left wired, a file dragged
+       onto the viewer would replace a model the form above still claims to
+       describe. */
+    if (!QUICK_UI) {
+      var fileInput = document.getElementById('pb-file');
+      fileInput.addEventListener('change', function () {
+        if (fileInput.files.length) loadExcelFile(fileInput.files[0]);
+      });
+      var app = document.getElementById('pb-app');
+      app.addEventListener('dragover', function (e) { e.preventDefault(); });
+      app.addEventListener('drop', function (e) {
+        e.preventDefault();
+        if (e.dataTransfer.files.length) loadExcelFile(e.dataTransfer.files[0]);
+      });
+    }
 
     if (measMain) measMain.dispose();
     measMain = createMeasure({ scene: scene, camera: camera, dom: renderer.domElement,

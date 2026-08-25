@@ -28,7 +28,11 @@
 (function () {
   'use strict';
 
-  var FRAME = 'https://macrobim.github.io/macroBIM/plate3d/embed_test.html?v=81';
+  /* ui=quick strips the three ways a file can replace the model — Load Excel,
+     Example, and dropping an .xlsx on the viewer. Under a form all three would
+     leave the inputs above describing something the model below is not, with
+     nothing on screen admitting it. The Save items stay. */
+  var FRAME = 'https://macrobim.github.io/macroBIM/plate3d/embed_test.html?v=81&ui=quick';
   var CSS_ID = 'qsc-style';
 
   var CSS =
