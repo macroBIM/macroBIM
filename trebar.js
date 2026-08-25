@@ -135,58 +135,31 @@ class TrebarBase {
     }
 
     finalize() {
-        // 인접 조각의 코너를 서로의 직선 교점으로 맞춘다.
-        //  ⚠ 교점이 두 조각의 안착 구간에서 크게 벗어나면(예: 완만한 헌치 + 수직 웹처럼
-        //    두 면에 동시에 밀착할 수 없는 형상) 그 교점으로 끌고 가면 안 된다.
-        //    안착한 조각이 자기 지지면 밖으로 밀려나 FIT 이 확장할 면을 잃기 때문.
-        //    이 경우 각 조각은 제자리에 두고, 코너는 두 자유단의 중점으로 부드럽게 잇는다.
         for (let i = 0; i < this.segments.length - 1; i++) {
             let seg1 = this.segments[i];
             let seg2 = this.segments[i + 1];
             let corner = MathUtils.getLineIntersection(seg1.p1, seg1.p2, seg2.p1, seg2.p2);
 
             if (corner) {
-                let pull1 = MathUtils.hypot(corner.x - seg1.p2.x, corner.y - seg1.p2.y);
-                let pull2 = MathUtils.hypot(corner.x - seg2.p1.x, corner.y - seg2.p1.y);
-                let limit = Math.max(seg1.initialLen, seg2.initialLen) * 0.5;
-                if (pull1 <= limit && pull2 <= limit) {
-                    seg1.p2 = corner;
-                    seg2.p1 = corner;
-                } else {
-                    // 각 조각은 자기 안착 직선 위에 남긴다. 코너는 '덜 끌려가는 쪽'의 끝점을
-                    // 그대로 쓰고, 반대쪽 조각만 그 점까지 자기 방향으로 이동시킨다.
-                    //  · followFirst(15번)은 먼저 안착한 앞 조각이 기준 — 뒤 조각을 맞춘다.
-                    //    (거리 비교로 고르면 a 가 자기 지지면에서 밀려나 배근이 어긋난다)
-                    if (this.followFirst || pull1 <= pull2) {
-                        let c = { x: seg1.p2.x, y: seg1.p2.y };            // seg1 유지
-                        seg2.p1 = { x: c.x, y: c.y };
-                        seg2.p2 = { x: c.x + seg2.uDir.x * seg2.initialLen, y: c.y + seg2.uDir.y * seg2.initialLen };
-                        seg2.displaced = true;    // 코너를 맞추려 옮겨진 조각 — 안착면이 무의미해져 FIT 확장 금지
-                    } else {
-                        let c = { x: seg2.p1.x, y: seg2.p1.y };            // seg2 유지
-                        seg1.p2 = { x: c.x, y: c.y };
-                        seg1.p1 = { x: c.x - seg1.uDir.x * seg1.initialLen, y: c.y - seg1.uDir.y * seg1.initialLen };
-                        seg1.displaced = true;
-                    }
-                }
+                seg1.p2 = corner;
+                seg2.p1 = corner;
             }
         }
 
-        // 양 끝 조각의 자유단을 '입력 길이'로 되돌린다.
-        //  ⚠ 자유단만 코너 기준으로 역산할 것 — 예전에는 p1/p2 를 통째로 다시 잡아
-        //    이미 벽에 안착한 조각이 코너 쪽으로 통째로 끌려갔다(헌치에 붙었던 다리가
-        //    헌치 밖으로 밀려나 FIT 이 확장할 지지면을 잃는 원인).
-        //    코너(= 안착 직선끼리의 교점)는 유지되므로 조각은 자기 면 위에 남는다.
-        if (this.segments.length > 1) {
+        if (this.segments.length > 0) {
             let first = this.segments[0];
             let angF = Math.atan2(first.uDir.y, first.uDir.x);
+
             first.p1 = {
                 x: first.p2.x - Math.cos(angF) * first.initialLen,
                 y: first.p2.y - Math.sin(angF) * first.initialLen
             };
+        }
 
+        if (this.segments.length > 1) {
             let last = this.segments[this.segments.length - 1];
             let angL = Math.atan2(last.uDir.y, last.uDir.x);
+
             last.p2 = {
                 x: last.p1.x + Math.cos(angL) * last.initialLen,
                 y: last.p1.y + Math.sin(angL) * last.initialLen
@@ -233,11 +206,7 @@ class Shape15 extends TrebarBase {
     generate() {
         let A = this.dims.A || 400;
         let B = this.dims.B || 400;
-        let r = this.buildSequential([A, B], -22.5, [45], [-1, -1], (pts) => pts[1]);
-        r.followFirst = true;   // a 가 안착하며 움직인 만큼 b 의 '초기 위치'도 함께 옮긴다
-        r.keepObtuse = true;    // 두 다리 사이각은 둔각(>90°) 유지
-        r.segments[0].designTurnDeg = 135;   // 거의 펴졌을 때 되돌릴 기준 사이각
-        return r;
+        return this.buildSequential([A, B], -22.5, [45], [-1, -1], (pts) => pts[1]);
     }
 }
 

@@ -271,101 +271,19 @@ const Physics = {
                 });
 
                 if (validTargets === seg.nodes.length && segEnergy < CONVERGE && maxPosError < 1.0) {
-                    let beforeMid = { x: (seg.p1.x + seg.p2.x) / 2, y: (seg.p1.y + seg.p2.y) / 2 };
-                    let beforeDir = { x: seg.uDir.x, y: seg.uDir.y };
                     seg.state = "SETTLED";
                     seg.fitWall = Physics.resolveSegmentFitWall(seg, hitInfos);
                     seg.nodeWalls = hitInfos.map(h => h.wall);   // 노드별 안착 벽 (p1쪽 → p2쪽 순) — FIT 이 끝단별로 사용
                     Physics.restoreSegmentLine(seg);
-
-                    // followFirst(15번): 이 조각이 안착하며 이동·회전한 만큼 아직 대기 중인
-                    // 뒤 조각의 '초기 위치'도 같이 옮긴다. 그 뒤 조각은 그 자리에서 스스로 안착한다.
-                    if (trebar.followFirst) {
-                        let afterMid = { x: (seg.p1.x + seg.p2.x) / 2, y: (seg.p1.y + seg.p2.y) / 2 };
-                        let mvx = afterMid.x - beforeMid.x, mvy = afterMid.y - beforeMid.y;
-                        let rotA = Math.atan2(seg.uDir.y, seg.uDir.x) - Math.atan2(beforeDir.y, beforeDir.x);
-                        while (rotA > Math.PI) rotA -= 2 * Math.PI;
-                        while (rotA < -Math.PI) rotA += 2 * Math.PI;
-                        let cosR = Math.cos(rotA), sinR = Math.sin(rotA);
-                        let move = (p) => {
-                            let px = p.x + mvx, py = p.y + mvy;
-                            if (Math.abs(rotA) < 1e-9) return { x: px, y: py };
-                            let dx0 = px - afterMid.x, dy0 = py - afterMid.y;
-                            return { x: afterMid.x + dx0 * cosR - dy0 * sinR, y: afterMid.y + dx0 * sinR + dy0 * cosR };
-                        };
-                        let rv = (v) => (Math.abs(rotA) < 1e-9) ? v
-                            : { x: v.x * cosR - v.y * sinR, y: v.x * sinR + v.y * cosR };
-                        for (let k = idx + 1; k < trebar.segments.length; k++) {
-                            let sk = trebar.segments[k];
-                            if (sk.state === "SETTLED") continue;
-                            let n1 = move(sk.p1), n2 = move(sk.p2);
-                            sk.p1.x = n1.x; sk.p1.y = n1.y;
-                            sk.p2.x = n2.x; sk.p2.y = n2.y;
-                            sk.nodes.forEach(n => { let m = move(n); n.x = m.x; n.y = m.y; n.vx = 0; n.vy = 0; });
-                            sk.uDir = rv(sk.uDir);
-                            sk.normal = rv(sk.normal);
-                        }
-                    }
                 }
             }
         });
 
         if (allSegmentsSettled && trebar.state !== "FORMED") {
-            if (trebar.keepObtuse) Physics.enforceObtuse(trebar);
             if (trebar.finalize) trebar.finalize();
             Physics.applyTrebarEnds(trebar, walls, wallStack);
             Physics.checkFormed(trebar);
             trebar.state = "FORMED";
-        }
-    },
-
-    // 두 다리 사이각이 둔각(>90°) 이어야 하는 형상(15번)에서, 안착 결과가 예각이면
-    // 뒤 조각을 코너 기준으로 되접어 둔각으로 만든다. 이미 둔각이면 그대로 둔다.
-    enforceObtuse: (trebar) => {
-        const segs = trebar.segments || [];
-        for (let i = 0; i < segs.length - 1; i++) {
-            let s1 = segs[i], s2 = segs[i + 1];
-            let d1 = { x: -s1.uDir.x, y: -s1.uDir.y }, d2 = s2.uDir;
-            let dot = d1.x * d2.x + d1.y * d2.y;
-            // 유효 범위: 90° < 내각 < 175° (거의 펴진 상태도 '꺾인 철근'이 아니므로 제외)
-            let ang = Math.acos(Math.max(-1, Math.min(1, dot))) * 180 / Math.PI;
-            if (ang > 90 && ang < 175) continue;          // 정상 둔각
-            if (ang >= 175) {                             // 거의 직선 → 설계 사이각으로 되돌림
-                let want = s1.designTurnDeg !== undefined ? s1.designTurnDeg : 135;
-                let a1 = Math.atan2(s1.uDir.y, s1.uDir.x);
-                let sign = (s1.uDir.x * s2.uDir.y - s1.uDir.y * s2.uDir.x) >= 0 ? 1 : -1;
-                let dir = a1 + sign * (180 - want) * Math.PI / 180;
-                let nu2 = { x: Math.cos(dir), y: Math.sin(dir) };
-                s2.uDir = nu2;
-                s2.p1 = { x: s1.p2.x, y: s1.p2.y };
-                s2.p2 = { x: s2.p1.x + nu2.x * s2.initialLen, y: s2.p1.y + nu2.y * s2.initialLen };
-                s2.nodes.forEach((n, ni) => {
-                    let r = CONFIG.PHYSICS.NODE_POS[ni] !== undefined ? CONFIG.PHYSICS.NODE_POS[ni] : 0.5;
-                    n.x = s2.p1.x + (s2.p2.x - s2.p1.x) * r;
-                    n.y = s2.p1.y + (s2.p2.y - s2.p1.y) * r;
-                });
-                s2.displaced = true;   // 재구성됨 → 안착면 없음, FIT 확장 금지
-                console.log(`[SHAPE] ${trebar.id || '?'} 의 '${s2.label}' 가 ${Math.round(ang)}° 로 펴짐 → ${want}° 로 복원`);
-                continue;
-            }
-            // 예각 → s2 를 s1 축에 대해 반사 (길이·연결 유지, 방향만 둔각 쪽으로)
-            let ax = s1.uDir.x, ay = s1.uDir.y;
-            let refl = (v) => {
-                let d = v.x * ax + v.y * ay;
-                return { x: 2 * d * ax - v.x, y: 2 * d * ay - v.y };
-            };
-            let nu = refl(s2.uDir);
-            s2.uDir = nu;
-            s2.normal = refl(s2.normal);
-            s2.p1 = { x: s1.p2.x, y: s1.p2.y };
-            s2.p2 = { x: s2.p1.x + nu.x * s2.initialLen, y: s2.p1.y + nu.y * s2.initialLen };
-            s2.nodes.forEach((n, ni) => {
-                let r = CONFIG.PHYSICS.NODE_POS[ni] !== undefined ? CONFIG.PHYSICS.NODE_POS[ni] : 0.5;
-                n.x = s2.p1.x + (s2.p2.x - s2.p1.x) * r;
-                n.y = s2.p1.y + (s2.p2.y - s2.p1.y) * r;
-            });
-            s2.displaced = true;       // 되접힘 → 안착면 없음, FIT 확장 금지
-            console.log(`[SHAPE] ${trebar.id || '?'} 의 '${s2.label}' 가 예각으로 안착 → 둔각으로 되접음`);
         }
     },
 
@@ -557,18 +475,13 @@ const Physics = {
                 };
                 let base = probe(mid.x, mid.y);
                 let baseT = base ? base.t : 0;
-                // 지지면 연속성 판정 — 바가 얹힌 면을 따라가되:
-                //  · 면이 (거의) 평행하게 이어지고 높이 단차가 없으면 계속 (크라운처럼 조각난 같은 평면 통과)
-                //  · 면이 꺾여도, 바가 그 면 위에 계속 얹혀 있으면(지지 거리 유지) 계속 전진
-                //    → 45° 다리가 헌치→바닥으로 넘어가는 지점에서 멈추던 문제 해소
                 let supportOK = (px, py) => {
                     if (!base) return true;                        // 지지면을 못 찾으면 이 조건은 생략
                     let q = probe(px, py);
                     if (!q) return false;
                     let ex = q.w.x2 - q.w.x1, ey = q.w.y2 - q.w.y1, el = Math.hypot(ex, ey) || 1;
-                    let parallel = Math.abs((ex * u.x + ey * u.y) / el) >= 0.9999985;   // 0.1° 이내 = 같은 평면 연속
-                    if (parallel) return Math.abs(q.t - baseT) <= 3.0;
-                    return q.t <= baseT + 3.0;                     // 꺾인 면이라도 더 멀어지지 않으면(=얹혀 있으면) 계속
+                    if (Math.abs((ex * u.x + ey * u.y) / el) < 0.9999985) return false;   // 0.1° 초과로 꺾임
+                    return Math.abs(q.t - baseT) <= 3.0;           // 같은 높이(단차 없음)
                 };
 
                 // 축을 따라 전진 : 콘크리트를 벗어나거나(→ 그 면의 피복만큼 후퇴)
@@ -635,10 +548,8 @@ const Physics = {
         // FIT 스팬은 p1/p2 를 바꾸기 전에 미리 계산 (start 적용이 end 계산에 영향 주지 않도록)
         const firstSeg = trebar.segments[0];
         const lastSeg = trebar.segments[trebar.segments.length - 1];
-        // 코너 맞춤으로 옮겨진 조각(displaced)은 더 이상 어느 면에도 안착해 있지 않으므로
-        // FIT 으로 확장하지 않는다 — 확장하면 지지면 없이 단면 밖까지 뻗는다.
-        const startSpan = (startRule && startRule.type === "FIT" && !firstSeg.displaced) ? getFitSpan(firstSeg, 'start') : null;
-        const endSpan = (endRule && endRule.type === "FIT" && !lastSeg.displaced) ? getFitSpan(lastSeg, 'end') : null;
+        const startSpan = (startRule && startRule.type === "FIT") ? getFitSpan(firstSeg, 'start') : null;
+        const endSpan = (endRule && endRule.type === "FIT") ? getFitSpan(lastSeg, 'end') : null;
         // FIT 끝단 기준 벽 기록 → 적층(wallStack)이 바가 걸친 모든 벽에 등록되도록
         //  (예: 크라운 분할 하면의 TSB — 시점 E15·종점 E28 둘 다. 한쪽만 등록되면 좌우 적층 어긋남)
         if (startSpan && startSpan.refId) { firstSeg.spanWalls = firstSeg.spanWalls || []; if (firstSeg.spanWalls.indexOf(startSpan.refId) < 0) firstSeg.spanWalls.push(startSpan.refId); }
