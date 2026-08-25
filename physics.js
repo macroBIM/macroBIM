@@ -473,8 +473,13 @@ const Physics = {
                     }
                     return best ? { t: bestT, w: best } : null;
                 };
-                let base = probe(mid.x, mid.y);
-                let baseT = base ? base.t : 0;
+                // 기준 지지거리는 '안착 벽(baseWall) 까지의 수직거리' 로 직접 잡는다.
+                //  probe(mid) 를 쓰면, 확장된 조각의 중점이 그 벽 조각의 끝을 넘어선 경우
+                //  (헌치 끝을 지난 코너 구간 등) 직교하는 웹면을 기준으로 잡아 t 가 59 대신 199 가 되고,
+                //  이후 제 지지면을 만나는 순간 '단차' 로 오판해 확장이 0 이 된다.
+                let baseT = (mid.x - baseWall.x1) * baseWall.nx + (mid.y - baseWall.y1) * baseWall.ny;
+                if (!(baseT > 0.01)) { let bp = probe(mid.x, mid.y); baseT = bp ? bp.t : 0; }
+                let base = { t: baseT, w: baseWall };
                 let supportOK = (px, py) => {
                     if (!base) return true;                        // 지지면을 못 찾으면 이 조건은 생략
                     let q = probe(px, py);
