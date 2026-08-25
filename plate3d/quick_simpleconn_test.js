@@ -55,6 +55,13 @@
     '.qsc-menu>.d button:hover{background:#f1f5f9}',
     '#qsc-body{padding:0 12px 12px}',
     /* a chapter: the dark bar, the column headings, the rows, a note, a check line */
+    '.qsc-part{margin:22px 0 2px;display:flex;align-items:baseline;gap:12px;',
+      'border-bottom:2px solid #0f172a;padding-bottom:6px}',
+    '.qsc-part span{font:800 15px/1 Arial,sans-serif;color:#0f172a;letter-spacing:.06em}',
+    '.qsc-part i{font:400 11px/1.4 Arial,sans-serif;color:#64748b;font-style:normal}',
+    '.qsc-part:first-child{margin-top:8px}',
+    '.qsc-guide{padding:10px 0 2px;max-width:640px;margin:0 auto}',
+    '.qsc-svg{display:block}',
     '.qsc-ch{margin-top:14px}',
     '.qsc-ch>h3{margin:0;font:700 12px/1 Arial,sans-serif;color:#fff;background:#0f172a;',
       'padding:8px 10px;border-radius:5px 5px 0 0;display:flex;align-items:baseline;gap:10px}',
@@ -242,7 +249,7 @@
 
     /* ---- 1. SECTION ---- */
     CHAPTERS.push({
-      n: 1, t: 'SECTION',
+      n: 1, t: 'SECTION', part: 'COLUMN',
       note: 'Type decides which list the Section cell offers — H sections, or square tubes. Alpha turns the whole column, plates and bolts with it.',
       cols: ['', 'Type', 'Section', 'h', 'b', 'tw / t', 'tf', 'r', 'Alpha', 'kg/m'],
       rows: function () {
@@ -318,7 +325,7 @@
 
     /* ---- 2. COLUMN STIFFENER ---- */
     CHAPTERS.push({
-      n: 2, t: 'COLUMN STIFFENER',
+      n: 2, t: 'COLUMN STIFFENER', part: 'COLUMN',
       hint: 'horizontal plates inside an H — a tube cannot take one, nothing reaches inside the wall',
       note: 'Offset is signed, from the middle column’s centre — where the beams sit. Width runs out from the web, depth between the flanges. Thick 0 = off.',
       dim: function () { return V.type !== 'H'; },
@@ -352,7 +359,7 @@
 
     /* ---- 3. SPLICE PLATES ---- */
     CHAPTERS.push({
-      n: 3, t: 'SPLICE PLATES',
+      n: 3, t: 'SPLICE PLATES', part: 'COLUMN', guide: function () { return svgSplice(); },
       hint: 'cover plates on an H, an end plate on a tube — Type keeps whichever the section calls for',
       note: 'Width is across the flange or through the web; Length runs along the column. The end plate follows the section, plus its overhang all round.',
       cols: ['', '', '', 'Width', 'Length', 'Thick', 'Qty', 'Material', 'gap / over'],
@@ -400,7 +407,7 @@
 
     /* ---- 4. BOLTS ---- */
     CHAPTERS.push({
-      n: 4, t: 'BOLTS',
+      n: 4, t: 'BOLTS', part: 'COLUMN',
       hint: 'the shank and the hole are different sizes, and each grip gets its own length',
       note: 'Flange and Web: Long is along the column, Trans across it. End plate: how many bolts down each side of the plate, and Out from its edge.',
       cols: ['', '', '', 'dia', 'hole', 'grade', 'flange L', 'web L', 'end L'],
@@ -453,7 +460,7 @@
 
     /* ---- 5. CONNECTION ---- */
     CHAPTERS.push({
-      n: 5, t: 'CONNECTION',
+      n: 5, t: 'CONNECTION', part: 'BEAM',
       hint: 'declare them here, then name one against each beam below',
       note: 'The mark is just a mark — Type says what it is. End plate gauge is across the beam web, fin plate gauge out from the column face.',
       cols: ['', 'Type', 'what it is', 'setback', 'width', 'height', 'thick', 'gauge', 'edge', 'pitch', 'count'],
@@ -489,7 +496,7 @@
 
     /* ---- 6. BEAMS ---- */
     CHAPTERS.push({
-      n: 6, t: 'BEAMS',
+      n: 6, t: 'BEAMS', part: 'BEAM',
       hint: 'four world directions - X+ X- Y+ Y-. Length 0 and that beam is not there',
       note: 'Beams are H only: a tube has no web to bolt through. The direction is the world’s, so Alpha decides whether a beam lands on a flange or on the web.',
       cols: ['', 'Detail', 'Section', 'h', 'b', 'tw', 'tf', 'r', 'Length', 'kg/m'],
@@ -516,6 +523,131 @@
       }
     });
 
+
+    /* ---------------- the splice guide ----------------
+       The splice block is the one place where the words alone do not carry
+       it: Long and Trans, In and Out, and a gap that is measured from the
+       joint rather than from an edge. Reading four numbers and picturing where
+       the bolts land is exactly the work a drawing should be doing.
+
+       So it draws the sheet's own numbers rather than a stock illustration -
+       the bolt count you typed, in the pattern you typed it. Set Long N to 6
+       and six rows appear. A picture that cannot be wrong about the input is
+       worth more than a prettier one that is fixed. */
+    function svgSplice() {
+      var Hs = V.type === 'H';
+      var W = 560, HT = 232, PAD = 46;          // viewBox, and room for dimensions
+      var g = [];
+      var line = function (x1, y1, x2, y2, o) {
+        g.push('<line x1="' + x1 + '" y1="' + y1 + '" x2="' + x2 + '" y2="' + y2 +
+               '" stroke="' + ((o && o.c) || '#94a3b8') + '" stroke-width="' + ((o && o.w) || 1) +
+               '"' + ((o && o.d) ? ' stroke-dasharray="' + o.d + '"' : '') + '/>');
+      };
+      var txt = function (x, y, t, o) {
+        g.push('<text x="' + x + '" y="' + y + '" font-family="Arial" font-size="' +
+               ((o && o.s) || 9) + '" fill="' + ((o && o.c) || '#64748b') +
+               '" text-anchor="' + ((o && o.a) || 'middle') + '">' + esc(t) + '</text>');
+      };
+      var bolt = function (x, y) {
+        g.push('<circle cx="' + x + '" cy="' + y + '" r="3.1" fill="none" stroke="#b45309" stroke-width="1.3"/>');
+      };
+      // a dimension: a line with ticks and a number sitting on it
+      var dimH = function (x1, x2, y, t) {
+        line(x1, y, x2, y, { c: '#cbd5e1' });
+        line(x1, y - 3, x1, y + 3, { c: '#cbd5e1' });
+        line(x2, y - 3, x2, y + 3, { c: '#cbd5e1' });
+        txt((x1 + x2) / 2, y - 4, t);
+      };
+      var dimV = function (y1, y2, x, t) {
+        line(x, y1, x, y2, { c: '#cbd5e1' });
+        line(x - 3, y1, x + 3, y1, { c: '#cbd5e1' });
+        line(x - 3, y2, x + 3, y2, { c: '#cbd5e1' });
+        g.push('<text x="' + (x - 4) + '" y="' + ((y1 + y2) / 2 + 3) +
+               '" font-family="Arial" font-size="9" fill="#64748b" text-anchor="end">' + esc(t) + '</text>');
+      };
+
+      if (Hs) {
+        /* Looking at a flange, the column running up the page. The plate spans
+           the joint; the bolts sit in four groups, half above and half below,
+           half each side of the web. */
+        var pw = 300, ph = 150;                       // the plate, on screen
+        var x0 = (W - pw) / 2, y0 = PAD, x1 = x0 + pw, y1 = y0 + ph;
+        var yc = (y0 + y1) / 2, xc = (x0 + x1) / 2;
+        /* The two column pieces, drawn first so the plate lies over them, and
+           the same width as the plate - the flange IS the plate's width here,
+           and drawing it narrower read as the plate being wider than the
+           steel it covers. They run past the plate top and bottom, which is
+           the whole point: the column continues, the plate does not. */
+        var over = 30;
+        g.push('<rect x="' + x0 + '" y="' + (y0 - over) + '" width="' + pw +
+               '" height="' + (ph / 2 + over - V.gap / 2) + '" fill="#eef2f7" stroke="#cbd5e1"/>');
+        g.push('<rect x="' + x0 + '" y="' + (yc + V.gap / 2) + '" width="' + pw +
+               '" height="' + (ph / 2 + over - V.gap / 2) + '" fill="#eef2f7" stroke="#cbd5e1"/>');
+        // the cover plate
+        g.push('<rect x="' + x0 + '" y="' + y0 + '" width="' + pw + '" height="' + ph +
+               '" fill="rgba(29,78,216,.07)" stroke="#1d4ed8" stroke-width="1.3"/>');
+        // the bolts: N/2 each side on both axes, at the pitches the sheet works out
+        var nL = Math.max(2, V.fNL), nT = Math.max(2, V.fNT);
+        var sx = (pw / V.foW), sy = (ph / V.cpL);      // mm -> screen
+        var px = D.pFT * sx, py = D.pFL * sy;
+        for (var i = 0; i < nT / 2; i++) {
+          for (var j = 0; j < nL / 2; j++) {
+            var dx = V.fIT / 2 * sx + i * px, dy = V.fIL / 2 * sy + j * py;
+            bolt(xc - dx, yc - dy); bolt(xc + dx, yc - dy);
+            bolt(xc - dx, yc + dy); bolt(xc + dx, yc + dy);
+          }
+        }
+        line(x0, yc, x1, yc, { c: '#b45309', d: '3 3' });
+        /* Inside the plate at its left edge: on the line it was struck
+           through by the dashes, and to the right of the plate it landed on
+           the In dimension. Between the edge and the first bolt column there
+           is nothing, and that is where it goes. */
+        txt(x0 + 5, yc - 5, 'gap ' + V.gap, { a: 'start', c: '#b45309' });
+        dimH(x0, x1, y0 - 12, 'Width ' + V.foW);
+        dimV(y0, y1, x0 - 14, 'Length ' + V.cpL);
+        dimV(yc - V.fIL / 2 * sy, yc + V.fIL / 2 * sy, x1 + 40, 'In ' + V.fIL);
+        dimV(y0, y0 + V.fOL * sy, x1 + 40, 'Out ' + V.fOL);
+        dimH(xc - V.fIT / 2 * sx, xc + V.fIT / 2 * sx, y1 + 18, 'In ' + V.fIT);
+        dimH(x0, x0 + V.fOT * sx, y1 + 34, 'Out ' + V.fOT);
+        txt(x1 + 40, y1 + 34, 'Long ' + V.fNL + ' × Trans ' + V.fNT, { c: '#b45309', s: 10 });
+      } else {
+        /* A tube takes an end plate on each piece, bolted face to face outside
+           the wall — so the bolts run round the plate, clear of the section. */
+        var s2 = 150, o2 = 34;                      // the wall, and its overhang
+        var ax = (W - s2 - 2 * o2) / 2, ay = PAD;
+        var bx = ax + s2 + 2 * o2, by = ay + s2 + 2 * o2;
+        g.push('<rect x="' + ax + '" y="' + ay + '" width="' + (s2 + 2 * o2) +
+               '" height="' + (s2 + 2 * o2) +
+               '" fill="rgba(29,78,216,.07)" stroke="#1d4ed8" stroke-width="1.3"/>');
+        g.push('<rect x="' + (ax + o2) + '" y="' + (ay + o2) + '" width="' + s2 +
+               '" height="' + s2 + '" fill="#eef2f7" stroke="#cbd5e1"/>');
+        /* The bolt lines sit Out from each edge, on the overhang the tube
+           leaves clear. Corners belong to both runs, so the Y sides skip them
+           - which is exactly why the count is 2·NX + 2·(NY−2) and not 2·NX+2·NY. */
+        var nX = Math.max(2, V.eNX), nY = Math.max(2, V.eNY);
+        var mm = (s2 + 2 * o2) / Math.max(1, D.epB);    // mm -> screen
+        var rx0 = ax + V.eOX * mm, rx1 = bx - V.eOX * mm;
+        var ry0 = ay + V.eOY * mm, ry1 = by - V.eOY * mm;
+        for (var a = 0; a < nX; a++) {
+          var t2 = nX === 1 ? 0.5 : a / (nX - 1);
+          bolt(rx0 + t2 * (rx1 - rx0), ry0);
+          bolt(rx0 + t2 * (rx1 - rx0), ry1);
+        }
+        for (var c2 = 1; c2 < nY - 1; c2++) {
+          var t3 = c2 / (nY - 1);
+          bolt(rx0, ry0 + t3 * (ry1 - ry0));
+          bolt(rx1, ry0 + t3 * (ry1 - ry0));
+        }
+        dimH(ax, bx, ay - 12, 'plate ' + Math.round(D.epB) + ' (section + ' + V.epOV + ' all round)');
+        dimH(ax, rx0, by + 18, 'Out ' + V.eOX);
+        dimV(ay, ry0, ax - 14, 'Out ' + V.eOY);
+        txt(W / 2, by + 34, V.eNX + ' down each X side, ' + V.eNY + ' each Y  —  ' + D.nE + ' bolts',
+            { c: '#b45309', s: 10 });
+      }
+      return '<svg class="qsc-svg" viewBox="0 0 ' + W + ' ' + HT + '" width="100%" ' +
+             'preserveAspectRatio="xMidYMid meet">' + g.join('') + '</svg>';
+    }
+
     /* ---------------- drawing ---------------- */
     function cell(c) {
       if (c.skip) return '<td></td>';
@@ -532,7 +664,8 @@
 
     function drawChapter(ch) {
       var wide = ch.cols.length;
-      var h = '<div class="qsc-ch' + (ch.dim && ch.dim() ? ' qsc-dim' : '') + '">' +
+      var h = '<div class="qsc-ch' + (ch.dim && ch.dim() ? ' qsc-dim' : '') +
+              '" data-ch="' + ch.n + '">' +
               '<h3>' + ch.n + '. ' + esc(ch.t) +
               (ch.hint ? '<em>' + esc(ch.hint) + '</em>' : '') + '</h3>' +
               '<table class="qsc-tbl"><colgroup>' +
@@ -577,6 +710,7 @@
         }
       });
       h += '</table>';
+      if (ch.guide) h += '<div class="qsc-guide">' + ch.guide() + '</div>';
       if (ch.note) h += '<div class="qsc-note">' + esc(ch.note) + '</div>';
       if (ch.chk) {
         h += '<div class="qsc-chk">' + ch.chk().map(function (p) {
@@ -595,7 +729,22 @@
     function redraw(send) {
       D = CM.derive(V, cat).D;
       var scroll = body.scrollTop;
-      body.innerHTML = CHAPTERS.map(drawChapter).join('');
+      /* The six chapters are two things, and the sheet never said so: four of
+         them describe a column that stands whether or not anything hangs off
+         it, and two describe what does. Banding them says which question you
+         are answering before you read a single field. */
+      var part = null;
+      body.innerHTML = CHAPTERS.map(function (ch) {
+        var lead = '';
+        if (ch.part !== part) {
+          part = ch.part;
+          lead = '<div class="qsc-part"><span>' + esc(part) + '</span><i>' +
+                 esc(part === 'COLUMN' ? 'the column itself — section, stiffener, splice, bolts'
+                                       : 'what hangs off it — the connection library, then the beams') +
+                 '</i></div>';
+        }
+        return lead + drawChapter(ch);
+      }).join('');
       body.scrollTop = scroll;
       bind();
       if (focusKey) {
@@ -607,8 +756,14 @@
 
     function bind() {
       var k = 0;
+      /* Find each chapter by its own number, not by counting children. The
+         part banners are children too, and an index that quietly meant
+         "chapter" until something was inserted between them is the kind of
+         coupling that breaks the moment the layout changes - which it just did. */
       CHAPTERS.forEach(function (ch, ci) {
-        var tbl = body.children[ci].querySelector('table');
+        var host = body.querySelector('[data-ch="' + ch.n + '"]');
+        var tbl = host && host.querySelector('table');
+        if (!tbl) return;
         var ri = 0;
         ch.rows().forEach(function (r) {
           if (r.head) { ri++; return; }
