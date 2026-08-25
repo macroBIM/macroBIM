@@ -711,7 +711,17 @@
              '<td class="rl' + (r.off ? ' off' : '') + '">' + esc(r.label) + '</td>' +
              pad(r.cells, wide - 1).map(cell).join('') + '</tr>';
         if (r.note) {
-          h += '<tr><td></td><td class="rnote" colspan="' + (wide - 1) + '">' +
+          /* Start the note under the row's first real cell, not at the left
+             edge of the table. The Length row's values sit three columns in,
+             and a note beginning under "Type" was describing boxes it did not
+             appear to point at. One rule, so every row's note lands right. */
+          var lead = 1;
+          for (var q = 0; q < r.cells.length; q++) {
+            if (!r.cells[q].skip) break;
+            lead++;
+          }
+          h += '<tr><td colspan="' + lead + '"></td>' +
+               '<td class="rnote" colspan="' + (wide - lead) + '">' +
                esc(r.note) + '</td></tr>';
         }
       });
