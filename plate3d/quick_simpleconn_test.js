@@ -32,7 +32,8 @@
      Example, and dropping an .xlsx on the viewer. Under a form all three would
      leave the inputs above describing something the model below is not, with
      nothing on screen admitting it. The Save items stay. */
-  var FRAME = 'https://macrobim.github.io/macroBIM/plate3d/embed_test.html?v=81&ui=quick';
+  var FRAME = 'https://macrobim.github.io/macroBIM/plate3d/embed_test.html'
+            + '?v=' + Date.now() + '&ui=quick';
   var CSS_ID = 'qsc-style';
 
   var CSS =
@@ -45,6 +46,14 @@
     '.qsc-btn:hover{background:#f1f5f9}' +
     '.qsc-btn.primary{background:#1d4ed8;border-color:#1d4ed8;color:#fff}' +
     '.qsc-btn.primary:hover{background:#1e40af}' +
+    '.qsc-menu{position:relative;display:inline-block}' +
+    '.qsc-menu>.d{position:absolute;right:0;top:calc(100% + 4px);z-index:20;display:none;' +
+      'min-width:150px;background:#fff;border:1px solid #cbd5e1;border-radius:6px;' +
+      'box-shadow:0 6px 18px rgba(15,23,42,.12);padding:4px}' +
+    '.qsc-menu.open>.d{display:block}' +
+    '.qsc-menu>.d button{display:block;width:100%;text-align:left;border:0;background:none;' +
+      'font:500 12px/1 Arial,sans-serif;color:#0f172a;padding:9px 10px;border-radius:4px;cursor:pointer}' +
+    '.qsc-menu>.d button:hover{background:#f1f5f9}' +
     '#qsc-body{padding:14px}' +
     '#qsc-note{font:italic 12px/1.6 Arial,sans-serif;color:#64748b;margin:0}' +
     '#qsc-frame{width:100%;height:520px;min-height:520px;border:1px solid #e3e6ea;' +
@@ -73,6 +82,19 @@
       '    <span class="sp"></span>' +
       '    <button class="qsc-btn" id="qsc-import" type="button">Import .xlsx</button>' +
       '    <button class="qsc-btn" id="qsc-export" type="button">Export .xlsx</button>' +
+      /* The frame's File menu is gone under ui=quick — in this mode the toolbar
+         belongs to this page, and two bars offering file actions is one owner
+         too many. The four Save items live here instead and reach the viewer
+         by the same postMessage door the rows go through. */
+      '    <span class="qsc-menu" id="qsc-savemenu">' +
+      '      <button class="qsc-btn" id="qsc-save" type="button">Save &#9662;</button>' +
+      '      <span class="d">' +
+      '        <button type="button" data-cmd="exportDXF">Save DXF&hellip;</button>' +
+      '        <button type="button" data-cmd="exportBOQ">Save BOQ</button>' +
+      '        <button type="button" data-cmd="exportSTL">Save STL</button>' +
+      '        <button type="button" data-cmd="exportIFC">Save IFC</button>' +
+      '      </span>' +
+      '    </span>' +
       '  </div>' +
       '  <div id="qsc-body">' +
       '    <p id="qsc-note">The input sheet goes here — the six chapters of PARAM, ' +
@@ -102,12 +124,30 @@
     }
     window.addEventListener('message', function (e) {
       var d = e && e.data;
-      if (!d || d.plate3d !== 'height' || !(d.h > 0)) return;
-      want = d.h;
-      sizeFrame();
+      if (!d || e.source !== fr.contentWindow) return;   // only our own frame
+      if (d.plate3d === 'height' && d.h > 0) { want = d.h; sizeFrame(); return; }
+      if (d.plate3d === 'cmdFailed') alert('PLATE3D could not do that: ' + d.why);
     });
     window.addEventListener('resize', sizeFrame);
     sizeFrame();
+
+    /* Save — the viewer's own exports, driven from this bar. The frame holds
+       the built scene, so the work happens there; this only asks. */
+    var menu = document.getElementById('qsc-savemenu');
+    document.getElementById('qsc-save').addEventListener('click', function (ev) {
+      ev.stopPropagation();
+      menu.classList.toggle('open');
+    });
+    menu.querySelectorAll('.d button').forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        menu.classList.remove('open');
+        fr.contentWindow.postMessage({ plate3d: 'cmd', do: btn.getAttribute('data-cmd') }, '*');
+      });
+    });
+    // click anywhere else closes it, including inside the frame — a menu left
+    // hanging over the model while you drag it is worse than one that shuts
+    document.addEventListener('click', function () { menu.classList.remove('open'); });
+    fr.addEventListener('mouseenter', function () { menu.classList.remove('open'); });
   }
 
   window.fquick_simpleconn = fquick_simpleconn;

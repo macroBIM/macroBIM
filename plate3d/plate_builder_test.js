@@ -2069,9 +2069,30 @@
      that parseExcelRows is the guard, exactly as it is for a workbook - the
      rows have to survive the same parser either way. */
   var QUICK_MAX_ROWS = 5000;                     // a real sheet is a few hundred
+  /* Under ui=quick the whole File menu is gone, exports included, because in
+     that mode the toolbar belongs to the page around the frame - one owner,
+     not two bars competing. So the exports have to be reachable from out
+     there, and this is the same door the rows come through rather than a new
+     one: one sender check, one place to look.
+
+     A fixed list, not a name to call. `d.do` naming any function on the API
+     would let the embedding page reach everything the viewer can do; these
+     four only read the built scene and hand back a file. */
+  var QUICK_CMD = { exportDXF: 1, exportBOQ: 1, exportSTL: 1, exportIFC: 1 };
   window.addEventListener('message', function (e) {
     if (e.source !== window.parent) return;      // only the page that framed us
     var d = e && e.data;
+    if (d && d.plate3d === 'cmd') {
+      // read the API at call time: it is assigned far below this listener, so
+      // capturing it here would capture undefined
+      var api = window.plateBuilder;
+      if (!QUICK_CMD[d.do] || !api || typeof api[d.do] !== 'function') return;
+      try { api[d.do](); } catch (err) {
+        try { window.parent.postMessage({ plate3d: 'cmdFailed', do: d.do,
+                                          why: String(err && err.message || err) }, '*'); } catch (e3) {}
+      }
+      return;
+    }
     if (!d || d.plate3d !== 'rows') return;
     if (!Array.isArray(d.rows) || !d.rows.length || d.rows.length > QUICK_MAX_ROWS) return;
     var name = typeof d.name === 'string' && d.name ? d.name : 'Quick input';
@@ -9303,13 +9324,13 @@
     app.id = 'pb-app';
     app.innerHTML =
       '<div id="pb-bar">' +
+      (QUICK_UI ? '' :
       '  <span class="fmenu" id="pb-fmenu">' +
       '    <button class="accent" onclick="plateBuilder.toggleFileMenu(event)">' +
       '      File <span class="car">&#9662;</span></button>' +
       '    <span class="drop">' +
-      (QUICK_UI ? '' :
       '      <button onclick="plateBuilder.pickExcel()">&#8682; Load Excel&hellip;</button>' +
-      '      <i></i>') +
+      '      <i></i>' +
       '      <button onclick="plateBuilder.exportDXF()" title="the drawing, in three blocks' +
       ' - assembly, modules, parts - each at its own scale">Save DXF&hellip;</button>' +
       '      <button onclick="plateBuilder.exportBOQ()" title="quantities and weights' +
@@ -9321,7 +9342,7 @@
       'Save IFC</button>' +
       '    </span>' +
       '  </span>' +
-      '  <input type="file" id="pb-file" accept=".xlsx,.xls" style="display:none">' +
+      '  <input type="file" id="pb-file" accept=".xlsx,.xls" style="display:none">') +
       '  <span class="fmenu" id="pb-vmenu">' +
       '    <button onclick="plateBuilder.toggleViewMenu(event)">' +
       '      View <span class="car">&#9662;</span></button>' +
