@@ -280,8 +280,9 @@ const Physics = {
         });
 
         if (allSegmentsSettled && trebar.state !== "FORMED") {
-            if (trebar.finalize) trebar.finalize();
-            Physics.keepInsideConcrete(trebar, walls);
+            let built = Physics.buildBentShape(trebar, walls);
+            if (!built && trebar.finalize) trebar.finalize();
+            if (!built) Physics.keepInsideConcrete(trebar, walls);
             Physics.applyTrebarEnds(trebar, walls, wallStack);
             Physics.checkFormed(trebar);
             trebar.state = "FORMED";
@@ -319,6 +320,72 @@ const Physics = {
         last.normal = { x: -last.normal.x, y: -last.normal.y };
         console.log(`[SHAPE] ${trebar.id || '?'} 의 '${last.label}' 가 단면 밖으로 향해 안쪽 방향으로 되돌림 ` +
                     `(형상 각 조건보다 콘크리트 내부 배치를 우선)`);
+    },
+
+    // 14/15 처럼 꺾임각이 규정된 2다리 형상의 최종 배치.
+    //  안착으로 두 직선이 확정되면 교점 C 를 구하고, 각 다리는 그 직선 위에서
+    //  C 로부터 어느 쪽으로 뻗을지 두 선택지가 있다. 네 조합 중
+    //   ① 요구 사이각(15=둔각, 14=예각) 을 만족하고 ② 두 다리 모두 콘크리트 안쪽인
+    //  조합을 고른다. 안착 구간을 덮는 방향이면 그 길이를 유지하고, 반대쪽이면 입력 길이를 쓴다.
+    buildBentShape: (trebar, walls) => {
+        if (!trebar || !(trebar.acute || trebar.obtuse)) return false;
+        const segs = trebar.segments || [];
+        if (segs.length !== 2) return false;
+        const A = segs[0], B = segs[1];
+        const C = MathUtils.getLineIntersection(A.p1, A.p2, B.p1, B.p2);
+        if (!C || !isFinite(C.x) || !isFinite(C.y)) return false;
+
+        const unit = (sg) => {
+            let dx = sg.p2.x - sg.p1.x, dy = sg.p2.y - sg.p1.y, L = MathUtils.hypot(dx, dy) || 1;
+            return { x: dx / L, y: dy / L };
+        };
+        const uA = unit(A), uB = unit(B);
+        // 교점이 각 다리에서 지나치게 멀면(거의 평행) 이 구성은 포기
+        const farA = Math.min(MathUtils.hypot(C.x - A.p1.x, C.y - A.p1.y), MathUtils.hypot(C.x - A.p2.x, C.y - A.p2.y));
+        const farB = Math.min(MathUtils.hypot(C.x - B.p1.x, C.y - B.p1.y), MathUtils.hypot(C.x - B.p2.x, C.y - B.p2.y));
+        const lim = Math.max(A.initialLen, B.initialLen) * 6 + 2000;
+        if (farA > lim || farB > lim) return false;
+
+        // 방향 s 로 뻗을 때 쓸 길이 — 안착 구간을 덮는 쪽이면 먼 끝까지, 아니면 입력 길이
+        const lenFor = (sg, u, s) => {
+            let t1 = (sg.p1.x - C.x) * u.x * s + (sg.p1.y - C.y) * u.y * s;
+            let t2 = (sg.p2.x - C.x) * u.x * s + (sg.p2.y - C.y) * u.y * s;
+            let far = Math.max(t1, t2);
+            return far > sg.initialLen ? far : sg.initialLen;
+        };
+        const okInside = (u, s, L) => Physics.insideConcrete(walls, C.x + u.x * s * L * 0.5, C.y + u.y * s * L * 0.5);
+
+        let best = null;
+        [1, -1].forEach((sa) => {
+            [1, -1].forEach((sb) => {
+                let dot = (uA.x * sa) * (uB.x * sb) + (uA.y * sa) * (uB.y * sb);
+                let ang = Math.acos(Math.max(-1, Math.min(1, dot))) * 180 / Math.PI;
+                let want = trebar.obtuse ? (ang > 90.5) : (ang < 89.5);
+                if (!want) return;
+                let LA = lenFor(A, uA, sa), LB = lenFor(B, uB, sb);
+                if (!okInside(uA, sa, LA) || !okInside(uB, sb, LB)) return;
+                // 안착한 쪽을 그대로 쓰는 조합을 우선 (변형 최소)
+                let keepA = ((A.p1.x - C.x) * uA.x * sa + (A.p1.y - C.y) * uA.y * sa) > 0 ||
+                            ((A.p2.x - C.x) * uA.x * sa + (A.p2.y - C.y) * uA.y * sa) > 0;
+                let keepB = ((B.p1.x - C.x) * uB.x * sb + (B.p1.y - C.y) * uB.y * sb) > 0 ||
+                            ((B.p2.x - C.x) * uB.x * sb + (B.p2.y - C.y) * uB.y * sb) > 0;
+                let score = (keepA ? 1 : 0) + (keepB ? 1 : 0);
+                if (!best || score > best.score) best = { sa, sb, LA, LB, ang, score };
+            });
+        });
+        if (!best) return false;
+
+        A.p2 = { x: C.x, y: C.y };
+        A.p1 = { x: C.x + uA.x * best.sa * best.LA, y: C.y + uA.y * best.sa * best.LA };
+        A.uDir = { x: -uA.x * best.sa, y: -uA.y * best.sa };
+        A.initialLen = best.LA;
+        B.p1 = { x: C.x, y: C.y };
+        B.p2 = { x: C.x + uB.x * best.sb * best.LB, y: C.y + uB.y * best.sb * best.LB };
+        B.uDir = { x: uB.x * best.sb, y: uB.y * best.sb };
+        B.initialLen = best.LB;
+        console.log(`[SHAPE] ${trebar.id || '?'} 사이각 ${best.ang.toFixed(1)}° (${trebar.obtuse ? '둔각' : '예각'}) ` +
+                    `a=${Math.round(best.LA)} b=${Math.round(best.LB)}`);
+        return true;
     },
 
     resolveSegmentFitWall: (seg, hitInfos = []) => {
