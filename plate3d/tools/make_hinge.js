@@ -5,29 +5,33 @@
  * HDEVBS is not a rectangle. Two dimension chains give the outline and they
  * close on each other, so the shape is read rather than guessed:
  *
- *   830 = 195 + 440 + 195   across. The top edge steps UP 30 at 635, which is
- *                           195 + 440 - the third tick of that chain.
- *   220 = 30 + 40 + 80 + 70 down the left. The 30 is that step. The two
- *                           interior ticks, 70 and 150 from the top, are the
- *                           bolt holes - 80 apart, which is the third figure.
+ *   830 = 195 + 440 + 195   across, and the chain is the outline: the MIDDLE
+ *                           440 stands 30 proud, the outer 195 each side are
+ *                           30 lower. Not one step at 635 - two, at 195 and
+ *                           at 635, and the raised part is between them.
+ *   220 = 30 + 40 + 80 + 70 down the left, measured to the raised top. The 30
+ *                           is that rise. The two interior ticks, 70 and 150
+ *                           from that top, are the bolt holes - 80 apart.
  *   140 x 40                a tab hanging BELOW the bottom edge, centred:
- *                           345 + 140 + 345 = 830 puts it on the centreline.
- *   40                      dimensioned from each end to the bolt holes.
+ *                           345 + 140 + 345 = 830 puts it on the centreline,
+ *                           and inside the raised 440.
+ *   40                      dimensioned from each end to the bolt holes, which
+ *                           therefore sit in the two low outer bays.
  *
- * So the plate is 830 x 220 over its main body, 190 tall for the first 635 of
- * it, and 260 tall on the 140 through the middle. It is entered here as its
- * bounding rectangle, 830 x 260, with three cuts taking the step and the two
- * bays either side of the tab - each cut run out past the edge it opens, since
- * a cut that lands exactly on the outline is the one case the 2D booleans do
- * not like.
+ * So it is 220 tall through the middle 440, 190 tall on the outer 195 either
+ * side, and 260 on the 140 the tab hangs from. Entered as its bounding
+ * rectangle, 830 x 260, with four cuts - two shoulders and two bays - each run
+ * out past the edge it opens, since a cut that lands exactly on the outline is
+ * the one case the 2D booleans do not like.
  *
  * HCAW is a plain 285 x 194. The blue outline on the sheet is the plate; the
  * white lines above it are the dimension's extension lines, not an edge.
  *
- * WHERE HCAW GOES IS NOT YET ESTABLISHED. The elevation draws CAMERA WALL as a
- * wall standing over the right-hand end of the plate, starting at the level the
- * step gives, so it is stood on the step here - X_CAW / Z_CAW, two constants,
- * to be corrected when that drawing comes.
+ * WHERE HCAW GOES IS HALF ESTABLISHED. The sheet draws CAMERA WALL against the
+ * plate rather than off on its own, and its underside lands on the low top
+ * edge - that level is a datum and is used. Its position along the plate is
+ * NOT dimensioned anywhere; CAW_X is scaled off the drawing and is good to
+ * about +/-5.
  */
 const ExcelJS = require('/tmp/claude-0/-home-user/6cdc702a-24df-51eb-b9d9-9f399d189def/scratchpad/node_modules/exceljs');
 const OUT = process.argv[2] ||
@@ -35,7 +39,7 @@ const OUT = process.argv[2] ||
 
 /* ===================== from the sheet - exact ===================== */
 const DEVBS = { w: 830, h: 220, t: 15 };     // main body, 1 EA/SET
-const STEP = { x: 195 + 440, h: 30 };        // top edge steps up 30 at 635
+const STEP = { x: 195, w: 440, h: 30 };      // the middle 440 stands 30 proud
 const TAB = { w: 140, h: 40 };               // hangs below the bottom edge
 const BOLT = { d: 22, x: 40, z1: 70, z2: 150 };   // 4-D22, from the ends / top
 const CAW = { w: 285, h: 194, t: 10 };       // camera wall plate, 1 EA/SET
@@ -46,9 +50,9 @@ const BB = DEVBS.h + TAB.h;                  // 260 - the bounding rectangle
 const BAY = (DEVBS.w - TAB.w) / 2;           // 345 either side of the tab
 const O = 10;                                // how far a cut runs out past an edge
 
-/* ===================== not yet established ===================== */
-const X_CAW = STEP.x - DEVBS.w / 2 + CAW.t / 2;   // GUESS - on the step
-const Z_CAW = DEVBS.h;                            // GUESS - up from the top
+/* ===================== the camera wall ===================== */
+const Z_CAW = DEVBS.h - STEP.h;     // 190 - its underside on the low top edge
+const X_CAW = 325;                  // SCALED off the drawing - not dimensioned
 
 const R = [];
 const push = (...r) => R.push(r);
@@ -64,15 +68,16 @@ blank();
 push('# HOLE', 'id', 'shape', 'base.pt', 'p1', 'p2');
 push('HOLE', 'ho.d22', 'CIRC', 'mc', BOLT.d);
 push('HOLE', 'ho.bay', 'RECT', 'bl', BAY + O, TAB.h + O);      // beside the tab
-push('HOLE', 'ho.step', 'RECT', 'bl', STEP.x + O, STEP.h + O); // the top step
+push('HOLE', 'ho.shld', 'RECT', 'bl', STEP.x + O, STEP.h + O); // beside the rise
 blank();
 
 push('# CUT', 'plate', 'L.X', 'L.Y', 'shape', 'dx', 'dy', 'repeat',
      'dx2', 'dy2', 'repeat2');
 /* the two bays either side of the tab - one row, the pair 495 apart */
 push('CUT', 'pl.devbs', -O, -O, 'ho.bay', BAY + TAB.w + O, 0, 1);
-/* the step in the top edge, run out past the left end and the top */
-push('CUT', 'pl.devbs', -O, BB - STEP.h, 'ho.step');
+/* the two low shoulders either side of the raised 440 - one row, the pair
+   645 apart, each run out past its own end and past the top */
+push('CUT', 'pl.devbs', -O, BB - STEP.h, 'ho.shld', STEP.x + STEP.w + O, 0, 1);
 /* 4-D22: 40 in from each end, 70 and 150 down from the top */
 push('CUT', 'pl.devbs', BOLT.x, BB - BOLT.z2, 'ho.d22',
      DEVBS.w - 2 * BOLT.x, 0, 1, 0, BOLT.z2 - BOLT.z1, 1);
@@ -84,7 +89,7 @@ blank();
 push('# MODULE', 'id', 'member', 'Ref.Pt', 'L.X', 'L.Y', 'L.Z', 'PLANE',
      'ROT.X', 'ROT.Y', 'ROT.Z');
 push('MODULE', 'md.hinge', 'pl.devbs', 'bl', -DEVBS.w / 2, -DEVBS.t / 2, -TAB.h, 'XZ');
-push('MODULE', 'md.hinge', 'pl.caw', 'bl', rd(X_CAW), 0, Z_CAW, 'YZ');
+push('MODULE', 'md.hinge', 'pl.caw', 'bl', rd(X_CAW), rd(-DEVBS.t / 2), Z_CAW, 'XZ');
 blank();
 
 push('# MODULE', 'id', 'BASE', 'member', 'pt');
@@ -121,8 +126,8 @@ push('END');
   ws.views = [{ state: 'frozen', ySplit: 1 }];
   await wb.xlsx.writeFile(OUT);
   console.log('wrote ' + OUT + '  (' + R.length + ' rows)');
-  console.log('HDEVBS 830 x 220, 190 tall for the first ' + STEP.x +
-              ', tab ' + TAB.w + 'x' + TAB.h + ' on the centreline');
+  console.log('HDEVBS 220 tall through the middle ' + STEP.w + ', 190 on the ' +
+              'outer ' + STEP.x + ' each side, tab ' + TAB.w + 'x' + TAB.h);
   console.log('bays ' + BAY + ' + tab ' + TAB.w + ' + bay ' + BAY + ' = ' +
               (2 * BAY + TAB.w));
 })();
