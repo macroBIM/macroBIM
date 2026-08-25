@@ -187,6 +187,7 @@ const Physics = {
                     target = {
                         x: hit.x,
                         y: hit.y,
+                        dir: dir,
                         wall: w.origWall || w,
                         coverWall: w
                     };
@@ -195,13 +196,30 @@ const Physics = {
             return target;
         };
 
-        // 전방(법선 방향) 우선. 실패 시 후방 폴백:
-        // 노드가 피복선을 지나쳐(벽보다 안쪽에) 스폰되면 전방 광선이 벽을 영영 못 잡아
-        // 안착 불가 → barEnds(fit) 도 실행되지 않음. 뒤로 끌어올려 벽에 되붙인다.
+        // ① 먼저 "철근이 하나도 없다고 가정하고" 벽을 찾는다 (피복선까지의 순수 기하).
+        //    전방(법선 방향) 우선. 실패 시 후방 폴백:
+        //    노드가 피복선을 지나쳐(벽보다 안쪽에) 스폰되면 전방 광선이 벽을 영영 못 잡아
+        //    안착 불가 → barEnds(fit) 도 실행되지 않음. 뒤로 끌어올려 벽에 되붙인다.
         const res = scan(segNormal) || scan({ x: -segNormal.x, y: -segNormal.y });
+
+        // ② 그 벽으로 이동하다가, 앞서 놓인 철근이 있으면 그 반발만큼 못 미쳐 멈춘다.
+        //    반발은 벽 법선 방향으로 st(적층 두께) 이지만, 정지점은 반드시 '이동 경로(광선) 위'
+        //    여야 한다. 도달점을 법선으로 밀면 목표가 경로 밖으로 벗어나 매 스텝 옆으로
+        //    끌리고(수렴 실패) 세그먼트가 벽을 따라 미끄러진다. → 경로 위에서 물러설 거리로 환산.
         if (res && res.wall) {
             const st = Physics.stackAt(wallStack, res.wall, res.x, res.y);
-            if (st) { res.x += res.wall.nx * st; res.y += res.wall.ny * st; }
+            if (st) {
+                const d = res.dir;
+                const cos = d.x * res.wall.nx + d.y * res.wall.ny;   // 이동방향과 벽 법선의 사잇각
+                if (Math.abs(cos) > 0.2) {
+                    const back = st / cos;      // 수직거리 st 를 경로 길이로 환산 (부호 포함)
+                    res.x += d.x * back;
+                    res.y += d.y * back;
+                } else {
+                    res.x += res.wall.nx * st;  // 경로가 벽과 거의 나란함 — 폴백
+                    res.y += res.wall.ny * st;
+                }
+            }
         }
         return res;
     },
@@ -284,9 +302,78 @@ const Physics = {
             if (!built && trebar.finalize) trebar.finalize();
             if (!built) Physics.keepInsideConcrete(trebar, walls);
             Physics.applyTrebarEnds(trebar, walls, wallStack);
+            Physics.restackFormedShape(trebar, walls, wallStack);
             Physics.checkFormed(trebar);
             trebar.state = "FORMED";
         }
+    },
+
+    // 최종 위치에서 적층(기존 철근의 반발) 재확인.
+    //  세그먼트는 '스폰한 자리'에서 안착하지만, 코너 정리(finalize)와 FIT 확장을 거치며
+    //  벽을 따라 크게 이동한다. 그래서 안착 시점에 조회한 적층은 최종 위치의 적층과 다를 수 있다.
+    //  (예: 스폰 위치엔 앞선 철근이 없었지만, 코너로 옮겨간 자리엔 이미 철근이 깔려 있는 경우)
+    //  → 확정된 형상의 각 조각 중점에서 다시 조회해, 벽 법선 방향으로 모자란 만큼만 밀어낸다.
+    //  큰 이동은 하지 않는다(적층 보정 전용). 코너는 이동한 두 직선의 교점으로 다시 잇는다.
+    restackFormedShape: (trebar, walls, wallStack = {}) => {
+        const segs = (trebar && trebar.segments) || [];
+        if (!segs.length) return;
+        const dia = trebar.dia || 0;
+        const coverMap = Physics.getCoverWallMap(walls, wallStack, dia);
+
+        const shifts = segs.map(seg => {
+            const wall = Physics.getSegmentFitWall(seg);
+            const cw = wall ? Physics.getCoverWallByOrigWall(wall, walls, coverMap) : null;
+            if (!cw) return null;
+            const mx = (seg.p1.x + seg.p2.x) / 2, my = (seg.p1.y + seg.p2.y) / 2;
+            const st = Physics.stackAt(wallStack, wall, mx, my);
+            const d = (mx - cw.x1) * cw.nx + (my - cw.y1) * cw.ny;   // 지금 피복선에서 떨어진 수직거리
+            const delta = st - d;
+            if (Math.abs(delta) < 2.0) return null;                   // 안착 허용오차(1mm) 수준은 건드리지 않음
+            if (Math.abs(delta) > st + dia * 3 + 5) return null;      // 적층 보정 범위를 넘는 이동은 하지 않음
+            return { nx: cw.nx, ny: cw.ny, delta };
+        });
+        if (!shifts.some(s => s)) return;
+
+        // 이동 전 코너 연결 관계 기록 → 이동 후 두 직선의 교점으로 복원
+        const joined = [];
+        for (let i = 0; i + 1 < segs.length; i++) joined.push(Physics.pointsClose(segs[i].p2, segs[i + 1].p1, 1.0));
+
+        segs.forEach((seg, i) => {
+            const s = shifts[i];
+            if (!s) return;
+            seg.p1 = { x: seg.p1.x + s.nx * s.delta, y: seg.p1.y + s.ny * s.delta };
+            seg.p2 = { x: seg.p2.x + s.nx * s.delta, y: seg.p2.y + s.ny * s.delta };
+        });
+
+        for (let i = 0; i + 1 < segs.length; i++) {
+            if (!joined[i]) continue;
+            if (!shifts[i] && !shifts[i + 1]) continue;
+            const a = segs[i], b = segs[i + 1];
+            const c = MathUtils.getLineIntersection(a.p1, a.p2, b.p1, b.p2);
+            if (!c || !isFinite(c.x) || !isFinite(c.y)) continue;
+            const lim = Math.max(MathUtils.hypot(a.p2.x - a.p1.x, a.p2.y - a.p1.y),
+                                 MathUtils.hypot(b.p2.x - b.p1.x, b.p2.y - b.p1.y)) + 100;
+            if (MathUtils.hypot(c.x - a.p2.x, c.y - a.p2.y) > lim) continue;   // 거의 평행 — 코너 복원 포기
+            a.p2 = { x: c.x, y: c.y };
+            b.p1 = { x: c.x, y: c.y };
+        }
+
+        // 코너가 밀리면서 짧아진 자유단(끝단 규칙이 없는 쪽)은 입력 길이를 되돌려 준다.
+        //  FIT/RAY 로 지정된 끝단은 벽 끝단·경계가 기준이므로 그대로 둔다.
+        const rules = trebar.barEnds || trebar.ends || {};
+        const restoreFree = (seg, side) => {
+            if (!seg) return;
+            const L = MathUtils.hypot(seg.p2.x - seg.p1.x, seg.p2.y - seg.p1.y);
+            if (!isFinite(L) || L < 0.5 || !seg.initialLen || Math.abs(L - seg.initialLen) < 0.5) return;
+            const ux = (seg.p2.x - seg.p1.x) / L, uy = (seg.p2.y - seg.p1.y) / L;
+            if (side === 'start') seg.p1 = { x: seg.p2.x - ux * seg.initialLen, y: seg.p2.y - uy * seg.initialLen };
+            else seg.p2 = { x: seg.p1.x + ux * seg.initialLen, y: seg.p1.y + uy * seg.initialLen };
+        };
+        if (!rules.start && segs.length > 1) restoreFree(segs[0], 'start');
+        if (!rules.end && segs.length > 1) restoreFree(segs[segs.length - 1], 'end');
+
+        const info = segs.map((s, i) => shifts[i] ? `${s.label}+${shifts[i].delta.toFixed(0)}` : null).filter(v => v);
+        if (info.length) console.log(`[STACK] ${trebar.id || '?'} 최종 위치 적층 보정: ${info.join(', ')} (mm, 벽 법선 방향)`);
     },
 
     // 콘크리트 내부 판정 (외곽/공동 루프 교차 홀짝)
