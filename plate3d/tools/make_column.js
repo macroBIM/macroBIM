@@ -62,11 +62,11 @@ const findT = k => TB.find(s => s[0] === k) || TB[1];
    The overrides - CTYPE, COLSEC, CALPHA, UDEF, BMC, BML - are read by the
    module out of the environment it is handed, so the shell and a browser
    reach the same switches. */
-const CM = require('./column_model.js');
+const CM = require('../column_model.js');
 const cat = { HS: HS, TB: TB, findH: findH, findT: findT };
-const prep = CM.defaults(process.env, cat);
-const M = CM.build(prep.V, cat, prep);
-const V = M.V, D = M.D, H = M.H, SEC = M.SEC, SQ = M.SQ, UDEF = prep.UDEF;
+const V0 = CM.defaults(process.env, cat);
+const M = CM.build(V0, cat);
+const V = M.V, D = M.D, H = M.H, SEC = M.SEC, SQ = M.SQ, UDEF = M.UDEF;
 const R = M.R, K = M.K, F = M.F, CC = M.CC;
 const BMROW = M.BMROW, CNROW = M.CNROW, STFROW = M.STFROW, NSTF = M.NSTF;
 const BMK = M.BMK, SK = M.SK, CNK = M.CNK, CONNT = M.CONNT;

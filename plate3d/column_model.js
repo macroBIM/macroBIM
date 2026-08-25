@@ -125,7 +125,25 @@
        explanation is worse than none, and it is invisible in the generator. */
     V.conn.forEach(x => { if (x.d.length > 25)
       throw new Error('connection note clipped at 26: ' + x.m + ' ' + x.d.length); });
-    const CONNT = ['end plate', 'fin plate'];    // the types the engine can build
+
+    return V;
+  }
+
+  /* Everything that follows from V. Split out of defaults() because a form
+     edits V after the fact: leave the derivation where it stood and a sheet
+     whose section had changed would keep the old section's bolt lengths and
+     face offsets, and every one of those numbers would still look plausible.
+
+     Called twice on purpose - once by defaults(), because the stiffener
+     offsets it fills in are a beam's flange height and so need D, and again
+     by build() against whatever V it is actually handed. */
+  function derive(V, cat) {
+    var findH = cat.findH, findT = cat.findT;
+    var UDEF = V.udef || null;
+    var CONNT = ['end plate', 'fin plate'];
+    var up5 = function (x) { return Math.ceil(x / 5) * 5; };
+    var rnd = function (x) { return +(+x).toFixed(4); };
+
     /* The engine reads what a formula LAST EVALUATED TO, not the formula, so the
        cached results below have to follow Type. A generator that always caches
        the H branch ships a tube that loads as an H, which is what happened the
@@ -134,11 +152,11 @@
     const SEC = UDEF ? [USER].concat(UDEF).concat([0])
                      : (H ? findH(V.sec) : findT(V.sec));
     if (UDEF) V.sec = USER;
+    V.udef = UDEF;
     const D = {};
     D.h = SEC[1]; D.b = SEC[2]; D.tw = SEC[3]; D.tf = SEC[4]; D.r = SEC[5]; D.kg = SEC[6];
     D.hole = V.dia + 2;
     D.nut = 0.9 * V.dia;
-    const up5 = x => Math.ceil(x / 5) * 5;
     /* Pitch the way the splice sheet works it out: a run that is halved about the
        joint - or about the web - gets pHalf, and the one run that goes straight
        through gets pFull. Same two lines, same meaning, so a reader of one sheet
@@ -201,7 +219,6 @@
     D.bLen = D.bGrip.map(g => up5(g + D.nut + 0.2 * V.dia));
     // beam start, out from the column face
     D.bOff = D.cn.map(c => c.t === 'end plate' ? (H ? c.th : 2 * c.th) : c.sb);
-    const rnd = x => +(+x).toFixed(4);
     const pick = (a, b) => (H ? a : b);
     /* The column stiffener. Horizontal plates welded inside the H - the COLUMN's
        steel, not any beam's - one sheet row per LEVEL, a signed height measured
@@ -235,7 +252,11 @@
      code the generator ran when it lived there - moved, not rewritten - so
      the workbook it produces is unchanged, which is what the geometry diff
      checks. */
-  function build(V, cat, prep) {
+  function build(V, cat) {
+    /* Derive here, every time, from the V actually handed in. A caller does
+       not get to pass stale derivations alongside fresh inputs — that is the
+       one way this module could tell a plausible lie. */
+    var prep = derive(V, cat);
     var findH = cat.findH, findT = cat.findT;
     var H = prep.H, SEC = prep.SEC, D = prep.D, UDEF = prep.UDEF;
     var NSTF = prep.NSTF, CONNT = prep.CONNT;
@@ -688,7 +709,7 @@
              CNTAB: CNTAB, CNMARK: CNMARK, CNTYPE: CNTYPE, CNW: CNW,
              isH: isH, SQf: SQf, faceXf: faceXf, faceYf: faceYf,
              thruXf: thruXf, thruYf: thruYf, BDIR: BDIR, PIECES: PIECES,
-             CONNT: CONNT, pick: pick, rnd: rnd, cnH: cnH, up5: up5,
+             CONNT: CONNT, UDEF: UDEF, pick: pick, rnd: rnd, cnH: cnH, up5: up5,
              rows: out, count: ir };
   }
 
@@ -708,5 +729,5 @@
     });
   }
 
-  return { defaults: defaults, build: build, values: values };
+  return { defaults: defaults, derive: derive, build: build, values: values };
 });

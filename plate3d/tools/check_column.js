@@ -25,7 +25,7 @@ const fs = require('fs');
 const path = require('path');
 const P3 = path.resolve(__dirname, '..');
 const DESIGN = '/home/user/design';
-const CM = require('./column_model.js');
+const CM = require('../column_model.js');
 const FILE = P3 + '/' + (process.env.OUT || 'PLATE3D_COLUMN.xlsx');
 
 function csv(file) {
@@ -67,8 +67,7 @@ const norm = v => (v === undefined || v === null || v === '' || v === 0) ? null
                 : (typeof v === 'number' ? +v.toFixed(6) : String(v));
 
 (async () => {
-  const prep = CM.defaults(process.env, cat);
-  const want = CM.values(CM.build(prep.V, cat, prep).rows);
+  const want = CM.values(CM.build(CM.defaults(process.env, cat), cat).rows);
 
   const wb = new ExcelJS.Workbook();
   await wb.xlsx.readFile(FILE);
