@@ -633,6 +633,17 @@ const Physics = {
                                  `${Math.round(half)}mm) — 경사면 후퇴 과다로 판단해 원래 길이 유지`);
                     rch = half;
                 }
+                // 안착한 벽의 끝단까지는 최소한 간다. 걸어가며 판정하는 reach 는 지지면 단차·
+                // 코너 부근에서 일찍 멈출 수 있는데, fit 의 정의는 '안착한 벽의 끝단까지' 이므로
+                // 벽 끝단(위에서 cw 끝점으로 구한 lo/hi)을 하한으로 보장한다.
+                let wallReach = (side === 'start') ? (tMid - lo) : (hi - tMid);
+                if (isFinite(wallReach) && wallReach > rch) {
+                    if (wallReach - rch > 1) {
+                        console.log(`[FIT] ${trebar.id || '?'} 의 '${seg.label}' ${side} — 벽 끝단까지 ` +
+                                    `${Math.round(wallReach)}mm (걸음 판정 ${Math.round(rch)}mm 보다 멀어 벽 끝단 채택)`);
+                    }
+                    rch = wallReach;
+                }
                 if (side === 'start') lo = tMid - rch; else hi = tMid + rch;
             }
 
