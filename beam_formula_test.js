@@ -460,7 +460,7 @@
     q(root, '#bf-srcseg').addEventListener('click', function (e) {
       var b = e.target.closest('button'); if (!b) return;
       ST.src = b.dataset.src;
-      if (ST.src === 'db') pickKind(root); else { ST.info = ''; render(root); }
+      if (ST.src === 'db') pickKind(root); else { ST.info = ''; render(root); }   // render 가 syncSrc 를 부른다
     });
     q(root, '#bf-kind').addEventListener('change', function () { ST.kind = this.value; pickKind(root); });
     q(root, '#bf-pick').addEventListener('change', function () { applyPick(root, this.value); });
@@ -472,7 +472,6 @@
           var c = F.get(ST.caseId);
           ST[c.needs.indexOf('P') >= 0 ? 'P' : (c.needs.indexOf('M0') >= 0 ? 'M0' : 'w')] = v;
         } else ST[f] = v;
-        if (f === 'I' && ST.src === 'db') { ST.src = 'user'; syncSrc(root); }
         render(root);
       });
     });
@@ -502,6 +501,8 @@
     });
     q(root, '#bf-row-kind').hidden = (ST.src !== 'db');
     q(root, '#bf-row-pick').hidden = (ST.src !== 'db');
+    // Database 로 고른 I 는 표의 값이다. 손으로 고치고 싶으면 User define 으로
+    // 돌아가면 되고, 그때 값은 그대로 남는다 — 고른 단면에서 출발해 다듬는 흐름.
     q(root, '#bf-I').readOnly = (ST.src === 'db');
   }
 
@@ -532,7 +533,6 @@
     if (!r) return;
     ST.pick = name; ST.I = r.ix; ST.src = 'db';
     q(root, '#bf-I').value = (r.ix >= 1000 ? Math.round(r.ix) : r.ix);
-    syncSrc(root);
     ST.info = SECT[ST.kind].label + ' ' + r.name + ' &nbsp;·&nbsp; ' + esc(r.dim) +
       ' &nbsp;·&nbsp; A = ' + num(r.area, 2) + ' cm² &nbsp;·&nbsp; ' + num(r.wt, 1) + ' kg/m' +
       (SECT[ST.kind].ix ? '' : ' &nbsp;·&nbsp; <b>Ix computed from A·B·t·r</b>');
@@ -543,6 +543,11 @@
   function render(root) {
     var BE = window.BeamEngine, F = BE.Formula;
     var dv = derive();
+
+    // 단면 입력부는 늘 ST.src 를 따라간다. 예전에는 경로마다 syncSrc 를 불렀는데,
+    // Database → User define 로 돌아오는 길에서만 빠져 있어서 I 칸이 읽기전용으로
+    // 잠긴 채 남았다 — 겉보기엔 전환됐는데 값을 못 고치는 상태. 여기 한 줄로 막는다.
+    syncSrc(root);
 
     /* 지점 카드 */
     q(root, '#bf-prev').innerHTML = supportPreview(ST.fixL, ST.fixR);
