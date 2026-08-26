@@ -167,19 +167,23 @@
      페이지와 같게 둔다. */
   var SECT = {
     hsection: { label: 'H-Section', file: 'hsection.csv', name: '호칭치수',
-      dims: ['H', 'B', 't1', 't2'], area: '단면적', wt: '단위무게', ix: 'Ix', zx: 'Sx',
-      sym: function (r) { return +r.H / 2; } },
+      dims: ['H', 'B', 't1', 't2'], area: '단면적', wt: '단위무게', ix: 'Ix', zx: 'Sx', ks: 'KS규격여부',
+      sym: function (r) { return +r.H / 2; },
+      tag: function (r) { return '×' + r.t1 + '/' + r.t2; } },
     channel: { label: 'Channel', file: 'channel.csv', name: '호칭치수',
-      dims: ['H', 'B', 't1', 't2'], area: '단면적', wt: '단위무게', ix: 'Ix', zx: 'Zx',
-      sym: function (r) { return +r.H / 2; } },
+      dims: ['H', 'B', 't1', 't2'], area: '단면적', wt: '단위무게', ix: 'Ix', zx: 'Zx', ks: 'KS규격여부',
+      sym: function (r) { return +r.H / 2; },
+      tag: function (r) { return '×' + r.t1 + '/' + r.t2; } },
     squaretube: { label: 'Square Tube', file: 'squaretube.csv', name: '호칭치수',
-      dims: ['A', 'B', 't', 'r'], area: '단면적', wt: '단위무게',
-      calc: function (r) { var p = tubeProps(+r.A, +r.B, +r.t, +r.r); return { I: p.I, A: p.A, y: +r.A / 2 }; } },
+      dims: ['A', 'B', 't', 'r'], area: '단면적', wt: '단위무게', std: '규격',
+      calc: function (r) { var p = tubeProps(+r.A, +r.B, +r.t, +r.r); return { I: p.I, A: p.A, y: +r.A / 2 }; },
+      tag: function (r) { return r['규격'] || ''; } },
     pipe: { label: 'Pipe', file: 'pipe.csv', name: '호칭치수',
-      dims: ['D', 't'], area: '단면적', wt: '단위무게',
+      dims: ['D', 't'], area: '단면적', wt: '단위무게', std: '규격', ks: 'KS규격여부',
       calc: function (r) { var D = +r.D, d = D - 2 * (+r.t);
         return { I: Math.PI * (Math.pow(D, 4) - Math.pow(d, 4)) / 64,
-                 A: Math.PI * (D * D - d * d) / 4, y: D / 2 }; } }
+                 A: Math.PI * (D * D - d * d) / 4, y: D / 2 }; },
+      tag: function (r) { return r['규격'] || ''; } }
   };
 
   var DB = {};                                  // kind → [{name, ix, area, wt, dim}]
@@ -223,13 +227,36 @@
       ytop = ybot = cfg.sym(r);
     }
     if (!(ix > 0 && ytop > 0 && ybot > 0)) return null;
+    var tag = cfg.tag ? String(cfg.tag(r) || '').trim() : '';
     return {
-      name: name, ix: ix, area: area, wt: parseFloat(r[cfg.wt]) || 0,
+      name: name, label: tag ? name + '  ' + tag : name, key: '',   // key 는 uniquify 가 채운다
+      ix: ix, area: area, wt: parseFloat(r[cfg.wt]) || 0,
       dim: cfg.dims.map(function (d) { return d + ' ' + r[d]; }).join(' · '),
+      std: cfg.std ? (r[cfg.std] || '') : '',
+      ks: cfg.ks ? (r[cfg.ks] || '') : '',
       ytop: ytop, ybot: ybot,
       stop: ix / (ytop / 10), sbot: ix / (ybot / 10),               // cm⁴ / cm → cm³
       calc: !!cfg.calc
     };
+  }
+
+  /* 표는 호칭이 겹친다. H형강 76행이 이름은 29종뿐이고 400×400 만 열 개다 —
+     두께가 다른 별개의 단면인데 이름은 같다. 드롭다운에 같은 글자가 열 번
+     나오면 고를 수가 없고, 이름으로 찾으면 늘 첫 줄이 잡힌다.
+     그래서 두께(또는 규격)를 이름에 붙이고, 그래도 겹치면 단위무게를, 그것도
+     겹치면 줄 번호를 붙여 **행마다 유일한 키**를 만든다. */
+  function uniquify(rows) {
+    var seen = {};
+    rows.forEach(function (r) { seen[r.label] = (seen[r.label] || 0) + 1; });
+    var used = {};
+    rows.forEach(function (r, i) {
+      var lab = r.label;
+      if (seen[lab] > 1) lab += '  ' + num(r.wt, 1) + ' kg/m';
+      if (used[lab]) lab += '  #' + (i + 1);
+      used[lab] = 1;
+      r.label = lab; r.key = lab;
+    });
+    return rows;
   }
 
   function loadDb(kind, cb) {
@@ -242,7 +269,7 @@
                        .then(function (r) { if (!r.ok) throw new Error('HTTP ' + r.status); return r.text(); });
     get
       .then(function (t) {
-        var rows = parseCsv(t).map(function (r) { return sectionRow(cfg, r); }).filter(Boolean);
+        var rows = uniquify(parseCsv(t).map(function (r) { return sectionRow(cfg, r); }).filter(Boolean));
         DB[kind] = rows; cb(null, rows);
       })
       .catch(function (e) { cb(e); });
@@ -834,24 +861,27 @@
         return;
       }
       sel.innerHTML = rows.map(function (r) {
-        return '<option value="' + esc(r.name) + '">' + esc(r.name) + '</option>';
+        return '<option value="' + esc(r.key) + '">' + esc(r.label) + '</option>';
       }).join('');
-      var want = rows.some(function (r) { return r.name === ST.pick; }) ? ST.pick : rows[Math.min(6, rows.length - 1)].name;
+      var want = rows.some(function (r) { return r.key === ST.pick; }) ? ST.pick : rows[Math.min(6, rows.length - 1)].key;
       sel.value = want;
       applyPick(root, want);
     });
   }
 
-  function applyPick(root, name) {
+  function applyPick(root, key) {
     var rows = DB[ST.kind] || [], r = null;
-    rows.forEach(function (x) { if (x.name === name) r = x; });
+    // 이름이 아니라 키로 찾는다 — 이름은 겹친다(400×400 만 열 줄)
+    rows.forEach(function (x) { if (x.key === key) r = x; });
     if (!r) return;
     // 보이는 값과 계산에 들어가는 값을 같게 둔다
-    ST.pick = name; ST.src = 'db';
+    ST.pick = key; ST.src = 'db';
     ST.I = (r.ix >= 1000) ? Math.round(r.ix) : sig(r.ix, 4);
     ST.stop = sig(r.stop, 4); ST.sbot = sig(r.sbot, 4);
     q(root, '#bf-I').value = ST.I;
-    ST.info = SECT[ST.kind].label + ' ' + r.name + ' &nbsp;·&nbsp; ' + esc(r.dim) +
+    ST.info = SECT[ST.kind].label + ' ' + esc(r.label) +
+      (r.std ? ' &nbsp;·&nbsp; ' + esc(r.std) : '') +
+      (r.ks === 'X' ? ' &nbsp;·&nbsp; <b>KS 규격 아님</b>' : '') + ' &nbsp;·&nbsp; ' + esc(r.dim) +
       ' &nbsp;·&nbsp; A = ' + num(r.area, 2) + ' cm² &nbsp;·&nbsp; ' + num(r.wt, 1) + ' kg/m' +
       ' &nbsp;·&nbsp; y<sub>top</sub> ' + num(r.ytop, 1) + ' / y<sub>bot</sub> ' + num(r.ybot, 1) + ' mm' +
       (r.calc ? ' &nbsp;·&nbsp; <b>Ix computed from the listed dimensions</b>' : '');
