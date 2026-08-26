@@ -36,8 +36,8 @@
     '.bf-root *{box-sizing:border-box}',
     // display 를 가진 클래스가 [hidden] 을 이겨 버린다 — 여기서 한 번에 눌러 둔다
     '.bf-root [hidden]{display:none!important}',
-    '.bf-grid{display:grid;grid-template-columns:420px minmax(0,1fr);gap:20px;align-items:start}',
-    '@media(max-width:1040px){.bf-grid{grid-template-columns:1fr}}',
+    '.bf-grid{display:grid;grid-template-columns:480px minmax(0,1fr);gap:20px;align-items:start}',
+    '@media(max-width:1100px){.bf-grid{grid-template-columns:1fr}}',
     '.bf-col{display:flex;flex-direction:column;gap:20px}',
     '.bf-card{background:var(--panel);border:1px solid var(--line);border-radius:10px;overflow:hidden}',
     '.bf-hd{display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap;',
@@ -85,6 +85,24 @@
     '.bf-end:hover{background:#f8fafc}',
     '.bf-alert{padding:11px 14px;background:#fef2f2;border-bottom:1px solid #fecaca;color:#991b1b;font-size:12.5px;line-height:1.6}',
     '.bf-alert b{color:#7f1d1d}',
+    /* 하중표 — 줄마다 종류·크기·자리. b 는 분포하중에만 있다. */
+    '.bf-ltbl{width:100%;border-collapse:collapse;font-size:12.5px}',
+    '.bf-ltbl th{font-size:10px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);',
+      'font-weight:700;text-align:left;padding:0 5px 5px}',
+    '.bf-ltbl td{padding:3px 5px;vertical-align:middle}',
+    '.bf-ltbl td.no{color:var(--muted);font-family:ui-monospace,Menlo,Consolas,monospace;width:18px;text-align:center}',
+    '.bf-ltbl input,.bf-ltbl select{width:100%;padding:5px 7px;border:1px solid var(--line);border-radius:6px;',
+      'background:var(--panel);color:var(--ink);font-size:12.5px;text-align:right;',
+      'font-family:ui-monospace,Menlo,Consolas,monospace}',
+    '.bf-ltbl select{text-align:left}',
+    '.bf-ltbl input:focus,.bf-ltbl select:focus{outline:2px solid var(--dim);outline-offset:1px;border-color:var(--dim)}',
+    '.bf-ltbl td.dash{color:var(--muted);text-align:center;font-family:ui-monospace,Menlo,Consolas,monospace}',
+    '.bf-ltbl .u{font-size:10px;color:var(--muted);display:block;text-align:right;margin-top:1px;',
+      'font-family:ui-monospace,Menlo,Consolas,monospace}',
+    '.bf-del{width:24px;height:24px;padding:0;border:1px solid var(--line);border-radius:6px;background:#f8fafc;',
+      'color:var(--muted);cursor:pointer;font-size:15px;line-height:1;font-weight:700}',
+    '.bf-del:hover{border-color:#fca5a5;color:#b3261e;background:#fef2f2}',
+    '.bf-del[disabled]{opacity:.35;cursor:default}',
     '.bf-seg{display:inline-flex;border:1px solid var(--line);border-radius:6px;overflow:hidden}',
     '.bf-seg button{font:inherit;font-size:11px;font-weight:700;padding:5px 11px;border:0;background:#eef2f6;color:#475569;cursor:pointer}',
     '.bf-seg button+button{border-left:1px solid var(--line)}',
@@ -245,7 +263,9 @@
       },
       text: function (x, y, s, col, opt) {
         opt = opt || {};
-        e.push('<text x="' + f(x) + '" y="' + f(y) + '" fill="' + col + '" font-size="' + (opt.size || 11.5) +
+        // halo: 글자 뒤에 흰 테두리를 깔아 지시선 위에서도 읽히게 한다
+        var halo = opt.halo ? ' stroke="#fff" stroke-width="3.2" paint-order="stroke"' : '';
+        e.push('<text x="' + f(x) + '" y="' + f(y) + '"' + halo + ' fill="' + col + '" font-size="' + (opt.size || 11.5) +
           '" font-family="ui-monospace,Menlo,Consolas,monospace" text-anchor="' + (opt.anchor || 'middle') +
           '" dominant-baseline="middle"' + (opt.weight ? ' font-weight="' + opt.weight + '"' : '') +
           (opt.rot ? ' transform="rotate(' + f(opt.rot) + ' ' + f(x) + ' ' + f(y) + ')"' : '') + '>' + esc(s) + '</text>');
@@ -293,37 +313,63 @@
     s.text((x1 + x2) / 2, y - 9, label, DIM);
   }
 
-  /* 하중 기호 */
+  /* 하중 기호.
+     하중을 여러 개 넣을 수 있게 되면서 라벨이 서로 밟는다. 자리를 잡아 주는
+     작은 배치기를 둔다 — 같은 높이에 이미 글자가 있으면 한 칸 위로 올린다.
+     분포하중 띠를 먼저 깔고 집중하중을 그 위에 얹어야 화살표가 묻히지 않는다. */
+  var LOAD_BAND = 30;                 // 분포하중 띠의 최대 높이
+  function loadHeadroom(n) { return LOAD_BAND + 16 + 13 * Math.max(0, n - 1) + 26; }
+
   function drawLoads(s, loads, L, SX, y0) {
-    var HT = 30;
-    loads.forEach(function (ld) {
-      var o = window.BeamEngine.Load.norm(ld, L);
-      if (o.type === 'w') {
-        var a = SX(o.a, L), b = SX(o.b, L);
-        var mx = Math.max(Math.abs(o.w1), Math.abs(o.w2)) || 1;
-        var h1 = HT * Math.abs(o.w1) / mx, h2 = HT * Math.abs(o.w2) / mx;
-        s.path('M' + a + ' ' + (y0 - h1) + ' L' + b + ' ' + (y0 - h2) + ' L' + b + ' ' + y0 + ' L' + a + ' ' + y0 + ' Z',
-          DIM, 1, DIM, 0.09);
-        var n = Math.max(2, Math.round((b - a) / 30));
-        for (var i = 0; i <= n; i++) {
-          var t = i / n, X = a + (b - a) * t, hh = h1 + (h2 - h1) * t;
-          if (hh < 4) continue;
-          s.line(X, y0 - hh, X, y0 - 2, DIM, 0.9);
-          s.arrow(X, y0, 0, 1, DIM, 6);
-        }
-        var lab = (Math.abs(o.w1 - o.w2) < 1e-9) ? num(Math.abs(o.w1), 1)
-                : num(Math.abs(o.w1), 1) + ' → ' + num(Math.abs(o.w2), 1);
-        s.text((a + b) / 2, y0 - Math.max(h1, h2) - 9, 'w = ' + lab + ' kN/m', DIM);
-      } else if (o.type === 'P') {
-        var X2 = SX(o.a, L);
-        s.line(X2, y0 - 38, X2, y0 - 2, DIM, 1.5);
-        s.arrow(X2, y0, 0, 1, DIM, 8);
-        s.text(X2, y0 - 45, 'P = ' + num(Math.abs(o.P), 1) + ' kN', DIM);
+    var base = y0 - LOAD_BAND - 16, placed = [];
+    function label(x, text, col) {
+      var half = text.length * 2.9 + 5, lvl = 0, hit;
+      do {
+        hit = placed.some(function (p) { return p.lvl === lvl && Math.abs(p.x - x) < p.half + half; });
+        if (hit) lvl++;
+      } while (hit && lvl < 12);
+      placed.push({ x: x, half: half, lvl: lvl });
+      var y = base - lvl * 13;
+      s.text(x, y, text, col, { halo: 1 });
+      return y;
+    }
+
+    var norm = (loads || []).map(function (ld) { return window.BeamEngine.Load.norm(ld, L); });
+
+    // ① 분포하중 띠
+    norm.forEach(function (o) {
+      if (o.type !== 'w') return;
+      var x1 = SX(o.a, L), x2 = SX(o.b, L);
+      var mx = Math.max(Math.abs(o.w1), Math.abs(o.w2)) || 1;
+      var h1 = LOAD_BAND * Math.abs(o.w1) / mx, h2 = LOAD_BAND * Math.abs(o.w2) / mx;
+      s.path('M' + x1 + ' ' + (y0 - h1) + ' L' + x2 + ' ' + (y0 - h2) + ' L' + x2 + ' ' + y0 + ' L' + x1 + ' ' + y0 + ' Z',
+        DIM, 1, DIM, 0.09);
+      var n = Math.max(2, Math.round((x2 - x1) / 30));
+      for (var i = 0; i <= n; i++) {
+        var t = i / n, X = x1 + (x2 - x1) * t, hh = h1 + (h2 - h1) * t;
+        if (hh < 4) continue;
+        s.line(X, y0 - hh, X, y0 - 2, DIM, 0.9);
+        s.arrow(X, y0, 0, 1, DIM, 6);
+      }
+      var lab = (Math.abs(o.w1 - o.w2) < 1e-9) ? num(Math.abs(o.w1), 1)
+              : num(Math.abs(o.w1), 1) + ' → ' + num(Math.abs(o.w2), 1);
+      var ly = label((x1 + x2) / 2, 'w = ' + lab + ' kN/m', DIM);
+      s.line((x1 + x2) / 2, ly + 6, (x1 + x2) / 2, y0 - Math.max(h1, h2) - 1, HID, 0.6, '2 2');
+    });
+
+    // ② 집중하중·모멘트 — 띠 위에 얹는다
+    norm.forEach(function (o) {
+      if (o.type === 'w') return;
+      var X = SX(o.a, L);
+      if (o.type === 'P') {
+        var ly = label(X, 'P = ' + num(Math.abs(o.P), 1) + ' kN', DIM);
+        s.line(X, ly + 7, X, y0 - 2, DIM, 1.6);
+        s.arrow(X, y0, 0, 1, DIM, 8);
       } else {
-        var X3 = SX(o.a, L), sgn = o.M >= 0 ? 1 : -1;
-        s.path('M' + (X3 - 13) + ' ' + (y0 - 5) + ' A 13 13 0 1 ' + (sgn > 0 ? 1 : 0) + ' ' + (X3 + 11) + ' ' + (y0 - 12), DIM, 1.6);
-        s.arrow(X3 + 11, y0 - 12, sgn * 0.5, -sgn * 0.86, DIM, 7);
-        s.text(X3, y0 - 28, 'M = ' + num(Math.abs(o.M), 1) + ' kN·m', DIM);
+        var sgn = o.M >= 0 ? 1 : -1;
+        s.path('M' + (X - 13) + ' ' + (y0 - 5) + ' A 13 13 0 1 ' + (sgn > 0 ? 1 : 0) + ' ' + (X + 11) + ' ' + (y0 - 12), DIM, 1.6);
+        s.arrow(X + 11, y0 - 12, sgn * 0.5, -sgn * 0.86, DIM, 7);
+        label(X, 'M = ' + num(Math.abs(o.M), 1) + ' kN·m', DIM);
       }
     });
   }
@@ -359,9 +405,12 @@
   var ST = {
     /* 지점은 양 끝을 각각 고정(체크) / 자유(해제)로 잡는다.
        고정+고정 = 양단고정, 한쪽만 고정 = 캔틸레버, 둘 다 풀면 보가 떠 버린다. */
-    fixL: true, fixR: true,
-    caseId: 'ff-udl', view: 'all',
-    L: 8, w: 25, P: 60, M0: 40, a: 3,
+    fixL: true, fixR: true, view: 'all',
+    /* 하중은 목록이다. 종류는 둘뿐 —
+         w : 등분포, a = 좌단에서 시작점, b = 재하길이
+         P : 집중,   a = 좌단에서 작용점 */
+    loads: [{ type: 'w', v: 25, a: 0, b: 8 }],
+    L: 8,
     E: 205000, I: 23700, src: 'user', kind: 'hsection', pick: '', info: '',
     stop: null, sbot: null
   };
@@ -447,19 +496,18 @@
       '    <div class="bf-note" id="bf-secnote"></div>' +
       '  </div>' +
 
-      /* 3. LOAD */
+      /* 3. LOAD — 줄을 더하고 뺄 수 있는 목록 */
       '  <div class="bf-card">' +
-      '    <div class="bf-hd"><span class="bf-ttl">Load</span></div>' +
-      '    <div class="bf-body">' +
-      '      <div class="bf-inrow"><label><span class="var">Case</span><span class="desc">Pattern</span></label>' +
-      '        <span><select id="bf-case" class="bf-wide"></select></span></div>' +
-      '      <div class="bf-inrow" id="bf-row-load"><label><span class="var" id="bf-loadvar">w</span>' +
-      '        <span class="desc" id="bf-loaddesc">Intensity</span></label>' +
-      '        <span><input type="number" id="bf-load" step="0.5"><span class="bf-unit" id="bf-loadunit">kN/m</span></span></div>' +
-      '      <div class="bf-inrow" id="bf-row-a"><label><span class="var">a</span>' +
-      '        <span class="desc" id="bf-adesc">Position</span></label>' +
-      '        <span><input type="number" id="bf-a" step="0.1"><span class="bf-unit">m</span></span></div>' +
-      '    </div>' +
+      '    <div class="bf-hd"><span class="bf-ttl">Load</span>' +
+      '      <span style="display:flex;gap:6px;align-items:center">' +
+      '        <span class="bf-cond" id="bf-lcount"></span>' +
+      '        <button type="button" class="bf-vbtn" id="bf-ladd" title="Add a load">+ Add</button>' +
+      '      </span></div>' +
+      '    <div class="bf-body" style="padding:12px 14px"><table class="bf-ltbl" id="bf-ltbl"></table></div>' +
+      '    <div class="bf-alert" id="bf-lerr" hidden></div>' +
+      '    <div class="bf-note">' +
+      '      <b>a</b> is measured from the left end (A), whichever end is fixed. ' +
+      '      <b>b</b> is the loaded length of a UDL. Loads act downward.</div>' +
       '  </div>' +
       '</div>' +
 
@@ -477,7 +525,7 @@
       '    <div class="bf-plot" id="bf-plot"></div>' +
       '  </div>' +
       '  <div class="bf-card" id="bf-fcard">' +
-      '    <div class="bf-hd"><span class="bf-ttl">Design Formulas</span></div>' +
+      '    <div class="bf-hd"><span class="bf-ttl" id="bf-fttl">Design Formulas</span></div>' +
       '    <table class="bf-tbl" id="bf-formula"></table>' +
       '    <div class="bf-note" id="bf-fnote"></div>' +
       '  </div>' +
@@ -488,14 +536,13 @@
     q(root, '#bf-kind').innerHTML = Object.keys(SECT).map(function (k) {
       return '<option value="' + k + '">' + esc(SECT[k].label) + '</option>';
     }).join('');
-    ['L', 'E', 'I', 'a'].forEach(function (f) { q(root, '#bf-' + f).value = ST[f]; });
+    ['L', 'E', 'I'].forEach(function (f) { q(root, '#bf-' + f).value = ST[f]; });
     q(root, '#bf-fixL').checked = ST.fixL;
     q(root, '#bf-fixR').checked = ST.fixR;
 
     ['L', 'R'].forEach(function (e) {
       q(root, '#bf-fix' + e).addEventListener('change', function () {
-        ST['fix' + e] = this.checked;
-        fillCases(root); render(root);
+        ST['fix' + e] = this.checked; render(root);
       });
     });
     q(root, '#bf-viewbar').addEventListener('click', function (e) {
@@ -510,35 +557,68 @@
     });
     q(root, '#bf-kind').addEventListener('change', function () { ST.kind = this.value; pickKind(root); });
     q(root, '#bf-pick').addEventListener('change', function () { applyPick(root, this.value); });
-    q(root, '#bf-case').addEventListener('change', function () { ST.caseId = this.value; render(root); });
-    ['L', 'load', 'a', 'E', 'I'].forEach(function (f) {
-      q(root, '#bf-' + f).addEventListener('input', function () {
-        var v = parseFloat(this.value);
-        if (f === 'load') {
-          var c = F.get(ST.caseId);
-          ST[c.needs.indexOf('P') >= 0 ? 'P' : (c.needs.indexOf('M0') >= 0 ? 'M0' : 'w')] = v;
-        } else ST[f] = v;
-        render(root);
-      });
+    ['L', 'E', 'I'].forEach(function (f) {
+      q(root, '#bf-' + f).addEventListener('input', function () { ST[f] = parseFloat(this.value); render(root); });
     });
 
-    fillCases(root);
+    /* 하중 목록 — 줄을 더하고 빼는 것만 표를 다시 그린다. 값 타이핑에도 다시
+       그리면 커서가 튄다. */
+    q(root, '#bf-ladd').addEventListener('click', function () {
+      if (ST.loads.length >= MAXLOAD) return;
+      var last = ST.loads[ST.loads.length - 1];
+      ST.loads.push(last && last.type === 'P'
+        ? { type: 'P', v: 50, a: +(ST.L / 2).toFixed(3) }
+        : { type: 'P', v: 50, a: +(ST.L / 2).toFixed(3) });
+      renderLoads(root); render(root);
+    });
+    q(root, '#bf-ltbl').addEventListener('click', function (e) {
+      var b = e.target.closest('.bf-del'); if (!b) return;
+      if (ST.loads.length <= 1) return;              // 하나는 남긴다 — 하중 없는 보는 볼 것이 없다
+      ST.loads.splice(+b.dataset.k, 1);
+      renderLoads(root); render(root);
+    });
+    q(root, '#bf-ltbl').addEventListener('change', function (e) {
+      var sel = e.target.closest('select[data-f="type"]'); if (!sel) return;
+      var ld = ST.loads[+sel.dataset.k];
+      ld.type = sel.value;
+      if (ld.type === 'w' && !(ld.b > 0)) ld.b = +(Math.max(ST.L - (ld.a || 0), 0.1)).toFixed(3);
+      renderLoads(root); render(root);
+    });
+    q(root, '#bf-ltbl').addEventListener('input', function (e) {
+      var inp = e.target.closest('input[data-f]'); if (!inp) return;
+      ST.loads[+inp.dataset.k][inp.dataset.f] = parseFloat(inp.value);
+      render(root);
+    });
+
+    renderLoads(root);
     render(root);
   }
 
-  /* 지점이 바뀌어도 같은 하중 형태를 유지한다 — 이름이 같은 경우로 옮겨 준다 */
-  function fillCases(root) {
-    var F = window.BeamEngine.Formula, d = derive();
-    if (!d) return;
-    var list = F.list(d.sup), cur = F.get(ST.caseId);
-    q(root, '#bf-case').innerHTML = list.map(function (c) {
-      return '<option value="' + c.id + '">' + esc(c.load) + '</option>';
-    }).join('');
-    var keep = list.filter(function (c) { return c.id === ST.caseId; })[0]
-            || (cur && list.filter(function (c) { return c.load === cur.load; })[0])
-            || list[0];
-    ST.caseId = keep.id;
-    q(root, '#bf-case').value = ST.caseId;
+  var MAXLOAD = 10;
+  var LTYPE = { w: ['UDL', 'kN/m'], P: ['Point', 'kN'] };
+
+  /* 하중표를 다시 그린다 (줄 추가·삭제·종류 변경 때만) */
+  function renderLoads(root) {
+    var h = '<thead><tr><th style="text-align:center">#</th><th>Type</th><th style="text-align:right">w / P</th>' +
+            '<th style="text-align:right">a (m)</th><th style="text-align:right">b (m)</th><th></th></tr></thead><tbody>';
+    ST.loads.forEach(function (ld, k) {
+      var isW = ld.type === 'w';
+      h += '<tr><td class="no">' + (k + 1) + '</td>' +
+        '<td style="width:88px"><select data-k="' + k + '" data-f="type">' +
+           '<option value="w"' + (isW ? ' selected' : '') + '>UDL</option>' +
+           '<option value="P"' + (isW ? '' : ' selected') + '>Point</option></select></td>' +
+        '<td><input type="number" step="0.5" data-k="' + k + '" data-f="v" value="' + (ld.v == null ? '' : ld.v) + '">' +
+           '<span class="u">' + LTYPE[ld.type][1] + '</span></td>' +
+        '<td style="width:74px"><input type="number" step="0.1" data-k="' + k + '" data-f="a" value="' + (ld.a == null ? '' : ld.a) + '"></td>' +
+        '<td style="width:74px">' + (isW
+           ? '<input type="number" step="0.1" data-k="' + k + '" data-f="b" value="' + (ld.b == null ? '' : ld.b) + '">'
+           : '<span class="dash" style="display:block;text-align:center">—</span>') + '</td>' +
+        '<td style="width:30px"><button type="button" class="bf-del" data-k="' + k + '"' +
+           (ST.loads.length <= 1 ? ' disabled' : '') + ' title="Remove">−</button></td></tr>';
+    });
+    q(root, '#bf-ltbl').innerHTML = h + '</tbody>';
+    q(root, '#bf-ladd').disabled = ST.loads.length >= MAXLOAD;
+    q(root, '#bf-lcount').textContent = ST.loads.length + (ST.loads.length > 1 ? ' loads' : ' load');
   }
 
   function syncSrc(root) {
@@ -621,44 +701,41 @@
     }
     q(root, '#bf-fcard').hidden = false;
 
-    var c = F.get(ST.caseId);
-    if (!c || c.sup !== dv.sup) { fillCases(root); c = F.get(ST.caseId); }
-    if (!c) return;
-
-    Array.prototype.forEach.call(q(root, '#bf-viewbar').children, function (b) {
-      b.setAttribute('aria-pressed', String(b.dataset.view === ST.view));
+    Array.prototype.forEach.call(q(root, '#bf-viewbar').children, function (bb) {
+      bb.setAttribute('aria-pressed', String(bb.dataset.view === ST.view));
     });
 
-    /* 하중 카드 */
-    var needA = c.needs.indexOf('a') >= 0;
-    q(root, '#bf-row-a').hidden = !needA;
-    var isP = c.needs.indexOf('P') >= 0, isM = c.needs.indexOf('M0') >= 0;
-    q(root, '#bf-loadvar').textContent = isP ? 'P' : (isM ? 'M₀' : 'w');
-    q(root, '#bf-loaddesc').textContent = isP ? 'Point load' : (isM ? 'Moment' : 'Intensity');
-    q(root, '#bf-loadunit').textContent = isP ? 'kN' : (isM ? 'kN·m' : 'kN/m');
-    q(root, '#bf-load').value = isP ? ST.P : (isM ? ST.M0 : ST.w);
-    q(root, '#bf-adesc').textContent = (dv.sup === 'cant') ? 'from fixed end' : 'from A';
+    /* 단면 */
     var hasS = (ST.src === 'db' && ST.stop > 0 && ST.sbot > 0);
     q(root, '#bf-stop').textContent = hasS ? String(ST.stop) : '—';
     q(root, '#bf-sbot').textContent = hasS ? String(ST.sbot) : '—';
     q(root, '#bf-stop').className = 'bf-ro' + (hasS ? '' : ' none');
     q(root, '#bf-sbot').className = 'bf-ro' + (hasS ? '' : ' none');
     q(root, '#bf-secnote').innerHTML = ST.info ||
-      'Enter I directly, or switch to <b>Database</b> to pick an H-Section, Channel or Square Tube.';
+      'Enter I directly, or switch to <b>Database</b> to pick an H-Section, Channel, Square Tube or Pipe.';
 
-    /* 계산 */
+    /* 계산 — 하중 목록을 그대로 넘긴다 */
     var EI = ST.E * (ST.I * 1e4) * 1e-9;                 // MPa · mm⁴ → kN·m²
-    var p = { L: ST.L, EI: EI, w: ST.w, P: ST.P, M0: ST.M0, a: ST.a, flip: dv.flip };
-    var r;
-    try { r = F.solve(ST.caseId, p); }
+    var loads = ST.loads.map(function (ld) {
+      return ld.type === 'w' ? { type: 'w', w: ld.v, a: ld.a, b: ld.b } : { type: 'P', P: ld.v, a: ld.a };
+    });
+    var r, lerr = q(root, '#bf-lerr');
+    try { r = F.solveLoads({ sup: dv.sup, flip: dv.flip, L: ST.L, EI: EI, loads: loads }); }
     catch (e) {
+      lerr.hidden = false;
+      lerr.innerHTML = '<b>Load input.</b> ' + esc(e.message);
       q(root, '#bf-plot').innerHTML = '<div class="bf-err">' + esc(e.message) + '</div>';
-      q(root, '#bf-stats').innerHTML = ''; q(root, '#bf-formula').innerHTML = '';
+      q(root, '#bf-stats').innerHTML = '';
+      q(root, '#bf-fcard').hidden = true;
       return;
     }
+    lerr.hidden = true;
+    q(root, '#bf-fcard').hidden = false;
     var d = r.diag, L = ST.L;
+    var c = r.matched ? F.get(r.matched) : null;
 
-    q(root, '#bf-title').textContent = dv.label + ' — ' + c.load;
+    q(root, '#bf-title').textContent = dv.label + ' — ' +
+      (c ? c.load : (ST.loads.length + (ST.loads.length > 1 ? ' loads' : ' load')));
 
     /* 요약 */
     var dmax = Math.abs(d.yx.abs.v), ratio = dmax > 1e-12 ? L / dmax : Infinity;
@@ -682,7 +759,7 @@
     function want(k) { return show === 'all' || show === k; }
 
     if (want('load')) {
-      var y0 = s.grow(112);
+      var y0 = s.grow(Math.max(112, loadHeadroom(r.loads.length)));
       s.line(SX(0, L), y0, SX(L, L), y0, INK, 2.4);
       drawLoads(s, r.loads, L, SX, y0);
       drawSupport(s, SX(0, L), y0, r.supports[0], 1);
@@ -690,8 +767,7 @@
       s.text(SX(0, L) - 16, y0 + 4, 'A', INK, { weight: 700, size: 12 });
       s.text(SX(L, L) + 16, y0 + 4, 'B', INK, { weight: 700, size: 12 });
       drawDim(s, SX(0, L), SX(L, L), y0 + 48, 'L = ' + num(L, 2) + ' m');
-      if (needA) drawDim(s, SX(0, L), SX(Math.min(ST.a, L), L), y0 + 74, 'a = ' + num(ST.a, 2) + ' m');
-      s.grow(needA ? 92 : 66);
+      s.grow(66);
     }
     [['shear', d.S, SFD, 'SFD', 'kN', 1, false, false],
      ['moment', d.M, BMD, 'BMD', 'kN·m', 1, true, false],
@@ -707,20 +783,48 @@
     if (s.h < 40) s.grow(80);
     q(root, '#bf-plot').innerHTML = s.out();
 
-    /* 공식표 */
-    q(root, '#bf-formula').innerHTML =
-      '<thead><tr><th>Quantity</th><th>Formula</th><th>Value</th><th>At</th></tr></thead><tbody>' +
-      r.closed.map(function (o) {
+    /* 표준 경우와 딱 맞으면 그 경우의 교과서 식을, 아니면 계산 결과를 낸다.
+       맞지도 않는 식을 띄우는 것보다 무엇으로 풀었는지 적는 편이 낫다. */
+    var rowsHtml, note;
+    if (c) {
+      q(root, '#bf-fttl').textContent = 'Design Formulas';
+      rowsHtml = r.closed.map(function (o) {
         var unit = o.kind === 'δ' ? 'mm' : (o.kind === 'θ' ? 'rad' : (o.kind === 'R' ? 'kN' : 'kN·m'));
         var val = o.kind === 'δ' ? num(o.value * 1000, 3) : num(o.value, o.kind === 'θ' ? 5 : 2);
         return '<tr><td class="k">' + esc(o.k) + '</td><td class="tex">' + esc(o.tex) + '</td><td>' +
           val + ' ' + unit + '</td><td class="at">' + esc(o.at || '') + '</td></tr>';
-      }).join('') + '</tbody>';
-
-    var fnote = isCant
-      ? 'x is measured from the fixed end, so the table reads the same whichever side is fixed.'
-      : 'x is measured from support A.';
-    q(root, '#bf-fnote').innerHTML = (c.note ? '<b>' + esc(c.note) + '</b> ' : '') + esc(fnote) +
+      }).join('');
+      q(root, '#bf-formula').innerHTML =
+        '<thead><tr><th>Quantity</th><th>Formula</th><th>Value</th><th>At</th></tr></thead><tbody>' +
+        rowsHtml + '</tbody>';
+      note = (c.note ? '<b>' + esc(c.note) + '</b> ' : '') + (isCant
+        ? 'x is measured from the fixed end, so the table reads the same whichever side is fixed.'
+        : 'x is measured from support A.');
+    } else {
+      q(root, '#bf-fttl').textContent = 'Results';
+      var rowsList = [
+        ['R left', num(d.Vi, 2), 'kN', 'A'],
+        ['R right', num(d.Vj, 2), 'kN', 'B'],
+        ['M A end', num(-r.Mi, 2), 'kN·m', r.Mi > 0 ? 'hogging' : (r.Mi < 0 ? 'sagging' : '')],
+        ['M B end', num(r.Mj, 2), 'kN·m', r.Mj < 0 ? 'hogging' : (r.Mj > 0 ? 'sagging' : '')],
+        ['M max ⁺', num(d.Mx.max.v, 2), 'kN·m', 'x = ' + num(d.Mx.max.x, 3) + ' m'],
+        ['M max ⁻', num(d.Mx.min.v, 2), 'kN·m', 'x = ' + num(d.Mx.min.x, 3) + ' m'],
+        ['V max', num(d.Sx.abs.v, 2), 'kN', 'x = ' + num(d.Sx.abs.x, 3) + ' m'],
+        ['δ max', num(-d.yx.abs.v * 1000, 3), 'mm', 'x = ' + num(d.yx.abs.x, 3) + ' m'],
+        ['θ A', num(d.thetaI, 5), 'rad', ''],
+        ['θ B', num(d.thetaJ, 5), 'rad', '']
+      ];
+      q(root, '#bf-formula').innerHTML =
+        '<thead><tr><th>Quantity</th><th>Value</th><th>Unit</th><th>At</th></tr></thead><tbody>' +
+        rowsList.map(function (o) {
+          return '<tr><td class="k">' + esc(o[0]) + '</td><td>' + o[1] + '</td><td class="at">' +
+            esc(o[2]) + '</td><td class="at">' + esc(o[3]) + '</td></tr>';
+        }).join('') + '</tbody>';
+      note = 'This load set is not one of the standard cases, so there is no single textbook formula. ' +
+        'End moments come from the fixed-end moment integrals, the rest from statics and ∬M/EI — ' +
+        'the same path the standard cases take.';
+    }
+    q(root, '#bf-fnote').innerHTML = note +
       ' Sagging moment and downward deflection are positive; BMD is drawn on the tension side.';
   }
 

@@ -193,5 +193,66 @@ B.Formula.cases.filter(c => B.Formula.canFlip(c.id)).forEach(c => {
   okAbs(c.id + ' (flip) · y(x) 전체', worst, 0, 1e-5);
 });
 
+/* ── ⑤ 여러 개·부분 재하 하중 ↔ 직접강성법으로 검증된 경로 ────────
+   표준 경우 하나가 아니라 하중을 겹쳐 넣을 수 있게 열었다. 겹친 결과가
+   맞는지는 모멘트분배법(=직접강성법 기준해와 이미 대조된 경로)에 같은 문제를
+   주고 맞춰 본다. 부분 등분포, 여러 개, 고정단 좌/우까지 돈다. */
+console.log('⑤ 다중·부분재하 하중 ↔ 모멘트분배법');
+const LSETS = [
+  { n: '전지간 등분포', ld: [{ type: 'w', w: 25, a: 0, b: 7.5 }] },
+  { n: '부분 등분포', ld: [{ type: 'w', w: 18, a: 1.5, b: 4 }] },
+  { n: '등분포 + 집중', ld: [{ type: 'w', w: 12, a: 0, b: 7.5 }, { type: 'P', P: 40, a: 2.6 }] },
+  { n: '집중 3개', ld: [{ type: 'P', P: 30, a: 1.5 }, { type: 'P', P: 55, a: 3.9 }, { type: 'P', P: 20, a: 6.2 }] },
+  { n: '등분포 2구간 + 집중', ld: [{ type: 'w', w: 22, a: 0, b: 3 }, { type: 'w', w: 9, a: 4.2, b: 3.3 }, { type: 'P', P: 48, a: 3.6 }] },
+  { n: '단부 집중 + 부분등분포', ld: [{ type: 'P', P: 35, a: 7.5 }, { type: 'w', w: 14, a: 0, b: 2.5 }] }
+];
+const SUPMODEL = { ff: ['fix', 'fix'], cant: ['fix', 'free'], cantR: ['free', 'fix'] };
+const LL = 7.5, EE = 21000;
+LSETS.forEach(set => {
+  ['ff', 'cant', 'cantR'].forEach(mode => {
+    const sup = (mode === 'ff') ? 'ff' : 'cant', flip = (mode === 'cantR');
+    let r;
+    try { r = B.Formula.solveLoads({ sup: sup, flip: flip, L: LL, EI: EE, loads: set.ld }); }
+    catch (e) { fail++; console.log(`  FAIL  ${set.n} / ${mode}: ${e.message}`); return; }
+    const local = r.loads.map(l => Object.assign({}, l, { dir: 'local' }));
+    const model = B.Cross.beam([{ L: LL, EI: EE, loads: local }], SUPMODEL[mode]);
+    const x = B.Cross.solve(model), sp = x.spans.AB;
+    const sc = Math.max(Math.abs(r.diag.Mx.abs.v), 1e-6);
+    const ds = Math.max(Math.abs(r.diag.yx.abs.v), 1e-12);
+    const tag = `${set.n} / ${mode}`;
+    okAbs(`${tag} · M_i`, x.moments.AB.i / sc, r.Mi / sc, 1e-8);
+    okAbs(`${tag} · M_j`, x.moments.AB.j / sc, r.Mj / sc, 1e-8);
+    okAbs(`${tag} · V_i`, sp.Vi / sc, r.diag.Vi / sc, 1e-8);
+    let wM = 0, wY = 0;
+    for (let k = 0; k < sp.x.length; k++) {
+      wM = Math.max(wM, Math.abs(sp.M[k] - r.diag.M[k]) / sc);
+      wY = Math.max(wY, Math.abs(sp.y[k] - r.diag.y[k]) / ds);
+    }
+    okAbs(`${tag} · M(x) 전체`, wM, 0, 1e-7);
+    okAbs(`${tag} · y(x) 전체`, wY, 0, 1e-5);
+    // 정역학: 반력의 합 = 전체 하중
+    const W = set.ld.reduce((a, l) => a + (l.type === 'w' ? l.w * l.b : l.P), 0);
+    okAbs(`${tag} · ΣR = ΣW`, (r.diag.Vi + r.diag.Vj) / W, 1, 1e-9);
+  });
+});
+
+/* 표준 경우와 겹치면 옛 경로와 값이 같아야 한다 */
+console.log('⑥ solveLoads ↔ solve (표준 경우가 걸릴 때)');
+[['ff', [{ type: 'w', w: 25, a: 0, b: 7.5 }], 'ff-udl', { w: 25 }],
+ ['ff', [{ type: 'P', P: 60, a: 3.75 }], 'ff-pmid', { P: 60 }],
+ ['ff', [{ type: 'P', P: 60, a: 2.9 }], 'ff-pa', { P: 60, a: 2.9 }],
+ ['cant', [{ type: 'w', w: 25, a: 0, b: 7.5 }], 'cant-udl', { w: 25 }],
+ ['cant', [{ type: 'P', P: 60, a: 7.5 }], 'cant-pend', { P: 60 }],
+ ['cant', [{ type: 'P', P: 60, a: 2.9 }], 'cant-pa', { P: 60, a: 2.9 }]
+].forEach(([sup, ld, want, extra]) => {
+  const a = B.Formula.solveLoads({ sup, flip: false, L: LL, EI: EE, loads: ld });
+  const b = B.Formula.solve(want, Object.assign({ L: LL, EI: EE }, extra));
+  ok(`${want} · 경우 인식`, a.matched === want ? 1 : 0, 1, 0);
+  const sc = Math.max(Math.abs(b.diag.Mx.abs.v), 1e-6);
+  okAbs(`${want} · M_i`, a.Mi / sc, b.Mi / sc, 1e-12);
+  okAbs(`${want} · δ_max`, a.diag.yx.abs.v / b.diag.yx.abs.v, 1, 1e-12);
+  okAbs(`${want} · 공식 개수`, a.closed.length, b.closed.length, 0);
+});
+
 console.log(`\n${run - fail}/${run} 통과${fail ? `  —  ${fail} 실패` : ''}`);
 process.exit(fail ? 1 : 0);

@@ -579,9 +579,78 @@
   ];
   FCASES.forEach(function (c) { c.name = SUPLABEL[c.sup] + ' — ' + c.load; });
 
+  /* 지점조건이 단부모멘트를 준다. 하중이 무엇이든 이 규칙은 같다 —
+     표준 경우든 여러 개를 겹친 것이든 FEM 적분 한 번이면 나온다. */
+  function endMoments(sup, L, loads) {
+    var t = Load.sum(loads, L);
+    if (sup === 'ss')   return { Mi: 0, Mj: 0, bc: 'yy' };
+    if (sup === 'cant') return { Mi: -t.Sm, Mj: 0, bc: 'yt' };     // 자유단이라 정정
+    if (sup === 'ff')   return { Mi: t.femI, Mj: t.femJ, bc: 'yy' };
+    if (sup === 'pf')   return { Mi: t.femI - t.femJ / 2, Mj: 0, bc: 'yy' };
+    throw new Error('unknown support: ' + sup);
+  }
+
+  function pack(c, q, loads, sup, Mi, Mj, d, closed) {
+    return {
+      caseDef: c, params: q, loads: loads, flip: false,
+      supports: SUPENDS[sup].slice(),
+      Mi: Mi, Mj: Mj, RA: d.Vi, RB: d.Vj,
+      diag: d, closed: closed,
+      summary: {
+        R_A: d.Vi, R_B: d.Vj, M_A: -Mi, M_B: Mj,
+        M_pos: d.Mx.max.v, M_pos_x: d.Mx.max.x,
+        M_neg: d.Mx.min.v, M_neg_x: d.Mx.min.x,
+        d_max: -d.yx.abs.v, d_max_x: d.yx.abs.x,
+        th_A: d.thetaI, th_B: d.thetaJ
+      }
+    };
+  }
+
+  /* 사용자 표기의 하중 → 국부 +y 성분.
+       {type:'w', w, a, b}  a = 좌단에서 시작점, b = 재하길이, w>0 이 아래쪽
+       {type:'P', P, a}     a = 좌단에서 작용점,  P>0 이 아래쪽              */
+  function toLocal(loads, L) {
+    return (loads || []).map(function (ld) {
+      if (ld.type === 'w') {
+        var a = +ld.a || 0, b = +ld.b;
+        if (!(b > 0)) throw new Error('Loaded length b must be greater than 0.');
+        if (a < -1e-9 || a + b > L + 1e-9) throw new Error('Distributed load runs past the span: a + b must be ≤ L.');
+        return { type: 'w', w1: -ld.w, w2: -ld.w, a: a, b: Math.min(a + b, L) };
+      }
+      if (ld.type === 'P') {
+        var x = +ld.a;
+        if (!(x >= -1e-9 && x <= L + 1e-9)) throw new Error('Point load position a must be between 0 and L.');
+        return { type: 'P', P: -ld.P, a: Math.min(Math.max(x, 0), L) };
+      }
+      throw new Error('Unknown load type: ' + ld.type);
+    });
+  }
+
+  /* 표준 경우와 같은가? 같으면 그 경우의 교과서 식을 그대로 보여 줄 수 있다.
+     하중이 하나이고 자리가 딱 맞을 때만 인정한다 — 어설프게 맞추면 화면에
+     뜬 식이 실제로 푼 문제와 다른 것이 되고, 그게 제일 나쁘다. */
+  function matchCase(sup, loads, L) {
+    if (!loads || loads.length !== 1) return null;
+    var o = loads[0], eps = 1e-9 * Math.max(L, 1);
+    if (o.type === 'w') {
+      if (Math.abs(o.a) > eps || Math.abs(o.b - L) > eps) return null;   // 전지간만
+      return sup === 'ff' ? 'ff-udl' : (sup === 'cant' ? 'cant-udl'
+           : (sup === 'ss' ? 'ss-udl' : (sup === 'pf' ? 'pf-udl' : null)));
+    }
+    if (o.type === 'P') {
+      var mid = Math.abs(o.a - L / 2) < eps, end = Math.abs(o.a - L) < eps;
+      if (sup === 'cant') return end ? 'cant-pend' : 'cant-pa';
+      if (sup === 'ff')   return mid ? 'ff-pmid' : 'ff-pa';
+      if (sup === 'ss')   return mid ? 'ss-pmid' : 'ss-pa';
+      if (sup === 'pf')   return mid ? 'pf-pmid' : 'pf-pa';
+    }
+    return null;
+  }
+
   var Formula = {
     cases: FCASES,
     SUPLABEL: SUPLABEL,
+    matchCase: matchCase,
     /* 고정단이 한쪽에만 있는 경우만 좌우를 뒤집을 수 있다 */
     canFlip: function (id) { var c = Formula.get(id); return !!c && (c.sup === 'cant' || c.sup === 'pf'); },
     get: function (id) { for (var i = 0; i < FCASES.length; i++) if (FCASES[i].id === id) return FCASES[i]; return null; },
@@ -597,14 +666,8 @@
       if (c.needs.indexOf('a') >= 0 && !(p.a > 0 && p.a < L)) throw new Error('a must be 0 < a < L');
 
       var loads = c.mk(p);
-      var t = Load.sum(loads, L);
-      var Mi, Mj, bc = 'yy';
-      if (c.sup === 'ss') { Mi = 0; Mj = 0; }
-      else if (c.sup === 'cant') { Mj = 0; Mi = -t.Sm; bc = 'yt'; }
-      else if (c.sup === 'ff') { Mi = t.femI; Mj = t.femJ; }
-      else if (c.sup === 'pf') { Mi = t.femI - t.femJ / 2; Mj = 0; }
-
-      var d = spanDiagram({ L: L, EI: EI, loads: loads, Mi: Mi, Mj: Mj, bc: bc, vi: 0, vj: 0, ti: 0 });
+      var em = endMoments(c.sup, L, loads), Mi = em.Mi, Mj = em.Mj;
+      var d = spanDiagram({ L: L, EI: EI, loads: loads, Mi: Mi, Mj: Mj, bc: em.bc, vi: 0, vj: 0, ti: 0 });
 
       // 닫힌식 표를 그대로 평가 — 화면에는 식과 값을 함께 낸다.
       var q = Object.assign({}, p, { EI: EI });
@@ -627,6 +690,46 @@
           th_A: d.thetaI, th_B: d.thetaJ
         }
       };
+      return p.flip ? mirror(res) : res;
+    },
+
+    /* 여러 개의 하중을 그대로 푼다.
+         p = {sup, flip, L, EI, loads:[{type:'w',w,a,b} | {type:'P',P,a}]}
+       하중 자리는 **화면 왼쪽 끝** 기준이다. flip 이면 고정단이 오른쪽이므로
+       왼쪽 고정 문제로 뒤집어 풀고 결과를 다시 뒤집는다 — 뒤집기는 거울이라
+       그 과정에서 하중 자리도 원래대로 돌아온다.
+
+       표준 경우와 딱 맞으면 그 경우의 교과서 식도 함께 낸다(closed). 아니면
+       빈 배열이다 — 화면은 식 대신 계산 결과를 보여 주면 된다. */
+    solveLoads: function (p) {
+      var L = p.L, EI = p.EI, sup = p.sup;
+      if (!(L > 0)) throw new Error('L must be > 0');
+      if (!(EI > 0)) throw new Error('EI must be > 0');
+      if (!p.loads || !p.loads.length) throw new Error('No loads defined.');
+
+      var user = p.loads;
+      if (p.flip) {
+        user = user.map(function (ld) {
+          return (ld.type === 'w') ? { type: 'w', w: ld.w, a: L - ((+ld.a || 0) + (+ld.b)), b: +ld.b }
+                                   : { type: 'P', P: ld.P, a: L - (+ld.a) };
+        });
+      }
+      var loads = toLocal(user, L);
+      var em = endMoments(sup, L, loads), Mi = em.Mi, Mj = em.Mj;
+      var d = spanDiagram({ L: L, EI: EI, loads: loads, Mi: Mi, Mj: Mj, bc: em.bc, vi: 0, vj: 0, ti: 0 });
+
+      var id = matchCase(sup, loads.map(function (o) { return Load.norm(o, L); }), L);
+      var c = id ? Formula.get(id) : null, closed = [];
+      if (c) {
+        var o = Load.norm(loads[0], L), q = { L: L, EI: EI };
+        if (o.type === 'w') q.w = -o.w1; else { q.P = -o.P; q.a = o.a; }
+        closed = c.closed.map(function (rr) {
+          return { k: rr.k, tex: rr.tex, at: rr.at || '', value: rr.f(q),
+                   kind: rr.d ? 'δ' : (rr.r ? 'θ' : (rr.k.charAt(0) === 'R' ? 'R' : 'M')) };
+        });
+      }
+      var res = pack(c, { L: L, EI: EI }, loads, sup, Mi, Mj, d, closed);
+      res.matched = id;
       return p.flip ? mirror(res) : res;
     },
 
@@ -667,7 +770,7 @@
       thetaI: -d.thetaJ, thetaJ: -d.thetaI
     };
     return {
-      caseDef: r.caseDef, params: r.params, loads: loads, flip: true,
+      caseDef: r.caseDef, params: r.params, loads: loads, flip: true, matched: r.matched || null,
       supports: r.supports.slice().reverse(),
       Mi: -r.Mj, Mj: -r.Mi, RA: d.Vj, RB: d.Vi,
       diag: nd, closed: r.closed,
