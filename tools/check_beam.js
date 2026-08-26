@@ -254,5 +254,42 @@ console.log('⑥ solveLoads ↔ solve (표준 경우가 걸릴 때)');
   okAbs(`${want} · 공식 개수`, a.closed.length, b.closed.length, 0);
 });
 
+/* ── ⑦ 중첩 ────────────────────────────────────────────────────────
+   결과창에서 하중을 하나씩 떼어 볼 수 있게 했다. 그 화면이 뜻을 가지려면
+   각 하중의 기여를 더한 것이 전체와 같아야 한다 — 선형탄성이므로 정확히
+   같아야 하고, 조금이라도 어긋나면 떼어 본 그림이 거짓말이 된다. */
+console.log('⑦ 하중별 기여의 합 ↔ 전체');
+LSETS.filter(s2 => s2.ld.length > 1).forEach(set => {
+  ['ff', 'cant', 'cantR'].forEach(mode => {
+    const sup = (mode === 'ff') ? 'ff' : 'cant', flip = (mode === 'cantR');
+    const all = B.Formula.solveLoads({ sup, flip, L: LL, EI: EE, loads: set.ld });
+    const parts = set.ld.map(l => B.Formula.solveLoads({ sup, flip, L: LL, EI: EE, loads: [l] }));
+    const sc = Math.max(Math.abs(all.diag.Mx.abs.v), 1e-6);
+    const ds = Math.max(Math.abs(all.diag.yx.abs.v), 1e-12);
+    const tag = `${set.n} / ${mode}`;
+    okAbs(`${tag} · ΣM_i`, parts.reduce((a, p) => a + p.Mi, 0) / sc, all.Mi / sc, 1e-10);
+    okAbs(`${tag} · ΣM_j`, parts.reduce((a, p) => a + p.Mj, 0) / sc, all.Mj / sc, 1e-10);
+    okAbs(`${tag} · ΣV_i`, parts.reduce((a, p) => a + p.diag.Vi, 0) / sc, all.diag.Vi / sc, 1e-10);
+    // 곡선 전체도 더해져야 한다. 격자는 하중 위치에서 끊기므로 부재마다 다르다 —
+    // 공통 좌표에서 선형보간해 비교한다.
+    const at = (d, x) => {
+      let k = 1;
+      while (k < d.x.length - 1 && d.x[k] < x) k++;
+      const x0 = d.x[k - 1], x1 = d.x[k], t = (x1 - x0) < 1e-12 ? 0 : (x - x0) / (x1 - x0);
+      return { M: d.M[k - 1] + (d.M[k] - d.M[k - 1]) * t, y: d.y[k - 1] + (d.y[k] - d.y[k - 1]) * t };
+    };
+    let wM = 0, wY = 0;
+    for (let i = 0; i <= 40; i++) {
+      const x = LL * i / 40;
+      const a = at(all.diag, x);
+      const p = parts.reduce((acc, q) => { const v = at(q.diag, x); return { M: acc.M + v.M, y: acc.y + v.y }; }, { M: 0, y: 0 });
+      wM = Math.max(wM, Math.abs(p.M - a.M) / sc);
+      wY = Math.max(wY, Math.abs(p.y - a.y) / ds);
+    }
+    okAbs(`${tag} · ΣM(x)`, wM, 0, 2e-4);      // 선형보간 오차가 섞여 있다
+    okAbs(`${tag} · Σy(x)`, wY, 0, 2e-4);
+  });
+});
+
 console.log(`\n${run - fail}/${run} 통과${fail ? `  —  ${fail} 실패` : ''}`);
 process.exit(fail ? 1 : 0);

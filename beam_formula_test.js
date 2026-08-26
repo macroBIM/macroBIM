@@ -69,6 +69,10 @@
     '.bf-vbtn{padding:5px 10px;border:1px solid #cbd5e1;background:#eef2f6;color:#475569;cursor:pointer;',
       'border-radius:6px;font-size:11px;font-weight:700}',
     '.bf-vbtn[aria-pressed="true"]{background:#2563eb;color:#fff;border-color:#2563eb}',
+    '.bf-lsel{font:inherit;font-size:11px;font-weight:700;padding:5px 8px;border:1px solid var(--line);',
+      'border-radius:6px;background:#eef2f6;color:#475569;cursor:pointer;max-width:230px}',
+    '.bf-lsel:focus{outline:2px solid var(--dim);outline-offset:1px}',
+    '.bf-lsel.one{background:#eff6ff;border-color:#bfdbfe;color:var(--dim)}',
     /* 지점 — 보 하나에 양 끝 체크박스. 체크=고정, 해제=자유. */
     '.bf-cond{font-family:ui-monospace,Menlo,Consolas,monospace;font-size:11px;font-weight:700;color:var(--dim);',
       'background:#eff6ff;border:1px solid #bfdbfe;border-radius:5px;padding:3px 9px}',
@@ -97,8 +101,8 @@
     '.bf-ltbl select{text-align:left}',
     '.bf-ltbl input:focus,.bf-ltbl select:focus{outline:2px solid var(--dim);outline-offset:1px;border-color:var(--dim)}',
     '.bf-ltbl td.dash{color:var(--muted);text-align:center;font-family:ui-monospace,Menlo,Consolas,monospace}',
-    '.bf-ltbl .u{font-size:10px;color:var(--muted);display:block;text-align:right;margin-top:1px;',
-      'font-family:ui-monospace,Menlo,Consolas,monospace}',
+    '.bf-units{font-family:ui-monospace,Menlo,Consolas,monospace;font-size:10.5px;color:var(--muted);',
+      'font-weight:400;margin-left:10px;letter-spacing:0}',
     '.bf-del{width:24px;height:24px;padding:0;border:1px solid var(--line);border-radius:6px;background:#f8fafc;',
       'color:var(--muted);cursor:pointer;font-size:15px;line-height:1;font-weight:700}',
     '.bf-del:hover{border-color:#fca5a5;color:#b3261e;background:#fef2f2}',
@@ -405,7 +409,7 @@
   var ST = {
     /* 지점은 양 끝을 각각 고정(체크) / 자유(해제)로 잡는다.
        고정+고정 = 양단고정, 한쪽만 고정 = 캔틸레버, 둘 다 풀면 보가 떠 버린다. */
-    fixL: true, fixR: true, view: 'all',
+    fixL: true, fixR: true, view: 'all', showLoad: 'all',
     /* 하중은 목록이다. 종류는 둘뿐 —
          w : 등분포, a = 좌단에서 시작점, b = 재하길이
          P : 집중,   a = 좌단에서 작용점 */
@@ -498,7 +502,8 @@
 
       /* 3. LOAD — 줄을 더하고 뺄 수 있는 목록 */
       '  <div class="bf-card">' +
-      '    <div class="bf-hd"><span class="bf-ttl">Load</span>' +
+      '    <div class="bf-hd"><span class="bf-ttl">Load' +
+      '        <span class="bf-units">w kN/m &nbsp;·&nbsp; P kN &nbsp;·&nbsp; a, b m</span></span>' +
       '      <span style="display:flex;gap:6px;align-items:center">' +
       '        <span class="bf-cond" id="bf-lcount"></span>' +
       '        <button type="button" class="bf-vbtn" id="bf-ladd" title="Add a load">+ Add</button>' +
@@ -514,13 +519,15 @@
       '<div class="bf-col">' +
       '  <div class="bf-card">' +
       '    <div class="bf-hd"><span class="bf-ttl" id="bf-title">Beam Diagram</span>' +
+      '      <span style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">' +
+      '        <select id="bf-lsel" class="bf-lsel"></select>' +
       '      <span id="bf-viewbar" style="display:flex;gap:4px;flex-wrap:wrap;align-items:center">' +
       '        <button type="button" class="bf-vbtn" data-view="all" aria-pressed="true">All</button>' +
       '        <button type="button" class="bf-vbtn" data-view="load" aria-pressed="false">Load</button>' +
       '        <button type="button" class="bf-vbtn" data-view="shear" aria-pressed="false">Shear</button>' +
       '        <button type="button" class="bf-vbtn" data-view="moment" aria-pressed="false">Moment</button>' +
       '        <button type="button" class="bf-vbtn" data-view="defl" aria-pressed="false">Deflection</button>' +
-      '      </span></div>' +
+      '      </span></span></div>' +
       '    <div class="bf-stats" id="bf-stats"></div>' +
       '    <div class="bf-plot" id="bf-plot"></div>' +
       '  </div>' +
@@ -549,6 +556,7 @@
       var b = e.target.closest('.bf-vbtn'); if (!b) return;
       ST.view = b.dataset.view; render(root);
     });
+    q(root, '#bf-lsel').addEventListener('change', function () { ST.showLoad = this.value; render(root); });
     q(root, '#bf-srcseg').addEventListener('click', function (e) {
       var b = e.target.closest('button'); if (!b) return;
       ST.src = b.dataset.src;
@@ -575,6 +583,7 @@
       var b = e.target.closest('.bf-del'); if (!b) return;
       if (ST.loads.length <= 1) return;              // 하나는 남긴다 — 하중 없는 보는 볼 것이 없다
       ST.loads.splice(+b.dataset.k, 1);
+      ST.showLoad = 'all';
       renderLoads(root); render(root);
     });
     q(root, '#bf-ltbl').addEventListener('change', function (e) {
@@ -597,18 +606,23 @@
   var MAXLOAD = 10;
   var LTYPE = { w: ['UDL', 'kN/m'], P: ['Point', 'kN'] };
 
+  function loadLabel(ld, k) {
+    return (k + 1) + '. ' + (ld.type === 'w'
+      ? 'UDL ' + num(ld.v, 1) + ' kN/m  ' + num(ld.a, 2) + '–' + num((+ld.a || 0) + (+ld.b || 0), 2) + ' m'
+      : 'Point ' + num(ld.v, 1) + ' kN @ ' + num(ld.a, 2) + ' m');
+  }
+
   /* 하중표를 다시 그린다 (줄 추가·삭제·종류 변경 때만) */
   function renderLoads(root) {
     var h = '<thead><tr><th style="text-align:center">#</th><th>Type</th><th style="text-align:right">w / P</th>' +
-            '<th style="text-align:right">a (m)</th><th style="text-align:right">b (m)</th><th></th></tr></thead><tbody>';
+            '<th style="text-align:right">a</th><th style="text-align:right">b</th><th></th></tr></thead><tbody>';
     ST.loads.forEach(function (ld, k) {
       var isW = ld.type === 'w';
       h += '<tr><td class="no">' + (k + 1) + '</td>' +
         '<td style="width:88px"><select data-k="' + k + '" data-f="type">' +
            '<option value="w"' + (isW ? ' selected' : '') + '>UDL</option>' +
            '<option value="P"' + (isW ? '' : ' selected') + '>Point</option></select></td>' +
-        '<td><input type="number" step="0.5" data-k="' + k + '" data-f="v" value="' + (ld.v == null ? '' : ld.v) + '">' +
-           '<span class="u">' + LTYPE[ld.type][1] + '</span></td>' +
+        '<td><input type="number" step="0.5" data-k="' + k + '" data-f="v" value="' + (ld.v == null ? '' : ld.v) + '"></td>' +
         '<td style="width:74px"><input type="number" step="0.1" data-k="' + k + '" data-f="a" value="' + (ld.a == null ? '' : ld.a) + '"></td>' +
         '<td style="width:74px">' + (isW
            ? '<input type="number" step="0.1" data-k="' + k + '" data-f="b" value="' + (ld.b == null ? '' : ld.b) + '">'
@@ -714,9 +728,22 @@
     q(root, '#bf-secnote').innerHTML = ST.info ||
       'Enter I directly, or switch to <b>Database</b> to pick an H-Section, Channel, Square Tube or Pipe.';
 
-    /* 계산 — 하중 목록을 그대로 넘긴다 */
+    /* 결과창의 하중 선택. 중첩이므로 한 줄만 떼어 그 하중의 기여를 볼 수 있다.
+       하나만 남으면 표준 경우로 잡혀 교과서 식까지 함께 나온다. */
+    var one = (ST.showLoad !== 'all') ? +ST.showLoad : -1;
+    if (one >= ST.loads.length) { one = -1; ST.showLoad = 'all'; }
+    var sel = q(root, '#bf-lsel');
+    sel.innerHTML = '<option value="all">All loads (' + ST.loads.length + ')</option>' +
+      ST.loads.map(function (ld, k) {
+        return '<option value="' + k + '">' + esc(loadLabel(ld, k)) + '</option>';
+      }).join('');
+    sel.value = ST.showLoad;
+    sel.className = 'bf-lsel' + (one >= 0 ? ' one' : '');
+
+    /* 계산 */
     var EI = ST.E * (ST.I * 1e4) * 1e-9;                 // MPa · mm⁴ → kN·m²
-    var loads = ST.loads.map(function (ld) {
+    var use = (one >= 0) ? [ST.loads[one]] : ST.loads;
+    var loads = use.map(function (ld) {
       return ld.type === 'w' ? { type: 'w', w: ld.v, a: ld.a, b: ld.b } : { type: 'P', P: ld.v, a: ld.a };
     });
     var r, lerr = q(root, '#bf-lerr');
@@ -735,7 +762,8 @@
     var c = r.matched ? F.get(r.matched) : null;
 
     q(root, '#bf-title').textContent = dv.label + ' — ' +
-      (c ? c.load : (ST.loads.length + (ST.loads.length > 1 ? ' loads' : ' load')));
+      (one >= 0 ? 'load ' + (one + 1) + ' only'
+                : (c ? c.load : ST.loads.length + (ST.loads.length > 1 ? ' loads' : ' load')));
 
     /* 요약 */
     var dmax = Math.abs(d.yx.abs.v), ratio = dmax > 1e-12 ? L / dmax : Infinity;
@@ -824,7 +852,11 @@
         'End moments come from the fixed-end moment integrals, the rest from statics and ∬M/EI — ' +
         'the same path the standard cases take.';
     }
-    q(root, '#bf-fnote').innerHTML = note +
+    var pick = (one >= 0 && ST.loads.length > 1)
+      ? '<b>Showing load ' + (one + 1) + ' only</b> — this is that load\u2019s own contribution, not the total. ' +
+        'Pick <b>All loads</b> to see them combined. '
+      : '';
+    q(root, '#bf-fnote').innerHTML = pick + note +
       ' Sagging moment and downward deflection are positive; BMD is drawn on the tension side.';
   }
 
