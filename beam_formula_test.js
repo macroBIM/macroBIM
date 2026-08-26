@@ -61,10 +61,6 @@
     '.bf-inrow select{text-align:left}',
     '.bf-inrow input:focus,.bf-inrow select:focus{outline:2px solid var(--dim);outline-offset:1px;border-color:var(--dim)}',
     '.bf-inrow input[readonly]{background:#f8fafc;color:var(--muted)}',
-    '.bf-ro{display:inline-block;width:150px;text-align:right;padding:5px 8px;border:1px dashed var(--line);',
-      'border-radius:6px;background:#f8fafc;color:var(--ink);font-size:13px;',
-      'font-family:ui-monospace,Menlo,Consolas,monospace;font-variant-numeric:tabular-nums}',
-    '.bf-ro.none{color:var(--muted)}',
     '.bf-unit{color:var(--muted);font-size:11px;margin-left:6px}',
     '.bf-wide{width:100%!important;text-align:left!important}',
     '.bf-btn{font:inherit;font-size:10.5px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:#fff;',
@@ -150,6 +146,13 @@
   function q(root, sel) { return root.querySelector(sel); }
   /* 표에서 온 값은 유효숫자 3~4자리다. 계산해서 낸 값도 같은 자리로 끊는다 —
      5.794603167007244 cm⁴ 는 정직해 보이지만 아무도 그렇게 읽지 않는다. */
+  /* 휨응력. M[kN·m] = M·1e6 N·mm, S[cm³] = S·1e3 mm³ → σ[MPa] = 1000·M/S.
+     하연인장이 양(sagging)이므로 그때 상연은 압축(−), 하연은 인장(+)이다.
+     S 를 넣지 않았으면 나누지 않고 0 을 낸다 — 오류가 아니라 아직 모르는 값이다. */
+  function stressTop(M, Stop) { return (Stop > 0) ? -1000 * M / Stop : 0; }
+  function stressBot(M, Sbot) { return (Sbot > 0) ?  1000 * M / Sbot : 0; }
+  function sgnTag(v) { return (v > 0) ? 'tension' : (v < 0 ? 'compression' : ''); }
+
   function sig(v, n) {
     if (!isFinite(v) || v === 0) return 0;
     return Number(v.toPrecision(n || 4));
@@ -516,7 +519,7 @@
     loads: [{ type: 'w', v: 25, a: 0, b: 8 }],
     L: 8,
     E: 205000, I: 23700, src: 'user', kind: 'hsection', pick: '', info: '',
-    stop: null, sbot: null
+    stop: 0, sbot: 0        // 0 이면 응력을 내지 않는다 (나누지 않는다)
   };
 
   /* 양 끝의 상태 조합이 곧 표준 경우 하나다. 아홉 칸 중 일곱이 풀리는 문제이고,
@@ -619,9 +622,9 @@
       '      <div class="bf-inrow"><label><span class="var">I</span><span class="desc">2nd moment</span></label>' +
       '        <span><input type="number" id="bf-I" step="10"><span class="bf-unit">cm⁴</span></span></div>' +
       '      <div class="bf-inrow"><label><span class="var">S top</span><span class="desc">to top fibre</span></label>' +
-      '        <span><span class="bf-ro" id="bf-stop">—</span><span class="bf-unit">cm³</span></span></div>' +
+      '        <span><input type="number" id="bf-stop" step="1" min="0"><span class="bf-unit">cm³</span></span></div>' +
       '      <div class="bf-inrow"><label><span class="var">S bot</span><span class="desc">to bottom fibre</span></label>' +
-      '        <span><span class="bf-ro" id="bf-sbot">—</span><span class="bf-unit">cm³</span></span></div>' +
+      '        <span><input type="number" id="bf-sbot" step="1" min="0"><span class="bf-unit">cm³</span></span></div>' +
       '    </div>' +
       '    <div class="bf-note" id="bf-secnote"></div>' +
       '  </div>' +
@@ -686,7 +689,7 @@
     q(root, '#bf-kind').innerHTML = Object.keys(SECT).map(function (k) {
       return '<option value="' + k + '">' + esc(SECT[k].label) + '</option>';
     }).join('');
-    ['L', 'E', 'I'].forEach(function (f) { q(root, '#bf-' + f).value = ST[f]; });
+    ['L', 'E', 'I', 'stop', 'sbot'].forEach(function (f) { q(root, '#bf-' + f).value = ST[f]; });
 
     ['L', 'R'].forEach(function (e) {
       q(root, '#bf-seg' + e).addEventListener('click', function (ev) {
@@ -703,12 +706,17 @@
       var b = e.target.closest('button'); if (!b) return;
       ST.src = b.dataset.src;
       // 직접 입력으로 돌아가면 표에서 온 단면계수는 더 이상 그 값이 아니다
-      if (ST.src === 'db') pickKind(root); else { ST.info = ''; ST.stop = ST.sbot = null; render(root); }
+      if (ST.src === 'db') pickKind(root); else { ST.info = ''; render(root); }
     });
     q(root, '#bf-kind').addEventListener('change', function () { ST.kind = this.value; pickKind(root); });
     q(root, '#bf-pick').addEventListener('change', function () { applyPick(root, this.value); });
-    ['L', 'E', 'I'].forEach(function (f) {
-      q(root, '#bf-' + f).addEventListener('input', function () { ST[f] = parseFloat(this.value); render(root); });
+    ['L', 'E', 'I', 'stop', 'sbot'].forEach(function (f) {
+      q(root, '#bf-' + f).addEventListener('input', function () {
+        var v = parseFloat(this.value);
+        ST[f] = isFinite(v) ? v : ((f === 'stop' || f === 'sbot') ? 0 : ST[f]);
+        if (f === 'stop' || f === 'sbot') ST.src = 'user';    // 손으로 고치면 표의 값이 아니다
+        render(root);
+      });
     });
 
     /* 하중 목록 — 줄을 더하고 빼는 것만 표를 다시 그린다. 값 타이핑에도 다시
@@ -809,6 +817,8 @@
     // Database 로 고른 I 는 표의 값이다. 손으로 고치고 싶으면 User define 으로
     // 돌아가면 되고, 그때 값은 그대로 남는다 — 고른 단면에서 출발해 다듬는 흐름.
     q(root, '#bf-I').readOnly = (ST.src === 'db');
+    q(root, '#bf-stop').readOnly = (ST.src === 'db');
+    q(root, '#bf-sbot').readOnly = (ST.src === 'db');
   }
 
   function pickKind(root) {
@@ -892,13 +902,13 @@
     });
 
     /* 단면 */
-    var hasS = (ST.src === 'db' && ST.stop > 0 && ST.sbot > 0);
-    q(root, '#bf-stop').textContent = hasS ? String(ST.stop) : '—';
-    q(root, '#bf-sbot').textContent = hasS ? String(ST.sbot) : '—';
-    q(root, '#bf-stop').className = 'bf-ro' + (hasS ? '' : ' none');
-    q(root, '#bf-sbot').className = 'bf-ro' + (hasS ? '' : ' none');
+    ['stop', 'sbot'].forEach(function (f) {
+      var el = q(root, '#bf-' + f);
+      if (document.activeElement !== el) el.value = ST[f] || 0;
+    });
     q(root, '#bf-secnote').innerHTML = ST.info ||
-      'Enter I directly, or switch to <b>Database</b> to pick an H-Section, Channel, Square Tube or Pipe.';
+      'Enter I and S directly, or switch to <b>Database</b> to pick an H-Section, Channel, ' +
+      'Square Tube or Pipe. Leave S at 0 and the stresses read 0 — nothing is divided.';
 
     /* 결과창의 하중 선택. 중첩이므로 한 줄만 떼어 그 하중의 기여를 볼 수 있다.
        하나만 남으면 표준 경우로 잡혀 교과서 식까지 함께 나온다. */
@@ -948,11 +958,22 @@
       { k: 'M max', v: num(Math.abs(d.Mx.abs.v), 2), s: 'kN·m  @ ' + num(d.Mx.abs.x, 2) + ' m', c: BMD },
       { k: 'δ max', v: num(dmax * 1000, 2), s: 'mm  @ ' + num(d.yx.abs.x, 2) + ' m', c: DEF },
       { k: 'δ / L', v: '1/' + num(ratio, 0), s: 'span ratio', c: DEF },
-      { k: 'EI', v: (EI >= 1e4 ? num(EI / 1000, 1) + 'e3' : num(EI, 1)), s: 'kN·m²', c: INK }
+      { k: 'EI', v: (EI >= 1e4 ? num(EI / 1000, 1) + 'e3' : num(EI, 1)), s: 'kN·m²', c: INK },
+      // σ 는 S 가 일정하므로 |M| 이 가장 큰 자리에서 가장 크다
+      { k: 'σ max', v: num(Math.max(Math.abs(stressTop(d.Mx.abs.v, ST.stop)),
+                                    Math.abs(stressBot(d.Mx.abs.v, ST.sbot))), 1),
+        s: 'MPa  @ ' + num(d.Mx.abs.x, 2) + ' m', c: BMD }
     ].map(function (o) {
       return '<div class="bf-stat"><div class="k">' + esc(o.k) + '</div><div class="v" style="color:' + o.c + '">' +
         o.v + '</div><div class="s">' + esc(o.s) + '</div></div>';
     }).join('');
+    // 마지막 줄의 빈 칸이 회색으로 남지 않게 채운다 (열 수는 폭에 따라 달라진다)
+    (function () {
+      var el = q(root, '#bf-stats');
+      var cols = (getComputedStyle(el).gridTemplateColumns || '').split(' ').filter(Boolean).length || 1;
+      var n = el.children.length, need = (cols - (n % cols)) % cols;
+      for (var i = 0; i < need; i++) el.insertAdjacentHTML('beforeend', '<div class="bf-stat"></div>');
+    }());
 
     /* 조회 위치 — 손대기 전에는 L/2 */
     var ax = (ST.atX == null) ? L / 2 : Math.min(Math.max(ST.atX, 0), L);
@@ -968,7 +989,9 @@
       [['M', num(atM, 2), 'kN·m', atM > 0 ? 'sagging' : (atM < 0 ? 'hogging' : '')],
        ['V', num(atV, 2), 'kN', ''],
        ['δ', (atY < 0 ? '↓ ' : (atY > 0 ? '↑ ' : '')) + num(Math.abs(atY) * 1000, 3), 'mm', ''],
-       ['θ', num(atT, 6), 'rad', num(atT * 180 / Math.PI, 4) + '°']
+       ['θ', num(atT, 6), 'rad', num(atT * 180 / Math.PI, 4) + '°'],
+       ['σ top', num(stressTop(atM, ST.stop), 2), 'MPa', sgnTag(stressTop(atM, ST.stop))],
+       ['σ bot', num(stressBot(atM, ST.sbot), 2), 'MPa', sgnTag(stressBot(atM, ST.sbot))]
       ].map(function (o) {
         return '<tr><td class="k">' + esc(o[0]) + '</td><td>' + o[1] + '</td><td class="at">' +
           esc(o[2]) + '</td><td class="at">' + esc(o[3]) + '</td></tr>';
@@ -1047,7 +1070,9 @@
         ['V max', num(d.Sx.abs.v, 2), 'kN', 'x = ' + num(d.Sx.abs.x, 3) + ' m'],
         ['δ max', num(-d.yx.abs.v * 1000, 3), 'mm', 'x = ' + num(d.yx.abs.x, 3) + ' m'],
         ['θ A', num(d.thetaI, 5), 'rad', ''],
-        ['θ B', num(d.thetaJ, 5), 'rad', '']
+        ['θ B', num(d.thetaJ, 5), 'rad', ''],
+        ['σ top', num(stressTop(d.Mx.abs.v, ST.stop), 2), 'MPa', 'at M max, x = ' + num(d.Mx.abs.x, 3) + ' m'],
+        ['σ bot', num(stressBot(d.Mx.abs.v, ST.sbot), 2), 'MPa', 'at M max, x = ' + num(d.Mx.abs.x, 3) + ' m']
       ];
       q(root, '#bf-formula').innerHTML =
         '<thead><tr><th>Quantity</th><th>Value</th><th>Unit</th><th>At</th></tr></thead><tbody>' +
