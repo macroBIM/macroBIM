@@ -33,8 +33,8 @@
     '.bf-root *{box-sizing:border-box}',
     // display 를 가진 클래스가 [hidden] 을 이겨 버린다 — 여기서 한 번에 눌러 둔다
     '.bf-root [hidden]{display:none!important}',
-    '.bf-grid{display:grid;grid-template-columns:360px minmax(0,1fr);gap:20px;align-items:start}',
-    '@media(max-width:980px){.bf-grid{grid-template-columns:1fr}}',
+    '.bf-grid{display:grid;grid-template-columns:420px minmax(0,1fr);gap:20px;align-items:start}',
+    '@media(max-width:1040px){.bf-grid{grid-template-columns:1fr}}',
     '.bf-col{display:flex;flex-direction:column;gap:20px}',
     '.bf-card{background:var(--panel);border:1px solid var(--line);border-radius:10px;overflow:hidden}',
     '.bf-hd{display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap;',
@@ -62,11 +62,22 @@
     '.bf-vbtn{padding:5px 10px;border:1px solid #cbd5e1;background:#eef2f6;color:#475569;cursor:pointer;',
       'border-radius:6px;font-size:11px;font-weight:700}',
     '.bf-vbtn[aria-pressed="true"]{background:#2563eb;color:#fff;border-color:#2563eb}',
-    '.bf-sups{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:12px}',
-    '.bf-sup{display:flex;flex-direction:column;align-items:center;gap:5px;padding:9px 6px 7px;border:1px solid var(--line);',
-      'border-radius:8px;background:var(--panel);cursor:pointer;font-size:11.5px;color:#475569;font-weight:600;line-height:1.3;text-align:center}',
-    '.bf-sup:hover{border-color:#94a3b8}',
-    '.bf-sup[aria-pressed="true"]{border-color:var(--dim);background:#eff6ff;color:var(--dim)}',
+    /* 지점 — 보 하나에 양 끝 체크박스. 체크=고정, 해제=자유. */
+    '.bf-cond{font-family:ui-monospace,Menlo,Consolas,monospace;font-size:11px;font-weight:700;color:var(--dim);',
+      'background:#eff6ff;border:1px solid #bfdbfe;border-radius:5px;padding:3px 9px}',
+    '.bf-cond.bad{color:#b3261e;background:#fef2f2;border-color:#fecaca}',
+    '.bf-prev{border-bottom:1px solid var(--hair)}',
+    '.bf-prev svg{display:block;width:100%;height:auto}',
+    '.bf-ends{display:grid;grid-template-columns:1fr 1fr;gap:1px;background:var(--hair);border-bottom:1px solid var(--hair)}',
+    '.bf-end{display:flex;align-items:flex-start;gap:9px;padding:11px 14px;background:var(--panel);cursor:pointer;margin:0}',
+    '.bf-end input{margin:2px 0 0;width:15px;height:15px;accent-color:var(--dim);cursor:pointer;flex-shrink:0}',
+    '.bf-end b{display:block;font-size:12px;font-weight:600;color:#0f172a}',
+    '.bf-end em{display:block;font-style:normal;font-family:ui-monospace,Menlo,Consolas,monospace;',
+      'font-size:11.5px;color:var(--dim);font-weight:600;margin-top:1px}',
+    '.bf-end em.off{color:var(--muted)}',
+    '.bf-end:hover{background:#f8fafc}',
+    '.bf-alert{padding:11px 14px;background:#fef2f2;border-bottom:1px solid #fecaca;color:#991b1b;font-size:12.5px;line-height:1.6}',
+    '.bf-alert b{color:#7f1d1d}',
     '.bf-seg{display:inline-flex;border:1px solid var(--line);border-radius:6px;overflow:hidden}',
     '.bf-seg button{font:inherit;font-size:11px;font-weight:700;padding:5px 11px;border:0;background:#eef2f6;color:#475569;cursor:pointer}',
     '.bf-seg button+button{border-left:1px solid var(--line)}',
@@ -306,17 +317,42 @@
 
   /* ── 상태 ───────────────────────────────────────────────────── */
   var ST = {
-    sup: 'ss', caseId: 'ss-udl', flip: false, view: 'all',
+    /* 지점은 양 끝을 각각 고정(체크) / 자유(해제)로 잡는다.
+       고정+고정 = 양단고정, 한쪽만 고정 = 캔틸레버, 둘 다 풀면 보가 떠 버린다. */
+    fixL: true, fixR: true,
+    caseId: 'ff-udl', view: 'all',
     L: 8, w: 25, P: 60, M0: 40, a: 3,
     E: 205000, I: 23700, src: 'user', kind: 'hsection', pick: '', info: ''
   };
 
-  var SUPICON = {
-    ss:   'M8 22 H84 M18 22 l-7 10 h14z M74 22 l-7 10 h14z',
-    cant: 'M10 8 V36 M10 22 H86',
-    ff:   'M10 8 V36 M82 8 V36 M10 22 H82',
-    pf:   'M10 8 V36 M10 22 H84 M74 22 l-7 10 h14z'
-  };
+  /* 체크 두 개 → 엔진의 경우(case) 하나. 나중에 핀·이동 지점을 넣는다면
+     여기 한 곳만 늘리면 된다. */
+  function derive() {
+    if (ST.fixL && ST.fixR) return { sup: 'ff', flip: false, label: 'Fixed – Fixed' };
+    if (ST.fixL) return { sup: 'cant', flip: false, label: 'Cantilever · fixed at A' };
+    if (ST.fixR) return { sup: 'cant', flip: true, label: 'Cantilever · fixed at B' };
+    return null;
+  }
+
+  /* 지점 미리보기 — 본 도면과 같은 선·기호로 그린다 */
+  function supportPreview(fixL, fixR) {
+    var w = 420, s = Sheet(w), x1 = 58, x2 = w - 58;
+    var y0 = s.grow(56);
+    s.line(x1, y0, x2, y0, INK, 2.6);
+    drawSupport(s, x1, y0, fixL ? 'fix' : 'free', 1);
+    drawSupport(s, x2, y0, fixR ? 'fix' : 'free', -1);
+    s.text(x1 - 20, y0 + 4, 'A', INK, { weight: 700, size: 12 });
+    s.text(x2 + 20, y0 + 4, 'B', INK, { weight: 700, size: 12 });
+    if (!fixL && !fixR) {
+      // 떠 있는 보 — 아래로 미끄러지는 화살표 두 개로 상태를 그대로 보여 준다
+      [x1 + 34, x2 - 34].forEach(function (X) {
+        s.line(X, y0 + 8, X, y0 + 24, '#b3261e', 1.4, '3 3');
+        s.arrow(X, y0 + 28, 0, 1, '#b3261e', 7);
+      });
+    }
+    s.grow(fixL || fixR ? 34 : 40);
+    return s.out();
+  }
 
   /* ── 화면 ───────────────────────────────────────────────────── */
   function build(root) {
@@ -326,44 +362,59 @@
       '<div class="bf-root"><div class="bf-grid">' +
 
       '<div class="bf-col">' +
+
+      /* 1. SUPPORT */
       '  <div class="bf-card">' +
-      '    <div class="bf-hd"><span class="bf-ttl">Support &amp; Load</span>' +
-      '      <span class="bf-seg" id="bf-flipseg" hidden>' +
-      '        <button type="button" data-flip="0" aria-pressed="true">Fixed left</button>' +
-      '        <button type="button" data-flip="1" aria-pressed="false">Fixed right</button>' +
-      '      </span></div>' +
-      '    <div class="bf-body">' +
-      '      <div class="bf-sups" id="bf-sups"></div>' +
-      '      <div class="bf-inrow"><label><span class="var">Case</span><span class="desc">Pattern</span></label>' +
-      '        <span><select id="bf-case" class="bf-wide"></select></span></div>' +
+      '    <div class="bf-hd"><span class="bf-ttl">Support</span>' +
+      '      <span class="bf-cond" id="bf-cond"></span></div>' +
+      '    <div class="bf-prev" id="bf-prev"></div>' +
+      '    <div class="bf-ends">' +
+      '      <label class="bf-end"><input type="checkbox" id="bf-fixL" checked>' +
+      '        <span><b>A — left end</b><em id="bf-fixL-t">Fixed</em></span></label>' +
+      '      <label class="bf-end"><input type="checkbox" id="bf-fixR" checked>' +
+      '        <span><b>B — right end</b><em id="bf-fixR-t">Fixed</em></span></label>' +
+      '    </div>' +
+      '    <div class="bf-alert" id="bf-alert" hidden></div>' +
+      '    <div class="bf-body" style="padding-top:6px">' +
       '      <div class="bf-inrow"><label><span class="var">L</span><span class="desc">Span</span></label>' +
       '        <span><input type="number" id="bf-L" step="0.1" min="0.1"><span class="bf-unit">m</span></span></div>' +
-      '      <div class="bf-inrow" id="bf-row-load"><label><span class="var" id="bf-loadvar">w</span>' +
-      '        <span class="desc" id="bf-loaddesc">Uniform load</span></label>' +
-      '        <span><input type="number" id="bf-load" step="0.5"><span class="bf-unit" id="bf-loadunit">kN/m</span></span></div>' +
-      '      <div class="bf-inrow" id="bf-row-a"><label><span class="var">a</span>' +
-      '        <span class="desc" id="bf-adesc">Load position</span></label>' +
-      '        <span><input type="number" id="bf-a" step="0.1"><span class="bf-unit">m</span></span></div>' +
       '    </div>' +
       '  </div>' +
 
+      /* 2. PROPERTY */
       '  <div class="bf-card">' +
-      '    <div class="bf-hd"><span class="bf-ttl">Section</span>' +
-      '      <span class="bf-seg" id="bf-srcseg">' +
-      '        <button type="button" data-src="user" aria-pressed="true">User define</button>' +
-      '        <button type="button" data-src="db" aria-pressed="false">Database</button>' +
-      '      </span></div>' +
+      '    <div class="bf-hd"><span class="bf-ttl">Property</span></div>' +
       '    <div class="bf-body">' +
+      '      <div class="bf-inrow"><label><span class="var">E</span><span class="desc">Elastic modulus</span></label>' +
+      '        <span><input type="number" id="bf-E" step="1000"><span class="bf-unit">MPa</span></span></div>' +
+      '      <div class="bf-inrow"><label><span class="var">Sect</span><span class="desc">Source</span></label>' +
+      '        <span class="bf-seg" id="bf-srcseg">' +
+      '          <button type="button" data-src="user" aria-pressed="true">User define</button>' +
+      '          <button type="button" data-src="db" aria-pressed="false">Database</button>' +
+      '        </span></div>' +
       '      <div class="bf-inrow" id="bf-row-kind" hidden><label><span class="var">Type</span><span class="desc">Family</span></label>' +
       '        <span><select id="bf-kind" class="bf-wide"></select></span></div>' +
       '      <div class="bf-inrow" id="bf-row-pick" hidden><label><span class="var">Size</span><span class="desc">Size list</span></label>' +
       '        <span><select id="bf-pick" class="bf-wide"></select></span></div>' +
-      '      <div class="bf-inrow"><label><span class="var">E</span><span class="desc">Elastic mod.</span></label>' +
-      '        <span><input type="number" id="bf-E" step="1000"><span class="bf-unit">MPa</span></span></div>' +
       '      <div class="bf-inrow"><label><span class="var">I</span><span class="desc">2nd moment</span></label>' +
       '        <span><input type="number" id="bf-I" step="10"><span class="bf-unit">cm⁴</span></span></div>' +
       '    </div>' +
       '    <div class="bf-note" id="bf-secnote"></div>' +
+      '  </div>' +
+
+      /* 3. LOAD */
+      '  <div class="bf-card">' +
+      '    <div class="bf-hd"><span class="bf-ttl">Load</span></div>' +
+      '    <div class="bf-body">' +
+      '      <div class="bf-inrow"><label><span class="var">Case</span><span class="desc">Pattern</span></label>' +
+      '        <span><select id="bf-case" class="bf-wide"></select></span></div>' +
+      '      <div class="bf-inrow" id="bf-row-load"><label><span class="var" id="bf-loadvar">w</span>' +
+      '        <span class="desc" id="bf-loaddesc">Intensity</span></label>' +
+      '        <span><input type="number" id="bf-load" step="0.5"><span class="bf-unit" id="bf-loadunit">kN/m</span></span></div>' +
+      '      <div class="bf-inrow" id="bf-row-a"><label><span class="var">a</span>' +
+      '        <span class="desc" id="bf-adesc">Position</span></label>' +
+      '        <span><input type="number" id="bf-a" step="0.1"><span class="bf-unit">m</span></span></div>' +
+      '    </div>' +
       '  </div>' +
       '</div>' +
 
@@ -380,7 +431,7 @@
       '    <div class="bf-stats" id="bf-stats"></div>' +
       '    <div class="bf-plot" id="bf-plot"></div>' +
       '  </div>' +
-      '  <div class="bf-card">' +
+      '  <div class="bf-card" id="bf-fcard">' +
       '    <div class="bf-hd"><span class="bf-ttl">Design Formulas</span></div>' +
       '    <table class="bf-tbl" id="bf-formula"></table>' +
       '    <div class="bf-note" id="bf-fnote"></div>' +
@@ -389,31 +440,18 @@
 
       '</div></div>';
 
-    /* 지점 칩 */
-    var sups = q(root, '#bf-sups');
-    sups.innerHTML = ['ss', 'cant', 'ff', 'pf'].map(function (k) {
-      return '<button type="button" class="bf-sup" data-sup="' + k + '" aria-pressed="' + (k === ST.sup) + '">' +
-        '<svg width="94" height="42" viewBox="0 0 94 42" aria-hidden="true"><path d="' + SUPICON[k] +
-        '" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"/></svg>' +
-        '<span>' + esc(F.SUPLABEL[k]) + '</span></button>';
-    }).join('');
-
     q(root, '#bf-kind').innerHTML = Object.keys(SECT).map(function (k) {
       return '<option value="' + k + '">' + esc(SECT[k].label) + '</option>';
     }).join('');
-
-    /* 값 되돌리기 */
     ['L', 'E', 'I', 'a'].forEach(function (f) { q(root, '#bf-' + f).value = ST[f]; });
+    q(root, '#bf-fixL').checked = ST.fixL;
+    q(root, '#bf-fixR').checked = ST.fixR;
 
-    /* 이벤트 */
-    sups.addEventListener('click', function (e) {
-      var b = e.target.closest('.bf-sup'); if (!b) return;
-      ST.sup = b.dataset.sup; ST.flip = false;
-      fillCases(root); render(root);
-    });
-    q(root, '#bf-flipseg').addEventListener('click', function (e) {
-      var b = e.target.closest('button'); if (!b) return;
-      ST.flip = b.dataset.flip === '1'; render(root);
+    ['L', 'R'].forEach(function (e) {
+      q(root, '#bf-fix' + e).addEventListener('change', function () {
+        ST['fix' + e] = this.checked;
+        fillCases(root); render(root);
+      });
     });
     q(root, '#bf-viewbar').addEventListener('click', function (e) {
       var b = e.target.closest('.bf-vbtn'); if (!b) return;
@@ -443,12 +481,18 @@
     render(root);
   }
 
+  /* 지점이 바뀌어도 같은 하중 형태를 유지한다 — 이름이 같은 경우로 옮겨 준다 */
   function fillCases(root) {
-    var F = window.BeamEngine.Formula, list = F.list(ST.sup);
+    var F = window.BeamEngine.Formula, d = derive();
+    if (!d) return;
+    var list = F.list(d.sup), cur = F.get(ST.caseId);
     q(root, '#bf-case').innerHTML = list.map(function (c) {
       return '<option value="' + c.id + '">' + esc(c.load) + '</option>';
     }).join('');
-    if (!list.some(function (c) { return c.id === ST.caseId; })) ST.caseId = list[0].id;
+    var keep = list.filter(function (c) { return c.id === ST.caseId; })[0]
+            || (cur && list.filter(function (c) { return c.load === cur.load; })[0])
+            || list[0];
+    ST.caseId = keep.id;
     q(root, '#bf-case').value = ST.caseId;
   }
 
@@ -498,22 +542,39 @@
   /* ── 그리기 + 계산 ─────────────────────────────────────────── */
   function render(root) {
     var BE = window.BeamEngine, F = BE.Formula;
-    var c = F.get(ST.caseId); if (!c) return;
+    var dv = derive();
 
-    /* 폼 상태 */
-    Array.prototype.forEach.call(q(root, '#bf-sups').children, function (b) {
-      b.setAttribute('aria-pressed', String(b.dataset.sup === ST.sup));
-    });
-    var canFlip = F.canFlip(ST.caseId);
-    q(root, '#bf-flipseg').hidden = !canFlip;
-    if (!canFlip) ST.flip = false;
-    Array.prototype.forEach.call(q(root, '#bf-flipseg').children, function (b) {
-      b.setAttribute('aria-pressed', String((b.dataset.flip === '1') === ST.flip));
-    });
+    /* 지점 카드 */
+    q(root, '#bf-prev').innerHTML = supportPreview(ST.fixL, ST.fixR);
+    q(root, '#bf-fixL-t').textContent = ST.fixL ? 'Fixed' : 'Free';
+    q(root, '#bf-fixR-t').textContent = ST.fixR ? 'Fixed' : 'Free';
+    q(root, '#bf-fixL-t').className = ST.fixL ? '' : 'off';
+    q(root, '#bf-fixR-t').className = ST.fixR ? '' : 'off';
+    q(root, '#bf-cond').textContent = dv ? dv.label : 'Unsupported';
+    q(root, '#bf-cond').className = 'bf-cond' + (dv ? '' : ' bad');
+
+    var alert = q(root, '#bf-alert');
+    alert.hidden = !!dv;
+    if (!dv) {
+      alert.innerHTML = '<b>Both ends released.</b> The beam is unsupported — it has no reaction to carry ' +
+        'the load and no unique deflected shape. Fix at least one end.';
+      q(root, '#bf-title').textContent = 'Beam Diagram';
+      q(root, '#bf-stats').innerHTML = '';
+      q(root, '#bf-plot').innerHTML = '<div class="bf-err">No solution: both ends are free.</div>';
+      q(root, '#bf-fcard').hidden = true;
+      return;
+    }
+    q(root, '#bf-fcard').hidden = false;
+
+    var c = F.get(ST.caseId);
+    if (!c || c.sup !== dv.sup) { fillCases(root); c = F.get(ST.caseId); }
+    if (!c) return;
+
     Array.prototype.forEach.call(q(root, '#bf-viewbar').children, function (b) {
       b.setAttribute('aria-pressed', String(b.dataset.view === ST.view));
     });
 
+    /* 하중 카드 */
     var needA = c.needs.indexOf('a') >= 0;
     q(root, '#bf-row-a').hidden = !needA;
     var isP = c.needs.indexOf('P') >= 0, isM = c.needs.indexOf('M0') >= 0;
@@ -521,13 +582,13 @@
     q(root, '#bf-loaddesc').textContent = isP ? 'Point load' : (isM ? 'Moment' : 'Intensity');
     q(root, '#bf-loadunit').textContent = isP ? 'kN' : (isM ? 'kN·m' : 'kN/m');
     q(root, '#bf-load').value = isP ? ST.P : (isM ? ST.M0 : ST.w);
-    q(root, '#bf-adesc').textContent = (ST.sup === 'cant' || ST.sup === 'pf') ? 'from fixed end' : 'from A';
+    q(root, '#bf-adesc').textContent = (dv.sup === 'cant') ? 'from fixed end' : 'from A';
     q(root, '#bf-secnote').innerHTML = ST.info ||
       'Enter I directly, or switch to <b>Database</b> to pick an H-Section, Channel or Square Tube.';
 
     /* 계산 */
     var EI = ST.E * (ST.I * 1e4) * 1e-9;                 // MPa · mm⁴ → kN·m²
-    var p = { L: ST.L, EI: EI, w: ST.w, P: ST.P, M0: ST.M0, a: ST.a, flip: ST.flip };
+    var p = { L: ST.L, EI: EI, w: ST.w, P: ST.P, M0: ST.M0, a: ST.a, flip: dv.flip };
     var r;
     try { r = F.solve(ST.caseId, p); }
     catch (e) {
@@ -537,15 +598,15 @@
     }
     var d = r.diag, L = ST.L;
 
-    q(root, '#bf-title').textContent = c.name + (ST.flip ? '  (fixed right)' : '');
+    q(root, '#bf-title').textContent = dv.label + ' — ' + c.load;
 
     /* 요약 */
     var dmax = Math.abs(d.yx.abs.v), ratio = dmax > 1e-12 ? L / dmax : Infinity;
-    var isCant = (ST.sup === 'cant');
+    var isCant = (dv.sup === 'cant');
     q(root, '#bf-stats').innerHTML = [
-      // 캔틸레버는 고정단이 어느 쪽이든 그 쪽 값을 읽는다
-      { k: isCant ? 'R fix' : 'R left', v: num(isCant && ST.flip ? d.Vj : d.Vi, 2), s: 'kN', c: SFD },
-      { k: isCant ? 'M fix' : 'R right', v: isCant ? num(Math.abs(ST.flip ? r.Mj : r.Mi), 2) : num(d.Vj, 2), s: isCant ? 'kN·m' : 'kN', c: SFD },
+      { k: isCant ? 'R fix' : 'R left', v: num(isCant && dv.flip ? d.Vj : d.Vi, 2), s: 'kN', c: SFD },
+      { k: isCant ? 'M fix' : 'R right', v: isCant ? num(Math.abs(dv.flip ? r.Mj : r.Mi), 2) : num(d.Vj, 2),
+        s: isCant ? 'kN·m' : 'kN', c: SFD },
       { k: 'M max', v: num(Math.abs(d.Mx.abs.v), 2), s: 'kN·m  @ ' + num(d.Mx.abs.x, 2) + ' m', c: BMD },
       { k: 'δ max', v: num(dmax * 1000, 2), s: 'mm  @ ' + num(d.yx.abs.x, 2) + ' m', c: DEF },
       { k: 'δ / L', v: '1/' + num(ratio, 0), s: 'span ratio', c: DEF },
@@ -577,9 +638,10 @@
      ['defl', d.y.map(function (v) { return v * 1000; }), DEF, 'δ', 'mm', 2, false, true]
     ].forEach(function (cf) {
       if (!want(cf[0])) return;
-      var top = s.grow(18), y0 = s.grow(52);
+      s.grow(18);
+      var yy = s.grow(52);
       drawCurve(s, { x: d.x, v: cf[1], col: cf[2], tag: cf[3], unit: cf[4], dp: cf[5],
-                     flip: cf[6], absv: cf[7], y0: y0, amp: 46, SX: SX, L: L });
+                     flip: cf[6], absv: cf[7], y0: yy, amp: 46, SX: SX, L: L });
       s.grow(74);          // 진폭 46 + 라벨 — 마지막 판이 잘리지 않게
     });
     if (s.h < 40) s.grow(80);
@@ -595,7 +657,7 @@
           val + ' ' + unit + '</td><td class="at">' + esc(o.at || '') + '</td></tr>';
       }).join('') + '</tbody>';
 
-    var fnote = (ST.sup === 'cant' || ST.sup === 'pf')
+    var fnote = isCant
       ? 'x is measured from the fixed end, so the table reads the same whichever side is fixed.'
       : 'x is measured from support A.';
     q(root, '#bf-fnote').innerHTML = (c.note ? '<b>' + esc(c.note) + '</b> ' : '') + esc(fnote) +
