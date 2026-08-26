@@ -1,4 +1,4 @@
-/* beam_formula_test.js — QuickFrame · Beam Formula (TEST build)
+/* beam_formula_test.js — QuickFrame · SimpleBeam (TEST build)
 
    단경간 보를 표준 처짐공식으로 푼다. 지점조건과 하중형태를 고르면 그 경우의
    교과서 식이 값과 함께 나오고, 하중도·SFD·BMD·처짐도를 한 장의 도면으로 그린다.
@@ -8,11 +8,14 @@
 
    단면은 두 갈래로 넣는다:
      User define — I 를 직접 적는다
-     Database    — H-Section / Channel / Square Tube 목록에서 고른다
-   H형강과 채널은 표에 Ix 가 있어 그대로 쓴다. 각형강관 표에는 Ix 가 없어
-   A·B·t·r 에서 계산하는데, 같은 형상식으로 낸 단면적이 표의 단면적과
-   152행 전부 일치한다 (tools/check_sections.js). 표의 단면적 자체가
-   형상에서 계산된 값이므로, 같은 형상 위에서 낸 Ix 도 같은 근거를 갖는다.
+     Database    — H형강 · 채널 · 각형강관 · 파이프
+   H형강과 채널은 표에 Ix 가 있어 그대로 쓴다. 각형강관과 파이프 표에는 Ix 가
+   없어 치수에서 계산하는데, 같은 형상식으로 낸 단면적이 표의 단면적과 전부
+   일치한다 (tools/check_sections.js). 표의 단면적 자체가 형상에서 계산된
+   값이므로, 같은 형상 위에서 낸 Ix 도 같은 근거를 갖는다.
+
+   단면계수는 Stop = Ix/y_top, Sbot = Ix/y_bot 이다. 넷 다 강축에 대칭이라
+   둘이 같고, 표에 단면계수가 실린 H형강·채널은 그 값과 맞는지 검사에서 확인한다.
 
    진입점: fbeam_formula(mountId). layout_body_test.js 가 필요할 때 로드한다.  */
 (function () {
@@ -52,6 +55,10 @@
     '.bf-inrow select{text-align:left}',
     '.bf-inrow input:focus,.bf-inrow select:focus{outline:2px solid var(--dim);outline-offset:1px;border-color:var(--dim)}',
     '.bf-inrow input[readonly]{background:#f8fafc;color:var(--muted)}',
+    '.bf-ro{display:inline-block;width:150px;text-align:right;padding:5px 8px;border:1px dashed var(--line);',
+      'border-radius:6px;background:#f8fafc;color:var(--ink);font-size:13px;',
+      'font-family:ui-monospace,Menlo,Consolas,monospace;font-variant-numeric:tabular-nums}',
+    '.bf-ro.none{color:var(--muted)}',
     '.bf-unit{color:var(--muted);font-size:11px;margin-left:6px}',
     '.bf-wide{width:100%!important;text-align:left!important}',
     '.bf-btn{font:inherit;font-size:10.5px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:#fff;',
@@ -116,16 +123,37 @@
     return (s === '-0.00' || s === '-0.0' || s === '-0') ? s.slice(1) : s;
   }
   function q(root, sel) { return root.querySelector(sel); }
+  /* 표에서 온 값은 유효숫자 3~4자리다. 계산해서 낸 값도 같은 자리로 끊는다 —
+     5.794603167007244 cm⁴ 는 정직해 보이지만 아무도 그렇게 읽지 않는다. */
+  function sig(v, n) {
+    if (!isFinite(v) || v === 0) return 0;
+    return Number(v.toPrecision(n || 4));
+  }
 
   /* ── 단면 DB ─────────────────────────────────────────────────── */
+  /* 단면표. 강축(x) 휨 기준으로 도심에서 상·하 연단까지의 거리를 잡는다.
+     여기 넷은 모두 강축에 대칭이라 y_top = y_bot 이고 따라서 Stop = Sbot 이다.
+       sym  — 대칭 단면의 연단거리
+       calc — 표에 Ix 가 없는 것(각관·파이프)은 치수에서 계산한다
+     열 이름이 표마다 다르므로 여기서 흡수한다. 순서는 Steel Section Tables
+     페이지와 같게 둔다. */
   var SECT = {
     hsection: { label: 'H-Section', file: 'hsection.csv', name: '호칭치수',
-      dims: ['H', 'B', 't1', 't2'], area: '단면적', wt: '단위무게', ix: 'Ix' },
-    channel:  { label: 'Channel', file: 'channel.csv', name: '호칭치수',
-      dims: ['H', 'B', 't1', 't2'], area: '단면적', wt: '단위무게', ix: 'Ix' },
+      dims: ['H', 'B', 't1', 't2'], area: '단면적', wt: '단위무게', ix: 'Ix', zx: 'Sx',
+      sym: function (r) { return +r.H / 2; } },
+    channel: { label: 'Channel', file: 'channel.csv', name: '호칭치수',
+      dims: ['H', 'B', 't1', 't2'], area: '단면적', wt: '단위무게', ix: 'Ix', zx: 'Zx',
+      sym: function (r) { return +r.H / 2; } },
     squaretube: { label: 'Square Tube', file: 'squaretube.csv', name: '호칭치수',
-      dims: ['A', 'B', 't', 'r'], area: '단면적', wt: '단위무게', ix: null }
+      dims: ['A', 'B', 't', 'r'], area: '단면적', wt: '단위무게',
+      calc: function (r) { var p = tubeProps(+r.A, +r.B, +r.t, +r.r); return { I: p.I, A: p.A, y: +r.A / 2 }; } },
+    pipe: { label: 'Pipe', file: 'pipe.csv', name: '호칭치수',
+      dims: ['D', 't'], area: '단면적', wt: '단위무게',
+      calc: function (r) { var D = +r.D, d = D - 2 * (+r.t);
+        return { I: Math.PI * (Math.pow(D, 4) - Math.pow(d, 4)) / 64,
+                 A: Math.PI * (D * D - d * d) / 4, y: D / 2 }; } }
   };
+
   var DB = {};                                  // kind → [{name, ix, area, wt, dim}]
 
   function parseCsv(text) {
@@ -153,6 +181,29 @@
     return { A: o.A - i.A, I: o.I - i.I };      // mm², mm⁴
   }
 
+  /* 표의 한 줄 → 화면이 쓰는 단면 물성. loadDb 안에 두면 node 에서 볼 수 없어
+     tools/check_sections.js 가 배포되는 코드가 아니라 사본을 검사하게 된다. */
+  function sectionRow(cfg, r) {
+    var name = r[cfg.name];
+    if (!name) return null;
+    var ix, area = parseFloat(r[cfg.area]) || 0, ytop, ybot;
+    if (cfg.calc) {
+      var p = cfg.calc(r);
+      ix = p.I / 1e4; area = p.A / 100; ytop = ybot = p.y;          // cm⁴, cm², mm
+    } else {
+      ix = parseFloat(r[cfg.ix]) || 0;
+      ytop = ybot = cfg.sym(r);
+    }
+    if (!(ix > 0 && ytop > 0 && ybot > 0)) return null;
+    return {
+      name: name, ix: ix, area: area, wt: parseFloat(r[cfg.wt]) || 0,
+      dim: cfg.dims.map(function (d) { return d + ' ' + r[d]; }).join(' · '),
+      ytop: ytop, ybot: ybot,
+      stop: ix / (ytop / 10), sbot: ix / (ybot / 10),               // cm⁴ / cm → cm³
+      calc: !!cfg.calc
+    };
+  }
+
   function loadDb(kind, cb) {
     if (DB[kind]) { cb(null, DB[kind]); return; }
     var cfg = SECT[kind];
@@ -163,18 +214,7 @@
                        .then(function (r) { if (!r.ok) throw new Error('HTTP ' + r.status); return r.text(); });
     get
       .then(function (t) {
-        var rows = parseCsv(t).map(function (r) {
-          var name = r[cfg.name];
-          if (!name) return null;
-          var dim = cfg.dims.map(function (d) { return d + ' ' + r[d]; }).join(' · ');
-          var ix, area = parseFloat(r[cfg.area]) || 0;
-          if (cfg.ix) ix = parseFloat(r[cfg.ix]) || 0;                       // cm⁴, 표에 있는 값
-          else {
-            var p = tubeProps(+r.A, +r.B, +r.t, +r.r);                        // 각관은 형상에서 계산
-            ix = p.I / 1e4; area = p.A / 100;
-          }
-          return ix > 0 ? { name: name, ix: ix, area: area, wt: parseFloat(r[cfg.wt]) || 0, dim: dim } : null;
-        }).filter(Boolean);
+        var rows = parseCsv(t).map(function (r) { return sectionRow(cfg, r); }).filter(Boolean);
         DB[kind] = rows; cb(null, rows);
       })
       .catch(function (e) { cb(e); });
@@ -322,7 +362,8 @@
     fixL: true, fixR: true,
     caseId: 'ff-udl', view: 'all',
     L: 8, w: 25, P: 60, M0: 40, a: 3,
-    E: 205000, I: 23700, src: 'user', kind: 'hsection', pick: '', info: ''
+    E: 205000, I: 23700, src: 'user', kind: 'hsection', pick: '', info: '',
+    stop: null, sbot: null
   };
 
   /* 체크 두 개 → 엔진의 경우(case) 하나. 나중에 핀·이동 지점을 넣는다면
@@ -398,6 +439,10 @@
       '        <span><select id="bf-pick" class="bf-wide"></select></span></div>' +
       '      <div class="bf-inrow"><label><span class="var">I</span><span class="desc">2nd moment</span></label>' +
       '        <span><input type="number" id="bf-I" step="10"><span class="bf-unit">cm⁴</span></span></div>' +
+      '      <div class="bf-inrow"><label><span class="var">S top</span><span class="desc">to top fibre</span></label>' +
+      '        <span><span class="bf-ro" id="bf-stop">—</span><span class="bf-unit">cm³</span></span></div>' +
+      '      <div class="bf-inrow"><label><span class="var">S bot</span><span class="desc">to bottom fibre</span></label>' +
+      '        <span><span class="bf-ro" id="bf-sbot">—</span><span class="bf-unit">cm³</span></span></div>' +
       '    </div>' +
       '    <div class="bf-note" id="bf-secnote"></div>' +
       '  </div>' +
@@ -460,7 +505,8 @@
     q(root, '#bf-srcseg').addEventListener('click', function (e) {
       var b = e.target.closest('button'); if (!b) return;
       ST.src = b.dataset.src;
-      if (ST.src === 'db') pickKind(root); else { ST.info = ''; render(root); }   // render 가 syncSrc 를 부른다
+      // 직접 입력으로 돌아가면 표에서 온 단면계수는 더 이상 그 값이 아니다
+      if (ST.src === 'db') pickKind(root); else { ST.info = ''; ST.stop = ST.sbot = null; render(root); }
     });
     q(root, '#bf-kind').addEventListener('change', function () { ST.kind = this.value; pickKind(root); });
     q(root, '#bf-pick').addEventListener('change', function () { applyPick(root, this.value); });
@@ -531,11 +577,15 @@
     var rows = DB[ST.kind] || [], r = null;
     rows.forEach(function (x) { if (x.name === name) r = x; });
     if (!r) return;
-    ST.pick = name; ST.I = r.ix; ST.src = 'db';
-    q(root, '#bf-I').value = (r.ix >= 1000 ? Math.round(r.ix) : r.ix);
+    // 보이는 값과 계산에 들어가는 값을 같게 둔다
+    ST.pick = name; ST.src = 'db';
+    ST.I = (r.ix >= 1000) ? Math.round(r.ix) : sig(r.ix, 4);
+    ST.stop = sig(r.stop, 4); ST.sbot = sig(r.sbot, 4);
+    q(root, '#bf-I').value = ST.I;
     ST.info = SECT[ST.kind].label + ' ' + r.name + ' &nbsp;·&nbsp; ' + esc(r.dim) +
       ' &nbsp;·&nbsp; A = ' + num(r.area, 2) + ' cm² &nbsp;·&nbsp; ' + num(r.wt, 1) + ' kg/m' +
-      (SECT[ST.kind].ix ? '' : ' &nbsp;·&nbsp; <b>Ix computed from A·B·t·r</b>');
+      ' &nbsp;·&nbsp; y<sub>top</sub> ' + num(r.ytop, 1) + ' / y<sub>bot</sub> ' + num(r.ybot, 1) + ' mm' +
+      (r.calc ? ' &nbsp;·&nbsp; <b>Ix computed from the listed dimensions</b>' : '');
     render(root);
   }
 
@@ -588,6 +638,11 @@
     q(root, '#bf-loadunit').textContent = isP ? 'kN' : (isM ? 'kN·m' : 'kN/m');
     q(root, '#bf-load').value = isP ? ST.P : (isM ? ST.M0 : ST.w);
     q(root, '#bf-adesc').textContent = (dv.sup === 'cant') ? 'from fixed end' : 'from A';
+    var hasS = (ST.src === 'db' && ST.stop > 0 && ST.sbot > 0);
+    q(root, '#bf-stop').textContent = hasS ? String(ST.stop) : '—';
+    q(root, '#bf-sbot').textContent = hasS ? String(ST.sbot) : '—';
+    q(root, '#bf-stop').className = 'bf-ro' + (hasS ? '' : ' none');
+    q(root, '#bf-sbot').className = 'bf-ro' + (hasS ? '' : ' none');
     q(root, '#bf-secnote').innerHTML = ST.info ||
       'Enter I directly, or switch to <b>Database</b> to pick an H-Section, Channel or Square Tube.';
 
@@ -689,6 +744,7 @@
   // 각형강관 형상식은 node 에서도 확인한다 (tools/check_sections.js) — 검사가
   // 실제로 배포되는 코드를 보게 하려고 여기서 그대로 내보낸다.
   if (typeof module !== 'undefined' && module.exports) {
-    module.exports = { roundRect: roundRect, tubeProps: tubeProps, parseCsv: parseCsv, SECT: SECT };
+    module.exports = { roundRect: roundRect, tubeProps: tubeProps, parseCsv: parseCsv,
+                       SECT: SECT, sectionRow: sectionRow };
   }
 }());
