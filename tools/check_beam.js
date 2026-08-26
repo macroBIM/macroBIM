@@ -206,11 +206,14 @@ const LSETS = [
   { n: '등분포 2구간 + 집중', ld: [{ type: 'w', w: 22, a: 0, b: 3 }, { type: 'w', w: 9, a: 4.2, b: 3.3 }, { type: 'P', P: 48, a: 3.6 }] },
   { n: '단부 집중 + 부분등분포', ld: [{ type: 'P', P: 35, a: 7.5 }, { type: 'w', w: 14, a: 0, b: 2.5 }] }
 ];
-const SUPMODEL = { ff: ['fix', 'fix'], cant: ['fix', 'free'], cantR: ['free', 'fix'] };
+const SUPMODEL = { ff: ['fix', 'fix'], cant: ['fix', 'free'], cantR: ['free', 'fix'],
+                   ss: ['pin', 'roller'], pf: ['fix', 'roller'], pfR: ['roller', 'fix'] };
+const SUPOF = { ff: 'ff', cant: 'cant', cantR: 'cant', ss: 'ss', pf: 'pf', pfR: 'pf' };
+const FLIPOF = { ff: 0, cant: 0, cantR: 1, ss: 0, pf: 0, pfR: 1 };
 const LL = 7.5, EE = 21000;
 LSETS.forEach(set => {
-  ['ff', 'cant', 'cantR'].forEach(mode => {
-    const sup = (mode === 'ff') ? 'ff' : 'cant', flip = (mode === 'cantR');
+  Object.keys(SUPMODEL).forEach(mode => {
+    const sup = SUPOF[mode], flip = !!FLIPOF[mode];
     let r;
     try { r = B.Formula.solveLoads({ sup: sup, flip: flip, L: LL, EI: EE, loads: set.ld }); }
     catch (e) { fail++; console.log(`  FAIL  ${set.n} / ${mode}: ${e.message}`); return; }
@@ -260,8 +263,8 @@ console.log('⑥ solveLoads ↔ solve (표준 경우가 걸릴 때)');
    같아야 하고, 조금이라도 어긋나면 떼어 본 그림이 거짓말이 된다. */
 console.log('⑦ 하중별 기여의 합 ↔ 전체');
 LSETS.filter(s2 => s2.ld.length > 1).forEach(set => {
-  ['ff', 'cant', 'cantR'].forEach(mode => {
-    const sup = (mode === 'ff') ? 'ff' : 'cant', flip = (mode === 'cantR');
+  Object.keys(SUPMODEL).forEach(mode => {
+    const sup = SUPOF[mode], flip = !!FLIPOF[mode];
     const all = B.Formula.solveLoads({ sup, flip, L: LL, EI: EE, loads: set.ld });
     const parts = set.ld.map(l => B.Formula.solveLoads({ sup, flip, L: LL, EI: EE, loads: [l] }));
     const sc = Math.max(Math.abs(all.diag.Mx.abs.v), 1e-6);

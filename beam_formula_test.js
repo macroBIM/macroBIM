@@ -86,22 +86,19 @@
     '.bf-prev{border-bottom:1px solid var(--hair)}',
     '.bf-prev svg{display:block;width:100%;height:auto}',
     '.bf-ends{display:grid;grid-template-columns:1fr 1fr;gap:1px;background:var(--hair);border-bottom:1px solid var(--hair)}',
-    '.bf-end{display:flex;align-items:flex-start;gap:9px;padding:11px 14px;background:var(--panel);cursor:pointer;margin:0}',
-    '.bf-end input{margin:2px 0 0;width:15px;height:15px;accent-color:var(--dim);cursor:pointer;flex-shrink:0}',
-    '.bf-end b{display:block;font-size:12px;font-weight:600;color:#0f172a}',
-    '.bf-end em{display:block;font-style:normal;font-family:ui-monospace,Menlo,Consolas,monospace;',
-      'font-size:11.5px;color:var(--dim);font-weight:600;margin-top:1px}',
-    '.bf-end em.off{color:var(--muted)}',
-    '.bf-end:hover{background:#f8fafc}',
+    '.bf-end{display:flex;flex-direction:column;gap:6px;padding:11px 14px;background:var(--panel);margin:0}',
+    '.bf-end b{font-size:12px;font-weight:600;color:#0f172a}',
+    '.bf-eseg{align-self:flex-start}',
+    '.bf-eseg button{padding:5px 9px;font-size:11px}',
     '.bf-alert{padding:11px 14px;background:#fef2f2;border-bottom:1px solid #fecaca;color:#991b1b;font-size:12.5px;line-height:1.6}',
     '.bf-alert b{color:#7f1d1d}',
     /* 하중표 — 줄마다 종류·크기·자리. b 는 분포하중에만 있다. */
     '.bf-ltbl{width:100%;border-collapse:collapse;font-size:12.5px}',
     '.bf-ltbl th{font-size:10px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);',
       'font-weight:700;text-align:left;padding:0 5px 5px}',
-    '.bf-ltbl td{padding:3px 5px;vertical-align:middle}',
+    '.bf-ltbl td{padding:3px 4px;vertical-align:middle}',
     '.bf-ltbl td.no{color:var(--muted);font-family:ui-monospace,Menlo,Consolas,monospace;width:18px;text-align:center}',
-    '.bf-ltbl input,.bf-ltbl select{width:100%;padding:5px 7px;border:1px solid var(--line);border-radius:6px;',
+    '.bf-ltbl input,.bf-ltbl select{width:100%;padding:5px 6px;border:1px solid var(--line);border-radius:6px;',
       'background:var(--panel);color:var(--ink);font-size:12.5px;text-align:right;',
       'font-family:ui-monospace,Menlo,Consolas,monospace}',
     '.bf-ltbl select{text-align:left}',
@@ -500,9 +497,9 @@
 
   /* ── 상태 ───────────────────────────────────────────────────── */
   var ST = {
-    /* 지점은 양 끝을 각각 고정(체크) / 자유(해제)로 잡는다.
-       고정+고정 = 양단고정, 한쪽만 고정 = 캔틸레버, 둘 다 풀면 보가 떠 버린다. */
-    fixL: true, fixR: true, view: 'all', showLoad: 'all',
+    /* 지점은 양 끝을 각각 Free / Roller / Fixed 로 잡는다.
+       한 끝에 있을 수 있는 상태가 그 셋이고, 조합이 곧 표준 경우가 된다. */
+    endL: 'roller', endR: 'roller', view: 'all', showLoad: 'all',
     /* 하중은 목록이다. 종류는 둘뿐 —
          w : 등분포, a = 좌단에서 시작점, b = 재하길이
          P : 집중,   a = 좌단에서 작용점 */
@@ -512,33 +509,55 @@
     stop: null, sbot: null
   };
 
-  /* 체크 두 개 → 엔진의 경우(case) 하나. 나중에 핀·이동 지점을 넣는다면
-     여기 한 곳만 늘리면 된다. */
+  /* 양 끝의 상태 조합이 곧 표준 경우 하나다. 아홉 칸 중 일곱이 풀리는 문제이고,
+     나머지 둘은 구조가 성립하지 않는다:
+       free + free   보가 떠 있다
+       roller + free 지점 하나로는 그 점을 중심으로 돌아간다 (기구)
+     롤러 두 개면 단순보다 — 여기 하중은 연직뿐이라 핀과 롤러를 나눌 이유가
+     없고, 그림에서만 왼쪽을 핀으로 그린다(정정 보를 그리는 관례). */
+  var END = { free: 'Free', roller: 'Roller', fix: 'Fixed' };
+  var SUPSYM = { ff: ['fix', 'fix'], cant: ['fix', 'free'], ss: ['pin', 'roller'], pf: ['fix', 'roller'] };
+
   function derive() {
-    if (ST.fixL && ST.fixR) return { sup: 'ff', flip: false, label: 'Fixed – Fixed' };
-    if (ST.fixL) return { sup: 'cant', flip: false, label: 'Cantilever · fixed at A' };
-    if (ST.fixR) return { sup: 'cant', flip: true, label: 'Cantilever · fixed at B' };
-    return null;
+    var a = ST.endL, b = ST.endR;
+    if (a === 'fix' && b === 'fix')       return { sup: 'ff',   flip: false, label: 'Fixed – Fixed' };
+    if (a === 'fix' && b === 'free')      return { sup: 'cant', flip: false, label: 'Cantilever · fixed at A' };
+    if (a === 'free' && b === 'fix')      return { sup: 'cant', flip: true,  label: 'Cantilever · fixed at B' };
+    if (a === 'roller' && b === 'roller') return { sup: 'ss',   flip: false, label: 'Simply supported' };
+    if (a === 'fix' && b === 'roller')    return { sup: 'pf',   flip: false, label: 'Fixed at A – Pinned at B' };
+    if (a === 'roller' && b === 'fix')    return { sup: 'pf',   flip: true,  label: 'Pinned at A – Fixed at B' };
+    if (a === 'free' && b === 'free')     return { bad: 'both' };
+    return { bad: 'single' };
+  }
+
+  /* 그림에 쓸 기호. 성립하는 조합이면 그 경우의 관례대로, 아니면 고른 그대로. */
+  function endSyms(dv) {
+    if (dv.bad) {
+      return [ST.endL === 'fix' ? 'fix' : (ST.endL === 'roller' ? 'pin' : 'free'),
+              ST.endR === 'fix' ? 'fix' : (ST.endR === 'roller' ? 'roller' : 'free')];
+    }
+    var p = SUPSYM[dv.sup].slice();
+    return dv.flip ? p.reverse() : p;
   }
 
   /* 지점 미리보기 — 본 도면과 같은 선·기호로 그린다 */
-  function supportPreview(fixL, fixR, w) {
+  function supportPreview(symL, symR, floating, w) {
     w = w || 420;
     var s = Sheet(w), pad = padOf(w), x1 = pad, x2 = w - pad;
     var y0 = s.grow(56);
     s.line(x1, y0, x2, y0, INK, 2.6);
-    drawSupport(s, x1, y0, fixL ? 'fix' : 'free', 1);
-    drawSupport(s, x2, y0, fixR ? 'fix' : 'free', -1);
+    drawSupport(s, x1, y0, symL, 1);
+    drawSupport(s, x2, y0, symR, -1);
     s.text(x1 - 20, y0 + 4, 'A', INK, { weight: 700, size: 12 });
     s.text(x2 + 20, y0 + 4, 'B', INK, { weight: 700, size: 12 });
-    if (!fixL && !fixR) {
-      // 떠 있는 보 — 아래로 미끄러지는 화살표 두 개로 상태를 그대로 보여 준다
+    if (floating) {
+      // 지탱되지 않는 보 — 어느 쪽으로 무너지는지 화살표로 그대로 보여 준다
       [x1 + 34, x2 - 34].forEach(function (X) {
         s.line(X, y0 + 8, X, y0 + 24, '#b3261e', 1.4, '3 3');
         s.arrow(X, y0 + 28, 0, 1, '#b3261e', 7);
       });
     }
-    s.grow(fixL || fixR ? 34 : 40);
+    s.grow(floating ? 40 : 34);
     return s.out();
   }
 
@@ -557,10 +576,13 @@
       '      <span class="bf-cond" id="bf-cond"></span></div>' +
       '    <div class="bf-prev" id="bf-prev"></div>' +
       '    <div class="bf-ends">' +
-      '      <label class="bf-end"><input type="checkbox" id="bf-fixL" checked>' +
-      '        <span><b>A — left end</b><em id="bf-fixL-t">Fixed</em></span></label>' +
-      '      <label class="bf-end"><input type="checkbox" id="bf-fixR" checked>' +
-      '        <span><b>B — right end</b><em id="bf-fixR-t">Fixed</em></span></label>' +
+      ['L', 'R'].map(function (e) {
+        return '<div class="bf-end"><b>' + (e === 'L' ? 'A — left end' : 'B — right end') + '</b>' +
+          '<span class="bf-seg bf-eseg" id="bf-seg' + e + '">' +
+          ['free', 'roller', 'fix'].map(function (v) {
+            return '<button type="button" data-e="' + e + '" data-v="' + v + '">' + END[v] + '</button>';
+          }).join('') + '</span></div>';
+      }).join('') +
       '    </div>' +
       '    <div class="bf-alert" id="bf-alert" hidden></div>' +
       '    <div class="bf-body" style="padding-top:6px">' +
@@ -644,12 +666,11 @@
       return '<option value="' + k + '">' + esc(SECT[k].label) + '</option>';
     }).join('');
     ['L', 'E', 'I'].forEach(function (f) { q(root, '#bf-' + f).value = ST[f]; });
-    q(root, '#bf-fixL').checked = ST.fixL;
-    q(root, '#bf-fixR').checked = ST.fixR;
 
     ['L', 'R'].forEach(function (e) {
-      q(root, '#bf-fix' + e).addEventListener('change', function () {
-        ST['fix' + e] = this.checked; render(root);
+      q(root, '#bf-seg' + e).addEventListener('click', function (ev) {
+        var b = ev.target.closest('button'); if (!b) return;
+        ST['end' + b.dataset.e] = b.dataset.v; render(root);
       });
     });
     q(root, '#bf-viewbar').addEventListener('click', function (e) {
@@ -729,15 +750,15 @@
     ST.loads.forEach(function (ld, k) {
       var isW = ld.type === 'w';
       h += '<tr><td class="no">' + (k + 1) + '</td>' +
-        '<td style="width:88px"><select data-k="' + k + '" data-f="type">' +
+        '<td style="width:76px"><select data-k="' + k + '" data-f="type">' +
            '<option value="w"' + (isW ? ' selected' : '') + '>UDL</option>' +
            '<option value="P"' + (isW ? '' : ' selected') + '>Point</option></select></td>' +
-        '<td><input type="number" step="0.5" data-k="' + k + '" data-f="v" value="' + (ld.v == null ? '' : ld.v) + '"></td>' +
-        '<td style="width:74px"><input type="number" step="0.1" data-k="' + k + '" data-f="a" value="' + (ld.a == null ? '' : ld.a) + '"></td>' +
-        '<td style="width:74px">' + (isW
+        '<td style="min-width:66px"><input type="number" step="0.5" data-k="' + k + '" data-f="v" value="' + (ld.v == null ? '' : ld.v) + '"></td>' +
+        '<td style="width:62px"><input type="number" step="0.1" data-k="' + k + '" data-f="a" value="' + (ld.a == null ? '' : ld.a) + '"></td>' +
+        '<td style="width:62px">' + (isW
            ? '<input type="number" step="0.1" data-k="' + k + '" data-f="b" value="' + (ld.b == null ? '' : ld.b) + '">'
            : '<span class="dash" style="display:block;text-align:center">—</span>') + '</td>' +
-        '<td style="width:30px"><button type="button" class="bf-del" data-k="' + k + '"' +
+        '<td style="width:26px"><button type="button" class="bf-del" data-k="' + k + '"' +
            (ST.loads.length <= 1 ? ' disabled' : '') + ' title="Remove">−</button></td></tr>';
     });
     q(root, '#bf-ltbl').innerHTML = h + '</tbody>';
@@ -804,23 +825,29 @@
     syncSrc(root);
 
     /* 지점 카드 */
-    q(root, '#bf-prev').innerHTML = supportPreview(ST.fixL, ST.fixR, plotWidth(root, '#bf-prev'));
-    q(root, '#bf-fixL-t').textContent = ST.fixL ? 'Fixed' : 'Free';
-    q(root, '#bf-fixR-t').textContent = ST.fixR ? 'Fixed' : 'Free';
-    q(root, '#bf-fixL-t').className = ST.fixL ? '' : 'off';
-    q(root, '#bf-fixR-t').className = ST.fixR ? '' : 'off';
-    q(root, '#bf-cond').textContent = dv ? dv.label : 'Unsupported';
-    q(root, '#bf-cond').className = 'bf-cond' + (dv ? '' : ' bad');
+    ['L', 'R'].forEach(function (e) {
+      Array.prototype.forEach.call(q(root, '#bf-seg' + e).children, function (b) {
+        b.setAttribute('aria-pressed', String(b.dataset.v === ST['end' + e]));
+      });
+    });
+    var sym = endSyms(dv);
+    q(root, '#bf-prev').innerHTML = supportPreview(sym[0], sym[1], !!dv.bad, plotWidth(root, '#bf-prev'));
+    q(root, '#bf-cond').textContent = dv.bad ? 'Not a structure' : dv.label;
+    q(root, '#bf-cond').className = 'bf-cond' + (dv.bad ? ' bad' : '');
 
     var alert = q(root, '#bf-alert');
-    alert.hidden = !!dv;
-    if (!dv) {
-      alert.innerHTML = '<b>Both ends released.</b> The beam is unsupported — it has no reaction to carry ' +
-        'the load and no unique deflected shape. Fix at least one end.';
+    alert.hidden = !dv.bad;
+    if (dv.bad) {
+      alert.innerHTML = (dv.bad === 'both')
+        ? '<b>Both ends free.</b> The beam is unsupported — no reaction to carry the load and no unique ' +
+          'deflected shape. Support both ends, or fix one.'
+        : '<b>One simple support only.</b> The beam is free to rotate about it — a mechanism, not a ' +
+          'structure. Make that end <b>Fixed</b>, or support the other end too.';
       q(root, '#bf-title').textContent = 'Beam Diagram';
       q(root, '#bf-stats').innerHTML = '';
-      q(root, '#bf-plot').innerHTML = '<div class="bf-err">No solution: both ends are free.</div>';
+      q(root, '#bf-plot').innerHTML = '<div class="bf-err">No solution: the beam is not supported.</div>';
       q(root, '#bf-fcard').hidden = true;
+      CUR = null;
       return;
     }
     q(root, '#bf-fcard').hidden = false;
@@ -937,7 +964,8 @@
       q(root, '#bf-formula').innerHTML =
         '<thead><tr><th>Quantity</th><th>Formula</th><th>Value</th><th>At</th></tr></thead><tbody>' +
         rowsHtml + '</tbody>';
-      note = (c.note ? '<b>' + esc(c.note) + '</b> ' : '') + (isCant
+      var fromFix = (dv.sup === 'cant' || dv.sup === 'pf');
+      note = (c.note ? '<b>' + esc(c.note) + '</b> ' : '') + (fromFix
         ? 'x is measured from the fixed end, so the table reads the same whichever side is fixed.'
         : 'x is measured from support A.');
     } else {
