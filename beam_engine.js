@@ -374,7 +374,7 @@
       ]
     }),
     mkCase({
-      id: 'ss-pmid', sup: 'ss', load: 'Point load at midspan', needs: ['P'],
+      id: 'ss-pmid', sup: 'ss', load: 'Concentrated load at midspan', needs: ['P'],
       mk: function (p) { return [{ type: 'P', P: -p.P, a: p.L / 2 }]; },
       closed: [
         { k: 'R_A', tex: 'P/2', f: function (p) { return p.P / 2; } },
@@ -385,7 +385,7 @@
       ]
     }),
     mkCase({
-      id: 'ss-pa', sup: 'ss', load: 'Point load at any point', needs: ['P', 'a'],
+      id: 'ss-pa', sup: 'ss', load: 'Concentrated load at any point', needs: ['P', 'a'],
       mk: function (p) { return [{ type: 'P', P: -p.P, a: p.a }]; },
       closed: [
         { k: 'R_A', tex: 'Pb/L', f: function (p) { return p.P * (p.L - p.a) / p.L; } },
@@ -437,7 +437,7 @@
       ]
     }),
     mkCase({
-      id: 'cant-pend', sup: 'cant', load: 'Point load at free end', needs: ['P'],
+      id: 'cant-pend', sup: 'cant', load: 'Concentrated load at free end', needs: ['P'],
       mk: function (p) { return [{ type: 'P', P: -p.P, a: p.L }]; },
       closed: [
         { k: 'R_fix', tex: 'P', f: function (p) { return p.P; } },
@@ -447,7 +447,7 @@
       ]
     }),
     mkCase({
-      id: 'cant-pa', sup: 'cant', load: 'Point load at any point', needs: ['P', 'a'],
+      id: 'cant-pa', sup: 'cant', load: 'Concentrated load at any point', needs: ['P', 'a'],
       closed: [
         { k: 'R_fix', tex: 'P', f: function (p) { return p.P; } },
         { k: 'M_fix', tex: 'Pa', at: 'fixed end', f: function (p) { return p.P * p.a; } },
@@ -499,7 +499,7 @@
       ]
     }),
     mkCase({
-      id: 'ff-pmid', sup: 'ff', load: 'Point load at midspan', needs: ['P'],
+      id: 'ff-pmid', sup: 'ff', load: 'Concentrated load at midspan', needs: ['P'],
       mk: function (p) { return [{ type: 'P', P: -p.P, a: p.L / 2 }]; },
       closed: [
         { k: 'R_A', tex: 'P/2', f: function (p) { return p.P / 2; } },
@@ -509,7 +509,7 @@
       ]
     }),
     mkCase({
-      id: 'ff-pa', sup: 'ff', load: 'Point load at any point', needs: ['P', 'a'],
+      id: 'ff-pa', sup: 'ff', load: 'Concentrated load at any point', needs: ['P', 'a'],
       mk: function (p) { return [{ type: 'P', P: -p.P, a: p.a }]; },
       closed: [
         { k: 'R_A', tex: 'Pb²(L+2a)/L³', f: function (p) { var a = p.a, b = p.L - a;
@@ -549,7 +549,7 @@
       ]
     }),
     mkCase({
-      id: 'pf-pmid', sup: 'pf', load: 'Point load at midspan', needs: ['P'],
+      id: 'pf-pmid', sup: 'pf', load: 'Concentrated load at midspan', needs: ['P'],
       mk: function (p) { return [{ type: 'P', P: -p.P, a: p.L / 2 }]; },
       closed: [
         { k: 'R_fix', tex: '11P/16', f: function (p) { return 11 * p.P / 16; } },
@@ -561,7 +561,7 @@
       ]
     }),
     mkCase({
-      id: 'pf-pa', sup: 'pf', load: 'Point load at any point', needs: ['P', 'a'],
+      id: 'pf-pa', sup: 'pf', load: 'Concentrated load at any point', needs: ['P', 'a'],
       mk: function (p) { return [{ type: 'P', P: -p.P, a: p.a }]; },
       closed: [
         { k: 'R_pin', tex: 'Pa²(3L−a)/2L³', f: function (p) { return p.P * p.a * p.a * (3 * p.L - p.a) / (2 * Math.pow(p.L, 3)); } },

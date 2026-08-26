@@ -169,21 +169,21 @@
     hsection: { label: 'H-Section', file: 'hsection.csv', name: '호칭치수',
       dims: ['H', 'B', 't1', 't2'], area: '단면적', wt: '단위무게', ix: 'Ix', zx: 'Sx', ks: 'KS규격여부',
       sym: function (r) { return +r.H / 2; },
-      tag: function (r) { return '×' + r.t1 + '/' + r.t2; } },
+      tag: function (r) { return '· tw ' + r.t1 + ' / tf ' + r.t2; } },
     channel: { label: 'Channel', file: 'channel.csv', name: '호칭치수',
       dims: ['H', 'B', 't1', 't2'], area: '단면적', wt: '단위무게', ix: 'Ix', zx: 'Zx', ks: 'KS규격여부',
       sym: function (r) { return +r.H / 2; },
-      tag: function (r) { return '×' + r.t1 + '/' + r.t2; } },
+      tag: function (r) { return '· tw ' + r.t1 + ' / tf ' + r.t2; } },
     squaretube: { label: 'Square Tube', file: 'squaretube.csv', name: '호칭치수',
       dims: ['A', 'B', 't', 'r'], area: '단면적', wt: '단위무게', std: '규격',
       calc: function (r) { var p = tubeProps(+r.A, +r.B, +r.t, +r.r); return { I: p.I, A: p.A, y: +r.A / 2 }; },
-      tag: function (r) { return r['규격'] || ''; } },
+      tag: function (r) { return r['규격'] ? '· ' + r['규격'] : ''; } },
     pipe: { label: 'Pipe', file: 'pipe.csv', name: '호칭치수',
       dims: ['D', 't'], area: '단면적', wt: '단위무게', std: '규격', ks: 'KS규격여부',
       calc: function (r) { var D = +r.D, d = D - 2 * (+r.t);
         return { I: Math.PI * (Math.pow(D, 4) - Math.pow(d, 4)) / 64,
                  A: Math.PI * (D * D - d * d) / 4, y: D / 2 }; },
-      tag: function (r) { return r['규격'] || ''; } }
+      tag: function (r) { return r['규격'] ? '· ' + r['규격'] : ''; } }
   };
 
   var DB = {};                                  // kind → [{name, ix, area, wt, dim}]
@@ -251,7 +251,7 @@
     var used = {};
     rows.forEach(function (r, i) {
       var lab = r.label;
-      if (seen[lab] > 1) lab += '  ' + num(r.wt, 1) + ' kg/m';
+      if (seen[lab] > 1) lab += ' · ' + num(r.wt, 1) + ' kg/m';
       if (used[lab]) lab += '  #' + (i + 1);
       used[lab] = 1;
       r.label = lab; r.key = lab;
@@ -351,12 +351,19 @@
   }
 
   /* 치수선 — 단면 도면의 DL 과 같은 모양 */
-  function drawDim(s, x1, x2, y, label) {
+  // extTo 를 주면 연장선을 그 높이까지 내린다 — 보 위쪽 치수는 어디를 잰
+  // 것인지 보에 닿아야 읽힌다.
+  function drawDim(s, x1, x2, y, label, extTo) {
     s.line(x1, y, x2, y, DIM, 1);
     s.arrow(x1, y, -1, 0, DIM); s.arrow(x2, y, 1, 0, DIM);
-    s.line(x1, y - 9, x1, y + 5, DIM, 0.6, '2 2');
-    s.line(x2, y - 9, x2, y + 5, DIM, 0.6, '2 2');
-    s.text((x1 + x2) / 2, y - 9, label, DIM);
+    if (extTo == null) {
+      s.line(x1, y - 9, x1, y + 5, DIM, 0.6, '2 2');
+      s.line(x2, y - 9, x2, y + 5, DIM, 0.6, '2 2');
+    } else {
+      s.line(x1, y - 5, x1, extTo, HID, 0.6, '2 3');
+      s.line(x2, y - 5, x2, extTo, HID, 0.6, '2 3');
+    }
+    s.text((x1 + x2) / 2, y - 9, label, DIM, { halo: 1 });
   }
 
   /* 하중 기호.
@@ -364,7 +371,25 @@
      작은 배치기를 둔다 — 같은 높이에 이미 글자가 있으면 한 칸 위로 올린다.
      분포하중 띠를 먼저 깔고 집중하중을 그 위에 얹어야 화살표가 묻히지 않는다. */
   var LOAD_BAND = 30;                 // 분포하중 띠의 최대 높이
-  function loadHeadroom(n) { return LOAD_BAND + 16 + 13 * Math.max(0, n - 1) + 26; }
+
+  /* 하중이 어디에 있는지는 그림 맨 위에 치수로 적는다. 아래에는 전체 지간이
+     있으므로, 위에는 그 안에서 어디인지만 있으면 된다.
+       CON  a — 좌단에서 작용점
+       UDL  a — 좌단에서 시작점,  b — 재하길이 (전지간이면 생략) */
+  function loadDims(loads, L) {
+    var out = [], seen = {};
+    function add(x1, x2, t) {
+      var k = x1.toFixed(4) + '|' + x2.toFixed(4) + '|' + t;
+      if (seen[k] || x2 - x1 < 1e-9) return;
+      seen[k] = 1; out.push({ x1: x1, x2: x2, t: t });
+    }
+    (loads || []).forEach(function (ld) {
+      var o = window.BeamEngine.Load.norm(ld, L);
+      if (o.a > 1e-9) add(0, o.a, 'a = ' + num(o.a, 2) + ' m');
+      if (o.type === 'w' && (o.a > 1e-9 || o.b < L - 1e-9)) add(o.a, o.b, 'b = ' + num(o.b - o.a, 2) + ' m');
+    });
+    return out;
+  }
 
   function drawLoads(s, loads, L, SX, y0) {
     var base = y0 - LOAD_BAND - 16, placed = [];
@@ -668,7 +693,8 @@
       '    <div class="bf-alert" id="bf-lerr" hidden></div>' +
       '    <div class="bf-note">' +
       '      <b>a</b> is measured from the left end (A), whichever end is fixed. ' +
-      '      <b>b</b> is the loaded length of a UDL. Loads act downward.</div>' +
+      '      <b>b</b> is the loaded length of a UDL — it follows a to the end of the span ' +
+      '      unless you type your own. Loads act downward.</div>' +
       '  </div>' +
       '</div>' +
 
@@ -742,6 +768,15 @@
         var v = parseFloat(this.value);
         ST[f] = isFinite(v) ? v : ((f === 'stop' || f === 'sbot') ? 0 : ST[f]);
         if (f === 'stop' || f === 'sbot') ST.src = 'user';    // 손으로 고치면 표의 값이 아니다
+        if (f === 'L' && ST.L > 0) {
+          // 지간을 줄이면 넘치는 하중을 지간 안으로 들인다. 늘릴 때는 손대지 않는다 —
+          // 적어 둔 값을 마음대로 늘리는 것이 되니까.
+          ST.loads.forEach(function (ld) {
+            if (ld.type === 'w') { ld.b = Math.min(ld.b, Math.max(0, ST.L - (ld.a || 0))); ld.a = Math.min(ld.a || 0, ST.L); }
+            else ld.a = Math.min(ld.a || 0, ST.L);
+          });
+          renderLoads(root);
+        }
         render(root);
       });
     });
@@ -772,7 +807,19 @@
     });
     q(root, '#bf-ltbl').addEventListener('input', function (e) {
       var inp = e.target.closest('input[data-f]'); if (!inp) return;
-      ST.loads[+inp.dataset.k][inp.dataset.f] = parseFloat(inp.value);
+      var k = +inp.dataset.k, f = inp.dataset.f, ld = ST.loads[k];
+      ld[f] = parseFloat(inp.value);
+      /* 분포하중의 시작점을 옮기면 재하길이는 남은 지간으로 따라간다 —
+         대개 "여기서부터 끝까지"이고, 아니면 b 를 다시 적으면 된다.
+         표를 다시 그리지 않고 그 칸만 고친다(타이핑 중인 커서를 지키려고). */
+      if (f === 'a' && ld.type === 'w') {
+        var rest = Math.max(0, +(ST.L - (ld.a || 0)).toFixed(3));
+        if (isFinite(rest)) {
+          ld.b = rest;
+          var bi = q(root, '#bf-ltbl').querySelector('input[data-k="' + k + '"][data-f="b"]');
+          if (bi && document.activeElement !== bi) bi.value = rest;
+        }
+      }
       render(root);
     });
 
@@ -804,12 +851,12 @@
   }
 
   var MAXLOAD = 10;
-  var LTYPE = { w: ['UDL', 'kN/m'], P: ['Point', 'kN'] };
+  var LTYPE = { w: ['UDL', 'kN/m'], P: ['CON', 'kN'] };   // CON = concentrated load
 
   function loadLabel(ld, k) {
     return (k + 1) + '. ' + (ld.type === 'w'
       ? 'UDL ' + num(ld.v, 1) + ' kN/m  ' + num(ld.a, 2) + '–' + num((+ld.a || 0) + (+ld.b || 0), 2) + ' m'
-      : 'Point ' + num(ld.v, 1) + ' kN @ ' + num(ld.a, 2) + ' m');
+      : 'CON ' + num(ld.v, 1) + ' kN @ ' + num(ld.a, 2) + ' m');
   }
 
   /* 하중표를 다시 그린다 (줄 추가·삭제·종류 변경 때만) */
@@ -821,7 +868,7 @@
       h += '<tr><td class="no">' + (k + 1) + '</td>' +
         '<td style="width:76px"><select data-k="' + k + '" data-f="type">' +
            '<option value="w"' + (isW ? ' selected' : '') + '>UDL</option>' +
-           '<option value="P"' + (isW ? '' : ' selected') + '>Point</option></select></td>' +
+           '<option value="P"' + (isW ? '' : ' selected') + '>CON</option></select></td>' +
         '<td style="min-width:66px"><input type="number" step="0.5" data-k="' + k + '" data-f="v" value="' + (ld.v == null ? '' : ld.v) + '"></td>' +
         '<td style="width:62px"><input type="number" step="0.1" data-k="' + k + '" data-f="a" value="' + (ld.a == null ? '' : ld.a) + '"></td>' +
         '<td style="width:62px">' + (isW
@@ -1033,8 +1080,13 @@
     function want(k) { return show === 'all' || show === k; }
 
     if (want('load')) {
-      var y0 = s.grow(Math.max(112, loadHeadroom(r.loads.length)));
+      var ld = loadDims(r.loads, L);
+      // 위쪽 치수 + 하중 라벨 + 띠가 모두 들어갈 높이
+      var y0 = s.grow(Math.max(112, 80 + 17 * ld.length + 13 * Math.max(0, r.loads.length - 1)));
       s.line(SX(0, L), y0, SX(L, L), y0, INK, 2.4);
+      ld.forEach(function (d, i) {
+        drawDim(s, SX(d.x1, L), SX(d.x2, L), 20 + 17 * i, d.t, y0);
+      });
       drawLoads(s, r.loads, L, SX, y0);
       drawSupport(s, SX(0, L), y0, r.supports[0], 1);
       drawSupport(s, SX(L, L), y0, r.supports[1], -1);
