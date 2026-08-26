@@ -353,13 +353,17 @@
      그 자리에서 걸린다.
      ==================================================================== */
   var R3 = Math.sqrt(3);
+  var SUPLABEL = { ss: 'Simply supported', cant: 'Cantilever', ff: 'Fixed–Fixed', pf: 'Fixed–Pinned' };
+  var SUPENDS  = { ss: ['pin', 'roller'], cant: ['fix', 'free'], ff: ['fix', 'fix'], pf: ['fix', 'roller'] };
 
   function mkCase(o) { return o; }
 
+  /* 표시 문자열은 영어다 — 사이트의 Steel Section Tables 와 도면 모듈이 이미
+     영어이고, 이 카드도 그 옆에 선다. 주석은 저장소 관례대로 한국어. */
   var FCASES = [
-    /* ── 단순보 ─────────────────────────────────────────────────── */
+    /* ── Simply supported ────────────────────────────────────────── */
     mkCase({
-      id: 'ss-udl', sup: 'ss', name: '단순보 · 등분포하중', needs: ['w'],
+      id: 'ss-udl', sup: 'ss', load: 'Uniform load, full span', needs: ['w'],
       mk: function (p) { return [{ type: 'w', w1: -p.w, w2: -p.w }]; },
       closed: [
         { k: 'R_A', tex: 'wL/2', f: function (p) { return p.w * p.L / 2; } },
@@ -370,7 +374,7 @@
       ]
     }),
     mkCase({
-      id: 'ss-pmid', sup: 'ss', name: '단순보 · 중앙 집중하중', needs: ['P'],
+      id: 'ss-pmid', sup: 'ss', load: 'Point load at midspan', needs: ['P'],
       mk: function (p) { return [{ type: 'P', P: -p.P, a: p.L / 2 }]; },
       closed: [
         { k: 'R_A', tex: 'P/2', f: function (p) { return p.P / 2; } },
@@ -381,13 +385,13 @@
       ]
     }),
     mkCase({
-      id: 'ss-pa', sup: 'ss', name: '단순보 · 임의점 집중하중', needs: ['P', 'a'],
+      id: 'ss-pa', sup: 'ss', load: 'Point load at any point', needs: ['P', 'a'],
       mk: function (p) { return [{ type: 'P', P: -p.P, a: p.a }]; },
       closed: [
         { k: 'R_A', tex: 'Pb/L', f: function (p) { return p.P * (p.L - p.a) / p.L; } },
         { k: 'R_B', tex: 'Pa/L', f: function (p) { return p.P * p.a / p.L; } },
         { k: 'M_max', tex: 'Pab/L', at: 'x = a', f: function (p) { return p.P * p.a * (p.L - p.a) / p.L; } },
-        { k: 'δ_max', tex: 'Pb(L²−b²)^1.5 / (9√3·LEI)', at: 'x = √((L²−b²)/3)', d: 1,
+        { k: 'δ_max', tex: 'Pb(L²−b²)^1.5 / 9√3·LEI', at: 'x = √((L²−b²)/3)', d: 1,
           f: function (p) { var a = Math.max(p.a, p.L - p.a), b = p.L - a;
             return p.P * b * Math.pow(p.L * p.L - b * b, 1.5) / (9 * R3 * p.L * p.EI); } },
         { k: 'θ_A', tex: 'Pab(L+b)/6LEI', r: 1, f: function (p) { var a = p.a, b = p.L - p.a;
@@ -395,189 +399,191 @@
       ]
     }),
     mkCase({
-      id: 'ss-tri', sup: 'ss', name: '단순보 · 삼각분포(우측 최대)', needs: ['w'],
+      id: 'ss-tri', sup: 'ss', load: 'Triangular load, max at right', needs: ['w'],
       mk: function (p) { return [{ type: 'w', w1: 0, w2: -p.w }]; },
       closed: [
         { k: 'R_A', tex: 'wL/6', f: function (p) { return p.w * p.L / 6; } },
         { k: 'R_B', tex: 'wL/3', f: function (p) { return p.w * p.L / 3; } },
-        { k: 'M_max', tex: 'wL²/(9√3)', at: 'x = L/√3', f: function (p) { return p.w * p.L * p.L / (9 * R3); } },
+        { k: 'M_max', tex: 'wL²/9√3', at: 'x = L/√3', f: function (p) { return p.w * p.L * p.L / (9 * R3); } },
         { k: 'δ_max', tex: '0.00652 wL⁴/EI', at: 'x = 0.5193L', d: 1, tol: 1e-3,
           f: function (p) { return 0.00652 * p.w * Math.pow(p.L, 4) / p.EI; } },
         { k: 'θ_A', tex: '7wL³/360EI', r: 1, f: function (p) { return 7 * p.w * Math.pow(p.L, 3) / (360 * p.EI); } }
       ]
     }),
     mkCase({
-      id: 'ss-mend', sup: 'ss', name: '단순보 · 단부 모멘트(A단)', needs: ['M0'],
-      note: '양지점의 반력은 크기가 같고 방향이 반대인 짝힘이다 (A단 하향, B단 상향).',
+      id: 'ss-mend', sup: 'ss', load: 'Moment at end A', needs: ['M0'],
+      note: 'The two reactions form a couple — down at A, up at B.',
       mk: function (p) { return [{ type: 'M', M: -p.M0, a: 0 }]; },
       closed: [
-        { k: 'R_A', tex: '−M₀/L (하향)', f: function (p) { return -p.M0 / p.L; } },
-        { k: 'R_B', tex: 'M₀/L (상향)', f: function (p) { return p.M0 / p.L; } },
+        { k: 'R_A', tex: '−M₀/L (down)', f: function (p) { return -p.M0 / p.L; } },
+        { k: 'R_B', tex: 'M₀/L (up)', f: function (p) { return p.M0 / p.L; } },
         { k: 'M_max', tex: 'M₀', at: 'x = 0', f: function (p) { return p.M0; } },
-        { k: 'δ_max', tex: 'M₀L²/(9√3·EI)', at: 'x = L(1−1/√3)', d: 1,
+        { k: 'δ_max', tex: 'M₀L²/9√3·EI', at: 'x = L(1−1/√3)', d: 1,
           f: function (p) { return p.M0 * p.L * p.L / (9 * R3 * p.EI); } },
         { k: 'θ_A', tex: 'M₀L/3EI', r: 1, f: function (p) { return p.M0 * p.L / (3 * p.EI); } }
       ]
     }),
 
-    /* ── 캔틸레버 (좌측 고정) ───────────────────────────────────── */
+    /* ── Cantilever — 식의 x 는 모두 **고정단에서** 잰다. 그래야 고정단을
+         왼쪽에서 오른쪽으로 뒤집어도 표를 고쳐 쓸 필요가 없다. ─────── */
     mkCase({
-      id: 'cant-udl', sup: 'cant', name: '캔틸레버 · 등분포하중', needs: ['w'],
+      id: 'cant-udl', sup: 'cant', load: 'Uniform load, full span', needs: ['w'],
       mk: function (p) { return [{ type: 'w', w1: -p.w, w2: -p.w }]; },
       closed: [
-        { k: 'R_A', tex: 'wL', f: function (p) { return p.w * p.L; } },
-        { k: 'M_A', tex: 'wL²/2', at: '고정단', f: function (p) { return p.w * p.L * p.L / 2; } },
-        { k: 'δ_max', tex: 'wL⁴/8EI', at: 'x = L', d: 1, f: function (p) { return p.w * Math.pow(p.L, 4) / (8 * p.EI); } },
-        { k: 'θ_B', tex: 'wL³/6EI', r: 1, e: 'j', f: function (p) { return p.w * Math.pow(p.L, 3) / (6 * p.EI); } }
+        { k: 'R_fix', tex: 'wL', f: function (p) { return p.w * p.L; } },
+        { k: 'M_fix', tex: 'wL²/2', at: 'fixed end', f: function (p) { return p.w * p.L * p.L / 2; } },
+        { k: 'δ_max', tex: 'wL⁴/8EI', at: 'free end', d: 1, f: function (p) { return p.w * Math.pow(p.L, 4) / (8 * p.EI); } },
+        { k: 'θ_free', tex: 'wL³/6EI', r: 1, e: 'j', f: function (p) { return p.w * Math.pow(p.L, 3) / (6 * p.EI); } }
       ]
     }),
     mkCase({
-      id: 'cant-pend', sup: 'cant', name: '캔틸레버 · 자유단 집중하중', needs: ['P'],
+      id: 'cant-pend', sup: 'cant', load: 'Point load at free end', needs: ['P'],
       mk: function (p) { return [{ type: 'P', P: -p.P, a: p.L }]; },
       closed: [
-        { k: 'R_A', tex: 'P', f: function (p) { return p.P; } },
-        { k: 'M_A', tex: 'PL', at: '고정단', f: function (p) { return p.P * p.L; } },
-        { k: 'δ_max', tex: 'PL³/3EI', at: 'x = L', d: 1, f: function (p) { return p.P * Math.pow(p.L, 3) / (3 * p.EI); } },
-        { k: 'θ_B', tex: 'PL²/2EI', r: 1, e: 'j', f: function (p) { return p.P * p.L * p.L / (2 * p.EI); } }
+        { k: 'R_fix', tex: 'P', f: function (p) { return p.P; } },
+        { k: 'M_fix', tex: 'PL', at: 'fixed end', f: function (p) { return p.P * p.L; } },
+        { k: 'δ_max', tex: 'PL³/3EI', at: 'free end', d: 1, f: function (p) { return p.P * Math.pow(p.L, 3) / (3 * p.EI); } },
+        { k: 'θ_free', tex: 'PL²/2EI', r: 1, e: 'j', f: function (p) { return p.P * p.L * p.L / (2 * p.EI); } }
       ]
     }),
     mkCase({
-      id: 'cant-pa', sup: 'cant', name: '캔틸레버 · 임의점 집중하중', needs: ['P', 'a'],
-      mk: function (p) { return [{ type: 'P', P: -p.P, a: p.a }]; },
+      id: 'cant-pa', sup: 'cant', load: 'Point load at any point', needs: ['P', 'a'],
       closed: [
-        { k: 'R_A', tex: 'P', f: function (p) { return p.P; } },
-        { k: 'M_A', tex: 'Pa', at: '고정단', f: function (p) { return p.P * p.a; } },
-        { k: 'δ_max', tex: 'Pa²(3L−a)/6EI', at: 'x = L', d: 1,
+        { k: 'R_fix', tex: 'P', f: function (p) { return p.P; } },
+        { k: 'M_fix', tex: 'Pa', at: 'fixed end', f: function (p) { return p.P * p.a; } },
+        { k: 'δ_max', tex: 'Pa²(3L−a)/6EI', at: 'free end', d: 1,
           f: function (p) { return p.P * p.a * p.a * (3 * p.L - p.a) / (6 * p.EI); } },
-        { k: 'θ_B', tex: 'Pa²/2EI', r: 1, e: 'j', f: function (p) { return p.P * p.a * p.a / (2 * p.EI); } }
-      ]
+        { k: 'θ_free', tex: 'Pa²/2EI', r: 1, e: 'j', f: function (p) { return p.P * p.a * p.a / (2 * p.EI); } }
+      ],
+      mk: function (p) { return [{ type: 'P', P: -p.P, a: p.a }]; }
     }),
     mkCase({
-      id: 'cant-tri-a', sup: 'cant', name: '캔틸레버 · 삼각분포(고정단 최대)', needs: ['w'],
+      id: 'cant-tri-a', sup: 'cant', load: 'Triangular load, max at fixed end', needs: ['w'],
       mk: function (p) { return [{ type: 'w', w1: -p.w, w2: 0 }]; },
       closed: [
-        { k: 'R_A', tex: 'wL/2', f: function (p) { return p.w * p.L / 2; } },
-        { k: 'M_A', tex: 'wL²/6', at: '고정단', f: function (p) { return p.w * p.L * p.L / 6; } },
-        { k: 'δ_max', tex: 'wL⁴/30EI', at: 'x = L', d: 1, f: function (p) { return p.w * Math.pow(p.L, 4) / (30 * p.EI); } },
-        { k: 'θ_B', tex: 'wL³/24EI', r: 1, e: 'j', f: function (p) { return p.w * Math.pow(p.L, 3) / (24 * p.EI); } }
+        { k: 'R_fix', tex: 'wL/2', f: function (p) { return p.w * p.L / 2; } },
+        { k: 'M_fix', tex: 'wL²/6', at: 'fixed end', f: function (p) { return p.w * p.L * p.L / 6; } },
+        { k: 'δ_max', tex: 'wL⁴/30EI', at: 'free end', d: 1, f: function (p) { return p.w * Math.pow(p.L, 4) / (30 * p.EI); } },
+        { k: 'θ_free', tex: 'wL³/24EI', r: 1, e: 'j', f: function (p) { return p.w * Math.pow(p.L, 3) / (24 * p.EI); } }
       ]
     }),
     mkCase({
-      id: 'cant-tri-b', sup: 'cant', name: '캔틸레버 · 삼각분포(자유단 최대)', needs: ['w'],
+      id: 'cant-tri-b', sup: 'cant', load: 'Triangular load, max at free end', needs: ['w'],
       mk: function (p) { return [{ type: 'w', w1: 0, w2: -p.w }]; },
       closed: [
-        { k: 'R_A', tex: 'wL/2', f: function (p) { return p.w * p.L / 2; } },
-        { k: 'M_A', tex: 'wL²/3', at: '고정단', f: function (p) { return p.w * p.L * p.L / 3; } },
-        { k: 'δ_max', tex: '11wL⁴/120EI', at: 'x = L', d: 1, f: function (p) { return 11 * p.w * Math.pow(p.L, 4) / (120 * p.EI); } },
-        { k: 'θ_B', tex: 'wL³/8EI', r: 1, e: 'j', f: function (p) { return p.w * Math.pow(p.L, 3) / (8 * p.EI); } }
+        { k: 'R_fix', tex: 'wL/2', f: function (p) { return p.w * p.L / 2; } },
+        { k: 'M_fix', tex: 'wL²/3', at: 'fixed end', f: function (p) { return p.w * p.L * p.L / 3; } },
+        { k: 'δ_max', tex: '11wL⁴/120EI', at: 'free end', d: 1, f: function (p) { return 11 * p.w * Math.pow(p.L, 4) / (120 * p.EI); } },
+        { k: 'θ_free', tex: 'wL³/8EI', r: 1, e: 'j', f: function (p) { return p.w * Math.pow(p.L, 3) / (8 * p.EI); } }
       ]
     }),
     mkCase({
-      id: 'cant-mend', sup: 'cant', name: '캔틸레버 · 자유단 모멘트', needs: ['M0'],
+      id: 'cant-mend', sup: 'cant', load: 'Moment at free end', needs: ['M0'],
       mk: function (p) { return [{ type: 'M', M: -p.M0, a: p.L }]; },
       closed: [
-        { k: 'M_A', tex: 'M₀', at: '고정단', f: function (p) { return p.M0; } },
-        { k: 'δ_max', tex: 'M₀L²/2EI', at: 'x = L', d: 1, f: function (p) { return p.M0 * p.L * p.L / (2 * p.EI); } },
-        { k: 'θ_B', tex: 'M₀L/EI', r: 1, e: 'j', f: function (p) { return p.M0 * p.L / p.EI; } }
+        { k: 'M_fix', tex: 'M₀', at: 'fixed end', f: function (p) { return p.M0; } },
+        { k: 'δ_max', tex: 'M₀L²/2EI', at: 'free end', d: 1, f: function (p) { return p.M0 * p.L * p.L / (2 * p.EI); } },
+        { k: 'θ_free', tex: 'M₀L/EI', r: 1, e: 'j', f: function (p) { return p.M0 * p.L / p.EI; } }
       ]
     }),
 
-    /* ── 양단고정 ───────────────────────────────────────────────── */
+    /* ── Fixed–Fixed ─────────────────────────────────────────────── */
     mkCase({
-      id: 'ff-udl', sup: 'ff', name: '양단고정 · 등분포하중', needs: ['w'],
+      id: 'ff-udl', sup: 'ff', load: 'Uniform load, full span', needs: ['w'],
       mk: function (p) { return [{ type: 'w', w1: -p.w, w2: -p.w }]; },
       closed: [
         { k: 'R_A', tex: 'wL/2', f: function (p) { return p.w * p.L / 2; } },
-        { k: 'M_A', tex: 'wL²/12', at: '단부(부모멘트)', f: function (p) { return p.w * p.L * p.L / 12; } },
-        { k: 'M_C', tex: 'wL²/24', at: 'x = L/2', s: 1, f: function (p) { return p.w * p.L * p.L / 24; } },
+        { k: 'M_A', tex: 'wL²/12', at: 'both ends, hogging', f: function (p) { return p.w * p.L * p.L / 12; } },
+        { k: 'M_C', tex: 'wL²/24', at: 'x = L/2, sagging', s: 1, f: function (p) { return p.w * p.L * p.L / 24; } },
         { k: 'δ_max', tex: 'wL⁴/384EI', at: 'x = L/2', d: 1, f: function (p) { return p.w * Math.pow(p.L, 4) / (384 * p.EI); } }
       ]
     }),
     mkCase({
-      id: 'ff-pmid', sup: 'ff', name: '양단고정 · 중앙 집중하중', needs: ['P'],
+      id: 'ff-pmid', sup: 'ff', load: 'Point load at midspan', needs: ['P'],
       mk: function (p) { return [{ type: 'P', P: -p.P, a: p.L / 2 }]; },
       closed: [
         { k: 'R_A', tex: 'P/2', f: function (p) { return p.P / 2; } },
-        { k: 'M_A', tex: 'PL/8', at: '단부(부모멘트)', f: function (p) { return p.P * p.L / 8; } },
-        { k: 'M_C', tex: 'PL/8', at: 'x = L/2', s: 1, f: function (p) { return p.P * p.L / 8; } },
+        { k: 'M_A', tex: 'PL/8', at: 'both ends, hogging', f: function (p) { return p.P * p.L / 8; } },
+        { k: 'M_C', tex: 'PL/8', at: 'x = L/2, sagging', s: 1, f: function (p) { return p.P * p.L / 8; } },
         { k: 'δ_max', tex: 'PL³/192EI', at: 'x = L/2', d: 1, f: function (p) { return p.P * Math.pow(p.L, 3) / (192 * p.EI); } }
       ]
     }),
     mkCase({
-      id: 'ff-pa', sup: 'ff', name: '양단고정 · 임의점 집중하중', needs: ['P', 'a'],
+      id: 'ff-pa', sup: 'ff', load: 'Point load at any point', needs: ['P', 'a'],
       mk: function (p) { return [{ type: 'P', P: -p.P, a: p.a }]; },
       closed: [
         { k: 'R_A', tex: 'Pb²(L+2a)/L³', f: function (p) { var a = p.a, b = p.L - a;
             return p.P * b * b * (p.L + 2 * a) / Math.pow(p.L, 3); } },
-        { k: 'M_A', tex: 'Pab²/L²', at: 'A단(부모멘트)', f: function (p) { var a = p.a, b = p.L - a;
+        { k: 'M_A', tex: 'Pab²/L²', at: 'A end, hogging', f: function (p) { var a = p.a, b = p.L - a;
             return p.P * a * b * b / (p.L * p.L); } },
-        { k: 'M_B', tex: 'Pa²b/L²', at: 'B단(부모멘트)', f: function (p) { var a = p.a, b = p.L - a;
+        { k: 'M_B', tex: 'Pa²b/L²', at: 'B end, hogging', f: function (p) { var a = p.a, b = p.L - a;
             return p.P * a * a * b / (p.L * p.L); } },
         { k: 'δ_P', tex: 'Pa³b³/3EIL³', at: 'x = a', d: 1, dat: 'a', f: function (p) { var a = p.a, b = p.L - a;
             return p.P * Math.pow(a, 3) * Math.pow(b, 3) / (3 * p.EI * Math.pow(p.L, 3)); } }
       ]
     }),
     mkCase({
-      id: 'ff-tri', sup: 'ff', name: '양단고정 · 삼각분포(우측 최대)', needs: ['w'],
+      id: 'ff-tri', sup: 'ff', load: 'Triangular load, max at right', needs: ['w'],
       mk: function (p) { return [{ type: 'w', w1: 0, w2: -p.w }]; },
       closed: [
         { k: 'R_A', tex: '3wL/20', f: function (p) { return 3 * p.w * p.L / 20; } },
         { k: 'R_B', tex: '7wL/20', f: function (p) { return 7 * p.w * p.L / 20; } },
-        { k: 'M_A', tex: 'wL²/30', at: 'A단(부모멘트)', f: function (p) { return p.w * p.L * p.L / 30; } },
-        { k: 'M_B', tex: 'wL²/20', at: 'B단(부모멘트)', f: function (p) { return p.w * p.L * p.L / 20; } },
+        { k: 'M_A', tex: 'wL²/30', at: 'A end, hogging', f: function (p) { return p.w * p.L * p.L / 30; } },
+        { k: 'M_B', tex: 'wL²/20', at: 'B end, hogging', f: function (p) { return p.w * p.L * p.L / 20; } },
         { k: 'δ_max', tex: '0.001309 wL⁴/EI', at: 'x ≈ 0.525L', d: 1, tol: 1e-3,
           f: function (p) { return 0.001309 * p.w * Math.pow(p.L, 4) / p.EI; } }
       ]
     }),
 
-    /* ── 1단고정 타단힌지 (A단 고정, B단 힌지) ─────────────────── */
+    /* ── Fixed–Pinned — 여기도 x 는 고정단 기준이다 ─────────────── */
     mkCase({
-      id: 'pf-udl', sup: 'pf', name: '1단고정 타단힌지 · 등분포하중', needs: ['w'],
+      id: 'pf-udl', sup: 'pf', load: 'Uniform load, full span', needs: ['w'],
       mk: function (p) { return [{ type: 'w', w1: -p.w, w2: -p.w }]; },
       closed: [
-        { k: 'R_A', tex: '5wL/8', f: function (p) { return 5 * p.w * p.L / 8; } },
-        { k: 'R_B', tex: '3wL/8', f: function (p) { return 3 * p.w * p.L / 8; } },
-        { k: 'M_A', tex: 'wL²/8', at: '고정단(부모멘트)', f: function (p) { return p.w * p.L * p.L / 8; } },
+        { k: 'R_fix', tex: '5wL/8', f: function (p) { return 5 * p.w * p.L / 8; } },
+        { k: 'R_pin', tex: '3wL/8', f: function (p) { return 3 * p.w * p.L / 8; } },
+        { k: 'M_fix', tex: 'wL²/8', at: 'fixed end, hogging', f: function (p) { return p.w * p.L * p.L / 8; } },
         { k: 'M_max⁺', tex: '9wL²/128', at: 'x = 5L/8', s: 1, f: function (p) { return 9 * p.w * p.L * p.L / 128; } },
         { k: 'δ_max', tex: '0.0054168 wL⁴/EI ≈ wL⁴/185EI', at: 'x ≈ 0.5785L', d: 1, tol: 3e-4,
           f: function (p) { return 0.0054168 * p.w * Math.pow(p.L, 4) / p.EI; } }
       ]
     }),
     mkCase({
-      id: 'pf-pmid', sup: 'pf', name: '1단고정 타단힌지 · 중앙 집중하중', needs: ['P'],
+      id: 'pf-pmid', sup: 'pf', load: 'Point load at midspan', needs: ['P'],
       mk: function (p) { return [{ type: 'P', P: -p.P, a: p.L / 2 }]; },
       closed: [
-        { k: 'R_A', tex: '11P/16', f: function (p) { return 11 * p.P / 16; } },
-        { k: 'R_B', tex: '5P/16', f: function (p) { return 5 * p.P / 16; } },
-        { k: 'M_A', tex: '3PL/16', at: '고정단(부모멘트)', f: function (p) { return 3 * p.P * p.L / 16; } },
+        { k: 'R_fix', tex: '11P/16', f: function (p) { return 11 * p.P / 16; } },
+        { k: 'R_pin', tex: '5P/16', f: function (p) { return 5 * p.P / 16; } },
+        { k: 'M_fix', tex: '3PL/16', at: 'fixed end, hogging', f: function (p) { return 3 * p.P * p.L / 16; } },
         { k: 'M_max⁺', tex: '5PL/32', at: 'x = L/2', s: 1, f: function (p) { return 5 * p.P * p.L / 32; } },
-        { k: 'δ_max', tex: 'PL³/(48√5·EI) ≈ PL³/107EI', at: 'x = L(1−1/√5)', d: 1, tol: 3e-4,
+        { k: 'δ_max', tex: 'PL³/48√5·EI ≈ PL³/107EI', at: 'x = L(1−1/√5)', d: 1, tol: 3e-4,
           f: function (p) { return p.P * Math.pow(p.L, 3) / (48 * Math.sqrt(5) * p.EI); } }
       ]
     }),
     mkCase({
-      id: 'pf-pa', sup: 'pf', name: '1단고정 타단힌지 · 임의점 집중하중', needs: ['P', 'a'],
+      id: 'pf-pa', sup: 'pf', load: 'Point load at any point', needs: ['P', 'a'],
       mk: function (p) { return [{ type: 'P', P: -p.P, a: p.a }]; },
       closed: [
-        { k: 'R_B', tex: 'Pa²(3L−a)/2L³', f: function (p) { return p.P * p.a * p.a * (3 * p.L - p.a) / (2 * Math.pow(p.L, 3)); } },
-        { k: 'M_A', tex: 'Pb(L²−b²)/2L²', at: '고정단(부모멘트)', f: function (p) { var b = p.L - p.a;
+        { k: 'R_pin', tex: 'Pa²(3L−a)/2L³', f: function (p) { return p.P * p.a * p.a * (3 * p.L - p.a) / (2 * Math.pow(p.L, 3)); } },
+        { k: 'M_fix', tex: 'Pb(L²−b²)/2L²', at: 'fixed end, hogging', f: function (p) { var b = p.L - p.a;
             return p.P * b * (p.L * p.L - b * b) / (2 * p.L * p.L); } }
       ]
     }),
     mkCase({
-      id: 'pf-tri', sup: 'pf', name: '1단고정 타단힌지 · 삼각분포(고정단 최대)', needs: ['w'],
+      id: 'pf-tri', sup: 'pf', load: 'Triangular load, max at fixed end', needs: ['w'],
       mk: function (p) { return [{ type: 'w', w1: -p.w, w2: 0 }]; },
       closed: [
-        { k: 'M_A', tex: 'wL²/15', at: '고정단(부모멘트)', f: function (p) { return p.w * p.L * p.L / 15; } }
+        { k: 'M_fix', tex: 'wL²/15', at: 'fixed end, hogging', f: function (p) { return p.w * p.L * p.L / 15; } }
       ]
     })
   ];
-
-  var SUPNAME = { ss: '단순보', cant: '캔틸레버', ff: '양단고정', pf: '1단고정 타단힌지' };
+  FCASES.forEach(function (c) { c.name = SUPLABEL[c.sup] + ' — ' + c.load; });
 
   var Formula = {
     cases: FCASES,
-    SUPNAME: SUPNAME,
+    SUPLABEL: SUPLABEL,
+    /* 고정단이 한쪽에만 있는 경우만 좌우를 뒤집을 수 있다 */
+    canFlip: function (id) { var c = Formula.get(id); return !!c && (c.sup === 'cant' || c.sup === 'pf'); },
     get: function (id) { for (var i = 0; i < FCASES.length; i++) if (FCASES[i].id === id) return FCASES[i]; return null; },
     list: function (sup) { return FCASES.filter(function (c) { return !sup || c.sup === sup; }); },
 
@@ -606,8 +612,9 @@
         return { k: r.k, tex: r.tex, at: r.at || '', value: r.f(q), kind: r.d ? 'δ' : (r.r ? 'θ' : (r.k.charAt(0) === 'R' ? 'R' : 'M')) };
       });
 
-      return {
-        caseDef: c, params: q, loads: loads,
+      var res = {
+        caseDef: c, params: q, loads: loads, flip: false,
+        supports: SUPENDS[c.sup].slice(),
         Mi: Mi, Mj: Mj, RA: d.Vi, RB: d.Vj,
         diag: d, closed: closed,
         // 부호를 화면 관습(아래로 처짐 = 양, 부모멘트 = 음)으로 뒤집어 둔 요약
@@ -620,8 +627,59 @@
           th_A: d.thetaI, th_B: d.thetaJ
         }
       };
-    }
+      return p.flip ? mirror(res) : res;
+    },
+
+    mirror: function (r) { return mirror(r); }
   };
+
+  /* 좌우 반전 — 고정단을 오른쪽에 두고 싶을 때.
+     연직축에 대한 거울이므로 x → L−x 이고, 위쪽은 그대로 위쪽이다. 따라서
+       처짐 y, 휨모멘트 M(하연인장 양) — 그대로
+       전단 S, 회전각 θ, 그리고 CCW 단부모멘트 — 부호가 뒤집힌다
+       반력 R_A ↔ R_B — 값 그대로 자리만 바뀐다
+     closed 표는 손대지 않는다. 캔틸레버·1단고정 경우의 식은 x 를 고정단에서
+     재도록 써 두었고, 키도 R_fix / M_fix / θ_free 처럼 역할 이름이라
+     어느 쪽이 고정단이든 그대로 읽힌다. */
+  function mirror(r) {
+    var L = r.params.L, d = r.diag, k;
+    var x = [], S = [], M = [], y = [], th = [];
+    for (k = d.x.length - 1; k >= 0; k--) {
+      x.push(L - d.x[k]); S.push(-d.S[k]); M.push(d.M[k]); y.push(d.y[k]); th.push(-d.theta[k]);
+    }
+    function mx(e, neg) { return { v: neg ? -e.v : e.v, x: L - e.x }; }
+    function mext(o, neg) {
+      var lo = mx(o.min, neg), hi = mx(o.max, neg);
+      if (neg) { var t = lo; lo = hi; hi = t; }
+      return { min: lo, max: hi, abs: Math.abs(lo.v) > Math.abs(hi.v) ? lo : hi };
+    }
+    var loads = r.loads.map(function (ld0) {
+      var o = Load.norm(ld0, L), q = Object.assign({}, o);
+      if (o.type === 'w') { q.a = L - o.b; q.b = L - o.a; q.w1 = o.w2; q.w2 = o.w1; }
+      else if (o.type === 'P') { q.a = L - o.a; }
+      else { q.a = L - o.a; q.M = -o.M; }
+      return q;
+    });
+    var nd = {
+      L: L, EI: d.EI, Mi: -r.Mj, Mj: -r.Mi, Vi: d.Vj, Vj: d.Vi, sum: d.sum,
+      x: x, S: S, M: M, y: y, theta: th,
+      Sx: mext(d.Sx, true), Mx: mext(d.Mx, false), yx: mext(d.yx, false),
+      thetaI: -d.thetaJ, thetaJ: -d.thetaI
+    };
+    return {
+      caseDef: r.caseDef, params: r.params, loads: loads, flip: true,
+      supports: r.supports.slice().reverse(),
+      Mi: -r.Mj, Mj: -r.Mi, RA: d.Vj, RB: d.Vi,
+      diag: nd, closed: r.closed,
+      summary: {
+        R_A: nd.Vi, R_B: nd.Vj, M_A: -nd.Mi, M_B: nd.Mj,
+        M_pos: nd.Mx.max.v, M_pos_x: nd.Mx.max.x,
+        M_neg: nd.Mx.min.v, M_neg_x: nd.Mx.min.x,
+        d_max: -nd.yx.abs.v, d_max_x: nd.yx.abs.x,
+        th_A: nd.thetaI, th_B: nd.thetaJ
+      }
+    };
+  }
 
   /* ====================================================================
      PART 5 — 모멘트 분배법 (Cross / Hardy Cross)

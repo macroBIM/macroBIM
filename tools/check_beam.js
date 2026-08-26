@@ -47,16 +47,16 @@ B.Formula.cases.forEach(c => {
   c.closed.forEach(cf => {
     const v = cf.f(r.params), tol = cf.tol || 2e-5;
     let got = null, label = `${c.id} · ${cf.k}`;
-    if (cf.k === 'R_A') got = s.R_A;
-    else if (cf.k === 'R_B') got = s.R_B;   // Vj 도 위쪽(국부 +y)이 양이다
-    else if (cf.k === 'M_A') got = -s.M_A;
+    if (cf.k === 'R_A' || cf.k === 'R_fix') got = s.R_A;
+    else if (cf.k === 'R_B' || cf.k === 'R_pin') got = s.R_B;   // Vj 도 위쪽(국부 +y)이 양이다
+    else if (cf.k === 'M_A' || cf.k === 'M_fix') got = -s.M_A;
     else if (cf.k === 'M_B') got = -s.M_B;
     else if (cf.k === 'M_C') got = d.M[Math.floor(d.M.length / 2)];
     else if (cf.k === 'M_max' || cf.k === 'M_max⁺') got = d.Mx.max.v;
     else if (cf.k === 'δ_max') got = -d.yx.abs.v;
     else if (cf.k === 'δ_P') got = -d.y[d.x.findIndex(x => x >= PSET.a - 1e-9)];
     else if (cf.k === 'θ_A') got = Math.abs(d.thetaI);
-    else if (cf.k === 'θ_B') got = Math.abs(d.thetaJ);
+    else if (cf.k === 'θ_B' || cf.k === 'θ_free') got = Math.abs(d.thetaJ);
     if (got === null) return;
     ok(label + `  [${cf.tex}]`, got, v, tol);
   });
@@ -168,6 +168,29 @@ Object.keys(MODELS).forEach(name => {
     okAbs(`${name} · θ(${id}.i)`, sp.theta[0] / tScale, di.rz / tScale, 1e-5);
     okAbs(`${name} · θ(${id}.j)`, sp.theta[sp.theta.length - 1] / tScale, dj.rz / tScale, 1e-5);
   });
+});
+
+/* ── ④ 고정단 좌우 반전 ↔ 실제로 뒤집은 모델 ──────────────────────
+   거울이 표시만 바꾼 게 아니라 진짜 그 구조인지 확인한다. 뒤집은 결과를
+   지점과 하중을 물리적으로 반대로 놓은 모멘트분배 모델(=직접강성법으로
+   이미 검증된 경로)과 맞춘다. */
+console.log('④ 고정단 좌우 반전 ↔ 물리적으로 뒤집은 모델');
+const FLIPSUP = { cant: ['free', 'fix'], pf: ['roller', 'fix'] };
+B.Formula.cases.filter(c => B.Formula.canFlip(c.id)).forEach(c => {
+  const r = B.Formula.solve(c.id, Object.assign({ flip: true }, PSET));
+  const local = r.loads.map(l => Object.assign({}, l, { dir: 'local' }));
+  const model = B.Cross.beam([{ L: PSET.L, EI: PSET.EI, loads: local }], FLIPSUP[c.sup]);
+  const x = B.Cross.solve(model), sp = x.spans.AB;
+  const sc = Math.max(Math.abs(r.diag.Mx.abs.v), 1e-6);
+  okAbs(c.id + ' (flip) · M_i', x.moments.AB.i / sc, r.Mi / sc, 1e-8);
+  okAbs(c.id + ' (flip) · M_j', x.moments.AB.j / sc, r.Mj / sc, 1e-8);
+  okAbs(c.id + ' (flip) · V_i', sp.Vi / sc, r.diag.Vi / sc, 1e-8);
+  const ds = Math.max(Math.abs(r.diag.yx.abs.v), 1e-12);
+  okAbs(c.id + ' (flip) · δ_max', sp.yx.abs.v / ds, r.diag.yx.abs.v / ds, 1e-5);
+  // 대칭이 아닌 값도 짚는다: 처짐 곡선 전체
+  let worst = 0;
+  for (let k = 0; k < sp.x.length; k++) worst = Math.max(worst, Math.abs(sp.y[k] - r.diag.y[k]) / ds);
+  okAbs(c.id + ' (flip) · y(x) 전체', worst, 0, 1e-5);
 });
 
 console.log(`\n${run - fail}/${run} 통과${fail ? `  —  ${fail} 실패` : ''}`);
