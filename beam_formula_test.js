@@ -36,9 +36,15 @@
     '.bf-root *{box-sizing:border-box}',
     // display 를 가진 클래스가 [hidden] 을 이겨 버린다 — 여기서 한 번에 눌러 둔다
     '.bf-root [hidden]{display:none!important}',
-    '.bf-grid{display:grid;grid-template-columns:480px minmax(0,1fr);gap:20px;align-items:start}',
-    '@media(max-width:1100px){.bf-grid{grid-template-columns:1fr}}',
-    '.bf-col{display:flex;flex-direction:column;gap:20px}',
+    /* 입력 : 그림 : 결과 = 3 : 4 : 3. 좁아지면 결과가 아래로 한 줄 내려가고,
+       더 좁아지면 셋 다 쌓인다. */
+    '.bf-grid{display:grid;grid-template-columns:minmax(0,3fr) minmax(0,4fr) minmax(0,3fr);',
+      'gap:18px;align-items:start}',
+    '@media(max-width:1400px){.bf-grid{grid-template-columns:minmax(0,4fr) minmax(0,6fr)}',
+      '.bf-grid>.bf-col:nth-child(3){grid-column:1/-1}}',
+    '@media(max-width:900px){.bf-grid{grid-template-columns:1fr}',
+      '.bf-grid>.bf-col:nth-child(3){grid-column:auto}}',
+    '.bf-col{display:flex;flex-direction:column;gap:18px}',
     '.bf-card{background:var(--panel);border:1px solid var(--line);border-radius:10px;overflow:hidden}',
     '.bf-hd{display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap;',
       'padding:11px 16px;border-bottom:1px solid var(--hair);background:var(--chip)}',
@@ -70,7 +76,7 @@
       'border-radius:6px;font-size:11px;font-weight:700}',
     '.bf-vbtn[aria-pressed="true"]{background:#2563eb;color:#fff;border-color:#2563eb}',
     '.bf-lsel{font:inherit;font-size:11px;font-weight:700;padding:5px 8px;border:1px solid var(--line);',
-      'border-radius:6px;background:#eef2f6;color:#475569;cursor:pointer;max-width:230px}',
+      'border-radius:6px;background:#eef2f6;color:#475569;cursor:pointer;max-width:200px}',
     '.bf-lsel:focus{outline:2px solid var(--dim);outline-offset:1px}',
     '.bf-lsel.one{background:#eff6ff;border-color:#bfdbfe;color:var(--dim)}',
     /* 지점 — 보 하나에 양 끝 체크박스. 체크=고정, 해제=자유. */
@@ -120,7 +126,7 @@
     '.bf-tbl td.k{font-weight:600;color:var(--ink)}',
     '.bf-tbl td.tex{color:var(--dim);text-align:left}',
     '.bf-tbl td.at{color:var(--muted);font-size:11.5px}',
-    '.bf-stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(118px,1fr));gap:1px;background:var(--hair)}',
+    '.bf-stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(128px,1fr));gap:1px;background:var(--hair)}',
     '.bf-stat{background:var(--panel);padding:11px 13px}',
     '.bf-stat .k{font-size:10.5px;letter-spacing:.05em;color:var(--muted);font-weight:700}',
     '.bf-stat .v{font-family:ui-monospace,Menlo,Consolas,monospace;font-size:18px;font-weight:600;margin-top:2px;font-variant-numeric:tabular-nums}',
@@ -274,6 +280,7 @@
           '" dominant-baseline="middle"' + (opt.weight ? ' font-weight="' + opt.weight + '"' : '') +
           (opt.rot ? ' transform="rotate(' + f(opt.rot) + ' ' + f(x) + ' ' + f(y) + ')"' : '') + '>' + esc(s) + '</text>');
       },
+      raw: function (html) { e.push(html); },
       dot: function (x, y, r, col) { e.push('<circle cx="' + f(x) + '" cy="' + f(y) + '" r="' + r + '" fill="' + col + '"/>'); },
       out: function () {
         var bg = 'background:linear-gradient(#e2e8f0 1px,transparent 1px) 0 0/26px 26px,' +
@@ -284,8 +291,16 @@
     };
   }
 
-  var PAD = 58;
-  function SXf(w) { return function (x, L) { return PAD + x / L * (w - 2 * PAD); }; }
+  /* 도면의 좌표폭을 실제로 렌더되는 픽셀폭에 맞춘다. viewBox 를 고정해 두면
+     열이 좁아질 때 글자까지 같이 줄어들어 읽을 수 없게 된다 — 폭을 따라가면
+     글자는 늘 같은 크기로 나온다. */
+  function padOf(w) { return Math.round(Math.max(38, Math.min(58, w * 0.075))); }
+  function SXf(w, pad) { return function (x, L) { return pad + x / L * (w - 2 * pad); }; }
+  function plotWidth(root, sel) {
+    var el = q(root, sel);
+    var w = el ? el.clientWidth : 0;
+    return Math.round(Math.max(360, Math.min(1200, w || 560)));
+  }
 
   /* 지점 기호 */
   // dir = +1 왼쪽 끝(재료가 왼쪽), −1 오른쪽 끝. 고정단 해칭이 보 위로 넘어오지 않게 한다.
@@ -381,6 +396,7 @@
   /* 값 곡선 한 판 */
   function drawCurve(s, cfg) {
     var y0 = cfg.y0, amp = cfg.amp, SX = cfg.SX, L = cfg.L, flip = cfg.flip ? 1 : -1;
+    var pad = cfg.pad;
     var mx = 1e-12, lo = 0, hi = 0, i;
     for (i = 0; i < cfg.v.length; i++) {
       mx = Math.max(mx, Math.abs(cfg.v[i]));
@@ -402,7 +418,84 @@
       var t = cfg.absv ? (cfg.v[k] < 0 ? '↓ ' : '↑ ') + num(Math.abs(cfg.v[k]), cfg.dp) : num(cfg.v[k], cfg.dp);
       s.text(X, Y + off, t + ' ' + cfg.unit, cfg.col, { weight: 600 });
     });
-    s.text(PAD - 12, y0, cfg.tag, HID, { anchor: 'end', size: 10.5, weight: 700 });
+    s.text(pad - 12, y0, cfg.tag, HID, { anchor: 'end', size: 10.5, weight: 700 });
+    return { y0: y0, amp: amp, mx: mx, sgn: flip, col: cfg.col, unit: cfg.unit,
+             dp: cfg.dp, absv: !!cfg.absv, x: cfg.x, v: cfg.v };
+  }
+
+  /* 격자 위 임의 x 의 값 — 커서가 짚는 자리를 읽는다.
+     집중하중 자리에서는 x 가 겹쳐 있으므로(계단) 그 구간을 건너뛰지 않게 한다. */
+  function valueAt(xs, vs, x) {
+    var lo = 0, hi = xs.length - 1;
+    if (x <= xs[0]) return vs[0];
+    if (x >= xs[hi]) return vs[hi];
+    while (hi - lo > 1) { var m = (lo + hi) >> 1; if (xs[m] <= x) lo = m; else hi = m; }
+    var dx = xs[hi] - xs[lo];
+    return dx < 1e-12 ? vs[hi] : vs[lo] + (vs[hi] - vs[lo]) * (x - xs[lo]) / dx;
+  }
+
+  /* ── 그래프 위 커서 ───────────────────────────────────────────────
+     마우스가 올라간 자리의 값을 그 자리에서 읽어 준다. 도면을 다시 그리지
+     않고 오버레이의 좌표만 바꾼다 — 마우스 이동마다 SVG 를 새로 만들면
+     끊긴다. 리스너는 컨테이너에 한 번만 걸고, 그릴 때마다 CUR 에 그 판의
+     정보를 남겨 둔다. */
+  var CUR = null;
+  var MONO = 'ui-monospace,Menlo,Consolas,monospace';
+
+  function cursorLayer(probes, H) {
+    var g = '<g id="bf-cur" style="display:none" pointer-events="none">';
+    g += '<line id="bf-curline" y1="2" y2="' + (H - 2) + '" stroke="' + INK +
+         '" stroke-width="0.9" stroke-dasharray="3 3" opacity=".5"/>';
+    g += '<rect id="bf-curbox" y="3" width="92" height="18" rx="4" fill="#fff" stroke="' + DIM + '" stroke-width="1"/>';
+    g += '<text id="bf-curx" y="12.5" font-family="' + MONO + '" font-size="11" font-weight="600" fill="' + DIM +
+         '" text-anchor="middle" dominant-baseline="middle"></text>';
+    probes.forEach(function (p, i) {
+      g += '<circle id="bf-cd' + i + '" r="3.4" fill="' + p.col + '" stroke="#fff" stroke-width="1.2"/>';
+      g += '<text id="bf-ct' + i + '" font-family="' + MONO + '" font-size="11" font-weight="600" fill="' + p.col +
+           '" text-anchor="middle" dominant-baseline="middle" stroke="#fff" stroke-width="3.2" paint-order="stroke"></text>';
+    });
+    return g + '</g>';
+  }
+
+  function cursorMove(ev) {
+    if (!CUR) return;
+    var host = q(CUR.root, '#bf-plot'), svg = host.querySelector('svg');
+    var g = svg && svg.querySelector('#bf-cur');
+    if (!g) return;
+    var box = svg.getBoundingClientRect();
+    if (!box.width) return;
+    var px = (ev.clientX - box.left) / box.width * CUR.w;          // 사용자 단위로
+    var x = (px - CUR.pad) / (CUR.w - 2 * CUR.pad) * CUR.L;
+    if (x < -0.02 * CUR.L || x > 1.02 * CUR.L) { g.style.display = 'none'; return; }
+    x = Math.min(Math.max(x, 0), CUR.L);
+    px = CUR.pad + x / CUR.L * (CUR.w - 2 * CUR.pad);
+    g.style.display = '';
+
+    var line = svg.querySelector('#bf-curline');
+    line.setAttribute('x1', px.toFixed(1)); line.setAttribute('x2', px.toFixed(1));
+    var bw = 92, bx = Math.min(Math.max(px - bw / 2, 2), CUR.w - bw - 2);
+    svg.querySelector('#bf-curbox').setAttribute('x', bx.toFixed(1));
+    var tx = svg.querySelector('#bf-curx');
+    tx.setAttribute('x', (bx + bw / 2).toFixed(1));
+    tx.textContent = 'x = ' + num(x, 3) + ' m';
+
+    CUR.probes.forEach(function (p, i) {
+      var v = valueAt(p.x, p.v, x);
+      var y = p.y0 + p.sgn * p.amp * (v / p.mx);
+      var dot = svg.querySelector('#bf-cd' + i), t = svg.querySelector('#bf-ct' + i);
+      dot.setAttribute('cx', px.toFixed(1)); dot.setAttribute('cy', y.toFixed(1));
+      var above = (y > p.y0);                       // 축 아래면 라벨을 위로
+      t.setAttribute('x', Math.min(Math.max(px, 34), CUR.w - 34).toFixed(1));
+      t.setAttribute('y', (y + (above ? -11 : 12)).toFixed(1));
+      t.textContent = (p.absv ? (v < 0 ? '↓ ' : '↑ ') + num(Math.abs(v), p.dp) : num(v, p.dp)) + ' ' + p.unit;
+    });
+  }
+
+  function cursorHide() {
+    if (!CUR) return;
+    var svg = q(CUR.root, '#bf-plot').querySelector('svg');
+    var g = svg && svg.querySelector('#bf-cur');
+    if (g) g.style.display = 'none';
   }
 
   /* ── 상태 ───────────────────────────────────────────────────── */
@@ -429,8 +522,9 @@
   }
 
   /* 지점 미리보기 — 본 도면과 같은 선·기호로 그린다 */
-  function supportPreview(fixL, fixR) {
-    var w = 420, s = Sheet(w), x1 = 58, x2 = w - 58;
+  function supportPreview(fixL, fixR, w) {
+    w = w || 420;
+    var s = Sheet(w), pad = padOf(w), x1 = pad, x2 = w - pad;
     var y0 = s.grow(56);
     s.line(x1, y0, x2, y0, INK, 2.6);
     drawSupport(s, x1, y0, fixL ? 'fix' : 'free', 1);
@@ -524,12 +618,18 @@
       '      <span id="bf-viewbar" style="display:flex;gap:4px;flex-wrap:wrap;align-items:center">' +
       '        <button type="button" class="bf-vbtn" data-view="all" aria-pressed="true">All</button>' +
       '        <button type="button" class="bf-vbtn" data-view="load" aria-pressed="false">Load</button>' +
-      '        <button type="button" class="bf-vbtn" data-view="shear" aria-pressed="false">Shear</button>' +
-      '        <button type="button" class="bf-vbtn" data-view="moment" aria-pressed="false">Moment</button>' +
-      '        <button type="button" class="bf-vbtn" data-view="defl" aria-pressed="false">Deflection</button>' +
+      '        <button type="button" class="bf-vbtn" data-view="shear" aria-pressed="false">SFD</button>' +
+      '        <button type="button" class="bf-vbtn" data-view="moment" aria-pressed="false">BMD</button>' +
+      '        <button type="button" class="bf-vbtn" data-view="defl" aria-pressed="false">δ</button>' +
       '      </span></span></div>' +
-      '    <div class="bf-stats" id="bf-stats"></div>' +
       '    <div class="bf-plot" id="bf-plot"></div>' +
+      '  </div>' +
+      '</div>' +
+
+      '<div class="bf-col">' +
+      '  <div class="bf-card">' +
+      '    <div class="bf-hd"><span class="bf-ttl">Summary</span></div>' +
+      '    <div class="bf-stats" id="bf-stats"></div>' +
       '  </div>' +
       '  <div class="bf-card" id="bf-fcard">' +
       '    <div class="bf-hd"><span class="bf-ttl" id="bf-fttl">Design Formulas</span></div>' +
@@ -597,6 +697,16 @@
       var inp = e.target.closest('input[data-f]'); if (!inp) return;
       ST.loads[+inp.dataset.k][inp.dataset.f] = parseFloat(inp.value);
       render(root);
+    });
+
+    var plot = q(root, '#bf-plot');
+    plot.addEventListener('mousemove', cursorMove);
+    plot.addEventListener('mouseleave', cursorHide);
+    // 열 폭이 바뀌면 도면 좌표폭도 따라가야 한다 (글자 크기를 지키려고 폭을 잰다)
+    var rt;
+    window.addEventListener('resize', function () {
+      clearTimeout(rt);
+      rt = setTimeout(function () { if (document.body.contains(root)) render(root); }, 160);
     });
 
     renderLoads(root);
@@ -694,7 +804,7 @@
     syncSrc(root);
 
     /* 지점 카드 */
-    q(root, '#bf-prev').innerHTML = supportPreview(ST.fixL, ST.fixR);
+    q(root, '#bf-prev').innerHTML = supportPreview(ST.fixL, ST.fixR, plotWidth(root, '#bf-prev'));
     q(root, '#bf-fixL-t').textContent = ST.fixL ? 'Fixed' : 'Free';
     q(root, '#bf-fixR-t').textContent = ST.fixR ? 'Fixed' : 'Free';
     q(root, '#bf-fixL-t').className = ST.fixL ? '' : 'off';
@@ -782,8 +892,8 @@
     }).join('');
 
     /* 도면 */
-    var w = 900, SX = SXf(w), s = Sheet(w);
-    var show = ST.view;
+    var w = plotWidth(root, '#bf-plot'), pad = padOf(w), SX = SXf(w, pad), s = Sheet(w);
+    var show = ST.view, probes = [];
     function want(k) { return show === 'all' || show === k; }
 
     if (want('load')) {
@@ -804,12 +914,14 @@
       if (!want(cf[0])) return;
       s.grow(18);
       var yy = s.grow(52);
-      drawCurve(s, { x: d.x, v: cf[1], col: cf[2], tag: cf[3], unit: cf[4], dp: cf[5],
-                     flip: cf[6], absv: cf[7], y0: yy, amp: 46, SX: SX, L: L });
+      probes.push(drawCurve(s, { x: d.x, v: cf[1], col: cf[2], tag: cf[3], unit: cf[4], dp: cf[5],
+                     flip: cf[6], absv: cf[7], y0: yy, amp: 46, SX: SX, L: L, pad: pad }));
       s.grow(74);          // 진폭 46 + 라벨 — 마지막 판이 잘리지 않게
     });
     if (s.h < 40) s.grow(80);
+    s.raw(cursorLayer(probes, s.h));
     q(root, '#bf-plot').innerHTML = s.out();
+    CUR = { w: w, pad: pad, L: L, probes: probes, root: root };
 
     /* 표준 경우와 딱 맞으면 그 경우의 교과서 식을, 아니면 계산 결과를 낸다.
        맞지도 않는 식을 띄우는 것보다 무엇으로 풀었는지 적는 편이 낫다. */
