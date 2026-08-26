@@ -173,25 +173,32 @@
        calc — 표에 Ix 가 없는 것(각관·파이프)은 치수에서 계산한다
      열 이름이 표마다 다르므로 여기서 흡수한다. 순서는 Steel Section Tables
      페이지와 같게 둔다. */
+  /* 호칭은 표마다 적는 법이 다르다 — H형강·채널은 '350 x 175', 각관은 '125x125x3.2'.
+     읽는 사람에게는 치수를 x 로 이어 붙인 한 덩어리가 단면 이름이므로, 공백을
+     걷어내 '350x175' 로 맞춘 뒤 웨브·플랜지 두께를 같은 x 로 이어 붙인다.
+     두께 7.0 은 7 로 적는다 — 표의 숫자 표기를 그대로 옮기면 자릿수가 들쭉날쭉해진다. */
+  function xnum(v) { var n = parseFloat(v); return isFinite(n) ? String(n) : String(v == null ? '' : v); }
+  function xdim(n) { return String(n).replace(/\s*[xX×]\s*/g, 'x').trim(); }
+
   var SECT = {
     hsection: { label: 'H-Section', file: 'hsection.csv', name: '호칭치수',
       dims: ['H', 'B', 't1', 't2'], area: '단면적', wt: '단위무게', ix: 'Ix', zx: 'Sx', ks: 'KS규격여부',
       sym: function (r) { return +r.H / 2; },
-      tag: function (r) { return '· tw ' + r.t1 + ' / tf ' + r.t2; } },
+      lab: function (n, r) { return xdim(n) + 'x' + xnum(r.t1) + 'x' + xnum(r.t2); } },
     channel: { label: 'Channel', file: 'channel.csv', name: '호칭치수',
       dims: ['H', 'B', 't1', 't2'], area: '단면적', wt: '단위무게', ix: 'Ix', zx: 'Zx', ks: 'KS규격여부',
       sym: function (r) { return +r.H / 2; },
-      tag: function (r) { return '· tw ' + r.t1 + ' / tf ' + r.t2; } },
+      lab: function (n, r) { return xdim(n) + 'x' + xnum(r.t1) + 'x' + xnum(r.t2); } },
     squaretube: { label: 'Square Tube', file: 'squaretube.csv', name: '호칭치수',
       dims: ['A', 'B', 't', 'r'], area: '단면적', wt: '단위무게', std: '규격',
       calc: function (r) { var p = tubeProps(+r.A, +r.B, +r.t, +r.r); return { I: p.I, A: p.A, y: +r.A / 2 }; },
-      tag: function (r) { return r['규격'] ? '· ' + r['규격'] : ''; } },
+      lab: function (n, r) { return r['규격'] ? n + '  · ' + r['규격'] : n; } },
     pipe: { label: 'Pipe', file: 'pipe.csv', name: '호칭치수',
       dims: ['D', 't'], area: '단면적', wt: '단위무게', std: '규격', ks: 'KS규격여부',
       calc: function (r) { var D = +r.D, d = D - 2 * (+r.t);
         return { I: Math.PI * (Math.pow(D, 4) - Math.pow(d, 4)) / 64,
                  A: Math.PI * (D * D - d * d) / 4, y: D / 2 }; },
-      tag: function (r) { return r['규격'] ? '· ' + r['규격'] : ''; } }
+      lab: function (n, r) { return r['규격'] ? n + '  · ' + r['규격'] : n; } }
   };
 
   var DB = {};                                  // kind → [{name, ix, area, wt, dim}]
@@ -235,9 +242,9 @@
       ytop = ybot = cfg.sym(r);
     }
     if (!(ix > 0 && ytop > 0 && ybot > 0)) return null;
-    var tag = cfg.tag ? String(cfg.tag(r) || '').trim() : '';
+    var label = cfg.lab ? String(cfg.lab(name, r) || name).trim() : name;
     return {
-      name: name, label: tag ? name + '  ' + tag : name, key: '',   // key 는 uniquify 가 채운다
+      name: name, label: label, key: '',                            // key 는 uniquify 가 채운다
       ix: ix, area: area, wt: parseFloat(r[cfg.wt]) || 0,
       dim: cfg.dims.map(function (d) { return d + ' ' + r[d]; }).join(' · '),
       std: cfg.std ? (r[cfg.std] || '') : '',
