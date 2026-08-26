@@ -1,4 +1,4 @@
-/* beam_formula_test.js — MacroFrame · SimpleBeam (TEST build)
+/* beam_formula_test.js — MacroFrame · SimpleBEAM (TEST build)
 
    단경간 보를 표준 처짐공식으로 푼다. 지점조건과 하중형태를 고르면 그 경우의
    교과서 식이 값과 함께 나오고, 하중도·SFD·BMD·처짐도를 한 장의 도면으로 그린다.
