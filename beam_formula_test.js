@@ -454,18 +454,27 @@
     return g + '</g>';
   }
 
+  /* 화면 좌표 → 보의 x. 범위를 벗어나면 null. */
+  function cursorX(ev) {
+    if (!CUR) return null;
+    var svg = q(CUR.root, '#bf-plot').querySelector('svg');
+    if (!svg) return null;
+    var box = svg.getBoundingClientRect();
+    if (!box.width) return null;
+    var px = (ev.clientX - box.left) / box.width * CUR.w;
+    var x = (px - CUR.pad) / (CUR.w - 2 * CUR.pad) * CUR.L;
+    if (x < -0.02 * CUR.L || x > 1.02 * CUR.L) return null;
+    return Math.min(Math.max(x, 0), CUR.L);
+  }
+
   function cursorMove(ev) {
     if (!CUR) return;
-    var host = q(CUR.root, '#bf-plot'), svg = host.querySelector('svg');
+    var svg = q(CUR.root, '#bf-plot').querySelector('svg');
     var g = svg && svg.querySelector('#bf-cur');
     if (!g) return;
-    var box = svg.getBoundingClientRect();
-    if (!box.width) return;
-    var px = (ev.clientX - box.left) / box.width * CUR.w;          // 사용자 단위로
-    var x = (px - CUR.pad) / (CUR.w - 2 * CUR.pad) * CUR.L;
-    if (x < -0.02 * CUR.L || x > 1.02 * CUR.L) { g.style.display = 'none'; return; }
-    x = Math.min(Math.max(x, 0), CUR.L);
-    px = CUR.pad + x / CUR.L * (CUR.w - 2 * CUR.pad);
+    var x = cursorX(ev);
+    if (x == null) { g.style.display = 'none'; return; }
+    var px = CUR.pad + x / CUR.L * (CUR.w - 2 * CUR.pad);
     g.style.display = '';
 
     var line = svg.querySelector('#bf-curline');
@@ -500,6 +509,7 @@
     /* 지점은 양 끝을 각각 Free / Roller / Fixed 로 잡는다.
        한 끝에 있을 수 있는 상태가 그 셋이고, 조합이 곧 표준 경우가 된다. */
     endL: 'roller', endR: 'roller', view: 'all', showLoad: 'all',
+    atX: null,      // null 이면 L/2 (손대기 전까지 지간을 따라간다)
     /* 하중은 목록이다. 종류는 둘뿐 —
          w : 등분포, a = 좌단에서 시작점, b = 재하길이
          P : 집중,   a = 좌단에서 작용점 */
@@ -658,6 +668,17 @@
       '    <table class="bf-tbl" id="bf-formula"></table>' +
       '    <div class="bf-note" id="bf-fnote"></div>' +
       '  </div>' +
+      '  <div class="bf-card" id="bf-atcard">' +
+      '    <div class="bf-hd"><span class="bf-ttl">Value at x</span>' +
+      '      <span class="bf-cond" id="bf-atspan"></span></div>' +
+      '    <div class="bf-body" style="padding:10px 14px">' +
+      '      <div class="bf-inrow"><label><span class="var">x</span>' +
+      '        <span class="desc">distance from A</span></label>' +
+      '        <span><input type="number" id="bf-atx" step="0.1" min="0"><span class="bf-unit">m</span></span></div>' +
+      '    </div>' +
+      '    <table class="bf-tbl" id="bf-attbl"></table>' +
+      '    <div class="bf-note">Click anywhere on the diagrams to bring that position here.</div>' +
+      '  </div>' +
       '</div>' +
 
       '</div></div>';
@@ -720,9 +741,22 @@
       render(root);
     });
 
+    q(root, '#bf-atx').addEventListener('input', function () {
+      var v = parseFloat(this.value);
+      if (isFinite(v)) { ST.atX = v; render(root); }
+    });
+
     var plot = q(root, '#bf-plot');
     plot.addEventListener('mousemove', cursorMove);
     plot.addEventListener('mouseleave', cursorHide);
+    // 그래프를 짚으면 그 자리가 아래 칸으로 들어온다 — 눈으로 찾은 자리를
+    // 손으로 다시 옮겨 적지 않아도 되게.
+    plot.addEventListener('click', function (ev) {
+      var x = cursorX(ev);
+      if (x == null) return;
+      ST.atX = Math.round(x * 1000) / 1000;
+      render(root);
+    });
     // 열 폭이 바뀌면 도면 좌표폭도 따라가야 한다 (글자 크기를 지키려고 폭을 잰다)
     var rt;
     window.addEventListener('resize', function () {
@@ -847,6 +881,7 @@
       q(root, '#bf-stats').innerHTML = '';
       q(root, '#bf-plot').innerHTML = '<div class="bf-err">No solution: the beam is not supported.</div>';
       q(root, '#bf-fcard').hidden = true;
+      q(root, '#bf-atcard').hidden = true;
       CUR = null;
       return;
     }
@@ -895,6 +930,7 @@
     }
     lerr.hidden = true;
     q(root, '#bf-fcard').hidden = false;
+    q(root, '#bf-atcard').hidden = false;
     var d = r.diag, L = ST.L;
     var c = r.matched ? F.get(r.matched) : null;
 
@@ -917,6 +953,26 @@
       return '<div class="bf-stat"><div class="k">' + esc(o.k) + '</div><div class="v" style="color:' + o.c + '">' +
         o.v + '</div><div class="s">' + esc(o.s) + '</div></div>';
     }).join('');
+
+    /* 조회 위치 — 손대기 전에는 L/2 */
+    var ax = (ST.atX == null) ? L / 2 : Math.min(Math.max(ST.atX, 0), L);
+    var axIn = q(root, '#bf-atx');
+    axIn.max = L;
+    if (document.activeElement !== axIn) axIn.value = +ax.toFixed(3);
+    q(root, '#bf-atspan').textContent = '0 – ' + num(L, 2) + ' m';
+
+    var atM = valueAt(d.x, d.M, ax), atV = valueAt(d.x, d.S, ax);
+    var atY = valueAt(d.x, d.y, ax), atT = valueAt(d.x, d.theta, ax);
+    q(root, '#bf-attbl').innerHTML =
+      '<thead><tr><th>Quantity</th><th>Value</th><th>Unit</th><th></th></tr></thead><tbody>' +
+      [['M', num(atM, 2), 'kN·m', atM > 0 ? 'sagging' : (atM < 0 ? 'hogging' : '')],
+       ['V', num(atV, 2), 'kN', ''],
+       ['δ', (atY < 0 ? '↓ ' : (atY > 0 ? '↑ ' : '')) + num(Math.abs(atY) * 1000, 3), 'mm', ''],
+       ['θ', num(atT, 6), 'rad', num(atT * 180 / Math.PI, 4) + '°']
+      ].map(function (o) {
+        return '<tr><td class="k">' + esc(o[0]) + '</td><td>' + o[1] + '</td><td class="at">' +
+          esc(o[2]) + '</td><td class="at">' + esc(o[3]) + '</td></tr>';
+      }).join('') + '</tbody>';
 
     /* 도면 */
     var w = plotWidth(root, '#bf-plot'), pad = padOf(w), SX = SXf(w, pad), s = Sheet(w);
@@ -945,6 +1001,17 @@
                      flip: cf[6], absv: cf[7], y0: yy, amp: 46, SX: SX, L: L, pad: pad }));
       s.grow(74);          // 진폭 46 + 라벨 — 마지막 판이 잘리지 않게
     });
+    /* 조회 위치 표식 — 아래 칸이 읽고 있는 자리를 도면에도 같이 찍는다 */
+    if (probes.length && ax >= 0 && ax <= L) {
+      s.grow(15);                       // 표식 글자가 놓일 자리
+      var pxa = SX(ax, L);
+      s.line(pxa, 8, pxa, s.h - 17, DIM, 1, '5 4');
+      probes.forEach(function (pr) {
+        var vv = valueAt(pr.x, pr.v, ax);
+        s.dot(pxa, pr.y0 + pr.sgn * pr.amp * (vv / pr.mx), 3.2, pr.col);
+      });
+      s.text(Math.min(Math.max(pxa, 30), w - 30), s.h - 6, 'x = ' + num(ax, 3), DIM, { size: 10, halo: 1 });
+    }
     if (s.h < 40) s.grow(80);
     s.raw(cursorLayer(probes, s.h));
     q(root, '#bf-plot').innerHTML = s.out();
