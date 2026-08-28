@@ -162,7 +162,10 @@
     '.cb-cols{display:grid;border-top:1px solid var(--line)}',
     '.cb-col{padding:12px 14px 14px;border-right:1px dashed var(--hair);display:flex;flex-direction:column;gap:7px}',
     '.cb-col:last-child{border-right:0}',
-    '.cb-colhead{display:flex;justify-content:space-between;align-items:baseline;font-size:12.5px;font-weight:700;color:var(--ink)}',
+    '.cb-colhead{display:flex;justify-content:space-between;align-items:center;font-size:12.5px;font-weight:700;color:var(--ink)}',
+    '.cb-colhead::before{content:"";display:inline-block;width:3px;height:13px;border-radius:2px;background:var(--dim);',
+      'margin-right:7px;flex-shrink:0}',
+    '.cb-colhead>b{margin-right:auto}',
     '.cb-colhead span{font-size:10.5px;font-weight:400;color:var(--muted);font-family:ui-monospace,Menlo,Consolas,monospace}',
     '.cb-sub{display:flex;justify-content:space-between;align-items:center;margin-top:5px;padding-top:7px;',
       'border-top:1px dashed var(--hair);font-size:10.5px;font-weight:700;letter-spacing:.05em;color:var(--muted)}',
@@ -777,7 +780,7 @@
     root.innerHTML =
       '<div class="bf-root"><div class="cb-stack">' +
 
-      '  <div class="bf-card"><div class="bf-head"><h3>Model</h3>' +
+      '  <div class="bf-card"><div class="bf-hd"><span class="bf-ttl">Model</span>' +
       '    <span class="cb-headbits">' +
       '      <span class="bf-seg" id="cb-nseg">' +
       '        <button type="button" data-d="-1" title="Remove the last span">−</button>' +
@@ -791,20 +794,20 @@
       '    </div>' +
       '    <div class="bf-err" id="cb-serr" hidden></div></div>' +
 
-      '  <div class="bf-card"><div class="bf-head"><h3>Load</h3>' +
+      '  <div class="bf-card"><div class="bf-hd"><span class="bf-ttl">Load</span>' +
       '    <button type="button" class="cb-ladd" id="cb-ladd">+ Add load</button>' +
       '    <span class="cb-maxnote">One row may carry a UDL and a point load together · a and b are measured from the left end of that span · a value of 0 means the load is not applied</span></div>' +
       '    <div class="cb-loadpanes" id="cb-loadpanes"><div id="cb-ltbl"></div></div>' +
       '    <div class="bf-err" id="cb-lerr" hidden></div></div>' +
 
-      '  <div class="bf-card"><div class="bf-head"><h3 id="cb-title">Continuous beam</h3></div>' +
+      '  <div class="bf-card"><div class="bf-hd"><span class="bf-ttl" id="cb-title">Continuous beam</span></div>' +
       '    <div class="bf-plot" id="bf-plot"></div></div>' +
 
       '  <div class="cb-out">' +
-      '    <div class="bf-card"><div class="bf-head"><h3>Results</h3></div>' +
+      '    <div class="bf-card"><div class="bf-hd"><span class="bf-ttl">Results</span></div>' +
       '      <div class="bf-body"><div class="bf-stats" id="cb-stats"></div></div></div>' +
 
-      '    <div class="bf-card"><div class="bf-head"><h3>Value at a point</h3>' +
+      '    <div class="bf-card"><div class="bf-hd"><span class="bf-ttl">Value at a point</span>' +
       '    <span class="cb-maxnote" id="cb-atwhere"></span></div>' +
       '    <div class="cb-at">' +
       '      <div class="cb-atin">' +
@@ -819,9 +822,9 @@
       '  </div>' +
 
       '  <div class="cb-out">' +
-      '    <div class="bf-card"><div class="bf-head"><h3>Support reactions</h3></div>' +
+      '    <div class="bf-card"><div class="bf-hd"><span class="bf-ttl">Support reactions</span></div>' +
       '      <div class="bf-body"><table class="bf-tbl" id="cb-rtbl"></table></div></div>' +
-      '    <div class="bf-card"><div class="bf-head"><h3>Moments at span ends</h3></div>' +
+      '    <div class="bf-card"><div class="bf-hd"><span class="bf-ttl">Moments at span ends</span></div>' +
       '      <div class="bf-body"><table class="bf-tbl" id="cb-mtbl"></table>' +
       '        <div class="bf-note">Read off the BMD — sagging positive, hogging negative. Neighbouring spans agree at the support.</div></div></div>' +
       '  </div>' +
@@ -1071,7 +1074,7 @@
 
     q(root, '#cb-cols').innerHTML = ST.spans.map(function (sp, k) {
       return '<div class="cb-col">' +
-        '<div class="cb-colhead">Span ' + (k + 1) + '<span>' + num(nodeX(k), 2) + ' – ' + num(nodeX(k + 1), 2) + ' m</span></div>' +
+        '<div class="cb-colhead"><b>Span ' + (k + 1) + '</b><span>' + num(nodeX(k), 2) + ' – ' + num(nodeX(k + 1), 2) + ' m</span></div>' +
 
         '<div class="cb-f"><label>L</label>' +
         '  <input type="number" step="0.5" min="0.1" data-k="' + k + '" data-f="L" value="' + sp.L + '">' +
@@ -1087,13 +1090,8 @@
         '<div class="cb-f"><label>I</label>' +
         '  <input type="number" step="10" data-k="' + k + '" data-f="I" value="' + sp.I + '"' + (sp.src === 'db' ? ' readonly' : '') + '>' +
         '  <span class="bf-unit">cm⁴</span></div>' +
-        '<div class="cb-f"><label>S top</label>' +
-        '  <input type="number" step="1" min="0" data-k="' + k + '" data-f="stop" value="' + sp.stop + '"' + (sp.src === 'db' ? ' readonly' : '') + '>' +
-        '  <span class="bf-unit">cm³</span></div>' +
-        '<div class="cb-f"><label>S bot</label>' +
-        '  <input type="number" step="1" min="0" data-k="' + k + '" data-f="sbot" value="' + sp.sbot + '"' + (sp.src === 'db' ? ' readonly' : '') + '>' +
-        '  <span class="bf-unit">cm³</span></div>' +
-        /* 값을 먼저 보여 주고, 그 값을 어디서 가져올지는 그 아래에서 고른다 */
+        /* 단면을 어디서 가져올지 고르는 자리는 I 와 S 사이다 — 위에서 재료와
+           단면2차모멘트를 정하고, 출처를 고르면 그에 딸린 단면계수가 따라온다. */
         '<div class="cb-f"><label>Sect</label><span class="bf-seg cb-srcseg">' +
         '  <button type="button" data-k="' + k + '" data-src="user" aria-pressed="' + (sp.src !== 'db') + '">User</button>' +
         '  <button type="button" data-k="' + k + '" data-src="db" aria-pressed="' + (sp.src === 'db') + '">DB</button>' +
@@ -1105,6 +1103,12 @@
             }).join('') + '</select><span></span></div>' +
           '<div class="cb-f"><label>Size</label><select data-k="' + k + '" data-f="pick" id="cb-pick-' + k + '">' +
             '<option>Loading…</option></select><span></span></div>' : '') +
+        '<div class="cb-f"><label>S top</label>' +
+        '  <input type="number" step="1" min="0" data-k="' + k + '" data-f="stop" value="' + sp.stop + '"' + (sp.src === 'db' ? ' readonly' : '') + '>' +
+        '  <span class="bf-unit">cm³</span></div>' +
+        '<div class="cb-f"><label>S bot</label>' +
+        '  <input type="number" step="1" min="0" data-k="' + k + '" data-f="sbot" value="' + sp.sbot + '"' + (sp.src === 'db' ? ' readonly' : '') + '>' +
+        '  <span class="bf-unit">cm³</span></div>' +
         (sp.info ? '<div class="cb-secnote">' + sp.info + '</div>' : '') +
         '</div>';
     }).join('');
