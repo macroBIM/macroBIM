@@ -1343,9 +1343,26 @@
         var SXg = function (x) { return pad + (Lt > 0 ? x / Lt : 0) * (w - 2 * pad); };
         var s = Sheet(w), probes = [];
 
-      /* ① 보 · 지점 · 하중 · 경간 치수 */
-      var y0 = s.grow(Math.max(PLOT.load, PLOT.load - 16 + PLOT.loadStep * Math.max(0, ST.loads.length - 1)));
+      /* ① 보 · 지점 · 하중 · 경간 치수
+
+         하중이 어디서 시작해 얼마나 걸리는지는 숫자칸에만 있고 그림에는 없었다.
+         a(경간 왼쪽 끝에서 시작점)와 재하길이를 도면 위쪽에 치수로 적는다.
+         경간마다 따로 재고(입력이 그 기준이다) 전체 좌표로 옮겨 한 번에 배치한다 —
+         가로로 겹치지 않는 치수는 같은 높이에 두어야 a 와 b 가 계단이 되지 않는다. */
+      var ld = [];
+      res.spans.forEach(function (sp) {
+        loadDims(sp.loads, sp.L).forEach(function (d) {
+          ld.push({ x1: sp.X0 + d.x1, x2: sp.X0 + d.x2, t: d.t });
+        });
+      });
+      var rows = packDims(ld, function (x) { return SXg(x); }, Lt);
+
+      var y0 = s.grow(Math.max(PLOT.load,
+        PLOT.load - 16 + 17 * rows + PLOT.loadStep * Math.max(0, ST.loads.length - 1)));
       s.line(SXg(0), y0, SXg(Lt), y0, INK, 2.4);
+      ld.forEach(function (d) {
+        drawDim(s, SXg(d.x1), SXg(d.x2), 20 + 17 * d.row, d.t, y0);
+      });
       res.spans.forEach(function (sp) {
         var SXs = function (x) { return SXg(sp.X0 + x); };
         // drawLoads 는 엔진 국부형(w1·w2·a·b, b 는 끝좌표)을 받는다
