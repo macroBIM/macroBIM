@@ -408,6 +408,24 @@
     return out;
   }
 
+  /* 치수를 줄에 채워 넣는다.
+     하나씩 새 줄에 쌓으면 a 와 b 처럼 나란한 치수가 계단이 된다 — 같은 것을
+     재는데 높이가 다르면 눈이 먼저 그 차이를 읽는다. 가로로 겹치지 않으면
+     한 줄에 둔다. 겹침은 치수선뿐 아니라 글자 폭까지 보고 판단한다. */
+  function packDims(dims, SX, L) {
+    var rows = [];
+    dims.forEach(function (d) {
+      var x1 = SX(d.x1, L), x2 = SX(d.x2, L);
+      var mid = (x1 + x2) / 2, half = d.t.length * 2.9 + 6;
+      var lo = Math.min(x1, mid - half), hi = Math.max(x2, mid + half);
+      var r = 0;
+      while (rows[r] && rows[r].some(function (p) { return lo < p.hi - 0.5 && p.lo < hi - 0.5; })) r++;
+      (rows[r] = rows[r] || []).push({ lo: lo, hi: hi });
+      d.row = r;
+    });
+    return rows.length;
+  }
+
   function drawLoads(s, loads, L, SX, y0) {
     var base = y0 - LOAD_BAND - 16, placed = [];
     function label(x, text, col) {
@@ -1098,11 +1116,12 @@
 
     if (want('load')) {
       var ld = loadDims(r.loads, L);
-      // 위쪽 치수 + 하중 라벨 + 띠가 모두 들어갈 높이
-      var y0 = s.grow(Math.max(112, 80 + 17 * ld.length + 13 * Math.max(0, r.loads.length - 1)));
+      var rows = packDims(ld, SX, L);
+      // 위쪽 치수 줄 + 하중 라벨 + 띠가 모두 들어갈 높이
+      var y0 = s.grow(Math.max(112, 80 + 17 * rows + 13 * Math.max(0, r.loads.length - 1)));
       s.line(SX(0, L), y0, SX(L, L), y0, INK, 2.4);
-      ld.forEach(function (d, i) {
-        drawDim(s, SX(d.x1, L), SX(d.x2, L), 20 + 17 * i, d.t, y0);
+      ld.forEach(function (d) {
+        drawDim(s, SX(d.x1, L), SX(d.x2, L), 20 + 17 * d.row, d.t, y0);
       });
       drawLoads(s, r.loads, L, SX, y0);
       drawSupport(s, SX(0, L), y0, r.supports[0], 1);
