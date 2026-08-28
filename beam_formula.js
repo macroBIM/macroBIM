@@ -31,14 +31,15 @@
 
   /* Pages 배포가 08-26 15:06 UTC 부터 멈춰 있다 — 실행 기록만 생기고 큐에 들어가지
      않는다(force-cancel 이 409 "has not been queued yet"). 그래서 저장소를 직접
-     읽는 jsDelivr 로 우회한다.
+     읽어 우회한다.
 
-     테스트본은 @main 을 쓰지만 운영은 커밋을 박는다 — 방문자는 아는 빌드 위에
-     있어야 하고, main 에 올라간 무엇이든 바로 받으면 안 된다. 올릴 때 손으로
-     올리는 것은 원래 ?v= 로 하던 일과 같다.
+     운영은 jsDelivr 에 커밋을 박는다. 테스트본은 githack 의 브랜치를 보지만 —
+     jsDelivr 이 브랜치를 12시간쯤 붙들어 옛 코드를 줬다 — 운영에서는 늦게 도는
+     편이 오히려 맞다. 방문자는 아는 빌드 위에 있어야 하고, 올릴 때 손으로 올리는
+     것은 원래 ?v= 로 하던 일과 같다.
      Pages 가 돌아오면 아래 두 줄을 macrobim.github.io 로 되돌린다. */
-  var DESIGN = 'https://cdn.jsdelivr.net/gh/macroBIM/design@c5bda27/';
-  var BASE   = 'https://cdn.jsdelivr.net/gh/macroBIM/macroBIM@5b4b55a/';
+  var DESIGN = 'https://cdn.jsdelivr.net/gh/macroBIM/design@1aa6fbe/';
+  var BASE   = 'https://cdn.jsdelivr.net/gh/macroBIM/macroBIM@7bd29ac/';
 
   /* 도면 색 — 저장소의 단면 도면과 같은 벌 */
   var INK = '#182430', DIM = '#2563eb', HID = '#94a3b8';
@@ -206,13 +207,13 @@
     squaretube: { label: 'Square Tube', file: 'squaretube.csv', name: '호칭치수',
       dims: ['A', 'B', 't', 'r'], area: '단면적', wt: '단위무게', std: '규격',
       calc: function (r) { var p = tubeProps(+r.A, +r.B, +r.t, +r.r); return { I: p.I, A: p.A, y: +r.A / 2 }; },
-      lab: function (n, r) { return r['규격'] ? n + '  · ' + r['규격'] : n; } },
+      lab: function (n) { return n; } },                          // 규격(SPSR·ROLL…)은 아래 안내줄에 나온다
     pipe: { label: 'Pipe', file: 'pipe.csv', name: '호칭치수',
       dims: ['D', 't'], area: '단면적', wt: '단위무게', std: '규격', ks: 'KS규격여부',
       calc: function (r) { var D = +r.D, d = D - 2 * (+r.t);
         return { I: Math.PI * (Math.pow(D, 4) - Math.pow(d, 4)) / 64,
                  A: Math.PI * (D * D - d * d) / 4, y: D / 2 }; },
-      lab: function (n, r) { return r['규격'] ? n + '  · ' + r['규격'] : n; } }
+      lab: function (n) { return n; } }                           // 규격(STK)은 아래 안내줄에 나온다
   };
 
   var DB = {};                                  // kind → [{name, ix, area, wt, dim}]
@@ -269,22 +270,17 @@
     };
   }
 
-  /* 표는 호칭이 겹친다. H형강 76행이 이름은 29종뿐이고 400×400 만 열 개다 —
-     두께가 다른 별개의 단면인데 이름은 같다. 드롭다운에 같은 글자가 열 번
-     나오면 고를 수가 없고, 이름으로 찾으면 늘 첫 줄이 잡힌다.
-     그래서 두께(또는 규격)를 이름에 붙이고, 그래도 겹치면 단위무게를, 그것도
-     겹치면 줄 번호를 붙여 **행마다 유일한 키**를 만든다. */
+  /* 표는 호칭이 겹친다. H형강 76행이 이름은 29종뿐이고, 각관은 SPSR 과 ROLL 에
+     같은 호칭이 열 쌍 있다. 두께까지 붙여도 갈리지 않는 줄이 남는다 —
+     450x300x11x18 두 줄은 모서리 반지름만 다르고, 200x200x6 두 줄도 그렇다.
+
+     그렇다고 이름에 무게나 규격을 덧붙이지는 않는다. 목록에서 읽고 싶은 것은
+     치수뿐이고, 무엇이 다른지는 고른 뒤 아래 안내줄이 말해 준다(규격 · 단위무게 ·
+     KS 여부). 대신 **고르는 키는 이름과 분리해** 줄 번호로 유일하게 만든다.
+     그래야 같은 글자가 두 줄이어도 각자 제 값을 준다 — 이름으로 찾으면 늘 첫
+     줄이 잡히던 것이 예전의 버그였다. */
   function uniquify(rows) {
-    var seen = {};
-    rows.forEach(function (r) { seen[r.label] = (seen[r.label] || 0) + 1; });
-    var used = {};
-    rows.forEach(function (r, i) {
-      var lab = r.label;
-      if (seen[lab] > 1) lab += ' · ' + num(r.wt, 1) + ' kg/m';
-      if (used[lab]) lab += '  #' + (i + 1);
-      used[lab] = 1;
-      r.label = lab; r.key = lab;
-    });
+    rows.forEach(function (r, i) { r.key = r.label + '#' + i; });
     return rows;
   }
 
