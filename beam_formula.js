@@ -29,8 +29,16 @@
 (function () {
   'use strict';
 
-  var DESIGN = 'https://macrobim.github.io/design/';
-  var BASE   = 'https://macrobim.github.io/macroBIM/';
+  /* Pages 배포가 08-26 15:06 UTC 부터 멈춰 있다 — 실행 기록만 생기고 큐에 들어가지
+     않는다(force-cancel 이 409 "has not been queued yet"). 그래서 저장소를 직접
+     읽는 jsDelivr 로 우회한다.
+
+     테스트본은 @main 을 쓰지만 운영은 커밋을 박는다 — 방문자는 아는 빌드 위에
+     있어야 하고, main 에 올라간 무엇이든 바로 받으면 안 된다. 올릴 때 손으로
+     올리는 것은 원래 ?v= 로 하던 일과 같다.
+     Pages 가 돌아오면 아래 두 줄을 macrobim.github.io 로 되돌린다. */
+  var DESIGN = 'https://cdn.jsdelivr.net/gh/macroBIM/design@c5bda27/';
+  var BASE   = 'https://cdn.jsdelivr.net/gh/macroBIM/macroBIM@db9ef0f/';
 
   /* 도면 색 — 저장소의 단면 도면과 같은 벌 */
   var INK = '#182430', DIM = '#2563eb', HID = '#94a3b8';
@@ -404,6 +412,24 @@
       if (o.type === 'w' && (o.a > 1e-9 || o.b < L - 1e-9)) add(o.a, o.b, 'b = ' + num(o.b - o.a, 2) + ' m');
     });
     return out;
+  }
+
+  /* 치수를 줄에 채워 넣는다.
+     하나씩 새 줄에 쌓으면 a 와 b 처럼 나란한 치수가 계단이 된다 — 같은 것을
+     재는데 높이가 다르면 눈이 먼저 그 차이를 읽는다. 가로로 겹치지 않으면
+     한 줄에 둔다. 겹침은 치수선뿐 아니라 글자 폭까지 보고 판단한다. */
+  function packDims(dims, SX, L) {
+    var rows = [];
+    dims.forEach(function (d) {
+      var x1 = SX(d.x1, L), x2 = SX(d.x2, L);
+      var mid = (x1 + x2) / 2, half = d.t.length * 2.9 + 6;
+      var lo = Math.min(x1, mid - half), hi = Math.max(x2, mid + half);
+      var r = 0;
+      while (rows[r] && rows[r].some(function (p) { return lo < p.hi - 0.5 && p.lo < hi - 0.5; })) r++;
+      (rows[r] = rows[r] || []).push({ lo: lo, hi: hi });
+      d.row = r;
+    });
+    return rows.length;
   }
 
   function drawLoads(s, loads, L, SX, y0) {
@@ -1096,11 +1122,12 @@
 
     if (want('load')) {
       var ld = loadDims(r.loads, L);
-      // 위쪽 치수 + 하중 라벨 + 띠가 모두 들어갈 높이
-      var y0 = s.grow(Math.max(112, 80 + 17 * ld.length + 13 * Math.max(0, r.loads.length - 1)));
+      var rows = packDims(ld, SX, L);
+      // 위쪽 치수 줄 + 하중 라벨 + 띠가 모두 들어갈 높이
+      var y0 = s.grow(Math.max(112, 80 + 17 * rows + 13 * Math.max(0, r.loads.length - 1)));
       s.line(SX(0, L), y0, SX(L, L), y0, INK, 2.4);
-      ld.forEach(function (d, i) {
-        drawDim(s, SX(d.x1, L), SX(d.x2, L), 20 + 17 * i, d.t, y0);
+      ld.forEach(function (d) {
+        drawDim(s, SX(d.x1, L), SX(d.x2, L), 20 + 17 * d.row, d.t, y0);
       });
       drawLoads(s, r.loads, L, SX, y0);
       drawSupport(s, SX(0, L), y0, r.supports[0], 1);
@@ -1197,7 +1224,7 @@
     if (window.BeamEngine) { build(root); return; }
     root.innerHTML = '<div class="bf-root"><div class="bf-card"><div class="bf-note">Loading engine…</div></div></div>';
     var sc = document.createElement('script');
-    sc.src = BASE + 'beam_engine.js?v=3';       // 운영은 고정 버전
+    sc.src = BASE + 'beam_engine.js';       // 운영은 고정 커밋
     sc.onload = function () { build(root); };
     sc.onerror = function () {
       root.innerHTML = '<div class="bf-root"><div class="bf-card"><div class="bf-err">beam_engine.js failed to load.</div></div></div>';
