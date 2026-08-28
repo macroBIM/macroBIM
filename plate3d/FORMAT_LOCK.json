@@ -398,6 +398,21 @@
    "4 ASSY as.big as.half ADD 0 0 900 "
   ],
   [
+   " A B C D E F G",
+   "1 # VIEW id dir AZ EL scale title",
+   "2 VIEW md.wpl FRONT   10 Web plate",
+   "3 VIEW md.bay ISO   25 Bay assembly",
+   "4 VIEW as.frame 3D -45 35.26 50 Frame, from the low side",
+   "5 VIEW as.frame TOP   50 Frame, from above"
+  ],
+  [
+   " A B C D E",
+   "1 # PLOT PART | SECT id | ALL scale title",
+   "2 PLOT PART ALL 10 Plates",
+   "3 PLOT SECT ALL 20 Sections",
+   "4 PLOT PART pl.gusset 5 "
+  ],
+  [
    " A B C D E F G H I J K L",
    "1 # PLATE id mat thk shape base.pt p1 p2    ",
    "2 PLATE pl.T1 SM400 10 RECT bc 350 300    ",

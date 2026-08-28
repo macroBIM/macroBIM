@@ -9295,15 +9295,22 @@
     ' sliding the scale two cells along, so the sixth cell is the scale wherever you look',
     ' down the block &mdash; and a named direction <i>with</i> something in those cells is',
     ' refused by name, because that is the shape of a row written to the older grammar.</p>',
-    '<table class="gt"><thead><tr><th></th><th>id</th><th>dir</th><th>AZ</th><th>EL</th>',
-    '<th>scale</th><th>title</th></tr></thead><tbody>',
-    '<tr><td><code>VIEW</code></td><td>md.bay</td><td>ISO</td><td></td><td></td>',
-    '<td>25</td><td>Bay assembly</td></tr>',
-    '<tr><td><code>VIEW</code></td><td>as.frame</td><td>3D</td><td>&minus;45</td><td>35.26</td>',
-    '<td>50</td><td>Frame</td></tr>',
-    '<tr><td><code>PLOT</code></td><td>PART</td><td>ALL</td><td>10</td><td colspan="3"></td></tr>',
-    '<tr><td><code>PLOT</code></td><td>SECT</td><td>b.rafter</td><td>20</td><td colspan="3"></td></tr>',
-    '</tbody></table>',
+    sheet([['# VIEW', 'id', 'dir', 'AZ', 'EL', 'scale', 'title'],
+           ['VIEW', 'md.wpl', 'FRONT', '', '', 10, 'Web plate'],
+           ['VIEW', 'md.bay', 'ISO', '', '', 25, 'Bay assembly'],
+           ['VIEW', 'as.frame', '3D', -45, 35.26, 50, 'Frame, from the low side'],
+           ['VIEW', 'as.frame', 'TOP', '', '', 50, 'Frame, from above']],
+          'A named direction leaves <b>AZ</b> and <b>EL</b> empty rather than sliding the' +
+          ' scale two cells left. Row 4 is the corner <code>ISO</code> names, written out;' +
+          ' <code>3D -90 0</code> is likewise exactly <code>FRONT</code>, and that is' +
+          ' asserted against the real export rather than assumed.'),
+    sheet([['# PLOT', 'PART | SECT', 'id | ALL', 'scale', 'title'],
+           ['PLOT', 'PART', 'ALL', 10, 'Plates'],
+           ['PLOT', 'SECT', 'ALL', 20, 'Sections'],
+           ['PLOT', 'PART', 'pl.gusset', 5]],
+          'Plates and sections are asked for separately so each can carry its own scale -' +
+          ' a gusset and a six-metre beam do not share one. <code>ALL</code> saves naming' +
+          ' forty parts by hand and going stale the moment one is added.'),
     '<p><b>Hidden lines are removed.</b> An edge with steel in front of it is not drawn, in',
     ' every VIEW drawing &mdash; not only the angled ones, because tying it to how the',
     ' direction was spelled would make <code>3D -90 0</code> and <code>FRONT</code> two',
