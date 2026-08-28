@@ -21,8 +21,13 @@
 (function () {
   'use strict';
 
-  var DESIGN = 'https://macrobim.github.io/design/';
-  var BASE   = 'https://macrobim.github.io/macroBIM/';
+  /* Pages 배포가 08-26 15:06 UTC 부터 멈춰 있다 — 실행 기록만 생기고 큐에 들어가지
+     않는다(force-cancel 이 409 "has not been queued yet"). 그래서 이 테스트본은
+     저장소를 직접 읽는 jsDelivr 로 우회한다. 커밋을 박아 두는 것은 브랜치를 쓰면
+     12시간 캐시가 끼어 "늘 최신"이 깨지기 때문이다. Pages 가 돌아오면 아래 두 줄을
+     macrobim.github.io 로 되돌린다. */
+  var DESIGN = 'https://cdn.jsdelivr.net/gh/macroBIM/design@aa3adfb/';
+  var BASE   = 'https://cdn.jsdelivr.net/gh/macroBIM/macroBIM@8f02e04/';
 
   /* 도면 색 — 저장소의 단면 도면과 같은 벌 */
   var INK = '#182430', DIM = '#2563eb', HID = '#94a3b8';
