@@ -23,11 +23,16 @@
 
   /* Pages 배포가 08-26 15:06 UTC 부터 멈춰 있다 — 실행 기록만 생기고 큐에 들어가지
      않는다(force-cancel 이 409 "has not been queued yet"). 그래서 이 테스트본은
-     저장소를 직접 읽는 jsDelivr 로 우회한다. 커밋을 박아 두는 것은 브랜치를 쓰면
-     12시간 캐시가 끼어 "늘 최신"이 깨지기 때문이다. Pages 가 돌아오면 아래 두 줄을
-     macrobim.github.io 로 되돌린다. */
-  var DESIGN = 'https://cdn.jsdelivr.net/gh/macroBIM/design@aa3adfb/';
-  var BASE   = 'https://cdn.jsdelivr.net/gh/macroBIM/macroBIM@8f02e04/';
+     저장소를 직접 읽는 jsDelivr 로 우회한다.
+
+     커밋을 박지 않고 @main 을 쓴다. 커밋을 박으면 고칠 때마다 이 파일과 레이아웃,
+     PHP 까지 세 곳의 주소를 손으로 바꿔야 하고, 그러다 한 곳을 잊으면 조용히 옛
+     코드가 나간다. @main 은 주소가 고정되는 대신 jsDelivr 이 12시간 캐시하므로,
+     고친 뒤에는 purge 를 한 번 열어 준다:
+         https://purge.jsdelivr.net/gh/macroBIM/macroBIM@main/beam_formula_test.js
+     Pages 가 돌아오면 아래 두 줄을 macrobim.github.io 로 되돌린다. */
+  var DESIGN = 'https://cdn.jsdelivr.net/gh/macroBIM/design@main/';
+  var BASE   = 'https://cdn.jsdelivr.net/gh/macroBIM/macroBIM@main/';
 
   /* 도면 색 — 저장소의 단면 도면과 같은 벌 */
   var INK = '#182430', DIM = '#2563eb', HID = '#94a3b8';
