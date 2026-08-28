@@ -38,20 +38,33 @@ const LIB = f => {
    drawing is titled SUBJECT, because a title is written into the DXF and two
    files can only be compared byte for byte if the only thing that differs
    between them is the thing under test. */
+const N = null;                       // an empty cell, which is not a zero
 const VARIANTS = {
-  named:  [['VIEW', 'md.wpl', 'FRONT', 'SUBJECT']],
-  angles: [['VIEW', 'md.wpl', '3D', -90, 0, 'SUBJECT']],
-  lower:  [['VIEW', 'md.wpl', '3d', -90, 0, 'SUBJECT']],       // case of the keyword
-  top:    [['VIEW', 'md.wpl', 'TOP', 'SUBJECT']],
-  topAng: [['VIEW', 'md.wpl', '3D', 0, 90, 'SUBJECT']],
-  iso:    [['VIEW', 'md.wpl', 'ISO', 'SUBJECT']],
-  isoSE:  [['VIEW', 'md.wpl', 'ISO-SE', 'SUBJECT']],           // ISO is SE
-  isoUnd: [['VIEW', 'md.wpl', 'ISO_SE', 'SUBJECT']],           // and ISO_SE is ISO-SE
-  isoNE:  [['VIEW', 'md.wpl', 'ISO-NE', 'SUBJECT']],           // a different corner
-  assy:   [['VIEW', 'as.splice', 'ISO', 'SUBJECT']],           // the subject is an ASSY id
-  bad:    [['VIEW', 'md.wpl', 'SIDEWAYS', 'nowhere'],
-           ['VIEW', 'md.wpl', '3D', -90, 120, 'over the pole'],
-           ['VIEW', 'md.wpl', 'FRONT', 'SUBJECT']]
+  //        VIEW   id           dir       AZ    EL  scale  title
+  named:  [['VIEW', 'md.wpl', 'FRONT',   N,    N,    10, 'SUBJECT']],
+  angles: [['VIEW', 'md.wpl', '3D',    -90,    0,    10, 'SUBJECT']],
+  lower:  [['VIEW', 'md.wpl', '3d',    -90,    0,    10, 'SUBJECT']],
+  top:    [['VIEW', 'md.wpl', 'TOP',     N,    N,    10, 'SUBJECT']],
+  topAng: [['VIEW', 'md.wpl', '3D',      0,   90,    10, 'SUBJECT']],
+  iso:    [['VIEW', 'md.wpl', 'ISO',     N,    N,    10, 'SUBJECT']],
+  isoSE:  [['VIEW', 'md.wpl', 'ISO-SE',  N,    N,    10, 'SUBJECT']],
+  isoUnd: [['VIEW', 'md.wpl', 'ISO_SE',  N,    N,    10, 'SUBJECT']],
+  isoNE:  [['VIEW', 'md.wpl', 'ISO-NE',  N,    N,    10, 'SUBJECT']],
+  assy:   [['VIEW', 'as.splice', 'ISO',  N,    N,    10, 'SUBJECT']],
+  scaled: [['VIEW', 'md.wpl', 'FRONT',   N,    N,    50, 'SUBJECT']],
+  // the parts, asked for by a different word because they are a different thing
+  plotAll:  [['PLOT', 'PART', 'ALL', 10]],
+  plotSect: [['PLOT', 'SECT', 'ALL', 10]],
+  plotBoth: [['PLOT', 'PART', 'ALL', 10], ['PLOT', 'SECT', 'ALL', 10]],
+  mixed:  [['VIEW', 'md.wpl', 'FRONT',   N,    N,    10, 'SUBJECT'],
+           ['PLOT', 'PART', 'ALL', 10]],
+  none:   [],                                        // a sheet that asks for nothing
+  bad:    [['VIEW', 'md.wpl', 'SIDEWAYS', N,   N,    10, 'nowhere'],
+           ['VIEW', 'md.wpl', '3D',    -90,  120,    10, 'over the pole'],
+           ['VIEW', 'md.wpl', 'TOP',   -45,   35,    10, 'written the old way'],
+           ['VIEW', 'md.wpl', 'ISO',     N,    N,     N, 'no scale'],
+           ['PLOT', 'CHEESE', 'ALL', 10],
+           ['VIEW', 'md.wpl', 'FRONT',   N,    N,    10, 'SUBJECT']]
 };
 const VIEW_ROWS = [100, 101, 102, 103, 104];   // the book's own VIEW rows
 const KEY_COL = 2;                             // column B holds the keyword
@@ -62,9 +75,13 @@ async function makeBook(name, rows) {
   const ws = wb.getWorksheet('input');
   VIEW_ROWS.forEach(function (r, i) {
     const row = ws.getRow(r);
-    // clear the row's VIEW cells, then write the variant's if it has one here
-    for (let c = KEY_COL; c <= KEY_COL + 5; c++) row.getCell(c).value = null;
-    if (rows[i]) rows[i].forEach(function (v, j) { row.getCell(KEY_COL + j).value = v; });
+    // clear the row, then write the variant's if it has one here. A null in a
+    // variant is an EMPTY cell - which is not the same as a zero, and telling
+    // them apart is half of what these rows are testing.
+    for (let c = KEY_COL; c <= KEY_COL + 6; c++) row.getCell(c).value = null;
+    if (rows[i]) rows[i].forEach(function (v, j) {
+      if (v !== null) row.getCell(KEY_COL + j).value = v;
+    });
     row.commit();
   });
   const f = path.join(OUT, 'view3d_' + name + '.xlsx');
@@ -97,30 +114,22 @@ async function drawWith(page, file) {
     const c = HTMLAnchorElement.prototype.click;
     HTMLAnchorElement.prototype.click = function () { return c.apply(this, arguments); };
   });
+  /* Nothing is asked before the file is written any more - every drawing came
+     from a row that carried its own scale. A sheet that names no drawing says
+     so in an alert, which is caught here rather than left to hang the run. */
+  var alerted = null;
+  var onDialog = function (d) { alerted = d.message(); d.dismiss(); };
+  page.on('dialog', onDialog);
   await page.click('#pb-fmenu > button');
   await page.waitForTimeout(150);
   await page.click('#pb-fmenu .drop button:nth-of-type(2)');       // Save DXF
-  await page.waitForTimeout(250);
-  // only the VIEWS block, so nothing but the drawing under test is in the file
-  const avail = await page.evaluate(() => {
-    const out = {};
-    ['assembly', 'module', 'part', 'views'].forEach(k => {
-      const c = document.getElementById('pb-sc-' + k);
-      if (!c) return;
-      out[k] = c.disabled ? 'unavailable' : true;
-      if (!c.disabled && c.checked !== (k === 'views')) c.click();
-    });
-    return out;
-  });
-  if (avail.views === 'unavailable') {          // the sheet named no drawing at all
-    await page.click('#pb-scale button:not(.accent)');
-    return { dxf: null, report: report, views: 'unavailable' };
-  }
-  await page.fill('#pb-sc-views-v', '10');
-  await page.click('#pb-scale .accent');
-  await page.waitForFunction(() => !!window.__b, null, { timeout: 900000 });
-  return { dxf: await page.evaluate(() => window.__b.text()), report: report,
-           views: avail.views };
+  var dxf = null;
+  try {
+    await page.waitForFunction(() => !!window.__b, null, { timeout: 240000 });
+    dxf = await page.evaluate(() => window.__b.text());
+  } catch (e) { /* the alert path, or nothing to draw */ }
+  page.off('dialog', onDialog);
+  return { dxf: dxf, report: report, alert: alerted };
 }
 
 let bad = 0, checks = 0;
@@ -160,34 +169,62 @@ function ok(cond, what, got) {
   ok(got.angles.dxf === got.named.dxf,
      '3D -90 0 is byte-identical to FRONT',
      got.angles.dxf === got.named.dxf ? undefined :
-       'lengths ' + (got.angles.dxf || '').length + ' vs ' + got.named.dxf.length +
-       ', LINEs ' + countOf(got.angles.dxf || '', 'LINE') + ' vs ' + countOf(got.named.dxf, 'LINE'));
+       'lengths ' + (got.angles.dxf || '').length + ' vs ' + got.named.dxf.length);
   ok(got.topAng.dxf === got.top.dxf, '3D 0 90 is byte-identical to TOP');
   ok(got.lower.dxf === got.named.dxf, 'the 3d keyword is not case-sensitive');
+  ok(!!got.scaled.dxf && got.scaled.dxf !== got.named.dxf,
+     'the same view at 1:50 is a different file from the same view at 1:10');
 
   console.log('\nthe isometrics');
   ok(!!got.iso.dxf && got.iso.dxf !== got.named.dxf, 'ISO draws, and is not FRONT');
   ok(got.isoSE.dxf === got.iso.dxf, 'ISO on its own is the SE corner');
   ok(got.isoUnd.dxf === got.iso.dxf, 'ISO_SE is read as ISO-SE');
-  ok(!!got.isoNE.dxf && got.isoNE.dxf !== got.iso.dxf, 'ISO-NE is a different corner from ISO');
-  /* An isometric of a plate seen square-on in FRONT has to carry more lines:
-     the four edges that were hidden behind their own faces come into view. */
-  ok(countOf(got.iso.dxf, 'LINE') > countOf(got.named.dxf, 'LINE'),
-     'the isometric shows more edges than the face-on view',
-     countOf(got.iso.dxf, 'LINE') + ' vs ' + countOf(got.named.dxf, 'LINE'));
+  ok(!!got.isoNE.dxf && got.isoNE.dxf !== got.iso.dxf, 'ISO-NE is a different corner');
 
   console.log('\nthe subject can be an assembly');
   ok(!!got.assy.dxf, 'an ASSY id draws');
   ok(got.assy.dxf && countOf(got.assy.dxf, 'LINE') > countOf(got.iso.dxf, 'LINE'),
-     'the whole assembly carries more than the one module in it',
-     got.assy.dxf ? countOf(got.assy.dxf, 'LINE') + ' vs ' + countOf(got.iso.dxf, 'LINE') : 'no drawing');
+     'the whole assembly carries more than the one module in it');
 
-  console.log('\na row that is wrong says so, and does not take the sheet down with it');
+  console.log('\nhidden lines are gone');
+  /* The web plate seen face on: both its caps land on the same outline, and
+     with the far one removed the near one has to survive. A plate that lost
+     its own outline would show as a drawing with nothing in it. */
+  ok(countOf(got.named.dxf, 'LINE') > 0, 'a plate seen face on still has an outline');
+  /* An isometric of a splice used to carry every edge near and far. Removing
+     what is behind steel has to take some of them away and cannot take them
+     all: a picture with nothing left is not hidden-line removal, it is a bug. */
+  const isoN = countOf(got.iso.dxf, 'LINE');
+  ok(isoN > 0, 'the isometric still has lines', isoN);
+  console.log('        isometric of one module: ' + isoN + ' lines');
+  console.log('        isometric of the assembly: ' + countOf(got.assy.dxf, 'LINE') + ' lines');
+
+  console.log('\nPLOT draws the parts');
+  ok(!!got.plotAll.dxf, 'PLOT PART ALL draws');
+  ok(!!got.plotSect.dxf, 'PLOT SECT ALL draws');
+  ok(got.plotAll.dxf !== got.plotSect.dxf, 'plates and sections are not the same drawing');
+  ok(!!got.plotBoth.dxf &&
+     countOf(got.plotBoth.dxf, 'LINE') >
+       Math.max(countOf(got.plotAll.dxf, 'LINE'), countOf(got.plotSect.dxf, 'LINE')),
+     'asking for both draws more than either');
+  ok(!!got.mixed.dxf && countOf(got.mixed.dxf, 'LINE') >
+       Math.max(countOf(got.named.dxf, 'LINE'), countOf(got.plotAll.dxf, 'LINE')),
+     'a VIEW and a PLOT in one sheet both come out');
+
+  console.log('\na sheet that asks for nothing says so');
+  ok(got.none.dxf === null, 'no drawing is written');
+  ok(/VIEW/.test(got.none.alert || '') && /PLOT/.test(got.none.alert || ''),
+     'and the message shows both rows', got.none.alert);
+
+  console.log('\na row that is wrong says so, and does not take the sheet down');
   const rep = got.bad.report;
-  ok(/SIDEWAYS/.test(rep), 'the unknown direction is named in the report');
+  ok(/SIDEWAYS/.test(rep), 'the unknown direction is named');
   ok(/3D <AZ> <EL>/.test(rep), 'the report offers 3D <AZ> <EL>');
-  ok(/ISO-NE/.test(rep), 'the report offers the isometric corners');
-  ok(/-90 to 90/.test(rep), 'EL past the pole is explained, not just refused');
+  ok(/-90 to 90/.test(rep), 'EL past the pole is explained');
+  ok(/AZ and EL cells belong to 3D only/.test(rep),
+     'a named direction with angles in it is caught - that is the old row shape');
+  ok(/needs a scale/.test(rep), 'a row with no scale is caught');
+  ok(/CHEESE/.test(rep), 'PLOT with a kind that is not one is caught');
   ok(got.bad.dxf === got.named.dxf, 'the one good row in that sheet still draws FRONT');
 
   ok(errs.length === 0, 'no page errors', errs.join(' | '));

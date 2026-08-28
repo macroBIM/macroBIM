@@ -367,47 +367,6 @@
     '#pb-bar .fmenu .drop button:active { transform:none; }',
     '.fmenu .drop i { display:block; height:1px; background:var(--hair); margin:5px 7px; }',
 
-    /* ---- the scale question, asked before a drawing is written ---- */
-    '#pb-scale { display:none; position:fixed; left:0; top:0; right:0; bottom:0;',
-    '  z-index:75; background:rgba(15,23,42,.35); align-items:center;',
-    '  justify-content:center; padding:20px; }',
-    '#pb-scale .box { background:#fff; border:1px solid var(--line); border-radius:10px;',
-    '  width:472px; max-width:94vw; padding:16px 17px;',
-    '  box-shadow:0 12px 40px rgba(15,23,42,.24); }',
-    '#pb-scale h2 { font-size:15px; font-weight:600; color:#0f172a; margin:0 0 7px; }',
-    '#pb-scale p { font-size:11.5px; color:#64748b; line-height:1.6; margin:0 0 12px; }',
-    // one line per block: tick it to draw it, and say what it is plotted at
-    '#pb-scale .blk { display:flex; align-items:center; gap:10px; padding:7px 9px;',
-    '  border:1px solid var(--line); border-radius:7px; margin-bottom:7px;',
-    '  transition:background .12s,border-color .12s; }',
-    '#pb-scale .blk.off { background:#f8fafc; border-color:var(--hair); }',
-    '#pb-scale .blk .on { flex:1 1 auto; display:flex; align-items:center; gap:7px;',
-    '  font-size:13px; font-weight:600; color:#0f172a; cursor:pointer; }',
-    '#pb-scale .blk.off .on { color:#94a3b8; }',
-    '#pb-scale .blk .on small { font-weight:400; font-size:11px; color:#94a3b8; }',
-    '#pb-scale .blk .sc { display:flex; align-items:center; font-size:13px;',
-    '  font-weight:600; color:#0f172a; flex:0 0 auto; }',
-    '#pb-scale .blk.off .sc { color:#94a3b8; }',
-    '#pb-scale input[type=checkbox] { accent-color:var(--dim); cursor:pointer; margin:0;',
-    '  width:15px; height:15px; }',
-    '#pb-scale input[type=number] { font:inherit; font-size:13px; width:74px;',
-    '  padding:5px 8px; border:1px solid var(--line); border-radius:6px; color:#0f172a; }',
-    '#pb-scale .row { display:flex; justify-content:flex-end; gap:8px; margin-top:14px; }',
-    // sized off the Example button in the bar - the small default buttons that
-    // were here read as an afterthought next to it
-    '#pb-scale .row button { font:inherit; font-size:12px; font-weight:600;',
-    '  letter-spacing:0; text-transform:none; min-width:102px; padding:5px 12px;',
-    '  border:1px solid var(--line); border-radius:6px; background:#fff;',
-    '  color:#334155; cursor:pointer;',
-    '  transition:background .12s,border-color .12s,box-shadow .12s,transform .06s; }',
-    '#pb-scale .row button:hover { background:#f1f5f9;',
-    '  box-shadow:0 2px 6px rgba(15,23,42,.12); }',
-    '#pb-scale .row button:active { transform:translateY(1px) scale(.97); box-shadow:none; }',
-    '#pb-scale .row button.accent { background:var(--dim); border-color:var(--dim);',
-    '  color:#fff; }',
-    '#pb-scale .row button.accent:hover { background:#1d4ed8; border-color:#1d4ed8;',
-    '  box-shadow:0 2px 8px rgba(37,99,235,.35); }',
-
     /* ---- example workbook picker: a window, like the plate preview ---- */
     '#pb-ex { display:none; position:fixed; left:0; top:0; right:0; bottom:0; z-index:55;',
     '  background:rgba(15,23,42,.35); align-items:center; justify-content:center;',
@@ -713,6 +672,7 @@
   var MAIN_FOV = 40, mainAspect = 1.6;
   var lastPlates = {}, lastCuts = [], lastColors = {}, lastParts = {};  // for preview modals
   var lastViews = [];                   // VIEW rows, read by Save DXF
+  var lastPlots = [];                   // PLOT rows, read by Save DXF
   var shapeLib = {};        // HOLE definitions - cut shapes, never members
   /* ---- the example workbook ----
      It sits next to this file, so the button works from wherever the engine was
@@ -1071,8 +1031,9 @@
     }
     var palias = PLANE_ALIAS, yup = false;   // switched by a COORD row
     var counts = { plate: 0, hole: 0, bar: 0, sect: 0, bolt: 0, cut: 0, module: 0,
-                   assy: 0, view: 0, fit: 0 };
+                   assy: 0, view: 0, plot: 0, fit: 0 };
     var views = [];                      // VIEW rows: drawings the sheet asked for
+    var plots = [];                      // PLOT rows: the parts it asked to be drawn
     var current = null, currentPart = null, counter = {};
     // Two severities. warn() is a row the parser could not honour - skipped, or
     // a name that did not resolve - so what lands on screen is not what the
@@ -1553,11 +1514,13 @@
         var vmod = str(v[0]).toUpperCase();
         // ISO_NE and "ISO NE" mean ISO-NE. One column, three ways to type it.
         var vdir = str(v[1]).toUpperCase().replace(/[\s_]+/g, '-');
-        /* 3D is the one direction that carries its angles in the row, so it is
-           also the one that shifts the title a column along. */
+        /* The columns do not move. A named direction leaves AZ and EL empty
+           rather than sliding the scale two cells left, because a column that
+           means different things on different rows is how a sheet quietly
+           reads a title as an angle. */
         var is3D = vdir === '3D';
-        var vaz = is3D ? num(v[2], 0) : 0, vel = is3D ? num(v[3], 0) : 0;
-        var vttl = str(is3D ? v[4] : v[2]);
+        var vaz = num(v[2], 0), vel = num(v[3], 0);
+        var vscl = num(v[4], 0), vttl = str(v[5]);
         if (!vmod) { warn('row ' + (r + 1) + ': VIEW without a module'); continue; }
         if (!viewSpec(vdir, vaz, vel)) {
           warn('row ' + (r + 1) + ': VIEW ' + vmod + ' — unknown direction "' +
@@ -1565,7 +1528,22 @@
           continue;
         }
         if (is3D && (!isFinite(vaz) || !isFinite(vel))) {
-          warn('row ' + (r + 1) + ': VIEW ' + vmod + ' 3D — AZ and EL must be numbers');
+          warn('row ' + (r + 1) + ': VIEW ' + vmod + ' 3D — AZ and EL must be numbers ' +
+               '(VIEW id dir AZ EL scale title)');
+          continue;
+        }
+        /* A named direction with something in the angle cells is almost always
+           a row written to the old shape, where the title followed the
+           direction. Saying so beats drawing it at a scale read out of a
+           sentence. */
+        if (!is3D && (str(v[2]) !== '' || str(v[3]) !== '')) {
+          warn('row ' + (r + 1) + ': VIEW ' + vmod + ' ' + vdir + ' — the AZ and EL ' +
+               'cells belong to 3D only; leave them empty (VIEW id dir AZ EL scale title)');
+          continue;
+        }
+        if (!(vscl > 0)) {
+          warn('row ' + (r + 1) + ': VIEW ' + vmod + ' — needs a scale in the sixth ' +
+               'cell, greater than 0 (VIEW id dir AZ EL scale title). 20 means 1:20');
           continue;
         }
         /* Past 90 the viewer has gone over the top and is coming down the far
@@ -1577,10 +1555,41 @@
                'ground plane, so it runs -90 to 90 (got ' + vel + ')');
           continue;
         }
-        views.push({ MODULE: vmod, DIR: vdir, AZ: vaz, EL: vel,
+        views.push({ MODULE: vmod, DIR: vdir, AZ: vaz, EL: vel, SCALE: vscl,
                      TITLE: vttl || (vmod + ' ' + (is3D ? '3D ' + vaz + ' ' + vel : vdir)),
                      ROW: r + 1 });
         counts.view++;
+      } else if (kw === 'PLOT') {         // PLOT PART|SECT <id|ALL> <scale> [title]
+        /* The other kind of drawing: not a thing in place seen from somewhere,
+           but a part on its own at its standard section, with how many were
+           placed. The subject is a definition rather than a position, which is
+           why it is a different word - and ALL is allowed, because asking for
+           forty parts by name is asking for the list to go stale.
+
+           PART and SECT are split so each can carry its own scale. A gusset and
+           a six-metre beam do not share a scale, and one block for both meant
+           whichever mattered less decided it. */
+        var pkind = str(v[0]).toUpperCase();
+        var pid = str(v[1]).toUpperCase();
+        var pscl = num(v[2], 0), pttl = str(v[3]);
+        if (pkind !== 'PART' && pkind !== 'SECT') {
+          warn('row ' + (r + 1) + ': PLOT — the second cell says what to draw, ' +
+               'PART or SECT (got "' + (str(v[0]) || '(blank)') + '")');
+          continue;
+        }
+        if (!pid) {
+          warn('row ' + (r + 1) + ': PLOT ' + pkind + ' — needs an id, or ALL ' +
+               '(PLOT PART|SECT id|ALL scale title)');
+          continue;
+        }
+        if (!(pscl > 0)) {
+          warn('row ' + (r + 1) + ': PLOT ' + pkind + ' ' + pid + ' — needs a scale ' +
+               'in the fourth cell, greater than 0. 10 means 1:10');
+          continue;
+        }
+        plots.push({ KIND: pkind, ID: pid, SCALE: pscl, ROW: r + 1,
+                     TITLE: pttl || (pkind + ' ' + pid) });
+        counts.plot++;
       } else if (kw === 'COORD') {        // COORD ZUP (default) | YUP — frame the sheet is written in
         yup = str(v[0]).toUpperCase() === 'YUP';
         palias = yup ? PLANE_ALIAS_YUP : PLANE_ALIAS;
@@ -1924,7 +1933,7 @@
       return false;
     });
     return { plates: plates, holes: holes, parts: parts, cuts: cuts, assy: assy,
-             views: views, log: log, counts: counts, yup: yup,
+             views: views, plots: plots, log: log, counts: counts, yup: yup,
              fatal: fatals.length ? fatals : null };
   }
 
@@ -3179,6 +3188,7 @@
     lastColors = colors;
     lastParts = parts;
     lastViews = (data.__parsed && data.__parsed.views) || [];
+    lastPlots = (data.__parsed && data.__parsed.plots) || [];
     var inst = {};                       // NO → {matrix, pts, thk} for EDGE references
     var bbox = new THREE.Box3();
 
@@ -5688,9 +5698,12 @@
     var vd = new THREE.Vector3(view.dir[0], view.dir[1], view.dir[2]);
     var R = new THREE.Vector3(view.right[0], view.right[1], view.right[2]);
     var U = new THREE.Vector3(view.up[0], view.up[1], view.up[2]);
+    /* Three components, not two: the third is how far along the line of sight
+       the point is, which is what hidden-line removal reads. Everything that
+       writes DXF takes [0] and [1] and never looks further. */
     function proj(x, y, z) {
       var p = new THREE.Vector3(x, y, z).applyMatrix4(m);
-      return [p.dot(R), p.dot(U)];
+      return [p.dot(R), p.dot(U), p.dot(vd)];
     }
     // the extrusion direction in world space, for the side-face normals
     var e0 = new THREE.Vector3(0, 0, 0).applyMatrix4(m);
@@ -5975,26 +5988,35 @@
     });
     return out;
   }
+  // is this point on the page, at this depth, in front of every face over it?
+  function seenPoint(faces, x, y, d) {
+    for (var k = 0; k < faces.length; k++) {
+      var f = faces[k];
+      if (f.x1 < x || f.x0 > x || f.y1 < y || f.y0 > y) continue;
+      if (f.d1 <= d + HLR_EPS) continue;
+      if (onFace(f, x, y) && f.a * x + f.b * y + f.c > d + HLR_EPS) return false;
+    }
+    return true;
+  }
   /* An arc is kept unless the whole of it is behind steel. There is no partial
      ARC in R12, and a hole turned into a polygon so that half of it could be
      removed would cost more than the honesty is worth. */
   function hideArcs(arcs, faces) {
     return arcs.filter(function (ac) {
+      if (ac.c[2] === undefined) return true;
       for (var i = 0; i < 16; i++) {
         var th = i / 16 * Math.PI * 2;
-        var x = ac.c[0] + ac.r * Math.cos(th), y = ac.c[1] + ac.r * Math.sin(th);
-        var d = ac.c[2];
-        if (d === undefined) return true;
-        var seen = true;
-        for (var k = 0; k < faces.length; k++) {
-          var f = faces[k];
-          if (f.x1 < x || f.x0 > x || f.y1 < y || f.y0 > y) continue;
-          if (f.d1 <= d + HLR_EPS) continue;
-          if (onFace(f, x, y) && f.a * x + f.b * y + f.c > d + HLR_EPS) { seen = false; break; }
-        }
-        if (seen) return true;
+        if (seenPoint(faces, ac.c[0] + ac.r * Math.cos(th),
+                      ac.c[1] + ac.r * Math.sin(th), ac.c[2])) return true;
       }
       return false;
+    });
+  }
+  /* The hole centres the pitch chains are built from. A hole that was removed
+     for being behind a flange must not leave its dimension behind. */
+  function hidePoints(pts, faces) {
+    return pts.filter(function (p) {
+      return p[2] === undefined || seenPoint(faces, p[0], p[1], p[2]);
     });
   }
 
@@ -6680,7 +6702,7 @@
      A bare number still works and means all three at that one scale - the
      public API took a scale before this, and the sync copy of the site may
      still be calling it that way. */
-  function buildDXF(list, opts) {
+  function buildDXF(list) {
     if (typeof opts === 'number' || typeof opts === 'string') {
       var one = Number(opts);
       opts = { part:     { on: true, scale: one },
@@ -6962,45 +6984,26 @@
     // six views of one set of members, laid out 3 x 2, drawn from (x0, yTop)
     // downward. Returns how much room it took.
     /* One projection of a set of members, ready to be put somewhere. */
-    function viewOf(members, vw, rest) {
+    function viewOf(members, vw) {
       var segs = [], arcs = [], holes = [];
       members.forEach(function (it) { dxfMemberEdges(it, vw, segs, arcs, holes); });
-      segs = dxfDedupe(segs);
-      arcs = arcDedupe(arcs);
+      /* Hidden lines go before the deduper, not after. Both caps of a plate seen
+         face on land on the same lines and the deduper keeps whichever came
+         first; were that the far cap, the near cap's own face would then hide it
+         and the plate would disappear entirely. */
+      var faces = viewFaces(members, vw);
+      segs = dxfDedupe(hideSegs(segs, faces));
+      arcs = arcDedupe(hideArcs(arcs, faces));
+      holes = hidePoints(holes, faces);
       /* The box has to see the arcs too, or a hole that reached the edge would
          be measured to its chord. segsBox gives what the sweep actually covers. */
       var box = segsBox(segs, arcs);
-      /* Context is drawn flat - no arcs asked for. A hidden line is only saying
-         "there is something here", and a faceted hole says that as well as a
-         round one for a fraction of the file. */
+      /* No context. A VIEW row draws the id it names and nothing else - what
+         used to be laid in behind it, as the outlines of whatever stood beside
+         it, is gone. It was there to say where a part sat when the sheet drew
+         parts on their own; now the sheet says what it wants drawn, and drawing
+         more than it asked for is the engine having an opinion. */
       var ctx = [], outer = box;
-      if (rest && rest.length) {
-        var mg = ctxMargin(D);
-        outer = { x0: box.x0 - mg, y0: box.y0 - mg,
-                  x1: box.x1 + mg, y1: box.y1 + mg };
-        /* Only what is beside the part, in depth as well as across the page,
-           and only its outline. Context is there to say where the part sits -
-           every hole and every bolt in the rest of the model says nothing about
-           that and buries the part that does. Round bars go entirely: a bolt
-           seen end on is a circle on top of the hole it is already in. */
-        var dsub = [Infinity, -Infinity];
-        members.forEach(function (it) {
-          var d = memberDepth(it, vw);
-          if (d[0] < dsub[0]) dsub[0] = d[0];
-          if (d[1] > dsub[1]) dsub[1] = d[1];
-        });
-        var raw = [];
-        rest.forEach(function (it) {
-          if (it.spec && it.spec.__bar && !it.spec.__sect) return;
-          var d = memberDepth(it, vw);
-          if (d[1] < dsub[0] - mg || d[0] > dsub[1] + mg) return;
-          dxfMemberEdges(it, vw, raw, null, null, true);
-        });
-        dxfDedupe(raw).forEach(function (s) {
-          var c = clipSeg(s[0], s[1], outer);
-          if (c) ctx.push(c);
-        });
-      }
       return { key: vw.key, segs: segs, arcs: arcs, holes: holes, ctx: ctx,
                box: box, outer: outer };
     }
@@ -7234,42 +7237,21 @@
       return D.text.heading * 2.2;
     }
 
-    // ---- 1. the assembly, as six views ----
-    if (opts.assembly && opts.assembly.on) {
-      D = dimStyle(opts.assembly.scale);
-      cursorY -= blockTitle('ASSEMBLY  1:' + opts.assembly.scale, cursorY);
-      var a = viewGrid(list, 0, cursorY);
-      cursorY -= a.h + gap() * 4;
-      sheetW = Math.max(sheetW, a.w / D.scale);
-    }
-
-    // ---- 2. each module, as six views of its own ----
-    if (opts.module && opts.module.on) {
-      D = dimStyle(opts.module.scale);
-      cursorY -= blockTitle('MODULES  1:' + opts.module.scale, cursorY);
-      Object.keys(lastParts).forEach(function (id) {
-        var mem = moduleItems(id);
-        if (!mem.length) return;
-        cursorY -= blockTitle(id.toUpperCase(), cursorY);
-        var m = viewGrid(mem, 0, cursorY);
-        cursorY -= m.h + gap() * 3;
-        sheetW = Math.max(sheetW, m.w / D.scale);
-      });
-      cursorY -= gap() * 2;
-    }
-
-    // ---- 3. the parts, one standard section each ----
-    if (opts.part && opts.part.on) {
-      D = dimStyle(opts.part.scale);
-      cursorY -= blockTitle('PARTS  1:' + opts.part.scale, cursorY);
+    /* ---- a PLOT row: parts on their own, at their standard section ----
+       `pick` says which of them this row asked for. Everything else about the
+       block is as it was when one tick box drew all of them at one scale. */
+    function partBlock(pick, title) {
       /* Round bars are left out. A bar is a length of stock, not a part to be
          cut to a shape, and a circle with a diameter beside it tells a
          fabricator nothing the take-off does not. Sections stay - they carry a
          profile worth drawing. */
       assignDrills();
-      var parts = dxfParts(list.filter(function (it) {
-        return !(it.spec.__bar && !it.spec.__sect);
-      })).map(function (p) {
+      var picked = list.filter(function (it) {
+        return !(it.spec.__bar && !it.spec.__sect) && pick(it);
+      });
+      if (!picked.length) return false;
+      cursorY -= blockTitle(title, cursorY);
+      var parts = dxfParts(picked).map(function (p) {
         /* Here the plate lies in its own plane, so every circle the sheet cut
            is a circle on the paper - this is where arcs pay best. */
         var segs = [], arcs = [], circles = [];
@@ -7391,55 +7373,64 @@
          across put every part of the tower on one 200m row. */
       var budget = (sheetW > 0 ? sheetW : DXF_SHEET_W) * D.scale;
       var pr = partShelf(parts, 0, cursorY, budget);
-      cursorY -= pr.h;
+      cursorY -= pr.h + gap() * 2;
       sheetW = Math.max(sheetW, pr.w / D.scale);
+      return true;
     }
 
-    /* ---- 4. the drawings the sheet asked for by name ----
-       Not in the dialog, and no tick box: a VIEW row is a decision already
-       taken by whoever wrote the workbook, so it carries its own scale and
-       its own title and is simply drawn. A sheet with no VIEW rows gets no
-       such block and exports exactly what it always did. To drop one, comment
-       the row out - the same way anything else in the sheet is turned off. */
-    if (opts.views && opts.views.on && lastViews && lastViews.length) {
-      D = dimStyle(opts.views.scale);
-      cursorY -= blockTitle('VIEWS  1:' + opts.views.scale, cursorY);
-      lastViews.forEach(function (vr) {
-        /* Taken from what the ASSY rows placed rather than from the module
-           definition, so the subject and everything round it are in the one
-           frame and can be drawn together. */
-        /* The id names a MODULE or an ASSY - it.group carries the ASSY row's
-           own id. Both are things a person points at and calls a thing, and
-           a sheet that can draw one should be able to draw the other. */
-        var subject = function (it) {
-          return it.moduleId === vr.MODULE || it.group === vr.MODULE;
-        };
-        var mem = list.filter(subject);
-        if (!mem.length) return;              // never placed, or every member hidden
-        var rest = list.filter(function (it) { return !subject(it); });
-        var vw = viewSpec(vr.DIR, vr.AZ, vr.EL);
-        if (!vw) return;                      // the parser already said so
-        var v = viewOf(mem, vw, rest);
-        var band = D.base + D.text.section * 1.4;
-        /* The context reaches past the part on every side, so the part is put
-           where its own box leaves the whole of that clear of the view above. */
-        var padT = v.outer.y1 - v.box.y1, padB = v.box.y0 - v.outer.y0;
-        var padL = v.box.x0 - v.outer.x0;
-        var chained = v.holes && v.holes.length ? D.stack : 0;
-        var leftRoom = D.origin + D.base + chained;
-        var oy = cursorY - band - (v.box.y1 - v.box.y0) - padT;
-        var r2 = placeView(v, gap() + leftRoom + padL, oy, vr.TITLE, true);
-        /* Below the steel hangs the pitch chain, then the overall dimension,
-           and the context reaches lower still - the next view clears whichever
-           of them goes furthest down. */
-        cursorY = Math.min(oy - padB,
-                           oy - (D.origin + D.base + chained + D.text.dim * 1.4))
-                  - gap() * 2;
-        sheetW = Math.max(sheetW,
-          (gap() + leftRoom + (v.outer.x1 - v.outer.x0)) / D.scale);
+    /* ---- a VIEW row: the thing it names, from where it says ---- */
+    function viewBlock(vr) {
+      /* Taken from what the ASSY rows placed rather than from the definition,
+         so the subject is drawn where it ended up. The id names a MODULE or an
+         ASSY - it.group carries the ASSY row's own id - because both are things
+         a person points at and calls a thing. */
+      var mem = list.filter(function (it) {
+        return it.moduleId === vr.MODULE || it.group === vr.MODULE;
       });
-      cursorY -= gap() * 2;
+      if (!mem.length) return false;          // never placed, or every member hidden
+      var vw = viewSpec(vr.DIR, vr.AZ, vr.EL);
+      if (!vw) return false;                  // the parser already said so
+      var v = viewOf(mem, vw);
+      var band = D.base + D.text.section * 1.4;
+      var chained = v.holes && v.holes.length ? D.stack : 0;
+      var leftRoom = D.origin + D.base + chained;
+      var oy = cursorY - band - (v.box.y1 - v.box.y0);
+      placeView(v, gap() + leftRoom, oy, vr.TITLE + '   1:' + vr.SCALE, true);
+      // below the steel hangs the pitch chain, then the overall dimension
+      cursorY = oy - (D.origin + D.base + chained + D.text.dim * 1.4) - gap() * 2;
+      sheetW = Math.max(sheetW, (gap() + leftRoom + (v.box.x1 - v.box.x0)) / D.scale);
+      return true;
     }
+
+    /* ---- the drawings, in the order the sheet asks for them ----
+       Every drawing on this sheet was asked for by a row, and carries the scale
+       that row gave it. Nothing is produced because the engine thought it might
+       be wanted: the six-view grids of everything placed, and of every module,
+       are gone. They answered a question - what is in this model - that the
+       model tree on screen answers better, and they answered it at whatever one
+       scale the dialog had been given, which is not how a sheet of drawings is
+       put together.
+
+       Order is the order of the rows. It is the only order the person writing
+       the sheet can see and control, so it is the one the paper follows. */
+    var sheet = lastViews.map(function (v) { return { r: v.ROW, draw: viewBlock, arg: v }; })
+      .concat(lastPlots.map(function (p) {
+        return { r: p.ROW, arg: p, draw: function (pr) {
+          var wantSect = pr.KIND === 'SECT';
+          return partBlock(function (it) {
+            if (!it.spec.__sect !== !wantSect) return false;
+            return pr.ID === 'ALL' || String(it.plateId).toUpperCase() === pr.ID;
+          }, pr.TITLE + '   1:' + pr.SCALE);
+        } };
+      }))
+      .sort(function (a, b) { return a.r - b.r; });
+
+    var drawn = 0;
+    sheet.forEach(function (e) {
+      D = dimStyle(e.arg.SCALE);
+      if (e.draw(e.arg)) drawn++;
+    });
+    if (!drawn) return null;                  // the caller says so; an empty file does not
 
     /* ---- assemble the file ---- */
     /* The file, in the shape bim_dxf.js writes and the site's other tools have
@@ -7515,29 +7506,6 @@
   function toggleViewMenu(ev) { toggleMenu('pb-vmenu', ev); }
   function closeFileMenu() { closeMenus(); }
 
-  /* The drawing is three blocks and each is plotted at its own scale, so the
-     question is asked three times over. Remembered for the session, because
-     the second export of a sheet is nearly always the first one again with one
-     number changed. The ladder is the usual one: the whole assembly small, a
-     module bigger, a single part biggest. */
-  var dxfBlocks = {
-    assembly: { on: true, scale: 50 },
-    module:   { on: true, scale: 20 },
-    part:     { on: true, scale: 10 },
-    views:    { on: true, scale: 10 }
-  };
-  var DXF_BLOCK_KEYS = ['assembly', 'module', 'part', 'views'];
-  function dxfBlockRow(key, name, note) {
-    return '    <div class="blk" id="pb-sc-' + key + '-row">' +
-           '      <label class="on"><input type="checkbox" id="pb-sc-' + key + '"' +
-           '        onchange="plateBuilder.scaleRowSync()"> ' + name +
-           '        <small id="pb-sc-' + key + '-note">' + note + '</small></label>' +
-           '      <span class="sc">1 :&nbsp;<input type="number" min="1" step="1"' +
-           '        id="pb-sc-' + key + '-v"' +
-           '        onkeydown="if(event.key===\'Enter\')plateBuilder.confirmScale();' +
-           '                   if(event.key===\'Escape\')plateBuilder.closeScaleAsk()">' +
-           '      </span></div>';
-  }
   function saveDXF() {
     var list = visibleItems();
     if (!list.length) {
@@ -7547,81 +7515,28 @@
             ' first — or tick at least one assembly back on.');
       return;
     }
-    openScaleAsk();
-  }
-  // greys out the scale of a block you are not drawing, so the dialog says
-  // what it is going to do without being read twice
-  function scaleRowSync() {
-    DXF_BLOCK_KEYS.forEach(function (k) {
-      var c = document.getElementById('pb-sc-' + k);
-      var row = document.getElementById('pb-sc-' + k + '-row');
-      var v = document.getElementById('pb-sc-' + k + '-v');
-      if (!c || !row || !v) return;
-      row.classList.toggle('off', !c.checked);
-      v.disabled = !c.checked;
-    });
-  }
-  function openScaleAsk() {
-    var el = document.getElementById('pb-scale');
-    if (!el) return;
-    el.style.display = 'flex';
-    DXF_BLOCK_KEYS.forEach(function (k) {
-      var c = document.getElementById('pb-sc-' + k);
-      var v = document.getElementById('pb-sc-' + k + '-v');
-      if (c) c.checked = !!dxfBlocks[k].on;
-      if (v) v.value = dxfBlocks[k].scale;
-    });
-    /* The VIEWS line is the one block the sheet decides the existence of, so
-       the dialog says how many it found rather than offering a drawing that is
-       not there. Which module, seen from where, called what - all of that came
-       off the sheet. The scale did not: that is a property of the paper, not of
-       the model, which is why it is asked for here like the other three. */
-    var nv = (lastViews && lastViews.length) || 0;
-    var vc = document.getElementById('pb-sc-views');
-    var vn = document.getElementById('pb-sc-views-note');
-    if (vc) { vc.disabled = !nv; if (!nv) vc.checked = false; }
-    if (vn) vn.textContent = nv
-      ? nv + (nv > 1 ? ' drawings' : ' drawing') + ' the sheet names'
-      : 'none - this sheet does not name any';
-    scaleRowSync();
-    var first = document.getElementById('pb-sc-assembly-v');
-    if (first) { first.focus(); first.select(); }
-  }
-  function closeScaleAsk() {
-    var el = document.getElementById('pb-scale');
-    if (el) el.style.display = 'none';
-  }
-  function confirmScale() {
-    var opts = {}, on = 0, bad = null;
-    DXF_BLOCK_KEYS.forEach(function (k) {
-      var c = document.getElementById('pb-sc-' + k);
-      var v = document.getElementById('pb-sc-' + k + '-v');
-      var s = Number(v && v.value);
-      var want = !!(c && c.checked);
-      if (want) { on++; if (!(s > 0)) bad = k; }
-      opts[k] = { on: want, scale: s > 0 ? s : dxfBlocks[k].scale };
-    });
-    if (!on) {
-      alert('Nothing ticked.\n\nPick at least one block to draw — an empty ' +
-            'drawing is a file that looks fine and is not.');
+    if (!lastViews.length && !lastPlots.length) {
+      alert('The sheet does not ask for any drawing.\n\n' +
+            'Add a row saying what to draw and at what scale:\n\n' +
+            '    VIEW  <module or assy>  ISO   <scale>  <title>\n' +
+            '    VIEW  <module or assy>  3D  <AZ> <EL>  <scale>  <title>\n' +
+            '    PLOT  PART  <id or ALL>  <scale>\n' +
+            '    PLOT  SECT  <id or ALL>  <scale>\n\n' +
+            'A scale of 20 means 1:20. Nothing is drawn that was not asked for.');
       return;
     }
-    if (bad) {
-      alert('The ' + bad.toUpperCase() + ' scale has to be a number greater ' +
-            'than 0 — 20 means 1:20.');
+    var dxf = buildDXF(list);
+    if (!dxf) {
+      alert('Every row that asks for a drawing names something this model does ' +
+            'not hold, so there is nothing to write.\n\n' +
+            'The report above the model says which rows and why.');
       return;
     }
-    dxfBlocks = opts;
-    closeScaleAsk();
-    var list = visibleItems();
-    if (!list.length) return;
-    // the name carries the scales, because two exports of one sheet differ by
-    // nothing else: plate_builder_A50-M20-P10.dxf
-    var tag = DXF_BLOCK_KEYS.filter(function (k) { return opts[k].on; })
-      .map(function (k) { return k.charAt(0).toUpperCase() + opts[k].scale; })
-      .join('-');
-    download(buildDXF(list, opts), 'plate_builder_' + tag + '.dxf');
+    download(dxf, 'plate_builder.dxf');
   }
+  /* Nothing to ask. Every drawing on the sheet was asked for by a VIEW or a
+     PLOT row and carries its own scale, so Save DXF writes the file. */
+  function confirmScale() { saveDXF(); }        // kept: the guide links to it
 
   /* ================= BOQ: the take-off, as a workbook =================
      Four sheets, reading outward from the steel:
@@ -9758,22 +9673,6 @@
       '</div>' +
       '</div>' +
       '<div id="pb-pal"></div>' +
-      '<div id="pb-scale" onclick="if(event.target===this)plateBuilder.closeScaleAsk()">' +
-      '  <div class="box">' +
-      '    <h2>Drawing scale</h2>' +
-      '    <p>The steel is drawn 1:1 in millimetres &mdash; the scale sizes the' +
-      '      annotation. The drawing comes out in blocks, each at its own' +
-      '      scale, so a 60m assembly and a 200mm gusset can both read. Round' +
-      '      bars are not drawn.</p>' +
-      dxfBlockRow('assembly', 'ASSEMBLY', 'six views of everything placed') +
-      dxfBlockRow('module', 'MODULE', 'six views of each module') +
-      dxfBlockRow('part', 'PART / SECT', 'one of each, with a count') +
-      dxfBlockRow('views', 'VIEWS', 'named on the input tab') +
-      '    <div class="row">' +
-      '      <button onclick="plateBuilder.closeScaleAsk()">Cancel</button>' +
-      '      <button class="accent" onclick="plateBuilder.confirmScale()">Save DXF</button>' +
-      '    </div>' +
-      '  </div></div>' +
       '<div id="pb-ex" onclick="if(event.target===this)plateBuilder.closeSamples()">' +
       '  <div class="box">' +
       '    <h2><span class="close" onclick="plateBuilder.closeSamples()"' +
@@ -10512,8 +10411,7 @@
     toggleMemberAxis: toggleMemberAxis,
     toggleFileMenu: toggleFileMenu, toggleViewMenu: toggleViewMenu,
     closeFileMenu: closeMenus,
-    exportDXF: saveDXF, closeScaleAsk: closeScaleAsk, confirmScale: confirmScale,
-    scaleRowSync: scaleRowSync,
+    exportDXF: saveDXF, confirmScale: confirmScale,
     // the annotation style, at scale 1 and at any scale - see DIMSTYLE.md
     dimStyleBase: DIMSTYLE, dimStyle: dimStyle, buildDXF: buildDXF
   };
