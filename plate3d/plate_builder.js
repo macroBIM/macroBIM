@@ -367,47 +367,6 @@
     '#pb-bar .fmenu .drop button:active { transform:none; }',
     '.fmenu .drop i { display:block; height:1px; background:var(--hair); margin:5px 7px; }',
 
-    /* ---- the scale question, asked before a drawing is written ---- */
-    '#pb-scale { display:none; position:fixed; left:0; top:0; right:0; bottom:0;',
-    '  z-index:75; background:rgba(15,23,42,.35); align-items:center;',
-    '  justify-content:center; padding:20px; }',
-    '#pb-scale .box { background:#fff; border:1px solid var(--line); border-radius:10px;',
-    '  width:472px; max-width:94vw; padding:16px 17px;',
-    '  box-shadow:0 12px 40px rgba(15,23,42,.24); }',
-    '#pb-scale h2 { font-size:15px; font-weight:600; color:#0f172a; margin:0 0 7px; }',
-    '#pb-scale p { font-size:11.5px; color:#64748b; line-height:1.6; margin:0 0 12px; }',
-    // one line per block: tick it to draw it, and say what it is plotted at
-    '#pb-scale .blk { display:flex; align-items:center; gap:10px; padding:7px 9px;',
-    '  border:1px solid var(--line); border-radius:7px; margin-bottom:7px;',
-    '  transition:background .12s,border-color .12s; }',
-    '#pb-scale .blk.off { background:#f8fafc; border-color:var(--hair); }',
-    '#pb-scale .blk .on { flex:1 1 auto; display:flex; align-items:center; gap:7px;',
-    '  font-size:13px; font-weight:600; color:#0f172a; cursor:pointer; }',
-    '#pb-scale .blk.off .on { color:#94a3b8; }',
-    '#pb-scale .blk .on small { font-weight:400; font-size:11px; color:#94a3b8; }',
-    '#pb-scale .blk .sc { display:flex; align-items:center; font-size:13px;',
-    '  font-weight:600; color:#0f172a; flex:0 0 auto; }',
-    '#pb-scale .blk.off .sc { color:#94a3b8; }',
-    '#pb-scale input[type=checkbox] { accent-color:var(--dim); cursor:pointer; margin:0;',
-    '  width:15px; height:15px; }',
-    '#pb-scale input[type=number] { font:inherit; font-size:13px; width:74px;',
-    '  padding:5px 8px; border:1px solid var(--line); border-radius:6px; color:#0f172a; }',
-    '#pb-scale .row { display:flex; justify-content:flex-end; gap:8px; margin-top:14px; }',
-    // sized off the Example button in the bar - the small default buttons that
-    // were here read as an afterthought next to it
-    '#pb-scale .row button { font:inherit; font-size:12px; font-weight:600;',
-    '  letter-spacing:0; text-transform:none; min-width:102px; padding:5px 12px;',
-    '  border:1px solid var(--line); border-radius:6px; background:#fff;',
-    '  color:#334155; cursor:pointer;',
-    '  transition:background .12s,border-color .12s,box-shadow .12s,transform .06s; }',
-    '#pb-scale .row button:hover { background:#f1f5f9;',
-    '  box-shadow:0 2px 6px rgba(15,23,42,.12); }',
-    '#pb-scale .row button:active { transform:translateY(1px) scale(.97); box-shadow:none; }',
-    '#pb-scale .row button.accent { background:var(--dim); border-color:var(--dim);',
-    '  color:#fff; }',
-    '#pb-scale .row button.accent:hover { background:#1d4ed8; border-color:#1d4ed8;',
-    '  box-shadow:0 2px 8px rgba(37,99,235,.35); }',
-
     /* ---- example workbook picker: a window, like the plate preview ---- */
     '#pb-ex { display:none; position:fixed; left:0; top:0; right:0; bottom:0; z-index:55;',
     '  background:rgba(15,23,42,.35); align-items:center; justify-content:center;',
@@ -713,6 +672,7 @@
   var MAIN_FOV = 40, mainAspect = 1.6;
   var lastPlates = {}, lastCuts = [], lastColors = {}, lastParts = {};  // for preview modals
   var lastViews = [];                   // VIEW rows, read by Save DXF
+  var lastPlots = [];                   // PLOT rows, read by Save DXF
   var shapeLib = {};        // HOLE definitions - cut shapes, never members
   /* ---- the example workbook ----
      It sits next to this file, so the button works from wherever the engine was
@@ -800,6 +760,26 @@
                                                right-handed and are not a choice.
                                                The older "ID Dia Length" order is still
                                                read)
+       BOLT  ID MAT Dia Length [Hole] [head_af] [head_h] [nut_af] [nut_h] [proj]
+                                              (a BAR that knows it is a bolt. The point
+                                               on the MODULE row is the UNDERSIDE OF THE
+                                               HEAD - the steel face the bolt pulls
+                                               against - so the head stands off behind
+                                               it, the shank runs Length forward and the
+                                               nut sits at the far end, inside the
+                                               Length, with `proj` the thread left
+                                               showing past it - 0.2d unless said, because
+                                               a bolt run out flush with its nut has been
+                                               cut short. So Length is grip + nut + proj.
+                                               Turn one round
+                                               with the ROT columns: 180 about the axis
+                                               across it.
+                                               Only the first four are needed. The rest
+                                               come off the diameter, at the ISO hex
+                                               ratios: across-flats 1.5d, head 0.625d,
+                                               nut 0.9d, hole d+2. A high-strength bolt
+                                               is bigger than that, which is why each
+                                               one can be typed)
        CUT   plateID L.X L.Y shapeID dx dy repeat [dx2 dy2 repeat2]
                                               (put shapeID - a HOLE, or another PLATE's
                                                outline - on the plate at L.X/L.Y, both
@@ -913,11 +893,26 @@
                                                blank/O = BASE point, 9-point name =
                                                module bbox point, INSTANCE.POINT =
                                                explicit plate point)
-       VIEW  MODULE.ID FROM [title]           (a drawing, for Save DXF. FROM is one of
-                                               FRONT / BACK / LEFT / RIGHT / TOP / BOTTOM
-                                               and the title is what is written over it.
+       VIEW  ID FROM [title]                  (a drawing, for Save DXF. ID names a MODULE
+                                               or an ASSY. FROM is one of
+                                               FRONT / BACK / LEFT / RIGHT / TOP / BOTTOM,
+                                               an isometric corner named for where the
+                                               viewer stands - ISO / ISO-SE / ISO-SW /
+                                               ISO-NW / ISO-NE, ISO being SE - or the word
+                                               3D, which takes two more columns. The title
+                                               is what is written over the drawing.
                                                No VIEW rows, no VIEWS block - the scale
                                                is asked for in the dialog like the others)
+       VIEW  ID 3D AZ EL [title]              (the same drawing seen from any direction.
+                                               AZ walks the viewer round the model in the
+                                               ground plane, from +X (east) anticlockwise;
+                                               EL lifts them off it, -90 to 90. World Z
+                                               stays upright on the page, so a column
+                                               draws vertical at every angle.
+                                                 FRONT  -90   0     RIGHT    0   0
+                                                 BACK    90   0     LEFT   180   0
+                                                 TOP      0  90     BOTTOM   0 -90
+                                                 ISO    -45  35.26)
        END
      ================================================================ */
   // World is Z-up (X east, Y north, Z up) like IFC/AutoCAD/Revit/Tekla, so the
@@ -1035,9 +1030,10 @@
              (numbered ? (n < 1000 ? ('000' + n).slice(-3) : String(n)) : '');
     }
     var palias = PLANE_ALIAS, yup = false;   // switched by a COORD row
-    var counts = { plate: 0, hole: 0, bar: 0, sect: 0, cut: 0, module: 0, assy: 0,
-                   view: 0, fit: 0 };
+    var counts = { plate: 0, hole: 0, bar: 0, sect: 0, bolt: 0, cut: 0, module: 0,
+                   assy: 0, view: 0, plot: 0, fit: 0 };
     var views = [];                      // VIEW rows: drawings the sheet asked for
+    var plots = [];                      // PLOT rows: the parts it asked to be drawn
     var current = null, currentPart = null, counter = {};
     // Two severities. warn() is a row the parser could not honour - skipped, or
     // a name that did not resolve - so what lands on screen is not what the
@@ -1285,6 +1281,55 @@
         if (holes[idb]) warn('row ' + (r + 1) + ': BAR ' + idb + ' reuses a HOLE id');
         current = idb;
         counts.bar++;
+      } else if (kw === 'BOLT') {
+        /* BOLT ID MAT Dia Length [Hole] [head_af] [head_h] [nut_af] [nut_h]
+
+           A BAR that knows it is a bolt. The engine can then do what a bar
+           cannot: work out which members its axis passes through and put a
+           hole on each of their part drawings, so the hole is written once -
+           as the bolt - instead of twice.
+
+           The point given on the MODULE row is the UNDERSIDE OF THE HEAD,
+           which is the face of the steel the bolt is pulled against and the
+           one number a detailer actually knows. The head stands off behind it,
+           the shank runs Length forward, the nut sits at the far end. To turn
+           a bolt round, rotate it 180 with the ROT columns the MODULE row
+           already has - no extra column for something the sheet can say.
+
+           Only the first four values are needed. The rest come off the
+           diameter, and the ratios are the ISO hex ones rather than a table:
+           across-flats 1.5d is 24 at M16 and 30 at M20, head height 0.625d is
+           10 and 12.5, nut height 0.9d is 14.4 and 18. High-strength
+           structural bolts are bigger than that - an M20 F10T head is 32
+           across - which is exactly why every one of them can be typed. */
+        var idb2 = str(v[0]).toUpperCase();
+        if (!idb2) continue;
+        var bd = num(v[2], 0), bl = num(v[3], 0);
+        var bolt = { ID: idb2, SHAPE: 'CIRC', __bar: true, __bolt: true, BASEPT: 'mc',
+                     MAT: str(v[1]), D: bd, THK: bl,
+                     HOLE: num(v[4], 0) || bd + 2,
+                     HAF:  num(v[5], 0) || bd * 1.5,
+                     HH:   num(v[6], 0) || bd * 0.625,
+                     NAF:  num(v[7], 0) || num(v[5], 0) || bd * 1.5,
+                     NH:   num(v[8], 0) || bd * 0.9,
+                     /* num(v, dflt) and not the `|| default` the others use,
+                        because 0 is a real answer here: it means the nut's
+                        outer face IS the shank's end. Blank means "the usual
+                        bit of thread", typed 0 means none. */
+                     PROJ: num(v[9], bd * 0.2) };
+        var be = [];
+        if (!(bd > 0)) be.push('Dia is blank or not a positive number');
+        if (!(bl > 0)) be.push('Length is blank or not a positive number');
+        if (bd > 0 && bolt.HOLE < bd) be.push('the hole (' + bolt.HOLE + ') is smaller than the bolt (' + bd + ')');
+        if (bd > 0 && bolt.HAF <= bd) be.push('the head (' + bolt.HAF + ' across) is not bigger than the shank');
+        if (be.length) {
+          be.forEach(function (m) { warn('row ' + (r + 1) + ': BOLT ' + idb2 + ' — ' + m); });
+          continue;
+        }
+        if (holes[idb2]) warn('row ' + (r + 1) + ': BOLT ' + idb2 + ' reuses a HOLE id');
+        plates[idb2] = bolt;
+        current = idb2;
+        counts.bolt = (counts.bolt || 0) + 1;
       } else if (kw === 'SECT') {
         // SECT ID MAT Length TYPE BASE.pt <values>
         // The values run straight on with no gaps, and each type has its own
@@ -1464,20 +1509,88 @@
            and what to call it. All three are content - the person who knows
            them is whoever wrote the workbook, not whoever presses Save DXF.
            The scale is not among them. A scale is a property of the paper
-           rather than of the model, which is why the dialog asks for it, the
-           same as it does for the other three blocks. */
-        var vmod = str(v[0]).toUpperCase(), vdir = str(v[1]).toUpperCase();
-        var vttl = str(v[2]);
+           rather than of the model - but it is a property of THIS drawing's
+           paper, so it sits on this drawing's row. Nothing is asked at export
+           time any more. */
+        var vmod = str(v[0]).toUpperCase();
+        // ISO_NE and "ISO NE" mean ISO-NE. One column, three ways to type it.
+        var vdir = str(v[1]).toUpperCase().replace(/[\s_]+/g, '-');
+        /* The columns do not move. A named direction leaves AZ and EL empty
+           rather than sliding the scale two cells left, because a column that
+           means different things on different rows is how a sheet quietly
+           reads a title as an angle. */
+        var is3D = vdir === '3D';
+        var vaz = num(v[2], 0), vel = num(v[3], 0);
+        var vscl = num(v[4], 0), vttl = str(v[5]);
         if (!vmod) { warn('row ' + (r + 1) + ': VIEW without a module'); continue; }
-        if (!DXF_VIEW_KEY[vdir]) {
+        if (!viewSpec(vdir, vaz, vel)) {
           warn('row ' + (r + 1) + ': VIEW ' + vmod + ' — unknown direction "' +
-               (str(v[1]) || '(blank)') + '" (use ' +
-               DXF_VIEWS.map(function (x) { return x.key; }).join(' / ') + ')');
+               (str(v[1]) || '(blank)') + '" (use ' + viewDirNames() + ')');
           continue;
         }
-        views.push({ MODULE: vmod, DIR: vdir,
-                     TITLE: vttl || (vmod + ' ' + vdir), ROW: r + 1 });
+        if (is3D && (!isFinite(vaz) || !isFinite(vel))) {
+          warn('row ' + (r + 1) + ': VIEW ' + vmod + ' 3D — AZ and EL must be numbers ' +
+               '(VIEW id dir AZ EL scale title)');
+          continue;
+        }
+        /* A named direction with something in the angle cells is almost always
+           a row written to the old shape, where the title followed the
+           direction. Saying so beats drawing it at a scale read out of a
+           sentence. */
+        if (!is3D && (str(v[2]) !== '' || str(v[3]) !== '')) {
+          warn('row ' + (r + 1) + ': VIEW ' + vmod + ' ' + vdir + ' — the AZ and EL ' +
+               'cells belong to 3D only; leave them empty (VIEW id dir AZ EL scale title)');
+          continue;
+        }
+        if (!(vscl > 0)) {
+          warn('row ' + (r + 1) + ': VIEW ' + vmod + ' — needs a scale in the sixth ' +
+               'cell, greater than 0 (VIEW id dir AZ EL scale title). 20 means 1:20');
+          continue;
+        }
+        /* Past 90 the viewer has gone over the top and is coming down the far
+           side, which is a direction already reachable below 90 with AZ turned
+           round. Reading it as if it meant something new draws the model
+           upside down and says nothing about why. */
+        if (is3D && Math.abs(vel) > 90) {
+          warn('row ' + (r + 1) + ': VIEW ' + vmod + ' 3D — EL is measured up from the ' +
+               'ground plane, so it runs -90 to 90 (got ' + vel + ')');
+          continue;
+        }
+        views.push({ MODULE: vmod, DIR: vdir, AZ: vaz, EL: vel, SCALE: vscl,
+                     TITLE: vttl || (vmod + ' ' + (is3D ? '3D ' + vaz + ' ' + vel : vdir)),
+                     ROW: r + 1 });
         counts.view++;
+      } else if (kw === 'PLOT') {         // PLOT PART|SECT <id|ALL> <scale> [title]
+        /* The other kind of drawing: not a thing in place seen from somewhere,
+           but a part on its own at its standard section, with how many were
+           placed. The subject is a definition rather than a position, which is
+           why it is a different word - and ALL is allowed, because asking for
+           forty parts by name is asking for the list to go stale.
+
+           PART and SECT are split so each can carry its own scale. A gusset and
+           a six-metre beam do not share a scale, and one block for both meant
+           whichever mattered less decided it. */
+        var pkind = str(v[0]).toUpperCase();
+        var pid = str(v[1]).toUpperCase();
+        var pscl = num(v[2], 0), pttl = str(v[3]);
+        if (pkind !== 'PART' && pkind !== 'SECT') {
+          warn('row ' + (r + 1) + ': PLOT — the second cell says what to draw, ' +
+               'PART or SECT (got "' + (str(v[0]) || '(blank)') + '")');
+          continue;
+        }
+        if (!pid) {
+          warn('row ' + (r + 1) + ': PLOT ' + pkind + ' — needs an id, or ALL ' +
+               '(PLOT PART|SECT id|ALL scale title)');
+          continue;
+        }
+        if (!(pscl > 0)) {
+          warn('row ' + (r + 1) + ': PLOT ' + pkind + ' ' + pid + ' — needs a scale ' +
+               'in the fourth cell, greater than 0. 10 means 1:10');
+          continue;
+        }
+        plots.push({ KIND: pkind, ID: pid, SCALE: pscl, ROW: r + 1,
+                     TITLE: pttl || (pkind + ' ' + pid) });
+        counts.plot++;
       } else if (kw === 'COORD') {        // COORD ZUP (default) | YUP — frame the sheet is written in
         yup = str(v[0]).toUpperCase() === 'YUP';
         palias = yup ? PLANE_ALIAS_YUP : PLANE_ALIAS;
@@ -1806,19 +1919,22 @@
         warn('MODULE ' + id + ': BASE instance ' + parts[id].base.inst +
              ' not found among its members — falling back to the local origin (0,0,0)');
     });
-    /* VIEW rows may sit above the MODULE rows they name, so the module is
-       looked for once the whole sheet has been read rather than as the row
-       goes by. A view of nothing is dropped: better no drawing than an empty
-       frame with a title over it. */
+    /* VIEW rows may sit above the rows they name, so the subject is looked for
+       once the whole sheet has been read rather than as the row goes by. A
+       MODULE or an ASSY will do: both are things a person points at and calls
+       a thing, and a sheet that can draw one should be able to draw the other.
+       A view of nothing is dropped: better no drawing than an empty frame with
+       a title over it. */
     views = views.filter(function (vw) {
-      if (parts[vw.MODULE]) return true;
-      warn('row ' + vw.ROW + ': VIEW names module ' + vw.MODULE +
-           ', which the sheet never defines — no drawing is made');
+      if (parts[vw.MODULE] || assyIds[vw.MODULE]) return true;
+      warn('row ' + vw.ROW + ': VIEW names ' + vw.MODULE +
+           ', which the sheet defines neither as a MODULE nor as an ASSY — ' +
+           'no drawing is made');
       counts.view--;
       return false;
     });
     return { plates: plates, holes: holes, parts: parts, cuts: cuts, assy: assy,
-             views: views, log: log, counts: counts, yup: yup,
+             views: views, plots: plots, log: log, counts: counts, yup: yup,
              fatal: fatals.length ? fatals : null };
   }
 
@@ -1870,6 +1986,7 @@
             (c.hole ? ' &middot; holes ' + c.hole : '') +
             (c.bar ? ' &middot; bars ' + c.bar : '') +
             (c.sect ? ' &middot; sections ' + c.sect : '') +
+            (c.bolt ? ' &middot; bolts ' + c.bolt : '') +
             ' &middot; cuts ' + c.cut +
             ' &middot; modules ' + (c.module || 0) +
             ' &middot; assy ' + c.assy + ' &rarr; placed ' + placed +
@@ -1971,6 +2088,89 @@
     };
     reader.readAsArrayBuffer(file);
   }
+
+  /* ------- the second way in: rows handed over by the embedding page -------
+
+     A workbook reaches the model as `rows` - a plain array of arrays of
+     numbers and strings - and everything downstream of that knows nothing
+     about Excel. So a page that can produce those rows can drive this frame
+     without a file at all, which is what QuickPlate3D does: you type into a
+     form and the model under it redraws, with no save-and-load in between.
+
+     The last four lines below are the same four the file path runs. That is
+     deliberate: this is a second door into one room, not a second room.
+
+     Who is allowed to knock. `e.source` is set by the browser and cannot be
+     forged, and `window.parent` is whoever framed us - so this accepts the
+     embedding page and nothing else. A hostile page that opens this embed in
+     a popup is its `opener`, not its `parent`, and is turned away.
+
+     There is deliberately NO origin string. Hardcoding a domain would put the
+     site's address inside the engine, to be edited whenever the site moves or
+     is tested from somewhere else, and it would buy very little: this frame
+     holds nothing worth taking - no login, no stored files, no token - and
+     anyone who framed it could already drive it through the file picker. If
+     that ever stops being true, an origin check belongs here.
+
+     What is actually checked is the message: its shape, and its size. Beyond
+     that parseExcelRows is the guard, exactly as it is for a workbook - the
+     rows have to survive the same parser either way. */
+  var QUICK_MAX_ROWS = 5000;                     // a real sheet is a few hundred
+  /* Under ui=quick the whole File menu is gone, exports included, because in
+     that mode the toolbar belongs to the page around the frame - one owner,
+     not two bars competing. So the exports have to be reachable from out
+     there, and this is the same door the rows come through rather than a new
+     one: one sender check, one place to look.
+
+     A fixed list, not a name to call. `d.do` naming any function on the API
+     would let the embedding page reach everything the viewer can do; these
+     four only read the built scene and hand back a file. */
+  var QUICK_CMD = { exportDXF: 1, exportBOQ: 1, exportSTL: 1, exportIFC: 1 };
+  window.addEventListener('message', function (e) {
+    if (e.source !== window.parent) return;      // only the page that framed us
+    var d = e && e.data;
+    if (d && d.plate3d === 'cmd') {
+      // read the API at call time: it is assigned far below this listener, so
+      // capturing it here would capture undefined
+      var api = window.plateBuilder;
+      if (!QUICK_CMD[d.do] || !api || typeof api[d.do] !== 'function') return;
+      try { api[d.do](); } catch (err) {
+        try { window.parent.postMessage({ plate3d: 'cmdFailed', do: d.do,
+                                          why: String(err && err.message || err) }, '*'); } catch (e3) {}
+      }
+      return;
+    }
+    if (!d || d.plate3d !== 'rows') return;
+    if (!Array.isArray(d.rows) || !d.rows.length || d.rows.length > QUICK_MAX_ROWS) return;
+    var name = typeof d.name === 'string' && d.name ? d.name : 'Quick input';
+    var parsed;
+    try {
+      parsed = parseExcelRows(d.rows, null);
+    } catch (err) {
+      fatalStop(name, ['Could not read the rows: ' + (err && err.message || err)]);
+      return;
+    }
+    if (parsed.fatal) { fatalStop(name, parsed.fatal); return; }
+    buildLog = [];
+    run({ title: 'PLATE3D',
+          subtitle: name + ' · PLATE/CUT/ASSY · unit: mm',
+          note: 'Built from the form above — edit a value and the model follows.',
+          __parsed: parsed });
+    showResult(name, parsed);
+    /* Tell the sender it landed, so the form can report without the reader
+       having to look down at the panel. `items` is the built scene, so its
+       length is the count the result panel shows - not a field on `parsed`,
+       which does not carry one. Errors are counted the same way the panel
+       counts them: the parser's log plus the build's. */
+    var qlog = (parsed.log || []).concat(buildLog);
+    try {
+      window.parent.postMessage({
+        plate3d: 'built', name: name,
+        placed: items.length,
+        errors: qlog.filter(function (x) { return x.s === 'e'; }).length
+      }, '*');
+    } catch (e2) {}
+  });
 
   /* ------- PLATE sheet parser: '#'-prefixed block headers ------- */
   function parsePlateSheet(sheet) {
@@ -2378,6 +2578,17 @@
     if (TW <= 0) return [[0, 0], [B, 0], [OF, H]];
     return [[0, 0], [B, 0], [OF + TW, H], [OF, H]];
   }
+  /* A hexagon on its across-flats size, which is the number stamped on a
+     spanner and the one a bolt table gives. Vertices start at 30 degrees so a
+     flat, not a corner, faces along x - the way a head is drawn on a plan. */
+  function hexOutline(af) {
+    var R = af / Math.sqrt(3), pts = [];
+    for (var i = 0; i < 6; i++) {
+      var a = (30 + i * 60) * Math.PI / 180;
+      pts.push([R * Math.cos(a), R * Math.sin(a)]);
+    }
+    return pts;
+  }
   function circleOutline(D, cx, cy, seg) {
     var pts = [];
     for (var i = 0; i < seg; i++) {
@@ -2625,6 +2836,7 @@
     return [a[0], a[1], (face || 0) * thk / 2];
   }
   function isBarSpec(spec) { return !!(spec && spec.__bar && !spec.__sect); }
+  function isBoltSpec(spec) { return !!(spec && spec.__bolt); }
   function isSectSpec(spec) { return !!(spec && spec.__sect); }
   // A stretched member is the same section at a different length, so it gets its
   // own copy of the definition with the length written in. Everything downstream
@@ -2977,6 +3189,7 @@
     lastColors = colors;
     lastParts = parts;
     lastViews = (data.__parsed && data.__parsed.views) || [];
+    lastPlots = (data.__parsed && data.__parsed.plots) || [];
     var inst = {};                       // NO → {matrix, pts, thk} for EDGE references
     var bbox = new THREE.Box3();
 
@@ -3008,7 +3221,15 @@
       outers.forEach(function (ring, i) {
         var shape = new THREE.Shape(ring.map(function (q) { return new THREE.Vector2(q[0], q[1]); }));
         holesArr[i].forEach(function (h) {
-          shape.holes.push(new THREE.Path(h.map(function (q) { return new THREE.Vector2(q[0], q[1]); })));
+          /* A hole's wall has to face INTO the hole, and ExtrudeGeometry builds
+             it from the winding it is handed. A hole wound the same way round
+             as its outer therefore comes out inside-out: the wall is there but
+             every one of its faces points away, so FrontSide culls the lot and
+             a tube's bore renders as a window you can see the grid through.
+             It cost nothing in weight or in the DXF - both read the 2D rings -
+             which is why it stood so long. */
+          var hh = ringArea(h) * ringArea(ring) > 0 ? h.slice().reverse() : h;
+          shape.holes.push(new THREE.Path(hh.map(function (q) { return new THREE.Vector2(q[0], q[1]); })));
         });
         var geo = plateGeom(shape, thk, caps);
         var mesh = new THREE.Mesh(geo, mat);
@@ -3024,6 +3245,50 @@
         edge.userData = { shape: shape, thk: thk, caps: caps };
         groupObj.add(edge);
       });
+      /* ---- a bolt's head and nut ----
+         Drawn, not modelled: they are here so the picture reads as a bolted
+         joint and nowhere else. Every number the drawings and the take-off use
+         is the shank's - the hole is the shank's diameter plus the clearance,
+         the pitch chains are between shank axes - so a head that is a little
+         out changes nothing anyone is paid for.
+
+         The head stands off BEHIND the placement point, because that point is
+         its underside: the steel face the bolt is pulled against. The nut sits
+         at the far end of the shank, so length is grip plus nut plus whatever
+         thread is wanted showing - which is how a bolt length is chosen. Write
+         it too long and the nut stands off the steel, visibly, which is the
+         right way for that mistake to appear. */
+      if (spec.__bolt) {
+        /* Both sit at a given centre along the shank's own axis. The head is
+           entirely behind the start, because the start is its underside. The
+           nut is entirely INSIDE the length, its outer face at the shank end
+           less `proj` - so `length` is grip plus nut plus whatever thread is
+           to show, and `proj` is that thread. Written the other way round, with
+           the nut hung off the end, `length` would have meant grip alone and
+           the two numbers would have disagreed with the guide. */
+        var pj = num(spec.PROJ, 0);
+        [[num(spec.HAF, 0), num(spec.HH, 0), -thk / 2 - num(spec.HH, 0) / 2],
+         [num(spec.NAF, 0), num(spec.NH, 0),  thk / 2 - pj - num(spec.NH, 0) / 2]]
+        .forEach(function (h) {
+          var af = h[0], ht = h[1], mid = h[2];
+          if (!(af > 0) || !(ht > 0)) return;
+          var hx = new THREE.Shape(hexOutline(af).map(function (q) {
+            return new THREE.Vector2(q[0], q[1]);
+          }));
+          var hg = plateGeom(hx, ht, null);
+          hg.translate(0, 0, mid);
+          var hm = new THREE.Mesh(hg, mat);
+          hm.matrixAutoUpdate = false;
+          hm.matrix.copy(world);
+          groupObj.add(hm);
+          hg.computeBoundingBox();
+          bbox.union(hg.boundingBox.clone().applyMatrix4(world));
+          var he = new THREE.LineSegments(new THREE.EdgesGeometry(hg, 25), edgeMat);
+          he.matrixAutoUpdate = false;
+          he.matrix.copy(world);
+          groupObj.add(he);
+        });
+      }
       scene.add(groupObj);
       var axLen = capLength({ outers: outers, holes: holesArr }, thk, caps);
       var dims = spec.SHAPE === 'SECT'
@@ -5025,7 +5290,11 @@
     listGroups = [];
     var groups = [], gmap = {};
     items.forEach(function (it) {
-      total += it.mass;
+      /* Bolts are counted, never weighed - see BOQ_KIND.BOLT - so they stay out
+         of every figure that says kilograms, this panel included. Steel is
+         bought by the tonne and bolts by the box; adding the two gives a number
+         nobody can buy. */
+      if (!BOQ_KIND[boqKind(it.spec)].count) total += it.mass;
       var g = gmap[it.group];
       if (!g) { g = gmap[it.group] = { name: it.group, rows: [], rmap: {} }; groups.push(g); }
       var r = g.rmap[it.instKey];
@@ -5245,7 +5514,7 @@
   function nothing(list, what) {
     if (list.length) return false;
     alert('Nothing to export' + (what ? ' from ' + what : '') + '.\n\n' +
-          'Load a sheet with Load Excel, or tick at least one member back on.');
+          LOAD_HINT + ', or tick at least one member back on.');
     return true;
   }
   function visibleItems() {
@@ -5280,10 +5549,12 @@
   }
 
   /* ================= DXF export (AC1009 / R12) =================
-     A drawing of what the ASSY rows placed, in up to three blocks, each drawn
-     at its own scale: six orthographic views of the whole assembly, the same
-     six of each module, and every distinct part once at its standard section
-     with how many of it there are.
+     The drawings the sheet asked for, in the order it asked, each at the scale
+     its own row gave it. A VIEW row draws one id - a MODULE or an ASSY - seen
+     from a named direction or from two angles; a PLOT row draws parts on their
+     own at their standard section. Nothing else is produced: six views of
+     everything placed, and of every module, used to come out whether or not
+     anyone wanted them, at whatever one scale the export dialog was carrying.
 
      The file is built to the shape of macroBIM/bim_dxf.js, which is what the
      site's other drawing tools already ship and what is known to open: AC1009,
@@ -5306,12 +5577,13 @@
      built. The scale you give is never applied to the steel: dimStyle(scale)
      multiplies the registered annotation lengths instead, so a 2.5mm number
      comes out 2.5mm on paper whatever the block is plotted at. That is also
-     what lets the three blocks share one coordinate system - only their
-     annotation differs in size, so a viewport plotted at each block's own
-     scale is right for that block.
+     what lets every drawing share one coordinate system - only their
+     annotation differs in size, so a viewport plotted at a drawing's own
+     scale is right for that drawing.
 
-     No hidden-line removal: the six views draw every member's outline, near and
-     far. That is enough for a bracket and honest about what it is on a crane. */
+     Hidden lines are removed, in every VIEW drawing. An edge with steel in
+     front of it is not drawn - see the pass above dxfMemberEdges for how, and
+     for the one place it is not exact. */
 
   /* The text style the drawing writes with. A TrueType name in the STYLE
      table's font field is what gets Arial instead of the stick-figure txt.shx
@@ -5350,6 +5622,63 @@
   var DXF_VIEW_KEY = {};
   DXF_VIEWS.forEach(function (vw) { DXF_VIEW_KEY[vw.key] = vw; });
 
+  /* A direction given as two angles rather than a name. AZ walks the viewer
+     round the model in the ground plane, measured from +X (east) anticlockwise;
+     EL lifts them off it. Two angles, not three Euler angles, for the reason
+     every CAD settles on the same pair: three angles cannot be read without
+     also knowing the order they are applied in, and the third of them only
+     tilts the picture on the paper, which a drawing does not want.
+
+     The page keeps world Z upright - up is world Z with the view direction
+     taken out of it - so a column draws vertical at any angle and no third
+     angle is needed to keep it that way. At EL +-90 world Z has no component
+     left in the picture plane, and north takes over as the up of the page,
+     which is exactly what TOP and BOTTOM already do.
+
+     The six named views are the special cases of this: FRONT is (-90, 0),
+     TOP is (0, 90). tools/check_view3d.js asserts that component by
+     component, so the two ways of naming a direction cannot drift apart. */
+  function viewFromAZEL(az, el, key) {
+    var D = Math.PI / 180;
+    var ca = Math.cos(az * D), sa = Math.sin(az * D);
+    var ce = Math.cos(el * D), se = Math.sin(el * D);
+    /* cos(90 deg) is 6.1e-17, not 0. Left in, that lands in every projected
+       coordinate and dxfDedupe stops recognising two lines as the same line,
+       so a view that should equal a named one becomes a near-miss of it. */
+    var z0 = function (v) { return Math.abs(v) < 1e-12 ? 0 : v; };
+    var dir = [z0(ce * ca), z0(ce * sa), z0(se)];
+    // world Z with dir removed and normalised, which closes to this exactly
+    var up = ce > 1e-12 ? [z0(-se * ca), z0(-se * sa), z0(ce)] : [0, 1, 0];
+    var right = [z0(up[1] * dir[2] - up[2] * dir[1]),
+                 z0(up[2] * dir[0] - up[0] * dir[2]),
+                 z0(up[0] * dir[1] - up[1] * dir[0])];
+    return { key: key || '3D', right: right, up: up, dir: dir, az: az, el: el };
+  }
+
+  // atan(1/sqrt 2) - the elevation at which the three axes foreshorten alike
+  var ISO_EL = 35.26438968275465;
+  /* The four isometric corners, named for where the viewer stands. ISO on its
+     own is the south-east one because that is the corner that shows the same
+     face FRONT does, plus the right side and the top - the view a drawing
+     means by "isometric". Standing north-east instead is just as isometric
+     and looks at the back of the thing. */
+  var DXF_ISO = { 'ISO': -45, 'ISO-SE': -45, 'ISO-SW': -135,
+                  'ISO-NW': 135, 'ISO-NE': 45 };
+
+  /* One place that turns what a VIEW row says into a direction, so the parser
+     checks exactly what the drawing will later be built from. Null means the
+     row named something that is not a direction. */
+  function viewSpec(dir, az, el) {
+    if (DXF_VIEW_KEY[dir]) return DXF_VIEW_KEY[dir];
+    if (DXF_ISO[dir] !== undefined) return viewFromAZEL(DXF_ISO[dir], ISO_EL, dir);
+    if (dir === '3D') return viewFromAZEL(az, el, '3D');
+    return null;
+  }
+  function viewDirNames() {
+    return DXF_VIEWS.map(function (x) { return x.key; }).join(' / ') + ' / ' +
+           Object.keys(DXF_ISO).join(' / ') + ' / 3D <AZ> <EL>';
+  }
+
   // DXF is a code-page file, not UTF-8. Anything outside ASCII is transliterated
   // rather than escaped, so a label reads the same in every CAD.
   function dxfText(s) {
@@ -5373,9 +5702,12 @@
     var vd = new THREE.Vector3(view.dir[0], view.dir[1], view.dir[2]);
     var R = new THREE.Vector3(view.right[0], view.right[1], view.right[2]);
     var U = new THREE.Vector3(view.up[0], view.up[1], view.up[2]);
+    /* Three components, not two: the third is how far along the line of sight
+       the point is, which is what hidden-line removal reads. Everything that
+       writes DXF takes [0] and [1] and never looks further. */
     function proj(x, y, z) {
       var p = new THREE.Vector3(x, y, z).applyMatrix4(m);
-      return [p.dot(R), p.dot(U)];
+      return [p.dot(R), p.dot(U), p.dot(vd)];
     }
     // the extrusion direction in world space, for the side-face normals
     var e0 = new THREE.Vector3(0, 0, 0).applyMatrix4(m);
@@ -5438,24 +5770,238 @@
     });
   }
 
-  /* How far along the line of sight a member reaches. An orthographic view has
-     no depth to it, so without this every member in the model lands on the same
-     picture - looking down at a top flange you would get the bottom flange, its
-     plates and every bolt drawn through it. */
-  function memberDepth(it, view) {
-    var m = it.matrix, Z = capPlanes(it.thk, it.caps);
-    var vd = new THREE.Vector3(view.dir[0], view.dir[1], view.dir[2]);
-    var lo = Infinity, hi = -Infinity;
-    (it.rings.outers || []).forEach(function (o) {
-      o.forEach(function (p) {
-        [Z.lo(p[0], p[1]), Z.hi(p[0], p[1])].forEach(function (z) {
-          var q = new THREE.Vector3(p[0], p[1], z).applyMatrix4(m).dot(vd);
-          if (q < lo) lo = q;
-          if (q > hi) hi = q;
+  /* ================= hidden-line removal =================
+
+     A VIEW row draws what you could see standing where it says, so an edge
+     with steel in front of it is not drawn at all. The six-view grids are left
+     as they were: those are for finding your way round a model rather than for
+     working from, and every member's outline near and far is what that job
+     wants.
+
+     This is computed, not sampled. Every member here is a 2D profile extruded
+     between two planes, so its surface is flat pieces: over any point of the
+     page the depth of a piece is a linear function of where you are on the
+     page, and an edge crossing one changes from in front to behind only where
+     it crosses that piece's boundary. So the crossings are solved for and the
+     stretches between them are decided once each, exactly, rather than by
+     testing points along the edge and hoping the step was small enough.
+
+     Two things follow from doing it this way and are worth knowing:
+
+       - it runs before dxfDedupe, not after. Both caps of a plate seen face on
+         land on the same lines, and the deduper keeps whichever came first. If
+         that were the far cap, the near cap's own face would then hide it and
+         the plate would vanish entirely.
+       - a round hole is kept or dropped whole. An arc is an ARC in the file,
+         and there is no such thing as most of one; a hole half behind a flange
+         is drawn whole rather than turned into a polygon to be cut. Said here
+         because it is the one place this is not exact. */
+
+  var HLR_EPS = 0.02;                     // mm of depth. Steel that touches steel
+                                          // is not steel in front of steel.
+
+  /* The plane that gives a face's depth anywhere on the page: d = a*u + b*v + c.
+     Null for a face seen edge on - it covers no area, so it hides nothing, and
+     its own boundary is drawn by the edge pass anyway. */
+  function facePlane(p) {
+    var n = p.length, i0 = 0, i1 = -1, i2 = -1, best = 0;
+    for (var i = 1; i < n; i++) {         // the far point, then the point off that line
+      var d = Math.hypot(p[i][0] - p[0][0], p[i][1] - p[0][1]);
+      if (d > best) { best = d; i1 = i; }
+    }
+    if (i1 < 0) return null;
+    best = 0;
+    for (i = 1; i < n; i++) {
+      var det = (p[i1][0] - p[i0][0]) * (p[i][1] - p[i0][1]) -
+                (p[i1][1] - p[i0][1]) * (p[i][0] - p[i0][0]);
+      if (Math.abs(det) > Math.abs(best)) { best = det; i2 = i; }
+    }
+    if (i2 < 0 || Math.abs(best) < 1e-9) return null;
+    var x1 = p[i0][0], y1 = p[i0][1], z1 = p[i0][2];
+    var x2 = p[i1][0], y2 = p[i1][1], z2 = p[i1][2];
+    var x3 = p[i2][0], y3 = p[i2][1], z3 = p[i2][2];
+    var det2 = (x2 - x1) * (y3 - y1) - (y2 - y1) * (x3 - x1);
+    if (Math.abs(det2) < 1e-9) return null;
+    var a = ((z2 - z1) * (y3 - y1) - (y2 - y1) * (z3 - z1)) / det2;
+    var b = ((x2 - x1) * (z3 - z1) - (z2 - z1) * (x3 - x1)) / det2;
+    return { a: a, b: b, c: z1 - a * x1 - b * y1 };
+  }
+
+  function faceBox(f) {
+    var x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity, d0 = Infinity, d1 = -Infinity;
+    f.poly.forEach(function (q) {
+      if (q[0] < x0) x0 = q[0];
+      if (q[0] > x1) x1 = q[0];
+      if (q[1] < y0) y0 = q[1];
+      if (q[1] > y1) y1 = q[1];
+    });
+    // the deepest and shallowest the plane reaches over that box
+    [[x0, y0], [x1, y0], [x0, y1], [x1, y1]].forEach(function (q) {
+      var d = f.a * q[0] + f.b * q[1] + f.c;
+      if (d < d0) d0 = d;
+      if (d > d1) d1 = d;
+    });
+    f.x0 = x0; f.y0 = y0; f.x1 = x1; f.y1 = y1; f.d0 = d0; f.d1 = d1;
+    return f;
+  }
+
+  /* Every flat piece of every member, as it lands on the page: the polygon it
+     covers, the holes punched out of it, and its depth plane. */
+  function viewFaces(members, view) {
+    var R = new THREE.Vector3(view.right[0], view.right[1], view.right[2]);
+    var U = new THREE.Vector3(view.up[0], view.up[1], view.up[2]);
+    var Vd = new THREE.Vector3(view.dir[0], view.dir[1], view.dir[2]);
+    var out = [];
+    function push(poly, holes) {
+      var pl = facePlane(poly);
+      if (!pl) return;
+      out.push(faceBox({ poly: poly, holes: holes || [],
+                         a: pl.a, b: pl.b, c: pl.c }));
+    }
+    members.forEach(function (it) {
+      var m = it.matrix, Z = capPlanes(it.thk, it.caps);
+      var P = function (x, y, z) {
+        var p = new THREE.Vector3(x, y, z).applyMatrix4(m);
+        return [p.dot(R), p.dot(U), p.dot(Vd)];
+      };
+      (it.rings.outers || []).forEach(function (o, i) {
+        var hs = it.rings.holes[i] || [];
+        // the two caps, each with the ring's holes taken out of it
+        ['lo', 'hi'].forEach(function (side) {
+          var zf = Z[side];
+          push(o.map(function (q) { return P(q[0], q[1], zf(q[0], q[1])); }),
+               hs.map(function (h) {
+                 return h.map(function (q) { return P(q[0], q[1], zf(q[0], q[1])); });
+               }));
+        });
+        // one quad per edge, of the outline and of every hole through it
+        [o].concat(hs).forEach(function (r) {
+          for (var j = 0; j < r.length; j++) {
+            var a = r[j], b = r[(j + 1) % r.length];
+            push([P(a[0], a[1], Z.lo(a[0], a[1])), P(b[0], b[1], Z.lo(b[0], b[1])),
+                  P(b[0], b[1], Z.hi(b[0], b[1])), P(a[0], a[1], Z.hi(a[0], a[1]))], []);
+          }
         });
       });
     });
-    return [lo, hi];
+    return out;
+  }
+
+  // even-odd, on the page
+  function inPoly(poly, x, y) {
+    var inside = false, n = poly.length;
+    for (var i = 0, j = n - 1; i < n; j = i++) {
+      var xi = poly[i][0], yi = poly[i][1], xj = poly[j][0], yj = poly[j][1];
+      if ((yi > y) !== (yj > y) &&
+          x < (xj - xi) * (y - yi) / (yj - yi) + xi) inside = !inside;
+    }
+    return inside;
+  }
+  function onFace(f, x, y) {
+    if (!inPoly(f.poly, x, y)) return false;
+    for (var i = 0; i < f.holes.length; i++) if (inPoly(f.holes[i], x, y)) return false;
+    return true;
+  }
+  // where along p->q the segment crosses a ring, as parameters in (0,1)
+  function crossings(ring, px, py, dx, dy, out) {
+    for (var i = 0, n = ring.length, j = n - 1; i < n; j = i++) {
+      var ax = ring[j][0], ay = ring[j][1], bx = ring[i][0], by = ring[i][1];
+      var ex = bx - ax, ey = by - ay;
+      var den = dx * ey - dy * ex;
+      if (Math.abs(den) < 1e-12) continue;
+      var t = ((ax - px) * ey - (ay - py) * ex) / den;
+      var u = ((ax - px) * dy - (ay - py) * dx) / den;
+      if (t > 1e-9 && t < 1 - 1e-9 && u >= -1e-9 && u <= 1 + 1e-9) out.push(t);
+    }
+  }
+
+  /* One segment against every face that could cover it. Returns the stretches
+     of it that are still to be drawn, as [t0,t1] pairs of its own length. */
+  function visibleRuns(seg, faces) {
+    var px = seg[0][0], py = seg[0][1], pd = seg[0][2];
+    var qx = seg[1][0], qy = seg[1][1], qd = seg[1][2];
+    var dx = qx - px, dy = qy - py, dd = qd - pd;
+    var sx0 = Math.min(px, qx), sx1 = Math.max(px, qx);
+    var sy0 = Math.min(py, qy), sy1 = Math.max(py, qy);
+    var sd0 = Math.min(pd, qd);
+    var hid = [];
+    for (var k = 0; k < faces.length; k++) {
+      var f = faces[k];
+      if (f.x1 < sx0 || f.x0 > sx1 || f.y1 < sy0 || f.y0 > sy1) continue;
+      if (f.d1 <= sd0 + HLR_EPS) continue;      // the whole face is behind it
+      var ts = [0, 1];
+      crossings(f.poly, px, py, dx, dy, ts);
+      for (var h = 0; h < f.holes.length; h++) crossings(f.holes[h], px, py, dx, dy, ts);
+      ts.sort(function (a, b) { return a - b; });
+      for (var i = 0; i + 1 < ts.length; i++) {
+        var t0 = ts[i], t1 = ts[i + 1];
+        if (t1 - t0 < 1e-9) continue;
+        var tm = (t0 + t1) / 2, mx = px + dx * tm, my = py + dy * tm;
+        if (!onFace(f, mx, my)) continue;
+        // in front by more than a touch? then this stretch is behind steel
+        if (f.a * mx + f.b * my + f.c > pd + dd * tm + HLR_EPS) hid.push([t0, t1]);
+      }
+    }
+    if (!hid.length) return [[0, 1]];
+    hid.sort(function (a, b) { return a[0] - b[0]; });
+    var runs = [], at = 0;
+    for (var j = 0; j < hid.length; j++) {
+      if (hid[j][0] > at + 1e-9) runs.push([at, hid[j][0]]);
+      if (hid[j][1] > at) at = hid[j][1];
+      if (at >= 1 - 1e-9) break;
+    }
+    if (at < 1 - 1e-9) runs.push([at, 1]);
+    return runs;
+  }
+
+  /* The whole pass. segs carry a third component - the depth of each end - put
+     there by dxfMemberEdges; it is ignored by everything that writes DXF, which
+     reads [0] and [1] only. */
+  function hideSegs(segs, faces) {
+    var out = [];
+    segs.forEach(function (s) {
+      if (s[0][2] === undefined) { out.push(s); return; }
+      var runs = visibleRuns(s, faces);
+      if (runs.length === 1 && runs[0][0] === 0 && runs[0][1] === 1) { out.push(s); return; }
+      var dx = s[1][0] - s[0][0], dy = s[1][1] - s[0][1], dd = s[1][2] - s[0][2];
+      runs.forEach(function (r) {
+        if (r[1] - r[0] < 1e-6) return;
+        out.push([[s[0][0] + dx * r[0], s[0][1] + dy * r[0], s[0][2] + dd * r[0]],
+                  [s[0][0] + dx * r[1], s[0][1] + dy * r[1], s[0][2] + dd * r[1]]]);
+      });
+    });
+    return out;
+  }
+  // is this point on the page, at this depth, in front of every face over it?
+  function seenPoint(faces, x, y, d) {
+    for (var k = 0; k < faces.length; k++) {
+      var f = faces[k];
+      if (f.x1 < x || f.x0 > x || f.y1 < y || f.y0 > y) continue;
+      if (f.d1 <= d + HLR_EPS) continue;
+      if (onFace(f, x, y) && f.a * x + f.b * y + f.c > d + HLR_EPS) return false;
+    }
+    return true;
+  }
+  /* An arc is kept unless the whole of it is behind steel. There is no partial
+     ARC in R12, and a hole turned into a polygon so that half of it could be
+     removed would cost more than the honesty is worth. */
+  function hideArcs(arcs, faces) {
+    return arcs.filter(function (ac) {
+      if (ac.c[2] === undefined) return true;
+      for (var i = 0; i < 16; i++) {
+        var th = i / 16 * Math.PI * 2;
+        if (seenPoint(faces, ac.c[0] + ac.r * Math.cos(th),
+                      ac.c[1] + ac.r * Math.sin(th), ac.c[2])) return true;
+      }
+      return false;
+    });
+  }
+  /* The hole centres the pitch chains are built from. A hole that was removed
+     for being behind a flange must not leave its dimension behind. */
+  function hidePoints(pts, faces) {
+    return pts.filter(function (p) {
+      return p[2] === undefined || seenPoint(faces, p[0], p[1], p[2]);
+    });
   }
 
   // Two projections of the same plate land on the same line more often than not
@@ -5783,37 +6329,109 @@
     return out;
   }
   // every round CUT on a plate, in the plate's own 2D frame
+  /* ---------------- which members does a bolt go through ----------------
+
+     The hole is written once, as the bolt, and the members it crosses are
+     worked out rather than typed. That is the whole reason BOLT exists as
+     something separate from BAR: a bar is stock and knows nothing about what
+     it lies next to, and asking the sheet to say "there is a bolt here" and
+     then "there is a hole here" and "and here" and "and here" is asking it to
+     say one fact four times, which is four chances to say it differently.
+
+     The test is done in each member's OWN frame, which is the frame its
+     profile and its part drawing are already in - so a hit comes back as an
+     (x, y) that can be drawn without converting anything.
+
+     A member is its profile swept over local z from -thk/2 to +thk/2. The
+     bolt's shank is a segment. Clip the segment to that slab, take the middle
+     of what is left, and ask whether that point is inside the profile. Perpen-
+     dicular or skew, the same three lines answer it.
+
+     What is deliberately NOT done here: the area is not touched. A drilled
+     hole is not deducted from a steel take-off, and a bolt that quietly made
+     every plate lighter would be a worse lie than no hole at all. */
+  var DRILL_SKEW_COS = Math.cos(5 * Math.PI / 180);   // 5 deg off the face normal
+  var DRILL_ALONG = Math.SQRT1_2;                    // 45 deg: through, or across
+  var DRILL_SAMPLES = 41;
+  var drillsFor = null;
+  /* Sampled rather than clipped, and the first version was clipped. Clipping
+     the shank to the member's z slab and taking the middle of what is left is
+     right only while the slab is what bounds the member in the bolt's own
+     direction. Through a plate it is. Across a section it is not - the slab is
+     the whole 1600 of a column and the thing that bounds the bolt is the
+     profile - so the midpoint of a bolt that only clips a flange landed in the
+     cleat beyond it and the column came out undrilled.
+
+     Walking the shank and keeping the points that are inside the member has no
+     such case to get wrong, and 41 samples over a 50mm bolt is finer than any
+     hole it could be reporting. */
+  function assignDrills() {
+    if (drillsFor === items) return;
+    drillsFor = items;
+    items.forEach(function (it) { it.drills = []; });
+    var bolts = items.filter(function (it) { return it.spec && it.spec.__bolt; });
+    if (!bolts.length || typeof THREE === 'undefined') return;
+    var inv = new THREE.Matrix4(), A = new THREE.Vector3(), B = new THREE.Vector3(),
+        P = new THREE.Vector3();
+    bolts.forEach(function (b) {
+      var dia = num(b.spec.HOLE, 0) || num(b.spec.D, 0) + 2;
+      var half = num(b.thk, 0) / 2;
+      items.forEach(function (m) {
+        if (m === b || !m.spec || m.spec.__bolt) return;      // a bolt drills no bolt
+        var mh = num(m.thk, 0) / 2;
+        if (!(mh > 0)) return;
+        inv.copy(m.matrix).invert();
+        A.set(0, 0, -half).applyMatrix4(b.matrix).applyMatrix4(inv);
+        B.set(0, 0,  half).applyMatrix4(b.matrix).applyMatrix4(inv);
+        var n = 0, sx = 0, sy = 0, sz = 0;
+        for (var i = 0; i < DRILL_SAMPLES; i++) {
+          var t = i / (DRILL_SAMPLES - 1);
+          P.copy(A).lerp(B, t);
+          if (P.z < -mh || P.z > mh) continue;
+          var pt = [P.x, P.y], inside = false;
+          for (var k = 0; k < m.rings.outers.length && !inside; k++) {
+            if (!pointInRing(pt, m.rings.outers[k])) continue;
+            inside = !(m.rings.holes[k] || []).some(function (h) { return pointInRing(pt, h); });
+          }
+          if (!inside) continue;
+          n++; sx += P.x; sy += P.y; sz += P.z;
+        }
+        if (!n) return;
+        var dx = B.x - A.x, dy = B.y - A.y, dz = B.z - A.z;
+        var len = Math.hypot(dx, dy, dz) || 1;
+        var along = Math.abs(dz) / len;
+        /* Through the thickness the hole belongs on the profile the part
+           drawing already shows. Across the member it belongs on a side
+           elevation, at how far along it is and how high up - which is a view
+           that has to be drawn. AXIS says which way the bolt ran, because a
+           section can be drilled through the web and through a flange and
+           those are two different elevations. */
+        m.drills.push(along >= DRILL_ALONG
+          ? { view: 'face', x: sx / n, y: sy / n, d: dia,
+              bolt: b.spec.ID, skew: along < DRILL_SKEW_COS }
+          : { view: 'side', z: sz / n, x: sx / n, y: sy / n, d: dia,
+              axis: Math.abs(dx) >= Math.abs(dy) ? 'x' : 'y',
+              bolt: b.spec.ID, skew: false });
+      });
+    });
+  }
   function holeCentres(it) {
     var out = [];
     (it.rings && it.rings.cuts || []).forEach(function (rg) {
       var k = ringCircle(rg);
       if (k) out.push(k.c);
     });
+    /* a drilled hole is a hole for the pitch chain as much as a CUT one is -
+       the chain is what makes three holes readable as 40, 40 rather than as
+       three numbers off an edge */
+    (it.drills || []).forEach(function (h) {
+      if (h.view === 'face') out.push([h.x, h.y]);
+    });
+    /* The side-elevation holes are deliberately left out of the pitch chain.
+       The chain works across one view and these sit in another, so feeding it
+       both would dimension from a hole in the section to a hole in the
+       elevation - a number measured across a gap that is not a distance. */
     return out;
-  }
-  /* ---------------- context: what is behind the part ----------------
-     A face drawn on its own says what the plate is and not where it sits. The
-     rest of the model, on the hidden layer and cut off a short way outside the
-     part, is what puts it back on its beam - and it is cut off because the
-     beam is 1820 long against a 300 plate and would otherwise decide the size
-     of the drawing.
-     The margin is a paper length, not a fraction of the part: 15mm of paper
-     shows about the same amount of surroundings whatever the part and whatever
-     the scale, which is the property that actually matters here. */
-  function ctxMargin(D) { return D.stack * 1.5; }
-  // Liang-Barsky: the piece of a-b inside the rectangle, or null
-  function clipSeg(a, b, r) {
-    var t0 = 0, t1 = 1, dx = b[0] - a[0], dy = b[1] - a[1];
-    var p = [-dx, dx, -dy, dy];
-    var q = [a[0] - r.x0, r.x1 - a[0], a[1] - r.y0, r.y1 - a[1]];
-    for (var i = 0; i < 4; i++) {
-      if (p[i] === 0) { if (q[i] < 0) return null; continue; }
-      var t = q[i] / p[i];
-      if (p[i] < 0) { if (t > t1) return null; if (t > t0) t0 = t; }
-      else { if (t < t0) return null; if (t < t1) t1 = t; }
-    }
-    if (t1 - t0 < 1e-9) return null;
-    return [[a[0] + t0 * dx, a[1] + t0 * dy], [a[0] + t1 * dx, a[1] + t1 * dy]];
   }
   // both caps of a plate seen face on give the same circle; one is enough
   function arcDedupe(arcs) {
@@ -5839,6 +6457,20 @@
       if (d > hi) hi = d;
     }
     if (!(hi > 0) || (hi - lo) / hi > 0.02) return null;
+    /* Every point at one radius is not enough, and the way it fails is quiet.
+       A rounded rectangle carries vertices ONLY at its corners - the flats
+       have none to give them away - so a near-square tube with a small corner
+       passes this test outright. A 300x300x9 tube with an r18 corner has all
+       36 of its points between 193.19 and 195.68: 1.27% apart, well inside
+       the 2%. It was being weighed as a Ø391 disc, which came out NEGATIVE
+       once the bore was subtracted, and drawn in the DXF as a circle.
+
+       So ask the ring to have a circle's AREA as well as its radius. An
+       n-gon inscribed in radius r encloses n/2 sin(2pi/n) r^2 exactly, and a
+       ring that is not one is not close: the tube above sits at 66% of it. */
+    var poly = Math.abs(ringArea(pts));
+    var ngon = n / 2 * Math.sin(2 * Math.PI / n) * hi * hi;
+    if (!(ngon > 0) || Math.abs(poly - ngon) / ngon > 0.01) return null;
     /* hi, the circumradius, not the mean of hi and lo.
        Every circle in this file is drawn by circleOutline, which puts its
        vertices ON the true circle and leaves the flats inside it. So hi IS the
@@ -6025,19 +6657,11 @@
     return lifted ? D.origin + D.base + D.textGap + D.text.dim * 1.2 : 0;
   }
 
-  /* opts says which of the three blocks to draw and at what scale:
-       { part:{on,scale}, module:{on,scale}, assembly:{on,scale} }
-     A bare number still works and means all three at that one scale - the
-     public API took a scale before this, and the sync copy of the site may
-     still be calling it that way. */
-  function buildDXF(list, opts) {
-    if (typeof opts === 'number' || typeof opts === 'string') {
-      var one = Number(opts);
-      opts = { part:     { on: true, scale: one },
-               module:   { on: true, scale: one },
-               assembly: { on: true, scale: one } };
-    }
-    opts = opts || {};
+  /* Every drawing on the sheet, in the order the rows ask for them. There is
+     nothing to pass in: what to draw and at what scale is on the rows, which
+     is the whole point of the change. Returns null when not one row produced
+     a drawing, so the caller can say so instead of writing an empty file. */
+  function buildDXF(list) {
     // D is the live style, reassigned as each block starts - every drawing
     // helper reads it at call time, so a block's scale reaches all of them
     var D = dimStyle(1);
@@ -6296,7 +6920,7 @@
       text('PL3D-DIM', [textFrom + sh / 2, ly + TG], TH, s, true, 0);
     }
 
-    /* ---- the drawing, in up to three blocks ---- */
+    /* ---- the drawings, one to a row ---- */
     /* Each block is drawn at its own scale, so a 63m assembly and a 300mm
        gusset can each be annotated at a size that reads. The steel stays 1:1 in
        millimetres throughout - only the annotation changes size - so the blocks
@@ -6312,45 +6936,26 @@
     // six views of one set of members, laid out 3 x 2, drawn from (x0, yTop)
     // downward. Returns how much room it took.
     /* One projection of a set of members, ready to be put somewhere. */
-    function viewOf(members, vw, rest) {
+    function viewOf(members, vw) {
       var segs = [], arcs = [], holes = [];
       members.forEach(function (it) { dxfMemberEdges(it, vw, segs, arcs, holes); });
-      segs = dxfDedupe(segs);
-      arcs = arcDedupe(arcs);
+      /* Hidden lines go before the deduper, not after. Both caps of a plate seen
+         face on land on the same lines and the deduper keeps whichever came
+         first; were that the far cap, the near cap's own face would then hide it
+         and the plate would disappear entirely. */
+      var faces = viewFaces(members, vw);
+      segs = dxfDedupe(hideSegs(segs, faces));
+      arcs = arcDedupe(hideArcs(arcs, faces));
+      holes = hidePoints(holes, faces);
       /* The box has to see the arcs too, or a hole that reached the edge would
          be measured to its chord. segsBox gives what the sweep actually covers. */
       var box = segsBox(segs, arcs);
-      /* Context is drawn flat - no arcs asked for. A hidden line is only saying
-         "there is something here", and a faceted hole says that as well as a
-         round one for a fraction of the file. */
+      /* No context. A VIEW row draws the id it names and nothing else - what
+         used to be laid in behind it, as the outlines of whatever stood beside
+         it, is gone. It was there to say where a part sat when the sheet drew
+         parts on their own; now the sheet says what it wants drawn, and drawing
+         more than it asked for is the engine having an opinion. */
       var ctx = [], outer = box;
-      if (rest && rest.length) {
-        var mg = ctxMargin(D);
-        outer = { x0: box.x0 - mg, y0: box.y0 - mg,
-                  x1: box.x1 + mg, y1: box.y1 + mg };
-        /* Only what is beside the part, in depth as well as across the page,
-           and only its outline. Context is there to say where the part sits -
-           every hole and every bolt in the rest of the model says nothing about
-           that and buries the part that does. Round bars go entirely: a bolt
-           seen end on is a circle on top of the hole it is already in. */
-        var dsub = [Infinity, -Infinity];
-        members.forEach(function (it) {
-          var d = memberDepth(it, vw);
-          if (d[0] < dsub[0]) dsub[0] = d[0];
-          if (d[1] > dsub[1]) dsub[1] = d[1];
-        });
-        var raw = [];
-        rest.forEach(function (it) {
-          if (it.spec && it.spec.__bar && !it.spec.__sect) return;
-          var d = memberDepth(it, vw);
-          if (d[1] < dsub[0] - mg || d[0] > dsub[1] + mg) return;
-          dxfMemberEdges(it, vw, raw, null, null, true);
-        });
-        dxfDedupe(raw).forEach(function (s) {
-          var c = clipSeg(s[0], s[1], outer);
-          if (c) ctx.push(c);
-        });
-      }
       return { key: vw.key, segs: segs, arcs: arcs, holes: holes, ctx: ctx,
                box: box, outer: outer };
     }
@@ -6386,31 +6991,6 @@
       if (w > 0) dimLinear([ox, oy], [ox + w, oy], oy, false, lv);
       if (h > 0) dimLinear([ox, oy], [ox, oy + h], ox, true, lv);
       return { w: w, h: h };
-    }
-
-    function viewGrid(members, x0, yTop) {
-      var vs = DXF_VIEWS.map(function (vw) { return viewOf(members, vw); });
-      var G = gap();
-      var colW = [0, 0, 0], rowH = [0, 0];
-      vs.forEach(function (v, i) {
-        var c = i % 3, r = Math.floor(i / 3);
-        colW[c] = Math.max(colW[c], v.box.x1 - v.box.x0);
-        rowH[r] = Math.max(rowH[r], v.box.y1 - v.box.y0);
-      });
-      var colX = [x0 + G, 0, 0];
-      colX[1] = colX[0] + colW[0] + G * 2;
-      colX[2] = colX[1] + colW[1] + G * 2;
-      /* Each row carries its view names above it, so the row hangs that much
-         further down. Leaving it out is how ASSEMBLY 1:20 and FRONT VIEW came
-         to be written on the same line. */
-      var band = D.base + D.text.section * 1.4;
-      // rows are laid out downward from yTop, each row hanging by its own height
-      var rowY = [yTop - band - rowH[0], 0];
-      rowY[1] = rowY[0] - rowH[1] - band - G * 1.5;
-      vs.forEach(function (v, i) {
-        placeView(v, colX[i % 3], rowY[Math.floor(i / 3)], v.key + ' VIEW');
-      });
-      return { w: colX[2] + colW[2] - x0, h: yTop - (rowY[1] - G * 2) };
     }
 
     /* The distinct parts, shelf-packed. A 9m section and a 100mm gusset in one
@@ -6475,15 +7055,33 @@
            made. It goes nearest the steel and pushes the overall size out one
            stack - a chain read after the number it adds up to is read twice. */
         var hcs = holeCentres(p.it), lv = 0;
+        /* The face chain runs to the edge of the FACE, not of the part box. With
+           an elevation beside it the box reaches past the section, and chaining
+           to that edge would put a number on the white space between the two
+           views. */
+        var fb = p.faceBox || p.box;
+        var fx0 = ox + fb.x0 - p.box.x0, fx1 = ox + fb.x1 - p.box.x0;
+        var fy0 = oy + fb.y0 - p.box.y0, fy1 = oy + fb.y1 - p.box.y0;
         if (hcs.length) {
           var chX = chainOps(hcs.map(function (hh) { return hh[0] - p.box.x0 + ox; }),
-                             ox, ox + w);
+                             fx0, fx1);
           var chY = chainOps(hcs.map(function (hh) { return hh[1] - p.box.y0 + oy; }),
-                             oy, oy + h);
+                             fy0, fy1);
           dimChain(chX, oy, false, 0, 0, oy);
           dimChain(chY, ox, true, 0, 0, ox);
           if (chX.length || chY.length) lv = 1;
         }
+        /* and the elevation's own chain: along its length under it, up its
+           depth on its right, both bounded by the elevation and nothing else */
+        (p.sides || []).forEach(function (sv) {
+          var sx0 = ox + sv.x0 - p.box.x0, sx1 = ox + sv.x1 - p.box.x0;
+          var sy0 = oy + sv.y0 - p.box.y0, sy1 = oy + sv.y1 - p.box.y0;
+          var shX = sv.holes.map(function (hh) { return ox + hh[0] - p.box.x0; });
+          var shY = sv.holes.map(function (hh) { return oy + hh[1] - p.box.y0; });
+          dimChain(chainOps(shX, sx0, sx1), oy, false, 0, 0, oy);
+          dimChain(chainOps(shY, sy0, sy1), sx1, true, 0, 0, sx1);
+          lv = 1;
+        });
 
         // a round part gets a diameter, not a width and a height
         var lead = 0;
@@ -6566,41 +7164,21 @@
       return D.text.heading * 2.2;
     }
 
-    // ---- 1. the assembly, as six views ----
-    if (opts.assembly && opts.assembly.on) {
-      D = dimStyle(opts.assembly.scale);
-      cursorY -= blockTitle('ASSEMBLY  1:' + opts.assembly.scale, cursorY);
-      var a = viewGrid(list, 0, cursorY);
-      cursorY -= a.h + gap() * 4;
-      sheetW = Math.max(sheetW, a.w / D.scale);
-    }
-
-    // ---- 2. each module, as six views of its own ----
-    if (opts.module && opts.module.on) {
-      D = dimStyle(opts.module.scale);
-      cursorY -= blockTitle('MODULES  1:' + opts.module.scale, cursorY);
-      Object.keys(lastParts).forEach(function (id) {
-        var mem = moduleItems(id);
-        if (!mem.length) return;
-        cursorY -= blockTitle(id.toUpperCase(), cursorY);
-        var m = viewGrid(mem, 0, cursorY);
-        cursorY -= m.h + gap() * 3;
-        sheetW = Math.max(sheetW, m.w / D.scale);
-      });
-      cursorY -= gap() * 2;
-    }
-
-    // ---- 3. the parts, one standard section each ----
-    if (opts.part && opts.part.on) {
-      D = dimStyle(opts.part.scale);
-      cursorY -= blockTitle('PARTS  1:' + opts.part.scale, cursorY);
+    /* ---- a PLOT row: parts on their own, at their standard section ----
+       `pick` says which of them this row asked for. Everything else about the
+       block is as it was when one tick box drew every part at one scale. */
+    function partBlock(pick, title) {
       /* Round bars are left out. A bar is a length of stock, not a part to be
          cut to a shape, and a circle with a diameter beside it tells a
          fabricator nothing the take-off does not. Sections stay - they carry a
          profile worth drawing. */
-      var parts = dxfParts(list.filter(function (it) {
-        return !(it.spec.__bar && !it.spec.__sect);
-      })).map(function (p) {
+      assignDrills();
+      var picked = list.filter(function (it) {
+        return !(it.spec.__bar && !it.spec.__sect) && pick(it);
+      });
+      if (!picked.length) return false;
+      cursorY -= blockTitle(title, cursorY);
+      var parts = dxfParts(picked).map(function (p) {
         /* Here the plate lies in its own plane, so every circle the sheet cut
            is a circle on the paper - this is where arcs pay best. */
         var segs = [], arcs = [], circles = [];
@@ -6641,6 +7219,75 @@
           take(o);
           (p.it.rings.holes[i] || []).forEach(take);
         });
+        /* the holes the bolts made. They go in as full arcs, which is what the
+           writer turns into a CIRCLE, and they ride the same offset every
+           other arc does when the part is placed on the sheet. */
+        (p.it.drills || []).forEach(function (h) {
+          if (h.view === 'face') arcs.push({ c: [h.x, h.y], r: h.d / 2, full: true });
+        });
+        /* ---- the side elevation ----
+           A section's part drawing is its cross-section, and a bolt that goes
+           ACROSS the member - through a web, through a flange - is not in that
+           view at all. It is at some distance along the length, which the
+           cross-section has no axis for. So where such a hole exists, the
+           length view is drawn beside the section in the same coordinate
+           space: segsBox then grows on its own and partShelf lays the wider
+           box out with no change to the layout at all.
+
+           Only members that carry one get it. Every section drawing that has
+           ever been issued is a cross-section and stays exactly that. */
+        /* ---- the side elevations ----
+           A section's part drawing is its cross-section, and a bolt that goes
+           ACROSS the member - through a web, through a flange - is not in that
+           view at all: it sits some distance along the length, which a cross-
+           section has no axis for. So the length view is drawn beside the
+           section in the same coordinate space; segsBox then grows on its own
+           and partShelf lays the wider box out with no layout change at all.
+
+           ONE ELEVATION PER BOLT DIRECTION. A cleat is bolted to the column one
+           way and to the beam the other, and putting both groups on a single
+           elevation stacks two sets of holes that were never on one face and
+           runs their two chains through each other - which is what the first
+           version of this did.
+
+           Only members with such a hole get one; every section drawing issued
+           so far is a cross-section and stays exactly that. */
+        var side = (p.it.drills || []).filter(function (h) { return h.view === 'side'; });
+        if (side.length) {
+          var pb = segsBox(segs, arcs);
+          p.faceBox = pb;                        // the section alone, before any elevation
+          var mh2 = num(p.it.thk, 0) / 2;
+          var gapv = D.base * 3;
+          var cur = pb.x1 + gapv + mh2;          // centre of the first elevation
+          p.sides = [];
+          ['x', 'y'].forEach(function (ax) {
+            var grp = side.filter(function (h) { return h.axis === ax; });
+            if (!grp.length) return;
+            /* which way across the member the bolt ran decides which axis of
+               the profile this elevation looks at: through a web you see the
+               depth, through a flange the width */
+            var vaxis = ax === 'x' ? 'y' : 'x';
+            var lo = Infinity, hi = -Infinity;
+            p.it.rings.outers.forEach(function (o) {
+              o.forEach(function (q) {
+                var v = vaxis === 'y' ? q[1] : q[0];
+                if (v < lo) lo = v;
+                if (v > hi) hi = v;
+              });
+            });
+            var c0 = [cur - mh2, lo], c1 = [cur + mh2, lo],
+                c2 = [cur + mh2, hi], c3 = [cur - mh2, hi];
+            segs.push([c0, c1], [c1, c2], [c2, c3], [c3, c0]);
+            var hs = grp.map(function (h) {
+              return [cur + h.z, vaxis === 'y' ? h.y : h.x];
+            });
+            hs.forEach(function (q, i) {
+              arcs.push({ c: q, r: grp[i].d / 2, full: true });
+            });
+            p.sides.push({ x0: cur - mh2, x1: cur + mh2, y0: lo, y1: hi, holes: hs });
+            cur += 2 * mh2 + gapv;
+          });
+        }
         p.segs = segs;
         p.arcs = arcDedupe(arcs);
         p.box = segsBox(segs, p.arcs);
@@ -6653,47 +7300,64 @@
          across put every part of the tower on one 200m row. */
       var budget = (sheetW > 0 ? sheetW : DXF_SHEET_W) * D.scale;
       var pr = partShelf(parts, 0, cursorY, budget);
-      cursorY -= pr.h;
+      cursorY -= pr.h + gap() * 2;
       sheetW = Math.max(sheetW, pr.w / D.scale);
+      return true;
     }
 
-    /* ---- 4. the drawings the sheet asked for by name ----
-       Not in the dialog, and no tick box: a VIEW row is a decision already
-       taken by whoever wrote the workbook, so it carries its own scale and
-       its own title and is simply drawn. A sheet with no VIEW rows gets no
-       such block and exports exactly what it always did. To drop one, comment
-       the row out - the same way anything else in the sheet is turned off. */
-    if (opts.views && opts.views.on && lastViews && lastViews.length) {
-      D = dimStyle(opts.views.scale);
-      cursorY -= blockTitle('VIEWS  1:' + opts.views.scale, cursorY);
-      lastViews.forEach(function (vr) {
-        /* Taken from what the ASSY rows placed rather than from the module
-           definition, so the subject and everything round it are in the one
-           frame and can be drawn together. */
-        var mem = list.filter(function (it) { return it.moduleId === vr.MODULE; });
-        if (!mem.length) return;              // never placed, or every member hidden
-        var rest = list.filter(function (it) { return it.moduleId !== vr.MODULE; });
-        var v = viewOf(mem, DXF_VIEW_KEY[vr.DIR], rest);
-        var band = D.base + D.text.section * 1.4;
-        /* The context reaches past the part on every side, so the part is put
-           where its own box leaves the whole of that clear of the view above. */
-        var padT = v.outer.y1 - v.box.y1, padB = v.box.y0 - v.outer.y0;
-        var padL = v.box.x0 - v.outer.x0;
-        var chained = v.holes && v.holes.length ? D.stack : 0;
-        var leftRoom = D.origin + D.base + chained;
-        var oy = cursorY - band - (v.box.y1 - v.box.y0) - padT;
-        var r2 = placeView(v, gap() + leftRoom + padL, oy, vr.TITLE, true);
-        /* Below the steel hangs the pitch chain, then the overall dimension,
-           and the context reaches lower still - the next view clears whichever
-           of them goes furthest down. */
-        cursorY = Math.min(oy - padB,
-                           oy - (D.origin + D.base + chained + D.text.dim * 1.4))
-                  - gap() * 2;
-        sheetW = Math.max(sheetW,
-          (gap() + leftRoom + (v.outer.x1 - v.outer.x0)) / D.scale);
+    /* ---- a VIEW row: the thing it names, from where it says ---- */
+    function viewBlock(vr) {
+      /* Taken from what the ASSY rows placed rather than from the definition,
+         so the subject is drawn where it ended up. The id names a MODULE or an
+         ASSY - it.group carries the ASSY row's own id - because both are things
+         a person points at and calls a thing. */
+      var mem = list.filter(function (it) {
+        return it.moduleId === vr.MODULE || it.group === vr.MODULE;
       });
-      cursorY -= gap() * 2;
+      if (!mem.length) return false;          // never placed, or every member hidden
+      var vw = viewSpec(vr.DIR, vr.AZ, vr.EL);
+      if (!vw) return false;                  // the parser already said so
+      var v = viewOf(mem, vw);
+      var band = D.base + D.text.section * 1.4;
+      var chained = v.holes && v.holes.length ? D.stack : 0;
+      var leftRoom = D.origin + D.base + chained;
+      var oy = cursorY - band - (v.box.y1 - v.box.y0);
+      placeView(v, gap() + leftRoom, oy, vr.TITLE + '   1:' + vr.SCALE, true);
+      // below the steel hangs the pitch chain, then the overall dimension
+      cursorY = oy - (D.origin + D.base + chained + D.text.dim * 1.4) - gap() * 2;
+      sheetW = Math.max(sheetW, (gap() + leftRoom + (v.box.x1 - v.box.x0)) / D.scale);
+      return true;
     }
+
+    /* ---- the drawings, in the order the sheet asks for them ----
+       Every drawing on this sheet was asked for by a row, and carries the scale
+       that row gave it. Nothing is produced because the engine thought it might
+       be wanted: the six-view grids of everything placed, and of every module,
+       are gone. They answered a question - what is in this model - that the
+       model tree on screen answers better, and they answered it at whatever one
+       scale the dialog had been given, which is not how a sheet of drawings is
+       put together.
+
+       Order is the order of the rows. It is the only order the person writing
+       the sheet can see and control, so it is the one the paper follows. */
+    var sheet = lastViews.map(function (v) { return { r: v.ROW, draw: viewBlock, arg: v }; })
+      .concat(lastPlots.map(function (p) {
+        return { r: p.ROW, arg: p, draw: function (pr) {
+          var wantSect = pr.KIND === 'SECT';
+          return partBlock(function (it) {
+            if (!it.spec.__sect !== !wantSect) return false;
+            return pr.ID === 'ALL' || String(it.plateId).toUpperCase() === pr.ID;
+          }, pr.TITLE + '   1:' + pr.SCALE);
+        } };
+      }))
+      .sort(function (a, b) { return a.r - b.r; });
+
+    var drawn = 0;
+    sheet.forEach(function (e) {
+      D = dimStyle(e.arg.SCALE);
+      if (e.draw(e.arg)) drawn++;
+    });
+    if (!drawn) return null;                  // the caller says so; an empty file does not
 
     /* ---- assemble the file ---- */
     /* The file, in the shape bim_dxf.js writes and the site's other tools have
@@ -6769,112 +7433,37 @@
   function toggleViewMenu(ev) { toggleMenu('pb-vmenu', ev); }
   function closeFileMenu() { closeMenus(); }
 
-  /* The drawing is three blocks and each is plotted at its own scale, so the
-     question is asked three times over. Remembered for the session, because
-     the second export of a sheet is nearly always the first one again with one
-     number changed. The ladder is the usual one: the whole assembly small, a
-     module bigger, a single part biggest. */
-  var dxfBlocks = {
-    assembly: { on: true, scale: 50 },
-    module:   { on: true, scale: 20 },
-    part:     { on: true, scale: 10 },
-    views:    { on: true, scale: 10 }
-  };
-  var DXF_BLOCK_KEYS = ['assembly', 'module', 'part', 'views'];
-  function dxfBlockRow(key, name, note) {
-    return '    <div class="blk" id="pb-sc-' + key + '-row">' +
-           '      <label class="on"><input type="checkbox" id="pb-sc-' + key + '"' +
-           '        onchange="plateBuilder.scaleRowSync()"> ' + name +
-           '        <small id="pb-sc-' + key + '-note">' + note + '</small></label>' +
-           '      <span class="sc">1 :&nbsp;<input type="number" min="1" step="1"' +
-           '        id="pb-sc-' + key + '-v"' +
-           '        onkeydown="if(event.key===\'Enter\')plateBuilder.confirmScale();' +
-           '                   if(event.key===\'Escape\')plateBuilder.closeScaleAsk()">' +
-           '      </span></div>';
-  }
   function saveDXF() {
     var list = visibleItems();
     if (!list.length) {
       alert('Nothing to draw.\n\n' +
-            'A drawing is made from what the ASSY rows placed, so load a sheet ' +
-            'with Load Excel first — or tick at least one assembly back on.');
+            'A drawing is made from what the ASSY rows placed, so ' +
+            LOAD_HINT.charAt(0).toLowerCase() + LOAD_HINT.slice(1) +
+            ' first — or tick at least one assembly back on.');
       return;
     }
-    openScaleAsk();
-  }
-  // greys out the scale of a block you are not drawing, so the dialog says
-  // what it is going to do without being read twice
-  function scaleRowSync() {
-    DXF_BLOCK_KEYS.forEach(function (k) {
-      var c = document.getElementById('pb-sc-' + k);
-      var row = document.getElementById('pb-sc-' + k + '-row');
-      var v = document.getElementById('pb-sc-' + k + '-v');
-      if (!c || !row || !v) return;
-      row.classList.toggle('off', !c.checked);
-      v.disabled = !c.checked;
-    });
-  }
-  function openScaleAsk() {
-    var el = document.getElementById('pb-scale');
-    if (!el) return;
-    el.style.display = 'flex';
-    DXF_BLOCK_KEYS.forEach(function (k) {
-      var c = document.getElementById('pb-sc-' + k);
-      var v = document.getElementById('pb-sc-' + k + '-v');
-      if (c) c.checked = !!dxfBlocks[k].on;
-      if (v) v.value = dxfBlocks[k].scale;
-    });
-    /* The VIEWS line is the one block the sheet decides the existence of, so
-       the dialog says how many it found rather than offering a drawing that is
-       not there. Which module, seen from where, called what - all of that came
-       off the sheet. The scale did not: that is a property of the paper, not of
-       the model, which is why it is asked for here like the other three. */
-    var nv = (lastViews && lastViews.length) || 0;
-    var vc = document.getElementById('pb-sc-views');
-    var vn = document.getElementById('pb-sc-views-note');
-    if (vc) { vc.disabled = !nv; if (!nv) vc.checked = false; }
-    if (vn) vn.textContent = nv
-      ? nv + (nv > 1 ? ' drawings' : ' drawing') + ' the sheet names'
-      : 'none - this sheet does not name any';
-    scaleRowSync();
-    var first = document.getElementById('pb-sc-assembly-v');
-    if (first) { first.focus(); first.select(); }
-  }
-  function closeScaleAsk() {
-    var el = document.getElementById('pb-scale');
-    if (el) el.style.display = 'none';
-  }
-  function confirmScale() {
-    var opts = {}, on = 0, bad = null;
-    DXF_BLOCK_KEYS.forEach(function (k) {
-      var c = document.getElementById('pb-sc-' + k);
-      var v = document.getElementById('pb-sc-' + k + '-v');
-      var s = Number(v && v.value);
-      var want = !!(c && c.checked);
-      if (want) { on++; if (!(s > 0)) bad = k; }
-      opts[k] = { on: want, scale: s > 0 ? s : dxfBlocks[k].scale };
-    });
-    if (!on) {
-      alert('Nothing ticked.\n\nPick at least one block to draw — an empty ' +
-            'drawing is a file that looks fine and is not.');
+    if (!lastViews.length && !lastPlots.length) {
+      alert('The sheet does not ask for any drawing.\n\n' +
+            'Add a row saying what to draw and at what scale:\n\n' +
+            '    VIEW  <module or assy>  ISO   <scale>  <title>\n' +
+            '    VIEW  <module or assy>  3D  <AZ> <EL>  <scale>  <title>\n' +
+            '    PLOT  PART  <id or ALL>  <scale>\n' +
+            '    PLOT  SECT  <id or ALL>  <scale>\n\n' +
+            'A scale of 20 means 1:20. Nothing is drawn that was not asked for.');
       return;
     }
-    if (bad) {
-      alert('The ' + bad.toUpperCase() + ' scale has to be a number greater ' +
-            'than 0 — 20 means 1:20.');
+    var dxf = buildDXF(list);
+    if (!dxf) {
+      alert('Every row that asks for a drawing names something this model does ' +
+            'not hold, so there is nothing to write.\n\n' +
+            'The report above the model says which rows and why.');
       return;
     }
-    dxfBlocks = opts;
-    closeScaleAsk();
-    var list = visibleItems();
-    if (!list.length) return;
-    // the name carries the scales, because two exports of one sheet differ by
-    // nothing else: plate_builder_A50-M20-P10.dxf
-    var tag = DXF_BLOCK_KEYS.filter(function (k) { return opts[k].on; })
-      .map(function (k) { return k.charAt(0).toUpperCase() + opts[k].scale; })
-      .join('-');
-    download(buildDXF(list, opts), 'plate_builder_' + tag + '.dxf');
+    download(dxf, 'plate_builder.dxf');
   }
+  /* Nothing to ask. Every drawing on the sheet was asked for by a VIEW or a
+     PLOT row and carries its own scale, so Save DXF writes the file. */
+  function confirmScale() { saveDXF(); }        // kept: the guide links to it
 
   /* ================= BOQ: the take-off, as a workbook =================
      Four sheets, reading outward from the steel:
@@ -6911,17 +7500,30 @@
        columns, because a take-off has to be checkable against the row it came
        from, and a derived number sends the reader looking for a cell that is
        not there. */
+    /* A bolt is bought, not cut, so what a take-off wants from it is the size,
+       the length and how many - and the hole it needs, which is the number the
+       shop drills to. It is still weighed, because a thousand M20s are not
+       nothing, but the count is the column people read. */
+    /* count: true - counted, never weighed. Steel is bought by the tonne and
+       bolts by the box, so a take-off lists them by size and length and says
+       how many; putting a kilogram against them invites someone to add it to
+       the steel, which is not how either is priced. So the BOLT block carries
+       no area, no kg/m and no weight column, and the bolts stay out of the
+       weight totals. */
+    BOLT:   { t: 'BOLT', count: true,
+              f: [['DIA', 'D'], ['LENGTH', 'THK'], ['HOLE', 'HOLE']] },
     SECT_P: { t: 'SECT — P', f: [['d', 'd'], ['t', 't'], ['LENGTH', 'THK']] },
     SECT_R: { t: 'SECT — R', f: [['h', 'h'], ['b', 'b'], ['t', 't'], ['r', 'r'],
                                  ['LENGTH', 'THK']] }
   };
-  var BOQ_ORDER = ['RECT', 'TRAP', 'CIRC', 'BAR',
+  var BOQ_ORDER = ['RECT', 'TRAP', 'CIRC', 'BAR', 'BOLT',
                    'SECT_H', 'SECT_C', 'SECT_L', 'SECT_P', 'SECT_R'];
-  var BOQ_CAT = { RECT: 'PLATE', TRAP: 'PLATE', CIRC: 'PLATE', BAR: 'BAR',
+  var BOQ_CAT = { RECT: 'PLATE', TRAP: 'PLATE', CIRC: 'PLATE', BAR: 'BAR', BOLT: 'BOLT',
                   SECT_H: 'SECT', SECT_C: 'SECT', SECT_L: 'SECT',
                   SECT_P: 'SECT', SECT_R: 'SECT' };
   function boqKind(spec) {
     if (isSectSpec(spec)) return 'SECT_' + spec.SECT;
+    if (isBoltSpec(spec)) return 'BOLT';       // before BAR: a bolt is also a __bar
     if (isBarSpec(spec)) return 'BAR';
     if (spec.SHAPE === 'CIRC') return 'CIRC';
     return (spec.WT === spec.WB && spec.OFF_T === spec.OFF_B) ? 'RECT' : 'TRAP';
@@ -6946,7 +7548,14 @@
         return;
       }
       var vals = def.f.map(function (p) { return +num(spec[p[1]], 0).toFixed(4); });
-      var key = k + '|' + spec.ID + '|' + vals.join(',');
+      /* A counted item merges on WHAT IT IS, not on what the sheet called it.
+         Two BOLT rows of the same size are the same bolt however they were
+         named - you buy M16x50 by the box and nobody orders BO.A separately
+         from BO.B - so the id is left out of the key and the line is named for
+         the size instead. Everything fabricated keeps its id in the key,
+         because PL.A and PL.B really are two parts even at the same size. */
+      var key = def.count ? k + '|' + (spec.MAT || '') + '|' + vals.join(',')
+                          : k + '|' + spec.ID + '|' + vals.join(',');
       var e = map[key];
       if (!e) {
         // The engine's own area, back out of the mass it already computed, so a
@@ -6957,7 +7566,9 @@
         // segments a quarter, so the take-off matches the solid, not a handbook.
         var thk = num(spec.THK, 0);
         var aMM = thk ? it.mass / (thk * RHO) : 0;
-        e = map[key] = { kind: k, id: spec.ID, mat: spec.MAT || '—', vals: vals,
+        e = map[key] = { kind: k,
+                         id: def.count ? 'M' + rnd(num(spec.D, 0)) : spec.ID,
+                         mat: spec.MAT || '—', vals: vals,
                          area: def.area ? aMM / 1e6 : null,
                          cuts: def.area ? cutCount(spec.ID) : null,
                          areaMM: def.area ? null : aMM,
@@ -6966,7 +7577,7 @@
         keys.push(key);
       }
       e.qty++;
-      total += it.mass;
+      if (!def.count) total += it.mass;          // bolts are counted, not weighed
     });
     var rows = keys.map(function (k) { var e = map[k]; e.wt = e.unit * e.qty; return e; });
     rows.sort(function (a, b) {
@@ -7111,7 +7722,9 @@
     def.f.forEach(function (p, i) {
       cols.push({ h: p[0], f: BQ_DIM_FMT, k: function (r) { return r.vals[i]; } });
     });
-    if (def.area) {                                // a plate: face area, thickness
+    if (def.count) {                               // a bolt: nothing but how many
+      // no area, no kg/m, no unit weight - see BOQ_KIND
+    } else if (def.area) {                         // a plate: face area, thickness
       cols.push({ h: 'AREA m²', f: BQ_AREA, k: function (r) { return r.area; } });
       cols.push({ h: 'CUTS', f: '#,##0', k: function (r) { return r.cuts; } });
       cols.push({ h: 'UNIT kg', f: BQ_WT, k: function (r) { return r.unit; },
@@ -7127,18 +7740,21 @@
     }
     if (mode === 'module') {
       cols.push({ h: 'QTY / UNIT', f: BQ_QTY, sum: 1, k: function (r) { return r.per; } });
-      cols.push({ h: 'kg / UNIT', f: BQ_WT, sum: 1, k: function (r) { return r.unit * r.per; },
-                 fm: function (rn, ix) {
-                   return ref(ix, 'UNIT kg', rn) + '*' + ref(ix, 'QTY / UNIT', rn); } });
+      if (!def.count)
+        cols.push({ h: 'kg / UNIT', f: BQ_WT, sum: 1, k: function (r) { return r.unit * r.per; },
+                   fm: function (rn, ix) {
+                     return ref(ix, 'UNIT kg', rn) + '*' + ref(ix, 'QTY / UNIT', rn); } });
       cols.push({ h: 'TOTAL QTY', f: '#,##0', sum: 1, k: function (r) { return r.qty; } });
-      cols.push({ h: 'TOTAL kg', f: BQ_WT, sum: 1, k: function (r) { return r.wt; },
-                 fm: function (rn, ix) {
-                   return ref(ix, 'UNIT kg', rn) + '*' + ref(ix, 'TOTAL QTY', rn); } });
+      if (!def.count)
+        cols.push({ h: 'TOTAL kg', f: BQ_WT, sum: 1, k: function (r) { return r.wt; },
+                   fm: function (rn, ix) {
+                     return ref(ix, 'UNIT kg', rn) + '*' + ref(ix, 'TOTAL QTY', rn); } });
     } else {
       cols.push({ h: 'QTY', f: '#,##0', sum: 1, k: function (r) { return r.qty; } });
-      cols.push({ h: 'WEIGHT kg', f: BQ_WT, sum: 1, k: function (r) { return r.wt; },
-                 fm: function (rn, ix) {
-                   return ref(ix, 'UNIT kg', rn) + '*' + ref(ix, 'QTY', rn); } });
+      if (!def.count)
+        cols.push({ h: 'WEIGHT kg', f: BQ_WT, sum: 1, k: function (r) { return r.wt; },
+                   fm: function (rn, ix) {
+                     return ref(ix, 'UNIT kg', rn) + '*' + ref(ix, 'QTY', rn); } });
     }
     var ix = {};
     cols.forEach(function (c, i) { ix[c.h] = i + 1; });
@@ -7355,14 +7971,16 @@
       var blocks = pb.filter(function (b) { return BOQ_CAT[b.kind] === cat; });
       if (!blocks.length) return;
       var q = 0, w = 0, nItem = 0;
+      var counted = blocks.every(function (b) { return BOQ_KIND[b.kind].count; });
       blocks.forEach(function (b) {
         nItem += b.n;
         agg.rows.forEach(function (r) { if (r.kind === b.kind) { q += r.qty; w += r.wt; } });
       });
+      if (counted) w = 0;                 // bolts are counted, never weighed
       var pre = function (a) { return "'PART LIST'!" + a; };
       var row = s1.addRow([cat, nItem, null, null, null]);
       row.getCell(3).value = fxSum(bqPick(blocks, 'QTY').map(pre), q);
-      row.getCell(4).value = fxSum(bqPick(blocks, 'WEIGHT kg').map(pre), w);
+      if (!counted) row.getCell(4).value = fxSum(bqPick(blocks, 'WEIGHT kg').map(pre), w);
       bqStyle(row, { bottom: 'thin' });
       catRows.push({ n: row.number, w: w });
       row.getCell(2).numFmt = '#,##0'; row.getCell(3).numFmt = '#,##0';
@@ -8327,6 +8945,54 @@
     ' for on bracing - <code>length</code> becomes the stock length and a single SECT row serves',
     ' every member cut from it.</p>',
 
+    '<h3>BOLT - a bar that knows it is a bolt</h3>',
+    sheet([['# BOLT', 'id', 'mat', 'dia', 'length', 'hole', 'head_af', 'head_h', 'nut_af', 'nut_h', 'proj'],
+           ['BOLT', 'bo.m16', 'F10T', 16, 50],
+           ['BOLT', 'bo.m20', 'F10T', 20, 60, 24, 32, 13, 32, 19, 0]]),
+    '<p>A <b>BAR</b> is a length of round stock and the engine treats it as one. A',
+    ' <b>BOLT</b> is the same shape with a job: it can say which members its axis passes',
+    ' through, so the hole is written <i>once</i> - as the bolt - instead of once as the',
+    ' bolt and again as a hole in every part it goes through.</p>',
+    '<p><b>The point on the MODULE row is the underside of the head.</b> That is the face',
+    ' of the steel the bolt is pulled against, and the one number you already know from the',
+    ' drawing - the outside of a flange, the face of a cleat. The head stands off behind it,',
+    ' the shank runs <code>length</code> forward, the nut sits at the far end - inside the',
+    ' length, not hung off it.</p>',
+    '<p><code>proj</code> is the thread left showing past the nut. It is <b>0.2 &times; dia</b>',
+    ' unless you say otherwise, because a bolt that finishes flush with its nut has been cut',
+    ' short - a real one runs a little past. So <code>length</code> is <b>grip + nut +',
+    ' proj</b>. Type <code>0</code> and you get the flush end; leave it blank and you get the',
+    ' usual stub.</p>',
+    '<p>That stub is also <b>how you tell which end is which</b> on screen. A head and a nut are',
+    ' both hexagons of the same size across the flats - only the nut is taller, 0.9d against',
+    ' 0.625d, which is real but not much to go on at a glance. The thread showing past the nut',
+    ' is unmistakable, and it is there because bolts are like that, not because the picture',
+    ' needed a hint.</p>',
+    '<p>Write a length longer than grip + nut + proj and the nut stands off the steel -',
+    ' visibly, which is the right way for a wrong length to show itself.</p>',
+    '<p><b>The head and the nut are drawn and nothing more.</b> Every number the drawings and',
+    ' the take-off use is the shank&rsquo;s: the hole is the shank plus the clearance, the pitch',
+    ' chains run between shank axes, and the weight is the shank&rsquo;s. A head a millimetre out',
+    ' changes nothing anyone is paid for.</p>',
+    '<p>To turn one round, rotate it 180&deg; with the <b>ROT</b> columns the MODULE row',
+    ' already has - about whichever axis lies across the bolt. There is no head-side column,',
+    ' because the sheet can already say it.</p>',
+    '<p><b>Only the first four values are needed.</b> The rest come off the diameter:</p>',
+    '<table class="gt"><thead><tr><th>left blank</th><th>becomes</th><th>M16</th><th>M20</th></tr></thead><tbody>',
+    '<tr><td><code>hole</code></td><td>dia + 2</td><td>18</td><td>22</td></tr>',
+    '<tr><td><code>head_af</code></td><td>1.5 &times; dia &nbsp;(across the flats)</td><td>24</td><td>30</td></tr>',
+    '<tr><td><code>head_h</code></td><td>0.625 &times; dia</td><td>10</td><td>12.5</td></tr>',
+    '<tr><td><code>nut_af</code></td><td>same as the head</td><td>24</td><td>30</td></tr>',
+    '<tr><td><code>nut_h</code></td><td>0.9 &times; dia</td><td>14.4</td><td>18</td></tr>',
+    '<tr><td><code>proj</code></td><td>0.2 &times; dia &nbsp;(thread showing past the nut)</td><td>3.2</td><td>4</td></tr>',
+    '</tbody></table>',
+    '<p>Those are the ISO hex numbers, and they are ratios rather than a table because five',
+    ' ratios are honest where a bolt catalogue would not be. <b>A high-strength structural',
+    ' bolt is bigger</b> - an M20 F10T head is 32 across, not 30 - which is exactly why every',
+    ' one of them can be typed instead.</p>',
+    '<p class="warn">A BOLT row is refused if the diameter or the length is missing, if the',
+    ' hole is smaller than the bolt, or if the head is no bigger than the shank.</p>',
+
     '<h3>MODULE - parts into a unit</h3>',
     sheet([['MODULE', 'id', 'member.id', 'Ref.Pt', 'L.X', 'L.Y', 'L.Z', 'PLANE',
             'ROT.X', 'ROT.Y', 'ROT.Z', 'dx', 'dy', 'dz', 'repeat',
@@ -8580,7 +9246,7 @@
     '<h3>The menu bar</h3>',
     '<table class="gt"><thead><tr><th>control</th><th>what it does</th></tr></thead><tbody>',
     '<tr><td><b>File</b></td><td>everything that reads or writes a file, on one menu</td></tr>',
-    '<tr><td><b>Save DXF</b></td><td>the drawing, in up to three blocks. See below</td></tr>',
+    '<tr><td><b>Save DXF</b></td><td>the drawings the sheet asked for. See below</td></tr>',
     '<tr><td><b>Save STL</b></td><td>the model as a triangle mesh</td></tr>',
     '<tr><td><b>Save IFC</b></td><td>the model as real BIM solids - each part its exact profile,',
     ' holes as voids, extruded by its thickness</td></tr>',
@@ -8611,30 +9277,85 @@
     ' reads a round coordinate straight off.</p>',
 
     '<h3>Save DXF - the drawing</h3>',
-    '<p>The drawing comes out in <b>blocks</b>, and each is plotted at its own scale.',
-    ' One scale cannot serve a 60&nbsp;m assembly and a 200&nbsp;mm gusset, so the dialog asks',
-    ' once per block: tick the blocks you want and give each a scale.</p>',
-    '<table class="gt"><thead><tr><th>block</th><th>what it draws</th></tr></thead><tbody>',
-    '<tr><td><b>ASSEMBLY</b></td><td>six views - front, back, left, right, top, bottom - of',
-    ' everything the ASSY rows placed</td></tr>',
-    '<tr><td><b>MODULE</b></td><td>the same six views of each module on its own</td></tr>',
-    '<tr><td><b>PART / SECT</b></td><td>every distinct part once at its standard section,',
-    ' with how many were placed. Round <b>bars are not drawn</b> - a bar is a length of stock,',
-    ' and a circle with a diameter beside it says nothing the take-off does not</td></tr>',
-    '<tr><td><b>VIEWS</b></td><td>the drawings the sheet asked for by name, one to a',
-    ' <code>VIEW</code> row on the input tab: a module, the direction it is seen from, and',
-    ' the title to write over it. Drawn solid, with <b>whatever is behind it on the hidden',
-    ' layer</b> so the part can be seen where it sits. A sheet with no VIEW rows leaves this',
-    ' line greyed out and exports exactly what it always did</td></tr>',
+    '<p><b>The sheet says what goes on paper, and nothing else does.</b> Save DXF asks',
+    ' nothing and draws what the rows asked for, each at the scale its own row gives it.',
+    ' A sheet with no drawing row exports nothing and says so.</p>',
+    '<table class="gt"><thead><tr><th>row</th><th>what it draws</th></tr></thead><tbody>',
+    '<tr><td><code>VIEW</code></td><td>one drawing of a <b>MODULE or an ASSY</b>, seen from',
+    ' the direction the row names, titled as the row titles it. Only that id is drawn &mdash;',
+    ' nothing standing beside it comes along.</td></tr>',
+    '<tr><td><code>PLOT&nbsp;PART</code></td><td>plates on their own, each once at its',
+    ' standard section with how many were placed. An id, or <code>ALL</code>.</td></tr>',
+    '<tr><td><code>PLOT&nbsp;SECT</code></td><td>the same for rolled sections. Separate from',
+    ' PART because a gusset and a six-metre beam do not share a scale. Round <b>bars are not',
+    ' drawn</b> either way &mdash; a bar is a length of stock, and a circle with a diameter',
+    ' beside it says nothing the take-off does not.</td></tr>',
     '</tbody></table>',
-    '<p><b>Why a keyword and not more tick boxes.</b> Which face of a splice you want drawn,',
-    ' and what to call it, is known by whoever wrote the workbook - not by whoever presses',
-    ' Save DXF, who would have to answer it again every time. The scale is the other way',
-    ' round: it belongs to the paper, not to the model, so that is the one thing the dialog',
-    ' asks. Nothing in the engine knows what a splice is.</p>',
+    '<p>The columns do not move. A named direction leaves AZ and EL empty rather than',
+    ' sliding the scale two cells along, so the sixth cell is the scale wherever you look',
+    ' down the block &mdash; and a named direction <i>with</i> something in those cells is',
+    ' refused by name, because that is the shape of a row written to the older grammar.</p>',
+    '<table class="gt"><thead><tr><th></th><th>id</th><th>dir</th><th>AZ</th><th>EL</th>',
+    '<th>scale</th><th>title</th></tr></thead><tbody>',
+    '<tr><td><code>VIEW</code></td><td>md.bay</td><td>ISO</td><td></td><td></td>',
+    '<td>25</td><td>Bay assembly</td></tr>',
+    '<tr><td><code>VIEW</code></td><td>as.frame</td><td>3D</td><td>&minus;45</td><td>35.26</td>',
+    '<td>50</td><td>Frame</td></tr>',
+    '<tr><td><code>PLOT</code></td><td>PART</td><td>ALL</td><td>10</td><td colspan="3"></td></tr>',
+    '<tr><td><code>PLOT</code></td><td>SECT</td><td>b.rafter</td><td>20</td><td colspan="3"></td></tr>',
+    '</tbody></table>',
+    '<p><b>Hidden lines are removed.</b> An edge with steel in front of it is not drawn, in',
+    ' every VIEW drawing &mdash; not only the angled ones, because tying it to how the',
+    ' direction was spelled would make <code>3D -90 0</code> and <code>FRONT</code> two',
+    ' different pictures of one direction. It is computed rather than sampled: every member',
+    ' is a profile extruded between two planes, so the depth of a face over any point of the',
+    ' page is a straight-line function and an edge changes from in front to behind only',
+    ' where it crosses that face&rsquo;s boundary. One exception, which is worth knowing: a',
+    ' round hole is kept or dropped <b>whole</b>. There is no partial arc in DXF R12, so a',
+    ' hole half behind a flange draws whole.</p>',
+    '<p><b>Why the sheet and not tick boxes.</b> Which face of a splice you want drawn, what',
+    ' to call it and how big to plot it are known by whoever wrote the workbook &mdash; not',
+    ' by whoever presses Save DXF, who would have to answer it again every time. The engine',
+    ' used to draw six views of everything placed, six of each module and one of every part,',
+    ' whether or not anyone wanted them, at whatever single scale the dialog was carrying.',
+    ' That answered &ldquo;what is in this model&rdquo;, which the model tree on the left',
+    ' answers better. Nothing in the engine knows what a splice is.</p>',
+
+    '<p><b>The direction a VIEW is seen from.</b> Six of them have names &mdash;',
+    ' <code>FRONT</code>, <code>BACK</code>, <code>LEFT</code>, <code>RIGHT</code>,',
+    ' <code>TOP</code>, <code>BOTTOM</code>. Four more name an isometric corner by where the',
+    ' viewer stands &mdash; <code>ISO-SE</code>, <code>ISO-SW</code>, <code>ISO-NW</code>,',
+    ' <code>ISO-NE</code> &mdash; and <code>ISO</code> on its own is the south-east one, the',
+    ' corner that shows the face FRONT shows plus the right side and the top.</p>',
+    '<p>Any other direction is the word <code>3D</code> and two angles:</p>',
+    '<table class="gt"><thead><tr><th>angle</th><th>what it does</th></tr></thead><tbody>',
+    '<tr><td><b>AZ</b></td><td>walks the viewer round the model in the ground plane, measured',
+    ' from +X (east) anticlockwise. On the page the model turns about its vertical</td></tr>',
+    '<tr><td><b>EL</b></td><td>lifts the viewer off the ground, &minus;90 to 90. At 0 you',
+    ' stand level with the model; at 90 you are directly overhead looking down. On the page',
+    ' the model tips towards you and its top comes into view</td></tr>',
+    '</tbody></table>',
+    '<p>The page keeps world Z upright &mdash; up is world Z with the view direction taken',
+    ' out of it &mdash; so <b>a column draws vertical whatever the angles are</b>. That is why',
+    ' two angles are enough where a rotation would need three: a third angle would only tilt',
+    ' the picture on the paper, which a drawing does not want. The named views are the special',
+    ' cases of the same two numbers:</p>',
+    '<table class="gt"><thead><tr><th>view</th><th>AZ</th><th>EL</th></tr></thead><tbody>',
+    '<tr><td>FRONT</td><td>&minus;90</td><td>0</td></tr>',
+    '<tr><td>RIGHT</td><td>0</td><td>0</td></tr>',
+    '<tr><td>BACK</td><td>90</td><td>0</td></tr>',
+    '<tr><td>LEFT</td><td>180</td><td>0</td></tr>',
+    '<tr><td>TOP</td><td>0</td><td>90</td></tr>',
+    '<tr><td>BOTTOM</td><td>0</td><td>&minus;90</td></tr>',
+    '<tr><td>ISO</td><td>&minus;45</td><td>35.26</td></tr>',
+    '</tbody></table>',
+    '<p><code>VIEW md.bay ISO Bay assembly</code> and',
+    ' <code>VIEW md.bay 3D -45 35.26 Bay assembly</code> draw the same picture. EL past 90',
+    ' is refused rather than read: over the top is a direction already reachable below 90',
+    ' with AZ turned round, and taking it at face value draws the model upside down.</p>',
     '<p><b>The steel is written 1:1 in millimetres throughout.</b> Only the annotation changes',
-    ' size, so the three blocks share one coordinate system and a viewport plotted at each',
-    ' block&rsquo;s scale comes out right. The file is DXF R12 and the annotation is drawn -',
+    ' size, so every drawing shares one coordinate system and a viewport plotted at its',
+    ' own row&rsquo;s scale comes out right. The file is DXF R12 and the annotation is drawn -',
     ' lines, text and filled marks - rather than left to the CAD&rsquo;s dimension style, so it',
     ' reads the same wherever it is opened.</p>',
     '<p>What is dimensioned, at every scale:</p>',
@@ -8779,6 +9500,26 @@
     '</ul>'
   ].join('\n');
 
+  /* ?ui=quick — the viewer embedded under a form rather than standing alone.
+
+     There are three ways a file can replace the model: Load Excel, Example,
+     and dropping an .xlsx on the window. Under QuickPlate3D all three are
+     wrong, and quietly so: the form above would still show the values it was
+     left with while the model below came from somewhere else, and nothing on
+     screen would say they had parted company. So the three are removed.
+
+     Removed, not disabled - a greyed button invites a click and then explains
+     itself, and there is nothing to explain here. The Save items stay: a model
+     built from the form is exactly as worth exporting as one built from a
+     file, and they cannot desynchronise anything because they only read.
+
+     A flag in the URL rather than a message, because the bar is built once at
+     load time and the mode has to be known before it is. */
+  var QUICK_UI = /(^|[?&])ui=quick(&|$)/.test(location.search);
+  // what to tell someone whose model is empty - and it depends which door in
+  var LOAD_HINT = QUICK_UI ? 'Fill in the form above'
+                           : 'Load a sheet with Load Excel';
+
   // title/subtitle are no longer painted - the bar starts with Load Excel, and
   // the page around the viewer already says what it is - but the data file may
   // still carry them, so the signature stays put.
@@ -8807,14 +9548,15 @@
     app.id = 'pb-app';
     app.innerHTML =
       '<div id="pb-bar">' +
+      (QUICK_UI ? '' :
       '  <span class="fmenu" id="pb-fmenu">' +
       '    <button class="accent" onclick="plateBuilder.toggleFileMenu(event)">' +
       '      File <span class="car">&#9662;</span></button>' +
       '    <span class="drop">' +
       '      <button onclick="plateBuilder.pickExcel()">&#8682; Load Excel&hellip;</button>' +
       '      <i></i>' +
-      '      <button onclick="plateBuilder.exportDXF()" title="the drawing, in three blocks' +
-      ' - assembly, modules, parts - each at its own scale">Save DXF&hellip;</button>' +
+      '      <button onclick="plateBuilder.exportDXF()" title="the drawings the sheet' +
+      ' asked for, each at its own row\'s scale">Save DXF&hellip;</button>' +
       '      <button onclick="plateBuilder.exportBOQ()" title="quantities and weights' +
       ' as a workbook">Save BOQ</button>' +
       '      <i></i>' +
@@ -8824,7 +9566,7 @@
       'Save IFC</button>' +
       '    </span>' +
       '  </span>' +
-      '  <input type="file" id="pb-file" accept=".xlsx,.xls" style="display:none">' +
+      '  <input type="file" id="pb-file" accept=".xlsx,.xls" style="display:none">') +
       '  <span class="fmenu" id="pb-vmenu">' +
       '    <button onclick="plateBuilder.toggleViewMenu(event)">' +
       '      View <span class="car">&#9662;</span></button>' +
@@ -8855,9 +9597,10 @@
       '    onchange="plateBuilder.setMeasure(this.checked)"> measure</label>' +
       '  <button class="guide" onclick="plateBuilder.openGuide()"' +
       '    title="how to write the spreadsheet">' + ICON_HELP + 'Guide</button>' +
+      (QUICK_UI ? '' :
       '  <button class="guide ex" onclick="plateBuilder.openSamples(event)"' +
       '    title="download a worked sheet to start from">' +
-      ICON_DL + 'Example</button>' +
+      ICON_DL + 'Example</button>') +
       '</div>' +
       '<div id="pb-body">' +
       '<div id="pb-side">' +
@@ -8879,22 +9622,6 @@
       '</div>' +
       '</div>' +
       '<div id="pb-pal"></div>' +
-      '<div id="pb-scale" onclick="if(event.target===this)plateBuilder.closeScaleAsk()">' +
-      '  <div class="box">' +
-      '    <h2>Drawing scale</h2>' +
-      '    <p>The steel is drawn 1:1 in millimetres &mdash; the scale sizes the' +
-      '      annotation. The drawing comes out in blocks, each at its own' +
-      '      scale, so a 60m assembly and a 200mm gusset can both read. Round' +
-      '      bars are not drawn.</p>' +
-      dxfBlockRow('assembly', 'ASSEMBLY', 'six views of everything placed') +
-      dxfBlockRow('module', 'MODULE', 'six views of each module') +
-      dxfBlockRow('part', 'PART / SECT', 'one of each, with a count') +
-      dxfBlockRow('views', 'VIEWS', 'named on the input tab') +
-      '    <div class="row">' +
-      '      <button onclick="plateBuilder.closeScaleAsk()">Cancel</button>' +
-      '      <button class="accent" onclick="plateBuilder.confirmScale()">Save DXF</button>' +
-      '    </div>' +
-      '  </div></div>' +
       '<div id="pb-ex" onclick="if(event.target===this)plateBuilder.closeSamples()">' +
       '  <div class="box">' +
       '    <h2><span class="close" onclick="plateBuilder.closeSamples()"' +
@@ -9202,17 +9929,23 @@
     if (showIds) { document.getElementById('pb-ids').checked = true; updateSceneIds(); }
     if (showClash) updateSceneClash();
 
-    // Excel loading: file picker + drag & drop anywhere on the app
-    var fileInput = document.getElementById('pb-file');
-    fileInput.addEventListener('change', function () {
-      if (fileInput.files.length) loadExcelFile(fileInput.files[0]);
-    });
-    var app = document.getElementById('pb-app');
-    app.addEventListener('dragover', function (e) { e.preventDefault(); });
-    app.addEventListener('drop', function (e) {
-      e.preventDefault();
-      if (e.dataTransfer.files.length) loadExcelFile(e.dataTransfer.files[0]);
-    });
+    /* Excel loading: file picker + drag & drop anywhere on the app. Both are
+       off under ?ui=quick - the third door, and the easy one to forget, since
+       a drop needs no button to be visible to work. Left wired, a file dragged
+       onto the viewer would replace a model the form above still claims to
+       describe. */
+    if (!QUICK_UI) {
+      var fileInput = document.getElementById('pb-file');
+      fileInput.addEventListener('change', function () {
+        if (fileInput.files.length) loadExcelFile(fileInput.files[0]);
+      });
+      var app = document.getElementById('pb-app');
+      app.addEventListener('dragover', function (e) { e.preventDefault(); });
+      app.addEventListener('drop', function (e) {
+        e.preventDefault();
+        if (e.dataTransfer.files.length) loadExcelFile(e.dataTransfer.files[0]);
+      });
+    }
 
     if (measMain) measMain.dispose();
     measMain = createMeasure({ scene: scene, camera: camera, dom: renderer.domElement,
@@ -9527,6 +10260,12 @@
       d: 'A four-way beam connection: one arm, turned four ways.' },
     { f: 'PLATE3D_SPLICE.xlsx', n: 'Beam splice', s: '106 rows → 66 members · 208 kg',
       d: 'A front sheet fills in the input tab, and names its own drawings.' },
+    /* Sections, not plates, and that is the point of it. Before BOLT a
+       connection had to be built from plates so the holes could be cut, which
+       cost the fillets, the section names in the take-off and three times the
+       rows. This sheet says CUT nowhere. */
+    { f: 'PLATE3D_BCJOINT.xlsx', n: 'Beam to column', s: '36 rows → 13 members · 186 kg',
+      d: 'A front sheet picks the sections. Nothing here says CUT.' },
     { f: 'PLATE3D_TANK.xlsx', n: 'Tank', s: '54 rows → 16 members · 4.9 kg',
       d: 'Reverse-engineered from a five-sheet A4 drawing set.' },
     { f: 'PLATE3D_TURRET.xlsx', n: 'Turret', s: '56 rows → 12 members · 0.65 kg',
@@ -9621,8 +10360,7 @@
     toggleMemberAxis: toggleMemberAxis,
     toggleFileMenu: toggleFileMenu, toggleViewMenu: toggleViewMenu,
     closeFileMenu: closeMenus,
-    exportDXF: saveDXF, closeScaleAsk: closeScaleAsk, confirmScale: confirmScale,
-    scaleRowSync: scaleRowSync,
+    exportDXF: saveDXF, confirmScale: confirmScale,
     // the annotation style, at scale 1 and at any scale - see DIMSTYLE.md
     dimStyleBase: DIMSTYLE, dimStyle: dimStyle, buildDXF: buildDXF
   };
