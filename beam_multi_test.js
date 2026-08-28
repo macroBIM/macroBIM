@@ -212,7 +212,10 @@
     /* UDL 과 CON 을 세로선 하나로 가른다 — 어느 값이 어느 쪽 것인지 */
     '.cb-grp{text-align:center!important;color:var(--ink);letter-spacing:.05em}',
     '.cb-grp span{font-weight:400;color:var(--muted);text-transform:none}',
-    '.cb-grpl{border-left:1px solid var(--line)}',
+    /* 등분포와 집중을 가르는 세로선. 머리부터 마지막 줄까지 한 줄로 이어져야
+       "여기까지가 UDL" 이 눈에 들어온다 — 머리에만 있으면 값을 볼 때 사라진다. */
+    '.cb-grpl{border-left:2px solid var(--line)}',
+    '.cb-ltbl tbody td.cb-grpl{border-left:2px solid var(--line)}',
     '.cb-no{color:var(--muted);font-family:ui-monospace,Menlo,Consolas,monospace;font-size:11px}',
     '.cb-na{color:var(--muted);text-align:center}',
 
@@ -718,7 +721,7 @@
     sup: ['roller', 'roller', 'roller', 'roller'],
     atX: null,          // 보 왼쪽 끝에서 잰 조회 위치. null 이면 전 지간의 한가운데
 
-    loads: [newLoad(0, 8), newLoad(1, 6), newLoad(2, 8)]
+    loads: [newLoad(0, 8)]
   };
 
   function nSpan() { return ST.spans.length; }
@@ -985,14 +988,9 @@
       if (last) { sp.E = last.E; sp.I = last.I; sp.stop = last.stop; sp.sbot = last.sbot;
                   sp.src = last.src; sp.kind = last.kind; sp.pick = last.pick; sp.info = last.info; }
       ST.spans.push(sp);
-      /* 하중도 물려준다 — 새 경간이 빈 채로 나오면 그 끝에서 보가 들려
-         반력이 음수로 찍힌다. 보고 놀라기 전에 앞 경간과 같게 실어 둔다. */
-      ST.loads.filter(function (ld) { return ld.s === j; })
-              .forEach(function (ld) {
-                ST.loads.push(loadFits({ s: j + 1,
-                  w: { v: ld.w.v, a: ld.w.a, b: ld.w.b },
-                  p: { v: ld.p.v, a: ld.p.a } }, sp.L));
-              });
+      /* 하중은 따라 늘리지 않는다. 새 경간에 무엇을 얹을지는 정하는 사람의
+         몫이다 — 앞 경간을 베껴 두면 실어 놓은 적 없는 하중이 결과에 들어간다.
+         빈 경간이면 그 끝 반력이 음수(들림)로 나오는데, 그것도 사실이다. */
     }
     while (ST.spans.length > n) ST.spans.pop();
     while (ST.sup.length < n + 1) ST.sup.push('roller');
@@ -1165,18 +1163,19 @@
       '<table class="bf-ltbl cb-ltbl"><thead>' +
       /* 폭은 백분율로 — 카드가 넓어지면 숫자칸도 같이 넓어진다 */
       '<tr><th rowspan="2" style="width:4%">#</th><th rowspan="2" style="width:9%">Span</th>' +
-      '  <th colspan="3" class="cb-grp">UDL</th>' +
+      '  <th colspan="3" class="cb-grp cb-grpl">UDL</th>' +
       '  <th colspan="3" class="cb-grp cb-grpl">CON</th>' +
       '  <th rowspan="2" style="width:5%"></th></tr>' +
       /* 단위는 칸 이름에 붙인다 — 묶음 이름에 한 번 적으면 a·b 가 무슨 단위인지
          말해 주지 못한다. 가운데 정렬은 값이 오른쪽에 붙는 숫자칸 위에서
          이름이 어느 칸 것인지 더 잘 읽히기 때문이다. */
-      '<tr><th style="width:16%">W<i>(kN/m)</i></th><th style="width:13%">A<i>(m)</i></th><th style="width:13%">B<i>(m)</i></th>' +
+      '<tr><th style="width:16%" class="cb-grpl">W<i>(kN/m)</i></th><th style="width:13%">A<i>(m)</i></th><th style="width:13%">B<i>(m)</i></th>' +
       '  <th style="width:16%" class="cb-grpl">P<i>(kN)</i></th><th style="width:13%">A<i>(m)</i></th><th style="width:11%">B<i>(m)</i></th></tr>' +
       '</thead><tbody>' +
       ST.loads.map(function (ld, i) {
         return '<tr><td class="cb-no">' + (i + 1) + '</td><td>' + spanSel(i, ld.s) + '</td>' +
-          numCell(i, 'wv', ld.w.v, '0.5') + numCell(i, 'wa', ld.w.a, '0.1') + numCell(i, 'wb', ld.w.b, '0.1') +
+          numCell(i, 'wv', ld.w.v, '0.5').replace('<td>', '<td class="cb-grpl">') +
+          numCell(i, 'wa', ld.w.a, '0.1') + numCell(i, 'wb', ld.w.b, '0.1') +
           '<td class="cb-grpl">' + numCell(i, 'pv', ld.p.v, '0.5').replace(/^<td>|<\/td>$/g, '') + '</td>' +
           numCell(i, 'pa', ld.p.a, '0.1') +
           /* 집중하중은 자리가 하나다 — 재하길이가 없으니 넣을 칸도 두지 않는다 */
