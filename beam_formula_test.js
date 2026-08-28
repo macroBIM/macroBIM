@@ -202,13 +202,13 @@
     squaretube: { label: 'Square Tube', file: 'squaretube.csv', name: '호칭치수',
       dims: ['A', 'B', 't', 'r'], area: '단면적', wt: '단위무게', std: '규격',
       calc: function (r) { var p = tubeProps(+r.A, +r.B, +r.t, +r.r); return { I: p.I, A: p.A, y: +r.A / 2 }; },
-      lab: function (n, r) { return r['규격'] ? n + '  · ' + r['규격'] : n; } },
+      lab: function (n) { return n; } },                          // 규격(SPSR·ROLL…)은 아래 안내줄에 나온다
     pipe: { label: 'Pipe', file: 'pipe.csv', name: '호칭치수',
       dims: ['D', 't'], area: '단면적', wt: '단위무게', std: '규격', ks: 'KS규격여부',
       calc: function (r) { var D = +r.D, d = D - 2 * (+r.t);
         return { I: Math.PI * (Math.pow(D, 4) - Math.pow(d, 4)) / 64,
                  A: Math.PI * (D * D - d * d) / 4, y: D / 2 }; },
-      lab: function (n, r) { return r['규격'] ? n + '  · ' + r['규격'] : n; } }
+      lab: function (n) { return n; } }                           // 규격(STK)은 아래 안내줄에 나온다
   };
 
   var DB = {};                                  // kind → [{name, ix, area, wt, dim}]
