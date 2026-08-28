@@ -185,7 +185,10 @@
     '.cb-srcseg button{padding:3px 20px;font-size:10.5px}',
     '.cb-secnote{font-size:10.5px;color:var(--muted);line-height:1.5;',
       'font-family:ui-monospace,Menlo,Consolas,monospace}',
-    '.cb-ltbl th{font-size:9.5px}',
+    '.cb-ltbl th{font-size:9.5px;text-align:center}',
+    '.cb-ltbl thead tr:first-child th:first-child,.cb-ltbl thead tr:first-child th:nth-child(2){text-align:left}',
+    /* 단위는 대문자로 세우지 않는다 — kN/m 은 KN/M 이 아니다 */
+    '.cb-ltbl th i{text-transform:none;letter-spacing:0;font-style:normal;margin-left:4px;font-weight:400}',
     '.cb-ltbl td{padding:2px 3px}',
     '.cb-ltbl input,.cb-ltbl select{font-size:12px;padding:3px 5px}',
     '.cb-noload{font-size:11px;color:var(--muted);font-style:italic;padding:2px 0}',
@@ -1040,19 +1043,22 @@
      (기둥은 폭이 같다) 실제 경간장 비율은 아래 도면이 보여 준다. */
   function renderSups(root) {
     var n = nSpan(), solved = supNames();
+    /* 칸이 5경간 폭으로 고정되었으므로 절점 k 는 폭의 k/5 자리에 선다.
+       보 선도 마지막 절점까지만 긋는다 — 칸이 없는 데까지 보가 있으면 안 된다. */
+    var span = 100 / MAXSPAN;
     q(root, '#cb-supstrip').innerHTML =
-      '<div class="cb-beamline"></div>' +
+      '<div class="cb-beamline" style="right:' + (100 - n * span) + '%"></div>' +
       /* 기호는 절점 자리에 정확히 걸쳐 둔다 — 버튼 묶음은 폭이 있어 양 끝에서
          안쪽으로 밀어야 하지만, 기호는 밀 이유가 없다. */
       solved.map(function (v, k) {
         /* 고정은 보가 벽 가운데를 지나야 하므로 반 칸 끌어올린다. 핀·굴림은
            보선에 얹히는 것이 맞으므로 그대로 둔다. */
         return '<span class="cb-supg' + (v === 'fix' ? ' cb-supg-fix' : '') +
-          '" style="left:' + ((k / n) * 100) + '%" title="' +
+          '" style="left:' + (k * span) + '%" title="' +
           esc(GLYPHTIP[v] || v) + '">' + supGlyph(v, k === 0 ? 1 : -1) + '</span>';
       }).join('') +
       ST.sup.slice(0, n + 1).map(function (s, k) {
-        var pos = (k / n) * 100;
+        var pos = k * span;
         var shift = k === 0 ? 'translateX(0)' : (k === n ? 'translateX(-100%)' : 'translateX(-50%)');
         return '<div class="cb-sup" style="left:' + pos + '%;transform:' + shift + '">' +
           '<div class="cb-supname">' + nodeName(k) + '</div>' +
@@ -1080,7 +1086,10 @@
 
   function renderCols(root) {
     var n = nSpan();
-    q(root, '#cb-cols').style.gridTemplateColumns = 'repeat(' + n + ',minmax(0,1fr))';
+    /* 칸의 폭은 늘 5경간 기준이다. 경간 수를 따라가면 1경간일 때 입력칸 하나가
+       카드 폭을 다 먹어 숫자가 저 멀리 붙고, 경간을 늘리고 줄일 때마다 칸이
+       출렁인다. 남는 자리는 비워 둔다 — 어디까지 채울 수 있는지도 같이 보인다. */
+    q(root, '#cb-cols').style.gridTemplateColumns = 'repeat(' + MAXSPAN + ',minmax(0,1fr))';
     q(root, '#cb-nseg').querySelector('.cb-n').textContent = n + (n === 1 ? ' span' : ' spans');
     [].forEach.call(q(root, '#cb-nseg').querySelectorAll('button[data-d]'), function (b) {
       b.disabled = (+b.dataset.d < 0 && n <= 1) || (+b.dataset.d > 0 && n >= MAXSPAN);
@@ -1156,11 +1165,14 @@
       '<table class="bf-ltbl cb-ltbl"><thead>' +
       /* 폭은 백분율로 — 카드가 넓어지면 숫자칸도 같이 넓어진다 */
       '<tr><th rowspan="2" style="width:4%">#</th><th rowspan="2" style="width:9%">Span</th>' +
-      '  <th colspan="3" class="cb-grp">UDL <span>kN/m</span></th>' +
-      '  <th colspan="3" class="cb-grp cb-grpl">CON <span>kN</span></th>' +
+      '  <th colspan="3" class="cb-grp">UDL</th>' +
+      '  <th colspan="3" class="cb-grp cb-grpl">CON</th>' +
       '  <th rowspan="2" style="width:5%"></th></tr>' +
-      '<tr><th style="width:16%">w</th><th style="width:13%">a</th><th style="width:13%">b</th>' +
-      '  <th style="width:16%" class="cb-grpl">P</th><th style="width:13%">a</th><th style="width:11%">b</th></tr>' +
+      /* 단위는 칸 이름에 붙인다 — 묶음 이름에 한 번 적으면 a·b 가 무슨 단위인지
+         말해 주지 못한다. 가운데 정렬은 값이 오른쪽에 붙는 숫자칸 위에서
+         이름이 어느 칸 것인지 더 잘 읽히기 때문이다. */
+      '<tr><th style="width:16%">W<i>(kN/m)</i></th><th style="width:13%">A<i>(m)</i></th><th style="width:13%">B<i>(m)</i></th>' +
+      '  <th style="width:16%" class="cb-grpl">P<i>(kN)</i></th><th style="width:13%">A<i>(m)</i></th><th style="width:11%">B<i>(m)</i></th></tr>' +
       '</thead><tbody>' +
       ST.loads.map(function (ld, i) {
         return '<tr><td class="cb-no">' + (i + 1) + '</td><td>' + spanSel(i, ld.s) + '</td>' +
