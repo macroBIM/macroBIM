@@ -38,7 +38,7 @@
      올리는 것은 원래 ?v= 로 하던 일과 같다.
      Pages 가 돌아오면 아래 두 줄을 macrobim.github.io 로 되돌린다. */
   var DESIGN = 'https://cdn.jsdelivr.net/gh/macroBIM/design@c5bda27/';
-  var BASE   = 'https://cdn.jsdelivr.net/gh/macroBIM/macroBIM@db9ef0f/';
+  var BASE   = 'https://cdn.jsdelivr.net/gh/macroBIM/macroBIM@5b4b55a/';
 
   /* 도면 색 — 저장소의 단면 도면과 같은 벌 */
   var INK = '#182430', DIM = '#2563eb', HID = '#94a3b8';
@@ -77,8 +77,14 @@
     '.bf-inrow select{text-align:left}',
     '.bf-inrow input:focus,.bf-inrow select:focus{outline:2px solid var(--dim);outline-offset:1px;border-color:var(--dim)}',
     '.bf-inrow input[readonly]{background:#f8fafc;color:var(--muted)}',
-    '.bf-unit{color:var(--muted);font-size:11px;margin-left:6px}',
-    '.bf-wide{width:100%!important;text-align:left!important}',
+    /* 행마다 그리드가 따로라, 단위 글자폭이 다르면 입력 상자의 좌우가 행끼리
+       어긋난다. 최소 폭을 줘서 자리를 고르고, select 뒤에는 빈 단위칸을 둔다 —
+       그래야 상자의 왼쪽 끝과 오른쪽 끝이 위아래로 한 줄에 선다. */
+    '.bf-unit{color:var(--muted);font-size:11px;margin-left:6px;display:inline-block;min-width:24px}',
+    /* select 은 뒤에 단위가 붙지 않는다. 100% 로 두면 입력칸이 아니라 단위칸까지
+       먹어서 저 혼자 오른쪽으로 튀어나가고, 이름이 짧으면 그만큼이 빈칸으로 남는다.
+       입력칸과 같은 폭으로 두어 상자의 오른쪽 끝을 맞춘다. */
+    '.bf-wide{text-align:left!important}',
     '.bf-btn{font:inherit;font-size:10.5px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:#fff;',
       'background:var(--dim);border:1px solid var(--dim);border-radius:6px;padding:5px 12px;cursor:pointer}',
     '.bf-btn:hover{filter:brightness(1.1)}',
@@ -709,9 +715,9 @@
       '          <button type="button" data-src="db" aria-pressed="false">Database</button>' +
       '        </span></div>' +
       '      <div class="bf-inrow" id="bf-row-kind" hidden><label><span class="var">Type</span><span class="desc">Family</span></label>' +
-      '        <span><select id="bf-kind" class="bf-wide"></select></span></div>' +
+      '        <span><select id="bf-kind" class="bf-wide"></select><span class="bf-unit"></span></span></div>' +
       '      <div class="bf-inrow" id="bf-row-pick" hidden><label><span class="var">Size</span><span class="desc">Size list</span></label>' +
-      '        <span><select id="bf-pick" class="bf-wide"></select></span></div>' +
+      '        <span><select id="bf-pick" class="bf-wide"></select><span class="bf-unit"></span></span></div>' +
       '      <div class="bf-inrow"><label><span class="var">I</span><span class="desc">2nd moment</span></label>' +
       '        <span><input type="number" id="bf-I" step="10"><span class="bf-unit">cm⁴</span></span></div>' +
       '      <div class="bf-inrow"><label><span class="var">S top</span><span class="desc">to top fibre</span></label>' +
