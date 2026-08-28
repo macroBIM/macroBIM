@@ -153,6 +153,13 @@
     return (s === '-0.00' || s === '-0.0' || s === '-0') ? s.slice(1) : s;
   }
   function q(root, sel) { return root.querySelector(sel); }
+  /* 해석해서 낸 값은 어디에 적히든 소수 셋째 자리다 — 값마다 자릿수가 다르면
+     같은 표 안에서 자릿수를 세어 가며 읽어야 한다. 0 도 0.000 으로 적는다:
+     자리를 비우면 열이 어긋나고, "아직 없는 값"처럼 보인다.
+     입력을 되비추는 것(지간·하중 위치·단면표 값)은 그대로 둔다.
+     MultiBEAM 도 같은 자리를 쓴다. */
+  var RDP = 3;
+  function rnum(v) { return num(v, RDP); }
   /* 표에서 온 값은 유효숫자 3~4자리다. 계산해서 낸 값도 같은 자리로 끊는다 —
      5.794603167007244 cm⁴ 는 정직해 보이지만 아무도 그렇게 읽지 않는다. */
   /* 휨응력. M[kN·m] = M·1e6 N·mm, S[cm³] = S·1e3 mm³ → σ[MPa] = 1000·M/S.
@@ -1058,17 +1065,17 @@
     var dmax = Math.abs(d.yx.abs.v), ratio = dmax > 1e-12 ? L / dmax : Infinity;
     var isCant = (dv.sup === 'cant');
     q(root, '#bf-stats').innerHTML = [
-      { k: isCant ? 'R fix' : 'R left', v: num(isCant && dv.flip ? d.Vj : d.Vi, 2), s: 'kN', c: SFD },
-      { k: isCant ? 'M fix' : 'R right', v: isCant ? num(Math.abs(dv.flip ? r.Mj : r.Mi), 2) : num(d.Vj, 2),
+      { k: isCant ? 'R fix' : 'R left', v: rnum(isCant && dv.flip ? d.Vj : d.Vi), s: 'kN', c: SFD },
+      { k: isCant ? 'M fix' : 'R right', v: isCant ? rnum(Math.abs(dv.flip ? r.Mj : r.Mi)) : rnum(d.Vj),
         s: isCant ? 'kN·m' : 'kN', c: SFD },
-      { k: 'M max', v: num(Math.abs(d.Mx.abs.v), 2), s: 'kN·m  @ ' + num(d.Mx.abs.x, 2) + ' m', c: BMD },
-      { k: 'δ max', v: num(dmax * 1000, 2), s: 'mm  @ ' + num(d.yx.abs.x, 2) + ' m', c: DEF },
+      { k: 'M max', v: rnum(Math.abs(d.Mx.abs.v)), s: 'kN·m  @ ' + rnum(d.Mx.abs.x) + ' m', c: BMD },
+      { k: 'δ max', v: rnum(dmax * 1000), s: 'mm  @ ' + rnum(d.yx.abs.x) + ' m', c: DEF },
       { k: 'δ / L', v: '1/' + num(ratio, 0), s: 'span ratio', c: DEF },
       { k: 'EI', v: (EI >= 1e4 ? num(EI / 1000, 1) + 'e3' : num(EI, 1)), s: 'kN·m²', c: INK },
       // σ 는 S 가 일정하므로 |M| 이 가장 큰 자리에서 가장 크다
-      { k: 'σ max', v: num(Math.max(Math.abs(stressTop(d.Mx.abs.v, ST.stop)),
-                                    Math.abs(stressBot(d.Mx.abs.v, ST.sbot))), 1),
-        s: 'MPa  @ ' + num(d.Mx.abs.x, 2) + ' m', c: BMD }
+      { k: 'σ max', v: rnum(Math.max(Math.abs(stressTop(d.Mx.abs.v, ST.stop)),
+                                     Math.abs(stressBot(d.Mx.abs.v, ST.sbot)))),
+        s: 'MPa  @ ' + rnum(d.Mx.abs.x) + ' m', c: BMD }
     ].map(function (o) {
       return '<div class="bf-stat"><div class="k">' + esc(o.k) + '</div><div class="v" style="color:' + o.c + '">' +
         o.v + '</div><div class="s">' + esc(o.s) + '</div></div>';
@@ -1092,12 +1099,14 @@
     var atY = valueAt(d.x, d.y, ax), atT = valueAt(d.x, d.theta, ax);
     q(root, '#bf-attbl').innerHTML =
       '<thead><tr><th>Quantity</th><th>Value</th><th>Unit</th><th></th></tr></thead><tbody>' +
-      [['M', num(atM, 2), 'kN·m', atM > 0 ? 'sagging' : (atM < 0 ? 'hogging' : '')],
-       ['V', num(atV, 2), 'kN', ''],
-       ['δ', (atY < 0 ? '↓ ' : (atY > 0 ? '↑ ' : '')) + num(Math.abs(atY) * 1000, 3), 'mm', ''],
-       ['θ', num(atT, 6), 'rad', num(atT * 180 / Math.PI, 4) + '°'],
-       ['σ top', num(stressTop(atM, ST.stop), 2), 'MPa', sgnTag(stressTop(atM, ST.stop))],
-       ['σ bot', num(stressBot(atM, ST.sbot), 2), 'MPa', sgnTag(stressBot(atM, ST.sbot))]
+      [['M', rnum(atM), 'kN·m', atM > 0 ? 'sagging' : (atM < 0 ? 'hogging' : '')],
+       ['V', rnum(atV), 'kN', ''],
+       ['δ', (atY < 0 ? '↓ ' : (atY > 0 ? '↑ ' : '')) + rnum(Math.abs(atY) * 1000), 'mm', ''],
+       /* rad 는 셋째 자리로 끊으면 값이 통째로 0.000 이 된다 — 여기만 mrad 로
+          적어 같은 자릿수 안에서 뜻이 남게 한다. */
+       ['θ', rnum(atT * 1000), 'mrad', rnum(atT * 180 / Math.PI) + '°'],
+       ['σ top', rnum(stressTop(atM, ST.stop)), 'MPa', sgnTag(stressTop(atM, ST.stop))],
+       ['σ bot', rnum(stressBot(atM, ST.sbot)), 'MPa', sgnTag(stressBot(atM, ST.sbot))]
       ].map(function (o) {
         return '<tr><td class="k">' + esc(o[0]) + '</td><td>' + o[1] + '</td><td class="at">' +
           esc(o[2]) + '</td><td class="at">' + esc(o[3]) + '</td></tr>';
@@ -1125,9 +1134,9 @@
       drawDim(s, SX(0, L), SX(L, L), y0 + 48, 'L = ' + num(L, 2) + ' m');
       s.grow(66);
     }
-    [['shear', d.S, SFD, 'SFD', 'kN', 1, false, false],
-     ['moment', d.M, BMD, 'BMD', 'kN·m', 1, true, false],
-     ['defl', d.y.map(function (v) { return v * 1000; }), DEF, 'δ', 'mm', 2, false, true]
+    [['shear', d.S, SFD, 'SFD', 'kN', RDP, false, false],
+     ['moment', d.M, BMD, 'BMD', 'kN·m', RDP, true, false],
+     ['defl', d.y.map(function (v) { return v * 1000; }), DEF, 'δ', 'mm', RDP, false, true]
     ].forEach(function (cf) {
       if (!want(cf[0])) return;
       s.grow(18);
@@ -1158,8 +1167,10 @@
     if (c) {
       q(root, '#bf-fttl').textContent = 'Design Formulas';
       rowsHtml = r.closed.map(function (o) {
-        var unit = o.kind === 'δ' ? 'mm' : (o.kind === 'θ' ? 'rad' : (o.kind === 'R' ? 'kN' : 'kN·m'));
-        var val = o.kind === 'δ' ? num(o.value * 1000, 3) : num(o.value, o.kind === 'θ' ? 5 : 2);
+        var unit = o.kind === 'δ' ? 'mm' : (o.kind === 'θ' ? 'mrad' : (o.kind === 'R' ? 'kN' : 'kN·m'));
+        /* δ 는 m→mm, θ 는 rad→mrad 로 옮겨 적는다. 셋째 자리로 통일하면서
+           rad 를 그대로 두면 흔한 값이 0.000 이 되어 뜻이 없어진다. */
+        var val = (o.kind === 'δ' || o.kind === 'θ') ? rnum(o.value * 1000) : rnum(o.value);
         return '<tr><td class="k">' + esc(o.k) + '</td><td class="tex">' + esc(o.tex) + '</td><td>' +
           val + ' ' + unit + '</td><td class="at">' + esc(o.at || '') + '</td></tr>';
       }).join('');
@@ -1173,18 +1184,19 @@
     } else {
       q(root, '#bf-fttl').textContent = 'Results';
       var rowsList = [
-        ['R left', num(d.Vi, 2), 'kN', 'A'],
-        ['R right', num(d.Vj, 2), 'kN', 'B'],
-        ['M A end', num(-r.Mi, 2), 'kN·m', r.Mi > 0 ? 'hogging' : (r.Mi < 0 ? 'sagging' : '')],
-        ['M B end', num(r.Mj, 2), 'kN·m', r.Mj < 0 ? 'hogging' : (r.Mj > 0 ? 'sagging' : '')],
-        ['M max ⁺', num(d.Mx.max.v, 2), 'kN·m', 'x = ' + num(d.Mx.max.x, 3) + ' m'],
-        ['M max ⁻', num(d.Mx.min.v, 2), 'kN·m', 'x = ' + num(d.Mx.min.x, 3) + ' m'],
-        ['V max', num(d.Sx.abs.v, 2), 'kN', 'x = ' + num(d.Sx.abs.x, 3) + ' m'],
-        ['δ max', num(-d.yx.abs.v * 1000, 3), 'mm', 'x = ' + num(d.yx.abs.x, 3) + ' m'],
-        ['θ A', num(d.thetaI, 5), 'rad', ''],
-        ['θ B', num(d.thetaJ, 5), 'rad', ''],
-        ['σ top', num(stressTop(d.Mx.abs.v, ST.stop), 2), 'MPa', 'at M max, x = ' + num(d.Mx.abs.x, 3) + ' m'],
-        ['σ bot', num(stressBot(d.Mx.abs.v, ST.sbot), 2), 'MPa', 'at M max, x = ' + num(d.Mx.abs.x, 3) + ' m']
+        ['R left', rnum(d.Vi), 'kN', 'A'],
+        ['R right', rnum(d.Vj), 'kN', 'B'],
+        ['M A end', rnum(-r.Mi), 'kN·m', r.Mi > 0 ? 'hogging' : (r.Mi < 0 ? 'sagging' : '')],
+        ['M B end', rnum(r.Mj), 'kN·m', r.Mj < 0 ? 'hogging' : (r.Mj > 0 ? 'sagging' : '')],
+        ['M max ⁺', rnum(d.Mx.max.v), 'kN·m', 'x = ' + rnum(d.Mx.max.x) + ' m'],
+        ['M max ⁻', rnum(d.Mx.min.v), 'kN·m', 'x = ' + rnum(d.Mx.min.x) + ' m'],
+        ['V max', rnum(d.Sx.abs.v), 'kN', 'x = ' + rnum(d.Sx.abs.x) + ' m'],
+        ['δ max', rnum(-d.yx.abs.v * 1000), 'mm', 'x = ' + rnum(d.yx.abs.x) + ' m'],
+        // rad 를 셋째 자리로 끊으면 0.000 이 된다 — mrad 로 적는다
+        ['θ A', rnum(d.thetaI * 1000), 'mrad', ''],
+        ['θ B', rnum(d.thetaJ * 1000), 'mrad', ''],
+        ['σ top', rnum(stressTop(d.Mx.abs.v, ST.stop)), 'MPa', 'at M max, x = ' + rnum(d.Mx.abs.x) + ' m'],
+        ['σ bot', rnum(stressBot(d.Mx.abs.v, ST.sbot)), 'MPa', 'at M max, x = ' + rnum(d.Mx.abs.x) + ' m']
       ];
       q(root, '#bf-formula').innerHTML =
         '<thead><tr><th>Quantity</th><th>Value</th><th>Unit</th><th>At</th></tr></thead><tbody>' +

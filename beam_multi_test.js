@@ -241,6 +241,13 @@
     return (s === '-0.00' || s === '-0.0' || s === '-0') ? s.slice(1) : s;
   }
   function q(root, sel) { return root.querySelector(sel); }
+  /* 해석해서 낸 값은 어디에 적히든 소수 셋째 자리다 — 값마다 자릿수가 다르면
+     같은 표 안에서 자릿수를 세어 가며 읽어야 한다. 0 도 0.000 으로 적는다:
+     자리를 비우면 열이 어긋나고, "아직 없는 값"처럼 보인다.
+     입력을 되비추는 것(지간·하중 위치·단면표 값)은 그대로 둔다 — 적은 대로
+     보이는 편이 맞고, 8 을 8.000 으로 되돌려 주면 고쳐 쓰기가 번거롭다. */
+  var RDP = 3;
+  function rnum(v) { return num(v, RDP); }
   /* 표에서 온 값은 유효숫자 3~4자리다. 계산해서 낸 값도 같은 자리로 끊는다 —
      5.794603167007244 cm⁴ 는 정직해 보이지만 아무도 그렇게 읽지 않는다. */
   /* 휨응력. M[kN·m] = M·1e6 N·mm, S[cm³] = S·1e3 mm³ → σ[MPa] = 1000·M/S.
@@ -742,7 +749,7 @@
   function atLocal() { return splitX(atGlobal()); }
   function whereTxt(X) {
     var o = splitX(X);
-    return 'span ' + (o.k + 1) + ' · x ' + num(o.x, 2) + ' m';
+    return 'span ' + (o.k + 1) + ' · x ' + rnum(o.x) + ' m';
   }
   function totalL() { return ST.spans.reduce(function (a, s) { return a + s.L; }, 0); }
   function nodeX(k) { var x = 0; for (var i = 0; i < k; i++) x += ST.spans[i].L; return x; }
@@ -1382,9 +1389,9 @@
       s.grow(PLOT.dim);    // 아래 치수줄이 첫 판을 밟지 않게
 
       /* ② SFD · BMD · δ */
-      [['SFD', 'S', SFD, 'kN', 2, false, false],
-       ['BMD', 'M', BMD, 'kN·m', 2, true, false],
-       ['δ',   'y', DEF, 'mm', 2, false, true]].forEach(function (cf) {
+      [['SFD', 'S', SFD, 'kN', RDP, false, false],
+       ['BMD', 'M', BMD, 'kN·m', RDP, true, false],
+       ['δ',   'y', DEF, 'mm', RDP, false, true]].forEach(function (cf) {
         var st = stitch(res, cf[1]);
         var vs = cf[1] === 'y' ? st.v.map(function (v) { return v * 1000; }) : st.v;
         s.grow(PLOT.gap);
@@ -1433,17 +1440,17 @@
        먼저 쓰고, 보 왼쪽 끝에서 잰 거리를 괄호로 덧붙인다 — 도면의 가로축은
        후자라서, 둘 다 없으면 표와 그림을 눈으로 잇기 어렵다. */
     q(root, '#cb-stats').innerHTML = [
-      ['M sag', num(eM.max, 2), 'kN·m', eM.xmax, BMD],
-      ['M hog', num(eM.min, 2), 'kN·m', eM.xmin, BMD],
-      ['V max', num(eS.abs, 2), 'kN', eS.xabs, SFD],
-      ['δ max', (eY.abs < 0 ? '↓ ' : '↑ ') + num(Math.abs(eY.abs) * 1000, 2), 'mm', eY.xabs, DEF],
-      ['σ top', num(top, 1), 'MPa', eM.xabs, BMD, sgnTag(top)],
-      ['σ bot', num(bot, 1), 'MPa', eM.xabs, BMD, sgnTag(bot)]
+      ['M sag', rnum(eM.max), 'kN·m', eM.xmax, BMD],
+      ['M hog', rnum(eM.min), 'kN·m', eM.xmin, BMD],
+      ['V max', rnum(eS.abs), 'kN', eS.xabs, SFD],
+      ['δ max', (eY.abs < 0 ? '↓ ' : '↑ ') + rnum(Math.abs(eY.abs) * 1000), 'mm', eY.xabs, DEF],
+      ['σ top', rnum(top), 'MPa', eM.xabs, BMD, sgnTag(top)],
+      ['σ bot', rnum(bot), 'MPa', eM.xabs, BMD, sgnTag(bot)]
     ].map(function (r) {
       return '<div class="bf-stat"><div class="k">' + esc(r[0]) + '</div>' +
              '<div class="v" style="color:' + r[4] + '">' + r[1] + '</div>' +
              '<div class="s">' + esc(r[2] + (r[5] ? '  ' + r[5] : '')) + '</div>' +
-             '<div class="s2">' + esc(whereTxt(r[3]) + '  (' + num(r[3], 2) + ' m)') + '</div></div>';
+             '<div class="s2">' + esc(whereTxt(r[3]) + '  (' + rnum(r[3]) + ' m)') + '</div></div>';
     }).join('');
     (function () {
       var el = q(root, '#cb-stats');
@@ -1472,12 +1479,12 @@
     q(root, '#cb-attbl').innerHTML =
       '<thead><tr><th style="width:72px">Quantity</th><th style="width:110px;text-align:right">Value</th>' +
       '<th style="width:64px">Unit</th><th></th></tr></thead><tbody>' +
-      [['M', num(aM, 2), 'kN·m', aM > 0 ? 'sagging' : (aM < 0 ? 'hogging' : '')],
-       ['V', num(aV, 2), 'kN', ''],
-       ['δ', num(aY * 1000, 3), 'mm', aY < 0 ? 'downward' : (aY > 0 ? 'upward' : '')],
-       ['θ', num(aT * 1000, 3), 'mrad', ''],
-       ['σ top', num(stressTop(aM, spAt.stop), 1), 'MPa', sgnTag(stressTop(aM, spAt.stop))],
-       ['σ bot', num(stressBot(aM, spAt.sbot), 1), 'MPa', sgnTag(stressBot(aM, spAt.sbot))]
+      [['M', rnum(aM), 'kN·m', aM > 0 ? 'sagging' : (aM < 0 ? 'hogging' : '')],
+       ['V', rnum(aV), 'kN', ''],
+       ['δ', rnum(aY * 1000), 'mm', aY < 0 ? 'downward' : (aY > 0 ? 'upward' : '')],
+       ['θ', rnum(aT * 1000), 'mrad', ''],
+       ['σ top', rnum(stressTop(aM, spAt.stop)), 'MPa', sgnTag(stressTop(aM, spAt.stop))],
+       ['σ bot', rnum(stressBot(aM, spAt.sbot)), 'MPa', sgnTag(stressBot(aM, spAt.sbot))]
       ].map(function (r) {
         return '<tr><td>' + r[0] + '</td><td class="n">' + r[1] + '</td><td>' + r[2] + '</td>' +
                '<td class="cb-na">' + r[3] + '</td></tr>';
@@ -1489,16 +1496,16 @@
       res.R.map(function (r) {
         if (r.sup === 'free') return '';
         return '<tr><td>' + r.name + '</td><td class="n">' + num(r.x, 2) + ' m</td>' +
-               '<td class="n">' + num(r.fy, 2) + ' kN</td>' +
-               '<td class="n">' + (r.sup === 'fix' ? num(r.mz, 2) + ' kN·m' : '—') + '</td></tr>';
+               '<td class="n">' + rnum(r.fy) + ' kN</td>' +
+               '<td class="n">' + (r.sup === 'fix' ? rnum(r.mz) + ' kN·m' : '—') + '</td></tr>';
       }).join('') + '</tbody>';
 
     q(root, '#cb-mtbl').innerHTML =
       '<thead><tr><th>Span</th><th style="text-align:right">M i</th>' +
       '<th style="text-align:right">M j</th></tr></thead><tbody>' +
       res.M.map(function (m, k) {
-        return '<tr><td>' + m.id + '</td><td class="n">' + num(m.i, 2) + '</td>' +
-               '<td class="n">' + num(m.j, 2) + '</td></tr>';
+        return '<tr><td>' + m.id + '</td><td class="n">' + rnum(m.i) + '</td>' +
+               '<td class="n">' + rnum(m.j) + '</td></tr>';
       }).join('') + '</tbody>';
 
     q(root, '#cb-title').textContent = nSpan() === 1 ? 'Single span'
