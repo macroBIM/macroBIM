@@ -5773,6 +5773,231 @@
     return [lo, hi];
   }
 
+  /* ================= hidden-line removal =================
+
+     A VIEW row draws what you could see standing where it says, so an edge
+     with steel in front of it is not drawn at all. The six-view grids are left
+     as they were: those are for finding your way round a model rather than for
+     working from, and every member's outline near and far is what that job
+     wants.
+
+     This is computed, not sampled. Every member here is a 2D profile extruded
+     between two planes, so its surface is flat pieces: over any point of the
+     page the depth of a piece is a linear function of where you are on the
+     page, and an edge crossing one changes from in front to behind only where
+     it crosses that piece's boundary. So the crossings are solved for and the
+     stretches between them are decided once each, exactly, rather than by
+     testing points along the edge and hoping the step was small enough.
+
+     Two things follow from doing it this way and are worth knowing:
+
+       - it runs before dxfDedupe, not after. Both caps of a plate seen face on
+         land on the same lines, and the deduper keeps whichever came first. If
+         that were the far cap, the near cap's own face would then hide it and
+         the plate would vanish entirely.
+       - a round hole is kept or dropped whole. An arc is an ARC in the file,
+         and there is no such thing as most of one; a hole half behind a flange
+         is drawn whole rather than turned into a polygon to be cut. Said here
+         because it is the one place this is not exact. */
+
+  var HLR_EPS = 0.02;                     // mm of depth. Steel that touches steel
+                                          // is not steel in front of steel.
+
+  /* The plane that gives a face's depth anywhere on the page: d = a*u + b*v + c.
+     Null for a face seen edge on - it covers no area, so it hides nothing, and
+     its own boundary is drawn by the edge pass anyway. */
+  function facePlane(p) {
+    var n = p.length, i0 = 0, i1 = -1, i2 = -1, best = 0;
+    for (var i = 1; i < n; i++) {         // the far point, then the point off that line
+      var d = Math.hypot(p[i][0] - p[0][0], p[i][1] - p[0][1]);
+      if (d > best) { best = d; i1 = i; }
+    }
+    if (i1 < 0) return null;
+    best = 0;
+    for (i = 1; i < n; i++) {
+      var det = (p[i1][0] - p[i0][0]) * (p[i][1] - p[i0][1]) -
+                (p[i1][1] - p[i0][1]) * (p[i][0] - p[i0][0]);
+      if (Math.abs(det) > Math.abs(best)) { best = det; i2 = i; }
+    }
+    if (i2 < 0 || Math.abs(best) < 1e-9) return null;
+    var x1 = p[i0][0], y1 = p[i0][1], z1 = p[i0][2];
+    var x2 = p[i1][0], y2 = p[i1][1], z2 = p[i1][2];
+    var x3 = p[i2][0], y3 = p[i2][1], z3 = p[i2][2];
+    var det2 = (x2 - x1) * (y3 - y1) - (y2 - y1) * (x3 - x1);
+    if (Math.abs(det2) < 1e-9) return null;
+    var a = ((z2 - z1) * (y3 - y1) - (y2 - y1) * (z3 - z1)) / det2;
+    var b = ((x2 - x1) * (z3 - z1) - (z2 - z1) * (x3 - x1)) / det2;
+    return { a: a, b: b, c: z1 - a * x1 - b * y1 };
+  }
+
+  function faceBox(f) {
+    var x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity, d0 = Infinity, d1 = -Infinity;
+    f.poly.forEach(function (q) {
+      if (q[0] < x0) x0 = q[0];
+      if (q[0] > x1) x1 = q[0];
+      if (q[1] < y0) y0 = q[1];
+      if (q[1] > y1) y1 = q[1];
+    });
+    // the deepest and shallowest the plane reaches over that box
+    [[x0, y0], [x1, y0], [x0, y1], [x1, y1]].forEach(function (q) {
+      var d = f.a * q[0] + f.b * q[1] + f.c;
+      if (d < d0) d0 = d;
+      if (d > d1) d1 = d;
+    });
+    f.x0 = x0; f.y0 = y0; f.x1 = x1; f.y1 = y1; f.d0 = d0; f.d1 = d1;
+    return f;
+  }
+
+  /* Every flat piece of every member, as it lands on the page: the polygon it
+     covers, the holes punched out of it, and its depth plane. */
+  function viewFaces(members, view) {
+    var R = new THREE.Vector3(view.right[0], view.right[1], view.right[2]);
+    var U = new THREE.Vector3(view.up[0], view.up[1], view.up[2]);
+    var Vd = new THREE.Vector3(view.dir[0], view.dir[1], view.dir[2]);
+    var out = [];
+    function push(poly, holes) {
+      var pl = facePlane(poly);
+      if (!pl) return;
+      out.push(faceBox({ poly: poly, holes: holes || [],
+                         a: pl.a, b: pl.b, c: pl.c }));
+    }
+    members.forEach(function (it) {
+      var m = it.matrix, Z = capPlanes(it.thk, it.caps);
+      var P = function (x, y, z) {
+        var p = new THREE.Vector3(x, y, z).applyMatrix4(m);
+        return [p.dot(R), p.dot(U), p.dot(Vd)];
+      };
+      (it.rings.outers || []).forEach(function (o, i) {
+        var hs = it.rings.holes[i] || [];
+        // the two caps, each with the ring's holes taken out of it
+        ['lo', 'hi'].forEach(function (side) {
+          var zf = Z[side];
+          push(o.map(function (q) { return P(q[0], q[1], zf(q[0], q[1])); }),
+               hs.map(function (h) {
+                 return h.map(function (q) { return P(q[0], q[1], zf(q[0], q[1])); });
+               }));
+        });
+        // one quad per edge, of the outline and of every hole through it
+        [o].concat(hs).forEach(function (r) {
+          for (var j = 0; j < r.length; j++) {
+            var a = r[j], b = r[(j + 1) % r.length];
+            push([P(a[0], a[1], Z.lo(a[0], a[1])), P(b[0], b[1], Z.lo(b[0], b[1])),
+                  P(b[0], b[1], Z.hi(b[0], b[1])), P(a[0], a[1], Z.hi(a[0], a[1]))], []);
+          }
+        });
+      });
+    });
+    return out;
+  }
+
+  // even-odd, on the page
+  function inPoly(poly, x, y) {
+    var inside = false, n = poly.length;
+    for (var i = 0, j = n - 1; i < n; j = i++) {
+      var xi = poly[i][0], yi = poly[i][1], xj = poly[j][0], yj = poly[j][1];
+      if ((yi > y) !== (yj > y) &&
+          x < (xj - xi) * (y - yi) / (yj - yi) + xi) inside = !inside;
+    }
+    return inside;
+  }
+  function onFace(f, x, y) {
+    if (!inPoly(f.poly, x, y)) return false;
+    for (var i = 0; i < f.holes.length; i++) if (inPoly(f.holes[i], x, y)) return false;
+    return true;
+  }
+  // where along p->q the segment crosses a ring, as parameters in (0,1)
+  function crossings(ring, px, py, dx, dy, out) {
+    for (var i = 0, n = ring.length, j = n - 1; i < n; j = i++) {
+      var ax = ring[j][0], ay = ring[j][1], bx = ring[i][0], by = ring[i][1];
+      var ex = bx - ax, ey = by - ay;
+      var den = dx * ey - dy * ex;
+      if (Math.abs(den) < 1e-12) continue;
+      var t = ((ax - px) * ey - (ay - py) * ex) / den;
+      var u = ((ax - px) * dy - (ay - py) * dx) / den;
+      if (t > 1e-9 && t < 1 - 1e-9 && u >= -1e-9 && u <= 1 + 1e-9) out.push(t);
+    }
+  }
+
+  /* One segment against every face that could cover it. Returns the stretches
+     of it that are still to be drawn, as [t0,t1] pairs of its own length. */
+  function visibleRuns(seg, faces) {
+    var px = seg[0][0], py = seg[0][1], pd = seg[0][2];
+    var qx = seg[1][0], qy = seg[1][1], qd = seg[1][2];
+    var dx = qx - px, dy = qy - py, dd = qd - pd;
+    var sx0 = Math.min(px, qx), sx1 = Math.max(px, qx);
+    var sy0 = Math.min(py, qy), sy1 = Math.max(py, qy);
+    var sd0 = Math.min(pd, qd);
+    var hid = [];
+    for (var k = 0; k < faces.length; k++) {
+      var f = faces[k];
+      if (f.x1 < sx0 || f.x0 > sx1 || f.y1 < sy0 || f.y0 > sy1) continue;
+      if (f.d1 <= sd0 + HLR_EPS) continue;      // the whole face is behind it
+      var ts = [0, 1];
+      crossings(f.poly, px, py, dx, dy, ts);
+      for (var h = 0; h < f.holes.length; h++) crossings(f.holes[h], px, py, dx, dy, ts);
+      ts.sort(function (a, b) { return a - b; });
+      for (var i = 0; i + 1 < ts.length; i++) {
+        var t0 = ts[i], t1 = ts[i + 1];
+        if (t1 - t0 < 1e-9) continue;
+        var tm = (t0 + t1) / 2, mx = px + dx * tm, my = py + dy * tm;
+        if (!onFace(f, mx, my)) continue;
+        // in front by more than a touch? then this stretch is behind steel
+        if (f.a * mx + f.b * my + f.c > pd + dd * tm + HLR_EPS) hid.push([t0, t1]);
+      }
+    }
+    if (!hid.length) return [[0, 1]];
+    hid.sort(function (a, b) { return a[0] - b[0]; });
+    var runs = [], at = 0;
+    for (var j = 0; j < hid.length; j++) {
+      if (hid[j][0] > at + 1e-9) runs.push([at, hid[j][0]]);
+      if (hid[j][1] > at) at = hid[j][1];
+      if (at >= 1 - 1e-9) break;
+    }
+    if (at < 1 - 1e-9) runs.push([at, 1]);
+    return runs;
+  }
+
+  /* The whole pass. segs carry a third component - the depth of each end - put
+     there by dxfMemberEdges; it is ignored by everything that writes DXF, which
+     reads [0] and [1] only. */
+  function hideSegs(segs, faces) {
+    var out = [];
+    segs.forEach(function (s) {
+      if (s[0][2] === undefined) { out.push(s); return; }
+      var runs = visibleRuns(s, faces);
+      if (runs.length === 1 && runs[0][0] === 0 && runs[0][1] === 1) { out.push(s); return; }
+      var dx = s[1][0] - s[0][0], dy = s[1][1] - s[0][1], dd = s[1][2] - s[0][2];
+      runs.forEach(function (r) {
+        if (r[1] - r[0] < 1e-6) return;
+        out.push([[s[0][0] + dx * r[0], s[0][1] + dy * r[0], s[0][2] + dd * r[0]],
+                  [s[0][0] + dx * r[1], s[0][1] + dy * r[1], s[0][2] + dd * r[1]]]);
+      });
+    });
+    return out;
+  }
+  /* An arc is kept unless the whole of it is behind steel. There is no partial
+     ARC in R12, and a hole turned into a polygon so that half of it could be
+     removed would cost more than the honesty is worth. */
+  function hideArcs(arcs, faces) {
+    return arcs.filter(function (ac) {
+      for (var i = 0; i < 16; i++) {
+        var th = i / 16 * Math.PI * 2;
+        var x = ac.c[0] + ac.r * Math.cos(th), y = ac.c[1] + ac.r * Math.sin(th);
+        var d = ac.c[2];
+        if (d === undefined) return true;
+        var seen = true;
+        for (var k = 0; k < faces.length; k++) {
+          var f = faces[k];
+          if (f.x1 < x || f.x0 > x || f.y1 < y || f.y0 > y) continue;
+          if (f.d1 <= d + HLR_EPS) continue;
+          if (onFace(f, x, y) && f.a * x + f.b * y + f.c > d + HLR_EPS) { seen = false; break; }
+        }
+        if (seen) return true;
+      }
+      return false;
+    });
+  }
+
   // Two projections of the same plate land on the same line more often than not
   // - both caps of a plate seen face on, every copy of a repeated member. One
   // line each keeps the file a tenth of the size and the drawing readable.
