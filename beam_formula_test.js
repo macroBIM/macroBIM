@@ -22,17 +22,19 @@
   'use strict';
 
   /* Pages 배포가 08-26 15:06 UTC 부터 멈춰 있다 — 실행 기록만 생기고 큐에 들어가지
-     않는다(force-cancel 이 409 "has not been queued yet"). 그래서 이 테스트본은
-     저장소를 직접 읽는 jsDelivr 로 우회한다.
+     않는다(force-cancel 이 409 "has not been queued yet"). 그래서 저장소를 직접
+     읽어 우회한다.
 
-     커밋을 박지 않고 @main 을 쓴다. 커밋을 박으면 고칠 때마다 이 파일과 레이아웃,
-     PHP 까지 세 곳의 주소를 손으로 바꿔야 하고, 그러다 한 곳을 잊으면 조용히 옛
-     코드가 나간다. @main 은 주소가 고정되는 대신 jsDelivr 이 12시간 캐시하므로,
-     고친 뒤에는 purge 를 한 번 열어 준다:
-         https://purge.jsdelivr.net/gh/macroBIM/macroBIM@main/beam_formula_test.js
+     jsDelivr 이 아니라 githack 이다. jsDelivr 은 브랜치가 어느 커밋인지를 12시간쯤
+     붙들고, 그 판단은 파일 purge 로 지워지지 않는다 — 고치고 purge 까지 해도 옛
+     코드가 그대로 나왔다(확인함: @main 은 옛것, 커밋을 박은 주소는 최신). githack 은
+     개발용이라 브랜치를 그렇게 붙들지 않는다.
+
+     운영본은 jsDelivr + 커밋 고정을 쓴다. 방문자가 보는 것은 아는 빌드여야 하고,
+     거기서는 브랜치가 늦게 도는 것이 오히려 맞다.
      Pages 가 돌아오면 아래 두 줄을 macrobim.github.io 로 되돌린다. */
-  var DESIGN = 'https://cdn.jsdelivr.net/gh/macroBIM/design@main/';
-  var BASE   = 'https://cdn.jsdelivr.net/gh/macroBIM/macroBIM@main/';
+  var DESIGN = 'https://raw.githack.com/macroBIM/design/main/';
+  var BASE   = 'https://raw.githack.com/macroBIM/macroBIM/main/';
 
   /* 도면 색 — 저장소의 단면 도면과 같은 벌 */
   var INK = '#182430', DIM = '#2563eb', HID = '#94a3b8';
