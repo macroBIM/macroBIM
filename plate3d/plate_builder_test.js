@@ -933,11 +933,26 @@
                                                blank/O = BASE point, 9-point name =
                                                module bbox point, INSTANCE.POINT =
                                                explicit plate point)
-       VIEW  MODULE.ID FROM [title]           (a drawing, for Save DXF. FROM is one of
-                                               FRONT / BACK / LEFT / RIGHT / TOP / BOTTOM
-                                               and the title is what is written over it.
+       VIEW  ID FROM [title]                  (a drawing, for Save DXF. ID names a MODULE
+                                               or an ASSY. FROM is one of
+                                               FRONT / BACK / LEFT / RIGHT / TOP / BOTTOM,
+                                               an isometric corner named for where the
+                                               viewer stands - ISO / ISO-SE / ISO-SW /
+                                               ISO-NW / ISO-NE, ISO being SE - or the word
+                                               3D, which takes two more columns. The title
+                                               is what is written over the drawing.
                                                No VIEW rows, no VIEWS block - the scale
                                                is asked for in the dialog like the others)
+       VIEW  ID 3D AZ EL [title]              (the same drawing seen from any direction.
+                                               AZ walks the viewer round the model in the
+                                               ground plane, from +X (east) anticlockwise;
+                                               EL lifts them off it, -90 to 90. World Z
+                                               stays upright on the page, so a column
+                                               draws vertical at every angle.
+                                                 FRONT  -90   0     RIGHT    0   0
+                                                 BACK    90   0     LEFT   180   0
+                                                 TOP      0  90     BOTTOM   0 -90
+                                                 ISO    -45  35.26)
        END
      ================================================================ */
   // World is Z-up (X east, Y north, Z up) like IFC/AutoCAD/Revit/Tekla, so the
@@ -1535,17 +1550,36 @@
            The scale is not among them. A scale is a property of the paper
            rather than of the model, which is why the dialog asks for it, the
            same as it does for the other three blocks. */
-        var vmod = str(v[0]).toUpperCase(), vdir = str(v[1]).toUpperCase();
-        var vttl = str(v[2]);
+        var vmod = str(v[0]).toUpperCase();
+        // ISO_NE and "ISO NE" mean ISO-NE. One column, three ways to type it.
+        var vdir = str(v[1]).toUpperCase().replace(/[\s_]+/g, '-');
+        /* 3D is the one direction that carries its angles in the row, so it is
+           also the one that shifts the title a column along. */
+        var is3D = vdir === '3D';
+        var vaz = is3D ? num(v[2], 0) : 0, vel = is3D ? num(v[3], 0) : 0;
+        var vttl = str(is3D ? v[4] : v[2]);
         if (!vmod) { warn('row ' + (r + 1) + ': VIEW without a module'); continue; }
-        if (!DXF_VIEW_KEY[vdir]) {
+        if (!viewSpec(vdir, vaz, vel)) {
           warn('row ' + (r + 1) + ': VIEW ' + vmod + ' — unknown direction "' +
-               (str(v[1]) || '(blank)') + '" (use ' +
-               DXF_VIEWS.map(function (x) { return x.key; }).join(' / ') + ')');
+               (str(v[1]) || '(blank)') + '" (use ' + viewDirNames() + ')');
           continue;
         }
-        views.push({ MODULE: vmod, DIR: vdir,
-                     TITLE: vttl || (vmod + ' ' + vdir), ROW: r + 1 });
+        if (is3D && (!isFinite(vaz) || !isFinite(vel))) {
+          warn('row ' + (r + 1) + ': VIEW ' + vmod + ' 3D — AZ and EL must be numbers');
+          continue;
+        }
+        /* Past 90 the viewer has gone over the top and is coming down the far
+           side, which is a direction already reachable below 90 with AZ turned
+           round. Reading it as if it meant something new draws the model
+           upside down and says nothing about why. */
+        if (is3D && Math.abs(vel) > 90) {
+          warn('row ' + (r + 1) + ': VIEW ' + vmod + ' 3D — EL is measured up from the ' +
+               'ground plane, so it runs -90 to 90 (got ' + vel + ')');
+          continue;
+        }
+        views.push({ MODULE: vmod, DIR: vdir, AZ: vaz, EL: vel,
+                     TITLE: vttl || (vmod + ' ' + (is3D ? '3D ' + vaz + ' ' + vel : vdir)),
+                     ROW: r + 1 });
         counts.view++;
       } else if (kw === 'COORD') {        // COORD ZUP (default) | YUP — frame the sheet is written in
         yup = str(v[0]).toUpperCase() === 'YUP';
@@ -1875,14 +1909,17 @@
         warn('MODULE ' + id + ': BASE instance ' + parts[id].base.inst +
              ' not found among its members — falling back to the local origin (0,0,0)');
     });
-    /* VIEW rows may sit above the MODULE rows they name, so the module is
-       looked for once the whole sheet has been read rather than as the row
-       goes by. A view of nothing is dropped: better no drawing than an empty
-       frame with a title over it. */
+    /* VIEW rows may sit above the rows they name, so the subject is looked for
+       once the whole sheet has been read rather than as the row goes by. A
+       MODULE or an ASSY will do: both are things a person points at and calls
+       a thing, and a sheet that can draw one should be able to draw the other.
+       A view of nothing is dropped: better no drawing than an empty frame with
+       a title over it. */
     views = views.filter(function (vw) {
-      if (parts[vw.MODULE]) return true;
-      warn('row ' + vw.ROW + ': VIEW names module ' + vw.MODULE +
-           ', which the sheet never defines — no drawing is made');
+      if (parts[vw.MODULE] || assyIds[vw.MODULE]) return true;
+      warn('row ' + vw.ROW + ': VIEW names ' + vw.MODULE +
+           ', which the sheet defines neither as a MODULE nor as an ASSY — ' +
+           'no drawing is made');
       counts.view--;
       return false;
     });
@@ -5571,6 +5608,63 @@
   var DXF_VIEW_KEY = {};
   DXF_VIEWS.forEach(function (vw) { DXF_VIEW_KEY[vw.key] = vw; });
 
+  /* A direction given as two angles rather than a name. AZ walks the viewer
+     round the model in the ground plane, measured from +X (east) anticlockwise;
+     EL lifts them off it. Two angles, not three Euler angles, for the reason
+     every CAD settles on the same pair: three angles cannot be read without
+     also knowing the order they are applied in, and the third of them only
+     tilts the picture on the paper, which a drawing does not want.
+
+     The page keeps world Z upright - up is world Z with the view direction
+     taken out of it - so a column draws vertical at any angle and no third
+     angle is needed to keep it that way. At EL +-90 world Z has no component
+     left in the picture plane, and north takes over as the up of the page,
+     which is exactly what TOP and BOTTOM already do.
+
+     The six named views are the special cases of this: FRONT is (-90, 0),
+     TOP is (0, 90). tools/check_view3d.js asserts that component by
+     component, so the two ways of naming a direction cannot drift apart. */
+  function viewFromAZEL(az, el, key) {
+    var D = Math.PI / 180;
+    var ca = Math.cos(az * D), sa = Math.sin(az * D);
+    var ce = Math.cos(el * D), se = Math.sin(el * D);
+    /* cos(90 deg) is 6.1e-17, not 0. Left in, that lands in every projected
+       coordinate and dxfDedupe stops recognising two lines as the same line,
+       so a view that should equal a named one becomes a near-miss of it. */
+    var z0 = function (v) { return Math.abs(v) < 1e-12 ? 0 : v; };
+    var dir = [z0(ce * ca), z0(ce * sa), z0(se)];
+    // world Z with dir removed and normalised, which closes to this exactly
+    var up = ce > 1e-12 ? [z0(-se * ca), z0(-se * sa), z0(ce)] : [0, 1, 0];
+    var right = [z0(up[1] * dir[2] - up[2] * dir[1]),
+                 z0(up[2] * dir[0] - up[0] * dir[2]),
+                 z0(up[0] * dir[1] - up[1] * dir[0])];
+    return { key: key || '3D', right: right, up: up, dir: dir, az: az, el: el };
+  }
+
+  // atan(1/sqrt 2) - the elevation at which the three axes foreshorten alike
+  var ISO_EL = 35.26438968275465;
+  /* The four isometric corners, named for where the viewer stands. ISO on its
+     own is the south-east one because that is the corner that shows the same
+     face FRONT does, plus the right side and the top - the view a drawing
+     means by "isometric". Standing north-east instead is just as isometric
+     and looks at the back of the thing. */
+  var DXF_ISO = { 'ISO': -45, 'ISO-SE': -45, 'ISO-SW': -135,
+                  'ISO-NW': 135, 'ISO-NE': 45 };
+
+  /* One place that turns what a VIEW row says into a direction, so the parser
+     checks exactly what the drawing will later be built from. Null means the
+     row named something that is not a direction. */
+  function viewSpec(dir, az, el) {
+    if (DXF_VIEW_KEY[dir]) return DXF_VIEW_KEY[dir];
+    if (DXF_ISO[dir] !== undefined) return viewFromAZEL(DXF_ISO[dir], ISO_EL, dir);
+    if (dir === '3D') return viewFromAZEL(az, el, '3D');
+    return null;
+  }
+  function viewDirNames() {
+    return DXF_VIEWS.map(function (x) { return x.key; }).join(' / ') + ' / ' +
+           Object.keys(DXF_ISO).join(' / ') + ' / 3D <AZ> <EL>';
+  }
+
   // DXF is a code-page file, not UTF-8. Anything outside ASCII is transliterated
   // rather than escaped, so a label reads the same in every CAD.
   function dxfText(s) {
@@ -7089,10 +7183,18 @@
         /* Taken from what the ASSY rows placed rather than from the module
            definition, so the subject and everything round it are in the one
            frame and can be drawn together. */
-        var mem = list.filter(function (it) { return it.moduleId === vr.MODULE; });
+        /* The id names a MODULE or an ASSY - it.group carries the ASSY row's
+           own id. Both are things a person points at and calls a thing, and
+           a sheet that can draw one should be able to draw the other. */
+        var subject = function (it) {
+          return it.moduleId === vr.MODULE || it.group === vr.MODULE;
+        };
+        var mem = list.filter(subject);
         if (!mem.length) return;              // never placed, or every member hidden
-        var rest = list.filter(function (it) { return it.moduleId !== vr.MODULE; });
-        var v = viewOf(mem, DXF_VIEW_KEY[vr.DIR], rest);
+        var rest = list.filter(function (it) { return !subject(it); });
+        var vw = viewSpec(vr.DIR, vr.AZ, vr.EL);
+        if (!vw) return;                      // the parser already said so
+        var v = viewOf(mem, vw, rest);
         var band = D.base + D.text.section * 1.4;
         /* The context reaches past the part on every side, so the part is put
            where its own box leaves the whole of that clear of the view above. */
@@ -9119,8 +9221,8 @@
     ' with how many were placed. Round <b>bars are not drawn</b> - a bar is a length of stock,',
     ' and a circle with a diameter beside it says nothing the take-off does not</td></tr>',
     '<tr><td><b>VIEWS</b></td><td>the drawings the sheet asked for by name, one to a',
-    ' <code>VIEW</code> row on the input tab: a module, the direction it is seen from, and',
-    ' the title to write over it. Drawn solid, with <b>whatever is behind it on the hidden',
+    ' <code>VIEW</code> row on the input tab: a module or an assembly, the direction it is',
+    ' seen from, and the title to write over it. Drawn solid, with <b>whatever is behind it on the hidden',
     ' layer</b> so the part can be seen where it sits. A sheet with no VIEW rows leaves this',
     ' line greyed out and exports exactly what it always did</td></tr>',
     '</tbody></table>',
@@ -9129,6 +9231,39 @@
     ' Save DXF, who would have to answer it again every time. The scale is the other way',
     ' round: it belongs to the paper, not to the model, so that is the one thing the dialog',
     ' asks. Nothing in the engine knows what a splice is.</p>',
+
+    '<p><b>The direction a VIEW is seen from.</b> Six of them have names &mdash;',
+    ' <code>FRONT</code>, <code>BACK</code>, <code>LEFT</code>, <code>RIGHT</code>,',
+    ' <code>TOP</code>, <code>BOTTOM</code>. Four more name an isometric corner by where the',
+    ' viewer stands &mdash; <code>ISO-SE</code>, <code>ISO-SW</code>, <code>ISO-NW</code>,',
+    ' <code>ISO-NE</code> &mdash; and <code>ISO</code> on its own is the south-east one, the',
+    ' corner that shows the face FRONT shows plus the right side and the top.</p>',
+    '<p>Any other direction is the word <code>3D</code> and two angles:</p>',
+    '<table class="gt"><thead><tr><th>angle</th><th>what it does</th></tr></thead><tbody>',
+    '<tr><td><b>AZ</b></td><td>walks the viewer round the model in the ground plane, measured',
+    ' from +X (east) anticlockwise. On the page the model turns about its vertical</td></tr>',
+    '<tr><td><b>EL</b></td><td>lifts the viewer off the ground, &minus;90 to 90. At 0 you',
+    ' stand level with the model; at 90 you are directly overhead looking down. On the page',
+    ' the model tips towards you and its top comes into view</td></tr>',
+    '</tbody></table>',
+    '<p>The page keeps world Z upright &mdash; up is world Z with the view direction taken',
+    ' out of it &mdash; so <b>a column draws vertical whatever the angles are</b>. That is why',
+    ' two angles are enough where a rotation would need three: a third angle would only tilt',
+    ' the picture on the paper, which a drawing does not want. The named views are the special',
+    ' cases of the same two numbers:</p>',
+    '<table class="gt"><thead><tr><th>view</th><th>AZ</th><th>EL</th></tr></thead><tbody>',
+    '<tr><td>FRONT</td><td>&minus;90</td><td>0</td></tr>',
+    '<tr><td>RIGHT</td><td>0</td><td>0</td></tr>',
+    '<tr><td>BACK</td><td>90</td><td>0</td></tr>',
+    '<tr><td>LEFT</td><td>180</td><td>0</td></tr>',
+    '<tr><td>TOP</td><td>0</td><td>90</td></tr>',
+    '<tr><td>BOTTOM</td><td>0</td><td>&minus;90</td></tr>',
+    '<tr><td>ISO</td><td>&minus;45</td><td>35.26</td></tr>',
+    '</tbody></table>',
+    '<p><code>VIEW md.bay ISO Bay assembly</code> and',
+    ' <code>VIEW md.bay 3D -45 35.26 Bay assembly</code> draw the same picture. EL past 90',
+    ' is refused rather than read: over the top is a direction already reachable below 90',
+    ' with AZ turned round, and taking it at face value draws the model upside down.</p>',
     '<p><b>The steel is written 1:1 in millimetres throughout.</b> Only the annotation changes',
     ' size, so the three blocks share one coordinate system and a viewport plotted at each',
     ' block&rsquo;s scale comes out right. The file is DXF R12 and the annotation is drawn -',
