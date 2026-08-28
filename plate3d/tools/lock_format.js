@@ -262,7 +262,9 @@ async function fingerprintBook(page, book) {
       console.log('  ' + b);
       console.log('    boq      ' + f.boq.map(x => x.sheet).join(' · '));
       console.log('    layers   ' + f.dxf.layers.join(' '));
-      console.log('    blocks   ' + Object.keys(f.dxfBlocks)
+      console.log('    drawings ' + f.drawingRows + ' asked for by the sheet');
+      // only the older engine had blocks to tick; the sheet decides now
+      if (f.dxfBlocks) console.log('    blocks   ' + Object.keys(f.dxfBlocks)
         .map(k => k + '=' + f.dxfBlocks[k]).join(' '));
     });
     console.log('  dimstyle  ' + Object.keys(now.dimstyle.base).length + ' constants');

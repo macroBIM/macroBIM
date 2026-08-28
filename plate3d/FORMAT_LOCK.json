@@ -76,12 +76,9 @@
     }
    ],
    "boqName": "<book>_BOQ.xlsx",
-   "dxfBlocks": {
-    "assembly": true,
-    "module": true,
-    "part": true,
-    "views": "unavailable"
-   },
+   "drawingRows": 1,
+   "dxfAsksScale": false,
+   "dxfBlocks": null,
    "dxf": {
     "layers": [
      "PL3D-DIM",
@@ -95,13 +92,9 @@
      "SOLID",
      "TEXT"
     ],
-    "banners": [
-     "ASSEMBLY  1:<scale>",
-     "MODULES  1:<scale>",
-     "PARTS  1:<scale>"
-    ]
+    "banners": []
    },
-   "dxfName": "plate_builder_A<scale>-M<scale>-P<scale>.dxf"
+   "dxfName": "plate_builder.dxf"
   },
   "PLATE3D_SPLICE.xlsx": {
    "boq": [
@@ -166,16 +159,12 @@
     }
    ],
    "boqName": "<book>_BOQ.xlsx",
-   "dxfBlocks": {
-    "assembly": true,
-    "module": true,
-    "part": true,
-    "views": true
-   },
+   "drawingRows": 5,
+   "dxfAsksScale": false,
+   "dxfBlocks": null,
    "dxf": {
     "layers": [
      "PL3D-DIM",
-     "PL3D-HIDDEN",
      "PL3D-OUTLINE",
      "PL3D-TEXT",
      "PL3D-TITLE"
@@ -187,14 +176,9 @@
      "SOLID",
      "TEXT"
     ],
-    "banners": [
-     "ASSEMBLY  1:<scale>",
-     "MODULES  1:<scale>",
-     "PARTS  1:<scale>",
-     "VIEWS  1:<scale>"
-    ]
+    "banners": []
    },
-   "dxfName": "plate_builder_A<scale>-M<scale>-P<scale>-V<scale>.dxf"
+   "dxfName": "plate_builder.dxf"
   }
  },
  "dimstyle": {
@@ -328,6 +312,12 @@
    "4 SECT s.L SS275 2400 L bc 90 75 9 9 8.5 6 ",
    "5 SECT s.P SS275 3500 P mc 48.6 2.5     ",
    "6 SECT s.R SS275 3500 R mc 100 100 6 12   "
+  ],
+  [
+   " A B C D E F G H I J K",
+   "1 # BOLT id mat dia length hole head_af head_h nut_af nut_h proj",
+   "2 BOLT bo.m16 F10T 16 50      ",
+   "3 BOLT bo.m20 F10T 20 60 24 32 13 32 19 0"
   ],
   [
    " A B C D E F G H I J K L M N O P Q R S",
