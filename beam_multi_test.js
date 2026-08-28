@@ -28,8 +28,7 @@
 (function () {
   'use strict';
 
-  /* Pages 배포가 08-28 00:14 UTC 에 되살아났다 — 이 파일은 처음부터 제 주소를
-     본다. SimpleBEAM 쪽 두 줄은 아직 githack 우회에 남아 있어 되돌려야 한다. */
+  /* Pages 배포가 08-28 00:14 UTC 에 되살아났다 — 이 파일은 처음부터 제 주소를 본다. */
   var DESIGN = 'https://macrobim.github.io/design/';
   var BASE   = 'https://macrobim.github.io/macroBIM/';
 

@@ -21,20 +21,11 @@
 (function () {
   'use strict';
 
-  /* Pages 배포가 08-26 15:06 UTC 부터 멈춰 있다 — 실행 기록만 생기고 큐에 들어가지
-     않는다(force-cancel 이 409 "has not been queued yet"). 그래서 저장소를 직접
-     읽어 우회한다.
-
-     jsDelivr 이 아니라 githack 이다. jsDelivr 은 브랜치가 어느 커밋인지를 12시간쯤
-     붙들고, 그 판단은 파일 purge 로 지워지지 않는다 — 고치고 purge 까지 해도 옛
-     코드가 그대로 나왔다(확인함: @main 은 옛것, 커밋을 박은 주소는 최신). githack 은
-     개발용이라 브랜치를 그렇게 붙들지 않는다.
-
-     운영본은 jsDelivr + 커밋 고정을 쓴다. 방문자가 보는 것은 아는 빌드여야 하고,
-     거기서는 브랜치가 늦게 도는 것이 오히려 맞다.
-     Pages 가 돌아오면 아래 두 줄을 macrobim.github.io 로 되돌린다. */
-  var DESIGN = 'https://raw.githack.com/macroBIM/design/main/';
-  var BASE   = 'https://raw.githack.com/macroBIM/macroBIM/main/';
+  /* Pages 가 08-28 00:14 UTC 에 되살아나 우회를 걷었다. 08-26 15:06 부터 배포가
+     멈춰 있던 동안(실행 기록만 생기고 큐에 들어가지 않았다) 이 두 줄은 저장소를
+     직접 읽는 raw.githack.com 을 보고 있었다. */
+  var DESIGN = 'https://macrobim.github.io/design/';
+  var BASE   = 'https://macrobim.github.io/macroBIM/';
 
   /* 도면 색 — 저장소의 단면 도면과 같은 벌 */
   var INK = '#182430', DIM = '#2563eb', HID = '#94a3b8';
