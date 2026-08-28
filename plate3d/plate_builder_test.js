@@ -6697,19 +6697,11 @@
     return lifted ? D.origin + D.base + D.textGap + D.text.dim * 1.2 : 0;
   }
 
-  /* opts says which of the three blocks to draw and at what scale:
-       { part:{on,scale}, module:{on,scale}, assembly:{on,scale} }
-     A bare number still works and means all three at that one scale - the
-     public API took a scale before this, and the sync copy of the site may
-     still be calling it that way. */
+  /* Every drawing on the sheet, in the order the rows ask for them. There is
+     nothing to pass in: what to draw and at what scale is on the rows, which
+     is the whole point of the change. Returns null when not one row produced
+     a drawing, so the caller can say so instead of writing an empty file. */
   function buildDXF(list) {
-    if (typeof opts === 'number' || typeof opts === 'string') {
-      var one = Number(opts);
-      opts = { part:     { on: true, scale: one },
-               module:   { on: true, scale: one },
-               assembly: { on: true, scale: one } };
-    }
-    opts = opts || {};
     // D is the live style, reassigned as each block starts - every drawing
     // helper reads it at call time, so a block's scale reaches all of them
     var D = dimStyle(1);

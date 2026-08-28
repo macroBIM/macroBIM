@@ -54,6 +54,10 @@ const VARIANTS = {
   scaled: [['VIEW', 'md.wpl', 'FRONT',   N,    N,    50, 'SUBJECT']],
   // the parts, asked for by a different word because they are a different thing
   plotAll:  [['PLOT', 'PART', 'ALL', 10]],
+  /* The splice sample is all plate - no rolled section anywhere in it - so
+     asking it for sections has to come back with nothing, and say so rather
+     than write an empty file. The sections themselves are tested on PORTAL,
+     which has six. */
   plotSect: [['PLOT', 'SECT', 'ALL', 10]],
   plotBoth: [['PLOT', 'PART', 'ALL', 10], ['PLOT', 'SECT', 'ALL', 10]],
   mixed:  [['VIEW', 'md.wpl', 'FRONT',   N,    N,    10, 'SUBJECT'],
@@ -66,22 +70,33 @@ const VARIANTS = {
            ['PLOT', 'CHEESE', 'ALL', 10],
            ['VIEW', 'md.wpl', 'FRONT',   N,    N,    10, 'SUBJECT']]
 };
-const VIEW_ROWS = [100, 101, 102, 103, 104];   // the book's own VIEW rows
 const KEY_COL = 2;                             // column B holds the keyword
 
-async function makeBook(name, rows) {
+/* The variant's rows go into a copy of a real book, immediately before its END,
+   and whatever drawing rows the book already had are blanked first. Finding END
+   rather than naming row numbers is what lets a second book be used for the
+   sections - and it was a hardcoded list of five rows that quietly dropped the
+   sixth row of a six-row variant, which is a test passing by not running. */
+async function makeBook(book, name, rows) {
   const wb = new ExcelJS.Workbook();
-  await wb.xlsx.readFile(BOOK);
+  await wb.xlsx.readFile(book);
   const ws = wb.getWorksheet('input');
-  VIEW_ROWS.forEach(function (r, i) {
-    const row = ws.getRow(r);
-    // clear the row, then write the variant's if it has one here. A null in a
-    // variant is an EMPTY cell - which is not the same as a zero, and telling
-    // them apart is half of what these rows are testing.
-    for (let c = KEY_COL; c <= KEY_COL + 6; c++) row.getCell(c).value = null;
-    if (rows[i]) rows[i].forEach(function (v, j) {
-      if (v !== null) row.getCell(KEY_COL + j).value = v;
-    });
+  let endRow = null;
+  const kw = r => String((ws.getRow(r).getCell(KEY_COL).value) || '').toUpperCase();
+  for (let r = 1; r <= ws.rowCount; r++) {
+    if (kw(r) === 'END') { endRow = r; break; }
+    if (kw(r) === 'VIEW' || kw(r) === 'PLOT') {
+      const row = ws.getRow(r);
+      for (let c = KEY_COL; c <= KEY_COL + 8; c++) row.getCell(c).value = null;
+      row.commit();
+    }
+  }
+  if (!endRow) throw new Error(book + ' has no END row');
+  rows.forEach(function (r, i) {
+    const row = ws.insertRow(endRow + i, []);
+    // a null in a variant is an EMPTY cell, which is not the same as a zero;
+    // telling those apart is half of what these rows are testing
+    r.forEach(function (v, j) { if (v !== null) row.getCell(KEY_COL + j).value = v; });
     row.commit();
   });
   const f = path.join(OUT, 'view3d_' + name + '.xlsx');
@@ -95,7 +110,7 @@ function bodyOf(dxf) {
   return i < 0 ? dxf : dxf.slice(i);
 }
 const countOf = (dxf, kind) =>
-  (bodyOf(dxf).match(new RegExp('^\\s*' + kind + '\\s*$', 'gm')) || []).length;
+  !dxf ? 0 : (bodyOf(dxf).match(new RegExp('^\\s*' + kind + '\\s*$', 'gm')) || []).length;
 
 async function drawWith(page, file) {
   await page.setInputFiles('#pb-file', file);
@@ -156,7 +171,7 @@ function ok(cond, what, got) {
   const got = {};
   const files = [];
   for (const name of Object.keys(VARIANTS)) {
-    const f = await makeBook(name, VARIANTS[name]);
+    const f = await makeBook(BOOK, name, VARIANTS[name]);
     files.push(f);
     got[name] = await drawWith(page, f);
     const d = got[name].dxf;
@@ -201,12 +216,13 @@ function ok(cond, what, got) {
 
   console.log('\nPLOT draws the parts');
   ok(!!got.plotAll.dxf, 'PLOT PART ALL draws');
-  ok(!!got.plotSect.dxf, 'PLOT SECT ALL draws');
-  ok(got.plotAll.dxf !== got.plotSect.dxf, 'plates and sections are not the same drawing');
-  ok(!!got.plotBoth.dxf &&
-     countOf(got.plotBoth.dxf, 'LINE') >
-       Math.max(countOf(got.plotAll.dxf, 'LINE'), countOf(got.plotSect.dxf, 'LINE')),
-     'asking for both draws more than either');
+  /* This book is all plate. Asking it for sections must come back with nothing
+     and say so - not write a file with a title over an empty frame. */
+  ok(got.plotSect.dxf === null, 'PLOT SECT on an all-plate model draws nothing');
+  ok(/nothing to write|does not hold/.test(got.plotSect.alert || ''),
+     'and says why rather than writing an empty file', got.plotSect.alert);
+  ok(got.plotBoth.dxf === got.plotAll.dxf,
+     'PART + SECT on that model is the PART drawing, unchanged');
   ok(!!got.mixed.dxf && countOf(got.mixed.dxf, 'LINE') >
        Math.max(countOf(got.named.dxf, 'LINE'), countOf(got.plotAll.dxf, 'LINE')),
      'a VIEW and a PLOT in one sheet both come out');
@@ -226,6 +242,33 @@ function ok(cond, what, got) {
   ok(/needs a scale/.test(rep), 'a row with no scale is caught');
   ok(/CHEESE/.test(rep), 'PLOT with a kind that is not one is caught');
   ok(got.bad.dxf === got.named.dxf, 'the one good row in that sheet still draws FRONT');
+
+  /* Sections, on a book that has some. PORTAL carries six SECT rows, so this
+     is where PLOT SECT has something to draw and where the split between the
+     two words can be seen to matter. */
+  console.log('\nsections, on a model that has them (PORTAL)');
+  const PORTAL = P3 + '/PLATE3D_PORTAL.xlsx';
+  const pv = {
+    pPart: [['PLOT', 'PART', 'ALL', 10]],
+    pSect: [['PLOT', 'SECT', 'ALL', 20]],
+    pBoth: [['PLOT', 'PART', 'ALL', 10], ['PLOT', 'SECT', 'ALL', 20]],
+    pIso:  [['VIEW', 'md.bay', 'ISO', null, null, 25, 'BAY']]
+  };
+  const pg = {};
+  for (const name of Object.keys(pv)) {
+    const f = await makeBook(PORTAL, name, pv[name]);
+    files.push(f);
+    pg[name] = await drawWith(page, f);
+    console.log('  ' + name.padEnd(6) + (pg[name].dxf
+      ? countOf(pg[name].dxf, 'LINE') + ' lines' : 'no drawing'));
+  }
+  ok(!!pg.pSect.dxf, 'PLOT SECT ALL draws where there are sections');
+  ok(!!pg.pPart.dxf, 'PLOT PART ALL draws there too');
+  ok(pg.pPart.dxf !== pg.pSect.dxf, 'plates and sections are different drawings');
+  ok(countOf(pg.pBoth.dxf, 'LINE') >
+       Math.max(countOf(pg.pPart.dxf, 'LINE'), countOf(pg.pSect.dxf, 'LINE')),
+     'asking for both draws more than either');
+  ok(!!pg.pIso.dxf, 'a module of it draws as an isometric');
 
   ok(errs.length === 0, 'no page errors', errs.join(' | '));
 
