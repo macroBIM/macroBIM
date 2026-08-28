@@ -405,7 +405,11 @@
       out: function () {
         var bg = 'background:linear-gradient(#e2e8f0 1px,transparent 1px) 0 0/26px 26px,' +
                  'linear-gradient(90deg,#e2e8f0 1px,transparent 1px) 0 0/26px 26px,#fff;';
-        return '<svg viewBox="0 0 ' + w + ' ' + H + '" preserveAspectRatio="xMidYMid meet" style="display:block;' + bg + '">' +
+        /* 폭을 명시하고 가운데 세운다. viewBox 만 두면 SVG 가 칸 폭까지 늘어나
+           배율이 1 을 넘고, 그러면 선도 글자도 같이 커진다 — 폭을 재는 뜻이 없어진다.
+           좁은 화면에서는 max-width 가 칸 폭으로 잡아 준다(그때는 줄어든다). */
+        return '<svg viewBox="0 0 ' + w + ' ' + H + '" preserveAspectRatio="xMidYMid meet"' +
+          ' style="display:block;width:' + w + 'px;max-width:100%;margin:0 auto;' + bg + '">' +
           e.join('') + '</svg>';
       }
     };
@@ -1316,58 +1320,74 @@
     }
 
     var Lt = totalL();
-    var w = plotWidth(root, '#bf-plot') || 720, pad = padOf(w);
-    var SXg = function (x) { return pad + (Lt > 0 ? x / Lt : 0) * (w - 2 * pad); };
-    var s = Sheet(w);
+    /* 판의 높이는 하중 줄 수와 판 구성이 정한다 — 폭과는 무관하다. 그래서 한 번
+       그려 높이를 알아낸 뒤, 그 높이에서 16:9 가 되는 폭으로 다시 그린다.
+       두 번 그리는 것은 높이가 폭에 딸린 계산으로 바뀌더라도(라벨이 겹쳐 줄이
+       늘어나는 식) 비율이 크게 어긋나지 않게 하려는 것이다.
+       칸보다 넓어질 수는 없다 — 좁은 화면에서는 칸 폭이 그대로 상한이다. */
+    var wMax = plotWidth(root, '#bf-plot') || 720;
+    /* 한 판을 그린다. 폭만 받으면 되고, 높이는 그리면서 정해진다. */
+    function paint(w) {
+        var pad = padOf(w);
+        var SXg = function (x) { return pad + (Lt > 0 ? x / Lt : 0) * (w - 2 * pad); };
+        var s = Sheet(w), probes = [];
 
-    /* ① 보 · 지점 · 하중 · 경간 치수 */
-    var y0 = s.grow(Math.max(PLOT.load, PLOT.load - 16 + PLOT.loadStep * Math.max(0, ST.loads.length - 1)));
-    s.line(SXg(0), y0, SXg(Lt), y0, INK, 2.4);
-    res.spans.forEach(function (sp) {
-      var SXs = function (x) { return SXg(sp.X0 + x); };
-      // drawLoads 는 엔진 국부형(w1·w2·a·b, b 는 끝좌표)을 받는다
-      drawLoads(s, sp.loads, sp.L, function (x) { return SXs(x); }, y0);
-    });
-    var solvedSup = supNames();
-    for (var k = 0; k <= nSpan(); k++) {
-      /* 누른 것이 아니라 푼 것을 그린다 — 굴림만 늘어놓으면 수평이 뜨므로
-         supNames() 가 왼쪽 하나를 핀으로 바꾼다. 그 사실이 그림에 나와야 한다. */
-      var kind = solvedSup[k];
-      if (kind !== 'free') drawSupport(s, SXg(nodeX(k)), y0, kind, k === 0 ? 1 : -1);
-      s.text(SXg(nodeX(k)), y0 - 12, nodeName(k), INK, { weight: 700, size: 12, halo: 1 });
-    }
-    ST.spans.forEach(function (sp, k) {
-      drawDim(s, SXg(nodeX(k)), SXg(nodeX(k + 1)), y0 + 48, 'L' + (k + 1) + ' = ' + num(sp.L, 2) + ' m');
-    });
-    s.grow(PLOT.dim);    // 아래 치수줄이 첫 판을 밟지 않게
-
-    /* ② SFD · BMD · δ */
-    var probes = [];
-    [['SFD', 'S', SFD, 'kN', 2, false, false],
-     ['BMD', 'M', BMD, 'kN·m', 2, true, false],
-     ['δ',   'y', DEF, 'mm', 2, false, true]].forEach(function (cf) {
-      var st = stitch(res, cf[1]);
-      var vs = cf[1] === 'y' ? st.v.map(function (v) { return v * 1000; }) : st.v;
-      s.grow(PLOT.gap);
-      var yy = s.grow(PLOT.band);
-      probes.push(drawCurve(s, { x: st.x, v: vs, col: cf[2], tag: cf[0], unit: cf[3], dp: cf[4],
-                                 flip: cf[5], absv: cf[6], y0: yy, amp: PLOT.amp,
-                                 SX: function (x) { return SXg(x); }, L: Lt, pad: pad }));
-      s.grow(PLOT.tail);   // 진폭 + 라벨
-    });
-
-    /* 조회 위치 표식 — 아래 표가 읽고 있는 자리를 도면에도 찍는다.
-       마우스를 뗀 뒤에도 어디를 보고 있었는지 남아 있어야 한다. */
-    var markX = atGlobal();
-    if (probes.length && markX >= 0 && markX <= Lt) {
-      s.grow(PLOT.mark);
-      var pxa = SXg(markX);
-      s.line(pxa, 8, pxa, s.h - 17, DIM, 1, '5 4');
-      probes.forEach(function (pr) {
-        s.dot(pxa, pr.y0 + pr.sgn * pr.amp * (valueAt(pr.x, pr.v, markX) / pr.mx), 3.2, pr.col);
+      /* ① 보 · 지점 · 하중 · 경간 치수 */
+      var y0 = s.grow(Math.max(PLOT.load, PLOT.load - 16 + PLOT.loadStep * Math.max(0, ST.loads.length - 1)));
+      s.line(SXg(0), y0, SXg(Lt), y0, INK, 2.4);
+      res.spans.forEach(function (sp) {
+        var SXs = function (x) { return SXg(sp.X0 + x); };
+        // drawLoads 는 엔진 국부형(w1·w2·a·b, b 는 끝좌표)을 받는다
+        drawLoads(s, sp.loads, sp.L, function (x) { return SXs(x); }, y0);
       });
-      s.text(Math.min(Math.max(pxa, 30), w - 30), s.h - 6, 'x = ' + num(markX, 3), DIM, { size: 10, halo: 1 });
+      var solvedSup = supNames();
+      for (var k = 0; k <= nSpan(); k++) {
+        /* 누른 것이 아니라 푼 것을 그린다 — 굴림만 늘어놓으면 수평이 뜨므로
+           supNames() 가 왼쪽 하나를 핀으로 바꾼다. 그 사실이 그림에 나와야 한다. */
+        var kind = solvedSup[k];
+        if (kind !== 'free') drawSupport(s, SXg(nodeX(k)), y0, kind, k === 0 ? 1 : -1);
+        s.text(SXg(nodeX(k)), y0 - 12, nodeName(k), INK, { weight: 700, size: 12, halo: 1 });
+      }
+      ST.spans.forEach(function (sp, k) {
+        drawDim(s, SXg(nodeX(k)), SXg(nodeX(k + 1)), y0 + 48, 'L' + (k + 1) + ' = ' + num(sp.L, 2) + ' m');
+      });
+      s.grow(PLOT.dim);    // 아래 치수줄이 첫 판을 밟지 않게
+
+      /* ② SFD · BMD · δ */
+      [['SFD', 'S', SFD, 'kN', 2, false, false],
+       ['BMD', 'M', BMD, 'kN·m', 2, true, false],
+       ['δ',   'y', DEF, 'mm', 2, false, true]].forEach(function (cf) {
+        var st = stitch(res, cf[1]);
+        var vs = cf[1] === 'y' ? st.v.map(function (v) { return v * 1000; }) : st.v;
+        s.grow(PLOT.gap);
+        var yy = s.grow(PLOT.band);
+        probes.push(drawCurve(s, { x: st.x, v: vs, col: cf[2], tag: cf[0], unit: cf[3], dp: cf[4],
+                                   flip: cf[5], absv: cf[6], y0: yy, amp: PLOT.amp,
+                                   SX: function (x) { return SXg(x); }, L: Lt, pad: pad }));
+        s.grow(PLOT.tail);   // 진폭 + 라벨
+      });
+
+      /* 조회 위치 표식 — 아래 표가 읽고 있는 자리를 도면에도 찍는다.
+         마우스를 뗀 뒤에도 어디를 보고 있었는지 남아 있어야 한다. */
+      var markX = atGlobal();
+      if (probes.length && markX >= 0 && markX <= Lt) {
+        s.grow(PLOT.mark);
+        var pxa = SXg(markX);
+        s.line(pxa, 8, pxa, s.h - 17, DIM, 1, '5 4');
+        probes.forEach(function (pr) {
+          s.dot(pxa, pr.y0 + pr.sgn * pr.amp * (valueAt(pr.x, pr.v, markX) / pr.mx), 3.2, pr.col);
+        });
+        s.text(Math.min(Math.max(pxa, 30), w - 30), s.h - 6, 'x = ' + num(markX, 3), DIM, { size: 10, halo: 1 });
+      }
+
+      return { s: s, probes: probes, pad: pad, w: w };
     }
+
+    /* ① 높이를 알아내고 ② 그 높이에서 16:9 가 되는 폭으로 다시 그린다 */
+    var P0 = paint(wMax);
+    var w16 = Math.max(360, Math.min(wMax, Math.round(P0.s.h * 16 / 9)));
+    var P = (w16 === wMax) ? P0 : paint(w16);
+    var s = P.s, probes = P.probes, pad = P.pad, w = P.w;
 
     s.raw(cursorLayer(probes, s.h));
     q(root, '#bf-plot').innerHTML = s.out();
