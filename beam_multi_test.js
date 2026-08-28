@@ -416,10 +416,15 @@
      글자는 늘 같은 크기로 나온다. */
   function padOf(w) { return Math.round(Math.max(38, Math.min(58, w * 0.075))); }
   function SXf(w, pad) { return function (x, L) { return pad + x / L * (w - 2 * pad); }; }
+  /* 그리는 좌표폭을 실제 렌더 폭에 맞춘다 — 배율이 늘 1 이어야 글자가 도면과
+     같이 커지거나 작아지지 않는다. SimpleBEAM 은 그림 열이 좁아(≈540px) 1200
+     이라는 상한에 닿을 일이 없었지만, 여기는 카드가 전폭이라 1392px 에서
+     상한에 걸려 도면 전체가 1.16 배로 늘어나고 있었다. 글자까지 같이 늘어나
+     그림이 커 보이던 것이 이것이다. */
   function plotWidth(root, sel) {
     var el = q(root, sel);
     var w = el ? el.clientWidth : 0;
-    return Math.round(Math.max(360, Math.min(1200, w || 560)));
+    return Math.round(Math.max(360, Math.min(2000, w || 560)));
   }
 
   /* 지점 기호 */
@@ -458,6 +463,11 @@
     }
     s.text((x1 + x2) / 2, y - 9, label, DIM, { halo: 1 });
   }
+
+  /* 판의 세로 크기. 전폭 카드에서는 가로가 넉넉하므로 세로를 그만큼 쓸 이유가
+     없다 — 한 화면에 하중도부터 처짐도까지 들어오는 편이 읽기 낫다.
+     여기 숫자만 고치면 세 판이 함께 움직인다. */
+  var PLOT = { gap: 16, band: 44, amp: 38, tail: 66, load: 96, loadStep: 11, dim: 56, mark: 13 };
 
   /* 하중 기호.
      하중을 여러 개 넣을 수 있게 되면서 라벨이 서로 밟는다. 자리를 잡아 주는
@@ -1311,7 +1321,7 @@
     var s = Sheet(w);
 
     /* ① 보 · 지점 · 하중 · 경간 치수 */
-    var y0 = s.grow(Math.max(112, 92 + 13 * Math.max(0, ST.loads.length - 1)));
+    var y0 = s.grow(Math.max(PLOT.load, PLOT.load - 16 + PLOT.loadStep * Math.max(0, ST.loads.length - 1)));
     s.line(SXg(0), y0, SXg(Lt), y0, INK, 2.4);
     res.spans.forEach(function (sp) {
       var SXs = function (x) { return SXg(sp.X0 + x); };
@@ -1329,7 +1339,7 @@
     ST.spans.forEach(function (sp, k) {
       drawDim(s, SXg(nodeX(k)), SXg(nodeX(k + 1)), y0 + 48, 'L' + (k + 1) + ' = ' + num(sp.L, 2) + ' m');
     });
-    s.grow(66);          // 아래 치수줄이 첫 판을 밟지 않게
+    s.grow(PLOT.dim);    // 아래 치수줄이 첫 판을 밟지 않게
 
     /* ② SFD · BMD · δ */
     var probes = [];
@@ -1338,19 +1348,19 @@
      ['δ',   'y', DEF, 'mm', 2, false, true]].forEach(function (cf) {
       var st = stitch(res, cf[1]);
       var vs = cf[1] === 'y' ? st.v.map(function (v) { return v * 1000; }) : st.v;
-      s.grow(18);
-      var yy = s.grow(52);
+      s.grow(PLOT.gap);
+      var yy = s.grow(PLOT.band);
       probes.push(drawCurve(s, { x: st.x, v: vs, col: cf[2], tag: cf[0], unit: cf[3], dp: cf[4],
-                                 flip: cf[5], absv: cf[6], y0: yy, amp: 46,
+                                 flip: cf[5], absv: cf[6], y0: yy, amp: PLOT.amp,
                                  SX: function (x) { return SXg(x); }, L: Lt, pad: pad }));
-      s.grow(74);          // 진폭 46 + 라벨
+      s.grow(PLOT.tail);   // 진폭 + 라벨
     });
 
     /* 조회 위치 표식 — 아래 표가 읽고 있는 자리를 도면에도 찍는다.
        마우스를 뗀 뒤에도 어디를 보고 있었는지 남아 있어야 한다. */
     var markX = atGlobal();
     if (probes.length && markX >= 0 && markX <= Lt) {
-      s.grow(15);
+      s.grow(PLOT.mark);
       var pxa = SXg(markX);
       s.line(pxa, 8, pxa, s.h - 17, DIM, 1, '5 4');
       probes.forEach(function (pr) {
