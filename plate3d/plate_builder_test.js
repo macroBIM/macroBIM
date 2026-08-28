@@ -498,12 +498,41 @@
     '#pb-help .doc { overflow-y:auto; padding:4px 22px 26px; line-height:1.65; color:#334155; }',
     '#pb-help .doc::-webkit-scrollbar { width:8px; }',
     '#pb-help .doc::-webkit-scrollbar-thumb { background:#cbd5e1; border-radius:4px; }',
-    '#pb-help h2 { font-size:15px; font-weight:600; color:#0f172a; margin:26px 0 8px;',
-    '  display:flex; align-items:center; }',
-    '#pb-help h2::before { content:""; display:inline-block; width:4px; height:15px;',
-    '  border-radius:2px; background:var(--dim); margin-right:9px; flex-shrink:0; }',
-    '#pb-help h3 { font-size:13px; font-weight:700; color:#0f172a; margin:20px 0 6px;',
-    '  letter-spacing:.02em; }',
+    /* A chapter number, and a rule under the title. The bar that used to stand
+       beside a heading lost the page to the dark table head below it - the eye
+       went to the table and the title stopped saying what was being read. */
+    '#pb-help h2 { font-size:16.5px; font-weight:700; color:#0f172a; margin:34px 0 10px;',
+    '  display:flex; align-items:center; padding-bottom:7px;',
+    '  border-bottom:2px solid var(--line); }',
+    '#pb-help h2 .n { display:inline-flex; align-items:center; justify-content:center;',
+    '  min-width:25px; height:25px; padding:0 6px; margin-right:10px; flex-shrink:0;',
+    '  background:var(--dim); color:#fff; border-radius:6px;',
+    '  font-size:13px; font-weight:700; }',
+    /* Every keyword is an h3, so this is the level a reader is actually inside
+       while reading a table - and a bare bold line was losing to the dark table
+       head under it. It gets a rule of its own and a badge, both lighter than a
+       chapter's, so the two levels still read as two levels. */
+    '#pb-help h3 { font-size:14.5px; font-weight:700; color:#0f172a; margin:26px 0 8px;',
+    '  letter-spacing:.01em; display:flex; align-items:center;',
+    '  padding-bottom:5px; border-bottom:1px solid var(--hair); }',
+    '#pb-help h3 .n { display:inline-flex; align-items:center; justify-content:center;',
+    '  min-width:34px; height:20px; padding:0 6px; margin-right:9px; flex-shrink:0;',
+    '  background:#e0e7ff; color:var(--dim); border-radius:5px;',
+    '  font-size:11.5px; font-weight:700; font-variant-numeric:tabular-nums; }',
+    '#pb-help h3.warnhead { border-bottom-color:#fcd34d; }',
+    '#pb-help h3.warnhead .n { background:#fef3c7; color:#b45309; }',
+    // the contents, off the headings themselves
+    '#pb-toc { margin:14px 0 6px; padding:12px 16px; background:#f8fafc;',
+    '  border:1px solid var(--hair); border-radius:8px; }',
+    '#pb-toc b { display:block; font-size:12px; font-weight:700; color:#0f172a;',
+    '  margin-bottom:7px; letter-spacing:.04em; text-transform:uppercase; }',
+    '#pb-toc ol { list-style:none; margin:0; padding:0;',
+    '  columns:2; column-gap:26px; }',
+    '#pb-toc li { margin:1px 0; break-inside:avoid; font-size:12px; }',
+    '#pb-toc li.b { padding-left:15px; }',
+    '#pb-toc a { color:#475569; text-decoration:none; white-space:pre; }',
+    '#pb-toc li.a a { color:#0f172a; font-weight:600; }',
+    '#pb-toc a:hover { color:var(--dim); text-decoration:underline; }',
     '#pb-help p { margin:7px 0; font-size:12.5px; }',
     '#pb-help ul { margin:7px 0 7px 18px; font-size:12.5px; }',
     '#pb-help li { margin:3px 0; }',
@@ -8677,21 +8706,30 @@
     '<p>Everything is built in three tiers, the way a shop actually works: cut the parts,',
     ' weld them into units, then set the units out on site.</p>',
     GUIDE_SVG_TIERS,
-    '<table class="gt"><thead><tr><th>tier</th><th>what it is</th><th>keywords</th></tr></thead><tbody>',
+    '<table class="gt"><thead><tr><th>tier</th><th>what it is</th><th>keywords</th>',
+    '<th>drawn by</th></tr></thead><tbody>',
     '<tr><td><b>PART</b></td><td>one piece of steel, defined once and used as often as you',
     ' like. A <b>PLATE</b> is a flat outline; a <b>SECT</b> is a steel section - a rolled',
     ' H, C or L, or a hollow P or R; a',
     ' <b>BAR</b> is a round bar. A <b>HOLE</b> is not a part at all - it is a shape you',
     ' subtract from a plate with <b>CUT</b>, which is how holes, notches and slots are made.</td>',
-    '<td><code>PLATE</code> <code>HOLE</code> <code>CUT</code> <code>SECT</code> <code>BAR</code></td></tr>',
+    '<td><code>PLATE</code> <code>HOLE</code> <code>CUT</code> <code>SECT</code> <code>BAR</code></td>',
+    '<td><code>PLOT&nbsp;PART</code><br><code>PLOT&nbsp;SECT</code></td></tr>',
     '<tr><td><b>MODULE</b></td><td>parts placed relative to each other - a column, a bracket,',
     ' a diaphragm. Plates, sections and bars all go in the same way. The module carries its',
     ' own origin (its <b>BASE</b>) so it can be set down anywhere later.</td>',
-    '<td><code>MODULE</code></td></tr>',
+    '<td><code>MODULE</code></td><td><code>VIEW</code></td></tr>',
     '<tr><td><b>ASSEMBLY</b></td><td>modules placed in the world, and assemblies of',
     ' assemblies. This is where mirroring, arraying and rotating happen, so one module can',
-    ' become forty without another row of geometry.</td><td><code>ASSY</code></td></tr>',
+    ' become forty without another row of geometry.</td><td><code>ASSY</code></td>',
+    '<td><code>VIEW</code></td></tr>',
     '</tbody></table>',
+    '<p>The right-hand column is what puts a tier on paper, and the split follows the tiers',
+    ' exactly: <b>PLOT</b> draws a <i>part</i> on its own at its standard section, so it takes',
+    ' a <code>PLATE</code> or a <code>SECT</code> and nothing else. <b>VIEW</b> draws a thing',
+    ' <i>as placed</i>, seen from somewhere, so it takes a <code>MODULE</code> or an',
+    ' <code>ASSY</code>. Neither is produced unless a row asks for it &mdash; see',
+    ' <b>Save DXF</b> below.</p>',
     '<p>The point of the middle tier is leverage. Define a column once; place it eight times.',
     ' Change its plate thickness and all eight change with it.</p>',
 
@@ -8707,6 +8745,8 @@
     ' module by itself</td></tr>',
     '<tr><td><code>ASSY</code></td><td><b>the main window.</b> Only assembled members are drawn,',
     ' weighed and exported</td></tr>',
+    '<tr><td><code>VIEW</code>, <code>PLOT</code></td><td><b>the DXF, and nowhere else.</b>',
+    ' They put nothing in the main window - they say what the drawing is to hold</td></tr>',
     '</tbody></table>',
 
     '<h2>The sheet</h2>',
@@ -9486,7 +9526,14 @@
            ['# ASSY', 'id', 'ref', 'cmd', 'G.X', 'G.Y', 'G.Z', 'repeat'],
            ['ASSY', 'as.comb', 'md.tower', 'ADD', 0, 0, 0],
            ['ASSY', 'as.comb', 'md.tower', 'COPY', 2000, 0, 0, 2],
+           ['# VIEW', 'id', 'dir', 'AZ', 'EL', 'scale', 'title'],
+           ['VIEW', 'as.comb', 'ISO', '', '', 25, 'Tower - isometric'],
+           ['VIEW', 'md.tower', 'FRONT', '', '', 10, 'Tower module'],
+           ['# PLOT', 'PART | SECT', 'id | ALL', 'scale', 'title'],
+           ['PLOT', 'PART', 'ALL', 10, 'Plates'],
            ['END']],
+          'The last three rows are the drawings. Without them the sheet builds the model ' +
+          'and exports nothing - a drawing is made because a row asked for it. ' +
           'Both MODULE grammars in one block: three members on a plane, then a brace ' +
           'stretched from (300, 0, 0) to (0, 0, 2600) - 2617 between the points, built 2497 ' +
           'because each end is held 60 clear. The result is one group, <b>AS.COMB</b>, ' +
@@ -10332,9 +10379,60 @@
     });
   }
 
+  /* The contents list is read off the headings when the guide first opens, not
+     written out beside them. A list typed by hand is a second copy of the
+     structure, and the copy is what goes stale - a section renamed here and not
+     there, or one added and never listed. This cannot drift: it IS the
+     headings.
+
+     Numbering does two jobs at once. It makes a heading carry more weight than
+     the table under it - a dark table head was outweighing the title it sat
+     beneath, so the eye landed on the table and the reader lost what section
+     they were in - and it gives the list something to point at. */
+  var guideIndexed = false;
+  function guideIndex() {
+    var doc = document.querySelector('#pb-help .doc');
+    if (!doc || guideIndexed) return;
+    guideIndexed = true;
+    var heads = doc.querySelectorAll('h2, h3');
+    var nav = ['<nav id="pb-toc"><b>Contents</b><ol>'];
+    var ch = 0, sub2 = 0;
+    for (var i = 0; i < heads.length; i++) {
+      var h = heads[i], top = h.tagName === 'H2';
+      if (top) { ch++; sub2 = 0; } else { sub2++; }
+      /* A h3 before any h2 has no chapter to belong to - it is numbered as one
+         rather than as 0.1, which would read as a mistake. */
+      var no = top || !ch ? String(top ? ch : ++ch) : ch + '.' + sub2;
+      h.id = 'g' + no.replace('.', '-');
+      var badge = document.createElement('span');
+      badge.className = 'n';
+      badge.textContent = no;
+      h.insertBefore(badge, h.firstChild);
+      nav.push('<li class="' + (top ? 'a' : 'b') + '"><a href="#" data-g="' + h.id + '">' +
+               no + '  ' + h.textContent.slice(no.length).trim() + '</a></li>');
+    }
+    nav.push('</ol></nav>');
+    var box = document.createElement('div');
+    box.innerHTML = nav.join('');
+    doc.insertBefore(box.firstChild, doc.firstChild);
+    /* Scrolling is done here rather than by the href, because the document that
+       scrolls is .doc and not the page - a real anchor jump would move the page
+       behind the dialog and leave the guide where it was. */
+    doc.querySelectorAll('#pb-toc a').forEach(function (a) {
+      a.addEventListener('click', function (e) {
+        e.preventDefault();
+        var t = document.getElementById(a.getAttribute('data-g'));
+        if (t) doc.scrollTop += t.getBoundingClientRect().top -
+                                doc.getBoundingClientRect().top - 8;
+      });
+    });
+  }
   function openGuide() {
     var el = document.getElementById('pb-help');
-    if (el) { el.style.display = 'flex'; el.querySelector('.doc').scrollTop = 0; }
+    if (!el) return;
+    el.style.display = 'flex';
+    guideIndex();
+    el.querySelector('.doc').scrollTop = 0;
   }
   function closeGuide() {
     var el = document.getElementById('pb-help');
