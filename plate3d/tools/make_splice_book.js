@@ -519,15 +519,31 @@ note2('ASSY places a module by its BASE point, so each row repeats where that po
 ['md.beaml', 'md.beamr', 'md.tpo', 'md.tpi', 'md.bpo', 'md.bpi', 'md.wpl', 'md.blt']
   .forEach(m => row(['ASSY', 'as.splice', m, 'ADD'].concat(baseAt[m])));
 
-/* ---- the drawings ---- */
+/* ---- the drawings ----
+   Every drawing this sheet produces is named here. Nothing else draws: the
+   engine no longer makes six views of everything on its own, so a sheet with
+   no VIEW and no PLOT row exports nothing at all.
+
+   The columns do not move. A named direction leaves AZ and EL empty rather
+   than sliding the scale along, so the sixth cell is the scale wherever you
+   look down the block. */
 note2('');
-note2('VIEW  module  from  title      the drawings Save DXF makes, named by this sheet');
-[['md.tpo', 'TOP', 'TOP FLANGE - FROM ABOVE'],
- ['md.tpi', 'BOTTOM', 'TOP FLANGE - FROM BELOW'],
- ['md.bpo', 'BOTTOM', 'BOTTOM FLANGE - FROM BELOW'],
- ['md.bpi', 'TOP', 'BOTTOM FLANGE - FROM ABOVE'],
- ['md.wpl', 'FRONT', 'WEB - SIDE']
-].forEach(v => row(['VIEW', v[0], v[1], v[2]]));
+note2('VIEW  id  dir  AZ  EL  scale  title      one drawing each, of a module or an assembly');
+note2('  dir is FRONT / BACK / LEFT / RIGHT / TOP / BOTTOM, an isometric corner');
+note2('  ISO / ISO-SE / ISO-SW / ISO-NW / ISO-NE, or 3D with AZ and EL filled in.');
+note2('  AZ walks the viewer round the model from +X; EL lifts them off the ground.');
+[['md.tpo', 'TOP', '', '', 10, 'TOP FLANGE - FROM ABOVE'],
+ ['md.tpi', 'BOTTOM', '', '', 10, 'TOP FLANGE - FROM BELOW'],
+ ['md.bpo', 'BOTTOM', '', '', 10, 'BOTTOM FLANGE - FROM BELOW'],
+ ['md.bpi', 'TOP', '', '', 10, 'BOTTOM FLANGE - FROM ABOVE'],
+ ['md.wpl', 'FRONT', '', '', 10, 'WEB - SIDE'],
+ ['as.splice', 'ISO', '', '', 20, 'SPLICE - ISOMETRIC'],
+ ['as.splice', '3D', -45, 20, 20, 'SPLICE - FROM LOWER RIGHT']
+].forEach(v => row(['VIEW'].concat(v)));
+
+note2('');
+note2('PLOT  PART|SECT  id|ALL  scale  title    the parts on their own, at their section');
+row(['PLOT', 'PART', 'ALL', 10, 'PLATES']);
 
 note2('');
 row(['END']);

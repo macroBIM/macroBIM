@@ -1509,8 +1509,9 @@
            and what to call it. All three are content - the person who knows
            them is whoever wrote the workbook, not whoever presses Save DXF.
            The scale is not among them. A scale is a property of the paper
-           rather than of the model, which is why the dialog asks for it, the
-           same as it does for the other three blocks. */
+           rather than of the model - but it is a property of THIS drawing's
+           paper, so it sits on this drawing's row. Nothing is asked at export
+           time any more. */
         var vmod = str(v[0]).toUpperCase();
         // ISO_NE and "ISO NE" mean ISO-NE. One column, three ways to type it.
         var vdir = str(v[1]).toUpperCase().replace(/[\s_]+/g, '-');
@@ -5548,10 +5549,12 @@
   }
 
   /* ================= DXF export (AC1009 / R12) =================
-     A drawing of what the ASSY rows placed, in up to three blocks, each drawn
-     at its own scale: six orthographic views of the whole assembly, the same
-     six of each module, and every distinct part once at its standard section
-     with how many of it there are.
+     The drawings the sheet asked for, in the order it asked, each at the scale
+     its own row gave it. A VIEW row draws one id - a MODULE or an ASSY - seen
+     from a named direction or from two angles; a PLOT row draws parts on their
+     own at their standard section. Nothing else is produced: six views of
+     everything placed, and of every module, used to come out whether or not
+     anyone wanted them, at whatever one scale the export dialog was carrying.
 
      The file is built to the shape of macroBIM/bim_dxf.js, which is what the
      site's other drawing tools already ship and what is known to open: AC1009,
@@ -5574,12 +5577,13 @@
      built. The scale you give is never applied to the steel: dimStyle(scale)
      multiplies the registered annotation lengths instead, so a 2.5mm number
      comes out 2.5mm on paper whatever the block is plotted at. That is also
-     what lets the three blocks share one coordinate system - only their
-     annotation differs in size, so a viewport plotted at each block's own
-     scale is right for that block.
+     what lets every drawing share one coordinate system - only their
+     annotation differs in size, so a viewport plotted at a drawing's own
+     scale is right for that drawing.
 
-     No hidden-line removal: the six views draw every member's outline, near and
-     far. That is enough for a bracket and honest about what it is on a crane. */
+     Hidden lines are removed, in every VIEW drawing. An edge with steel in
+     front of it is not drawn - see the pass above dxfMemberEdges for how, and
+     for the one place it is not exact. */
 
   /* The text style the drawing writes with. A TrueType name in the STYLE
      table's font field is what gets Arial instead of the stick-figure txt.shx
@@ -5764,26 +5768,6 @@
       ring(o);
       if (!outlineOnly) (it.rings.holes[i] || []).forEach(ring);
     });
-  }
-
-  /* How far along the line of sight a member reaches. An orthographic view has
-     no depth to it, so without this every member in the model lands on the same
-     picture - looking down at a top flange you would get the bottom flange, its
-     plates and every bolt drawn through it. */
-  function memberDepth(it, view) {
-    var m = it.matrix, Z = capPlanes(it.thk, it.caps);
-    var vd = new THREE.Vector3(view.dir[0], view.dir[1], view.dir[2]);
-    var lo = Infinity, hi = -Infinity;
-    (it.rings.outers || []).forEach(function (o) {
-      o.forEach(function (p) {
-        [Z.lo(p[0], p[1]), Z.hi(p[0], p[1])].forEach(function (z) {
-          var q = new THREE.Vector3(p[0], p[1], z).applyMatrix4(m).dot(vd);
-          if (q < lo) lo = q;
-          if (q > hi) hi = q;
-        });
-      });
-    });
-    return [lo, hi];
   }
 
   /* ================= hidden-line removal =================
@@ -6449,30 +6433,6 @@
        elevation - a number measured across a gap that is not a distance. */
     return out;
   }
-  /* ---------------- context: what is behind the part ----------------
-     A face drawn on its own says what the plate is and not where it sits. The
-     rest of the model, on the hidden layer and cut off a short way outside the
-     part, is what puts it back on its beam - and it is cut off because the
-     beam is 1820 long against a 300 plate and would otherwise decide the size
-     of the drawing.
-     The margin is a paper length, not a fraction of the part: 15mm of paper
-     shows about the same amount of surroundings whatever the part and whatever
-     the scale, which is the property that actually matters here. */
-  function ctxMargin(D) { return D.stack * 1.5; }
-  // Liang-Barsky: the piece of a-b inside the rectangle, or null
-  function clipSeg(a, b, r) {
-    var t0 = 0, t1 = 1, dx = b[0] - a[0], dy = b[1] - a[1];
-    var p = [-dx, dx, -dy, dy];
-    var q = [a[0] - r.x0, r.x1 - a[0], a[1] - r.y0, r.y1 - a[1]];
-    for (var i = 0; i < 4; i++) {
-      if (p[i] === 0) { if (q[i] < 0) return null; continue; }
-      var t = q[i] / p[i];
-      if (p[i] < 0) { if (t > t1) return null; if (t > t0) t0 = t; }
-      else { if (t < t0) return null; if (t < t1) t1 = t; }
-    }
-    if (t1 - t0 < 1e-9) return null;
-    return [[a[0] + t0 * dx, a[1] + t0 * dy], [a[0] + t1 * dx, a[1] + t1 * dy]];
-  }
   // both caps of a plate seen face on give the same circle; one is enough
   function arcDedupe(arcs) {
     var seen = {}, out = [];
@@ -6960,7 +6920,7 @@
       text('PL3D-DIM', [textFrom + sh / 2, ly + TG], TH, s, true, 0);
     }
 
-    /* ---- the drawing, in up to three blocks ---- */
+    /* ---- the drawings, one to a row ---- */
     /* Each block is drawn at its own scale, so a 63m assembly and a 300mm
        gusset can each be annotated at a size that reads. The steel stays 1:1 in
        millimetres throughout - only the annotation changes size - so the blocks
@@ -7031,31 +6991,6 @@
       if (w > 0) dimLinear([ox, oy], [ox + w, oy], oy, false, lv);
       if (h > 0) dimLinear([ox, oy], [ox, oy + h], ox, true, lv);
       return { w: w, h: h };
-    }
-
-    function viewGrid(members, x0, yTop) {
-      var vs = DXF_VIEWS.map(function (vw) { return viewOf(members, vw); });
-      var G = gap();
-      var colW = [0, 0, 0], rowH = [0, 0];
-      vs.forEach(function (v, i) {
-        var c = i % 3, r = Math.floor(i / 3);
-        colW[c] = Math.max(colW[c], v.box.x1 - v.box.x0);
-        rowH[r] = Math.max(rowH[r], v.box.y1 - v.box.y0);
-      });
-      var colX = [x0 + G, 0, 0];
-      colX[1] = colX[0] + colW[0] + G * 2;
-      colX[2] = colX[1] + colW[1] + G * 2;
-      /* Each row carries its view names above it, so the row hangs that much
-         further down. Leaving it out is how ASSEMBLY 1:20 and FRONT VIEW came
-         to be written on the same line. */
-      var band = D.base + D.text.section * 1.4;
-      // rows are laid out downward from yTop, each row hanging by its own height
-      var rowY = [yTop - band - rowH[0], 0];
-      rowY[1] = rowY[0] - rowH[1] - band - G * 1.5;
-      vs.forEach(function (v, i) {
-        placeView(v, colX[i % 3], rowY[Math.floor(i / 3)], v.key + ' VIEW');
-      });
-      return { w: colX[2] + colW[2] - x0, h: yTop - (rowY[1] - G * 2) };
     }
 
     /* The distinct parts, shelf-packed. A 9m section and a 100mm gusset in one
@@ -7231,7 +7166,7 @@
 
     /* ---- a PLOT row: parts on their own, at their standard section ----
        `pick` says which of them this row asked for. Everything else about the
-       block is as it was when one tick box drew all of them at one scale. */
+       block is as it was when one tick box drew every part at one scale. */
     function partBlock(pick, title) {
       /* Round bars are left out. A bar is a length of stock, not a part to be
          cut to a shape, and a circle with a diameter beside it tells a
@@ -9311,7 +9246,7 @@
     '<h3>The menu bar</h3>',
     '<table class="gt"><thead><tr><th>control</th><th>what it does</th></tr></thead><tbody>',
     '<tr><td><b>File</b></td><td>everything that reads or writes a file, on one menu</td></tr>',
-    '<tr><td><b>Save DXF</b></td><td>the drawing, in up to three blocks. See below</td></tr>',
+    '<tr><td><b>Save DXF</b></td><td>the drawings the sheet asked for. See below</td></tr>',
     '<tr><td><b>Save STL</b></td><td>the model as a triangle mesh</td></tr>',
     '<tr><td><b>Save IFC</b></td><td>the model as real BIM solids - each part its exact profile,',
     ' holes as voids, extruded by its thickness</td></tr>',
@@ -9342,27 +9277,49 @@
     ' reads a round coordinate straight off.</p>',
 
     '<h3>Save DXF - the drawing</h3>',
-    '<p>The drawing comes out in <b>blocks</b>, and each is plotted at its own scale.',
-    ' One scale cannot serve a 60&nbsp;m assembly and a 200&nbsp;mm gusset, so the dialog asks',
-    ' once per block: tick the blocks you want and give each a scale.</p>',
-    '<table class="gt"><thead><tr><th>block</th><th>what it draws</th></tr></thead><tbody>',
-    '<tr><td><b>ASSEMBLY</b></td><td>six views - front, back, left, right, top, bottom - of',
-    ' everything the ASSY rows placed</td></tr>',
-    '<tr><td><b>MODULE</b></td><td>the same six views of each module on its own</td></tr>',
-    '<tr><td><b>PART / SECT</b></td><td>every distinct part once at its standard section,',
-    ' with how many were placed. Round <b>bars are not drawn</b> - a bar is a length of stock,',
-    ' and a circle with a diameter beside it says nothing the take-off does not</td></tr>',
-    '<tr><td><b>VIEWS</b></td><td>the drawings the sheet asked for by name, one to a',
-    ' <code>VIEW</code> row on the input tab: a module or an assembly, the direction it is',
-    ' seen from, and the title to write over it. Drawn solid, with <b>whatever is behind it on the hidden',
-    ' layer</b> so the part can be seen where it sits. A sheet with no VIEW rows leaves this',
-    ' line greyed out and exports exactly what it always did</td></tr>',
+    '<p><b>The sheet says what goes on paper, and nothing else does.</b> Save DXF asks',
+    ' nothing and draws what the rows asked for, each at the scale its own row gives it.',
+    ' A sheet with no drawing row exports nothing and says so.</p>',
+    '<table class="gt"><thead><tr><th>row</th><th>what it draws</th></tr></thead><tbody>',
+    '<tr><td><code>VIEW</code></td><td>one drawing of a <b>MODULE or an ASSY</b>, seen from',
+    ' the direction the row names, titled as the row titles it. Only that id is drawn &mdash;',
+    ' nothing standing beside it comes along.</td></tr>',
+    '<tr><td><code>PLOT&nbsp;PART</code></td><td>plates on their own, each once at its',
+    ' standard section with how many were placed. An id, or <code>ALL</code>.</td></tr>',
+    '<tr><td><code>PLOT&nbsp;SECT</code></td><td>the same for rolled sections. Separate from',
+    ' PART because a gusset and a six-metre beam do not share a scale. Round <b>bars are not',
+    ' drawn</b> either way &mdash; a bar is a length of stock, and a circle with a diameter',
+    ' beside it says nothing the take-off does not.</td></tr>',
     '</tbody></table>',
-    '<p><b>Why a keyword and not more tick boxes.</b> Which face of a splice you want drawn,',
-    ' and what to call it, is known by whoever wrote the workbook - not by whoever presses',
-    ' Save DXF, who would have to answer it again every time. The scale is the other way',
-    ' round: it belongs to the paper, not to the model, so that is the one thing the dialog',
-    ' asks. Nothing in the engine knows what a splice is.</p>',
+    '<p>The columns do not move. A named direction leaves AZ and EL empty rather than',
+    ' sliding the scale two cells along, so the sixth cell is the scale wherever you look',
+    ' down the block &mdash; and a named direction <i>with</i> something in those cells is',
+    ' refused by name, because that is the shape of a row written to the older grammar.</p>',
+    '<table class="gt"><thead><tr><th></th><th>id</th><th>dir</th><th>AZ</th><th>EL</th>',
+    '<th>scale</th><th>title</th></tr></thead><tbody>',
+    '<tr><td><code>VIEW</code></td><td>md.bay</td><td>ISO</td><td></td><td></td>',
+    '<td>25</td><td>Bay assembly</td></tr>',
+    '<tr><td><code>VIEW</code></td><td>as.frame</td><td>3D</td><td>&minus;45</td><td>35.26</td>',
+    '<td>50</td><td>Frame</td></tr>',
+    '<tr><td><code>PLOT</code></td><td>PART</td><td>ALL</td><td>10</td><td colspan="3"></td></tr>',
+    '<tr><td><code>PLOT</code></td><td>SECT</td><td>b.rafter</td><td>20</td><td colspan="3"></td></tr>',
+    '</tbody></table>',
+    '<p><b>Hidden lines are removed.</b> An edge with steel in front of it is not drawn, in',
+    ' every VIEW drawing &mdash; not only the angled ones, because tying it to how the',
+    ' direction was spelled would make <code>3D -90 0</code> and <code>FRONT</code> two',
+    ' different pictures of one direction. It is computed rather than sampled: every member',
+    ' is a profile extruded between two planes, so the depth of a face over any point of the',
+    ' page is a straight-line function and an edge changes from in front to behind only',
+    ' where it crosses that face&rsquo;s boundary. One exception, which is worth knowing: a',
+    ' round hole is kept or dropped <b>whole</b>. There is no partial arc in DXF R12, so a',
+    ' hole half behind a flange draws whole.</p>',
+    '<p><b>Why the sheet and not tick boxes.</b> Which face of a splice you want drawn, what',
+    ' to call it and how big to plot it are known by whoever wrote the workbook &mdash; not',
+    ' by whoever presses Save DXF, who would have to answer it again every time. The engine',
+    ' used to draw six views of everything placed, six of each module and one of every part,',
+    ' whether or not anyone wanted them, at whatever single scale the dialog was carrying.',
+    ' That answered &ldquo;what is in this model&rdquo;, which the model tree on the left',
+    ' answers better. Nothing in the engine knows what a splice is.</p>',
 
     '<p><b>The direction a VIEW is seen from.</b> Six of them have names &mdash;',
     ' <code>FRONT</code>, <code>BACK</code>, <code>LEFT</code>, <code>RIGHT</code>,',
@@ -9397,8 +9354,8 @@
     ' is refused rather than read: over the top is a direction already reachable below 90',
     ' with AZ turned round, and taking it at face value draws the model upside down.</p>',
     '<p><b>The steel is written 1:1 in millimetres throughout.</b> Only the annotation changes',
-    ' size, so the three blocks share one coordinate system and a viewport plotted at each',
-    ' block&rsquo;s scale comes out right. The file is DXF R12 and the annotation is drawn -',
+    ' size, so every drawing shares one coordinate system and a viewport plotted at its',
+    ' own row&rsquo;s scale comes out right. The file is DXF R12 and the annotation is drawn -',
     ' lines, text and filled marks - rather than left to the CAD&rsquo;s dimension style, so it',
     ' reads the same wherever it is opened.</p>',
     '<p>What is dimensioned, at every scale:</p>',
@@ -9598,8 +9555,8 @@
       '    <span class="drop">' +
       '      <button onclick="plateBuilder.pickExcel()">&#8682; Load Excel&hellip;</button>' +
       '      <i></i>' +
-      '      <button onclick="plateBuilder.exportDXF()" title="the drawing, in three blocks' +
-      ' - assembly, modules, parts - each at its own scale">Save DXF&hellip;</button>' +
+      '      <button onclick="plateBuilder.exportDXF()" title="the drawings the sheet' +
+      ' asked for, each at its own row\'s scale">Save DXF&hellip;</button>' +
       '      <button onclick="plateBuilder.exportBOQ()" title="quantities and weights' +
       ' as a workbook">Save BOQ</button>' +
       '      <i></i>' +

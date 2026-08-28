@@ -30,12 +30,11 @@ const SP = __dirname;
 const LOCK = P3 + '/FORMAT_LOCK.json';
 const UPDATE = process.argv.includes('--update');
 
-/* Two books, because no single one reaches every block. BASIC is every keyword
-   once and drives ASSEMBLY / MODULE / PART; SPLICE is the one that names its
-   own drawings, so it is the only way to reach the VIEWS block - and with it
-   the hidden-line layer, which nothing else produces. */
+/* Two books. BASIC is every keyword once; SPLICE names seven drawings of its
+   own, including an isometric and a 3D row, so between them every kind of row
+   that puts something on paper is exercised. Both now carry their own scales
+   on their own rows - there is nothing left to set from out here. */
 const BOOKS = ['PLATE3D_BASIC.xlsx', 'PLATE3D_SPLICE.xlsx'];
-const SCALES = { assembly: '50', module: '20', part: '10', views: '10' };
 
 const LIB = f => {
   let p = SP + '/node_modules/three/build/three.min.js';
@@ -162,29 +161,51 @@ async function fingerprintBook(page, book) {
       return c.apply(this, arguments);
     };
   });
+  /* How many drawings the book's own rows ask for. Recorded either way: under
+     the shipped engine it is the VIEWS block's count, under the test build it
+     is the whole of what gets drawn. */
+  out.drawingRows = (report => {
+    const m = report.match(/views (\d+)/);
+    return m ? Number(m[1]) : 0;
+  })(await page.evaluate(() =>
+    (document.getElementById('pb-result') || {}).innerText || ''));
+
   await page.click('#pb-fmenu > button');
   await page.waitForTimeout(200);
   await page.click('#pb-fmenu .drop button:nth-of-type(2)');       // Save DXF
   await page.waitForTimeout(300);
-  /* A block whose input sheet names nothing is offered greyed out - VIEWS is
-     only there when the sheet asked for drawings. Which blocks a given sheet
-     can produce is itself part of the format, so it is recorded rather than
-     forced. */
-  out.dxfBlocks = {};
-  for (const k of Object.keys(SCALES)) {
-    const on = await page.evaluate(id => {
-      const c = document.getElementById('pb-sc-' + id);
-      if (!c) return null;
-      if (!c.disabled && !c.checked) c.click();
-      return c.disabled ? 'unavailable' : c.checked;
-    }, k);
-    out.dxfBlocks[k] = on;
-    if (on === true) await page.fill('#pb-sc-' + k + '-v', SCALES[k]);
+  /* The shipped engine stops here to ask which blocks to draw and at what
+     scale; the test build has no such question, because every drawing carries
+     its own scale on its own row. This tool has to work against both while one
+     is ahead of the other - that is the whole point of ENGINE=test - so the
+     dialog is driven when it is there and skipped when it is not. */
+  const asks = await page.evaluate(() => {
+    const el = document.getElementById('pb-scale');
+    return !!(el && getComputedStyle(el).display !== 'none');
+  });
+  out.dxfAsksScale = asks;
+  out.dxfBlocks = null;
+  if (asks) {
+    const SCALES = { assembly: '50', module: '20', part: '10', views: '10' };
+    out.dxfBlocks = {};
+    for (const k of Object.keys(SCALES)) {
+      const on = await page.evaluate(id => {
+        const c = document.getElementById('pb-sc-' + id);
+        if (!c) return null;
+        if (!c.disabled && !c.checked) c.click();
+        return c.disabled ? 'unavailable' : c.checked;
+      }, k);
+      out.dxfBlocks[k] = on;
+      if (on === true) await page.fill('#pb-sc-' + k + '-v', SCALES[k]);
+    }
+    await page.click('#pb-scale .accent');
   }
-  await page.click('#pb-scale .accent');
   await page.waitForFunction(() => !!window.__b, null, { timeout: 900000 });
   out.dxf = dxfShape(await page.evaluate(() => window.__b.text()));
-  // plate_builder_A50-M20-P10.dxf - the stem is fixed, the scales are not
+  /* plate_builder_A50-M20-P10.dxf under the shipped engine, where the scales
+     came from the dialog and belonged in the name. Just plate_builder.dxf
+     under the test build, where they are on the rows. The substitution leaves
+     the second alone. */
   let name = await page.evaluate(() => window.__name);
   if (name) name = name.replace(/([AMPV])\d+/g, '$1<scale>');
   out.dxfName = name;
