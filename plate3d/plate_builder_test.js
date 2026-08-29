@@ -493,8 +493,15 @@
     '#pb-help header { display:flex; align-items:center; justify-content:space-between;',
     '  padding:12px 18px; border-bottom:1px solid var(--hair); background:#f1f5f9; }',
     '#pb-help header b { font-size:15px; font-weight:600; color:#0f172a; }',
-    '#pb-help header span { cursor:pointer; color:#94a3b8; font-size:16px; padding:0 4px; }',
-    '#pb-help header span:hover { color:#0f172a; }',
+    '#pb-help header .acts { display:flex; align-items:center; gap:10px; }',
+    '#pb-help header .x { cursor:pointer; color:#94a3b8; font-size:16px; padding:0 4px; }',
+    '#pb-help header .x:hover { color:#0f172a; }',
+    '#pb-help header button { font:inherit; font-size:11.5px; font-weight:600;',
+    '  padding:4px 12px; border:1px solid var(--line); border-radius:6px;',
+    '  background:#fff; color:#334155; cursor:pointer;',
+    '  transition:background .12s,border-color .12s,color .12s; }',
+    '#pb-help header button:hover { background:#eef2ff; border-color:#c7d2fe;',
+    '  color:var(--dim); }',
     '#pb-help .doc { overflow-y:auto; padding:4px 22px 26px; line-height:1.65; color:#334155; }',
     '#pb-help .doc::-webkit-scrollbar { width:8px; }',
     '#pb-help .doc::-webkit-scrollbar-thumb { background:#cbd5e1; border-radius:4px; }',
@@ -9663,7 +9670,11 @@
       '  </div></div>' +
       '<div id="pb-help" onclick="if(event.target===this)plateBuilder.closeGuide()">' +
       '  <div class="box"><header><b>PLATE3D &mdash; how to use</b>' +
-      '    <span onclick="plateBuilder.closeGuide()" title="close">&#10005;</span></header>' +
+      '    <span class="acts">' +
+      '      <button type="button" onclick="plateBuilder.printGuide()"' +
+      '        title="print, or save as PDF">Print</button>' +
+      '      <span class="x" onclick="plateBuilder.closeGuide()" title="close">&#10005;</span>' +
+      '    </span></header>' +
       '    <div class="doc">' + GUIDE + '</div>' +
       '  </div></div>' +
       '<div id="pb-modal"><div class="box">' +
@@ -10365,6 +10376,86 @@
      the table under it - a dark table head was outweighing the title it sat
      beneath, so the eye landed on the table and the reader lost what section
      they were in - and it gives the list something to point at. */
+  /* Printing, which is also how a PDF is made - the browser's own "save as
+     PDF" is the same command. No PDF is generated here on purpose: the guide
+     lives in this file, so a generated one would be a second copy of it, and
+     the copy is what goes out of date while nobody notices.
+
+     The sheet below is written for a COPY of the guide standing on its own in
+     an iframe, not for the guide inside its dialog. That way none of the
+     application around it has to be hidden, and nothing about the modal - the
+     fixed overlay, the height cap, the scrolling box - has to be undone
+     correctly for the page to come out whole. */
+  var PRINT_CSS = [
+    'html, body { background:#fff; margin:0; overflow:visible; height:auto; }',
+    '#pb-help { position:static; display:block; background:#fff; }',
+    '#pb-help .box { width:auto; max-width:none; max-height:none; display:block;',
+    '  border:0; border-radius:0; box-shadow:none; overflow:visible; }',
+    '#pb-help .doc { overflow:visible; max-height:none; padding:0; }',
+    '#pb-help header { background:#fff; border-bottom:1px solid #cbd5e1;',
+    '  padding:0 0 10px; margin-bottom:4px; }',
+    // a link is a thing you click; on paper it is a thing in the way
+    '#pb-help h2 .up, #pb-help h3 .up { display:none; }',
+    '#pb-toc a { color:#334155; text-decoration:none; }',
+    /* Every browser prints with background graphics OFF unless someone turns
+       them on, and this guide says a good deal in white-on-dark: the chapter
+       badges, the heading row of every gt table, the keyword chips. Printed as
+       they stand, those come out white on white and simply are not there. So
+       on paper they are redrawn as dark on nothing, which needs no ink beyond
+       the letters and is right whether or not backgrounds are switched on. */
+    '#pb-help h2 .n, #pb-help h3 .n { background:none; color:#0f172a;',
+    '  border:1px solid #64748b; }',
+    '#pb-help h3.warnhead .n { color:#92400e; border-color:#92400e; }',
+    '#pb-help table.gt th { background:none; color:#0f172a;',
+    '  border-right:1px solid #94a3b8; border-bottom:2px solid #0f172a; }',
+    '#pb-help table.gt tbody tr:nth-child(even) td { background:none; }',
+    '#pb-help code { background:none; border:1px solid #cbd5e1; }',
+    '#pb-help table.xls th, #pb-help table.xls .rn { background:none; color:#475569; }',
+    '#pb-help table.xls tr.cmt td { background:none; }',
+    '#pb-toc { background:none; }',
+    '#pb-help .gsvg { background:none; }',
+    '#pb-help .flow span { background:none; }',
+    '#pb-help .warn { background:none; }',
+    '@page { margin:14mm; }',
+    '@media print {',
+    '  #pb-help h2, #pb-help h3 { break-after:avoid; page-break-after:avoid; }',
+    '  #pb-help table, #pb-help .xlswrap, #pb-help svg, #pb-help figure {',
+    '    break-inside:avoid; page-break-inside:avoid; }',
+    '  #pb-help p, #pb-help li { orphans:2; widows:2; }',
+    '  #pb-toc { break-after:page; page-break-after:always; }',
+    '}'
+  ].join('\n');
+
+  function printGuide() {
+    var doc = document.querySelector('#pb-help .doc');
+    if (!doc) return;
+    guideIndex();                       // numbers and contents, if not built yet
+    /* An iframe rather than a new window: a popup blocker refuses the window
+       and says nothing that reaches the person who pressed Print. */
+    var fr = document.createElement('iframe');
+    fr.setAttribute('aria-hidden', 'true');
+    fr.style.cssText = 'position:fixed;right:0;bottom:0;width:0;height:0;border:0';
+    document.body.appendChild(fr);
+    var d = fr.contentDocument;
+    d.open();
+    d.write('<!doctype html><meta charset="utf-8"><title>PLATE3D - how to use</title>');
+    d.close();
+    var st = d.createElement('style');
+    st.textContent = CSS + '\n' + PRINT_CSS;   // the app's own styles, then the sheet
+    d.head.appendChild(st);
+    var wrap = d.createElement('div');
+    wrap.id = 'pb-help';                // so the guide's own rules find their target
+    wrap.innerHTML = '<div class="box"><header><b>PLATE3D &mdash; how to use</b></header>' +
+                     '<div class="doc">' + doc.innerHTML + '</div></div>';
+    d.body.appendChild(wrap);
+    /* Printing the moment it is written gives a blank page in more than one
+       browser - the copy has not laid its tables out yet. */
+    setTimeout(function () {
+      try { fr.contentWindow.focus(); fr.contentWindow.print(); } catch (e) {}
+      setTimeout(function () { if (fr.parentNode) fr.parentNode.removeChild(fr); }, 2000);
+    }, 300);
+  }
+
   var guideIndexed = false;
   function guideIndex() {
     var doc = document.querySelector('#pb-help .doc');
@@ -10451,7 +10542,7 @@
     setAxes: setAxes, setFaces: setFaces,
     setOrtho: setOrtho, setOrthoPv: setOrthoPv,
     setClash: setClash, setClashPv: setClashPv,
-    openGuide: openGuide, closeGuide: closeGuide,
+    openGuide: openGuide, closeGuide: closeGuide, printGuide: printGuide,
     openSamples: openSamples, closeSamples: closeSamples, getSample: getSample,
     toggleMemberAxis: toggleMemberAxis,
     toggleFileMenu: toggleFileMenu, toggleViewMenu: toggleViewMenu,
