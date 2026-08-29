@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Seoul PhD — macroBIM</title>
+<!--
+    index_phd.html — Seoul PhD 단면 작도 앱의 호스트 페이지
+    · https://macrobim.github.io/macroBIM/index_phd.html 로 바로 열린다.
+    · CodePen 의 HTML 패널과 같은 역할: #app-root 하나와 seoul_phd_app.js 뿐이다.
+      나머지(폰트/아이콘, seoul_phd_style.css, seoul_phd_form.html, calc.js,
+      konva·exceljs·bim_* 엔진)는 app.js 가 스스로 순서대로 불러온다.
+    · 스크립트는 같은 디렉터리 상대경로로 부른다 — Pages 든 로컬 서버든 같이 동작한다.
+-->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<style>
+  /* seoul_phd_style.css 가 주입되기 전의 첫 화면 — 배경과 글꼴을 미리 맞춰 깜빡임을 없앤다. */
+  *{margin:0;padding:0;box-sizing:border-box;}
+  body{
+    font-family:'Inter',system-ui,-apple-system,'Segoe UI',Roboto,sans-serif;
+    background:#f0f2f5;color:#444;height:100vh;overflow:hidden;
+    font-size:14px;padding:16px;display:flex;flex-direction:column;gap:14px;
+  }
+  #app-root{display:flex;flex-direction:column;flex:1;min-height:0;gap:14px;}
+  .boot-msg{
+    margin:auto;padding:30px;text-align:center;color:#8a8f98;
+    font-size:15px;letter-spacing:.2px;
+  }
+</style>
+</head>
+<body>
+
+<div id="app-root">
+  <div class="boot-msg">Seoul PhD 로딩 중… <br><span style="font-size:13px;">엔진과 폼을 내려받고 있습니다.</span></div>
+</div>
+
+<noscript>
+  <div class="boot-msg" style="color:#dc2626;">
+    이 페이지는 JavaScript 로 단면을 작도합니다. 브라우저에서 JavaScript 를 켜 주세요.
+  </div>
+</noscript>
+
+<script src="seoul_phd_app.js"></script>
+</body>
+</html>
