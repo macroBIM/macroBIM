@@ -496,12 +496,20 @@
     '#pb-help header .acts { display:flex; align-items:center; gap:10px; }',
     '#pb-help header .x { cursor:pointer; color:#94a3b8; font-size:16px; padding:0 4px; }',
     '#pb-help header .x:hover { color:#0f172a; }',
-    '#pb-help header button { font:inherit; font-size:11.5px; font-weight:600;',
-    '  padding:4px 12px; border:1px solid var(--line); border-radius:6px;',
-    '  background:#fff; color:#334155; cursor:pointer;',
-    '  transition:background .12s,border-color .12s,color .12s; }',
-    '#pb-help header button:hover { background:#eef2ff; border-color:#c7d2fe;',
-    '  color:var(--dim); }',
+    /* The size the Guide and Example buttons in the bar are, because it is the
+       same kind of thing and a reader has already learnt to look for that
+       shape. Filled rather than tinted: those two sit on white and this one
+       sits on the header's grey, where a tint disappears. */
+    '#pb-help header button.prt { font:inherit; display:inline-flex; align-items:center;',
+    '  gap:5px; font-size:12px; font-weight:600; letter-spacing:0; text-transform:none;',
+    '  padding:5px 12px; border-radius:6px; cursor:pointer; flex:0 0 auto;',
+    '  background:var(--dim); border:1px solid var(--dim); color:#fff;',
+    '  transition:background .12s,border-color .12s,box-shadow .12s,transform .06s; }',
+    '#pb-help header button.prt svg { flex:0 0 auto; }',
+    '#pb-help header button.prt:hover { background:#1d4ed8; border-color:#1d4ed8;',
+    '  box-shadow:0 2px 8px rgba(37,99,235,.35); }',
+    '#pb-help header button.prt:active { transform:translateY(1px) scale(.97);',
+    '  box-shadow:none; }',
     '#pb-help .doc { overflow-y:auto; padding:4px 22px 26px; line-height:1.65; color:#334155; }',
     '#pb-help .doc::-webkit-scrollbar { width:8px; }',
     '#pb-help .doc::-webkit-scrollbar-thumb { background:#cbd5e1; border-radius:4px; }',
@@ -8686,6 +8694,14 @@
     'a2 2 0 0 1-2 2H2a2 2 0 0 1-2-2v-2.5a.5.5 0 0 1 .5-.5z"/>' +
     '<path d="M7.646 11.854a.5.5 0 0 0 .708 0l3-3a.5.5 0 0 0-.708-.708L8.5 10.293V1.5a.5.5 0 0 0-1 0' +
     'v8.793L5.354 8.146a.5.5 0 1 0-.708.708l3 3z"/></svg>';
+  var ICON_PRINT =
+    '<svg viewBox="0 0 16 16" width="14" height="14" fill="currentColor" aria-hidden="true">' +
+    '<path d="M2.5 8a.5.5 0 1 0 0-1 .5.5 0 0 0 0 1z"/>' +
+    '<path d="M5 1a2 2 0 0 0-2 2v2H2a2 2 0 0 0-2 2v3a2 2 0 0 0 2 2h1v1a2 2 0 0 0 2 2h6a2 2 0 0 0 ' +
+    '2-2v-1h1a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-1V3a2 2 0 0 0-2-2H5zM4 3a1 1 0 0 1 1-1h6a1 1 0 0 1 ' +
+    '1 1v2H4V3zm1 5a2 2 0 0 0-2 2v2H2a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h12a1 1 0 0 1 1 1v3a1 1 0 0 1 ' +
+    '-1 1h-1v-2a2 2 0 0 0-2-2H5zm7 2v3a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1v-3a1 1 0 0 1 1-1h6a1 1 0 0 ' +
+    '1 1 1z"/></svg>';
   var ICON_HELP =
     '<svg viewBox="0 0 16 16" width="14" height="14" fill="currentColor" aria-hidden="true">' +
     '<path d="M8 15A7 7 0 1 1 8 1a7 7 0 0 1 0 14zm0 1A8 8 0 1 0 8 0a8 8 0 0 0 0 16z"/>' +
@@ -9671,8 +9687,8 @@
       '<div id="pb-help" onclick="if(event.target===this)plateBuilder.closeGuide()">' +
       '  <div class="box"><header><b>PLATE3D &mdash; how to use</b>' +
       '    <span class="acts">' +
-      '      <button type="button" onclick="plateBuilder.printGuide()"' +
-      '        title="print, or save as PDF">Print</button>' +
+      '      <button type="button" class="prt" onclick="plateBuilder.printGuide()"' +
+      '        title="print, or save as PDF">' + ICON_PRINT + 'Print</button>' +
       '      <span class="x" onclick="plateBuilder.closeGuide()" title="close">&#10005;</span>' +
       '    </span></header>' +
       '    <div class="doc">' + GUIDE + '</div>' +
