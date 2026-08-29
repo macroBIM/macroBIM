@@ -533,6 +533,16 @@
     '#pb-toc a { color:#475569; text-decoration:none; white-space:pre; }',
     '#pb-toc li.a a { color:#0f172a; font-weight:600; }',
     '#pb-toc a:hover { color:var(--dim); text-decoration:underline; }',
+    /* Pushed to the right end of the heading by the flex row it sits in. Quiet
+       until the heading is under the pointer - it is a way out, not something
+       to read on the way past. */
+    '#pb-help h2 .up, #pb-help h3 .up { margin-left:auto; flex-shrink:0;',
+    '  font-size:11px; font-weight:600; letter-spacing:.02em; text-decoration:none;',
+    '  color:#cbd5e1; padding:2px 8px; border-radius:5px; border:1px solid transparent;',
+    '  transition:color .12s,background .12s,border-color .12s; }',
+    '#pb-help h2:hover .up, #pb-help h3:hover .up { color:#64748b; }',
+    '#pb-help h2 .up:hover, #pb-help h3 .up:hover { color:var(--dim);',
+    '  background:#eef2ff; border-color:#c7d2fe; }',
     '#pb-help p { margin:7px 0; font-size:12.5px; }',
     '#pb-help ul { margin:7px 0 7px 18px; font-size:12.5px; }',
     '#pb-help li { margin:3px 0; }',
@@ -10358,6 +10368,15 @@
       badge.className = 'n';
       badge.textContent = no;
       h.insertBefore(badge, h.firstChild);
+      /* The way back. A heading is where a reader arrives and where they finish,
+         so the return sits on it rather than at the foot of a section whose
+         length they would have to reach first. */
+      var up = document.createElement('a');
+      up.className = 'up';
+      up.href = '#';
+      up.title = 'back to contents';
+      up.innerHTML = '&#8593; contents';
+      h.appendChild(up);
       nav.push('<li class="' + (top ? 'a' : 'b') + '"><a href="#" data-g="' + h.id + '">' +
                no + '  ' + h.textContent.slice(no.length).trim() + '</a></li>');
     }
@@ -10375,6 +10394,10 @@
         if (t) doc.scrollTop += t.getBoundingClientRect().top -
                                 doc.getBoundingClientRect().top - 8;
       });
+    });
+    // the contents are the first thing in the document, so going back is the top
+    doc.querySelectorAll('h2 .up, h3 .up').forEach(function (a) {
+      a.addEventListener('click', function (e) { e.preventDefault(); doc.scrollTop = 0; });
     });
   }
   function openGuide() {
