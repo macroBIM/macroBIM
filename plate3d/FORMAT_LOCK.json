@@ -358,22 +358,6 @@
    "2 MODULE md.rail s.brc  0 0 0 0 0 900 0 0 0 1500 0 0 5 0 2400 0 1"
   ],
   [
-   " A B C D E F G",
-   "1 FIT member B | E target GAP  ",
-   "2 MODULE id FIT member B | E target GAP"
-  ],
-  [
-   " A B C D E F G H I J K L M",
-   "1 # SECT id mat length TYPE base.pt v1 v2 v3 v4 v5 v6 v7",
-   "2 SECT s.col SM490 3000 H mc 400 200 200 8 13 13 16",
-   "3 SECT s.brc SM490 2000 H mc 300 150 150 6.5 9 9 13",
-   "4 # MODULE id member Ref.Pt LX1 LY1 LZ1 LX2 LY2 LZ2   ",
-   "5 MODULE md.j s.col  0 0 0 0 0 3000   ",
-   "6 MODULE md.j s.brc  0 1400 0 0 0 1400   ",
-   "7 MODULE md.j FIT s.brc E s.col 0      ",
-   "8 MODULE md.j BASE s.col mc        "
-  ],
-  [
    " A B C D E F G H I J",
    "1 ASSY id ref ADD G.X G.Y G.Z ROT.X ROT.Y ROT.Z",
    "2 ASSY id ref MIR G.X G.Y G.Z PLANE  ",
@@ -435,7 +419,12 @@
    "19 # ASSY id ref cmd G.X G.Y G.Z repeat    ",
    "20 ASSY as.comb md.tower ADD 0 0 0     ",
    "21 ASSY as.comb md.tower COPY 2000 0 0 2    ",
-   "22 END           "
+   "22 # VIEW id dir AZ EL scale title     ",
+   "23 VIEW as.comb ISO   25 Tower - isometric     ",
+   "24 VIEW md.tower FRONT   10 Tower module     ",
+   "25 # PLOT PART | SECT id | ALL scale title       ",
+   "26 PLOT PART ALL 10 Plates       ",
+   "27 END           "
   ]
  ]
 }

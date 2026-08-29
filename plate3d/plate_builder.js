@@ -498,12 +498,51 @@
     '#pb-help .doc { overflow-y:auto; padding:4px 22px 26px; line-height:1.65; color:#334155; }',
     '#pb-help .doc::-webkit-scrollbar { width:8px; }',
     '#pb-help .doc::-webkit-scrollbar-thumb { background:#cbd5e1; border-radius:4px; }',
-    '#pb-help h2 { font-size:15px; font-weight:600; color:#0f172a; margin:26px 0 8px;',
-    '  display:flex; align-items:center; }',
-    '#pb-help h2::before { content:""; display:inline-block; width:4px; height:15px;',
-    '  border-radius:2px; background:var(--dim); margin-right:9px; flex-shrink:0; }',
-    '#pb-help h3 { font-size:13px; font-weight:700; color:#0f172a; margin:20px 0 6px;',
-    '  letter-spacing:.02em; }',
+    /* A chapter number, and a rule under the title. The bar that used to stand
+       beside a heading lost the page to the dark table head below it - the eye
+       went to the table and the title stopped saying what was being read. */
+    '#pb-help h2 { font-size:16.5px; font-weight:700; color:#0f172a; margin:34px 0 10px;',
+    '  display:flex; align-items:center; padding-bottom:7px;',
+    '  border-bottom:2px solid var(--line); }',
+    '#pb-help h2 .n { display:inline-flex; align-items:center; justify-content:center;',
+    '  min-width:25px; height:25px; padding:0 6px; margin-right:10px; flex-shrink:0;',
+    '  background:var(--dim); color:#fff; border-radius:6px;',
+    '  font-size:13px; font-weight:700; }',
+    /* Every keyword is an h3, so this is the level a reader is actually inside
+       while reading a table - and a bare bold line was losing to the dark table
+       head under it. It gets a rule of its own and a badge, both lighter than a
+       chapter's, so the two levels still read as two levels. */
+    '#pb-help h3 { font-size:14.5px; font-weight:700; color:#0f172a; margin:26px 0 8px;',
+    '  letter-spacing:.01em; display:flex; align-items:center;',
+    '  padding-bottom:5px; border-bottom:1px solid var(--hair); }',
+    '#pb-help h3 .n { display:inline-flex; align-items:center; justify-content:center;',
+    '  min-width:34px; height:20px; padding:0 6px; margin-right:9px; flex-shrink:0;',
+    '  background:#e0e7ff; color:var(--dim); border-radius:5px;',
+    '  font-size:11.5px; font-weight:700; font-variant-numeric:tabular-nums; }',
+    '#pb-help h3.warnhead { border-bottom-color:#fcd34d; }',
+    '#pb-help h3.warnhead .n { background:#fef3c7; color:#b45309; }',
+    // the contents, off the headings themselves
+    '#pb-toc { margin:14px 0 6px; padding:12px 16px; background:#f8fafc;',
+    '  border:1px solid var(--hair); border-radius:8px; }',
+    '#pb-toc b { display:block; font-size:12px; font-weight:700; color:#0f172a;',
+    '  margin-bottom:7px; letter-spacing:.04em; text-transform:uppercase; }',
+    '#pb-toc ol { list-style:none; margin:0; padding:0;',
+    '  columns:2; column-gap:26px; }',
+    '#pb-toc li { margin:1px 0; break-inside:avoid; font-size:12px; }',
+    '#pb-toc li.b { padding-left:15px; }',
+    '#pb-toc a { color:#475569; text-decoration:none; white-space:pre; }',
+    '#pb-toc li.a a { color:#0f172a; font-weight:600; }',
+    '#pb-toc a:hover { color:var(--dim); text-decoration:underline; }',
+    /* Pushed to the right end of the heading by the flex row it sits in. Quiet
+       until the heading is under the pointer - it is a way out, not something
+       to read on the way past. */
+    '#pb-help h2 .up, #pb-help h3 .up { margin-left:auto; flex-shrink:0;',
+    '  font-size:11px; font-weight:600; letter-spacing:.02em; text-decoration:none;',
+    '  color:#cbd5e1; padding:2px 8px; border-radius:5px; border:1px solid transparent;',
+    '  transition:color .12s,background .12s,border-color .12s; }',
+    '#pb-help h2:hover .up, #pb-help h3:hover .up { color:#64748b; }',
+    '#pb-help h2 .up:hover, #pb-help h3 .up:hover { color:var(--dim);',
+    '  background:#eef2ff; border-color:#c7d2fe; }',
     '#pb-help p { margin:7px 0; font-size:12.5px; }',
     '#pb-help ul { margin:7px 0 7px 18px; font-size:12.5px; }',
     '#pb-help li { margin:3px 0; }',
@@ -8677,21 +8716,30 @@
     '<p>Everything is built in three tiers, the way a shop actually works: cut the parts,',
     ' weld them into units, then set the units out on site.</p>',
     GUIDE_SVG_TIERS,
-    '<table class="gt"><thead><tr><th>tier</th><th>what it is</th><th>keywords</th></tr></thead><tbody>',
+    '<table class="gt"><thead><tr><th>tier</th><th>what it is</th><th>keywords</th>',
+    '<th>drawn by</th></tr></thead><tbody>',
     '<tr><td><b>PART</b></td><td>one piece of steel, defined once and used as often as you',
     ' like. A <b>PLATE</b> is a flat outline; a <b>SECT</b> is a steel section - a rolled',
     ' H, C or L, or a hollow P or R; a',
     ' <b>BAR</b> is a round bar. A <b>HOLE</b> is not a part at all - it is a shape you',
     ' subtract from a plate with <b>CUT</b>, which is how holes, notches and slots are made.</td>',
-    '<td><code>PLATE</code> <code>HOLE</code> <code>CUT</code> <code>SECT</code> <code>BAR</code></td></tr>',
+    '<td><code>PLATE</code> <code>HOLE</code> <code>CUT</code> <code>SECT</code> <code>BAR</code></td>',
+    '<td><code>PLOT&nbsp;PART</code><br><code>PLOT&nbsp;SECT</code></td></tr>',
     '<tr><td><b>MODULE</b></td><td>parts placed relative to each other - a column, a bracket,',
     ' a diaphragm. Plates, sections and bars all go in the same way. The module carries its',
     ' own origin (its <b>BASE</b>) so it can be set down anywhere later.</td>',
-    '<td><code>MODULE</code></td></tr>',
+    '<td><code>MODULE</code></td><td><code>VIEW</code></td></tr>',
     '<tr><td><b>ASSEMBLY</b></td><td>modules placed in the world, and assemblies of',
     ' assemblies. This is where mirroring, arraying and rotating happen, so one module can',
-    ' become forty without another row of geometry.</td><td><code>ASSY</code></td></tr>',
+    ' become forty without another row of geometry.</td><td><code>ASSY</code></td>',
+    '<td><code>VIEW</code></td></tr>',
     '</tbody></table>',
+    '<p>The right-hand column is what puts a tier on paper, and the split follows the tiers',
+    ' exactly: <b>PLOT</b> draws a <i>part</i> on its own at its standard section, so it takes',
+    ' a <code>PLATE</code> or a <code>SECT</code> and nothing else. <b>VIEW</b> draws a thing',
+    ' <i>as placed</i>, seen from somewhere, so it takes a <code>MODULE</code> or an',
+    ' <code>ASSY</code>. Neither is produced unless a row asks for it &mdash; see',
+    ' <b>Save DXF</b> below.</p>',
     '<p>The point of the middle tier is leverage. Define a column once; place it eight times.',
     ' Change its plate thickness and all eight change with it.</p>',
 
@@ -8707,6 +8755,8 @@
     ' module by itself</td></tr>',
     '<tr><td><code>ASSY</code></td><td><b>the main window.</b> Only assembled members are drawn,',
     ' weighed and exported</td></tr>',
+    '<tr><td><code>VIEW</code>, <code>PLOT</code></td><td><b>the DXF, and nowhere else.</b>',
+    ' They put nothing in the main window - they say what the drawing is to hold</td></tr>',
     '</tbody></table>',
 
     '<h2>The sheet</h2>',
@@ -9109,56 +9159,6 @@
     ' L.X, L.Y, L.Z and a PLANE, because stretching a plate would stretch its thickness. Two',
     ' identical points, or offsets that eat the whole member, are reported and the row is skipped.</p>',
 
-    '<h3>FIT - cut an end to the member it lands on</h3>',
-    sheet([['FIT', 'member', 'B | E', 'target', 'GAP'],
-           ['MODULE', 'id', 'FIT', 'member', 'B | E', 'target', 'GAP']]),
-    '<p>Two members meeting at a skew with nothing between them - a truss diagonal welded',
-    ' straight to its chord, a raking column onto a beam flange - need the end cut to the face',
-    ' it lands on, and that cut is not square: the plane leans by whatever angle the two axes',
-    ' make. <b>OFF trims square across the member; FIT cuts to a face.</b></p>',
-    '<p>The row names who it lands on and stops there. Which face, and at what angle, is',
-    ' already in the model: run the member&rsquo;s own axis out past that end and it meets one',
-    ' face first. That is the cut plane. So the sheet says what the joint <i>is</i>, not what',
-    ' the saw setting works out to.</p>',
-    '<table class="gt"><thead><tr><th>column</th><th>what it does</th></tr></thead><tbody>',
-    '<tr><td><b>member</b></td><td>The member being cut. It has to be one placed <b>between two',
-    ' points</b> - a plate has no axis to cut across. Name a copy in full (<code>s.brc_2</code>);',
-    ' a bare name means the first one, and says so.</td></tr>',
-    '<tr><td><b>B / E</b></td><td>Which end. <b>B</b> is the (LX1, LY1, LZ1) end, <b>E</b> the',
-    ' (LX2, LY2, LZ2) end - the same two ends OFF_B and OFF_E trim. One row per end; both ends',
-    ' of one member may be fitted.</td></tr>',
-    '<tr><td><b>target</b></td><td>The member to cut against, <b>in the same module</b>. Any',
-    ' plate or section; not a round bar, whose surface is curved and has no one plane to cut',
-    ' to.</td></tr>',
-    '<tr><td><b>GAP</b></td><td>Root gap, measured square off the cut face. Positive pulls the',
-    ' steel back from the face, the same sense OFF_B has. Blank is 0 - hard against it.</td></tr>',
-    '</tbody></table>',
-    sheet([['# SECT', 'id', 'mat', 'length', 'TYPE', 'base.pt', 'v1', 'v2', 'v3', 'v4', 'v5', 'v6', 'v7'],
-           ['SECT', 's.col', 'SM490', 3000, 'H', 'mc', 400, 200, 200, 8, 13, 13, 16],
-           ['SECT', 's.brc', 'SM490', 2000, 'H', 'mc', 300, 150, 150, 6.5, 9, 9, 13],
-           ['# MODULE', 'id', 'member', 'Ref.Pt', 'LX1', 'LY1', 'LZ1', 'LX2', 'LY2', 'LZ2'],
-           ['MODULE', 'md.j', 's.col', '', 0, 0, 0, 0, 0, 3000],
-           ['MODULE', 'md.j', 's.brc', '', 0, 1400, 0, 0, 0, 1400],
-           ['MODULE', 'md.j', 'FIT', 's.brc', 'E', 's.col', 0],
-           ['MODULE', 'md.j', 'BASE', 's.col', 'mc']],
-          'The brace is drawn to the column axis and cut back to the flange face it meets. ' +
-          'Work point to work point is 1979.9; what gets built is 1697.1, cut at 45\u00b0. ' +
-          'Move the column and the brace re-cuts itself.'),
-    '<p><b>The whole section, or nothing.</b> Every vertex of the section is shot down the axis,',
-    ' and all of them have to land on the same face. A joint where only part of the section is',
-    ' caught - a flange overhanging the member it lands on - is <b>reported and left square</b>,',
-    ' not cut on a guess. The rest of that end is a choice between sawing through on the extended',
-    ' plane and coping round the other member, and the model cannot make it for you.</p>',
-    '<p>What follows the cut: the weight is the section area times the length <b>at the',
-    ' centroid</b>, which is exact for a plane cut, not an estimate. The SECTIONS length reads',
-    ' <code>L1697.06&ang;</code>, and two members cut at different angles are two parts in the',
-    ' take-off. Drawings, measure snaps and the clash check all follow the real end face. IFC',
-    ' carries the member as an explicit brep, since a leaning end is no longer a sweep.</p>',
-    '<p class="warn">A face nearly parallel to the member, two faces that cross inside the',
-    ' section, a target the axis never reaches, or an end fitted twice - each is reported and',
-    ' that row is skipped. <code>OFF</code> on an end that is also fitted no longer decides',
-    ' where the steel stops; use <code>GAP</code> instead.</p>',
-
     '<h3>ASSY - units into the model</h3>',
     '<p>Four commands. Column D picks which.</p>',
     sheet([['ASSY', 'id', 'ref', 'ADD', 'G.X', 'G.Y', 'G.Z', 'ROT.X', 'ROT.Y', 'ROT.Z'],
@@ -9227,6 +9227,72 @@
     '<p>Ticking the header hides the whole assembly; each row still hides its own member, and',
     ' carries the colour of the module or plate it holds.</p>',
 
+    '<h3>VIEW - a drawing of what you placed</h3>',
+    '<p>One drawing of a <b>MODULE or an ASSY</b>, seen from where the row says, at the scale',
+    ' the row gives it. Only that id is drawn &mdash; nothing standing beside it comes along.</p>',
+    '<p>The columns do not move. A named direction leaves AZ and EL empty rather than sliding',
+    ' the scale two cells along, so the sixth cell is the scale wherever you look down the',
+    ' block &mdash; and a named direction <i>with</i> something in those cells is refused by',
+    ' name, because that is the shape of a row written to the older grammar.</p>',
+    '<p>The columns do not move. A named direction leaves AZ and EL empty rather than',
+    ' sliding the scale two cells along, so the sixth cell is the scale wherever you look',
+    ' down the block &mdash; and a named direction <i>with</i> something in those cells is',
+    ' refused by name, because that is the shape of a row written to the older grammar.</p>',
+    sheet([['# VIEW', 'id', 'dir', 'AZ', 'EL', 'scale', 'title'],
+           ['VIEW', 'md.wpl', 'FRONT', '', '', 10, 'Web plate'],
+           ['VIEW', 'md.bay', 'ISO', '', '', 25, 'Bay assembly'],
+           ['VIEW', 'as.frame', '3D', -45, 35.26, 50, 'Frame, from the low side'],
+           ['VIEW', 'as.frame', 'TOP', '', '', 50, 'Frame, from above']],
+          'A named direction leaves <b>AZ</b> and <b>EL</b> empty rather than sliding the' +
+          ' scale two cells left. Row 4 is the corner <code>ISO</code> names, written out;' +
+          ' <code>3D -90 0</code> is likewise exactly <code>FRONT</code>, and that is' +
+          ' asserted against the real export rather than assumed.'),
+    '<p><b>The direction a VIEW is seen from.</b> Six of them have names &mdash;',
+    ' <code>FRONT</code>, <code>BACK</code>, <code>LEFT</code>, <code>RIGHT</code>,',
+    ' <code>TOP</code>, <code>BOTTOM</code>. Four more name an isometric corner by where the',
+    ' viewer stands &mdash; <code>ISO-SE</code>, <code>ISO-SW</code>, <code>ISO-NW</code>,',
+    ' <code>ISO-NE</code> &mdash; and <code>ISO</code> on its own is the south-east one, the',
+    ' corner that shows the face FRONT shows plus the right side and the top.</p>',
+    '<p>Any other direction is the word <code>3D</code> and two angles:</p>',
+    '<table class="gt"><thead><tr><th>angle</th><th>what it does</th></tr></thead><tbody>',
+    '<tr><td><b>AZ</b></td><td>walks the viewer round the model in the ground plane, measured',
+    ' from +X (east) anticlockwise. On the page the model turns about its vertical</td></tr>',
+    '<tr><td><b>EL</b></td><td>lifts the viewer off the ground, &minus;90 to 90. At 0 you',
+    ' stand level with the model; at 90 you are directly overhead looking down. On the page',
+    ' the model tips towards you and its top comes into view</td></tr>',
+    '</tbody></table>',
+    '<p>The page keeps world Z upright &mdash; up is world Z with the view direction taken',
+    ' out of it &mdash; so <b>a column draws vertical whatever the angles are</b>. That is why',
+    ' two angles are enough where a rotation would need three: a third angle would only tilt',
+    ' the picture on the paper, which a drawing does not want. The named views are the special',
+    ' cases of the same two numbers:</p>',
+    '<table class="gt"><thead><tr><th>view</th><th>AZ</th><th>EL</th></tr></thead><tbody>',
+    '<tr><td>FRONT</td><td>&minus;90</td><td>0</td></tr>',
+    '<tr><td>RIGHT</td><td>0</td><td>0</td></tr>',
+    '<tr><td>BACK</td><td>90</td><td>0</td></tr>',
+    '<tr><td>LEFT</td><td>180</td><td>0</td></tr>',
+    '<tr><td>TOP</td><td>0</td><td>90</td></tr>',
+    '<tr><td>BOTTOM</td><td>0</td><td>&minus;90</td></tr>',
+    '<tr><td>ISO</td><td>&minus;45</td><td>35.26</td></tr>',
+    '</tbody></table>',
+    '<p><code>VIEW md.bay ISO Bay assembly</code> and',
+    ' <code>VIEW md.bay 3D -45 35.26 Bay assembly</code> draw the same picture. EL past 90',
+    ' is refused rather than read: over the top is a direction already reachable below 90',
+    ' with AZ turned round, and taking it at face value draws the model upside down.</p>',
+    '<h3>PLOT - a part on its own</h3>',
+    '<p>Not a thing in place seen from somewhere, but a part at its standard section with how',
+    ' many of it were placed. The subject is a definition rather than a position, which is why',
+    ' it is a different word - and <code>ALL</code> is allowed, because naming forty parts by',
+    ' hand goes stale the moment one is added. Round <b>bars are never drawn</b>: a bar is a',
+    ' length of stock, and a circle with a diameter beside it says nothing the take-off does',
+    ' not.</p>',
+    sheet([['# PLOT', 'PART | SECT', 'id | ALL', 'scale', 'title'],
+           ['PLOT', 'PART', 'ALL', 10, 'Plates'],
+           ['PLOT', 'SECT', 'ALL', 20, 'Sections'],
+           ['PLOT', 'PART', 'pl.gusset', 5]],
+          'Plates and sections are asked for separately so each can carry its own scale -' +
+          ' a gusset and a six-metre beam do not share one. <code>ALL</code> saves naming' +
+          ' forty parts by hand and going stale the moment one is added.'),
     '<h2>Reading the screen</h2>',
     '<h3>Moving around</h3>',
     '<table class="gt"><thead><tr><th>where</th><th>mouse</th><th>what happens</th></tr></thead><tbody>',
@@ -9291,26 +9357,8 @@
     ' drawn</b> either way &mdash; a bar is a length of stock, and a circle with a diameter',
     ' beside it says nothing the take-off does not.</td></tr>',
     '</tbody></table>',
-    '<p>The columns do not move. A named direction leaves AZ and EL empty rather than',
-    ' sliding the scale two cells along, so the sixth cell is the scale wherever you look',
-    ' down the block &mdash; and a named direction <i>with</i> something in those cells is',
-    ' refused by name, because that is the shape of a row written to the older grammar.</p>',
-    sheet([['# VIEW', 'id', 'dir', 'AZ', 'EL', 'scale', 'title'],
-           ['VIEW', 'md.wpl', 'FRONT', '', '', 10, 'Web plate'],
-           ['VIEW', 'md.bay', 'ISO', '', '', 25, 'Bay assembly'],
-           ['VIEW', 'as.frame', '3D', -45, 35.26, 50, 'Frame, from the low side'],
-           ['VIEW', 'as.frame', 'TOP', '', '', 50, 'Frame, from above']],
-          'A named direction leaves <b>AZ</b> and <b>EL</b> empty rather than sliding the' +
-          ' scale two cells left. Row 4 is the corner <code>ISO</code> names, written out;' +
-          ' <code>3D -90 0</code> is likewise exactly <code>FRONT</code>, and that is' +
-          ' asserted against the real export rather than assumed.'),
-    sheet([['# PLOT', 'PART | SECT', 'id | ALL', 'scale', 'title'],
-           ['PLOT', 'PART', 'ALL', 10, 'Plates'],
-           ['PLOT', 'SECT', 'ALL', 20, 'Sections'],
-           ['PLOT', 'PART', 'pl.gusset', 5]],
-          'Plates and sections are asked for separately so each can carry its own scale -' +
-          ' a gusset and a six-metre beam do not share one. <code>ALL</code> saves naming' +
-          ' forty parts by hand and going stale the moment one is added.'),
+    '<p>The rows themselves are set out under <b>Keywords</b>, with <code>VIEW</code> and',
+    ' <code>PLOT</code> beside every other keyword rather than buried in this section.</p>',
     '<p><b>Hidden lines are removed.</b> An edge with steel in front of it is not drawn, in',
     ' every VIEW drawing &mdash; not only the angled ones, because tying it to how the',
     ' direction was spelled would make <code>3D -90 0</code> and <code>FRONT</code> two',
@@ -9328,38 +9376,6 @@
     ' That answered &ldquo;what is in this model&rdquo;, which the model tree on the left',
     ' answers better. Nothing in the engine knows what a splice is.</p>',
 
-    '<p><b>The direction a VIEW is seen from.</b> Six of them have names &mdash;',
-    ' <code>FRONT</code>, <code>BACK</code>, <code>LEFT</code>, <code>RIGHT</code>,',
-    ' <code>TOP</code>, <code>BOTTOM</code>. Four more name an isometric corner by where the',
-    ' viewer stands &mdash; <code>ISO-SE</code>, <code>ISO-SW</code>, <code>ISO-NW</code>,',
-    ' <code>ISO-NE</code> &mdash; and <code>ISO</code> on its own is the south-east one, the',
-    ' corner that shows the face FRONT shows plus the right side and the top.</p>',
-    '<p>Any other direction is the word <code>3D</code> and two angles:</p>',
-    '<table class="gt"><thead><tr><th>angle</th><th>what it does</th></tr></thead><tbody>',
-    '<tr><td><b>AZ</b></td><td>walks the viewer round the model in the ground plane, measured',
-    ' from +X (east) anticlockwise. On the page the model turns about its vertical</td></tr>',
-    '<tr><td><b>EL</b></td><td>lifts the viewer off the ground, &minus;90 to 90. At 0 you',
-    ' stand level with the model; at 90 you are directly overhead looking down. On the page',
-    ' the model tips towards you and its top comes into view</td></tr>',
-    '</tbody></table>',
-    '<p>The page keeps world Z upright &mdash; up is world Z with the view direction taken',
-    ' out of it &mdash; so <b>a column draws vertical whatever the angles are</b>. That is why',
-    ' two angles are enough where a rotation would need three: a third angle would only tilt',
-    ' the picture on the paper, which a drawing does not want. The named views are the special',
-    ' cases of the same two numbers:</p>',
-    '<table class="gt"><thead><tr><th>view</th><th>AZ</th><th>EL</th></tr></thead><tbody>',
-    '<tr><td>FRONT</td><td>&minus;90</td><td>0</td></tr>',
-    '<tr><td>RIGHT</td><td>0</td><td>0</td></tr>',
-    '<tr><td>BACK</td><td>90</td><td>0</td></tr>',
-    '<tr><td>LEFT</td><td>180</td><td>0</td></tr>',
-    '<tr><td>TOP</td><td>0</td><td>90</td></tr>',
-    '<tr><td>BOTTOM</td><td>0</td><td>&minus;90</td></tr>',
-    '<tr><td>ISO</td><td>&minus;45</td><td>35.26</td></tr>',
-    '</tbody></table>',
-    '<p><code>VIEW md.bay ISO Bay assembly</code> and',
-    ' <code>VIEW md.bay 3D -45 35.26 Bay assembly</code> draw the same picture. EL past 90',
-    ' is refused rather than read: over the top is a direction already reachable below 90',
-    ' with AZ turned round, and taking it at face value draws the model upside down.</p>',
     '<p><b>The steel is written 1:1 in millimetres throughout.</b> Only the annotation changes',
     ' size, so every drawing shares one coordinate system and a viewport plotted at its',
     ' own row&rsquo;s scale comes out right. The file is DXF R12 and the annotation is drawn -',
@@ -9382,13 +9398,11 @@
     '<p>The chain goes <b>nearest the steel</b> and the overall size stands outside it: a chain',
     ' read after the number it adds up to is a chain read twice. A number too wide for its own',
     ' link steps one text height further out rather than sitting on its neighbour.</p>',
-    '<p><b>Context on a named view.</b> The rest of the model is drawn on <code>PL3D-HIDDEN</code>',
-    ' round the part, so a plate is seen on its beam rather than floating. It is trimmed three',
-    ' ways, and each one is there for a reason: <b>across the page</b>, because an 1820&nbsp;mm',
-    ' beam would otherwise set the size of a 300&nbsp;mm drawing; <b>in depth</b>, because an',
-    ' orthographic view is flat and the bottom flange would come through the top one; and to',
-    ' <b>outlines only, no bars</b>, because every hole and every bolt in the rest of the model',
-    ' says nothing about where this part sits and buries the part that does.</p>',
+    '<p><b>Nothing but the id you named.</b> A drawing used to carry the rest of the model',
+    ' round its subject, in outline, so a plate was seen on its beam rather than floating.',
+    ' That is gone: a <code>VIEW</code> row draws the module or assembly it names and nothing',
+    ' else. Drawing more than the sheet asked for is the engine having an opinion, and with',
+    ' hidden lines now removed the context would mostly have been hidden anyway.</p>',
     '<p>A cut is measured at the size the sheet wrote, even where it hangs over an edge -',
     ' only the overlap comes out of the steel, but the whole shape is what gets cut.</p>',
     '<p><b>Round cuts come out round.</b> A hole is a real <code>CIRCLE</code>, and one that',
@@ -9409,10 +9423,12 @@
     '<tr><td><code>PL3D-TEXT</code></td><td>CONTINUOUS</td><td>numbers, part names, quantities</td></tr>',
     '<tr><td><code>PL3D-TITLE</code></td><td>CONTINUOUS</td><td>block and view titles</td></tr>',
     '<tr><td><code>PL3D-CENTER</code></td><td>CENTER</td><td>centre and gauge lines</td></tr>',
-    '<tr><td><code>PL3D-HIDDEN</code></td><td>HIDDEN</td><td>what lies behind the part in view</td></tr>',
+    '<tr><td><code>PL3D-HIDDEN</code></td><td>HIDDEN</td><td>nothing, now &mdash; it carried the',
+    ' context round a view, and a view draws only what it names</td></tr>',
     '</tbody></table>',
-    '<p>The last two are registered and ready but nothing is drawn on them yet - they arrive',
-    ' with the bolt pitch chains and the view context.</p>',
+    '<p>The last two are registered and ready, and nothing is drawn on either: an edge behind',
+    ' steel is removed rather than dashed, so there is nothing left for the hidden layer to',
+    ' hold.</p>',
 
     '<h3>Save BOQ - the take-off</h3>',
     '<p>A workbook of four sheets, written from the model on screen. Weights are computed',
@@ -9486,7 +9502,14 @@
            ['# ASSY', 'id', 'ref', 'cmd', 'G.X', 'G.Y', 'G.Z', 'repeat'],
            ['ASSY', 'as.comb', 'md.tower', 'ADD', 0, 0, 0],
            ['ASSY', 'as.comb', 'md.tower', 'COPY', 2000, 0, 0, 2],
+           ['# VIEW', 'id', 'dir', 'AZ', 'EL', 'scale', 'title'],
+           ['VIEW', 'as.comb', 'ISO', '', '', 25, 'Tower - isometric'],
+           ['VIEW', 'md.tower', 'FRONT', '', '', 10, 'Tower module'],
+           ['# PLOT', 'PART | SECT', 'id | ALL', 'scale', 'title'],
+           ['PLOT', 'PART', 'ALL', 10, 'Plates'],
            ['END']],
+          'The last three rows are the drawings. Without them the sheet builds the model ' +
+          'and exports nothing - a drawing is made because a row asked for it. ' +
           'Both MODULE grammars in one block: three members on a plane, then a brace ' +
           'stretched from (300, 0, 0) to (0, 0, 2600) - 2617 between the points, built 2497 ' +
           'because each end is held 60 clear. The result is one group, <b>AS.COMB</b>, ' +
@@ -10332,9 +10355,75 @@
     });
   }
 
+  /* The contents list is read off the headings when the guide first opens, not
+     written out beside them. A list typed by hand is a second copy of the
+     structure, and the copy is what goes stale - a section renamed here and not
+     there, or one added and never listed. This cannot drift: it IS the
+     headings.
+
+     Numbering does two jobs at once. It makes a heading carry more weight than
+     the table under it - a dark table head was outweighing the title it sat
+     beneath, so the eye landed on the table and the reader lost what section
+     they were in - and it gives the list something to point at. */
+  var guideIndexed = false;
+  function guideIndex() {
+    var doc = document.querySelector('#pb-help .doc');
+    if (!doc || guideIndexed) return;
+    guideIndexed = true;
+    var heads = doc.querySelectorAll('h2, h3');
+    var nav = ['<nav id="pb-toc"><b>Contents</b><ol>'];
+    var ch = 0, sub2 = 0;
+    for (var i = 0; i < heads.length; i++) {
+      var h = heads[i], top = h.tagName === 'H2';
+      // read before anything is put into the heading, or the list quotes it back
+      var title = h.textContent.trim();
+      if (top) { ch++; sub2 = 0; } else { sub2++; }
+      /* A h3 before any h2 has no chapter to belong to - it is numbered as one
+         rather than as 0.1, which would read as a mistake. */
+      var no = top || !ch ? String(top ? ch : ++ch) : ch + '.' + sub2;
+      h.id = 'g' + no.replace('.', '-');
+      var badge = document.createElement('span');
+      badge.className = 'n';
+      badge.textContent = no;
+      h.insertBefore(badge, h.firstChild);
+      /* The way back. A heading is where a reader arrives and where they finish,
+         so the return sits on it rather than at the foot of a section whose
+         length they would have to reach first. */
+      var up = document.createElement('a');
+      up.className = 'up';
+      up.href = '#';
+      up.title = 'back to contents';
+      up.innerHTML = '&#8593; contents';
+      h.appendChild(up);
+      nav.push('<li class="' + (top ? 'a' : 'b') + '"><a href="#" data-g="' + h.id + '">' +
+               no + '  ' + title + '</a></li>');
+    }
+    nav.push('</ol></nav>');
+    var box = document.createElement('div');
+    box.innerHTML = nav.join('');
+    doc.insertBefore(box.firstChild, doc.firstChild);
+    /* Scrolling is done here rather than by the href, because the document that
+       scrolls is .doc and not the page - a real anchor jump would move the page
+       behind the dialog and leave the guide where it was. */
+    doc.querySelectorAll('#pb-toc a').forEach(function (a) {
+      a.addEventListener('click', function (e) {
+        e.preventDefault();
+        var t = document.getElementById(a.getAttribute('data-g'));
+        if (t) doc.scrollTop += t.getBoundingClientRect().top -
+                                doc.getBoundingClientRect().top - 8;
+      });
+    });
+    // the contents are the first thing in the document, so going back is the top
+    doc.querySelectorAll('h2 .up, h3 .up').forEach(function (a) {
+      a.addEventListener('click', function (e) { e.preventDefault(); doc.scrollTop = 0; });
+    });
+  }
   function openGuide() {
     var el = document.getElementById('pb-help');
-    if (el) { el.style.display = 'flex'; el.querySelector('.doc').scrollTop = 0; }
+    if (!el) return;
+    el.style.display = 'flex';
+    guideIndex();
+    el.querySelector('.doc').scrollTop = 0;
   }
   function closeGuide() {
     var el = document.getElementById('pb-help');
