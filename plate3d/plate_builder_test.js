@@ -190,6 +190,11 @@
     '#pb-bar button.guide.ex { margin-left:0; color:#047857; border-color:#a7f3d0;',
     '  background:#ecfdf5; }',
     '#pb-bar button.guide.ex:hover { background:#d1fae5; border-color:#6ee7b7; }',
+    /* Tutorial stands between the two and takes neither of their colours, so
+       the three read as three things rather than as one shape repeated. */
+    '#pb-bar button.guide.tut { margin-left:0; color:#6d28d9; border-color:#ddd6fe;',
+    '  background:#f5f3ff; }',
+    '#pb-bar button.guide.tut:hover { background:#ede9fe; border-color:#c4b5fd; }',
     '#pb-bar .chk { display:inline-flex; align-items:center; gap:5px; font-size:12px;',
     '  color:#475569; cursor:pointer; padding:5px 9px; border:1px solid var(--line);',
     '  border-radius:6px; background:#fff; flex:0 0 auto; transition:background .12s; }',
@@ -598,6 +603,41 @@
     '#pb-help .flow small { font-weight:400; font-size:10.5px; color:#64748b; }',
     '#pb-help .flow i { color:#94a3b8; font-style:normal; font-size:13px; }',
     '#pb-help .lede { font-size:15px; font-weight:600; color:#0f172a; margin:10px 0 6px; }',
+    /* ---- the tutorial, in that same window ---- */
+    // the one heading that names the document rather than a step
+    '#pb-help h2.plain { border-bottom:0; margin:14px 0 0; padding-bottom:0; }',
+    '#pb-help .tutcard { margin:14px 0 6px; padding:12px 16px; background:#f8fafc;',
+    '  border:1px solid var(--hair); border-radius:8px; }',
+    '#pb-help .tutcard b { font-size:13.5px; color:#0f172a; }',
+    '#pb-help .tutcard p { margin:4px 0 6px; font-size:12.5px; color:#475569; }',
+    '#pb-help .tutcard i { font-style:normal; font-size:11.5px; color:#94a3b8; }',
+    /* Something to go and do, which is not a warning - the amber box already
+       means "this will bite you" and must go on meaning only that. */
+    '#pb-help .tuttry { background:#f5f3ff; border:1px solid #ddd6fe; border-radius:8px;',
+    '  padding:8px 12px; color:#5b21b6; }',
+    '#pb-help .tutact { display:flex; align-items:center; gap:10px; flex-wrap:wrap;',
+    '  margin:12px 0 4px; }',
+    '#pb-help .tutact button { font:inherit; display:inline-flex; align-items:center;',
+    '  gap:6px; font-size:12px; font-weight:600; padding:6px 14px; border-radius:6px;',
+    '  cursor:pointer; flex:0 0 auto;',
+    '  transition:background .12s,border-color .12s,box-shadow .12s,transform .06s; }',
+    '#pb-help .tutact button svg { flex:0 0 auto; }',
+    '#pb-help .tutact button:active { transform:translateY(1px) scale(.97); box-shadow:none; }',
+    '#pb-help button.tutgo { background:var(--dim); border:1px solid var(--dim); color:#fff; }',
+    '#pb-help button.tutgo:hover { background:#1d4ed8; border-color:#1d4ed8;',
+    '  box-shadow:0 2px 8px rgba(37,99,235,.35); }',
+    '#pb-help button.tutdl { background:#fff; border:1px solid var(--line); color:#334155; }',
+    '#pb-help button.tutdl:hover { background:#f1f5f9; }',
+    '#pb-help .tuts { font-size:11.5px; color:#94a3b8; }',
+    '#pb-help .tuts.ok { color:#047857; }',
+    '#pb-help .tuts.bad { color:#b91c1c; }',
+    '#pb-help details { margin:4px 0 2px; }',
+    '#pb-help details summary { cursor:pointer; font-size:11.5px; color:#64748b;',
+    '  padding:3px 0; }',
+    '#pb-help details summary:hover { color:var(--dim); }',
+    // the rows this step brought, in the sheet that holds every row so far
+    '#pb-help table.xls tr.nw td { background:#eff6ff; }',
+    '#pb-help table.xls tr.nw .rn { background:#dbeafe; color:#1d4ed8; }',
     '#pb-help .props { display:grid; grid-template-columns:1fr 1fr; gap:10px; margin:14px 0 4px; }',
     '@media(max-width:720px){ #pb-help .props { grid-template-columns:1fr; } }',
     '#pb-help .props div { background:#f8fafc; border:1px solid var(--hair); border-radius:8px;',
@@ -2169,6 +2209,27 @@
      What is actually checked is the message: its shape, and its size. Beyond
      that parseExcelRows is the guard, exactly as it is for a workbook - the
      rows have to survive the same parser either way. */
+  /* Rows that were never a file. The quick form posts them in and the
+     tutorial hands them over directly; both land here, and the four lines at
+     the bottom are the four the file path runs. A second door into one room,
+     not a second room. Returns what was parsed, or null if the sheet was
+     refused - the caller has already been told by then. */
+  function buildFromRows(rows, name, note) {
+    var parsed;
+    try {
+      parsed = parseExcelRows(rows, null);
+    } catch (err) {
+      fatalStop(name, ['Could not read the rows: ' + (err && err.message || err)]);
+      return null;
+    }
+    if (parsed.fatal) { fatalStop(name, parsed.fatal); return null; }
+    buildLog = [];
+    run({ title: 'PLATE3D',
+          subtitle: name + ' · PLATE/CUT/ASSY · unit: mm',
+          note: note, __parsed: parsed });
+    showResult(name, parsed);
+    return parsed;
+  }
   var QUICK_MAX_ROWS = 5000;                     // a real sheet is a few hundred
   /* Under ui=quick the whole File menu is gone, exports included, because in
      that mode the toolbar belongs to the page around the frame - one owner,
@@ -2197,20 +2258,9 @@
     if (!d || d.plate3d !== 'rows') return;
     if (!Array.isArray(d.rows) || !d.rows.length || d.rows.length > QUICK_MAX_ROWS) return;
     var name = typeof d.name === 'string' && d.name ? d.name : 'Quick input';
-    var parsed;
-    try {
-      parsed = parseExcelRows(d.rows, null);
-    } catch (err) {
-      fatalStop(name, ['Could not read the rows: ' + (err && err.message || err)]);
-      return;
-    }
-    if (parsed.fatal) { fatalStop(name, parsed.fatal); return; }
-    buildLog = [];
-    run({ title: 'PLATE3D',
-          subtitle: name + ' · PLATE/CUT/ASSY · unit: mm',
-          note: 'Built from the form above — edit a value and the model follows.',
-          __parsed: parsed });
-    showResult(name, parsed);
+    var parsed = buildFromRows(d.rows, name,
+      'Built from the form above — edit a value and the model follows.');
+    if (!parsed) return;
     /* Tell the sender it landed, so the form can report without the reader
        having to look down at the panel. `items` is the built scene, so its
        length is the count the result panel shows - not a field on `parsed`,
@@ -8616,7 +8666,7 @@
   // input look like a text file being piped somewhere, which is the wrong idea.
   // kw = the column holding the keyword, so an example can show a block that
   // does not start at A
-  function sheet(rows, note, kw) {
+  function sheet(rows, note, kw, mark) {
     var cols = 0, i, k = kw || 0;
     rows.forEach(function (r) { if (r.length > cols) cols = r.length; });
     var h = '<div class="xlswrap"><table class="xls"><thead><tr><th class="rn"></th>';
@@ -8624,7 +8674,11 @@
     h += '</tr></thead><tbody>';
     rows.forEach(function (r, n) {
       var cmt = String(r[k] === undefined ? '' : r[k]).charAt(0) === '#';
-      h += '<tr' + (cmt ? ' class="cmt"' : '') + '><td class="rn">' + (n + 1) + '</td>';
+      /* A row a tutorial step has just added. Built as one string so a table
+         with no marks comes out exactly as it always did. */
+      var rc = (cmt ? ' cmt' : '') + (mark && mark.indexOf(n) >= 0 ? ' nw' : '');
+      h += '<tr' + (rc ? ' class="' + rc.slice(1) + '"' : '') + '><td class="rn">' +
+           (n + 1) + '</td>';
       for (i = 0; i < cols; i++) {
         var v = (r[i] === undefined || r[i] === null) ? '' : String(r[i]);
         var cls = cmt ? '' : (i === k && v !== '' ? ' class="kw"'
@@ -8702,6 +8756,21 @@
     '1 1v2H4V3zm1 5a2 2 0 0 0-2 2v2H2a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h12a1 1 0 0 1 1 1v3a1 1 0 0 1 ' +
     '-1 1h-1v-2a2 2 0 0 0-2-2H5zm7 2v3a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1v-3a1 1 0 0 1 1-1h6a1 1 0 0 ' +
     '1 1 1z"/></svg>';
+  // Bootstrap Icons "play-fill" and "book", MIT, inlined like the rest.
+  var ICON_PLAY =
+    '<svg viewBox="0 0 16 16" width="13" height="13" fill="currentColor" aria-hidden="true">' +
+    '<path d="M11.596 8.697l-6.363 3.692c-.54.313-1.233-.066-1.233-.697V4.308c0-.63.692-1.01' +
+    ' 1.233-.696l6.363 3.692a.802.802 0 0 1 0 1.393z"/></svg>';
+  var ICON_BOOK =
+    '<svg viewBox="0 0 16 16" width="14" height="14" fill="currentColor" aria-hidden="true">' +
+    '<path d="M1 2.828c.885-.37 2.154-.769 3.388-.893 1.33-.134 2.458.063 3.112.752v9.746c-.935' +
+    '-.53-2.12-.603-3.213-.493-1.18.12-2.37.461-3.287.811V2.828zm7.5-.141c.654-.689 1.782-.886' +
+    ' 3.112-.752 1.234.124 2.503.523 3.388.893v9.923c-.918-.35-2.107-.692-3.287-.81-1.094-.111' +
+    '-2.278-.039-3.213.492V2.687zM8 1.783C7.015.936 5.587.81 4.287.94c-1.514.153-3.042.672' +
+    '-3.994 1.105A.5.5 0 0 0 0 2.5v11a.5.5 0 0 0 .707.455c.882-.4 2.303-.881 3.68-1.02 1.409' +
+    '-.142 2.59.087 3.223.877a.5.5 0 0 0 .78 0c.633-.79 1.814-1.019 3.222-.877 1.378.139 2.8' +
+    '.62 3.681 1.02A.5.5 0 0 0 16 13.5v-11a.5.5 0 0 0-.293-.455c-.952-.433-2.48-.952-3.994' +
+    '-1.105C10.413.809 8.985.936 8 1.783z"/></svg>';
   var ICON_HELP =
     '<svg viewBox="0 0 16 16" width="14" height="14" fill="currentColor" aria-hidden="true">' +
     '<path d="M8 15A7 7 0 1 1 8 1a7 7 0 0 1 0 14zm0 1A8 8 0 1 0 8 0a8 8 0 0 0 0 16z"/>' +
@@ -9553,6 +9622,439 @@
     '</ul>'
   ].join('\n');
 
+
+  /* ---------------- tutorials ----------------
+
+     The guide says what every keyword does. What it never does is walk one
+     sheet from its first row to a finished model, and that walk is what a
+     reader wants before anything else. A tutorial is that walk.
+
+     Written rather than filmed. The premise of this tool is that you write a
+     spreadsheet, so a reader has to end up holding the sheet - which a film
+     cannot hand over and cannot be paused into. Every step therefore does
+     both: it loads straight into the viewer, and it saves as a workbook.
+
+     Every step is a WHOLE sheet that builds. Nothing here is a fragment
+     waiting for a later step to explain it - press Load on step 3 and three
+     members appear. Which rows a step added is worked out by comparing it
+     with the step before, so the list of new rows cannot fall out of step
+     with the rows themselves.
+
+     The rows are not typed here. They are the rows of the example workbook,
+     lifted from it by tools/gen_tutorial.js and checked back against it by
+     tools/check_tutorial.js, which is what stops a tutorial teaching a sheet
+     the example does not have. Every members-and-weight figure quoted in the
+     text below is checked the same way, by building the step. */
+  /* Every row of the finished sheet, named once. A step lists the names it
+     has by then, so no row is written twice and no two steps can disagree
+     about what a row says. Generated from PLATE3D_SPLICE.xlsx -
+     tools/check_tutorial.js proves the last step still equals it. */
+  var TUT_SPLICE = {
+    coord: [['COORD','ZUP']],
+    hoB: [['HOLE','ho.b','CIRC','mc',24]],
+    hoFil: [['HOLE','ho.fil','CIRC','mc',36]],
+    plTf: [['PLATE','pl.tf','SM355',15,'RECT','mc',900,300]],
+    plBf: [['PLATE','pl.bf','SM355',15,'RECT','mc',900,300]],
+    plWb: [['PLATE','pl.wb','SM355',10,'RECT','mc',900,270]],
+    plFil: [['PLATE','pl.fil','SM355',900,'RECT','mc',18,18]],
+    plTp: [['PLATE','pl.tp','SM355',12,'RECT','mc',300,280]],
+    plTi: [['PLATE','pl.ti','SM355',10,'RECT','mc',300,110]],
+    plWp: [['PLATE','pl.wp','SM355',10,'RECT','mc',280,220]],
+    plBi: [['PLATE','pl.bi','SM355',10,'RECT','mc',300,110]],
+    plBp: [['PLATE','pl.bp','SM355',12,'RECT','mc',300,280]],
+    boF: [['BAR','bo.f','SS275',22,67]],
+    boW: [['BAR','bo.w','SS275',22,60]],
+    cutTp: [['CUT','pl.tp',35,50,'ho.b',75,0,1,0,55,1],
+           ['CUT','pl.tp',35,-50,'ho.b',75,0,1,0,-55,1],
+           ['CUT','pl.tp',-35,50,'ho.b',-75,0,1,0,55,1],
+           ['CUT','pl.tp',-35,-50,'ho.b',-75,0,1,0,-55,1]],
+    cutBp: [['CUT','pl.bp',35,50,'ho.b',75,0,1,0,55,1],
+           ['CUT','pl.bp',35,-50,'ho.b',75,0,1,0,-55,1],
+           ['CUT','pl.bp',-35,50,'ho.b',-75,0,1,0,55,1],
+           ['CUT','pl.bp',-35,-50,'ho.b',-75,0,1,0,-55,1]],
+    cutTi: [['CUT','pl.ti',35,-27.5,'ho.b',75,0,1,0,55,1],
+           ['CUT','pl.ti',-35,-27.5,'ho.b',-75,0,1,0,55,1]],
+    cutBi: [['CUT','pl.bi',35,-27.5,'ho.b',75,0,1,0,55,1],
+           ['CUT','pl.bi',-35,-27.5,'ho.b',-75,0,1,0,55,1]],
+    cutTf: [['CUT','pl.tf',425,50,'ho.b',-75,0,1,0,55,1],
+           ['CUT','pl.tf',425,-50,'ho.b',-75,0,1,0,-55,1]],
+    cutBf: [['CUT','pl.bf',425,50,'ho.b',-75,0,1,0,55,1],
+           ['CUT','pl.bf',425,-50,'ho.b',-75,0,1,0,-55,1]],
+    cutWp: [['CUT','pl.wp',30,-70,'ho.b',70,0,1,0,70,2],
+           ['CUT','pl.wp',-30,-70,'ho.b',-70,0,1,0,70,2]],
+    cutFil: [['CUT','pl.fil',9,-9,'ho.fil']],
+    cutWb: [['CUT','pl.wb',360,-70,'ho.b',70,0,1,0,70,2]],
+    mdBeamL: [['MODULE','md.beaml','pl.tf','mc',-460,0,142.5,'XY'],
+             ['MODULE','md.beaml','pl.bf','mc',-460,0,-142.5,'XY'],
+             ['MODULE','md.beaml','pl.wb','mc',-460,0,0,'XZ'],
+             ['MODULE','md.beaml','pl.fil','mc',-460,14,126,'YZ',0,0,0],
+             ['MODULE','md.beaml','pl.fil','mc',-460,-14,126,'YZ',270,0,0],
+             ['MODULE','md.beaml','pl.fil','mc',-460,14,-126,'YZ',90,0,0],
+             ['MODULE','md.beaml','pl.fil','mc',-460,-14,-126,'YZ',180,0,0],
+             ['MODULE','md.beaml','BASE','pl.tf','mc']],
+    mdBeamR: [['MODULE','md.beamr','pl.tf','mc',460,0,142.5,'XY',0,0,180],
+             ['MODULE','md.beamr','pl.bf','mc',460,0,-142.5,'XY',0,0,180],
+             ['MODULE','md.beamr','pl.wb','mc',460,0,0,'XZ',0,180,0],
+             ['MODULE','md.beamr','pl.fil','mc',460,14,126,'YZ',0,0,0],
+             ['MODULE','md.beamr','pl.fil','mc',460,-14,126,'YZ',270,0,0],
+             ['MODULE','md.beamr','pl.fil','mc',460,14,-126,'YZ',90,0,0],
+             ['MODULE','md.beamr','pl.fil','mc',460,-14,-126,'YZ',180,0,0],
+             ['MODULE','md.beamr','BASE','pl.tf','mc']],
+    mdTpo: [['MODULE','md.tpo','pl.tp','mc',0,0,156,'XY'],
+           ['MODULE','md.tpo','BASE','pl.tp','mc']],
+    mdTpi: [['MODULE','md.tpi','pl.ti','mc',0,77.5,130,'XY'],
+           ['MODULE','md.tpi','pl.ti','mc',0,-77.5,130,'XY'],
+           ['MODULE','md.tpi','BASE','pl.ti_1','mc']],
+    mdBpo: [['MODULE','md.bpo','pl.bp','mc',0,0,-156,'XY'],
+           ['MODULE','md.bpo','BASE','pl.bp','mc']],
+    mdBpi: [['MODULE','md.bpi','pl.bi','mc',0,77.5,-130,'XY'],
+           ['MODULE','md.bpi','pl.bi','mc',0,-77.5,-130,'XY'],
+           ['MODULE','md.bpi','BASE','pl.bi_1','mc']],
+    mdWpl: [['MODULE','md.wpl','pl.wp','mc',0,10,0,'XZ'],
+           ['MODULE','md.wpl','pl.wp','mc',0,-10,0,'XZ'],
+           ['MODULE','md.wpl','BASE','pl.wp_1','mc']],
+    mdBlt: [['MODULE','md.blt','bo.f','',35,50,110,'XY',0,0,0,75,0,0,1,0,55,0,1],
+           ['MODULE','md.blt','bo.f','',35,-50,110,'XY',0,0,0,75,0,0,1,0,-55,0,1],
+           ['MODULE','md.blt','bo.f','',-35,50,110,'XY',0,0,0,-75,0,0,1,0,55,0,1],
+           ['MODULE','md.blt','bo.f','',-35,-50,110,'XY',0,0,0,-75,0,0,1,0,-55,0,1],
+           ['MODULE','md.blt','bo.f','',35,50,-177,'XY',0,0,0,75,0,0,1,0,55,0,1],
+           ['MODULE','md.blt','bo.f','',35,-50,-177,'XY',0,0,0,75,0,0,1,0,-55,0,1],
+           ['MODULE','md.blt','bo.f','',-35,50,-177,'XY',0,0,0,-75,0,0,1,0,55,0,1],
+           ['MODULE','md.blt','bo.f','',-35,-50,-177,'XY',0,0,0,-75,0,0,1,0,-55,0,1],
+           ['MODULE','md.blt','bo.w','',30,30,-70,'XZ',0,0,0,70,0,0,1,0,0,70,2],
+           ['MODULE','md.blt','bo.w','',-30,30,-70,'XZ',0,0,0,-70,0,0,1,0,0,70,2],
+           ['MODULE','md.blt','BASE','bo.f_1','mc']],
+    asPlTp: [['ASSY','as.splice','pl.tp','ADD',0,0,156]],
+    asBeamL: [['ASSY','as.splice','md.beaml','ADD',-460,0,142.5]],
+    asBeamR: [['ASSY','as.splice','md.beamr','ADD',460,0,142.5]],
+    asTpo: [['ASSY','as.splice','md.tpo','ADD',0,0,156]],
+    asTpi: [['ASSY','as.splice','md.tpi','ADD',0,77.5,130]],
+    asBpo: [['ASSY','as.splice','md.bpo','ADD',0,0,-156]],
+    asBpi: [['ASSY','as.splice','md.bpi','ADD',0,77.5,-130]],
+    asWpl: [['ASSY','as.splice','md.wpl','ADD',0,10,0]],
+    asBlt: [['ASSY','as.splice','md.blt','ADD',35,50,110]],
+    views: [['VIEW','md.tpo','TOP','','',10,'TOP FLANGE - FROM ABOVE'],
+           ['VIEW','md.tpi','BOTTOM','','',10,'TOP FLANGE - FROM BELOW'],
+           ['VIEW','md.bpo','BOTTOM','','',10,'BOTTOM FLANGE - FROM BELOW'],
+           ['VIEW','md.bpi','TOP','','',10,'BOTTOM FLANGE - FROM ABOVE'],
+           ['VIEW','md.wpl','FRONT','','',10,'WEB - SIDE']],
+    plot: [['PLOT','PART','ALL',10,'PLATES']],
+    end: [['END']],
+  };
+  var TUT_SPLICE_ORDER = ['coord','hoB','hoFil','plTf','plBf','plWb','plFil','plTp','plTi','plWp','plBi','plBp','boF','boW','cutTp','cutBp','cutTi','cutBi','cutTf','cutBf','cutWp','cutFil','cutWb','mdBeamL','mdBeamR','mdTpo','mdTpi','mdBpo','mdBpi','mdWpl','mdBlt','asPlTp','asBeamL','asBeamR','asTpo','asTpi','asBpo','asBpi','asWpl','asBlt','views','plot','end'];
+  var TUT_SPLICE_STEPS = [
+    ['coord','plTp','asPlTp'],
+    ['coord','hoB','plTp','cutTp','asPlTp'],
+    ['coord','hoB','plTp','plTi','cutTp','cutTi','mdTpo','mdTpi','asTpo','asTpi'],
+    ['coord','hoB','plTp','plTi','plBi','plBp','cutTp','cutBp','cutTi','cutBi','mdTpo','mdTpi','mdBpo','mdBpi','asTpo','asTpi','asBpo','asBpi'],
+    ['coord','hoB','plTp','plTi','plWp','plBi','plBp','cutTp','cutBp','cutTi','cutBi','cutWp','mdTpo','mdTpi','mdBpo','mdBpi','mdWpl','asTpo','asTpi','asBpo','asBpi','asWpl'],
+    ['coord','hoB','hoFil','plTf','plBf','plWb','plFil','plTp','plTi','plWp','plBi','plBp','cutTp','cutBp','cutTi','cutBi','cutTf','cutBf','cutWp','cutFil','cutWb','mdBeamL','mdBeamR','mdTpo','mdTpi','mdBpo','mdBpi','mdWpl','asBeamL','asBeamR','asTpo','asTpi','asBpo','asBpi','asWpl'],
+    ['coord','hoB','hoFil','plTf','plBf','plWb','plFil','plTp','plTi','plWp','plBi','plBp','boF','boW','cutTp','cutBp','cutTi','cutBi','cutTf','cutBf','cutWp','cutFil','cutWb','mdBeamL','mdBeamR','mdTpo','mdTpi','mdBpo','mdBpi','mdWpl','mdBlt','asBeamL','asBeamR','asTpo','asTpi','asBpo','asBpi','asWpl','asBlt'],
+    ['coord','hoB','hoFil','plTf','plBf','plWb','plFil','plTp','plTi','plWp','plBi','plBp','boF','boW','cutTp','cutBp','cutTi','cutBi','cutTf','cutBf','cutWp','cutFil','cutWb','mdBeamL','mdBeamR','mdTpo','mdTpi','mdBpo','mdBpi','mdWpl','mdBlt','asBeamL','asBeamR','asTpo','asTpi','asBpo','asBpi','asWpl','asBlt','views','plot','end'],
+  ];
+
+  /* One entry per step. `placed` and `kg` are what the step builds; they are
+     quoted to the reader, so check_tutorial.js builds every step and refuses
+     to pass if a figure here is not what came out. */
+  var TUT_SPLICE_TEXT = [
+    { t: 'A part, and the row that places it',
+      p: ['Two rows build something. A <b>PLATE</b> row says what a part is. An <b>ASSY</b> row' +
+          ' says that a copy of it exists, and where. Neither does anything on its own: load a' +
+          ' sheet holding only the PLATE row and the panel tells you so &mdash;' +
+          ' <i>no ASSY row &mdash; nothing is placed</i>.',
+          '<code>pl.tp</code> is the plate that will end up on top of the finished joint: 300' +
+          ' along the beam, 280 across, 12 thick, in SM355. <code>mc</code> is its base point,' +
+          ' the middle of the rectangle, so the <code>0 0 156</code> on the ASSY row is where' +
+          ' that middle lands.',
+          '<b>COORD ZUP</b> says the sheet is written with Z upwards. It is the default and' +
+          ' could be left out; it is here because the finished sheet has it.'],
+      tryit: 'Change the 156 to 300 and load again. The plate moves, and nothing else on the' +
+             ' sheet is touched.',
+      placed: 1, kg: 7.913 },
+
+    { t: 'Holes: one shape, cut many times',
+      p: ['A <b>HOLE</b> row is not a hole. It is a flat shape with a name and no thickness' +
+          ' &mdash; <code>ho.b</code>, a circle of 24. The holes are the <b>CUT</b> rows: each' +
+          ' one puts that shape onto <code>pl.tp</code> at <code>L.X, L.Y</code> and then' +
+          ' repeats it.',
+          'Read the first one. Start at 35, 50. Step 75 in x, one more time. Step 55 in y, one' +
+          ' more time. Four holes. Four rows, one per quadrant, and the plate has sixteen.',
+          'Why 24 and not 22? 22 is the bolt; 24 is the hole it goes through. They are two' +
+          ' different numbers on the order, so they are two different numbers here.'],
+      tryit: 'The weight falls from 7.913 kg to 7.231 kg. The holes are really gone &mdash;' +
+             ' they are not a picture drawn on the surface.',
+      placed: 1, kg: 7.231 },
+
+    { t: 'A module: parts that travel together',
+      p: ['<code>pl.ti</code> is the inner plate, and there are two of them, side by side under' +
+          ' the flange. Two ASSY rows would place two plates &mdash; but they would be two' +
+          ' unrelated things, and moving the pair would mean editing both.',
+          'A <b>MODULE</b> row puts parts into a named group. <code>md.tpi</code> holds two' +
+          ' copies of <code>pl.ti</code>, at y = +77.5 and y = &minus;77.5. One ASSY row places' +
+          ' the group.',
+          'The last row of a module is <b>BASE</b>: which point of which member the group is' +
+          ' held by. Everything in the module is measured from there, and the ASSY row puts' +
+          ' <i>that</i> point where it says.',
+          '<code>md.tpo</code> does the same for the outer plate &mdash; one member, but now the' +
+          ' whole flange is named groups rather than loose parts. The ASSY row from step 1 has' +
+          ' gone, and <code>md.tpo</code> stands in its place.'],
+      tryit: 'Click <b>MD.TPI</b> in the list on the left to open the module on its own,' +
+             ' away from the rest of the model.',
+      placed: 3, kg: 11.844 },
+
+    { t: 'The other side of the joint',
+      p: ['The bottom flange is the same four rows again with the z signs turned over.',
+          'There is no mirror command here, on purpose. ASSY has <b>MIR</b>, but that mirrors a' +
+          ' group that has already been placed, and these are not reflections of the top plates:' +
+          ' <code>pl.bp</code> and <code>pl.bi</code> are parts in their own right, with their' +
+          ' own lines in the take-off.',
+          'Six members. Everything so far lies flat.'],
+      placed: 6, kg: 23.688 },
+
+    { t: 'Standing a plate on edge',
+      p: ['The web plates are rectangles like all the others, but they stand up. The' +
+          ' <b>PLANE</b> cell on a MODULE row is what decides that: <code>XY</code> lays a part' +
+          ' flat, <code>XZ</code> stands it on edge facing you, <code>YZ</code> turns it across.',
+          '<code>md.wpl</code> holds both of them, one on each face of the web, at' +
+          ' y = &plusmn;10 &mdash; half the web thickness plus half the plate.'],
+      tryit: 'Tick <b>local axes</b> in the bar and load again, to see which way each' +
+             ' part&rsquo;s own x, y and thickness point.',
+      placed: 8, kg: 32.506 },
+
+    { t: 'The beam it splices',
+      p: ['Everything so far has been the splice. This is the member.',
+          'A rolled section is not drilled here: a CUT on a <b>SECT</b> row cuts the whole' +
+          ' length of the section. So each side of the joint is drawn as three plates &mdash;' +
+          ' <code>pl.tf</code>, <code>pl.bf</code>, <code>pl.wb</code> &mdash; and the root' +
+          ' fillets are eight strips. <code>pl.fil</code> is an 18&times;18 square 900 long with' +
+          ' a circle of 36 cut out of one corner, and what is left is the concave fillet.',
+          '<code>md.beaml</code> is seven members. <code>md.beamr</code> is the same seven rows' +
+          ' with <code>ROT.Z 180</code> on the flanges and <code>ROT.Y 180</code> on the web:' +
+          ' the same beam, turned end for end. Written once, placed twice.'],
+      placed: 22, kg: 199.668 },
+
+    { t: 'The bolts',
+      p: ['A <b>BAR</b> row is a round member. <code>bo.f</code> is 22 across and 67 long' +
+          ' &mdash; 22, not 24. 24 was the hole.',
+          'Eight <code>md.blt</code> rows make 32 flange bolts. The last eight columns are the' +
+          ' two repeat axes: <code>dx dy dz repeat</code>, then' +
+          ' <code>dx2 dy2 dz2 repeat2</code>. One row, four bolts: 75 along and one more, 55' +
+          ' across and one more.',
+          'Why a repeat and not a row each? A formula can change a number but it cannot conjure' +
+          ' a row. Put the count in <code>repeat</code> and a front sheet can change how many' +
+          ' bolts there are.',
+          '66 members, 208.214 kg. That is the whole model.'],
+      placed: 66, kg: 208.214 },
+
+    { t: 'The drawings, and the take-off',
+      p: ['The model is finished and the sheet still exports nothing. A drawing is made because' +
+          ' a row asked for one.',
+          'Five <b>VIEW</b> rows, one per plate group: what to draw, the direction it is seen' +
+          ' from, the scale, and the title that goes on the drawing. One' +
+          ' <b>PLOT PART ALL</b> row draws every part at 1:10. <b>File &rarr; Save DXF</b> puts' +
+          ' those six drawings in the file, in the order the rows are in.',
+          '<b>File &rarr; Save BOQ</b> writes the take-off &mdash; parts, modules, assemblies' +
+          ' and a summary, in one workbook.',
+          '<b>END</b> closes the sheet. Nothing below it is read, which is where working notes' +
+          ' can go.',
+          '<b>What next.</b> The sheet you have just built holds numbers.' +
+          ' <b>Example &rarr; Beam splice</b> is this same sheet written from a front tab: pick' +
+          ' a section from a list and every number on <code>input</code> follows. Open it and' +
+          ' look at the <code>PARAM</code> tab.'],
+      placed: 66, kg: 208.214 }
+  ];
+
+  var TUTORIALS = [{
+    id: 'splice',
+    file: 'SPLICE',
+    name: 'Bolted beam splice',
+    sub: 'An H-300&times;300 spliced to itself &mdash; flange plates, web plates and 44 bolts.',
+    K: TUT_SPLICE, KEYS: TUT_SPLICE_STEPS, steps: TUT_SPLICE_TEXT
+  }];
+
+  /* The column names the guide already uses, so the two agree. A run of rows
+     is printed under the narrowest header the widest row in it still fits,
+     which keeps a block of plain MODULE rows from being labelled with
+     nineteen column names it does not use. */
+  var TUT_HEAD = {
+    COORD:  [['# COORD', 'ZUP | YUP']],
+    HOLE:   [['# HOLE', 'id', 'shape', 'base.pt', 'd']],
+    PLATE:  [['# PLATE', 'id', 'mat', 'thk', 'shape', 'base.pt', 'p1', 'p2']],
+    BAR:    [['# BAR', 'id', 'mat', 'dia', 'length']],
+    CUT:    [['# CUT', 'plate', 'L.X', 'L.Y', 'shape', 'dx', 'dy', 'repeat'],
+             ['# CUT', 'plate', 'L.X', 'L.Y', 'shape', 'dx', 'dy', 'repeat',
+              'dx2', 'dy2', 'repeat2']],
+    MODULE: [['# MODULE', 'id', 'member', 'Ref.Pt', 'L.X', 'L.Y', 'L.Z', 'PLANE'],
+             ['# MODULE', 'id', 'member', 'Ref.Pt', 'L.X', 'L.Y', 'L.Z', 'PLANE',
+              'RX', 'RY', 'RZ'],
+             ['# MODULE', 'id', 'member', 'Ref.Pt', 'L.X', 'L.Y', 'L.Z', 'PLANE',
+              'RX', 'RY', 'RZ', 'dx', 'dy', 'dz', 'rep', 'dx2', 'dy2', 'dz2', 'rep2']],
+    ASSY:   [['# ASSY', 'id', 'ref', 'cmd', 'G.X', 'G.Y', 'G.Z', 'repeat']],
+    VIEW:   [['# VIEW', 'id', 'dir', 'AZ', 'EL', 'scale', 'title']],
+    PLOT:   [['# PLOT', 'PART | SECT', 'id | ALL', 'scale', 'title']]
+  };
+  function tutHead(kw, wide) {
+    var hs = TUT_HEAD[kw];
+    if (!hs) return null;
+    for (var i = 0; i < hs.length; i++) if (hs[i].length >= wide) return hs[i];
+    return hs[hs.length - 1];
+  }
+
+  /* The rows of a step, each tagged with whether the step before had it. The
+     tag is per NAME, not per row, so a step either brings a block of rows or
+     does not - which is how a reader meets them. */
+  function tutTagged(t, n) {
+    var prev = n > 0 ? t.KEYS[n - 1] : [], out = [];
+    t.KEYS[n].forEach(function (k) {
+      var fresh = prev.indexOf(k) < 0;
+      (t.K[k] || []).forEach(function (r) { out.push({ r: r, n: fresh }); });
+    });
+    return out;
+  }
+  /* Headers put in, and the marks moved to match. The same list is what the
+     workbook is written from, so a row number on screen is the row number in
+     the file the reader downloads. */
+  function tutSheetRows(tagged, title) {
+    var out = [], mark = [], k = null, i, j;
+    if (title) out.push(['# ' + title]);
+    for (i = 0; i < tagged.length; i++) {
+      var kw = String(tagged[i].r[0]).toUpperCase();
+      if (kw !== k) {
+        k = kw;
+        var wide = 0;
+        for (j = i; j < tagged.length &&
+             String(tagged[j].r[0]).toUpperCase() === k; j++)
+          if (tagged[j].r.length > wide) wide = tagged[j].r.length;
+        var h = tutHead(k, wide);
+        if (h) out.push(h);
+      }
+      if (tagged[i].n) mark.push(out.length);
+      out.push(tagged[i].r);
+    }
+    return { rows: out, mark: mark };
+  }
+  function tutTitle(t, n) {
+    return 'PLATE3D tutorial · ' + t.name + ' · step ' + (n + 1) + ' of ' +
+           t.steps.length + ' — ' + t.steps[n].t;
+  }
+  function tutFileRows(t, n) {
+    return tutSheetRows(tutTagged(t, n), tutTitle(t, n)).rows;
+  }
+  function tutFileName(t, n) {
+    return 'PLATE3D_TUTORIAL_' + t.file + '_' + (n + 1) + '.xlsx';
+  }
+
+  function tutorialHTML() {
+    var h = ['<h2 class="plain">Tutorials</h2>',
+      '<p class="lede">One sheet, built a step at a time.</p>',
+      '<p>Every step below is a whole sheet that builds. <b>Load this step</b> puts it in the' +
+      ' viewer straight away; <b>Save .xlsx</b> hands you the same rows as a workbook, so you' +
+      ' can open it, change a number and load it back. Read the panel on the left after each' +
+      ' one &mdash; it counts what the sheet asked for and what got placed.</p>',
+      '<p>In the tables, a <i>grey line</i> is column names rather than data. It starts with' +
+      ' <code>#</code>, which makes it a comment: it is in the workbook to be read, and the' +
+      ' app skips it. The rows that count are the ones with a keyword in column A.</p>'];
+    TUTORIALS.forEach(function (t, ti) {
+      h.push('<div class="tutcard"><b>' + t.name + '</b><p>' + t.sub + '</p>' +
+             '<i>' + t.steps.length + ' steps &middot; ' +
+             tutFileRows(t, t.steps.length - 1).length + ' rows &middot; ' +
+             t.steps[t.steps.length - 1].placed + ' members &middot; ' +
+             Math.round(t.steps[t.steps.length - 1].kg) + ' kg</i></div>');
+      t.steps.forEach(function (s, n) {
+        var tag = tutTagged(t, n);
+        var made = tutSheetRows(tag, tutTitle(t, n));
+        var fresh = tag.filter(function (x) { return x.n; }).map(function (x) { return x.r; });
+        var freshTag = fresh.map(function (r) { return { r: r, n: false }; });
+        var few = tutSheetRows(freshTag, null);
+        h.push('<h2><span class="n">' + (n + 1) + '</span>' + s.t + '</h2>');
+        s.p.forEach(function (par) { h.push('<p>' + par + '</p>'); });
+        h.push(sheet(few.rows, null, 0, null));
+        /* A step can take a row away as well as add one - step 3 puts the outer
+           plate inside a module, and the row that placed it directly has to
+           go. Saying only what was added would leave a reader with a sheet
+           that places the same plate twice. */
+        var gone = [];
+        (n ? t.KEYS[n - 1] : []).forEach(function (k) {
+          if (t.KEYS[n].indexOf(k) < 0)
+            (t.K[k] || []).forEach(function (r) { gone.push(r); });
+        });
+        h.push('<p class="xlsnote">' +
+               (n ? 'Adds ' + fresh.length + ' rows. ' : '') +
+               (gone.length ? 'Take out ' + (gone.length === 1 ? 'the row' : gone.length + ' rows')
+                    + ' ' + gone.map(function (r) {
+                        return '<code>' + [r[0], r[1], r[2]].join(' ') + '</code>'; }).join(', ') +
+                    '. ' : '') +
+               'The sheet is ' + (n ? 'then ' : '') + made.rows.length + ' rows and builds ' +
+               s.placed + ' member' + (s.placed === 1 ? '' : 's') +
+               ' · ' + s.kg.toFixed(3) + ' kg.</p>');
+        if (s.tryit) h.push('<p class="tuttry"><b>Try</b> ' + s.tryit + '</p>');
+        h.push('<div class="tutact">' +
+          '<button type="button" class="tutgo" onclick="plateBuilder.tutLoad(' + ti + ',' + n +
+          ')">' + ICON_PLAY + 'Load this step</button>' +
+          '<button type="button" class="tutdl" onclick="plateBuilder.tutSave(' + ti + ',' + n +
+          ')">' + ICON_DL + 'Save .xlsx</button>' +
+          '<span class="tuts" id="pb-tuts' + ti + '-' + n + '"></span></div>');
+        // on step 1 the excerpt above already is the whole sheet
+        if (n) h.push('<details><summary>The whole sheet at this step &mdash; ' +
+               made.rows.length + ' rows, new ones shaded</summary>' +
+               sheet(made.rows, null, 0, made.mark) + '</details>');
+      });
+    });
+    return h.join('\n');
+  }
+
+  function tutState(id, txt, cls) {
+    var el = document.getElementById(id);
+    if (!el) return;
+    el.textContent = txt;
+    el.className = 'tuts' + (cls ? ' ' + cls : '');
+  }
+  /* Loading closes the window, because the thing to look at is behind it. */
+  function tutLoad(ti, n) {
+    var t = TUTORIALS[ti];
+    if (!t || !t.steps[n]) return;
+    closeGuide();
+    buildFromRows(tutFileRows(t, n), t.name + ' — step ' + (n + 1),
+      'Tutorial step ' + (n + 1) + ' of ' + t.steps.length + ' — ' + t.steps[n].t +
+      '. Open Tutorial again for the next step.');
+  }
+  function tutSave(ti, n) {
+    var t = TUTORIALS[ti];
+    if (!t || !t.steps[n]) return;
+    var id = 'pb-tuts' + ti + '-' + n;
+    if (typeof ExcelJS === 'undefined') {
+      alert('ExcelJS is missing, and the step is written as a workbook.');
+      return;
+    }
+    tutState(id, '…');
+    try {
+      var wb = new ExcelJS.Workbook();
+      var ws = wb.addWorksheet('input');
+      var rows = tutFileRows(t, n), wide = 0;
+      rows.forEach(function (r) {
+        ws.addRow(r);
+        if (r.length > wide) wide = r.length;
+      });
+      /* Widths only. The example workbooks are formatted; this one is a thing
+         to type into, and anything more would be a second style for the same
+         kind of file. */
+      for (var c = 1; c <= wide; c++) ws.getColumn(c).width = c === 1 ? 12 : 11;
+      ws.eachRow(function (r) {
+        if (String(r.getCell(1).value || '').charAt(0) === '#')
+          r.font = { italic: true, color: { argb: 'FF94A3B8' } };
+      });
+      wb.xlsx.writeBuffer().then(function (buf) {
+        downloadBlob(new Blob([buf], { type: 'application/vnd.openxmlformats-' +
+                     'officedocument.spreadsheetml.sheet' }), tutFileName(t, n));
+        tutState(id, 'saved as ' + tutFileName(t, n), 'ok');
+      }).catch(function (e) {
+        tutState(id, 'failed: ' + e.message, 'bad');
+      });
+    } catch (e) {
+      tutState(id, 'failed: ' + e.message, 'bad');
+    }
+  }
+
   /* ?ui=quick — the viewer embedded under a form rather than standing alone.
 
      There are three ways a file can replace the model: Load Excel, Example,
@@ -9651,6 +10153,9 @@
       '  <button class="guide" onclick="plateBuilder.openGuide()"' +
       '    title="how to write the spreadsheet">' + ICON_HELP + 'Guide</button>' +
       (QUICK_UI ? '' :
+      '  <button class="guide tut" onclick="plateBuilder.openTutorial()"' +
+      '    title="one sheet, built a step at a time">' + ICON_BOOK + 'Tutorial</button>') +
+      (QUICK_UI ? '' :
       '  <button class="guide ex" onclick="plateBuilder.openSamples(event)"' +
       '    title="download a worked sheet to start from">' +
       ICON_DL + 'Example</button>') +
@@ -9685,13 +10190,16 @@
       '    <div id="pb-exlist"></div>' +
       '  </div></div>' +
       '<div id="pb-help" onclick="if(event.target===this)plateBuilder.closeGuide()">' +
-      '  <div class="box"><header><b>PLATE3D &mdash; how to use</b>' +
+      '  <div class="box"><header><b id="pb-doc-title">PLATE3D &mdash; how to use</b>' +
       '    <span class="acts">' +
       '      <button type="button" class="prt" onclick="plateBuilder.printGuide()"' +
       '        title="print, or save as PDF">' + ICON_PRINT + 'Print</button>' +
       '      <span class="x" onclick="plateBuilder.closeGuide()" title="close">&#10005;</span>' +
       '    </span></header>' +
-      '    <div class="doc">' + GUIDE + '</div>' +
+      '    <div class="doc">' +
+      '      <div id="pb-doc-guide">' + GUIDE + '</div>' +
+      '      <div id="pb-doc-tut" hidden></div>' +
+      '    </div>' +
       '  </div></div>' +
       '<div id="pb-modal"><div class="box">' +
       '  <h2><span class="close" onclick="plateBuilder.closePreview()">&#10005;</span>' +
@@ -10429,6 +10937,10 @@
     '#pb-help table.xls th, #pb-help table.xls .rn { background:none; color:#475569; }',
     '#pb-help table.xls tr.cmt td { background:none; }',
     '#pb-toc { background:none; }',
+    // nothing on paper to press, and no viewer behind it to load into
+    '#pb-help .tutact { display:none; }',
+    '#pb-help .tutcard, #pb-help .tuttry { background:none; }',
+    '#pb-help table.xls tr.nw td, #pb-help table.xls tr.nw .rn { background:none; }',
     '#pb-help .gsvg { background:none; }',
     '#pb-help .flow span { background:none; }',
     '#pb-help .warn { background:none; }',
@@ -10443,9 +10955,11 @@
   ].join('\n');
 
   function printGuide() {
-    var doc = document.querySelector('#pb-help .doc');
-    if (!doc) return;
     guideIndex();                       // numbers and contents, if not built yet
+    var doc = document.getElementById(docShown === 'tut' ? 'pb-doc-tut' : 'pb-doc-guide');
+    if (!doc) return;
+    var title = ((document.getElementById('pb-doc-title') || {}).textContent ||
+                 'PLATE3D').trim();
     /* An iframe rather than a new window: a popup blocker refuses the window
        and says nothing that reaches the person who pressed Print. */
     var fr = document.createElement('iframe');
@@ -10454,14 +10968,14 @@
     document.body.appendChild(fr);
     var d = fr.contentDocument;
     d.open();
-    d.write('<!doctype html><meta charset="utf-8"><title>PLATE3D - how to use</title>');
+    d.write('<!doctype html><meta charset="utf-8"><title>' + esc(title) + '</title>');
     d.close();
     var st = d.createElement('style');
     st.textContent = CSS + '\n' + PRINT_CSS;   // the app's own styles, then the sheet
     d.head.appendChild(st);
     var wrap = d.createElement('div');
     wrap.id = 'pb-help';                // so the guide's own rules find their target
-    wrap.innerHTML = '<div class="box"><header><b>PLATE3D &mdash; how to use</b></header>' +
+    wrap.innerHTML = '<div class="box"><header><b>' + esc(title) + '</b></header>' +
                      '<div class="doc">' + doc.innerHTML + '</div></div>';
     d.body.appendChild(wrap);
     /* Printing the moment it is written gives a blank page in more than one
@@ -10474,7 +10988,9 @@
 
   var guideIndexed = false;
   function guideIndex() {
-    var doc = document.querySelector('#pb-help .doc');
+    /* The guide's own pane, not the whole document window - the tutorial is a
+       sibling in there and its step headings are numbered already. */
+    var doc = document.getElementById('pb-doc-guide');
     if (!doc || guideIndexed) return;
     guideIndexed = true;
     var heads = doc.querySelectorAll('h2, h3');
@@ -10516,22 +11032,42 @@
       a.addEventListener('click', function (e) {
         e.preventDefault();
         var t = document.getElementById(a.getAttribute('data-g'));
-        if (t) doc.scrollTop += t.getBoundingClientRect().top -
-                                doc.getBoundingClientRect().top - 8;
+        var sc = doc.parentNode;
+        if (t) sc.scrollTop += t.getBoundingClientRect().top -
+                               sc.getBoundingClientRect().top - 8;
       });
     });
     // the contents are the first thing in the document, so going back is the top
     doc.querySelectorAll('h2 .up, h3 .up').forEach(function (a) {
-      a.addEventListener('click', function (e) { e.preventDefault(); doc.scrollTop = 0; });
+      a.addEventListener('click', function (e) {
+        e.preventDefault(); doc.parentNode.scrollTop = 0;
+      });
     });
   }
-  function openGuide() {
+  /* Guide and Tutorial are two documents, not two windows. Everything the
+     window does - the box, the scrolling, Print, closing on the backdrop -
+     is written once and both get it, and a reader who has learnt where the
+     close is does not have to learn it twice. */
+  var docShown = 'guide';
+  function showDoc(which) {
     var el = document.getElementById('pb-help');
     if (!el) return;
+    var g = document.getElementById('pb-doc-guide');
+    var t = document.getElementById('pb-doc-tut');
+    // built on first sight: it is static, and most visits never open it
+    if (which === 'tut' && t && !t.innerHTML) t.innerHTML = tutorialHTML();
+    if (g) g.hidden = which === 'tut';
+    if (t) t.hidden = which !== 'tut';
+    docShown = which;
+    var ttl = document.getElementById('pb-doc-title');
+    if (ttl) ttl.innerHTML = which === 'tut' ? 'PLATE3D &mdash; tutorial'
+                                             : 'PLATE3D &mdash; how to use';
+    if (which === 'guide') guideIndex();
     el.style.display = 'flex';
-    guideIndex();
     el.querySelector('.doc').scrollTop = 0;
   }
+  function openGuide() { showDoc('guide'); }
+  function openTutorial() { showDoc('tut'); }
   function closeGuide() {
     var el = document.getElementById('pb-help');
     if (el) el.style.display = 'none';
@@ -10559,6 +11095,7 @@
     setOrtho: setOrtho, setOrthoPv: setOrthoPv,
     setClash: setClash, setClashPv: setClashPv,
     openGuide: openGuide, closeGuide: closeGuide, printGuide: printGuide,
+    openTutorial: openTutorial, tutLoad: tutLoad, tutSave: tutSave,
     openSamples: openSamples, closeSamples: closeSamples, getSample: getSample,
     toggleMemberAxis: toggleMemberAxis,
     toggleFileMenu: toggleFileMenu, toggleViewMenu: toggleViewMenu,
