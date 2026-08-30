@@ -818,6 +818,13 @@
     /* The whole point: V in, rows out, straight to the frame. No arithmetic
        happens here — build() is the same call the .xlsx generator makes. */
     function push() {
+      /* The frame can be off the page before a timer gets here. Leaving the
+         menu item empties the mount, and so does clicking Simple connector
+         again to start over - and both of the calls below are on a timer,
+         400 ms and 1200 ms. A frame that is no longer in the document has a
+         null contentWindow and nothing left to receive rows: this instance
+         is finished, and the page has built a new one to take its place. */
+      if (!fr.isConnected || !fr.contentWindow) return;
       var rows;
       try {
         rows = CM.values(CM.build(V, cat).rows);
