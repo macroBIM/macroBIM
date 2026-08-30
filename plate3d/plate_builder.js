@@ -9745,6 +9745,7 @@
   var TUT_SPLICE_STEPS = [
     ['coord','plTp','asPlTp'],
     ['coord','hoB','plTp','cutTp','asPlTp'],
+    ['coord','hoB','plTp','plTi','cutTp','cutTi','mdTpo','mdTpi','asPlTp'],
     ['coord','hoB','plTp','plTi','cutTp','cutTi','mdTpo','mdTpi','asTpo','asTpi'],
     ['coord','hoB','plTp','plTi','plBi','plBp','cutTp','cutBp','cutTi','cutBi','mdTpo','mdTpi','mdBpo','mdBpi','asTpo','asTpi','asBpo','asBpi'],
     ['coord','hoB','plTp','plTi','plWp','plBi','plBp','cutTp','cutBp','cutTi','cutBi','cutWp','mdTpo','mdTpi','mdBpo','mdBpi','mdWpl','asTpo','asTpi','asBpo','asBpi','asWpl'],
@@ -9790,16 +9791,41 @@
           ' the flange. Two ASSY rows would place two plates &mdash; but they would be two' +
           ' unrelated things, and moving the pair would mean editing both.',
           'A <b>MODULE</b> row puts parts into a named group. <code>md.tpi</code> holds two' +
-          ' copies of <code>pl.ti</code>, at y = +77.5 and y = &minus;77.5. One ASSY row places' +
-          ' the group.',
+          ' copies of <code>pl.ti</code>, at y = +77.5 and y = &minus;77.5.' +
+          ' <code>md.tpo</code> does the same for the outer plate &mdash; one member, but a' +
+          ' group all the same.',
           'The last row of a module is <b>BASE</b>: which point of which member the group is' +
-          ' held by. Everything in the module is measured from there, and the ASSY row puts' +
-          ' <i>that</i> point where it says.',
-          '<code>md.tpo</code> does the same for the outer plate &mdash; one member, but now the' +
-          ' whole flange is named groups rather than loose parts. The ASSY row from step 1 has' +
-          ' gone, and <code>md.tpo</code> stands in its place.'],
-      tryit: 'Click <b>MD.TPI</b> in the list on the left to open the module on its own,' +
-             ' away from the rest of the model.',
+          ' held by. Everything in the module is measured from there.',
+          '<b>Now load it and look at the screen. Nothing has changed.</b> The panel counts' +
+          ' <code>modules 2</code> and still says <code>placed 1</code>: both groups exist,' +
+          ' and neither of them is anywhere. A MODULE row builds a group; it does not put the' +
+          ' group in the world. The plate you can still see is there because of the ASSY row' +
+          ' from step 1, which places <code>pl.tp</code> on its own.'],
+      tryit: 'Click <b>MD.TPI</b> in the list on the left. The module opens on its own with' +
+             ' both plates in it &mdash; it is real, it is just not in the model yet.',
+      placed: 1, kg: 7.231 },
+
+    { t: 'ASSY: putting a module into the world',
+      p: ['Two rows, and the groups arrive. Three members where there was one, and nothing' +
+          ' else on the sheet changed.',
+          'Read one: <code>ASSY as.splice md.tpi ADD 0 77.5 130</code> says that the assembly' +
+          ' <b>as.splice</b> has a copy of <b>md.tpi</b> in it, with the module&rsquo;s BASE' +
+          ' point at that coordinate. <code>ADD</code> is one of the commands a row can carry' +
+          ' &mdash; <code>COPY</code> repeats a module along a step, <code>MIR</code> mirrors' +
+          ' one that has already been placed. This joint only ever needs ADD.',
+          'The ASSY row from step 1 has gone. It named a part, <code>pl.tp</code>; now' +
+          ' <code>md.tpo</code> is named instead, so the whole flange is groups rather than one' +
+          ' group and one loose plate. An ASSY row can name either &mdash; a part placed' +
+          ' straight from an ASSY row is collected under <b>NOT IN A MODULE</b> in the' +
+          ' take-off, which is exactly what it is.',
+          'These are the three tiers the sheet is written in. A <b>part</b> is a shape and a' +
+          ' material. A <b>module</b> is parts gathered up and given one name. An' +
+          ' <b>assembly</b> is modules put in the world. <b>Nothing is drawn until the third' +
+          ' one asks for it</b> &mdash; which is why a sheet with no ASSY row at all builds' +
+          ' nothing, and the panel says so in as many words.'],
+      tryit: 'Take the two ASSY rows out again and load it. The panel goes back to' +
+             ' <code>placed 1</code> and the inner plates leave the screen, while the MODULE' +
+             ' rows sit there untouched.',
       placed: 3, kg: 11.844 },
 
     { t: 'The other side of the joint',
