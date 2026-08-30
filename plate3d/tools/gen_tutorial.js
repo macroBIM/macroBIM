@@ -127,10 +127,18 @@ const ORDER = ['coord','hoB','hoFil','plTf','plBf','plWb','plFil','plTp','plTi',
   'views','plot','end'];
 Object.keys(K).forEach(k => { if (ORDER.indexOf(k) < 0) throw new Error('unordered key ' + k); });
 
+/* MODULE and ASSY are two steps, not one, and that is the point of the
+   split. A sheet that defines the groups but places none of them builds
+   perfectly well - the panel reads "modules 2 ... placed 1" - and the
+   screen does not change. The next step adds the two ASSY rows and they
+   arrive. Rolled together, the tier that actually puts things in the world
+   would never get a step of its own, and a reader would meet ASSY only as
+   a row that happened to be sitting next to PLATE in step 1. */
 const STEPS = [
   ['coord','plTp','asPlTp'],
   ['+','hoB','cutTp'],
-  ['+','plTi','cutTi','mdTpo','mdTpi','-asPlTp','asTpo','asTpi'],
+  ['+','plTi','cutTi','mdTpo','mdTpi'],
+  ['+','-asPlTp','asTpo','asTpi'],
   ['+','plBi','plBp','cutBp','cutBi','mdBpo','mdBpi','asBpo','asBpi'],
   ['+','plWp','cutWp','mdWpl','asWpl'],
   ['+','hoFil','plTf','plBf','plWb','plFil','cutTf','cutBf','cutFil','cutWb',
