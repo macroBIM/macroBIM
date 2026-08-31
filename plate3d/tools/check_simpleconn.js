@@ -19,6 +19,7 @@
      · Save BOQ comes back
 */
 const { chromium } = require('playwright-core');
+const ExcelJS = require('exceljs');
 const fs = require('fs');
 const path = require('path');
 
@@ -157,6 +158,56 @@ const CASES = [['H  (default)', {}], ['R  (tube column)', { CTYPE: 'R' }]];
     ok(!!(kws.VIEW || kws.PLOT), t + ': the sheet asks for at least one drawing',
        'no VIEW and no PLOT row — a drawing is only made because a row asked');
   }
+
+  /* The form and PLATE3D_COLUMN.xlsx are built by ONE copy of the model, and
+     that is the only thing making them agree. Nothing enforced it, and they
+     had already come apart: the workbook carried three drawing rows the model
+     did not emit, so the form drew nothing — and regenerating the workbook
+     would have quietly dropped them from there too. Compared here row for
+     row, in values, because that is what the engine reads either way. */
+  console.log('');
+  const wb = new ExcelJS.Workbook();
+  await wb.xlsx.readFile(path.join(P3, 'PLATE3D_COLUMN.xlsx'));
+  const ws = wb.worksheets.filter(w => String(w.name).toLowerCase() === 'input')[0];
+  /* Compared as FORMULAS, not as values. A formula whose cached answer is 0
+     or blank is stored by Excel with no cached answer at all, so reading the
+     book by value turns those cells into nothing and every such row looks
+     like a difference. The workbook is written from the model's formulas, so
+     that is the thing the two actually share. */
+  const norm = c => {
+    if (c === null || c === undefined) return '';
+    if (typeof c === 'object') {
+      if (c.formula !== undefined) return '=' + c.formula;
+      if (c.sharedFormula !== undefined) return '=' + c.sharedFormula;
+      if (c.richText) return c.richText.map(t => t.text).join('');
+      if (c.result !== undefined) return String(c.result);
+      if (c.text !== undefined) return String(c.text);
+      return JSON.stringify(c);
+    }
+    return String(c);
+  };
+  const clean = r => { const o = r.map(norm);
+    while (o.length && o[o.length - 1] === '') o.pop(); return o; };
+  const book = [];
+  ws.eachRow({ includeEmpty: false }, r => {
+    const t = clean((r.values || []).slice(2));   // column A is the annotation
+    if (t.length) book.push(t);
+  });
+  const form = CM.build(CM.defaults({}, cat), cat).rows
+    .map(r => clean((r.cells || []).map(c =>
+      (c && typeof c === 'object' && c.f !== undefined) ? { formula: c.f } : c)))
+    .filter(r => r.length);
+
+  let diff = '';
+  for (let i = 0; i < Math.max(book.length, form.length); i++) {
+    const a = (form[i] || []).join(' | '), b = (book[i] || []).join(' | ');
+    if (a === b) continue;
+    diff = 'row ' + (i + 1) + '\n          form: ' + (a || '(none)').slice(0, 150) +
+           '\n          book: ' + (b || '(none)').slice(0, 150);
+    break;
+  }
+  ok(!diff, 'the form sends exactly what PLATE3D_COLUMN.xlsx holds',
+     'form ' + form.length + ' rows, book ' + book.length + ' rows\n        ' + diff);
 
   if (errs.length) { bad++; console.log('\npage errors:\n  ' + errs.join('\n  ')); }
   console.log('\n' + checks + ' checks · ' + (bad ? bad + ' FAILED' : 'all pass'));

@@ -709,6 +709,17 @@
           i === 0 ? 'the beam start: the column face, plus the plate or plates in front of it' : '');
     });
 
+    /* The drawings. Without these the sheet builds the model and exports
+       nothing - a drawing is made because a row asked for one. They live
+       here rather than in the generator because the form has no generator:
+       it posts these rows straight into the viewer, and Save DXF gave it
+       nothing at all while these three were only in the workbook. */
+    note2('');
+    note2('the drawings Save DXF makes, named by this sheet');
+    row(['VIEW', 'as.col', 'ISO', '', '', 50, 'COLUMN - ISOMETRIC']);
+    row(['PLOT', 'PART', 'ALL', 10, 'PLATES']);
+    row(['PLOT', 'SECT', 'ALL', 20, 'SECTIONS']);
+
     note2('');
     row(['END']);
     return { V: V, D: D, H: H, SEC: SEC, SQ: SQ, R: R, K: K, F: F, CC: CC,
