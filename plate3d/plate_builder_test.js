@@ -2908,7 +2908,7 @@
   function buildSegments(spec, cuts, notches, plates, len) {
     var base = buildPlate2D(spec, cuts, plates);
     var mine = (notches || []).filter(function (n) { return n.PLATE === spec.ID; });
-    var whole = { base: base, bit: false,
+    var whole = { base: base, raw: base, bit: false,
                   segs: [{ rings: base, area: base.area, z0: -len / 2, z1: len / 2 }] };
     if (!mine.length || !(len > 0)) return whole;
 
@@ -2955,9 +2955,14 @@
        member with one profile has. */
     if (segs.length === 1) {
       if (sameProfile(base, segs[0].rings)) return whole;
-      return { base: segs[0].rings, bit: true, segs: segs };
+      /* `raw` is the section before anything was notched out of it, kept apart
+         from `base` because the take-off names the steel you ORDER. A member
+         coped end to end is still bought as the section it was cut from, and
+         its kg/m has to be the one in the steel table or nobody can check the
+         line against it. */
+      return { base: segs[0].rings, raw: base, bit: true, segs: segs };
     }
-    return { base: base, bit: true, segs: segs };
+    return { base: base, raw: base, bit: true, segs: segs };
   }
   /* Two profiles are the same steel if neither has anything the other has
      not. Done as a boolean rather than by comparing points: PolyBool is free to
@@ -3620,6 +3625,7 @@
                  memberKey: memberKey || null,
                  instKey: gname + '/' + (mem || moduleId || '#' + spec.ID),
                  groupObj: groupObj, mass: mass, segs: segs,
+                 rawArea: built.raw.area,
                  dims: dims, remark: remark || '',
                  spec: spec, thk: thk, caps: caps || null, axLen: axLen,
                  matrix: world, mat: mat, edgeMat: edgeMat,
