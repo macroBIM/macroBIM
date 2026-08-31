@@ -734,6 +734,28 @@
     [].concat(o.material).forEach(function (m) { m.depthWrite = false; });
     return o;
   }
+  /* One stretch of a member, from zlo to zhi in its own frame. A member with
+     no NOTCH is one stretch running -thk/2 .. +thk/2, which is plateGeom term
+     for term - the same extrude, the same shift, the same shear. What the
+     stretches add is that an END CAP belongs only to the piece that owns it:
+     the boundary between two stretches is inside the steel and is flat, so it
+     is never sheared and, further down, never drawn. */
+  function segGeom(shape, zlo, zhi, caps, first, last) {
+    if (flatMode) return new THREE.ShapeGeometry(shape);
+    var g = new THREE.ExtrudeGeometry(shape, { depth: zhi - zlo, bevelEnabled: false,
+                                               curveSegments: 24 });
+    g.translate(0, 0, zlo);
+    var b = first && caps ? caps.b : null, e = last && caps ? caps.e : null;
+    if (!b && !e) return g;
+    var pos = g.getAttribute('position'), mid = (zlo + zhi) / 2;
+    for (var i = 0; i < pos.count; i++) {
+      var c = pos.getZ(i) >= mid ? e : b;
+      if (c) pos.setZ(i, c.a * pos.getX(i) + c.b * pos.getY(i) + c.c);
+    }
+    pos.needsUpdate = true;
+    g.computeVertexNormals();
+    return g;
+  }
   function plateGeom(shape, thk, caps) {      // local plane = mid-thickness
     if (flatMode) return new THREE.ShapeGeometry(shape);
     var g = new THREE.ExtrudeGeometry(shape, { depth: thk, bevelEnabled: false, curveSegments: 24 });
@@ -1098,7 +1120,7 @@
 
   // fellBack = the name of the sheet read when the workbook had no "input" tab
   function parseExcelRows(rows, fellBack) {
-    var plates = {}, holes = {}, parts = {}, cuts = [], assy = [], log = [];
+    var plates = {}, holes = {}, parts = {}, cuts = [], notches = [], assy = [], log = [];
     var assyIds = {};                    // ASSY ids already defined (can be referenced again)
     /* ---- naming inside an assembly ----
        The ID column is taken exactly as written and never suffixed: every row
@@ -1124,8 +1146,8 @@
              (numbered ? (n < 1000 ? ('000' + n).slice(-3) : String(n)) : '');
     }
     var palias = PLANE_ALIAS, yup = false;   // switched by a COORD row
-    var counts = { plate: 0, hole: 0, bar: 0, sect: 0, bolt: 0, cut: 0, module: 0,
-                   assy: 0, view: 0, plot: 0, fit: 0 };
+    var counts = { plate: 0, hole: 0, bar: 0, sect: 0, bolt: 0, cut: 0, notch: 0,
+                   module: 0, assy: 0, view: 0, plot: 0, fit: 0 };
     var views = [];                      // VIEW rows: drawings the sheet asked for
     var plots = [];                      // PLOT rows: the parts it asked to be drawn
     var current = null, currentPart = null, counter = {};
@@ -1598,6 +1620,54 @@
           'parameter less than RECT, so dx/dy/repeat shift one column left)');
         cuts.push(c);
         counts.cut++;
+      } else if (kw === 'NOTCH') {
+        /* NOTCH <member> <from> <to> L.X L.Y <shape> [dx dy repeat] [dx2 dy2 repeat2]
+
+           CUT with two more columns, and they are the whole difference. A CUT
+           takes a shape out of a profile, and a profile has no length, so a CUT
+           on a section has always taken the shape out of the WHOLE length. The
+           two columns say which stretch of the member to take it out of, which
+           is the only thing that was missing.
+
+           Deliberately not called CUT. It is a different operation on a
+           different kind of thing, and a sheet that says CUT where it means
+           "over these 35 mm" reads as if it means the whole member.
+
+           Measured along the member's own axis from the end its MODULE row
+           places, so 0 is that end and `to` blank is the far one. Which part of
+           the section comes away is not written down: the shape and where it
+           sits decide that, exactly as on a plate. Put it at the flange tip and
+           the flange goes; put it where the web meets the flange and the web
+           does. */
+        var ntg = resolvePlate(str(v[0]).toUpperCase());
+        if (!ntg) {
+          warn('row ' + (r + 1) + ': NOTCH names ' + (str(v[0]) || '(blank)') +
+               ', which no PLATE, BAR or SECT row defines.');
+          continue;
+        }
+        var nshape = str(v[5]).toUpperCase();
+        if (!nshape) {
+          warn('row ' + (r + 1) + ': NOTCH on ' + ntg + ' names no shape. It takes' +
+               ' a HOLE id, the same way a CUT does: NOTCH <member> <from> <to>' +
+               ' <L.X> <L.Y> <shape>');
+          continue;
+        }
+        var nfrom = num(v[1], 0);
+        var nto = str(v[2]) === '' ? null : num(v[2], 0);
+        if (nto !== null && nto <= nfrom) {
+          warn('row ' + (r + 1) + ': NOTCH on ' + ntg + ' runs from ' + nfrom +
+               ' to ' + nto + ', which is not a stretch. Leave `to` blank to' +
+               ' reach the far end.');
+          continue;
+        }
+        var nc = { PLATE: ntg, REFPT: 'bc', __xlCut: true, __org: true,
+                   FROM: nfrom, TO: nto, ANG: 0,
+                   U: num(v[3], 0), V: num(v[4], 0),
+                   TYPE: 'REF', REF: nshape,
+                   DX: num(v[6], 0), DY: num(v[7], 0), REP: num(v[8], 0),
+                   DX2: num(v[9], 0), DY2: num(v[10], 0), REP2: num(v[11], 0) };
+        notches.push(nc);
+        counts.notch++;
       } else if (kw === 'VIEW') {         // VIEW <module> <direction> [title]
         /* A drawing the sheet asks for by name: which module, seen from where,
            and what to call it. All three are content - the person who knows
@@ -2027,7 +2097,8 @@
       counts.view--;
       return false;
     });
-    return { plates: plates, holes: holes, parts: parts, cuts: cuts, assy: assy,
+    return { plates: plates, holes: holes, parts: parts, cuts: cuts,
+             notches: notches, assy: assy,
              views: views, plots: plots, log: log, counts: counts, yup: yup,
              fatal: fatals.length ? fatals : null };
   }
@@ -2082,6 +2153,7 @@
             (c.sect ? ' &middot; sections ' + c.sect : '') +
             (c.bolt ? ' &middot; bolts ' + c.bolt : '') +
             ' &middot; cuts ' + c.cut +
+            (c.notch ? ' &middot; notches ' + c.notch : '') +
             ' &middot; modules ' + (c.module || 0) +
             ' &middot; assy ' + c.assy + ' &rarr; placed ' + placed +
             (c.fit ? ' &middot; fits ' + c.fit : '') +
@@ -2820,6 +2892,98 @@
     return { outers: c.outers, holes: c.holes, feats: feats, area: area,
              cuts: cutters };
   }
+  /* ---------------- a member as a run of prisms ----------------
+
+     Everything here is a profile extruded along local z, from -len/2 to
+     +len/2. That is what makes the drawing exact: a prism's surface is flat
+     pieces, so what hides what is arithmetic rather than sampling.
+
+     A NOTCH does not give that up. It cuts the member's LENGTH into stretches
+     and gives each its own profile, and every stretch is still a prism. The
+     boundaries are the notch ends; between two boundaries the profile is the
+     base one minus whatever notches reach that far.
+
+     A member with no notches comes back as one segment holding exactly the
+     profile it always had, so nothing that ships today goes down a new road. */
+  function buildSegments(spec, cuts, notches, plates, len) {
+    var base = buildPlate2D(spec, cuts, plates);
+    var mine = (notches || []).filter(function (n) { return n.PLATE === spec.ID; });
+    var whole = { base: base, bit: false,
+                  segs: [{ rings: base, area: base.area, z0: -len / 2, z1: len / 2 }] };
+    if (!mine.length || !(len > 0)) return whole;
+
+    var clamp = function (x) { return Math.max(0, Math.min(len, x)); };
+    var at = [0, len];
+    mine.forEach(function (n) {
+      at.push(clamp(n.FROM), clamp(n.TO === null ? len : n.TO));
+    });
+    at.sort(function (a, b) { return a - b; });
+    var st = [];
+    at.forEach(function (x) {
+      if (!st.length || x - st[st.length - 1] > 1e-6) st.push(x);
+    });
+    /* Two stretches running under the same notches have the same profile, so
+       the boundary between them is not a boundary - it is a line drawn across
+       the middle of a piece of steel. Rather than draw it and then work out how
+       to take it away, they are never split apart: the run is cut only where
+       the profile actually changes. Which also means every boundary that is
+       left IS a step, and its rim is a real edge that belongs in the drawing. */
+    var segs = [];
+    for (var i = 0; i < st.length - 1; i++) {
+      var a = st[i], b = st[i + 1], mid = (a + b) / 2;
+      var live = [];
+      mine.forEach(function (n, j) {
+        if (clamp(n.FROM) <= mid && mid <= clamp(n.TO === null ? len : n.TO)) live.push(j);
+      });
+      var g = live.length
+        ? buildPlate2D(spec, cuts.concat(live.map(function (j) { return mine[j]; })), plates)
+        : base;
+      /* Compared as SHAPES, not as which notches were in force. A notch whose
+         shape misses the section - put at the wrong coordinate, or smaller than
+         the gap it was aimed at - takes nothing away, and two stretches under
+         different notches can still be the same steel. Keyed on the notch list
+         that came out as a boundary with no step: a line drawn across the middle
+         of an uncut member, which is the exact thing this was built to avoid. */
+      var top = segs[segs.length - 1];
+      if (top && sameProfile(top.rings, g)) { top.z1 = b - len / 2; continue; }
+      segs.push({ rings: g, area: g.area, z0: a - len / 2, z1: b - len / 2 });
+    }
+    /* One stretch left, and it reaches end to end: the notch covered the whole
+       member, so it simply IS the profile now. Handing it back as the base is
+       what makes "a NOTCH over the whole member is a CUT" true rather than
+       nearly true - everything downstream reads one profile, which is what a
+       member with one profile has. */
+    if (segs.length === 1) {
+      if (sameProfile(base, segs[0].rings)) return whole;
+      return { base: segs[0].rings, bit: true, segs: segs };
+    }
+    return { base: base, bit: true, segs: segs };
+  }
+  /* Two profiles are the same steel if neither has anything the other has
+     not. Done as a boolean rather than by comparing points: PolyBool is free to
+     hand back the same shape with its rings in another order, wound the other
+     way, or starting at another vertex, and all three would read as different. */
+  function regionArea(r) {
+    var t = 0;
+    (r.regions || []).forEach(function (ring) { t += Math.abs(ringAreaTrue(ring)); });
+    return t;
+  }
+  function sameProfile(a, b) {
+    var ra = { regions: segRegions({ rings: a }), inverted: false };
+    var rb = { regions: segRegions({ rings: b }), inverted: false };
+    return regionArea(PolyBool.difference(ra, rb)) < 1e-6 &&
+           regionArea(PolyBool.difference(rb, ra)) < 1e-6;
+  }
+  /* Every ring of a segment as one flat list, which is the shape PolyBool
+     works in - it tells an outer from a hole by containment, not by which
+     list it arrived in. */
+  function segRegions(sg) {
+    var out = (sg.rings.outers || []).slice();
+    (sg.rings.holes || []).forEach(function (hs) {
+      (hs || []).forEach(function (h) { out.push(h); });
+    });
+    return out;
+  }
   // even containment depth = outer ring, odd = hole; each hole filed under the
   // outer that contains it
   function classifyRings(regions) {
@@ -3267,7 +3431,7 @@
 
   /* ---------------- scene build ---------------- */
   function buildAll(data, colors) {
-    var plates = {}, parts = {}, cuts, assyRows;
+    var plates = {}, parts = {}, cuts, notches, assyRows;
     var colorSeq = 0;
     yupSheet = !!(data.__parsed && data.__parsed.yup);
     shapeLib = (data.__parsed && data.__parsed.holes) || {};
@@ -3275,8 +3439,10 @@
       plates = data.__parsed.plates;
       parts = data.__parsed.parts || {};
       cuts = data.__parsed.cuts;
+      notches = data.__parsed.notches || [];
       assyRows = data.__parsed.assy;
     } else {                             // JS sheet-array path
+      notches = [];
       cuts = sheetToObjects(data.CUT);
       assyRows = sheetToObjects(data.ASSY);
       parsePlateSheet(data.PLATE).forEach(function (p) { plates[p.ID] = p; });
@@ -3297,6 +3463,7 @@
     var inst = {};                       // NO → {matrix, pts, thk} for EDGE references
     var bbox = new THREE.Box3();
 
+    var notchSaid = {};                  // one word per member, not per copy
     function buildErr(m) { buildLog.push({ s: 'e', m: m }); console.error('[plateBuilder] ' + m); }
     function buildHint(m) { buildLog.push({ s: 'w', m: m }); console.warn('[plateBuilder] ' + m); }
 
@@ -3304,27 +3471,55 @@
     function buildInstance(spec, matrix, no, group, remark, mirror, moduleId, memberKey, flip, member, caps) {
       var world = yupFix(matrix);        // EDGE chaining keeps using the raw matrix
       var thk = spec.THK;
-      var g2d = buildPlate2D(spec, cuts, plates);
+      var built = buildSegments(spec, cuts, notches, plates, thk);
+      /* A NOTCH that takes nothing away is a row that did not do what it says,
+         and it looks exactly like one that worked: same weight, same drawing.
+         Said once per member, not once per copy of it. */
+      if (!built.bit && notchSaid[spec.ID] === undefined &&
+          (notches || []).some(function (n) { return n.PLATE === spec.ID; })) {
+        notchSaid[spec.ID] = 1;
+        buildHint('NOTCH on ' + spec.ID + ' takes nothing away. Check L.X / L.Y' +
+                  ' against the section, the shape size, and that from/to fall' +
+                  ' inside the member (0 to ' + rnd(thk) + ').');
+      }
+      var g2d = built.base;
       var outers = g2d.outers, holesArr = g2d.holes, cutRings = g2d.cuts || [];
-      if (mirror) {
-        outers = mirror2D(outers, spec);
-        holesArr = holesArr.map(function (hs) { return mirror2D(hs, spec); });
-        cutRings = mirror2D(cutRings, spec);
+      /* Mirror and flip are the instance's own, so a stretch is turned the same
+         way its member is. Written once and applied to each, rather than to the
+         base profile alone - a notched member turned the wrong way is a notch
+         on the wrong side, and nothing downstream would say so. */
+      function turn(rings) {
+        var o = rings.outers, h = rings.holes || [], c = rings.cuts || [];
+        if (mirror) {
+          o = mirror2D(o, spec);
+          h = h.map(function (hs) { return mirror2D(hs, spec); });
+          c = mirror2D(c, spec);
+        }
+        if (flip) {
+          o = flipRingsX(o);
+          h = h.map(flipRingsX);
+          c = flipRingsX(c);
+        }
+        return { outers: o, holes: h, cuts: c };
       }
       if (flip) {                        // reflected instance, see flipRingsX
         world = world.clone().multiply(new THREE.Matrix4().makeScale(-1, 1, 1));
-        outers = flipRingsX(outers);
-        holesArr = holesArr.map(flipRingsX);
-        cutRings = flipRingsX(cutRings);
         caps = flipCaps(caps);
       }
+      var segs = built.segs.map(function (sg) {
+        return { rings: turn(sg.rings), area: sg.area, z0: sg.z0, z1: sg.z1 };
+      });
+      var turned = turn(g2d);
+      outers = turned.outers; holesArr = turned.holes; cutRings = turned.cuts;
       var groupObj = new THREE.Group();
       var mat = new THREE.MeshPhongMaterial({ color: colors[spec.ID], shininess: 28,
                         side: flatMode ? THREE.DoubleSide : THREE.FrontSide });
       var edgeMat = new THREE.LineBasicMaterial({ color: 0x0e1013 });
-      outers.forEach(function (ring, i) {
+      segs.forEach(function (sg, si) {
+      var first = si === 0, last = si === segs.length - 1;
+      sg.rings.outers.forEach(function (ring, i) {
         var shape = new THREE.Shape(ring.map(function (q) { return new THREE.Vector2(q[0], q[1]); }));
-        holesArr[i].forEach(function (h) {
+        (sg.rings.holes[i] || []).forEach(function (h) {
           /* A hole's wall has to face INTO the hole, and ExtrudeGeometry builds
              it from the winding it is handed. A hole wound the same way round
              as its outer therefore comes out inside-out: the wall is there but
@@ -3335,7 +3530,7 @@
           var hh = ringArea(h) * ringArea(ring) > 0 ? h.slice().reverse() : h;
           shape.holes.push(new THREE.Path(hh.map(function (q) { return new THREE.Vector2(q[0], q[1]); })));
         });
-        var geo = plateGeom(shape, thk, caps);
+        var geo = segGeom(shape, sg.z0, sg.z1, caps, first, last);
         var mesh = new THREE.Mesh(geo, mat);
         mesh.matrixAutoUpdate = false;
         mesh.matrix.copy(world);
@@ -3343,11 +3538,17 @@
         groupObj.add(mesh);
         geo.computeBoundingBox();
         bbox.union(geo.boundingBox.clone().applyMatrix4(world));
+        /* EdgesGeometry draws the boundary between two stretches, because to it
+           that IS an edge - it cannot see the next stretch. Dropped on the
+           screen the same way it is dropped in the drawing: an interior face is
+           not a surface, so its rim is not a line. Only the ends of the whole
+           member keep theirs. */
         var edge = new THREE.LineSegments(new THREE.EdgesGeometry(geo, 25), edgeMat);
         edge.matrixAutoUpdate = false;
         edge.matrix.copy(world);
         edge.userData = { shape: shape, thk: thk, caps: caps };
         groupObj.add(edge);
+      });
       });
       /* ---- a bolt's head and nut ----
          Drawn, not modelled: they are here so the picture reads as a bolted
@@ -3395,6 +3596,13 @@
       }
       scene.add(groupObj);
       var axLen = capLength({ outers: outers, holes: holesArr }, thk, caps);
+      /* Weight of a notched member is the sum of its stretches, not one
+         profile times one length. The steel that was cut away is not paid for,
+         and a quote is what this number becomes. With one stretch it reduces to
+         exactly what it always was. */
+      var mass = segs.length > 1
+        ? segs.reduce(function (t, sg) { return t + sg.area * (sg.z1 - sg.z0); }, 0) * RHO
+        : g2d.area * axLen * RHO;
       var dims = spec.SHAPE === 'SECT'
         ? sectLabel(spec) + ' L' + (caps ? rnd(axLen) + '\u2220' : thk)
         : spec.SHAPE === 'CIRC'
@@ -3411,7 +3619,7 @@
                  moduleId: moduleId || null,
                  memberKey: memberKey || null,
                  instKey: gname + '/' + (mem || moduleId || '#' + spec.ID),
-                 groupObj: groupObj, mass: g2d.area * axLen * RHO,
+                 groupObj: groupObj, mass: mass, segs: segs,
                  dims: dims, remark: remark || '',
                  spec: spec, thk: thk, caps: caps || null, axLen: axLen,
                  matrix: world, mat: mat, edgeMat: edgeMat,
@@ -5831,15 +6039,20 @@
       if (holes) holes.push(pc);            // for the pitch chain
     });
 
-    function ring(pts) {
+    /* ZL and ZH are where this ring's two ends sit. For a plain member they
+       are the member's own cap planes, which can lean; for one stretch of a
+       notched member they are the two flat planes that stretch runs between.
+       `thick` is whether there is any run at all - a zero-length stretch has
+       no side walls to draw. */
+    function ring(pts, ZL, ZH, thick) {
       var n = pts.length;
       if (n < 2) return;
       var faceFront = [];
       var lo = [], hi = [];
       for (var i = 0; i < n; i++) {
         var a = pts[i], b = pts[(i + 1) % n];
-        lo.push(proj(a[0], a[1], Z.lo(a[0], a[1])));
-        if (half) hi.push(proj(a[0], a[1], Z.hi(a[0], a[1])));
+        lo.push(proj(a[0], a[1], ZL(a[0], a[1])));
+        if (thick) hi.push(proj(a[0], a[1], ZH(a[0], a[1])));
         // side face i is spanned by edge a->b and the extrusion direction
         var ea = new THREE.Vector3(b[0] - a[0], b[1] - a[1], 0)
                    .applyMatrix4(new THREE.Matrix4().extractRotation(m));
@@ -5852,7 +6065,7 @@
         d.lines.forEach(function (s) { segs.push(s); });
         if (arcs) d.arcs.forEach(function (a) { arcs.push(a); });
       });
-      if (!half) return;
+      if (!thick) return;
       for (var j = 0; j < n; j++) {
         var prev = pts[(j - 1 + n) % n], cur = pts[j], nxt = pts[(j + 1) % n];
         var d1x = cur[0] - prev[0], d1y = cur[1] - prev[1];
@@ -5864,14 +6077,32 @@
           corner = cosT < Math.cos(25 * Math.PI / 180);   // same 25 deg the 3D view creases at
         }
         var sil = faceFront[(j - 1 + n) % n] !== faceFront[j];
-        if (corner || sil) segs.push([proj(cur[0], cur[1], Z.lo(cur[0], cur[1])),
-                                      proj(cur[0], cur[1], Z.hi(cur[0], cur[1]))]);
+        if (corner || sil) segs.push([proj(cur[0], cur[1], ZL(cur[0], cur[1])),
+                                      proj(cur[0], cur[1], ZH(cur[0], cur[1]))]);
       }
     }
-    it.rings.outers.forEach(function (o, i) {
-      ring(o);
-      if (!outlineOnly) (it.rings.holes[i] || []).forEach(ring);
-    });
+    function walk(rings, ZL, ZH, thick) {
+      (rings.outers || []).forEach(function (o, i) {
+        ring(o, ZL, ZH, thick);
+        if (!outlineOnly) ((rings.holes || [])[i] || []).forEach(function (h) {
+          ring(h, ZL, ZH, thick);
+        });
+      });
+    }
+    /* A notched member is walked one stretch at a time, each between its own
+       two planes. The end caps of the whole member keep whatever lean FIT gave
+       them; the planes between stretches are flat, because they are inside the
+       steel and nothing ever cut them. */
+    if (it.segs && it.segs.length > 1) {
+      var K = function (z) { return function () { return z; }; };
+      it.segs.forEach(function (sg, k) {
+        var first = k === 0, last = k === it.segs.length - 1;
+        walk(sg.rings, first ? Z.lo : K(sg.z0), last ? Z.hi : K(sg.z1),
+             Math.abs(sg.z1 - sg.z0) > 1e-9);
+      });
+      return;
+    }
+    walk(it.rings, Z.lo, Z.hi, !!half);
   }
 
   /* ================= hidden-line removal =================
@@ -5951,6 +6182,36 @@
 
   /* Every flat piece of every member, as it lands on the page: the polygon it
      covers, the holes punched out of it, and its depth plane. */
+  /* One stretch of a notched member, seen. Side walls are the stretch's own
+     rings over its own z range; the two caps are trimmed against whichever
+     neighbour they touch. A stretch at the end of the member has no neighbour
+     there, so that cap is drawn whole. */
+  function segFacesOf(it, sg, prev, next, P, push) {
+    function capRings(nb) {
+      var mine = { regions: segRegions(sg), inverted: false };
+      if (!nb) return sg.rings;
+      var d = PolyBool.difference(mine, { regions: segRegions(nb), inverted: false });
+      return classifyRings(d.regions);
+    }
+    [['lo', sg.z0, prev], ['hi', sg.z1, next]].forEach(function (e) {
+      var zf = e[1], face = capRings(e[2]);
+      (face.outers || []).forEach(function (o, i) {
+        push(o.map(function (q) { return P(q[0], q[1], zf); }),
+             ((face.holes || [])[i] || []).map(function (h) {
+               return h.map(function (q) { return P(q[0], q[1], zf); });
+             }));
+      });
+    });
+    (sg.rings.outers || []).forEach(function (o, i) {
+      [o].concat((sg.rings.holes || [])[i] || []).forEach(function (r) {
+        for (var j = 0; j < r.length; j++) {
+          var a = r[j], b = r[(j + 1) % r.length];
+          push([P(a[0], a[1], sg.z0), P(b[0], b[1], sg.z0),
+                P(b[0], b[1], sg.z1), P(a[0], a[1], sg.z1)], []);
+        }
+      });
+    });
+  }
   function viewFaces(members, view) {
     var R = new THREE.Vector3(view.right[0], view.right[1], view.right[2]);
     var U = new THREE.Vector3(view.up[0], view.up[1], view.up[2]);
@@ -5962,12 +6223,24 @@
       out.push(faceBox({ poly: poly, holes: holes || [],
                          a: pl.a, b: pl.b, c: pl.c }));
     }
+    function segFaces(it, P) {
+      it.segs.forEach(function (sg, k) {
+        segFacesOf(it, sg, k ? it.segs[k - 1] : null, it.segs[k + 1] || null, P, push);
+      });
+    }
     members.forEach(function (it) {
       var m = it.matrix, Z = capPlanes(it.thk, it.caps);
       var P = function (x, y, z) {
         var p = new THREE.Vector3(x, y, z).applyMatrix4(m);
         return [p.dot(R), p.dot(U), p.dot(Vd)];
       };
+      /* A notched member is a run of stretches, and where two of them meet the
+         face is not a surface: it is inside the steel. What IS a surface there
+         is the part one stretch has and its neighbour does not - the step the
+         notch made - so the cap is drawn as its own profile MINUS the
+         neighbour's, which comes out empty wherever the two agree. Everything
+         else is the same walk as a plain member, one stretch at a time. */
+      if (it.segs && it.segs.length > 1) { segFaces(it, P); return; }
       (it.rings.outers || []).forEach(function (o, i) {
         var hs = it.rings.holes[i] || [];
         // the two caps, each with the ring's holes taken out of it
