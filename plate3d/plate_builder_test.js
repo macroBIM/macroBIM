@@ -6682,18 +6682,12 @@
     var n = Math.round(v * 10) / 10;
     return String(n);
   }
-  /* `one` lets a single station through. One line of HOLES says nothing - it
-     only splits the overall size in two, and the overall size is already on the
-     drawing. A single NOTCH step is the opposite: it is the one number that
-     says where the cut stops, and without it the elevation shows a shape
-     nobody can set out. So the caller says which it is; nothing that did not
-     ask changes. */
-  function chainOps(pos, lo, hi, one) {
+  function chainOps(pos, lo, hi) {
     var u = [];
     pos.slice().sort(function (a, b) { return a - b; }).forEach(function (v) {
       if (!u.length || Math.abs(v - u[u.length - 1]) > 1e-3) u.push(v);
     });
-    if (u.length < (one ? 1 : 2)) return [];
+    if (u.length < 2) return [];                 // one line of holes says nothing
     var all = [lo].concat(u).concat([hi]), links = [], i;
     for (i = 0; i < all.length - 1; i++) {
       var d = all[i + 1] - all[i];
@@ -7285,19 +7279,22 @@
        It had none because nothing was ever drawn beside one; a notch depth on
        an elevation that already carries a flange thickness is two of them on
        one edge, and without a level the second lands on the first. */
-    function dimThinV(p1, p2, at, s, level) {
+    function dimThinV(p1, p2, at, s, level, side) {
       var TH = D.text.dim, TG = D.textGap, A = D.arrow;
+      var sd = side < 0 ? -1 : 1;
       var y0 = Math.min(p1[1], p2[1]), y1 = Math.max(p1[1], p2[1]);
       if (!(y1 - y0 > 1e-9)) return;
-      if (y1 - y0 > TH * 1.8) { dimLinear(p1, p2, at, true, level || 0, 1); return; }
-      var off = at + D.origin + D.base + D.stack * (level || 0), tail = A * 2;
+      if (y1 - y0 > TH * 1.8) { dimLinear(p1, p2, at, true, level || 0, sd); return; }
+      var off = at + sd * (D.origin + D.base + D.stack * (level || 0)), tail = A * 2;
       extLine([p1[0], y0], [off, y0]);
       extLine([p1[0], y1], [off, y1]);
       line('PL3D-DIM', [off, y0 - tail], [off, y1 + tail]);
       dot('PL3D-DIM', [off, y0], A / 2);
       dot('PL3D-DIM', [off, y1], A / 2);
       // clear of the dot, not just of the line the dot sits on
-      text('PL3D-DIM', [off + A / 2 + TG * 2, (y0 + y1) / 2 - TH / 2], TH, s, false, 0);
+      text('PL3D-DIM', sd > 0 ? [off + A / 2 + TG * 2, (y0 + y1) / 2 - TH / 2]
+                                : [off - A / 2 - TG * 2 - noteRun(s, D), (y0 + y1) / 2 - TH / 2],
+           TH, s, false, 0);
     }
     /* Horizontal - a web. There is nothing to run an extension line to, so the
        dimension line is the web's own centreline: dots on the two faces, and
@@ -7477,17 +7474,39 @@
         (p.sides || []).forEach(function (sv) {
           var sx0 = ox + sv.x0 - p.box.x0, sx1 = ox + sv.x1 - p.box.x0;
           var sy0 = oy + sv.y0 - p.box.y0, sy1 = oy + sv.y1 - p.box.y0;
-          var shX = sv.holes.map(function (hh) { return ox + hh[0] - p.box.x0; })
-            .concat((sv.steps || []).map(function (x) { return ox + x - p.box.x0; }));
-          var shY = sv.holes.map(function (hh) { return oy + hh[1] - p.box.y0; })
-            .concat((sv.levels || []).map(function (y) { return oy + y - p.box.y0; }));
-          dimChain(chainOps(shX, sx0, sx1, (sv.steps || []).length > 0),
-                   oy, false, 0, 0, oy);
-          /* One level out when a notch put a depth here: the elevation's right
-             edge already carries the flange thickness, and two dimensions on
-             one edge at one level are one unreadable dimension. */
-          dimChain(chainOps(shY, sy0, sy1, (sv.levels || []).length > 0),
-                   sx1, true, (sv.levels || []).length ? 1 : 0, 0, sx1);
+          var shX = sv.holes.map(function (hh) { return ox + hh[0] - p.box.x0; });
+          var shY = sv.holes.map(function (hh) { return oy + hh[1] - p.box.y0; });
+          dimChain(chainOps(shX, sx0, sx1), oy, false, 0, 0, oy);
+          dimChain(chainOps(shY, sy0, sy1), sx1, true, 0, 0, sx1);
+          /* The cut carries its own two numbers, on the cut. How long it runs
+             goes over it, spanning the cut and nothing else; how deep it goes
+             stands at the end it opens, off the side of the member. Neither
+             joins the member's chain: a 250 read as part of the beam's length
+             is a 250 nobody applies to the cope. */
+          (sv.cuts || []).forEach(function (c) {
+            var cx0 = ox + c.x0 - p.box.x0, cx1 = ox + c.x1 - p.box.x0;
+            var cy = oy + c.cut - p.box.y0, fy = oy + c.full - p.box.y0;
+            var out = c.top ? 1 : -1;
+            dimLinear([cx0, cy], [cx1, cy], c.top ? sy1 : sy0, false, 0, out);
+            /* The depth goes at the STEP, and stands off it on the FULL side -
+               past the cut, over the member the cut stopped at. Standing it in
+               the cut instead crowds the one place the drawing is trying to
+               show; the member beyond the step is long, so this side has room.
+               Taking it out past the member end is worse again: that puts it in
+               the gap between the section and the elevation, where the flange
+               thicknesses already are. */
+            var atEnd = Math.abs(c.x0 - sv.x0) < Math.abs(c.x1 - sv.x1);
+            var riser = atEnd ? cx1 : cx0, sd = atEnd ? 1 : -1;
+            /* Still clamped: a cut that leaves only a stub would put the usual
+               stand-off past the member's far end. Half of what is left, when
+               that is the shorter of the two - a dimension line lying on an
+               object line is one line doing two jobs and reading as neither. */
+            var room = atEnd ? sx1 - riser : riser - sx0;
+            var stand = Math.min(D.origin + D.base, room / 2);
+            dimThinV([riser, cy], [riser, fy],
+                     riser + sd * (stand - (D.origin + D.base)),
+                     String(Math.round(Math.abs(c.full - c.cut))), 0, sd);
+          });
           lv = 1;
         });
 
@@ -7536,23 +7555,31 @@
         });
         D = Dout;
         if (p.it.spec.SHAPE === 'SECT') {
-          var sc = sectCallouts(p.it.spec, w, h);
+          /* Laid out against the SECTION, not against the part box. With an
+             elevation beside it the box reaches far past the section, and every
+             call-out - the fillet radius, the web thickness, the flange
+             thicknesses - drifted out with it and landed on the elevation. The
+             face chain above already had to be told this; the call-outs had
+             not, because until a NOTCH gave a member an elevation of its own,
+             the only members with one were bolted through and nobody looked. */
+          var fw = fb.x1 - fb.x0, fh = fb.y1 - fb.y0;
+          var sc = sectCallouts(p.it.spec, fw, fh);
           // flange thicknesses: dimensioned off the tip, line to the right
           sc.dims.forEach(function (dm) {
-            dimThinV([ox + dm.x, oy + dm.y0], [ox + dm.x, oy + dm.y1],
-                     ox + w, dm.txt);
+            dimThinV([fx0 + dm.x, fy0 + dm.y0], [fx0 + dm.x, fy0 + dm.y1],
+                     fx0 + fw, dm.txt);
           });
           /* The web: too thin to letter across, so its number is carried out on
              its own dimension line - out of the web, not out of the section.
              Measuring that from the section's right-hand edge is what made the
              line on an H-700 twice as long as the flange is wide. */
           sc.narrow.forEach(function (nd) {
-            dimNarrow(ox + nd.x0, ox + nd.x1, oy + nd.y,
-                      ox + nd.x1 + D.leadRun, nd.txt, nd.up);
+            dimNarrow(fx0 + nd.x0, fx0 + nd.x1, fy0 + nd.y,
+                      fx0 + nd.x1 + D.leadRun, nd.txt, nd.up);
           });
           // steps are counted per direction and come with the call-out
           sc.leads.forEach(function (c) {
-            leaderAt([ox + c.u, oy + c.v], c.txt, c.dx, c.dy, c.step);
+            leaderAt([fx0 + c.u, fy0 + c.v], c.txt, c.dx, c.dy, c.step);
           });
         }
 
@@ -7707,30 +7734,24 @@
             });
             var lo = Math.min.apply(null, ext.map(function (e) { return e.lo; }));
             var hi = Math.max.apply(null, ext.map(function (e) { return e.hi; }));
-            /* Where the outline steps, and how far down it steps. A step is a
-               station along the member exactly as a cross-bolt is, so it goes
-               on the chain this elevation already runs rather than getting a
-               dimension of its own - the drawing then reads "250 from the end,
-               27.5 deep" without anything new on the page. */
-            var stepX = [], stepY = [];
+            /* What the cut takes, per stretch: how long it runs and how far
+               in it goes. Carried out so the drawing can dimension the CUT
+               rather than fold its stations into the member's own chain - a
+               250 that reads as part of the beam's length is a 250 nobody
+               applies to the cope. */
+            var cuts = [];
             ext.forEach(function (e, i) {
               segs.push([[e.x0, e.hi], [e.x1, e.hi]], [[e.x0, e.lo], [e.x1, e.lo]]);
+              if (Math.abs(e.hi - hi) > 1e-9)
+                cuts.push({ x0: e.x0, x1: e.x1, cut: e.hi, full: hi, top: 1 });
+              if (Math.abs(e.lo - lo) > 1e-9)
+                cuts.push({ x0: e.x0, x1: e.x1, cut: e.lo, full: lo, top: 0 });
               if (i === 0) segs.push([[e.x0, e.lo], [e.x0, e.hi]]);
               if (i === ext.length - 1) segs.push([[e.x1, e.lo], [e.x1, e.hi]]);
               else {
                 var n = ext[i + 1];              // the riser between two stretches
-                var cut = false;
-                if (Math.abs(n.hi - e.hi) > 1e-9) {
-                  segs.push([[e.x1, e.hi], [e.x1, n.hi]]);
-                  stepY.push(Math.min(e.hi, n.hi));
-                  cut = true;
-                }
-                if (Math.abs(n.lo - e.lo) > 1e-9) {
-                  segs.push([[e.x1, e.lo], [e.x1, n.lo]]);
-                  stepY.push(Math.max(e.lo, n.lo));
-                  cut = true;
-                }
-                if (cut) stepX.push(e.x1);
+                if (Math.abs(n.hi - e.hi) > 1e-9) segs.push([[e.x1, e.hi], [e.x1, n.hi]]);
+                if (Math.abs(n.lo - e.lo) > 1e-9) segs.push([[e.x1, e.lo], [e.x1, n.lo]]);
               }
             });
             var hs = grp.map(function (h) {
@@ -7740,7 +7761,7 @@
               arcs.push({ c: q, r: grp[i].d / 2, full: true });
             });
             p.sides.push({ x0: cur - mh2, x1: cur + mh2, y0: lo, y1: hi, holes: hs,
-                           steps: stepX, levels: stepY });
+                           cuts: cuts });
             cur += 2 * mh2 + gapv;
           });
         }
