@@ -74,6 +74,15 @@
          Leave the field: a shim or a division plate between the pieces is a
          real detail, and then its thickness is what goes here. */
       gap: 0, cpL: 330,
+      /* the stiffener's scallop. A plate cut to the full clear space between
+         the flanges runs into the two fillets where the web meets them, so its
+         web-side corners come away - which also opens the weld up. 35 clears
+         every rolled H there is (r runs 13..28) and is the size a shop expects
+         to see, so it is a flat number rather than something worked out of r:
+         a person reading the sheet knows where 35 came from. C is the round
+         scallop, S the square clip; both are the same cut with a different
+         shape, so the choice is one cell and not a second detail. */
+      scT: 'C', scR: 35,
       foW: 300, foT: 12,                       // flange plate, outer
       fiW: 110, fiT: 10,                       // flange plate, inner - two per flange
       wpW: 234, wpT: 10,                       // web plate - two
@@ -236,18 +245,33 @@
        closed wall to weld one in.
        Thickness 0 and that row is not there, the switch the whole book uses. */
     const NSTF = 8;
-    V.stf = [];
-    /* These read "upper" and "lower", not "beam top flange". The offset IS a beam
+    /* Filled ONCE, and this is the whole of why the guard is here. derive() runs
+       again on every form edit - that is the point of it - and rebuilding this
+       array each time threw away whatever had just been typed, before the redraw
+       that follows drew it. The chapter's six cells could not be edited at all:
+       a value went in and the default came straight back out. The offsets do
+       need D, which is why they are worked out here rather than in defaults();
+       needing D is a reason to compute them LATE, not a reason to compute them
+       AGAIN. In the workbook nothing of the sort happens - there the cells are
+       read by formula - so this was the browser form's alone.
+
+       These read "upper" and "lower", not "beam top flange". The offset IS a beam
        flange height - that is what it is for - but naming the plate after the
        beam made it look like part of the beam, and it is not: it is welded inside
        the column and it is the column's steel. Where the height came from is
-       still on the sheet, in the check row's "beam flange at ±". */
-    [1, -1].forEach(s => V.stf.push({
-      t: s > 0 ? 'upper stiffener' : 'lower stiffener',
-      off: rnd(s * (D.bmH - D.bmF) / 2),      // the default beam's flange centre
-      w: rnd((D.b - D.tw) / 2), d: rnd(D.h - 2 * D.tf), th: 12
-    }));
-    while (V.stf.length < NSTF) V.stf.push({ t: '', off: 0, w: 0, d: 0, th: 0 });
+       still on the sheet, in the check row's "beam flange at ±" - which is also
+       what makes standing still the right behaviour when a beam later changes
+       depth: the new height is on the sheet to copy up, and a number the person
+       has already set is not moved under them. */
+    if (!V.stf) {
+      V.stf = [];
+      [1, -1].forEach(s => V.stf.push({
+        t: s > 0 ? 'upper stiffener' : 'lower stiffener',
+        off: rnd(s * (D.bmH - D.bmF) / 2),    // the default beam's flange centre
+        w: rnd((D.b - D.tw) / 2), d: rnd(D.h - 2 * D.tf), th: 12
+      }));
+      while (V.stf.length < NSTF) V.stf.push({ t: '', off: 0, w: 0, d: 0, th: 0 });
+    }
     // column D is 26 wide with a filled neighbour, so Excel clips rather than spills
     V.stf.forEach(x => { if (x.t.length > 25)
       throw new Error('stiffener note clipped at 26: ' + x.t.length); });
@@ -297,6 +321,11 @@
       r: c('I', R.sec), alpha: c('J', R.sec), kg: c('K', R.sec),
       up: c('E', R.len), mid: c('G', R.len), dn: c('I', R.len),
       steel: c('C', R.steel),
+      /* One scallop for the joint, on the first stiffener row - the same place
+         the splice keeps `gap`, which is also a chapter-wide value sitting in
+         column J of a chapter's first row. Per level would be eight cells for a
+         number a shop sets once. */
+      scT: c('I', R.stf0), scR: c('J', R.stf0),
       foW: c('E', R.fo), foL: c('F', R.fo), foT: c('G', R.fo), gap: c('J', R.fo),
       fiW: c('E', R.fi), fiL: c('F', R.fi), fiT: c('G', R.fi),
       wpW: c('E', R.wp), wpL: c('F', R.wp), wpT: c('G', R.wp),
@@ -422,6 +451,28 @@
     });
 
     note2('');
+    note2('the stiffener scallop. One shape for the joint: CIRC is the round scallop, RECT the square clip. A circle reads only the first size, so both cells carry it and the shape cell alone decides.');
+    row(['HOLE', 'ho.sc', f(`IF(${K.scT}="S","RECT","CIRC")`, V.scT === 'S' ? 'RECT' : 'CIRC'),
+         'mc', f(`2*${K.scR}`, 2 * V.scR), f(`2*${K.scR}`, 2 * V.scR)],
+        'round r35, or a 35 square clip');
+    note2('CUT  plate  L.X  L.Y  shape  dx dy repeat — one row a level, the repeat putting the same cut at the other flange. Centred ON the corner, so a circle takes a quarter of itself out of it.');
+    note2('A level that is switched off keeps its row and sends the cut 9999 away, off the plate entirely: only the overlap is removed, so nothing is. Cutting a switched-off plate to nothing would undefine it.');
+    V.stf.forEach((s, i) => {
+      const k = SK(i), live = H && s.th > 0;
+      /* The two corners that need it are the ones on the WEB side, where the
+         fillets are - the plate fills the clear space between the flanges, and
+         the fillets stand inside that. The flange-tip corners have nothing to
+         clear, so they keep their steel and their weld. */
+      row(['CUT', 'pl.stf' + (i + 1),
+           f(`IF(AND(${isH},${k.th}>0),MAX(1,${k.d})/2,9999)`,
+             live ? Math.max(1, s.d) / 2 : 9999),
+           f(`MAX(1,${k.w})/2`, Math.max(1, s.w) / 2),
+           'ho.sc',
+           f(`-MAX(1,${k.d})`, -Math.max(1, s.d)), 0, 1],
+          i === 0 ? 'level 1 — both web-side corners, one row' : '');
+    });
+
+    note2('');
     note2('MODULE  id  member  Ref.Pt  L.X  L.Y  L.Z  PLANE  [ROT.X ROT.Y ROT.Z]  [dx dy dz repeat]  [dx2 dy2 dz2 repeat2]');
     note2('ROT.Z 90 turns the section so its h runs along X. A square column cannot show that in a bounding box, so it is written down rather than looked for.');
     PIECES.forEach(([id, what, klen, vlen], i) => {
@@ -524,21 +575,27 @@
        also where the beams sit - is at mid/2.
        Inside the module the section carries ROT.Z 90, so its h lies along X and
        its b along Y. The plates do not: each is laid flat in XY, which is why the
-       PLATE row above puts the depth first. The repeat then drops the second
-       plate on the far side of the web. */
+       PLATE row above puts the depth first.
+
+       TWO rows a level, not one row with a repeat. A repeat translates, and the
+       two plates are no longer translations of each other: the scallops sit on
+       the web side only, so the far plate is the near one MIRRORED. ROT.Z 180
+       about its own mc is that mirror, and it keeps one PLATE definition - so
+       the take-off still shows one item a level rather than a left and a right. */
     note2('');
     note2('the stiffeners, inside the middle column module so Alpha turns them with it. Local z 0 is the foot of that piece, so its centre — and the beams — are at mid/2.');
-    note2('One row per level; the repeat puts the second plate the other side of the web, the web splitting the space between the flanges in two.');
+    note2('Two rows a level. The web splits the space between the flanges in two, and the far plate is the near one turned 180° — its scalloped edge has to face the web as well, which a repeat cannot do.');
     const stfHalf  = `(${K.b}+${K.tw})/4`;
     const stfHalfV = rnd((D.b + D.tw) / 4);
     V.stf.forEach((s, i) => {
       const k = SK(i), live = H && s.th > 0;
-      row(['MODULE', 'md.c2',
-           f(`IF(AND(${isH},${k.th}>0),"pl.stf${i + 1}","")`, live ? 'pl.stf' + (i + 1) : ''),
-           'mc', 0, f(`-${stfHalf}`, -stfHalfV),
-           f(`${K.mid}/2+${k.off}`, rnd(V.mid / 2 + s.off)), 'XY', 0, 0, 0,
-           0, f(`2*${stfHalf}`, 2 * stfHalfV), 0, 1],
-          i === 0 ? 'level 1, one plate each side of the web' : '');
+      const on = f(`IF(AND(${isH},${k.th}>0),"pl.stf${i + 1}","")`,
+                   live ? 'pl.stf' + (i + 1) : '');
+      const z = f(`${K.mid}/2+${k.off}`, rnd(V.mid / 2 + s.off));
+      row(['MODULE', 'md.c2', on, 'mc', 0, f(`-${stfHalf}`, -stfHalfV), z, 'XY', 0, 0, 0],
+          i === 0 ? 'level 1, the plate this side of the web' : '');
+      row(['MODULE', 'md.c2', on, 'mc', 0, f(stfHalf, stfHalfV), z, 'XY', 0, 0, 180],
+          i === 0 ? 'and the far side, turned so its scallops face the web too' : '');
     });
 
     /* BASE holds pl.fo_1, so a splice ASSY row names where THAT plate goes. */
@@ -800,6 +857,11 @@
       at(7, rw, function () { return s.d; },   function (x) { s.d   = N(x); });
       at(8, rw, function () { return s.th; },  function (x) { s.th  = N(x); });
     });
+    /* One scallop for the joint, on the chapter's first row - the same column J
+       the splice keeps `gap` in. */
+    at(9,  R.stf0, function () { return V.scT; },
+                   function (x) { V.scT = S(x).toUpperCase() === 'S' ? 'S' : 'C'; });
+    at(10, R.stf0, function () { return V.scR; }, function (x) { V.scR = N(x); });
 
     /* 3 SPLICE PLATES — Width, Length, Thick, (Qty), Material, gap/over */
     at(5, R.fo, function () { return V.foW; }, function (x) { V.foW = N(x); });

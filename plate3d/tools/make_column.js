@@ -230,7 +230,7 @@ checked(R.sChk, [
    rows. The offsets do depend on how deep the beams are, which is chapter 6,
    so the check row carries each beam's flange height for copying up. */
 head(R.tHead, 2, 'COLUMN STIFFENER', 'horizontal plates inside an H — a tube cannot take one, nothing reaches inside the wall');
-cols(R.tCols, ['', '', 'for', 'offset', 'width', 'depth', 'thick']);
+cols(R.tCols, ['', '', 'for', 'offset', 'width', 'depth', 'thick', 'scallop', 'size']);
 V.stf.forEach((s, i) => {
   const rw = STFROW[i];
   label(rw, String(i + 1), { color: (H && s.th > 0) ? INK : OFFTXT });
@@ -238,6 +238,11 @@ V.stf.forEach((s, i) => {
                                  color: BLUE, bold: true });
   [[5, s.off], [6, s.w], [7, s.d], [8, s.th]].forEach(([col, v]) => inp(rw, col, v, '0.##'));
 });
+/* The scallop is one value for the joint, so it sits on the first row only -
+   the same way the splice keeps its `gap` in column J of its first plate row.
+   Eight copies of a number a shop sets once would be eight chances to disagree. */
+sty(inp(R.stf0, 9, V.scT), { color: BLUE, bold: true });
+inp(R.stf0, 10, V.scR, '0.##');
 note(R.tNote, 'Offset is signed, from the middle column\'s centre — where the beams sit. Width runs out from the web, depth between the flanges. Thick 0 = off.');
 checked(R.tChk, [
   /* Two plates a level, always: the web splits the space between the flanges
