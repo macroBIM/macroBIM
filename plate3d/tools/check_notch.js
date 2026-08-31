@@ -36,9 +36,13 @@ const LIB = f => {
 
 const LEN = 1000;
 const H = [300, 300, 300, 10, 15, 15, 18];      // h bb bt tw tf1 tf2 r
+/* A cope: the cutter is WIDER than the flange, so the flange comes away whole
+   and the web is left standing. A shape that stops inside the flange would
+   leave a strip of it hanging off each edge, which is not a thing anyone cuts
+   - and a test that shows an impossible detail teaches one. */
 const sheet = mid => [['COORD', 'ZUP'],
   ['SECT', 'sc.b', 'SS275', LEN, 'H', 'mc'].concat(H),
-  ['HOLE', 'ho.n', 'CIRC', 'mc', 120]]
+  ['HOLE', 'ho.n', 'RECT', 'mc', 340, 40]]
   .concat(mid)
   .concat([['MODULE', 'md.b', 'sc.b', '', -LEN / 2, 0, 0, 'YZ'],
            ['MODULE', 'md.b', 'BASE', 'sc.b', 'mc'],
@@ -46,8 +50,9 @@ const sheet = mid => [['COORD', 'ZUP'],
            ['VIEW', 'as.a', 'FRONT', '', '', 10, 'T'],
            ['END']]);
 
-/* At (0, 140) the shape reaches the flange; at (900, 0) it reaches nothing. */
-const ON = [0, 140], OFF = [900, 0];
+/* At (0, 142.5) the cutter sits on the top flange and takes all of it; at
+   (900, 0) it is off the section altogether and reaches nothing. */
+const ON = [0, 142.5], OFF = [900, 0];
 const CASES = {
   plain:      sheet([]),
   cutAll:     sheet([['CUT',   'sc.b', ON[0], ON[1], 'ho.n']]),
