@@ -75,6 +75,13 @@ const part = mid => sheet(mid).map(function (r) {
 });
 CASES.partPlain = part([]);
 CASES.partNotch = part([['NOTCH', 'sc.b', 0, 400, ON[0], ON[1], 'ho.n']]);
+/* The lower flange is not a special case. The elevation and its dimensions are
+   written per EDGE, not for the top one, and an H is symmetric about its
+   mid-height - so the same cope taken off the bottom has to come out line for
+   line the same, and both flanges coped has to be exactly twice the cope. */
+CASES.partBot  = part([['NOTCH', 'sc.b', 0, 400, ON[0], -ON[1], 'ho.n']]);
+CASES.partBoth = part([['NOTCH', 'sc.b', 0, 400, ON[0],  ON[1], 'ho.n'],
+                       ['NOTCH', 'sc.b', 0, 400, ON[0], -ON[1], 'ho.n']]);
 
 let bad = 0, checks = 0;
 const ok = (c, what, d) => {
@@ -181,6 +188,16 @@ const same = (a, b) => a.lines === b.lines && a.arcs === b.arcs &&
   ok(R.partNotch.lines - R.partPlain.lines >= 6,
      'and it is stepped, not a plain rectangle',
      'gained ' + (R.partNotch.lines - R.partPlain.lines) + ' lines');
+  ok(same(R.partBot, R.partNotch),
+     'a cope on the bottom flange draws the same as one on the top',
+     shot(R.partNotch) + '  vs  ' + shot(R.partBot));
+  /* 3e-3, not 5e-4: these weights are read off the screen total, which is
+     rounded to 3 places, and three of them go into this sum. */
+  ok(R.partBoth.lines > R.partNotch.lines &&
+     Math.abs((R.partPlain.kg - R.partBoth.kg)
+              - 2 * (R.partPlain.kg - R.partNotch.kg)) < 3e-3,
+     'both flanges coped steps twice and weighs twice the cope less',
+     shot(R.partBoth));
 
   /* ---- the take-off ----
      A notched member's weight is right either way, because the area is backed
