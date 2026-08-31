@@ -37,7 +37,8 @@ let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
 const see = (x, y) => { if (x < x0) x0 = x; if (x > x1) x1 = x; if (y < y0) y0 = y; if (y > y1) y1 = y; };
 e.forEach(o => {
   if (o.k === 'L') { see(o.x1, o.y1); see(o.x2, o.y2); }
-  else if (o.k === 'T') see(o.x, o.y);
+  // text runs to the right of its point and sits on it, so its box is neither
+  else if (o.k === 'T') { see(o.x, o.y); see(o.x + o.h * 0.62 * String(o.s).length, o.y + o.h); }
   else { see(o.x - o.r, o.y - o.r); see(o.x + o.r, o.y + o.r); }
 });
 const pad = Math.max(10, (x1 - x0) * 0.02);

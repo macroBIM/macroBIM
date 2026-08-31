@@ -6682,12 +6682,18 @@
     var n = Math.round(v * 10) / 10;
     return String(n);
   }
-  function chainOps(pos, lo, hi) {
+  /* `one` lets a single station through. One line of HOLES says nothing - it
+     only splits the overall size in two, and the overall size is already on the
+     drawing. A single NOTCH step is the opposite: it is the one number that
+     says where the cut stops, and without it the elevation shows a shape
+     nobody can set out. So the caller says which it is; nothing that did not
+     ask changes. */
+  function chainOps(pos, lo, hi, one) {
     var u = [];
     pos.slice().sort(function (a, b) { return a - b; }).forEach(function (v) {
       if (!u.length || Math.abs(v - u[u.length - 1]) > 1e-3) u.push(v);
     });
-    if (u.length < 2) return [];                 // one line of holes says nothing
+    if (u.length < (one ? 1 : 2)) return [];
     var all = [lo].concat(u).concat([hi]), links = [], i;
     for (i = 0; i < all.length - 1; i++) {
       var d = all[i + 1] - all[i];
@@ -7252,6 +7258,14 @@
       ops.forEach(function (s) {
         var p1 = vertical ? [fix, s.a] : [s.a, fix];
         var p2 = vertical ? [fix, s.b] : [s.b, fix];
+        /* A link shorter than the number that measures it. Bolt pitches are
+           never that tight, so this never came up until a NOTCH put a 27.5 deep
+           cut on an elevation and the number landed on its own dot. It is the
+           same thing a flange thickness is, and it gets the same answer the
+           section tables already use - the number stood beside the dimension
+           instead of laid inside it. dimThinV falls back to the ordinary
+           dimension when there is room, so nothing wide enough changes. */
+        if (vertical) { dimThinV(p1, p2, at, s.txt, level); return; }
         dimLinear(p1, p2, at, vertical, level, side, s.txt);
       });
     }
@@ -7267,12 +7281,16 @@
        it rather than laid along it. This is the t2 of a section table.
        Falls through to the ordinary dimension when the span is deep enough to
        hold the text, which it is at 1:1 and never is at 1:10. */
-    function dimThinV(p1, p2, at, s) {
+    /* `level` stacks it outward the way dimLinear does, by the same D.stack.
+       It had none because nothing was ever drawn beside one; a notch depth on
+       an elevation that already carries a flange thickness is two of them on
+       one edge, and without a level the second lands on the first. */
+    function dimThinV(p1, p2, at, s, level) {
       var TH = D.text.dim, TG = D.textGap, A = D.arrow;
       var y0 = Math.min(p1[1], p2[1]), y1 = Math.max(p1[1], p2[1]);
       if (!(y1 - y0 > 1e-9)) return;
-      if (y1 - y0 > TH * 1.8) { dimLinear(p1, p2, at, true, 0, 1); return; }
-      var off = at + D.origin + D.base, tail = A * 2;
+      if (y1 - y0 > TH * 1.8) { dimLinear(p1, p2, at, true, level || 0, 1); return; }
+      var off = at + D.origin + D.base + D.stack * (level || 0), tail = A * 2;
       extLine([p1[0], y0], [off, y0]);
       extLine([p1[0], y1], [off, y1]);
       line('PL3D-DIM', [off, y0 - tail], [off, y1 + tail]);
@@ -7459,10 +7477,17 @@
         (p.sides || []).forEach(function (sv) {
           var sx0 = ox + sv.x0 - p.box.x0, sx1 = ox + sv.x1 - p.box.x0;
           var sy0 = oy + sv.y0 - p.box.y0, sy1 = oy + sv.y1 - p.box.y0;
-          var shX = sv.holes.map(function (hh) { return ox + hh[0] - p.box.x0; });
-          var shY = sv.holes.map(function (hh) { return oy + hh[1] - p.box.y0; });
-          dimChain(chainOps(shX, sx0, sx1), oy, false, 0, 0, oy);
-          dimChain(chainOps(shY, sy0, sy1), sx1, true, 0, 0, sx1);
+          var shX = sv.holes.map(function (hh) { return ox + hh[0] - p.box.x0; })
+            .concat((sv.steps || []).map(function (x) { return ox + x - p.box.x0; }));
+          var shY = sv.holes.map(function (hh) { return oy + hh[1] - p.box.y0; })
+            .concat((sv.levels || []).map(function (y) { return oy + y - p.box.y0; }));
+          dimChain(chainOps(shX, sx0, sx1, (sv.steps || []).length > 0),
+                   oy, false, 0, 0, oy);
+          /* One level out when a notch put a depth here: the elevation's right
+             edge already carries the flange thickness, and two dimensions on
+             one edge at one level are one unreadable dimension. */
+          dimChain(chainOps(shY, sy0, sy1, (sv.levels || []).length > 0),
+                   sx1, true, (sv.levels || []).length ? 1 : 0, 0, sx1);
           lv = 1;
         });
 
@@ -7682,14 +7707,30 @@
             });
             var lo = Math.min.apply(null, ext.map(function (e) { return e.lo; }));
             var hi = Math.max.apply(null, ext.map(function (e) { return e.hi; }));
+            /* Where the outline steps, and how far down it steps. A step is a
+               station along the member exactly as a cross-bolt is, so it goes
+               on the chain this elevation already runs rather than getting a
+               dimension of its own - the drawing then reads "250 from the end,
+               27.5 deep" without anything new on the page. */
+            var stepX = [], stepY = [];
             ext.forEach(function (e, i) {
               segs.push([[e.x0, e.hi], [e.x1, e.hi]], [[e.x0, e.lo], [e.x1, e.lo]]);
               if (i === 0) segs.push([[e.x0, e.lo], [e.x0, e.hi]]);
               if (i === ext.length - 1) segs.push([[e.x1, e.lo], [e.x1, e.hi]]);
               else {
                 var n = ext[i + 1];              // the riser between two stretches
-                if (Math.abs(n.hi - e.hi) > 1e-9) segs.push([[e.x1, e.hi], [e.x1, n.hi]]);
-                if (Math.abs(n.lo - e.lo) > 1e-9) segs.push([[e.x1, e.lo], [e.x1, n.lo]]);
+                var cut = false;
+                if (Math.abs(n.hi - e.hi) > 1e-9) {
+                  segs.push([[e.x1, e.hi], [e.x1, n.hi]]);
+                  stepY.push(Math.min(e.hi, n.hi));
+                  cut = true;
+                }
+                if (Math.abs(n.lo - e.lo) > 1e-9) {
+                  segs.push([[e.x1, e.lo], [e.x1, n.lo]]);
+                  stepY.push(Math.max(e.lo, n.lo));
+                  cut = true;
+                }
+                if (cut) stepX.push(e.x1);
               }
             });
             var hs = grp.map(function (h) {
@@ -7698,7 +7739,8 @@
             hs.forEach(function (q, i) {
               arcs.push({ c: q, r: grp[i].d / 2, full: true });
             });
-            p.sides.push({ x0: cur - mh2, x1: cur + mh2, y0: lo, y1: hi, holes: hs });
+            p.sides.push({ x0: cur - mh2, x1: cur + mh2, y0: lo, y1: hi, holes: hs,
+                           steps: stepX, levels: stepY });
             cur += 2 * mh2 + gapv;
           });
         }
