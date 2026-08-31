@@ -22,6 +22,7 @@
    message that names the row.
 */
 const { chromium } = require('playwright-core');
+const ExcelJS = require('exceljs');
 const fs = require('fs');
 const path = require('path');
 const SP = __dirname;
@@ -66,6 +67,14 @@ const CASES = {
   badMember:  sheet([['NOTCH', 'sc.zz', 0, 400, ON[0], ON[1], 'ho.n']]),
   badShape:   sheet([['NOTCH', 'sc.b', 0, 400, ON[0], ON[1], '']])
 };
+/* The part drawing, which is a different question from the assembly view: a
+   cross-section has no axis along the member, so a notch cannot show on one. */
+const part = mid => sheet(mid).map(function (r) {
+  return String(r[0]).toUpperCase() === 'VIEW'
+    ? ['PLOT', 'SECT', 'ALL', 10, 'SECTIONS'] : r;   // PART is plates; a section is SECT
+});
+CASES.partPlain = part([]);
+CASES.partNotch = part([['NOTCH', 'sc.b', 0, 400, ON[0], ON[1], 'ho.n']]);
 
 let bad = 0, checks = 0;
 const ok = (c, what, d) => {
@@ -154,6 +163,96 @@ const same = (a, b) => a.lines === b.lines && a.arcs === b.arcs &&
     ok(same(R[k], R.plain), 'refused rows leave the member alone: ' + what,
        shot(R[k]) + ' vs ' + shot(R.plain));
   });
+
+  /* ---- the part drawing ----
+     A NOTCH sits at a distance ALONG the member, and a cross-section has no
+     axis for that. So it goes on the side elevation the drawing already grows
+     for a bolt that crosses the member - a member that is notched has to get
+     one even with nothing bolted through it, or its part drawing shows a full
+     section and says nothing about the piece missing from the end. */
+  console.log('');
+  ok(R.partPlain.lines > 0 && R.partNotch.lines > 0, 'both part drawings come out',
+     R.partPlain.lines + ' / ' + R.partNotch.lines + ' lines');
+  ok(R.partNotch.lines > R.partPlain.lines,
+     'a notched member gains the side elevation',
+     R.partPlain.lines + ' → ' + R.partNotch.lines + ' lines');
+  /* Four sides of a plain elevation would be 4; a stepped one has the two
+     risers as well, and the run is broken in two. */
+  ok(R.partNotch.lines - R.partPlain.lines >= 6,
+     'and it is stepped, not a plain rectangle',
+     'gained ' + (R.partNotch.lines - R.partPlain.lines) + ' lines');
+
+  /* ---- the take-off ----
+     A notched member's weight is right either way, because the area is backed
+     out of the weight. What is NOT right is the kg/m that falls out of that:
+     it matches no steel table, and a take-off line nobody can check against the
+     table is a line nobody trusts. So the section it was cut FROM is reported,
+     and what came away is its own column. */
+  console.log('');
+  async function boq(rows) {
+    await page.evaluate(async rows => {
+      window.postMessage({ plate3d: 'rows', rows: rows, name: 'notch' }, '*');
+      await new Promise(r => setTimeout(r, 2500));
+    }, rows);
+    await page.evaluate(() => { const o = URL.createObjectURL.bind(URL);
+      URL.createObjectURL = bl => { window.__f = bl; return o(bl); }; window.__f = null; });
+    await page.evaluate(() => plateBuilder.exportBOQ());
+    await page.waitForFunction(() => !!window.__f, null, { timeout: 45000 });
+    const b64 = await page.evaluate(async () => {
+      const u = new Uint8Array(await window.__f.arrayBuffer());
+      let s = '';
+      for (let i = 0; i < u.length; i++) s += String.fromCharCode(u[i]);
+      return btoa(s);
+    });
+    const f = path.join(SP, 'node_modules', '.notch-boq.xlsx');
+    fs.writeFileSync(f, Buffer.from(b64, 'base64'));
+    const wb = new ExcelJS.Workbook();
+    await wb.xlsx.readFile(f);
+    fs.unlinkSync(f);
+    const ws = wb.worksheets.filter(w => /PART/i.test(w.name))[0];
+    const out = { head: null, line: null };
+    ws.eachRow({ includeEmpty: false }, r => {
+      const v = (r.values || []).slice(1).map(c =>
+        (c && typeof c === 'object') ? (c.result !== undefined ? c.result : '={' + c.formula + '}')
+                                     : c);
+      const t = v.map(x => String(x === undefined || x === null ? '' : x));
+      if (t.indexOf('kg/m') >= 0) out.head = t;
+      if (out.head && !out.line && String(t[0]).toUpperCase() === 'SC.B')
+        // the cells as ExcelJS hands them over, so a formula can be read as a
+        // formula: a cell with a cached answer reports the answer otherwise
+        out.line = { cells: t, cell: (r.values || []).slice(1) };
+    });
+    return out;
+  }
+
+  const bPlain = await boq(CASES.plain);
+  ok(bPlain.head && bPlain.head.indexOf('NOTCH kg') < 0,
+     'a take-off with nothing notched has no deduction column',
+     (bPlain.head || []).join(' | '));
+
+  const bNotch = await boq(CASES.notchHalf);
+  const ix = bNotch.head ? bNotch.head.indexOf('NOTCH kg') : -1;
+  ok(ix > 0, 'a notched member brings the deduction column',
+     (bNotch.head || []).join(' | '));
+  if (ix > 0) {
+    const kgm = +bNotch.line.cells[bNotch.head.indexOf('kg/m')];
+    const ded = +bNotch.line.cells[ix];
+    const unit = +bNotch.line.cells[bNotch.head.indexOf('UNIT kg')];
+    /* 94.0 kg/m is what the steel table says for H-300x300x10x15. The engine
+       draws its fillets as segments, so it lands near but not on it - what
+       matters is that it is the SECTION's figure and not an average of the
+       stretches, which would be far lower. */
+    ok(Math.abs(kgm - 94.0) < 1.0, 'kg/m is the section it was cut from', 'kg/m ' + kgm);
+    ok(Math.abs(ded - (R.plain.kg - R.notchHalf.kg)) < 5e-3,
+       'the deduction is what came away',
+       ded + ' vs ' + (R.plain.kg - R.notchHalf.kg));
+    ok(Math.abs(unit - R.notchHalf.kg) < 5e-3, 'and the weight still lands right',
+       unit + ' vs ' + R.notchHalf.kg);
+    const c = bNotch.line.cell[bNotch.head.indexOf('UNIT kg')];
+    const fm = (c && typeof c === 'object' && c.formula) ? c.formula : '(not a formula)';
+    ok(/\*.*\/1000-/.test(fm),
+       'the weight stays a live formula, with the deduction in it', fm);
+  }
 
   if (errs.length) { bad++; console.log('\npage errors:\n  ' + errs.join('\n  ')); }
   console.log('\n' + checks + ' checks · ' + (bad ? bad + ' FAILED' : 'all pass'));

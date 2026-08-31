@@ -7636,31 +7636,62 @@
            Only members with such a hole get one; every section drawing issued
            so far is a cross-section and stays exactly that. */
         var side = (p.it.drills || []).filter(function (h) { return h.view === 'side'; });
-        if (side.length) {
+        /* A NOTCH is the same kind of thing a cross-bolt is: it sits at some
+           distance ALONG the member, which a cross-section has no axis for. So
+           it goes on the elevation that already exists for that reason rather
+           than on a view of its own - and a member that is notched gets one
+           even with no bolt across it, because otherwise its drawing shows a
+           full section and says nothing about the piece missing from the end. */
+        var stepped = !!(p.it.segs && p.it.segs.length > 1);
+        if (side.length || stepped) {
           var pb = segsBox(segs, arcs);
           p.faceBox = pb;                        // the section alone, before any elevation
           var mh2 = num(p.it.thk, 0) / 2;
           var gapv = D.base * 3;
           var cur = pb.x1 + gapv + mh2;          // centre of the first elevation
           p.sides = [];
-          ['x', 'y'].forEach(function (ax) {
+          /* One elevation per bolt direction, as before. A notched member with
+             no cross-bolt still needs one, and it looks at the depth - which is
+             where a coped flange shows. */
+          var axes = ['x', 'y'].filter(function (ax) {
+            return side.some(function (h) { return h.axis === ax; });
+          });
+          if (!axes.length) axes.push('x');
+          axes.forEach(function (ax) {
             var grp = side.filter(function (h) { return h.axis === ax; });
-            if (!grp.length) return;
             /* which way across the member the bolt ran decides which axis of
                the profile this elevation looks at: through a web you see the
                depth, through a flange the width */
             var vaxis = ax === 'x' ? 'y' : 'x';
-            var lo = Infinity, hi = -Infinity;
-            p.it.rings.outers.forEach(function (o) {
-              o.forEach(function (q) {
-                var v = vaxis === 'y' ? q[1] : q[0];
-                if (v < lo) lo = v;
-                if (v > hi) hi = v;
+            /* Not a rectangle when the member is notched: every stretch is as
+               deep as its OWN profile, so the outline steps where the notch
+               does. That step is the whole reason this view is worth drawing
+               for a coped beam. */
+            var run = stepped ? p.it.segs
+                              : [{ rings: p.it.rings, z0: -mh2, z1: mh2 }];
+            var ext = run.map(function (sg) {
+              var a = Infinity, b = -Infinity;
+              (sg.rings.outers || []).forEach(function (o) {
+                o.forEach(function (q) {
+                  var v = vaxis === 'y' ? q[1] : q[0];
+                  if (v < a) a = v;
+                  if (v > b) b = v;
+                });
               });
+              return { lo: a, hi: b, x0: cur + sg.z0, x1: cur + sg.z1 };
             });
-            var c0 = [cur - mh2, lo], c1 = [cur + mh2, lo],
-                c2 = [cur + mh2, hi], c3 = [cur - mh2, hi];
-            segs.push([c0, c1], [c1, c2], [c2, c3], [c3, c0]);
+            var lo = Math.min.apply(null, ext.map(function (e) { return e.lo; }));
+            var hi = Math.max.apply(null, ext.map(function (e) { return e.hi; }));
+            ext.forEach(function (e, i) {
+              segs.push([[e.x0, e.hi], [e.x1, e.hi]], [[e.x0, e.lo], [e.x1, e.lo]]);
+              if (i === 0) segs.push([[e.x0, e.lo], [e.x0, e.hi]]);
+              if (i === ext.length - 1) segs.push([[e.x1, e.lo], [e.x1, e.hi]]);
+              else {
+                var n = ext[i + 1];              // the riser between two stretches
+                if (Math.abs(n.hi - e.hi) > 1e-9) segs.push([[e.x1, e.hi], [e.x1, n.hi]]);
+                if (Math.abs(n.lo - e.lo) > 1e-9) segs.push([[e.x1, e.lo], [e.x1, n.lo]]);
+              }
+            });
             var hs = grp.map(function (h) {
               return [cur + h.z, vaxis === 'y' ? h.y : h.x];
             });
@@ -7937,8 +7968,19 @@
          from BO.B - so the id is left out of the key and the line is named for
          the size instead. Everything fabricated keeps its id in the key,
          because PL.A and PL.B really are two parts even at the same size. */
+      /* A notched member is not the same part as an unnotched one of the same
+         section and length - it is a different thing to make - so what came
+         away is part of what tells two lines apart. Grouping is by the input
+         fields, and a NOTCH row is not one of the SECT row's fields, so
+         without this two beams of one size would share a line and only the
+         first one's weight. */
+      var thk0 = num(spec.THK, 0);
+      var ded = (it.rawArea > 0 && thk0 > 0)
+        ? it.rawArea * thk0 * RHO - it.mass : 0;
+      if (Math.abs(ded) < 1e-9) ded = 0;
       var key = def.count ? k + '|' + (spec.MAT || '') + '|' + vals.join(',')
-                          : k + '|' + spec.ID + '|' + vals.join(',');
+                          : k + '|' + spec.ID + '|' + vals.join(',') +
+                            (ded ? '|n' + rnd(ded) : '');
       var e = map[key];
       if (!e) {
         // The engine's own area, back out of the mass it already computed, so a
@@ -7948,7 +7990,13 @@
         // the textbook number: circles are polygons here and fillets are eight
         // segments a quarter, so the take-off matches the solid, not a handbook.
         var thk = num(spec.THK, 0);
-        var aMM = thk ? it.mass / (thk * RHO) : 0;
+        /* The area is normally backed out of the weight, which is exact while a
+           member is one profile times one length. A notched one is not, and the
+           number that falls out is an average of its stretches - a kg/m that
+           matches no steel table and that nobody can check the line against.
+           So a notched member reports the section it was CUT FROM, and what came
+           away is a deduction of its own, in its own column. */
+        var aMM = ded ? it.rawArea : (thk ? it.mass / (thk * RHO) : 0);
         e = map[key] = { kind: k,
                          id: def.count ? 'M' + rnd(num(spec.D, 0)) : spec.ID,
                          mat: spec.MAT || '—', vals: vals,
@@ -7956,7 +8004,7 @@
                          cuts: def.area ? cutCount(spec.ID) : null,
                          areaMM: def.area ? null : aMM,
                          kgm: def.area ? null : aMM * RHO * 1000,
-                         unit: it.mass, qty: 0, wt: 0 };
+                         notch: ded, unit: it.mass, qty: 0, wt: 0 };
         keys.push(key);
       }
       e.qty++;
@@ -8099,6 +8147,11 @@
      take-off mistake this sheet exists to prevent. */
   function bqBlock(ws, kind, rows, mode) {
     var def = BOQ_KIND[kind];
+    /* The deduction column appears only where there is something to deduct, so
+       a take-off from a sheet with no NOTCH row comes out exactly as it always
+       did - column for column, which is what the format lock is a promise
+       about. */
+    var anyNotch = rows.some(function (r) { return r.notch > 0; });
     function ref(ix, name, rn) { return colL(ix[name]) + rn; }
     var cols = [{ h: 'ID', k: function (r) { return r.id; } },
                 { h: 'MAT', k: function (r) { return r.mat; } }];
@@ -8117,9 +8170,12 @@
       cols.push({ h: 'AREA mm²', f: '#,##0.0', k: function (r) { return r.areaMM; } });
       cols.push({ h: 'kg/m', f: '#,##0.000', k: function (r) { return r.kgm; },
                  fm: function (rn, ix) { return ref(ix, 'AREA mm²', rn) + '*0.00785'; } });
+      if (anyNotch)
+        cols.push({ h: 'NOTCH kg', f: BQ_WT, k: function (r) { return r.notch; } });
       cols.push({ h: 'UNIT kg', f: BQ_WT, k: function (r) { return r.unit; },
                  fm: function (rn, ix) {
-                   return ref(ix, 'kg/m', rn) + '*' + ref(ix, 'LENGTH', rn) + '/1000'; } });
+                   return ref(ix, 'kg/m', rn) + '*' + ref(ix, 'LENGTH', rn) + '/1000' +
+                          (anyNotch ? '-' + ref(ix, 'NOTCH kg', rn) : ''); } });
     }
     if (mode === 'module') {
       cols.push({ h: 'QTY / UNIT', f: BQ_QTY, sum: 1, k: function (r) { return r.per; } });
