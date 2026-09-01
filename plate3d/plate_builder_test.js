@@ -5517,6 +5517,76 @@
      in the model - so every bolt in the sheet would be a clash against every
      plate it passes through. On the Simple connector that was 300 of them,
      which is exactly how many it takes for nobody to read the list. */
+  /* One prism ACROSS another - a beam and the plate standing in its way, which
+     is most of what a joint is - had no exact answer and fell to the boxes.
+     It has one, and it needs no solid modeller, because the two conditions
+     come apart.
+
+     Put B's axis along d, in A's cross-section plane, and let n be the other
+     way across. Then every point is (alpha, beta, gamma) = (d, n, A's axis):
+
+       A says   (alpha, beta) is inside A's profile,  |gamma| <= A's half length
+       B says   (beta, gamma) is inside B's profile,  |alpha - o| <= B's half
+
+     `beta` is the only coordinate they share. So there is a common point IF AND
+     ONLY IF some beta works for both - and for that beta, alpha and gamma are
+     chosen independently, because neither condition names the other's. Which
+     turns a solid intersection into two polygon clips and an interval overlap.
+
+     Exact, and no sampling: the clip is a boolean and the projection of an
+     outer ring is its own extent. A hole cannot break it - a hole sits inside
+     an outer, so for any beta the outer covers there is still an alpha in the
+     steel. */
+  function crossHit(a, b) {
+    var M = new THREE.Matrix4().copy(a.matrix).invert().multiply(b.matrix);
+    var e = M.elements, TOL = CLASH_TOL;
+    if (Math.abs(e[10]) > 1e-4) return null;      // B's axis not across A's
+    var L = Math.hypot(e[8], e[9]);
+    if (!(L > 0.9999)) return null;               // nor cleanly in the plane
+    var dx = e[8] / L, dy = e[9] / L, nx = -dy, ny = dx;
+    var ha = (a.thk || 0) / 2, hb = (b.thk || 0) / 2;
+    if (!(ha > 0) || !(hb > 0)) return null;
+    var a0 = e[12] * dx + e[13] * dy;             // B's origin along d
+    var BIG = 1e7;
+    /* A's profile in (alpha, beta), clipped to the slab B's own thickness
+       allows, then squashed onto beta. */
+    var qa = (a.rings.outers || []).map(function (r) {
+      return r.map(function (q) {
+        return [q[0] * dx + q[1] * dy, q[0] * nx + q[1] * ny];
+      });
+    });
+    /* B's profile in (beta, gamma): its own (u, v) carried into A and read off
+       the two axes that are left. */
+    var qb = (b.rings.outers || []).map(function (r) {
+      return r.map(function (q) {
+        var X = e[12] + q[0] * e[0] + q[1] * e[4];
+        var Y = e[13] + q[0] * e[1] + q[1] * e[5];
+        var Z = e[14] + q[0] * e[2] + q[1] * e[6];
+        return [X * nx + Y * ny, Z];
+      });
+    });
+    if (!qa.length || !qb.length) return null;
+    var band = function (rings, lo, hi, keep) {
+      var box = [[lo, -BIG], [hi, -BIG], [hi, BIG], [lo, BIG]];
+      var r = PolyBool.intersect({ regions: rings, inverted: false },
+                                 { regions: [box], inverted: false });
+      var out = [];
+      classifyRings(r.regions).outers.forEach(function (ring) {
+        var mn = Infinity, mx = -Infinity;
+        ring.forEach(function (q) { mn = Math.min(mn, q[keep]); mx = Math.max(mx, q[keep]); });
+        if (mx - mn > TOL) out.push([mn, mx]);
+      });
+      return out;
+    };
+    var sa = band(qa, a0 - hb, a0 + hb, 1);       // clip in alpha, keep beta
+    var sb = band(qb.map(function (r) {           // clip in gamma, keep beta
+      return r.map(function (q) { return [q[1], q[0]]; });
+    }), -ha, ha, 1);
+    for (var i = 0; i < sa.length; i++)
+      for (var j = 0; j < sb.length; j++)
+        if (Math.min(sa[i][1], sb[j][1]) - Math.max(sa[i][0], sb[j][0]) > TOL) return true;
+    return false;
+  }
   /* A notched member is a RUN of prisms, and the clash test only understands
      one. Given the whole member it reads the profile the member had before it
      was cut, so a beam notched clear of a plate went on clashing with it - the
@@ -5550,7 +5620,15 @@
         var geos, world = false;
         try {
           geos = prismClash(a, b);
-          if (geos === null) { geos = obbClash(a, b); world = true; }
+          if (geos === null) {
+            /* Across each other: the ANSWER is exact even though the red solid
+               drawn for it is still the boxes'. Both ways round, because which
+               of the two is handed in first is an accident of the sheet. */
+            var hit = crossHit(a, b);
+            if (hit === null) hit = crossHit(b, a);
+            if (hit === false) continue;          // exactly: they do not meet
+            geos = obbClash(a, b); world = hit === null;
+          }
         } catch (err) { geos = null; }
         if (!geos) continue;
         out.push({ a: a, b: b, geos: geos, world: world });

@@ -131,10 +131,13 @@ const CASES = {
   /* And where it is NOT exact, the report says so rather than letting a maybe
      read as a yes. A beam and a plate standing across it are perpendicular
      prisms: the boxes answer, and a box cannot see a notch. */
-  ok(R.notched.n > 0 && /\?/.test(R.notched.line),
-     'a crossing pair is marked as a box answer, notch or no notch',
-     R.notched.line.slice(0, 70));
-  ok(/box answer/.test(R.notched.line), 'and the panel explains what a `?` means');
+  /* Across each other is exact too now. The plate stands in the beam's way,
+     the beam is notched clear of it, and the report lets go. */
+  ok(!/\?/.test(R.through.line), 'a crossing pair is measured exactly as well',
+     R.through.line.slice(0, 70));
+  ok(R.notched.n === 0, 'so notching a CROSSING overlap away clears it too',
+     R.through.n + ' → ' + R.notched.n);
+  ok(!R.notched.line, 'and the panel stops saying it');
 
   await b.close();
   console.log('');
