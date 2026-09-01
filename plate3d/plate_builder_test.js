@@ -3100,7 +3100,8 @@
        of a closed column any more than through its wall, so what it has to
        clear is the space the column stands in. Reading the bore as well would
        have a tube leave three marks - wall, hollow, wall - where it leaves one. */
-    var rings = (tgt.rings.outers || []).filter(function (rg) { return rg.length > 2; });
+    var rings = ((tgt.rawOuter && tgt.rawOuter.length ? tgt.rawOuter
+                  : tgt.rings.outers) || []).filter(function (rg) { return rg.length > 2; });
     if (!rings.length) return { why: 'it has no shape to leave a mark with' };
     var half = tgt.thk / 2;
     // every corner's station along the member: the only places R(t) can change
@@ -3782,6 +3783,16 @@
       var segs = built.segs.map(function (sg) {
         return { rings: turn(sg.rings), area: sg.area, z0: sg.z0, z1: sg.z1 };
       });
+      /* The plate as ORDERED - its outline before anything was cut out of it.
+         What a member has to get out of the way of is the plate that arrives on
+         site, not the shape it is after a weld-access scallop has been taken
+         out of one corner. A scallop is a welding detail; it has nothing to do
+         with whether two members are in each other's way, and it should not
+         decide whether the cut can be worked out either. Kept for NOTCH ... BY,
+         which needs the knife's outline to be the same the whole way through -
+         and a rectangle is, while the same rectangle with an arc bitten out of
+         a corner is not. */
+      var rawOuter = turn({ outers: [outlineOf(spec)], holes: [], cuts: [] }).outers;
       var turned = turn(g2d);
       outers = turned.outers; holesArr = turned.holes; cutRings = turned.cuts;
       var groupObj = new THREE.Group();
@@ -3893,7 +3904,7 @@
                  memberKey: memberKey || null,
                  instKey: gname + '/' + (mem || moduleId || '#' + spec.ID),
                  groupObj: groupObj, mass: mass, segs: segs,
-                 rawArea: built.raw.area,
+                 rawArea: built.raw.area, rawOuter: rawOuter,
                  dims: dims, remark: remark || '',
                  spec: spec, thk: thk, caps: caps || null, axLen: axLen,
                  matrix: world, mat: mat, edgeMat: edgeMat,

@@ -766,6 +766,40 @@
           i === 0 ? 'the beam start: the column face, plus the plate or plates in front of it' : '');
     });
 
+    /* The copes.
+
+       A beam framing on the WEB face runs in between the column's flanges -
+       the face it bears on is tw/2 out, not h/2 - and the stiffeners are
+       already in there, at exactly the height its own flanges are. They are in
+       each other's way, and the beam's flange is what comes off.
+
+       Written as rows, not done quietly. NOTCH ... BY names the plate and lets
+       the engine work out the shape it leaves; the row goes into the workbook,
+       so the cope is on the sheet, on the drawing, and in the take-off's
+       deduction column, and anyone can see why the weight is what it is.
+
+       One row does both plates of a level: BY cuts by every copy the sheet has
+       placed, and the stiffener rows put one each side of the web. The
+       stiffeners go on before the beams, which is why this can be answered.
+
+       Only the faces that need it, and only the levels that are switched on.
+       Which face that is depends on Alpha, and Alpha is a live cell - so this
+       follows the value the sheet has now. Turn the column 90 degrees in Excel
+       and these rows want regenerating from the form. */
+    const webFace = isXax => H && (isXax ? D.faceX : D.faceY) === D.tw / 2;
+    const coped = [];
+    BDIR.forEach(B => {
+      if (!webFace(B.ax === 'X')) return;
+      V.stf.forEach((s, j) => {
+        if (s.th > 0) coped.push(['NOTCH', 'sc.bm' + B.k, 'BY', 'pl.stf' + (j + 1)]);
+      });
+    });
+    if (coped.length) {
+      note2('');
+      note2('the copes. A beam on the web face runs in between the flanges, where the stiffeners already are, so its own flanges come off. BY names the plate and the engine works out the shape.');
+      coped.forEach((r, i) => row(r, i === 0 ? 'the beams that frame onto the web' : ''));
+    }
+
     /* The drawings. Without these the sheet builds the model and exports
        nothing - a drawing is made because a row asked for one. They live
        here rather than in the generator because the form has no generator:
