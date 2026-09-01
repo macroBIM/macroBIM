@@ -3711,10 +3711,17 @@
                    spec.ID + '.');
           return;
         }
+        /* One plate placed twice - a stiffener each side of a web - is two
+           targets, and only one of them may be anywhere near this member. The
+           one that never reached it is not why the row failed; keep looking,
+           and report the last copy that got far enough to have a real reason. */
         var got = 0, why = null;
         tgts.forEach(function (t) {
           var mk = byMark(world, t, thk, n.CLEAR || 0);
-          if (mk.why) { why = why || mk.why; return; }
+          if (mk.why) {
+            if (!why || mk.why.indexOf('does not reach') < 0) why = mk.why;
+            return;
+          }
           got++;
           byCuts.push({ PLATE: spec.ID, FROM: mk.from, TO: mk.to, ANG: 0,
                         TYPE: 'RING', RINGS: mk.rings, U: 0, V: 0, __org: true,
@@ -4181,7 +4188,7 @@
          beam and the plate standing across it are not, so the box is what
          answers - and a box cannot see a notch. */
       return { a: nm(p.a), b: nm(p.b), aId: p.a.plateId, bId: p.b.plateId,
-               boxed: !!p.world };
+               bite: p.bite, boxed: !!p.world };
     });
     if (lastClash.length) {
       /* One line per PAIR OF MEMBERS, not per instance. Four bolts through one
@@ -5631,7 +5638,19 @@
           }
         } catch (err) { geos = null; }
         if (!geos) continue;
-        out.push({ a: a, b: b, geos: geos, world: world });
+        /* How big the bite is, in world mm. A clash of a tenth of a millimetre
+           and one of forty are different problems, and the list should not read
+           the same for both. */
+        var bb = new THREE.Box3();
+        geos.forEach(function (g) {
+          g.computeBoundingBox();
+          var t = g.boundingBox.clone();
+          if (!world) t.applyMatrix4(a.matrix);
+          bb.union(t);
+        });
+        var sz = bb.getSize(new THREE.Vector3());
+        out.push({ a: a, b: b, geos: geos, world: world,
+                   bite: [rnd(sz.x), rnd(sz.y), rnd(sz.z)] });
       }
     }
     return out;
