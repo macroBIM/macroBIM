@@ -1645,6 +1645,38 @@
                ', which no PLATE, BAR or SECT row defines.');
           continue;
         }
+        /* One keyword, two grammars, told apart by the second cell - a number
+           is a distance along the member and the front grammar follows; the
+           word BY is the back one, where a member is named and the engine works
+           out the shape it leaves. MODULE already splits on a cell this way.
+           The word stays because BOTH cells here hold member names: without it
+           only the order says which one is the knife, and writing it backwards
+           cuts the column while the sheet runs without complaint. */
+        if (str(v[1]).toUpperCase() === 'BY') {
+          var nby = resolvePlate(str(v[2]).toUpperCase());
+          if (!nby) {
+            warn('row ' + (r + 1) + ': NOTCH ' + ntg + ' BY ' +
+                 (str(v[2]) || '(blank)') + ' — nothing of that name is defined.' +
+                 ' It takes a member: NOTCH <member> BY <member> [clearance]');
+            continue;
+          }
+          if (nby === ntg) {
+            warn('row ' + (r + 1) + ': NOTCH ' + ntg + ' BY ' + nby +
+                 ' — a member cannot be cut by itself.');
+            continue;
+          }
+          var nclr = num(v[3], 0);
+          if (nclr < 0) {
+            warn('row ' + (r + 1) + ': NOTCH ' + ntg + ' BY ' + nby +
+                 ' — a clearance of ' + nclr + ' would make the cut smaller than' +
+                 ' the member it has to clear. Leave it blank for none.');
+            continue;
+          }
+          notches.push({ PLATE: ntg, BY: nby, CLEAR: nclr, ROW: r + 1,
+                         REFPT: 'bc', __xlCut: true, __org: true, ANG: 0 });
+          counts.notch++;
+          continue;
+        }
         var nshape = str(v[5]).toUpperCase();
         if (!nshape) {
           warn('row ' + (r + 1) + ': NOTCH on ' + ntg + ' names no shape. It takes' +
@@ -2845,6 +2877,16 @@
           var tw = num(c.TW, num(c.B, 0));
           var tr = trapOutline(num(c.B, 0), tw, num(c.H, 0), num(c.OF, (num(c.B, 0) - tw) / 2));
           ring = rotTrans(c.__ctr ? recenter(tr) : tr, num(c.ANG, 0), u, v);
+        } else if (c.TYPE === 'RING') {
+          /* A polygon worked out rather than named - what NOTCH ... BY leaves.
+             It is already in this member's own 2D coordinates, so it is used
+             where it lies: no BASE.pt to apply and nothing to rotate. */
+          (c.RINGS || []).forEach(function (rg) {
+            cutters.push(rg.slice());
+            var cc = polyCentroid(rg);
+            feats.push({ x: cc[0], y: cc[1], kind: 'cut', dia: 0 });
+          });
+          return;
         } else if (c.TYPE === 'REF') {          // a HOLE, or another plate's outline
           var src = shapeLib[c.REF] || plates[c.REF];
           if (!src) return;
@@ -2907,7 +2949,13 @@
      profile it always had, so nothing that ships today goes down a new road. */
   function buildSegments(spec, cuts, notches, plates, len) {
     var base = buildPlate2D(spec, cuts, plates);
-    var mine = (notches || []).filter(function (n) { return n.PLATE === spec.ID; });
+    /* A BY row carries no stretch of its own - it is answered where the member
+       is placed and arrives here already turned into an ordinary one. The
+       unanswered original is skipped rather than read as a notch from
+       undefined to undefined. */
+    var mine = (notches || []).filter(function (n) {
+      return n.PLATE === spec.ID && !n.BY;
+    });
     var whole = { base: base, raw: base, bit: false,
                   segs: [{ rings: base, area: base.area, z0: -len / 2, z1: len / 2 }] };
     if (!mine.length || !(len > 0)) return whole;
@@ -2972,6 +3020,109 @@
     var t = 0;
     (r.regions || []).forEach(function (ring) { t += Math.abs(ringAreaTrue(ring)); });
     return t;
+  }
+  /* ---------------- NOTCH ... BY: the mark one member leaves on another ----
+     The front grammar has the person write the shape and where it sits. This
+     one has them name the obstacle, and works the shape out.
+
+     It is worked out in the CUT member's own local frame, where its profile
+     lives in XY and its length runs along z. What is wanted is R(t): the part
+     of the cross-section at z = t that the target occupies. If R(t) does not
+     change over the stretch, that stretch is exactly a NOTCH and the prism
+     holds. If it does change, the answer is not a notch at all - and it is
+     REFUSED rather than approximated, because an approximate cope is a piece
+     of steel that arrives on site the wrong shape.
+
+     Only one pose is answered: the target running ACROSS the member, its own
+     axis lying in the member's cross-section plane. That is a column through a
+     beam, or a beam through a column - what people mean by cutting one member
+     by another. A target lying along the member is not a notch; it is two
+     members trying to be in one place, and it says so. */
+  function byMark(world, tgt, len, clear) {
+    var T = new THREE.Matrix4().copy(world).invert().multiply(tgt.matrix);
+    var m = T.elements;                        // column-major
+    var ex = [m[0], m[1], m[2]], ey = [m[4], m[5], m[6]];
+    var ez = [m[8], m[9], m[10]], og = [m[12], m[13], m[14]];
+    var EPS = 1e-6;
+    if (Math.abs(ez[2]) > 1e-4)
+      return { why: 'it does not lie across the member - its own length runs ' +
+                    'partly along it, so what it covers changes as you go' };
+    var a = ex[2], b = ey[2];                  // t = og.z + u*a + v*b
+    if (Math.abs(a) < EPS && Math.abs(b) < EPS)
+      return { why: 'it lies flat in the member\'s cross-section, so it marks ' +
+                    'one plane rather than a stretch' };
+    /* The target's OUTLINE, not its steel. A beam cannot run through the inside
+       of a closed column any more than through its wall, so what it has to
+       clear is the space the column stands in. Reading the bore as well would
+       have a tube leave three marks - wall, hollow, wall - where it leaves one. */
+    var rings = (tgt.rings.outers || []).filter(function (rg) { return rg.length > 2; });
+    if (!rings.length) return { why: 'it has no shape to leave a mark with' };
+    var half = tgt.thk / 2;
+    // every corner's station along the member: the only places R(t) can change
+    var ts = [];
+    rings.forEach(function (rg) {
+      rg.forEach(function (p) { ts.push(og[2] + p[0] * a + p[1] * b); });
+    });
+    var lo = Math.max(Math.min.apply(null, ts), -len / 2);
+    var hi = Math.min(Math.max.apply(null, ts), len / 2);
+    if (!(hi - lo > 1e-4)) return { why: 'it does not reach the member' };
+    var inside = ts.filter(function (t) { return t > lo + 1e-4 && t < hi - 1e-4; });
+    if (inside.length)
+      return { why: 'the shape it leaves changes ' + inside.length + ' time' +
+                    (inside.length > 1 ? 's' : '') + ' along the way, so no one ' +
+                    'stretch of the member has a single profile' };
+    /* The chord where the plane z = t meets the target's profile, carried into
+       the member's XY and swept the target's own thickness. A scanline: every
+       edge that straddles the level contributes a crossing, and the crossings
+       pair up - which is right for a hollow target as well as a solid one. */
+    function sliceAt(t) {
+      var c = t - og[2], hits = [];
+      rings.forEach(function (rg) {
+        for (var i = 0; i < rg.length; i++) {
+          var p = rg[i], q = rg[(i + 1) % rg.length];
+          var fp = p[0] * a + p[1] * b - c, fq = q[0] * a + q[1] * b - c;
+          if ((fp > 0) === (fq > 0)) continue;
+          var s = fp / (fp - fq);
+          hits.push([p[0] + s * (q[0] - p[0]), p[1] + s * (q[1] - p[1])]);
+        }
+      });
+      if (hits.length < 2) return null;
+      // sort along the level line, then take them two at a time
+      var dx = -b, dy = a;
+      hits.sort(function (p, q) { return (p[0] * dx + p[1] * dy) - (q[0] * dx + q[1] * dy); });
+      var xy = function (u, v) {
+        return [og[0] + u * ex[0] + v * ey[0], og[1] + u * ex[1] + v * ey[1]];
+      };
+      var sw = [ez[0], ez[1]];                 // the target's own length, in our XY
+      var out = [];
+      for (var k = 0; k + 1 < hits.length; k += 2) {
+        var p0 = xy(hits[k][0], hits[k][1]), p1 = xy(hits[k + 1][0], hits[k + 1][1]);
+        var L = Math.hypot(p1[0] - p0[0], p1[1] - p0[1]);
+        if (!(L > EPS)) continue;
+        // grown by the clearance on all four sides: along the chord, and along
+        // the sweep. A parallelogram, so this is exact rather than an offset.
+        var ux = (p1[0] - p0[0]) / L, uy = (p1[1] - p0[1]) / L;
+        var sl = Math.hypot(sw[0], sw[1]);
+        var vx = sl > EPS ? sw[0] / sl : 0, vy = sl > EPS ? sw[1] / sl : 0;
+        var e0 = half * sl + clear, e1 = clear;
+        var A0 = [p0[0] - ux * e1 - vx * e0, p0[1] - uy * e1 - vy * e0];
+        var B0 = [p1[0] + ux * e1 - vx * e0, p1[1] + uy * e1 - vy * e0];
+        var B1 = [p1[0] + ux * e1 + vx * e0, p1[1] + uy * e1 + vy * e0];
+        var A1 = [p0[0] - ux * e1 + vx * e0, p0[1] - uy * e1 + vy * e0];
+        out.push([A0, B0, B1, A1]);
+      }
+      return out.length ? out : null;
+    }
+    var d = Math.min((hi - lo) / 4, 0.5);
+    var r0 = sliceAt(lo + d), r1 = sliceAt(hi - d);
+    if (!r0 || !r1) return { why: 'it passes the member without covering any of it' };
+    if (!sameProfile({ outers: r0, holes: [] }, { outers: r1, holes: [] }))
+      return { why: 'the shape it leaves is not the same at both ends of the ' +
+                    'stretch, so the piece between them is not one prism' };
+    /* The clearance is room all round, so it lengthens the stretch as well as
+       widening the mark. Widening alone left the two members clear of each
+       other across the section and still touching along it. */
+    return { from: lo + len / 2 - clear, to: hi + len / 2 + clear, rings: r0 };
   }
   function sameProfile(a, b) {
     var ra = { regions: segRegions({ rings: a }), inverted: false };
@@ -3476,12 +3627,58 @@
     function buildInstance(spec, matrix, no, group, remark, mirror, moduleId, memberKey, flip, member, caps) {
       var world = yupFix(matrix);        // EDGE chaining keeps using the raw matrix
       var thk = spec.THK;
-      var built = buildSegments(spec, cuts, notches, plates, thk);
+      /* NOTCH ... BY is answered HERE, against what the sheet has already put
+         on the model, because a mark one member leaves on another is a fact
+         about where the two of them ended up. The engine reads the sheet in
+         order and builds each member as it places it, so a target placed by a
+         later ASSY row simply does not exist yet - and rather than guess, the
+         row is refused by number and the panel goes red. The sheet already
+         works this way: a CUT names a plate that must be defined further up.
+         Order is a rule here, not an accident. */
+      var byCuts = [];
+      (notches || []).forEach(function (n) {
+        if (!n.BY || n.PLATE !== spec.ID) return;
+        var tgts = items.filter(function (t) { return t.plateId === n.BY; });
+        if (!tgts.length) {
+          buildErr('row ' + n.ROW + ': NOTCH ' + spec.ID + ' BY ' + n.BY +
+                   ' — ' + n.BY + ' is not on the model yet. A member can only be' +
+                   ' cut by one the sheet has already placed, so move the ASSY' +
+                   ' row that places ' + n.BY + ' above the one that places ' +
+                   spec.ID + '.');
+          return;
+        }
+        var got = 0, why = null;
+        tgts.forEach(function (t) {
+          var mk = byMark(world, t, thk, n.CLEAR || 0);
+          if (mk.why) { why = why || mk.why; return; }
+          got++;
+          byCuts.push({ PLATE: spec.ID, FROM: mk.from, TO: mk.to, ANG: 0,
+                        TYPE: 'RING', RINGS: mk.rings, U: 0, V: 0, __org: true,
+                        REP: 0, DX: 0, DY: 0, REP2: 0, DX2: 0, DY2: 0 });
+        });
+        if (!got) buildErr('row ' + n.ROW + ': NOTCH ' + spec.ID + ' BY ' + n.BY +
+                           ' — ' + (why || 'the two do not meet') + '. Write the' +
+                           ' cut by hand instead: NOTCH ' + spec.ID +
+                           ' <from> <to> <L.X> <L.Y> <shape>.');
+      });
+      var built = buildSegments(spec, cuts, byCuts.length ? notches.concat(byCuts) : notches,
+                                plates, thk);
+      /* A mark that was worked out and then took nothing away is the same
+         silence as a hand-written notch that missed: same weight, same drawing,
+         and nothing on the page admitting it. Said in the BY row's own terms -
+         it has no L.X / L.Y to check, so the thing to look at is where the two
+         members actually ended up. */
+      if (byCuts.length && !built.bit && notchSaid[spec.ID] === undefined) {
+        notchSaid[spec.ID] = 1;
+        buildHint('NOTCH ' + spec.ID + ' BY ... found the target but took nothing' +
+                  ' away: they pass without touching. Check where the ASSY rows' +
+                  ' put them, and whether a clearance is wanted.');
+      }
       /* A NOTCH that takes nothing away is a row that did not do what it says,
          and it looks exactly like one that worked: same weight, same drawing.
          Said once per member, not once per copy of it. */
       if (!built.bit && notchSaid[spec.ID] === undefined &&
-          (notches || []).some(function (n) { return n.PLATE === spec.ID; })) {
+          (notches || []).some(function (n) { return n.PLATE === spec.ID && !n.BY; })) {
         notchSaid[spec.ID] = 1;
         buildHint('NOTCH on ' + spec.ID + ' takes nothing away. Check L.X / L.Y' +
                   ' against the section, the shape size, and that from/to fall' +
