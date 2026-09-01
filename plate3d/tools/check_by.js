@@ -9,9 +9,11 @@
      · the same sheet with the two ASSY rows swapped is REFUSED, names the row,
        and leaves the member whole — the rule the sheet already lives by, that
        a thing must be there before it is named
-     · the mark is the target's OUTLINE and not its steel: a beam cannot run
-       through the inside of a closed column either, so two tubes of the same
-       outside size and different walls take the same steel away
+     · the knife is a PLATE. A section is refused by name: what a section
+       leaves changes as you go into it - a flange is 300 wide and the web
+       behind it is 10 - so it is not one notch
+     · the mark is the target's OUTLINE and not its steel: a hole cut through
+       the knife does not show up in what the knife takes away
      · a clearance is room all round — cutting by a target 2c bigger with no
        clearance takes exactly as much as cutting by the target with c
      · a target that never reaches the member changes nothing, and says so
@@ -32,27 +34,29 @@ const LIB = f => {
 };
 
 const BEAM = ['SECT', 'sc.b', 'SS275', 2000, 'H', 'mc', 300, 300, 300, 10, 15, 15, 18];
-/* Sharp corners on purpose. A rounded corner is a polyline, and every one of
-   its vertices is a station where the shape the target leaves changes - which
-   BY refuses, correctly, because no one stretch then has a single profile. */
-const col = (b, t) => ['SECT', 'sc.c', 'SS275', 1200, 'R', 'mc', b, b, t, 0];
+/* The knife: a plate standing square across the beam, 400 tall so it covers the
+   beam's whole depth and the mark is decided by its width alone. */
+const knife = (w, t, h) => ['PLATE', 'pl.k', 'SS275', t || 20, 'RECT', 'mc',
+                            w || 200, h || 400];
+const SECTION = ['SECT', 'sc.c', 'SS275', 1200, 'R', 'mc', 200, 200, 9, 0];
 
-/* Both members are placed with their START face at the module origin, so the
-   ASSY rows carry them back by half their own length to cross at the middle. */
+/* The beam is placed with its START face at the module origin, so its ASSY row
+   carries it back by half its own length to meet the knife at the middle. */
 function sheet(o) {
   o = o || {};
   const notch = o.notch === null ? null
-    : ['NOTCH', 'sc.b'].concat(o.notch || ['BY', 'sc.c']);
-  const rows = [['COORD', 'ZUP'], BEAM, col(o.b || 200, o.t || 9)];
+    : ['NOTCH', 'sc.b'].concat(o.notch || ['BY', 'pl.k']);
+  const rows = [['COORD', 'ZUP'], BEAM, knife(o.w, o.t, o.h)];
+  if (o.section) rows.push(SECTION);
+  if (o.hole) rows.push(['HOLE', 'ho.x', 'CIRC', 'mc', 60], ['CUT', 'pl.k', 0, 0, 'ho.x']);
   if (notch) rows.push(notch);
   rows.push(['MODULE', 'md.b', 'sc.b', '', 0, 0, 0, 'XZ', 0, 0, 0],
             ['MODULE', 'md.b', 'BASE', 'sc.b', 'mc'],
-            ['MODULE', 'md.c', 'sc.c', '', 0, 0, 0, 'XY', 0, 0, 0],
-            ['MODULE', 'md.c', 'BASE', 'sc.c', 'mc']);
-  const putCol = ['ASSY', 'as.a', 'md.c', 'ADD', 0, o.far ? 9000 : 0,
-                o.aside ? 9000 : -600];
+            ['MODULE', 'md.k', 'pl.k', 'mc', 0, 0, 0, 'XY', 0, 0, 0],
+            ['MODULE', 'md.k', 'BASE', 'pl.k', 'mc']);
+  const putK = ['ASSY', 'as.a', 'md.k', 'ADD', 0, o.far ? 9000 : 0, o.aside ? 9000 : 0];
   const putBm = ['ASSY', 'as.a', 'md.b', 'ADD', 0, 1000, 0];
-  rows.push.apply(rows, o.beamFirst ? [putBm, putCol] : [putCol, putBm]);
+  rows.push.apply(rows, o.beamFirst ? [putBm, putK] : [putK, putBm]);
   rows.push(['END']);
   return rows;
 }
@@ -69,14 +73,16 @@ const CASES = {
   plain:     sheet({ notch: null }),
   cut:       sheet(),
   swapped:   sheet({ beamFirst: true }),
-  thickWall: sheet({ t: 30 }),
-  clear10:   sheet({ notch: ['BY', 'sc.c', 10] }),
-  bigger20:  sheet({ b: 220 }),
+  thicker:   sheet({ t: 40 }),
+  holed:     sheet({ hole: true }),
+  clear10:   sheet({ notch: ['BY', 'pl.k', 10] }),
+  bigger20:  sheet({ w: 220, t: 40, h: 420 }),
+  bySect:    sheet({ section: true, notch: ['BY', 'sc.c'] }),
   miss:      sheet({ far: true }),
   aside:     sheet({ aside: true }),
-  badName:   sheet({ notch: ['BY', 'sc.zz'] }),
+  badName:   sheet({ notch: ['BY', 'pl.zz'] }),
   itself:    sheet({ notch: ['BY', 'sc.b'] }),
-  badClear:  sheet({ notch: ['BY', 'sc.c', -5] })
+  badClear:  sheet({ notch: ['BY', 'pl.k', -5] })
 };
 
 (async () => {
@@ -125,17 +131,22 @@ const CASES = {
   ok(said('swapped', /is not on the model yet/) && said('swapped', /^.*row \d+:/),
      'and says so, by row, naming the ASSY row to move', R.swapped.panel.slice(0, 90));
 
-  ok(near(took('thickWall'), took('cut')),
-     'the mark is the outline, not the steel: a thicker wall takes the same',
-     took('cut') + ' vs ' + took('thickWall'));
+  ok(took('thicker') > took('cut'),
+     'a thicker knife takes more — the mark is as deep as the knife is',
+     took('cut') + ' → ' + took('thicker'));
+  ok(near(took('holed'), took('cut')),
+     'the mark is the outline, not the steel: a hole through the knife changes nothing',
+     took('cut') + ' vs ' + took('holed'));
 
   ok(took('clear10') > took('cut'), 'a clearance takes more',
      took('cut') + ' → ' + took('clear10'));
-  /* Room all round: growing the target by 2c and asking for no clearance is
-     the same cut. If the clearance only widened the mark and did not lengthen
-     the stretch, this is the check that would fail. */
+  /* Room all round, in all THREE directions: across the mark, through the
+     knife's own thickness, and along the member. A knife grown by 2c on every
+     face and asked for no clearance is the same cut. Grow only the width and
+     this is the check that catches it - which is how the missing stretch was
+     found in the first place. */
   ok(near(took('clear10'), took('bigger20')),
-     'and it is room all round — c of clearance equals a target 2c bigger',
+     'and it is room all round — c of clearance equals a knife 2c bigger everywhere',
      took('clear10') + ' vs ' + took('bigger20'));
 
   ok(near(took('miss'), 0), 'a target that never reaches it changes nothing');
@@ -143,7 +154,8 @@ const CASES = {
   ok(near(took('aside'), 0), 'nor one that reaches but touches nothing');
   ok(said('aside', /took nothing away/), 'and that says so too, in its own words');
 
-  [['badName', /nothing of that name is defined/, 'a member that does not exist'],
+  [['bySect', /BY takes a PLATE/, 'a section named as the knife'],
+   ['badName', /nothing of that name is defined/, 'a member that does not exist'],
    ['itself', /cannot be cut by itself/, 'a member named as its own knife'],
    ['badClear', /clearance/, 'a clearance below zero']
   ].forEach(([k, re, what]) => {

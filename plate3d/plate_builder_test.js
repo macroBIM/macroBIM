@@ -1665,6 +1665,23 @@
                  ' — a member cannot be cut by itself.');
             continue;
           }
+          /* The knife is a PLATE. A rolled section is refused here rather than
+             later, because the shape a section leaves changes as you go into
+             it - a flange is 300 wide and the web behind it is 10 - and a cut
+             that changes along the way is not a notch at all. Rounded corners
+             do the same thing in miniature, so every square tube in the
+             catalogue would be turned away too. A plate has none of that: it
+             is one flat outline of one thickness, which is what makes the mark
+             it leaves the same the whole way through.
+             Cutting by a section is written by hand, with the front grammar. */
+          if (plates[nby] && plates[nby].SHAPE === 'SECT') {
+            warn('row ' + (r + 1) + ': NOTCH ' + ntg + ' BY ' + nby +
+                 ' — BY takes a PLATE, and ' + nby + ' is a section. What a' +
+                 ' section leaves changes as you go into it, so it is not one' +
+                 ' notch. Write that cut yourself: NOTCH ' + ntg +
+                 ' <from> <to> <L.X> <L.Y> <shape>.');
+            continue;
+          }
           var nclr = num(v[3], 0);
           if (nclr < 0) {
             warn('row ' + (r + 1) + ': NOTCH ' + ntg + ' BY ' + nby +
