@@ -5584,26 +5584,57 @@
       });
     });
     if (!qa.length || !qb.length) return null;
-    var band = function (rings, lo, hi, keep) {
+    /* Each piece of the clip is kept with BOTH extents, not just the shared
+       one: the beta says whether the two meet, and the other says where the
+       red mark belongs. Painting the oriented boxes' overlap instead put the
+       mark somewhere neither member is. */
+    var band = function (rings, lo, hi) {
       var box = [[lo, -BIG], [hi, -BIG], [hi, BIG], [lo, BIG]];
       var r = PolyBool.intersect({ regions: rings, inverted: false },
                                  { regions: [box], inverted: false });
       var out = [];
       classifyRings(r.regions).outers.forEach(function (ring) {
-        var mn = Infinity, mx = -Infinity;
-        ring.forEach(function (q) { mn = Math.min(mn, q[keep]); mx = Math.max(mx, q[keep]); });
-        if (mx - mn > TOL) out.push([mn, mx]);
+        var x0 = Infinity, x1 = -Infinity, y0 = Infinity, y1 = -Infinity;
+        ring.forEach(function (q) {
+          x0 = Math.min(x0, q[0]); x1 = Math.max(x1, q[0]);
+          y0 = Math.min(y0, q[1]); y1 = Math.max(y1, q[1]);
+        });
+        if (y1 - y0 > TOL) out.push({ b: [y0, y1], o: [x0, x1] });
       });
       return out;
     };
-    var sa = band(qa, a0 - hb, a0 + hb, 1);       // clip in alpha, keep beta
+    var sa = band(qa, a0 - hb, a0 + hb);          // clip in alpha, keep beta
     var sb = band(qb.map(function (r) {           // clip in gamma, keep beta
       return r.map(function (q) { return [q[1], q[0]]; });
-    }), -ha, ha, 1);
-    for (var i = 0; i < sa.length; i++)
-      for (var j = 0; j < sb.length; j++)
-        if (Math.min(sa[i][1], sb[j][1]) - Math.max(sa[i][0], sb[j][0]) > TOL) return true;
+    }), -ha, ha);
+    for (var i = 0; i < sa.length; i++) {
+      for (var j = 0; j < sb.length; j++) {
+        var b0 = Math.max(sa[i].b[0], sb[j].b[0]), b1 = Math.min(sa[i].b[1], sb[j].b[1]);
+        if (b1 - b0 <= TOL) continue;
+        /* Where the shared steel is, in the member's own frame: alpha from A's
+           clip, beta from the overlap, gamma from B's. Back out of (d, n) into
+           A's x and y - it is only a turn about A's own axis. */
+        return { al: sa[i].o, be: [b0, b1], ga: sb[j].o,
+                 dx: dx, dy: dy, nx: nx, ny: ny };
+      }
+    }
     return false;
+  }
+  /* The mark itself: the box crossHit found, turned back into the member's own
+     x, y and z. Drawn in A's frame, like the parallel path's, so the caller
+     puts A's matrix on it and nothing else has to know. */
+  function crossGeo(h) {
+    var w = h.al[1] - h.al[0], d = h.be[1] - h.be[0], t = h.ga[1] - h.ga[0];
+    if (!(w > 0) || !(d > 0) || !(t > 0)) return null;
+    var g = new THREE.BoxGeometry(w, d, t);
+    var m = new THREE.Matrix4().set(h.dx, h.nx, 0, 0,
+                                    h.dy, h.ny, 0, 0,
+                                    0,    0,    1, 0,
+                                    0,    0,    0, 1);
+    var c = (h.al[0] + h.al[1]) / 2, e = (h.be[0] + h.be[1]) / 2;
+    g.applyMatrix4(m.setPosition(h.dx * c + h.nx * e, h.dy * c + h.ny * e,
+                                 (h.ga[0] + h.ga[1]) / 2));
+    return [g];
   }
   /* A notched member is a RUN of prisms, and the clash test only understands
      one. Given the whole member it reads the profile the member had before it
@@ -5635,17 +5666,19 @@
         var a = live[i], b = live[j];
         if (a.__own === b.__own) continue;      // a member's own stretches meet
         if (!itemBox3(a).intersectsBox(itemBox3(b))) continue;
-        var geos, world = false;
+        var geos, world = false, frame = a;
         try {
           geos = prismClash(a, b);
           if (geos === null) {
             /* Across each other: the ANSWER is exact even though the red solid
                drawn for it is still the boxes'. Both ways round, because which
                of the two is handed in first is an accident of the sheet. */
-            var hit = crossHit(a, b);
-            if (hit === null) hit = crossHit(b, a);
+            var hit = crossHit(a, b), own = a;
+            if (hit === null) { hit = crossHit(b, a); own = b; }
             if (hit === false) continue;          // exactly: they do not meet
-            geos = obbClash(a, b); world = hit === null;
+            if (hit && hit.be) geos = crossGeo(hit);
+            if (!geos) { geos = obbClash(a, b); world = true; own = a; }
+            frame = own;
           }
         } catch (err) { geos = null; }
         if (!geos) continue;
@@ -5656,11 +5689,11 @@
         geos.forEach(function (g) {
           g.computeBoundingBox();
           var t = g.boundingBox.clone();
-          if (!world) t.applyMatrix4(a.matrix);
+          if (!world) t.applyMatrix4(frame.matrix);
           bb.union(t);
         });
         var sz = bb.getSize(new THREE.Vector3());
-        out.push({ a: a, b: b, geos: geos, world: world,
+        out.push({ a: a, b: b, geos: geos, world: world, frame: frame,
                    bite: [rnd(sz.x), rnd(sz.y), rnd(sz.z)] });
       }
     }
@@ -5678,7 +5711,10 @@
     pairs.forEach(function (p) {
       p.geos.forEach(function (g) {
         var mesh = new THREE.Mesh(g, mat);
-        if (!p.world) { mesh.matrixAutoUpdate = false; mesh.matrix.copy(p.a.matrix); }
+        if (!p.world) {
+          mesh.matrixAutoUpdate = false;
+          mesh.matrix.copy((p.frame || p.a).matrix);
+        }
         mesh.renderOrder = 3;
         grp.add(mesh);
       });
