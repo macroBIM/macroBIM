@@ -4169,6 +4169,50 @@
       var r2 = buildInstance(spec, matrix, row.NO, row.GROUP, row.REMARK, mirror);
       inst[row.NO] = { matrix: matrix, pts: r2.pts, thk: r2.thk };
     });
+    /* Said, not just painted. Two members sharing steel is a fact about the
+       model, and it was being drawn in red and reported nowhere - so a clash
+       buried inside a member was invisible, and even a visible one never gave
+       the two names to go and look up. Found once here, on the built model,
+       whether or not anyone ticks the box. */
+    lastClash = clashPairs(items).map(function (p) {
+      var nm = function (it) { return it.member || it.no || it.plateId; };
+      /* `boxed` says the pair fell back to oriented boxes, which OVER-report:
+         the exact path only measures two prisms whose axes are parallel. A
+         beam and the plate standing across it are not, so the box is what
+         answers - and a box cannot see a notch. */
+      return { a: nm(p.a), b: nm(p.b), aId: p.a.plateId, bId: p.b.plateId,
+               boxed: !!p.world };
+    });
+    if (lastClash.length) {
+      /* One line per PAIR OF MEMBERS, not per instance. Four bolts through one
+         plate is one thing to go and look at, and eight lines saying so is a
+         list nobody reads to the end. */
+      var seen = {}, pairs = [], boxed = {};
+      lastClash.forEach(function (c) {
+        var k = [c.aId, c.bId].sort().join(' × ');
+        if (c.boxed) boxed[k] = 1;
+        if (seen[k]) { seen[k]++; return; }
+        seen[k] = 1; pairs.push(k);
+      });
+      var anyBox = Object.keys(boxed).length;
+      buildHint('Clash: ' + lastClash.length + ' in ' + pairs.length +
+                (pairs.length > 1 ? ' places' : ' place') + ' — ' +
+                pairs.slice(0, 8).map(function (k) {
+                  return k + (seen[k] > 1 ? ' ×' + seen[k] : '') + (boxed[k] ? '?' : '');
+                }).join(', ') + (pairs.length > 8 ? ', …' : '') +
+                '. Tick `clash` to see them. Bolts are not counted: the shank is' +
+                ' meant to be inside the steel.' +
+                /* Said out loud rather than left for someone to discover: the
+                   exact measure needs the two members' axes parallel, and a
+                   beam with a plate standing across it is the opposite of
+                   that. Those are answered by the oriented boxes, which cannot
+                   see a notch - cut the overlap away and the box still meets
+                   the box. A `?` marks them so nobody reads a maybe as a yes. */
+                (anyBox ? ' A `?` is a box answer: the two axes are not' +
+                          ' parallel, so it is measured on the boxes and may' +
+                          ' be reporting steel that is not there — a notch' +
+                          ' does not clear it.' : ''));
+    }
     return bbox;
   }
 
@@ -5289,6 +5333,12 @@
      to their oriented boxes, so a deeply notched plate crossing another at an
      angle can report a clash the solids do not really have. */
   var showClash = false, showClashPv = false;
+  /* The pass below found the bites and painted them red, and then said nothing
+     about them. Red geometry is a fine way to SHOW a clash and a poor way to
+     report one: it can sit inside a member where nothing shows on screen, and
+     it never gives the two names, so there is nothing to go and look up. The
+     pairs are kept here now, and the panel says how many and which. */
+  var lastClash = [];
   var CLASH_TOL = 0.5;                          // mm of bite before it counts
   var CLASH_COL = 0xff3b30;
 
@@ -5457,17 +5507,45 @@
     return [g];                                  // already world space
   }
 
-  // Red solids marking where members share volume. Drawn without depth testing
-  // so a clash buried inside a member still shows.
-  function buildClash(sc, list) {
-    var mat = new THREE.MeshBasicMaterial({ color: CLASH_COL, transparent: true,
-      opacity: 0.72, depthTest: false, depthWrite: false, side: THREE.DoubleSide });
-    var grp = new THREE.Group();
-    grp.renderOrder = 3;
-    var n = 0;
-    for (var i = 0; i < list.length; i++) {
-      for (var j = i + 1; j < list.length; j++) {
-        var a = list[i], b = list[j];
+  /* Where members share volume. Split out from the drawing so the answer can be
+     had without a scene: a clash has to be REPORTED, not only painted, and a
+     report that only exists while a checkbox is ticked is no report.
+
+     A BOLT is left out of it, and that is not a shortcut. A bolt is meant to be
+     inside the steel - the engine draws the shank and does not punch the hole
+     out of the solid, because the hole belongs on the part drawing rather than
+     in the model - so every bolt in the sheet would be a clash against every
+     plate it passes through. On the Simple connector that was 300 of them,
+     which is exactly how many it takes for nobody to read the list. */
+  /* A notched member is a RUN of prisms, and the clash test only understands
+     one. Given the whole member it reads the profile the member had before it
+     was cut, so a beam notched clear of a plate went on clashing with it - the
+     report said to cut, the cut was made, and the report said it again. Each
+     stretch is handed over on its own: same matrix, carried to the stretch's
+     own middle, and as thick as that stretch is long.
+     A member with FIT ends is left whole. Its ends are not square, the exact
+     path already declines to measure it, and a cap on one stretch of a run is
+     a case nothing in the sheet can ask for yet. */
+  function clashParts(it) {
+    var segs = it.segs;
+    if (!segs || segs.length < 2 || it.caps) return [it];
+    return segs.map(function (s) {
+      return { rings: s.rings, thk: s.z1 - s.z0, caps: null,
+               matrix: it.matrix.clone().multiply(
+                 new THREE.Matrix4().makeTranslation(0, 0, (s.z0 + s.z1) / 2)),
+               spec: it.spec, member: it.member, no: it.no, plateId: it.plateId };
+    });
+  }
+  function clashPairs(list) {
+    var out = [], live = [];
+    list.forEach(function (it, k) {
+      if (it.spec && it.spec.__bolt) return;
+      clashParts(it).forEach(function (p) { p.__own = k; live.push(p); });
+    });
+    for (var i = 0; i < live.length; i++) {
+      for (var j = i + 1; j < live.length; j++) {
+        var a = live[i], b = live[j];
+        if (a.__own === b.__own) continue;      // a member's own stretches meet
         if (!itemBox3(a).intersectsBox(itemBox3(b))) continue;
         var geos, world = false;
         try {
@@ -5475,17 +5553,28 @@
           if (geos === null) { geos = obbClash(a, b); world = true; }
         } catch (err) { geos = null; }
         if (!geos) continue;
-        n++;
-        geos.forEach(function (g) {
-          var mesh = new THREE.Mesh(g, mat);
-          if (!world) { mesh.matrixAutoUpdate = false; mesh.matrix.copy(a.matrix); }
-          mesh.renderOrder = 3;
-          grp.add(mesh);
-        });
+        out.push({ a: a, b: b, geos: geos, world: world });
       }
     }
-    if (!n) { grp.traverse(function (o) { if (o.geometry) o.geometry.dispose(); });
-              mat.dispose(); return null; }
+    return out;
+  }
+  // Red solids marking where members share volume. Drawn without depth testing
+  // so a clash buried inside a member still shows.
+  function buildClash(sc, list) {
+    var pairs = clashPairs(list);
+    if (!pairs.length) return null;
+    var mat = new THREE.MeshBasicMaterial({ color: CLASH_COL, transparent: true,
+      opacity: 0.72, depthTest: false, depthWrite: false, side: THREE.DoubleSide });
+    var grp = new THREE.Group();
+    grp.renderOrder = 3;
+    pairs.forEach(function (p) {
+      p.geos.forEach(function (g) {
+        var mesh = new THREE.Mesh(g, mat);
+        if (!p.world) { mesh.matrixAutoUpdate = false; mesh.matrix.copy(p.a.matrix); }
+        mesh.renderOrder = 3;
+        grp.add(mesh);
+      });
+    });
     sc.add(grp);
     return grp;
   }
@@ -11779,6 +11868,7 @@
     setAxes: setAxes, setFaces: setFaces,
     setOrtho: setOrtho, setOrthoPv: setOrthoPv,
     setClash: setClash, setClashPv: setClashPv,
+    clashes: function () { return lastClash.slice(); },
     openGuide: openGuide, closeGuide: closeGuide, printGuide: printGuide,
     openTutorial: openTutorial, tutLoad: tutLoad, tutSave: tutSave,
     openSamples: openSamples, closeSamples: closeSamples, getSample: getSample,
