@@ -756,6 +756,56 @@
     g.computeVertexNormals();
     return g;
   }
+  /* ---- the rim of an interior boundary ----
+     A stretch is a closed prism, so EdgesGeometry rings BOTH its ends, and
+     where two stretches meet that ring is drawn across steel that simply
+     carries on - the seam a coped beam kept showing that is not there.
+     What is really at that plane is the STEP: the part of this stretch's
+     section the neighbour does not have. The drawing has always said so -
+     segFacesOf builds that face as `mine - neighbour` - so the screen takes
+     the same difference rather than a rule of its own, and the two agree by
+     construction. Where the sections match the difference is empty and no
+     line is drawn; where a flange has been taken off, what is left is the
+     outline of exactly that bite. */
+  function ptsGeom(v) {                       // a flat list of xyz, as lines
+    var g = new THREE.BufferGeometry();
+    g.setAttribute('position', new THREE.Float32BufferAttribute(v, 3));
+    return g;
+  }
+  function capSeam(sg, nb) {                  // rings of (mine - neighbour)
+    if (!nb) return null;
+    var d = PolyBool.difference({ regions: segRegions(sg), inverted: false },
+                                { regions: segRegions(nb), inverted: false });
+    return classifyRings(d.regions);
+  }
+  // the flat rings sitting at those z, gone. A side wall spans the stretch and
+  // a cap's triangulation is under the crease angle, so nothing else is flat
+  // there to lose.
+  function dropCaps(eg, zs) {
+    if (!zs.length) return eg;
+    var pos = eg.getAttribute('position'), keep = [], EPS = 1e-3, i, k;
+    for (i = 0; i < pos.count; i += 2) {
+      var z0 = pos.getZ(i), z1 = pos.getZ(i + 1), cut = false;
+      for (k = 0; k < zs.length; k++) {
+        if (Math.abs(z0 - zs[k]) < EPS && Math.abs(z1 - zs[k]) < EPS) cut = true;
+      }
+      if (cut) continue;
+      keep.push(pos.getX(i), pos.getY(i), z0, pos.getX(i + 1), pos.getY(i + 1), z1);
+    }
+    return ptsGeom(keep);
+  }
+  function ringLines(rings, z, out) {          // every ring as line pairs
+    if (!rings) return out;
+    (rings.outers || []).forEach(function (o, i) {
+      [o].concat((rings.holes || [])[i] || []).forEach(function (r) {
+        for (var j = 0; j < r.length; j++) {
+          var a = r[j], b = r[(j + 1) % r.length];
+          out.push(a[0], a[1], z, b[0], b[1], z);
+        }
+      });
+    });
+    return out;
+  }
   function plateGeom(shape, thk, caps) {      // local plane = mid-thickness
     if (flatMode) return new THREE.ShapeGeometry(shape);
     var g = new THREE.ExtrudeGeometry(shape, { depth: thk, bevelEnabled: false, curveSegments: 24 });
@@ -3801,6 +3851,16 @@
       var edgeMat = new THREE.LineBasicMaterial({ color: 0x0e1013 });
       segs.forEach(function (sg, si) {
       var first = si === 0, last = si === segs.length - 1;
+      /* The two interior boundaries this stretch may have. Their rings come off
+         the mesh outlines below and are put back as the step alone; a stretch
+         at the end of the member has no neighbour there, so that cap is a face
+         of the member and keeps its rim whole. Worked out whichever mode the
+         viewer is in - flat mode only puts the answer away, so that toggling
+         it cannot leave a stretch that never learned where its seams were. */
+      var seam = [[first ? null : segs[si - 1], sg.z0],
+                  [last ? null : segs[si + 1], sg.z1]]
+        .filter(function (e) { return e[0]; });
+      var seamZ = seam.map(function (e) { return e[1]; });
       sg.rings.outers.forEach(function (ring, i) {
         var shape = new THREE.Shape(ring.map(function (q) { return new THREE.Vector2(q[0], q[1]); }));
         (sg.rings.holes[i] || []).forEach(function (h) {
@@ -3818,21 +3878,43 @@
         var mesh = new THREE.Mesh(geo, mat);
         mesh.matrixAutoUpdate = false;
         mesh.matrix.copy(world);
-        mesh.userData = { shape: shape, thk: thk, caps: caps };
+        /* The stretch this piece is, not just its section: the flat toggle
+           rebuilds from here, and a member that is a run of prisms has to come
+           back as one. Rebuilt with plateGeom it would come back as a single
+           full-length prism per stretch - the notch gone, the stretches lying
+           on top of each other. */
+        mesh.userData = { shape: shape, thk: thk, caps: caps, seg: sg,
+                          first: first, last: last, seamZ: seamZ };
         groupObj.add(mesh);
         geo.computeBoundingBox();
         bbox.union(geo.boundingBox.clone().applyMatrix4(world));
         /* EdgesGeometry draws the boundary between two stretches, because to it
-           that IS an edge - it cannot see the next stretch. Dropped on the
-           screen the same way it is dropped in the drawing: an interior face is
-           not a surface, so its rim is not a line. Only the ends of the whole
-           member keep theirs. */
-        var edge = new THREE.LineSegments(new THREE.EdgesGeometry(geo, 25), edgeMat);
+           that IS an edge - it cannot see the next stretch. Dropped here and
+           put back as the step alone, which is what the drawing has always
+           drawn there. */
+        var edge = new THREE.LineSegments(
+          dropCaps(new THREE.EdgesGeometry(geo, 25), flatMode ? [] : seamZ), edgeMat);
         edge.matrixAutoUpdate = false;
         edge.matrix.copy(world);
-        edge.userData = { shape: shape, thk: thk, caps: caps };
+        edge.userData = { shape: shape, thk: thk, caps: caps, seg: sg,
+                          first: first, last: last, seamZ: seamZ };
         groupObj.add(edge);
       });
+      if (seam.length) {
+        var seamPts = [];
+        seam.forEach(function (e) { ringLines(capSeam(sg, e[0]), e[1], seamPts); });
+        if (seamPts.length) {
+          var sedge = new THREE.LineSegments(ptsGeom(seamPts), edgeMat);
+          sedge.matrixAutoUpdate = false;
+          sedge.matrix.copy(world);
+          // flat mode stacks every stretch on one plane, where a step that
+          // belongs 400 mm along is about nothing; it is put away and comes
+          // back with the solid.
+          sedge.userData = { seamPts: seamPts };
+          if (flatMode) sedge.visible = false;
+          groupObj.add(sedge);
+        }
+      }
       });
       /* ---- a bolt's head and nut ----
          Drawn, not modelled: they are here so the picture reads as a bolted
@@ -11699,10 +11781,16 @@
     items.forEach(function (it) {
       it.groupObj.children.forEach(function (obj) {
         var d = obj.userData;
+        if (d && d.seamPts) { obj.visible = !flatMode; return; }
         if (!d || !d.shape) return;
-        var geo = plateGeom(d.shape, d.thk, d.caps);
+        /* Rebuilt as the stretch it is, and its lines trimmed the same way the
+           first build trimmed them. A member is a run of prisms whichever way
+           it is being looked at, so the toggle cannot be allowed to forget it
+           and hand back one long prism per stretch. */
+        var geo = segGeom(d.shape, d.seg.z0, d.seg.z1, d.caps, d.first, d.last);
         obj.geometry.dispose();
-        obj.geometry = obj.isMesh ? geo : new THREE.EdgesGeometry(geo, 25);
+        obj.geometry = obj.isMesh ? geo
+                     : dropCaps(new THREE.EdgesGeometry(geo, 25), flatMode ? [] : d.seamZ);
         if (obj.isMesh) {                          // a flat sheet has no inside
           obj.material.side = flatMode ? THREE.DoubleSide : THREE.FrontSide;
           obj.material.needsUpdate = true;
