@@ -41,15 +41,22 @@ const H = [300, 300, 300, 10, 15, 15, 18];      // h bb bt tw tf1 tf2 r
    and the web is left standing. A shape that stops inside the flange would
    leave a strip of it hanging off each edge, which is not a thing anyone cuts
    - and a test that shows an impossible detail teaches one. */
-const sheet = mid => [['COORD', 'ZUP'],
-  ['SECT', 'sc.b', 'SS275', LEN, 'H', 'mc'].concat(H),
-  ['HOLE', 'ho.n', 'RECT', 'mc', 340, 40]]
+const sheetOf = (mid, sec) => [['COORD', 'ZUP'],
+  ['SECT', 'sc.b', 'SS275', LEN, 'H', 'mc'].concat(sec || H),
+  ['HOLE', 'ho.n', 'RECT', 'mc', 340, 40],
+  /* a scallop, hung from whatever place the row names: wider than the web,
+     because what goes through a web goes right through it */
+  ['HOLE', 'ho.sc', 'RECT', 'tc', 70, 35]]
   .concat(mid)
   .concat([['MODULE', 'md.b', 'sc.b', '', -LEN / 2, 0, 0, 'YZ'],
            ['MODULE', 'md.b', 'BASE', 'sc.b', 'mc'],
            ['ASSY', 'as.a', 'md.b', 'ADD', -LEN / 2, 0, 0],
            ['VIEW', 'as.a', 'FRONT', '', '', 10, 'T'],
            ['END']]);
+const sheet = mid => sheetOf(mid, null);
+/* The same scallop on a bigger section. Named, it follows the section; typed as
+   a number it cannot, and that difference is the whole reason for the names. */
+const BIG = [400, 400, 400, 13, 21, 21, 22];
 
 /* At (0, 142.5) the cutter sits on the top flange and takes all of it; at
    (900, 0) it is off the section altogether and reaches nothing. */
@@ -73,6 +80,16 @@ const part = mid => sheet(mid).map(function (r) {
   return String(r[0]).toUpperCase() === 'VIEW'
     ? ['PLOT', 'SECT', 'ALL', 10, 'SECTIONS'] : r;   // PART is plates; a section is SECT
 });
+/* ---- wt / wb: the two places a bounding box has not got ---- */
+CASES.byNum  = sheet([['NOTCH', 'sc.b', 0, 35, 0, 135, 'ho.sc']]);
+CASES.byName = sheet([['NOTCH', 'sc.b', 0, 35, 'wt', '', 'ho.sc']]);
+CASES.wbName = sheet([['NOTCH', 'sc.b', 0, 35, 'wb', '', 'ho.sc']]);
+CASES.bigNum  = sheetOf([['NOTCH', 'sc.b', 0, 35, 0, 135, 'ho.sc']], BIG);
+CASES.bigName = sheetOf([['NOTCH', 'sc.b', 0, 35, 'wt', '', 'ho.sc']], BIG);
+CASES.bigOnly = sheetOf([], BIG);
+CASES.andLY  = sheet([['NOTCH', 'sc.b', 0, 35, 'wt', 10, 'ho.sc']]);
+CASES.noPlace = sheet([['NOTCH', 'sc.b', 0, 35, 'zz', '', 'ho.sc']]);
+
 CASES.partPlain = part([]);
 CASES.partNotch = part([['NOTCH', 'sc.b', 0, 400, ON[0], ON[1], 'ho.n']]);
 /* The lower flange is not a special case. The elevation and its dimensions are
@@ -169,6 +186,32 @@ const same = (a, b) => a.lines === b.lines && a.arcs === b.arcs &&
     ok(re.test(R[k].panel), 'refused, and named: ' + what, R[k].panel.slice(0, 150));
     ok(same(R[k], R.plain), 'refused rows leave the member alone: ' + what,
        shot(R[k]) + ' vs ' + shot(R.plain));
+  });
+
+  /* ---- wt / wb ----
+     The names are not a shorthand for a number. They are the number the SHEET
+     knows, and the difference only shows when the section changes: on an H-300
+     the web meets the flange at 135 and a person can type it, on an H-400 it is
+     179 and the same typed 135 is quietly in the wrong place. */
+  console.log('');
+  ok(same(R.byName, R.byNum),
+     'a place named is the place typed — same steel, same drawing',
+     shot(R.byName) + ' vs ' + shot(R.byNum));
+  ok(!same(R.wbName, R.byName), 'wb is not wt',
+     shot(R.wbName) + ' vs ' + shot(R.byName));
+  ok(R.byName.kg < R.plain.kg, 'and it took something away', shot(R.byName));
+  ok(!same(R.bigName, R.bigNum),
+     'on a bigger section the name follows and the number does not',
+     shot(R.bigName) + ' vs ' + shot(R.bigNum));
+  ok(R.bigName.kg < R.bigOnly.kg && R.bigNum.kg < R.bigOnly.kg,
+     'both still cut something, which is why the wrong one is dangerous',
+     shot(R.bigName) + ' / ' + shot(R.bigNum) + ' of ' + shot(R.bigOnly));
+
+  [['andLY', /leave L\.Y empty/, 'a named place with L.Y filled in as well'],
+   ['noPlace', /is not a place on this section/, 'a place the section has not got']
+  ].forEach(([k, re, what]) => {
+    ok(re.test(R[k].panel), 'refused, and named: ' + what, R[k].panel.slice(0, 150));
+    ok(same(R[k], R.plain), 'refused rows leave the member alone: ' + what);
   });
 
   /* ---- the part drawing ----

@@ -1692,9 +1692,37 @@
                ' reach the far end.');
           continue;
         }
+        /* The place to cut, by name. The coordinate stays - it is the same two
+           cells, and a place with no name still needs one - but the name is the
+           normal way, because the number it stands for is one the sheet already
+           knows and one that goes quietly wrong when the section changes.
+           The name goes in L.X and L.Y is left EMPTY. VIEW settled that rule
+           already: a named direction empties AZ and EL rather than sliding what
+           follows two cells left. The columns do not move. */
+        var nu = num(v[3], 0), nv = num(v[4], 0);
+        if (str(v[3]) !== '' && !isNum(v[3])) {
+          var npts = namedPoints(plates[ntg], false);
+          var nkey = str(v[3]).trim().toLowerCase();
+          if (!npts[nkey]) {
+            warn('row ' + (r + 1) + ': NOTCH on ' + ntg + ' — "' + str(v[3]) +
+                 '" is not a place on this section. It has ' +
+                 Object.keys(npts).sort().join(' ') + '.' +
+                 (plates[ntg].SECT !== 'H' && /^w[tb]$/.test(nkey)
+                   ? ' wt and wb are the web meeting a flange, which only an H has.'
+                   : ''));
+            continue;
+          }
+          if (str(v[4]) !== '') {
+            warn('row ' + (r + 1) + ': NOTCH on ' + ntg + ' names ' + nkey +
+                 ' and also fills L.Y with "' + str(v[4]) + '". A named place is' +
+                 ' both coordinates, so leave L.Y empty.');
+            continue;
+          }
+          nu = npts[nkey][0]; nv = npts[nkey][1];
+        }
         var nc = { PLATE: ntg, REFPT: 'bc', __xlCut: true, __org: true,
                    FROM: nfrom, TO: nto, ANG: 0,
-                   U: num(v[3], 0), V: num(v[4], 0),
+                   U: nu, V: nv,
                    TYPE: 'REF', REF: nshape,
                    DX: num(v[6], 0), DY: num(v[7], 0), REP: num(v[8], 0),
                    DX2: num(v[9], 0), DY2: num(v[10], 0), REP2: num(v[11], 0) };
@@ -3158,7 +3186,26 @@
 
   /* ------- named points/edges (uncut outline, MIRROR applied) ------- */
   function namedPoints(spec, mirror) {
-    if (spec.SHAPE === 'SECT') return nineFrom(cornersOf(spec));
+    if (spec.SHAPE === 'SECT') {
+      var sp = nineFrom(cornersOf(spec));
+      /* The two points a bounding box cannot have. The nine come from four
+         corners, so on an H they give the flange faces and the middle - and
+         miss the one place a scallop actually goes, where the web runs into
+         the flange. That is not a corner of anything; it is where two faces
+         of the section meet, and the section knows it exactly: h - tf2 up
+         from the bottom for the top one, tf1 for the bottom one. Written by
+         hand it is a number the sheet already knows, and one that is silently
+         wrong the moment the section changes.
+         No x of its own: a scallop goes right through the web, so there is
+         nothing to place across the thickness. The web is centred, so x is
+         the section's own centreline. */
+      if (spec.SECT === 'H') {
+        var bo = baseOffset(spec);
+        sp.wt = [-bo[0], num(spec.h, 0) - num(spec.tf2, 0) - bo[1]];
+        sp.wb = [-bo[0], num(spec.tf1, 0) - bo[1]];
+      }
+      return sp;
+    }
     if (spec.SHAPE === 'CIRC') {
       var o = baseOffset(spec), raw = rawPoints(spec), p = {};
       POINT_KEYS.forEach(function (k) { p[k] = [raw[k][0] - o[0], raw[k][1] - o[1]]; });
