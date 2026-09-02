@@ -236,12 +236,10 @@ V.stf.forEach((s, i) => {
   label(rw, String(i + 1), { color: (H && s.th > 0) ? INK : OFFTXT });
   sty(inp(rw, 4, s.t || null), { h: 'left', border: true, fill: INFILL,
                                  color: BLUE, bold: true });
-  [[5, s.off], [6, s.w], [7, s.d], [8, s.th]].forEach(([col, v]) => inp(rw, col, v, '0.##'));
+  [[5, s.off], [6, s.w], [7, s.d], [8, s.th], [9, s.clr]]
+    .forEach(([col, v]) => inp(rw, col, v, '0.##'));
 });
-/* One value for the joint, so it sits on the first row only - the same way the
-   splice keeps its `gap` in column J of its first plate row. Eight copies of a
-   number a shop sets once would be eight chances to disagree. */
-inp(R.stf0, 9, V.coClr, '0.##');
+
 note(R.tNote, 'Offset is signed from the column\'s centre, where the beams sit. Width and depth stand the fillet clear of the web and both flanges. Thick 0 = off.');
 checked(R.tChk, [
   /* Two plates a level, always: the web splits the space between the flanges
@@ -263,8 +261,8 @@ checked(R.tChk, [
 ]);
 
 /* ---- 3. plates ---- */
-head(R.pHead, 3, 'SPLICE PLATES', 'cover plates on an H, an end plate on a tube — Type keeps whichever the section calls for');
-cols(R.pCols, ['', '', '', 'Width', 'Length', 'Thick', 'Qty', 'Material', 'joint gap']);
+head(R.pHead, 3, 'COLUMN SPLICE PLATES', 'cover plates on an H, an end plate on a tube — Type keeps whichever the section calls for');
+cols(R.pCols, ['', '', '', 'Width', 'Length', 'Thick', 'over']);
 const PLT = [
   [R.fo, 'Flange plate',       V.foW, V.cpL, V.foT, 2, 'H'],
   [R.fi, 'Flange inner plate', V.fiW, V.cpL, V.fiT, 4, 'H'],
@@ -278,20 +276,19 @@ PLT.forEach(([row, t, w, l, th, q, only]) => {
     calc(row, 6, `${K.b}+2*${K.epOV}`, l, '0.##');
   } else { inp(row, 5, w); inp(row, 6, l); }
   inp(row, 7, th);
-  sty(ps.getCell(row, 8), { h: 'center', color: MUTE }).value = q;
-  inp(row, 9, V.steel);
   sty(ps.getCell(row, 11), { size: 9, italic: true, color: MUTE, h: 'center' })
     .value = 'Type ' + only;
 });
-inp(R.fo, 10, V.gap);
-sty(ps.getCell(R.ep, 10), { size: 9, bold: true, color: MUTE, h: 'right' }).value = null;
-inp(R.ep, 10, V.epOV);
-sty(ps.getCell(R.pCols, 10), { bold: true, size: 9, color: MUTE, h: 'center' })
-  .value = 'gap / over';
+/* `over` belongs to the end plate and to nothing else, so it sits on that row
+   alone. The steel grade is NOT repeated here: chapter 1 has the one cell every
+   formula reads, and a second input for one value is a second chance to
+   disagree. Quantity is not a cell either - it cannot be edited, it follows
+   from which detail the section calls for. */
+inp(R.ep, 8, V.epOV);
 const plKg = (V.foW * V.cpL * V.foT * 2 + V.fiW * V.cpL * V.fiT * 4
               + V.wpW * V.cpL * V.wpT * 2) * 7.85e-6;
 const epKg = D.epB * D.epH * V.epT * 2 * 7.85e-6;
-note(R.pNote, 'Width is across the flange or through the web; Length runs along the column. The end plate follows the section, plus 60 all round.');
+note(R.pNote, 'Set the upper or lower column length to 0 in chapter 1 and that splice goes away. The end plate follows the section, plus its overhang all round.');
 checked(R.pChk, [
   ['in use', `IF(${isH},"cover plates","end plate")`, pick('cover plates', 'end plate')],
   ['plate steel, kg', `ROUND(IF(${isH},${K.foW}*${K.foL}*${K.foT}*2+${K.fiW}*${K.fiL}*${K.fiT}*4` +
@@ -304,16 +301,12 @@ checked(R.pChk, [
     `IF(${K.foW}>${K.b},"flange plate too wide","web plate too deep")),"n/a")`,
     pick(V.foW <= D.b && V.wpW <= D.h - 2 * D.tf - 2 * D.r ? 'ok'
          : (V.foW > D.b ? 'flange plate too wide' : 'web plate too deep'), 'n/a')],
-  /* A column splice bears: the upper piece stands on the lower one and the
-     plates hold it in line. Air between them is not a detail, it is a mistake
-     - and an invisible one, because a 10mm gap on a 2800 column looks like a
-     drawn line. So it is said in words. A tube is different: its two end
-     plates really are in there, so the pieces really are 2t apart. */
-  ['joint', `IF(NOT(${isH}),"two end plates, "&2*${K.epT}&" thick",` +
-    `IF(${K.gap}=0,"bearing — the ends meet",${K.gap}&"mm apart — shim or division plate?"))`,
-    pick(V.gap === 0 ? 'bearing — the ends meet'
-         : V.gap + 'mm apart — shim or division plate?',
-         'two end plates, ' + 2 * V.epT + ' thick')]
+  /* An H splice BEARS - the upper piece stands on the lower one and the plates
+     hold it in line, so the ends meet and there is nothing to say about a gap.
+     A tube is different: its two end plates really are in there, so the pieces
+     really are 2t apart, and that is worth saying. */
+  ['joint', `IF(${isH},"bearing — the ends meet","two end plates, "&2*${K.epT}&" thick")`,
+    pick('bearing — the ends meet', 'two end plates, ' + 2 * V.epT + ' thick')]
 ]);
 
 /* ---- 4. bolts ---- */

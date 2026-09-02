@@ -346,21 +346,17 @@
       cols: ['', '', 'for', 'offset', 'width', 'depth', 'thick', 'clearance'],
       rows: function () {
         return V.stf.map(function (s, i) {
-          /* One value for the joint, so only the first row carries it - the
-             same place the sheet keeps it, column I of this chapter's first
-             row. The beams' copes stand off these plates by one number a shop
-             sets once. */
-          var sc = i === 0
-            ? [{ v: V.coClr, on: function (x) { V.coClr = num(x); redraw(true); } }]
-            : [{ skip: true }];
           return { label: String(i + 1), off: !(V.type === 'H' && s.th > 0), cells: [
             { skip: true },
             { v: s.t, text: true, left: true, on: function (x) { s.t = x; redraw(); } },
             { v: s.off, on: function (x) { s.off = num(x); redraw(true); } },
             { v: s.w,   on: function (x) { s.w   = num(x); redraw(true); } },
             { v: s.d,   on: function (x) { s.d   = num(x); redraw(true); } },
-            { v: s.th,  on: function (x) { s.th  = num(x); redraw(true); } }
-          ].concat(sc) };
+            { v: s.th,  on: function (x) { s.th  = num(x); redraw(true); } },
+            /* one a level: the levels can carry different beams, so they can
+               want different room */
+            { v: s.clr, on: function (x) { s.clr = num(x); redraw(true); } }
+          ] };
         });
       },
       chk: function () {
@@ -382,10 +378,10 @@
 
     /* ---- 3. SPLICE PLATES ---- */
     CHAPTERS.push({
-      n: 3, t: 'SPLICE PLATES', part: 'COLUMN', guide: function () { return svgSplice(); },
+      n: 3, t: 'COLUMN SPLICE PLATES', part: 'COLUMN', guide: function () { return svgSplice(); },
       hint: 'cover plates on an H, an end plate on a tube — Type keeps whichever the section calls for',
-      note: 'Width is across the flange or through the web; Length runs along the column. The end plate follows the section, plus its overhang all round.',
-      cols: ['', '', '', 'Width', 'Length', 'Thick', 'Qty', 'Material', 'gap / over'],
+      note: 'Set the upper or lower column length to 0 in chapter 1 and that splice goes away. The end plate follows the section, plus its overhang all round.',
+      cols: ['', '', '', 'Width', 'Length', 'Thick', 'over'],
       rows: function () {
         var Hs = V.type === 'H';
         return [
@@ -394,24 +390,22 @@
             { v: V.foW, on: function (x) { V.foW = num(x); redraw(true); } },
             { v: V.cpL, on: function (x) { V.cpL = num(x); redraw(true); } },
             { v: V.foT, on: function (x) { V.foT = num(x); redraw(true); } },
-            { out: 2 }, { v: V.steel, text: true, on: function (x) { V.steel = x; redraw(true); } },
-            { v: V.gap, on: function (x) { V.gap = num(x); redraw(true); } } ] },
+            { skip: true } ] },
           { label: 'Flange inner plate', off: !Hs, dim: !Hs, cells: [
             { skip: true }, { skip: true },
             { v: V.fiW, on: function (x) { V.fiW = num(x); redraw(true); } },
             { out: V.cpL },
             { v: V.fiT, on: function (x) { V.fiT = num(x); redraw(true); } },
-            { out: 4 }, { skip: true }, { skip: true } ] },
+            { skip: true } ] },
           { label: 'Web plate', off: !Hs, dim: !Hs, cells: [
             { skip: true }, { skip: true },
             { v: V.wpW, on: function (x) { V.wpW = num(x); redraw(true); } },
             { out: V.cpL },
             { v: V.wpT, on: function (x) { V.wpT = num(x); redraw(true); } },
-            { out: 2 }, { skip: true }, { skip: true } ] },
+            { skip: true } ] },
           { label: 'End plate', off: Hs, dim: Hs, cells: [
             { skip: true }, { skip: true }, { out: D.epB }, { out: D.epH },
             { v: V.epT, on: function (x) { V.epT = num(x); redraw(true); } },
-            { out: 2 }, { skip: true },
             { v: V.epOV, on: function (x) { V.epOV = num(x); redraw(true); } } ] }
         ];
       },
@@ -421,12 +415,11 @@
                      + V.wpW * V.cpL * V.wpT * 2) * 7.85e-6
                     : D.epB * D.epH * V.epT * 2 * 7.85e-6;
         return [['in use', Hs ? 'cover plates' : 'end plate'],
-                /* Air between column pieces is a mistake, not a detail, and an
-                   invisible one — a 10mm gap on a 2800 column looks like a
-                   drawn line. Say it in words. */
-                ['joint', !Hs ? 'two end plates, ' + 2 * V.epT + ' thick'
-                  : V.gap === 0 ? 'bearing — the ends meet'
-                  : V.gap + 'mm apart — shim or division plate?'],
+                /* An H splice bears - the ends meet and there is nothing to
+                   say about a gap. A tube's two end plates really are in
+                   there, so its pieces really are 2t apart. */
+                ['joint', Hs ? 'bearing — the ends meet'
+                             : 'two end plates, ' + 2 * V.epT + ' thick'],
                 ['plate steel, kg', Math.round(kg * 10) / 10],
                 ['plates fit', !Hs ? 'n/a'
                   : (V.foW > D.b ? 'flange plate too wide'
@@ -609,9 +602,9 @@
            the whole point: the column continues, the plate does not. */
         var over = 30;
         g.push('<rect x="' + x0 + '" y="' + (y0 - over) + '" width="' + pw +
-               '" height="' + (ph / 2 + over - V.gap / 2) + '" fill="#eef2f7" stroke="#cbd5e1"/>');
-        g.push('<rect x="' + x0 + '" y="' + (yc + V.gap / 2) + '" width="' + pw +
-               '" height="' + (ph / 2 + over - V.gap / 2) + '" fill="#eef2f7" stroke="#cbd5e1"/>');
+               '" height="' + (ph / 2 + over) + '" fill="#eef2f7" stroke="#cbd5e1"/>');
+        g.push('<rect x="' + x0 + '" y="' + yc + '" width="' + pw +
+               '" height="' + (ph / 2 + over) + '" fill="#eef2f7" stroke="#cbd5e1"/>');
         // the cover plate
         g.push('<rect x="' + x0 + '" y="' + y0 + '" width="' + pw + '" height="' + ph +
                '" fill="rgba(29,78,216,.07)" stroke="#1d4ed8" stroke-width="1.3"/>');
@@ -626,12 +619,8 @@
             bolt(xc - dx, yc + dy); bolt(xc + dx, yc + dy);
           }
         }
+        // the joint: the two pieces meet on this line and there is no gap
         line(x0, yc, x1, yc, { c: '#b45309', d: '3 3' });
-        /* Inside the plate at its left edge: on the line it was struck
-           through by the dashes, and to the right of the plate it landed on
-           the In dimension. Between the edge and the first bolt column there
-           is nothing, and that is where it goes. */
-        txt(x0 + 5, yc - 5, 'gap ' + V.gap, { a: 'start', c: '#b45309' });
         dimH(x0, x1, y0 - 12, 'Width ' + V.foW);
         dimV(y0, y1, x0 - 14, 'Length ' + V.cpL);
         dimV(yc - V.fIL / 2 * sy, yc + V.fIL / 2 * sy, x1 + 40, 'In ' + V.fIL);

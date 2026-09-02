@@ -65,15 +65,15 @@
          width/length/thickness, bolts by a count with a gap in the middle and an
          edge distance at the ends. A column splice is symmetric, so where the
          beam sheet has a Top flange row and a Bottom flange row this has one. */
-      /* 0, because a column splice bears. The upper piece sits on the lower
-         one - gravity does not offer the choice - so the ends are finished
-         and butted, and the plates hold it in line and take tension and shear
-         rather than the load. 10 came from PLATE3D_SPLICE.xlsx, where it is
-         right: a BEAM splice has nothing underneath it and takes a root gap.
-         Copying it here put the upper column 10mm in the air.
-         Leave the field: a shim or a division plate between the pieces is a
-         real detail, and then its thickness is what goes here. */
-      gap: 0, cpL: 330,
+      /* No joint gap. A column splice BEARS - the upper piece stands on the
+         lower one, gravity does not offer the choice, and the plates hold it
+         in line and take tension and shear rather than the load. There was a
+         cell for it, carried over from PLATE3D_SPLICE.xlsx where a BEAM splice
+         really does take a root gap; here every value but 0 puts the upper
+         column in the air, which is a mistake and an invisible one. A shim or
+         a division plate is a real detail, but it is a piece of steel and
+         wants to be drawn as one, not spelled as a hole. */
+      cpL: 330,
       /* No scallop, and no corner clip. A plate cut to the full clear space
          runs into the fillets where the web meets the flanges; rather than cut
          its corners away, the plate is made SMALLER - clear of the fillet on
@@ -82,11 +82,7 @@
          145 wide clashes, 112 does not. The rule is the fillet radius on each
          side, which is where those numbers come from - see the stiffener
          defaults below. */
-      /* how far the beam's cope stands off the stiffener. Room at the plate's
-         EDGES - the beam is put in past them - and not through its thickness,
-         where anything more comes off the beam's own web. One number for the
-         joint, beside the scallop, because a shop sets it once. */
-      coClr: 20,
+
       foW: 300, foT: 12,                       // flange plate, outer
       fiW: 110, fiT: 10,                       // flange plate, inner - two per flange
       wpW: 234, wpT: 10,                       // web plate - two
@@ -282,9 +278,14 @@
            space that carries its web-side edge in by r - to tw/2 + r, exactly
            where the fillet ends. */
         w: rnd((D.b - D.tw) / 2 - 2 * D.r), d: rnd(D.h - 2 * D.tf),
-        th: 12
+        th: 12,
+        /* how far a beam's cope stands off this plate. Room at the plate's
+           EDGES - the beam is put in past them - and not through its
+           thickness, where anything more comes off the beam's own web. One a
+           level, because the levels can carry different beams. */
+        clr: 20
       }));
-      while (V.stf.length < NSTF) V.stf.push({ t: '', off: 0, w: 0, d: 0, th: 0 });
+      while (V.stf.length < NSTF) V.stf.push({ t: '', off: 0, w: 0, d: 0, th: 0, clr: 20 });
     }
     // column D is 26 wide with a filled neighbour, so Excel clips rather than spills
     V.stf.forEach(x => { if (x.t.length > 25)
@@ -339,8 +340,7 @@
          the splice keeps `gap`, which is also a chapter-wide value sitting in
          column J of a chapter's first row. Per level would be eight cells for a
          number a shop sets once. */
-      coClr: c('I', R.stf0),
-      foW: c('E', R.fo), foL: c('F', R.fo), foT: c('G', R.fo), gap: c('J', R.fo),
+      foW: c('E', R.fo), foL: c('F', R.fo), foT: c('G', R.fo),
       fiW: c('E', R.fi), fiL: c('F', R.fi), fiT: c('G', R.fi),
       wpW: c('E', R.wp), wpL: c('F', R.wp), wpT: c('G', R.wp),
       epW: c('E', R.ep), epL: c('F', R.ep), epT: c('G', R.ep),
@@ -351,7 +351,7 @@
       wNL: c('E', R.gW), wIL: c('F', R.gW), wOL: c('G', R.gW),
       wNT: c('H', R.gW), wIT: c('I', R.gW), wOT: c('J', R.gW),
       eNX: c('E', R.gE), eOX: c('F', R.gE), eNY: c('H', R.gE), eOY: c('I', R.gE),
-      epOV: c('J', R.ep)
+      epOV: c('H', R.ep)
     };
     // one beam's cells, by its row
     const BMK = i => ({ det: c('C', BMROW[i]), sec: c('D', BMROW[i]), h: c('E', BMROW[i]), b: c('F', BMROW[i]),
@@ -359,7 +359,8 @@
                        len: c('J', BMROW[i]), kg: c('K', BMROW[i]) });
     // one stiffener level's cells, by its row
     const SK = i => ({ off: c('E', STFROW[i]), w: c('F', STFROW[i]),
-                       d: c('G', STFROW[i]), th: c('H', STFROW[i]) });
+                       d: c('G', STFROW[i]), th: c('H', STFROW[i]),
+                       clr: c('I', STFROW[i]) });
     /* The connection library, looked up by the mark a beam names. IFERROR is not
        decoration: a mark that is not in the list would otherwise put #N/A through
        every formula downstream and the whole sheet would go red. Falling back to
@@ -591,10 +592,12 @@
     });
 
     /* BASE holds pl.fo_1, so a splice ASSY row names where THAT plate goes. */
-    const jointU  = `(${K.mid}/2+IF(${isH},${K.gap}/2,${K.epT}))`;
-    const jointUV = V.mid / 2 + pick(V.gap / 2, V.epT);
-    const clearU  = `(${K.mid}/2+IF(${isH},${K.gap},2*${K.epT}))`;
-    const clearUV = V.mid / 2 + pick(V.gap, 2 * V.epT);
+    /* An H splice butts, so the joint IS the middle piece's end. A tube has
+       an end plate each side, so its pieces really are 2t apart. */
+    const jointU  = `(${K.mid}/2+IF(${isH},0,${K.epT}))`;
+    const jointUV = V.mid / 2 + pick(0, V.epT);
+    const clearU  = `(${K.mid}/2+IF(${isH},0,2*${K.epT}))`;
+    const clearUV = V.mid / 2 + pick(0, 2 * V.epT);
     note2('');
     note2('ASSY  id  ref  cmd  p1 p2 p3        BASE holds pl.fo_1, so a splice row names where THAT plate sits, not where the joint is');
     /* ASSY ... ADD takes a three-axis rotation after its point, so the whole
@@ -784,7 +787,7 @@
       if (!webFace(B.ax === 'X')) return;
       V.stf.forEach((s, j) => {
         if (s.th > 0) coped.push(['NOTCH', 'sc.bm' + B.k, 'BY', 'pl.stf' + (j + 1),
-                                  f(K.coClr, V.coClr)]);
+                                  f(SK(j).clr, s.clr)]);
       });
     });
     if (coped.length) {
@@ -884,23 +887,21 @@
       at(6, rw, function () { return s.w; },   function (x) { s.w   = N(x); });
       at(7, rw, function () { return s.d; },   function (x) { s.d   = N(x); });
       at(8, rw, function () { return s.th; },  function (x) { s.th  = N(x); });
+      at(9, rw, function () { return s.clr; }, function (x) { s.clr = N(x); });
     });
-    /* One clearance for the joint, on the chapter's first row - a shop sets it
-       once, so one cell and not one a level. */
-    at(9, R.stf0, function () { return V.coClr; }, function (x) { V.coClr = N(x); });
+
 
     /* 3 SPLICE PLATES — Width, Length, Thick, (Qty), Material, gap/over */
     at(5, R.fo, function () { return V.foW; }, function (x) { V.foW = N(x); });
     at(6, R.fo, function () { return V.cpL; }, function (x) { V.cpL = N(x); });
     at(7, R.fo, function () { return V.foT; }, function (x) { V.foT = N(x); });
-    at(9, R.fo, function () { return V.steel; }, function (x) { V.steel = S(x); });
-    at(10, R.fo, function () { return V.gap; }, function (x) { V.gap = N(x); });
+
     at(5, R.fi, function () { return V.fiW; }, function (x) { V.fiW = N(x); });
     at(7, R.fi, function () { return V.fiT; }, function (x) { V.fiT = N(x); });
     at(5, R.wp, function () { return V.wpW; }, function (x) { V.wpW = N(x); });
     at(7, R.wp, function () { return V.wpT; }, function (x) { V.wpT = N(x); });
     at(7, R.ep, function () { return V.epT; }, function (x) { V.epT = N(x); });
-    at(10, R.ep, function () { return V.epOV; }, function (x) { V.epOV = N(x); });
+    at(8, R.ep, function () { return V.epOV; }, function (x) { V.epOV = N(x); });
 
     /* 4 BOLTS */
     at(5, R.blt, function () { return V.dia; }, function (x) { V.dia = N(x); });
