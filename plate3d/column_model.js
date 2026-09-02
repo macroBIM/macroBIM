@@ -272,11 +272,16 @@
       [1, -1].forEach(s => V.stf.push({
         t: s > 0 ? 'upper stiffener' : 'lower stiffener',
         off: rnd(s * (D.bmH - D.bmF) / 2),    // the default beam's flange centre
-        /* Clear of the fillet on every side. The clear space is
-           (b - tw)/2 by (h - 2tf); the fillet reaches r in from each face it
-           touches, and the plate is centred in that space, so both dimensions
-           come down by 2r. Nothing to clip afterwards. */
-        w: rnd((D.b - D.tw) / 2 - 2 * D.r), d: rnd(D.h - 2 * D.tf - 2 * D.r),
+        /* Hard against both flanges, clear of the fillet at the web. A
+           rectangle that touches the web AND both flanges has to pass through
+           the two corners where they meet, and those corners are fillet - so
+           one of the three has to give. The flanges are the ones kept: that is
+           the way the beam's flange force arrives.
+           Depth is the clear span, h - 2tf, and lands on both flange faces.
+           Width comes down by 2r, and since the plate is centred in the clear
+           space that carries its web-side edge in by r - to tw/2 + r, exactly
+           where the fillet ends. */
+        w: rnd((D.b - D.tw) / 2 - 2 * D.r), d: rnd(D.h - 2 * D.tf),
         th: 12
       }));
       while (V.stf.length < NSTF) V.stf.push({ t: '', off: 0, w: 0, d: 0, th: 0 });

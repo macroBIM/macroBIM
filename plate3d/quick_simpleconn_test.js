@@ -367,11 +367,11 @@
         var live = V.type === 'H' ? V.stf.filter(function (s) { return s.th > 0; }).length : 0;
         var wmax = Math.max.apply(null, V.stf.map(function (s) { return s.w; }));
         var dmax = Math.max.apply(null, V.stf.map(function (s) { return s.d; }));
-        /* The room is the clear space LESS the fillet on each side - the plate
-           stands clear of both, so that is what fitting means. */
+        /* Depth may use the whole clear span - it lands on the flanges. Width
+           has to stop short of the fillet. */
         var fits = V.type !== 'H' ? 'n/a'
                  : wmax > (D.b - D.tw) / 2 - 2 * D.r ? 'too wide'
-                 : dmax > D.h - 2 * D.tf - 2 * D.r ? 'too deep' : 'ok';
+                 : dmax > D.h - 2 * D.tf ? 'too deep' : 'ok';
         return [['plates', live * 2 + ' of ' + V.stf.length * 2], ['fits', fits],
                 ['beam flange at ±', V.bmC.map(function (_, i) {
                    var b = cat.findH(V.bmSec);

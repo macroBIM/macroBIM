@@ -248,12 +248,13 @@ checked(R.tChk, [
      in two and no single plate can span it. */
   ['plates', `IF(${isH},${STFROW.map(r => `IF($H$${r}>0,2,0)`).join('+')},0)&" of ${NSTF * 2}"`,
     D.stfN + ' of ' + NSTF * 2],
-  /* The room is the clear space LESS the fillet on each side - the plate is
-     meant to stand clear of both, so that is what "fits" has to mean now. */
+  /* Depth is the clear span and may use all of it - it lands on the flange
+     faces, which is the point. Width has to stop short of the fillet, so its
+     room is the clear space less 2r. */
   ['fits', `IF(NOT(${isH}),"n/a",IF(MAX($F$${R.stf0}:$F$${R.stf0 + NSTF - 1})>(${K.b}-${K.tw})/2-2*${K.r},` +
-    `"too wide",IF(MAX($G$${R.stf0}:$G$${R.stf0 + NSTF - 1})>${K.h}-2*${K.tf}-2*${K.r},"too deep","ok")))`,
+    `"too wide",IF(MAX($G$${R.stf0}:$G$${R.stf0 + NSTF - 1})>${K.h}-2*${K.tf},"too deep","ok")))`,
     pick(Math.max.apply(null, V.stf.map(s => s.w)) > (D.b - D.tw) / 2 - 2 * D.r ? 'too wide'
-      : (Math.max.apply(null, V.stf.map(s => s.d)) > D.h - 2 * D.tf - 2 * D.r ? 'too deep' : 'ok'), 'n/a')],
+      : (Math.max.apply(null, V.stf.map(s => s.d)) > D.h - 2 * D.tf ? 'too deep' : 'ok'), 'n/a')],
   /* The number a person actually wants while filling this block in: where
      each beam's flange centre sits, which is what an offset is usually set to. */
   ['beam flange at ±', [0, 1, 2, 3].map(i =>
