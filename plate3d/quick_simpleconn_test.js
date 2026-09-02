@@ -558,6 +558,11 @@
        worth more than a prettier one that is fixed. */
     function svgSplice() {
       var Hs = V.type === 'H';
+      /* The viewBox. 232 is the H drawing: a 300x150 plate at PAD, and the
+         last dimension 34 under it. The end plate is SQUARE and as wide as it
+         is tall, so it needs more room below - the tube branch works its own
+         height out from the plate it just drew rather than sharing a number
+         that only ever fitted the other drawing. */
       var W = 560, HT = 232, PAD = 46;          // viewBox, and room for dimensions
       var g = [];
       var line = function (x1, y1, x2, y2, o) {
@@ -634,6 +639,7 @@
         var s2 = 150, o2 = 34;                      // the wall, and its overhang
         var ax = (W - s2 - 2 * o2) / 2, ay = PAD;
         var bx = ax + s2 + 2 * o2, by = ay + s2 + 2 * o2;
+        HT = by + 40;                  // the plate, its Out dimension, and the count
         g.push('<rect x="' + ax + '" y="' + ay + '" width="' + (s2 + 2 * o2) +
                '" height="' + (s2 + 2 * o2) +
                '" fill="rgba(29,78,216,.07)" stroke="#1d4ed8" stroke-width="1.3"/>');

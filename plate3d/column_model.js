@@ -622,7 +622,15 @@
     const foxOn = `IF(${isH},${fox},0)`, foxOnV = pick(foxV, 0);
     row(['ASSY', 'as.col', 'md.spu', 'ADD',
          rotX(foxOn, foxOnV), rotY(foxOn, foxOnV),
-         f(`${jointU}+IF(${isH},0,-${K.epT}/2)`, jointUV + pick(0, -V.epT / 2))].concat(spin),
+         /* BASE holds pl.fo_1, and pl.fo_1 is the plate at +epT/2 - the UPPER
+            of the two. The pair has to sit between the middle column's face and
+            the upper piece, so the upper plate's centre is half a thickness
+            ABOVE the joint, not below it. With the sign the other way the pair
+            slid a whole thickness down: one plate buried in the middle column,
+            and a void of the same size left under the upper piece. The clash
+            report was already saying so - PL.FO x SC.C2. The lower splice
+            never had it, because its pl.fo_1 is the upper of ITS pair too. */
+         f(`${jointU}+IF(${isH},0,${K.epT}/2)`, jointUV + pick(0, V.epT / 2))].concat(spin),
         'the splice point goes round the axis with the rest of it');
     row(['ASSY', 'as.col', 'md.spd', 'ADD',
          rotX(foxOn, foxOnV), rotY(foxOn, foxOnV),
