@@ -11826,7 +11826,7 @@
        grammar, commented out, with room to type between the lines. Basic keeps
        its "Start here": the two say different things - write your own, or watch
        one work. */
-    { f: 'PLATE3D_TEMPLATE.xlsx', n: 'Template', s: '149 rows → 0 members, by design',
+    { f: 'PLATE3D_TEMPLATE.xlsx', n: 'Template', s: '151 rows → 0 members, by design',
       d: 'Every keyword and form, commented out. Write your own.' },
     { f: 'PLATE3D_BASIC.xlsx', n: 'Basic', s: '76 rows → 90 members · 1.70 t',
       d: 'Every keyword once, in one real model. Start here.' },
@@ -11846,6 +11846,12 @@
        rows. This sheet says CUT nowhere. */
     { f: 'PLATE3D_BCJOINT.xlsx', n: 'Beam to column', s: '36 rows → 13 members · 186 kg',
       d: 'A front sheet picks the sections. Nothing here says CUT.' },
+    /* Straight after it, because it is the same joint carried as far as it
+       goes: the splice above and below, the stiffeners inside, four beams in
+       the world's directions, and the copes where a beam and a stiffener want
+       the same steel. The front sheet writes every row of it. */
+    { f: 'PLATE3D_COLUMN.xlsx', n: 'Simple connector', s: '179 rows → 129 members · 468 kg',
+      d: 'A front sheet builds the joint: splice, stiffener, beams.' },
     { f: 'PLATE3D_TANK.xlsx', n: 'Tank', s: '54 rows → 16 members · 4.9 kg',
       d: 'Reverse-engineered from a five-sheet A4 drawing set.' },
     { f: 'PLATE3D_TURRET.xlsx', n: 'Turret', s: '56 rows → 12 members · 0.65 kg',
