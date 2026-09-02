@@ -230,8 +230,7 @@ checked(R.sChk, [
    rows. The offsets do depend on how deep the beams are, which is chapter 6,
    so the check row carries each beam's flange height for copying up. */
 head(R.tHead, 2, 'COLUMN STIFFENER', 'horizontal plates inside an H — a tube cannot take one, nothing reaches inside the wall');
-cols(R.tCols, ['', '', 'for', 'offset', 'width', 'depth', 'thick', 'scallop', 'size',
-               'clearance']);
+cols(R.tCols, ['', '', 'for', 'offset', 'width', 'depth', 'thick', 'clearance']);
 V.stf.forEach((s, i) => {
   const rw = STFROW[i];
   label(rw, String(i + 1), { color: (H && s.th > 0) ? INK : OFFTXT });
@@ -239,24 +238,22 @@ V.stf.forEach((s, i) => {
                                  color: BLUE, bold: true });
   [[5, s.off], [6, s.w], [7, s.d], [8, s.th]].forEach(([col, v]) => inp(rw, col, v, '0.##'));
 });
-/* The scallop is one value for the joint, so it sits on the first row only -
-   the same way the splice keeps its `gap` in column J of its first plate row.
-   Eight copies of a number a shop sets once would be eight chances to disagree. */
-sty(inp(R.stf0, 9, V.scT), { color: BLUE, bold: true });
-inp(R.stf0, 10, V.scR, '0.##');
-/* Same reasoning, same row: how far the beams' copes stand off these plates.
-   One number a shop sets once, so one cell and not one a level. */
-inp(R.stf0, 11, V.coClr, '0.##');
-note(R.tNote, 'Offset is signed, from the middle column\'s centre — where the beams sit. Width runs out from the web, depth between the flanges. Thick 0 = off.');
+/* One value for the joint, so it sits on the first row only - the same way the
+   splice keeps its `gap` in column J of its first plate row. Eight copies of a
+   number a shop sets once would be eight chances to disagree. */
+inp(R.stf0, 9, V.coClr, '0.##');
+note(R.tNote, 'Offset is signed from the column\'s centre, where the beams sit. Width and depth stand the fillet clear of the web and both flanges. Thick 0 = off.');
 checked(R.tChk, [
   /* Two plates a level, always: the web splits the space between the flanges
      in two and no single plate can span it. */
   ['plates', `IF(${isH},${STFROW.map(r => `IF($H$${r}>0,2,0)`).join('+')},0)&" of ${NSTF * 2}"`,
     D.stfN + ' of ' + NSTF * 2],
-  ['fits', `IF(NOT(${isH}),"n/a",IF(MAX($F$${R.stf0}:$F$${R.stf0 + NSTF - 1})>(${K.b}-${K.tw})/2,` +
-    `"too wide",IF(MAX($G$${R.stf0}:$G$${R.stf0 + NSTF - 1})>${K.h}-2*${K.tf},"too deep","ok")))`,
-    pick(Math.max.apply(null, V.stf.map(s => s.w)) > (D.b - D.tw) / 2 ? 'too wide'
-      : (Math.max.apply(null, V.stf.map(s => s.d)) > D.h - 2 * D.tf ? 'too deep' : 'ok'), 'n/a')],
+  /* The room is the clear space LESS the fillet on each side - the plate is
+     meant to stand clear of both, so that is what "fits" has to mean now. */
+  ['fits', `IF(NOT(${isH}),"n/a",IF(MAX($F$${R.stf0}:$F$${R.stf0 + NSTF - 1})>(${K.b}-${K.tw})/2-2*${K.r},` +
+    `"too wide",IF(MAX($G$${R.stf0}:$G$${R.stf0 + NSTF - 1})>${K.h}-2*${K.tf}-2*${K.r},"too deep","ok")))`,
+    pick(Math.max.apply(null, V.stf.map(s => s.w)) > (D.b - D.tw) / 2 - 2 * D.r ? 'too wide'
+      : (Math.max.apply(null, V.stf.map(s => s.d)) > D.h - 2 * D.tf - 2 * D.r ? 'too deep' : 'ok'), 'n/a')],
   /* The number a person actually wants while filling this block in: where
      each beam's flange centre sits, which is what an offset is usually set to. */
   ['beam flange at ±', [0, 1, 2, 3].map(i =>
