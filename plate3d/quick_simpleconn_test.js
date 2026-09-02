@@ -343,17 +343,21 @@
       hint: 'horizontal plates inside an H — a tube cannot take one, nothing reaches inside the wall',
       note: 'Offset is signed, from the middle column’s centre — where the beams sit. Width runs out from the web, depth between the flanges. Thick 0 = off.',
       dim: function () { return V.type !== 'H'; },
-      cols: ['', '', 'for', 'offset', 'width', 'depth', 'thick', 'scallop', 'size'],
+      cols: ['', '', 'for', 'offset', 'width', 'depth', 'thick', 'scallop', 'size',
+             'clearance'],
       rows: function () {
         return V.stf.map(function (s, i) {
           /* The scallop is one value for the joint, so only the first row
              carries it - the same place the sheet keeps it, column I and J of
              this chapter's first row. */
+          /* The clearance sits beside it for the same reason: the beams' copes
+             stand off these plates by one number a shop sets once. */
           var sc = i === 0
             ? [{ v: V.scT, text: true, on: function (x) {
                    V.scT = String(x).toUpperCase() === 'S' ? 'S' : 'C'; redraw(true); } },
-               { v: V.scR, on: function (x) { V.scR = num(x); redraw(true); } }]
-            : [{ skip: true }, { skip: true }];
+               { v: V.scR, on: function (x) { V.scR = num(x); redraw(true); } },
+               { v: V.coClr, on: function (x) { V.coClr = num(x); redraw(true); } }]
+            : [{ skip: true }, { skip: true }, { skip: true }];
           return { label: String(i + 1), off: !(V.type === 'H' && s.th > 0), cells: [
             { skip: true },
             { v: s.t, text: true, left: true, on: function (x) { s.t = x; redraw(); } },

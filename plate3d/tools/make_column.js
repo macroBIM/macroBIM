@@ -230,7 +230,8 @@ checked(R.sChk, [
    rows. The offsets do depend on how deep the beams are, which is chapter 6,
    so the check row carries each beam's flange height for copying up. */
 head(R.tHead, 2, 'COLUMN STIFFENER', 'horizontal plates inside an H — a tube cannot take one, nothing reaches inside the wall');
-cols(R.tCols, ['', '', 'for', 'offset', 'width', 'depth', 'thick', 'scallop', 'size']);
+cols(R.tCols, ['', '', 'for', 'offset', 'width', 'depth', 'thick', 'scallop', 'size',
+               'clearance']);
 V.stf.forEach((s, i) => {
   const rw = STFROW[i];
   label(rw, String(i + 1), { color: (H && s.th > 0) ? INK : OFFTXT });
@@ -243,6 +244,9 @@ V.stf.forEach((s, i) => {
    Eight copies of a number a shop sets once would be eight chances to disagree. */
 sty(inp(R.stf0, 9, V.scT), { color: BLUE, bold: true });
 inp(R.stf0, 10, V.scR, '0.##');
+/* Same reasoning, same row: how far the beams' copes stand off these plates.
+   One number a shop sets once, so one cell and not one a level. */
+inp(R.stf0, 11, V.coClr, '0.##');
 note(R.tNote, 'Offset is signed, from the middle column\'s centre — where the beams sit. Width runs out from the web, depth between the flanges. Thick 0 = off.');
 checked(R.tChk, [
   /* Two plates a level, always: the web splits the space between the flanges

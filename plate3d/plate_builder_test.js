@@ -3195,12 +3195,21 @@
         var p0 = xy(hits[k][0], hits[k][1]), p1 = xy(hits[k + 1][0], hits[k + 1][1]);
         var L = Math.hypot(p1[0] - p0[0], p1[1] - p0[1]);
         if (!(L > EPS)) continue;
-        // grown by the clearance on all four sides: along the chord, and along
-        // the sweep. A parallelogram, so this is exact rather than an offset.
+        /* Grown by the clearance ALONG THE CHORD, and swept the knife's own
+           thickness. A parallelogram, so this is exact rather than an offset.
+
+           The clearance stands the cut off the knife's EDGES, not off its
+           faces. A plate is put in past its edges - it slides in the plane it
+           lies in - so that is where room is wanted; across the thickness the
+           member has already given up everything the plate occupies, and any
+           more comes off the far side of it. On a coped beam that far side is
+           the WEB, which is the steel the connection is carrying shear
+           through. Growing all six ways took 20mm of web off for every 20mm of
+           room asked for at the edge. */
         var ux = (p1[0] - p0[0]) / L, uy = (p1[1] - p0[1]) / L;
         var sl = Math.hypot(sw[0], sw[1]);
         var vx = sl > EPS ? sw[0] / sl : 0, vy = sl > EPS ? sw[1] / sl : 0;
-        var e0 = half * sl + clear, e1 = clear;
+        var e0 = half * sl, e1 = clear;
         var A0 = [p0[0] - ux * e1 - vx * e0, p0[1] - uy * e1 - vy * e0];
         var B0 = [p1[0] + ux * e1 - vx * e0, p1[1] + uy * e1 - vy * e0];
         var B1 = [p1[0] + ux * e1 + vx * e0, p1[1] + uy * e1 + vy * e0];

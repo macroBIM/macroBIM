@@ -14,8 +14,11 @@
        behind it is 10 - so it is not one notch
      · the mark is the target's OUTLINE and not its steel: a hole cut through
        the knife does not show up in what the knife takes away
-     · a clearance is room all round — cutting by a target 2c bigger with no
-       clearance takes exactly as much as cutting by the target with c
+     · a clearance is room at the knife's EDGES — cutting by a target 2c wider
+       and 2c longer with no clearance takes exactly as much as cutting by the
+       target with c. And it stops there: a knife 2c THICKER takes more, because
+       a clearance is not allowed to reach through the thickness. What is on the
+       far side of a plate is the member's own steel - on a coped beam, its web.
      · a target that never reaches the member changes nothing, and says so
      · malformed rows are refused by name and leave the member alone
 
@@ -76,7 +79,8 @@ const CASES = {
   thicker:   sheet({ t: 40 }),
   holed:     sheet({ hole: true }),
   clear10:   sheet({ notch: ['BY', 'pl.k', 10] }),
-  bigger20:  sheet({ w: 220, t: 40, h: 420 }),
+  bigger20:  sheet({ w: 220, h: 420 }),          // 2c at the edges, same thickness
+  fatter20:  sheet({ w: 220, t: 40, h: 420 }),   // and 2c through the thickness too
   bySect:    sheet({ section: true, notch: ['BY', 'sc.c'] }),
   miss:      sheet({ far: true }),
   aside:     sheet({ aside: true }),
@@ -140,14 +144,21 @@ const CASES = {
 
   ok(took('clear10') > took('cut'), 'a clearance takes more',
      took('cut') + ' → ' + took('clear10'));
-  /* Room all round, in all THREE directions: across the mark, through the
-     knife's own thickness, and along the member. A knife grown by 2c on every
-     face and asked for no clearance is the same cut. Grow only the width and
-     this is the check that catches it - which is how the missing stretch was
-     found in the first place. */
+  /* Room at the EDGES, in the two directions a plate is put in past: across
+     the mark and along the member. A knife grown by 2c on those and asked for
+     no clearance is the same cut. Grow only the width and this is the check
+     that catches it - which is how the missing stretch was found. */
   ok(near(took('clear10'), took('bigger20')),
-     'and it is room all round — c of clearance equals a knife 2c bigger everywhere',
+     'and it is room at the edges — c of clearance equals a knife 2c wider and longer',
      took('clear10') + ' vs ' + took('bigger20'));
+  /* The other side of the same statement. Through the thickness the member has
+     already given up everything the plate occupies; more comes off the far side
+     of it, which on a coped beam is the web. So a knife that is also 2c thicker
+     has to take MORE than the clearance does - if the two agree, the clearance
+     is eating web nobody asked it to. */
+  ok(took('fatter20') > took('clear10') + 1e-3,
+     'and it does not reach through the thickness — a knife 2c thicker takes more',
+     took('clear10') + ' vs ' + took('fatter20'));
 
   ok(near(took('miss'), 0), 'a target that never reaches it changes nothing');
   ok(said('miss', /does not reach the member/), 'and it says so');

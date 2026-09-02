@@ -83,6 +83,11 @@
          scallop, S the square clip; both are the same cut with a different
          shape, so the choice is one cell and not a second detail. */
       scT: 'C', scR: 35,
+      /* how far the beam's cope stands off the stiffener. Room at the plate's
+         EDGES - the beam is put in past them - and not through its thickness,
+         where anything more comes off the beam's own web. One number for the
+         joint, beside the scallop, because a shop sets it once. */
+      coClr: 20,
       foW: 300, foT: 12,                       // flange plate, outer
       fiW: 110, fiT: 10,                       // flange plate, inner - two per flange
       wpW: 234, wpT: 10,                       // web plate - two
@@ -325,7 +330,7 @@
          the splice keeps `gap`, which is also a chapter-wide value sitting in
          column J of a chapter's first row. Per level would be eight cells for a
          number a shop sets once. */
-      scT: c('I', R.stf0), scR: c('J', R.stf0),
+      scT: c('I', R.stf0), scR: c('J', R.stf0), coClr: c('K', R.stf0),
       foW: c('E', R.fo), foL: c('F', R.fo), foT: c('G', R.fo), gap: c('J', R.fo),
       fiW: c('E', R.fi), fiL: c('F', R.fi), fiT: c('G', R.fi),
       wpW: c('E', R.wp), wpL: c('F', R.wp), wpT: c('G', R.wp),
@@ -791,12 +796,14 @@
     BDIR.forEach(B => {
       if (!webFace(B.ax === 'X')) return;
       V.stf.forEach((s, j) => {
-        if (s.th > 0) coped.push(['NOTCH', 'sc.bm' + B.k, 'BY', 'pl.stf' + (j + 1)]);
+        if (s.th > 0) coped.push(['NOTCH', 'sc.bm' + B.k, 'BY', 'pl.stf' + (j + 1),
+                                  f(K.coClr, V.coClr)]);
       });
     });
     if (coped.length) {
       note2('');
       note2('the copes. A beam on the web face runs in between the flanges, where the stiffeners already are, so its own flanges come off. BY names the plate and the engine works out the shape.');
+      note2('The last cell is the clearance from chapter 2: room at the plate\'s EDGES, which is where the beam is put in past it. Not through the thickness — on the far side of the plate is the beam\'s own web.');
       coped.forEach((r, i) => row(r, i === 0 ? 'the beams that frame onto the web' : ''));
     }
 
@@ -896,6 +903,7 @@
     at(9,  R.stf0, function () { return V.scT; },
                    function (x) { V.scT = S(x).toUpperCase() === 'S' ? 'S' : 'C'; });
     at(10, R.stf0, function () { return V.scR; }, function (x) { V.scR = N(x); });
+    at(11, R.stf0, function () { return V.coClr; }, function (x) { V.coClr = N(x); });
 
     /* 3 SPLICE PLATES — Width, Length, Thick, (Qty), Material, gap/over */
     at(5, R.fo, function () { return V.foW; }, function (x) { V.foW = N(x); });
