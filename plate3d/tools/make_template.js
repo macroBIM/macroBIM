@@ -118,9 +118,13 @@ X(3);
 N('the module’s own reference point - one of the nine points of a member');
 H(['# MODULE', 'id', 'BASE', 'instance', 'point']);
 X(2);
+/* FIT is not shown yet. The engine still reads it, so a sheet that already
+   uses it keeps running - it is only that the template does not teach a
+   keyword we are not ready to stand behind. Uncomment to bring it back.
 N('cut one end of a member to the face it runs into. B = start, E = end.');
 H(['# MODULE', 'id', 'FIT', 'member', 'B / E', 'target', '[GAP]']);
 X(3);
+*/
 
 B('4.  ASSY  ·  modules, plates and bars into the world');
 N('source = a MODULE, a PLATE, a BAR, a SECT or an earlier ASSY.');
@@ -174,7 +178,7 @@ T('Alpha', 'rolls a section about its own axis. The two ends do not move.');
 T('');
 T('IDS', 'anything you like. They are uppercased, so pl.Web and PL.WEB are one part.');
 T('', 'Name the same part as often as you use it - the engine numbers the repeats');
-T('', 'itself, pl.stf twice becoming pl.stf_1 and pl.stf_2. A BASE or a FIT row');
+T('', 'itself, pl.stf twice becoming pl.stf_1 and pl.stf_2. A BASE row');
 T('', 'wants the numbered name.');
 T('');
 T('MATERIAL', 'a label, and it groups the take-off. Everything weighs as steel,');
