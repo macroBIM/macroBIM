@@ -55,6 +55,9 @@ pill('c07',  ['Or a tube.', 'The detail follows.'], 48);
 quiet('c08', ['Cover plates on an H. An end plate on a tube.'], 40);
 quiet('c09', ['Every grip gets its own length.'], 42);
 pill('c10',  ['Up to four.', 'Type a length, get a beam.'], 48);
+/* Straight after the ladder: the same row, one box along. A beam does not only
+   arrive, it arrives at a height. */
+pill('c10b', ['And how high', 'each one sits.'], 48);
 pill('c11',  ['Declare a connection.', 'Name it against a beam.'], 48);
 pill('c12',  ['Where they meet,', 'the flange comes off.'], 48);
 quiet('c13', ['You set the room it leaves.'], 42);

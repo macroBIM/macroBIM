@@ -103,6 +103,18 @@
          beam would have no web to bolt through and nothing to weld a fin to. */
       bmSec: 'H-300x150x6.5x9 r13',
       bmL: (process.env.BML || "900,900,900,0").split(",").map(Number),                 // X+  X-  Y+  Y-
+      /* How high each beam sits, signed from the column's centre - the same
+         datum chapter 2's stiffener offset uses, so a number read off one can
+         be typed into the other. 0 is every beam on the centreline, which is
+         where they all were before this cell existed.
+
+         The stiffeners do NOT follow. That is the rule this form already keeps
+         for a beam that changes depth: a number the person has already set is
+         not moved under them, and where the beam's flanges have gone is on the
+         sheet, in the check row's "beam flange at +/-", to copy up. Move a beam
+         clear of its stiffener and the cope simply takes nothing - the engine
+         says so, and says where to look. */
+      bmZ: (process.env.BMZ || "0,0,0,0").split(",").map(Number),                       // X+  X-  Y+  Y-
       /* Which connection each beam uses, by mark. A beam names one; the library
          below says what that mark is. */
       bmC: (process.env.BMC || 'C1,C3,C3,C3').split(','),   // X+  X-  Y+  Y-
@@ -369,7 +381,8 @@
     // one beam's cells, by its row
     const BMK = i => ({ det: c('C', BMROW[i]), sec: c('D', BMROW[i]), h: c('E', BMROW[i]), b: c('F', BMROW[i]),
                        tw: c('G', BMROW[i]), tf: c('H', BMROW[i]), r: c('I', BMROW[i]),
-                       len: c('J', BMROW[i]), kg: c('K', BMROW[i]) });
+                       len: c('J', BMROW[i]), kg: c('K', BMROW[i]),
+                       lev: c('L', BMROW[i]) });
     // one stiffener level's cells, by its row
     const SK = i => ({ off: c('E', STFROW[i]), w: c('F', STFROW[i]),
                        d: c('G', STFROW[i]), th: c('H', STFROW[i]),
@@ -778,8 +791,9 @@
       const atV = faceV + D.bOff[i];
       const cell = f(B.sg > 0 ? at : `-(${at})`, B.sg * atV);
       row(['ASSY', 'as.col', 'md.bm' + B.k, 'ADD',
-           isX ? cell : 0, isX ? 0 : cell, 0],
-          i === 0 ? 'the beam start: the column face, plus the plate or plates in front of it' : '');
+           isX ? cell : 0, isX ? 0 : cell, f(b.lev, V.bmZ[i])],
+          i === 0 ? 'the beam start: the column face, plus the plate or plates in ' +
+                    'front of it. The last cell is how high it sits.' : '');
     });
 
     /* The copes.
@@ -954,6 +968,7 @@
       at(3, rw, function () { return V.bmC[i]; }, function (x) { V.bmC[i] = S(x); });
       at(4, rw, function () { return V.bmSec; }, function (x) { V.bmSec = S(x); });
       at(10, rw, function () { return V.bmL[i]; }, function (x) { V.bmL[i] = N(x); });
+      at(12, rw, function () { return V.bmZ[i]; }, function (x) { V.bmZ[i] = N(x); });
     });
     return out;
   }

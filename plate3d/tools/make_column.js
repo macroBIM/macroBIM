@@ -427,7 +427,7 @@ checked(R.nChk, [
 
 /* ---- 6. the beams ---- */
 head(R.mHead, 6, 'BEAMS', 'four world directions - X+ X- Y+ Y-. Length 0 and that beam is not there');
-cols(R.mCols, ['', 'Detail', 'Section', 'h', 'b', 'tw', 'tf', 'r', 'Length', 'kg/m']);
+cols(R.mCols, ['', 'Detail', 'Section', 'h', 'b', 'tw', 'tf', 'r', 'Length', 'kg/m', 'level']);
 const BMDIR = ['X+', 'X-', 'Y+', 'Y-'];
 const bmLook = n => `IFERROR(VLOOKUP($D$ROW,SECT!$A:$G,${n},FALSE),"")`;
 BMDIR.forEach((dir, i) => {
@@ -449,6 +449,7 @@ BMDIR.forEach((dir, i) => {
          { fill: INFILL, color: BLUE, bold: true }));
   inp(row, 10, V.bmL[i]);
   calc(row, 11, bmLook(7).replace('ROW', row), D.bmKg, '0.0');
+  inp(row, 12, V.bmZ[i]);
 });
 note(R.mNote, 'Beams are H only: a tube has no web to bolt through. The direction is the world\'s, so Alpha decides whether a beam lands on a flange or on the web.');
 checked(R.mChk, [

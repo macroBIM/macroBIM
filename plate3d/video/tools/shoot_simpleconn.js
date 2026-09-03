@@ -384,7 +384,8 @@ async function pick(k, value, box) {
               up: 'c0r2i3', mid: 'c0r2i5', low: 'c0r2i7',
               thick: ['c1r1i5', 'c1r2i5'], clear: ['c1r1i6', 'c1r2i6'],
               bmL: ['c5r1i7', 'c5r2i7', 'c5r3i7', 'c5r4i7'],
-              bmD: ['c5r1i0', 'c5r2i0', 'c5r3i0', 'c5r4i0'] };
+              bmD: ['c5r1i0', 'c5r2i0', 'c5r3i0', 'c5r4i0'],
+              bmZ: ['c5r1i8', 'c5r2i8', 'c5r3i8', 'c5r4i8'] };
   const H300 = 'H-300x300x10x15 r18', H440 = 'H-440x300x11x18 r13', TUBE = 'R-300x300x12 r30';
 
   /* ---- 1  the finished joint, turning. Four beams, so the shape the whole
@@ -540,6 +541,24 @@ async function pick(k, value, box) {
     console.log('     beam ' + (i + 1) + ' -> ' + r.n + ' members · ' + r.kg + ' kg');
   }
   await log('10 four beams');
+
+  /* ---- 10b  and how high. The ladder says a beam arrives; this says it
+       arrives somewhere. Typed into the box next door, then put back - the
+       same "off and back" the column and the stiffeners get, because showing
+       only the change reads as "you can break it" rather than "you set it". */
+  caption('c10b', T + 0.3, 9.6);
+  await hold(2.0, b6);
+  await typeIn(K.bmZ[2], '300', b6, 0.2);       // Y+, the beam on the web face
+  const rZ = await settle();
+  await aim(bmCam);
+  b6 = await block(6);
+  await hold(4.2, b6);
+  await typeIn(K.bmZ[2], '0', b6, 0.22);
+  await settle();
+  await aim(bmCam);
+  b6 = await block(6);
+  await hold(2.6, b6);
+  await log('10b Y+ up 300 -> ' + rZ.n + ' · ' + rZ.kg + ' kg, and back');
 
   /* ---- 11  declared in chapter 5, named against a beam in chapter 6. The two
        are far apart on the page, so the cut carries both insets. ---- */

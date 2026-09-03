@@ -369,10 +369,21 @@
                  : wmax > (D.b - D.tw) / 2 - 2 * D.r ? 'too wide'
                  : dmax > D.h - 2 * D.tf ? 'too deep' : 'ok';
         return [['plates', live * 2 + ' of ' + V.stf.length * 2], ['fits', fits],
-                ['beam flange at ±', V.bmC.map(function (_, i) {
-                   var b = cat.findH(V.bmSec);
-                   return Math.round((b[1] - b[4]) / 2 * 10) / 10;
-                 }).join(' / ')]];
+                /* Every height a stiffener would have to stand at to meet a
+                   beam flange, listed once each. It used to print one figure
+                   four times over - the beams could only be at one level, so
+                   there was only ever one answer. Now that each beam carries
+                   its own, this is the list to copy offsets from. */
+                ['beam flanges at', (function () {
+                   var s = cat.findH(V.bmSec), half = (s[1] - s[4]) / 2, seen = {};
+                   V.bmL.forEach(function (L, i) {
+                     if (!(L > 0)) return;
+                     seen[Math.round((V.bmZ[i] + half) * 10) / 10] = 1;
+                     seen[Math.round((V.bmZ[i] - half) * 10) / 10] = 1;
+                   });
+                   var all = Object.keys(seen).map(Number).sort(function (x, y) { return y - x; });
+                   return all.length ? all.join(' / ') : '—';
+                 })()]];
       }
     });
 
@@ -525,8 +536,8 @@
     CHAPTERS.push({
       n: 6, t: 'BEAMS', part: 'BEAM',
       hint: 'four world directions - X+ X- Y+ Y-. Length 0 and that beam is not there',
-      note: 'Beams are H only: a tube has no web to bolt through. The direction is the world’s, so Alpha decides whether a beam lands on a flange or on the web.',
-      cols: ['', 'Detail', 'Section', 'h', 'b', 'tw', 'tf', 'r', 'Length', 'kg/m'],
+      note: 'Beams are H only: a tube has no web to bolt through. The direction is the world’s, so Alpha decides whether a beam lands on a flange or on the web. Level is how high the beam sits, signed from the column’s centre — the same datum chapter 2 uses. The stiffeners do not follow it.',
+      cols: ['', 'Detail', 'Section', 'h', 'b', 'tw', 'tf', 'r', 'Length', 'level', 'kg/m'],
       rows: function () {
         var DIRS = ['X+', 'X-', 'Y+', 'Y-'];
         var b = cat.findH(V.bmSec);
@@ -538,6 +549,7 @@
               on: function (x) { V.bmSec = x; redraw(true); } },
             { out: b[1] }, { out: b[2] }, { out: b[3] }, { out: b[4] }, { out: b[5] },
             { v: V.bmL[i], on: function (x) { V.bmL[i] = num(x); redraw(true); } },
+            { v: V.bmZ[i], on: function (x) { V.bmZ[i] = num(x); redraw(true); } },
             { out: b[6] }
           ] };
         });
