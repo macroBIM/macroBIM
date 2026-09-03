@@ -43,8 +43,17 @@
   /* ---------------- style ---------------- */
   var CSS_ID = 'qsc-style';
   var CSS = [
-    '#qsc-wrap{display:flex;flex-direction:column;gap:12px}',
-    '#qsc-form{border:1px solid #e3e6ea;border-radius:8px;background:#fff;overflow:visible}',
+    /* The form is six chapters tall and the model was underneath all of them,
+       so on any real screen you typed a number and then went looking for what
+       it did. On a wide window the view now rides along in a column of its
+       own, pinned to the top: whatever chapter you are in, the joint is
+       beside it. Narrow windows keep the stacked layout - there is no second
+       column to give away. */
+    '#qsc-wrap{display:grid;grid-template-columns:minmax(0,1fr);gap:12px;align-items:start}',
+    '@media (min-width:1080px){#qsc-wrap{grid-template-columns:minmax(0,1fr) minmax(420px,42%)}}',
+    '#qsc-form{border:1px solid #e3e6ea;border-radius:8px;background:#fff;overflow:visible;min-width:0}',
+    '#qsc-dock{min-width:0}',
+    '@media (min-width:1080px){#qsc-dock{position:sticky;top:10px}}',
     '#qsc-bar{display:flex;gap:8px;align-items:center;padding:10px 12px;',
       'border-bottom:1px solid #eef0f3;background:#f8fafc;border-radius:8px 8px 0 0}',
     '#qsc-bar .sp{flex:1}',
@@ -194,7 +203,9 @@
     var fr = document.createElement('iframe');
     fr.id = 'qsc-frame'; fr.src = FRAME;
     fr.title = 'PLATE3D — Simple connector'; fr.allow = 'fullscreen';
-    wrap.appendChild(fr);
+    var dock = el('<div id="qsc-dock"></div>');
+    dock.appendChild(fr);
+    wrap.appendChild(dock);
     mount.appendChild(wrap);
 
     var status = wrap.querySelector('#qsc-status');
@@ -212,8 +223,15 @@
        What the embed asks for is its toolbar plus a 16:9 view of its own
        width, so it follows the window's WIDTH and holds still otherwise. */
     var want = 0;
+    var DOCKED = '(min-width:1080px)';
     function sizeFrame() {
-      fr.style.height = Math.max(460, want || 560) + 'px';
+      var h = Math.max(460, want || 560);
+      /* Pinned, the view has to fit the window. Anything taller hangs off the
+         bottom of the screen and cannot be scrolled to, because the column it
+         is in is the thing holding still. */
+      if (window.matchMedia(DOCKED).matches)
+        h = Math.min(h, Math.max(360, window.innerHeight - 20));
+      fr.style.height = Math.round(h) + 'px';
     }
     window.addEventListener('resize', sizeFrame);
     window.addEventListener('message', function (e) {
