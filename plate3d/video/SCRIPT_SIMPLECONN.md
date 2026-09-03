@@ -49,12 +49,54 @@ The spreadsheet was there all along.
 |---|---|
 | 제목 | `STEEL COLUMN-BEAM JOINT BIM — Fill In a Form, See It in 3D \| PLATE3D` |
 | 설명 1행 | `Fill in a form. The column-beam joint stands up in 3D BIM in your browser — nothing to install, nothing to download.` |
-| 설명 2행 | `Column in three pieces, H or tube, up to four beams, the connections and the stiffeners — with the drawings and the take-off.` |
-| 태그 | BIM · steel connection · column beam joint · splice · stiffener · coping · end plate · fin plate · shop drawing · DXF · BOQ · parametric model · structural steel · browser BIM · PLATE3D · macroBIM |
+| 설명 2행 | `Column in three pieces, H or square tube, up to four beams at any level, the connection each one uses and the stiffeners — with the drawings, the take-off and the workbook.` |
+| 태그 | BIM · steel connection · column beam joint · beam to column · column splice · stiffener · coping · end plate · fin plate · shop drawing · DXF · BOQ · bill of quantities · parametric model · structural steel · browser BIM · PLATE3D · macroBIM |
 | 규격 | 3:08 · 2560×1440 · 30 fps · 무음 |
+| 썸네일 | `PLATE3D_SIMPLECONN_thumb.jpg` — `BEAM TO COLUMN` / `SIMPLE CONNECTION` |
 
-앞 영상들보다 **깁니다.** 안내라서 그렇습니다 — 여섯 블록을 하나씩 짚는 데
-1분으로는 안 됩니다. 대신 **컷마다 하나씩만** 말합니다.
+**제목은 썸네일과 다른 말을 합니다.** 목록에서 둘이 나란히 놓이므로 같은 말을 두 번
+할 이유가 없습니다 — 썸네일이 `BEAM TO COLUMN`, 제목이 `COLUMN-BEAM JOINT BIM`.
+
+### 설명란 전문
+
+```
+Fill in a form. The column-beam joint stands up in 3D BIM in your browser — nothing to install, nothing to download.
+
+Column in three pieces, H or square tube, up to four beams at any level, the connection each one uses and the stiffeners — with the drawings, the take-off and the workbook.
+
+WHAT THE FORM TAKES
+· The column in three pieces — put 0 in one and that piece and its splice go
+· An H section or a square tube, named from the KS list; the section's own dimensions fill themselves
+· Cover plates and bolts on an H, an end plate on a tube
+· Up to four beams, one per world direction, each with its own length and level
+· A library of connections — end plate or fin plate — declared once and named against a beam
+· Stiffeners level by level, and the clearance they leave the beam flange
+
+WHAT COMES OUT
+· The model, in the browser, as you type
+· The shop drawings, as DXF
+· The take-off, as a workbook
+· And the spreadsheet itself — Export .xlsx hands you the sheet the form was filling in
+
+The same workbook is in PLATE3D's Example list, so you can take it and write the rows yourself instead.
+
+Try it: www.macroBIM.com — MacroPLATE3D ▸ Simple connector
+
+0:00 The joint
+0:10 Where to open it
+0:24 The column — three pieces
+0:35 The section — an H, or a tube
+1:00 The splice plates, and the bolts
+1:17 The beams — up to four
+1:45 The connection each one uses
+2:01 The stiffeners, and the cope they cause
+2:25 The drawings and the take-off
+2:43 The workbook
+```
+
+**장 구분은 컷 그대로가 아니라 묶음입니다.** 17컷을 다 적으면 목록이 되지 설명이
+안 됩니다. 시나리오 §5 의 「순서의 논리」를 그대로 열 줄로 옮긴 것이고, 시간은
+촬영 로그에서 잰 것입니다.
 
 ## 4. 자막 뼈대
 
