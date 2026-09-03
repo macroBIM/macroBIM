@@ -65,7 +65,25 @@ const FILMS = [
        left and the thumbnail shows a wall of flange. At 0.42 it was closer
        still and showed nothing but web. */
     hero: { kind: 'model', az: 200, el: 24, dist: 0.85 },
-    l1: 'BOLTED SPLICE', l2: 'MADE SIMPLE' }
+    l1: 'BOLTED SPLICE', l2: 'MADE SIMPLE' },
+
+  { id: 'simpleconn',
+    out: 'PLATE3D_SIMPLECONN_thumb.jpg',
+    book: P3 + '/PLATE3D_COLUMN.xlsx',
+    /* The engine's own azimuth, pulled in a fifth. It is the one angle where
+       the whole joint reads at thumbnail size - the column, the bolt patterns
+       above and below it, and all four beams spreading. Closer than 0.65 and
+       the camera is inside the connection: 0.55 showed a wall of flange, 0.45
+       showed one beam. */
+    hero: { kind: 'model', az: -48, el: 28, dist: 0.80 },
+    /* Two lines for the claim, and a smaller first line, because the type has
+       to stop before the card. COLUMN-BEAM JOINT at 62 is 17 characters and
+       the WIDEST thing on the card - wider than the claim under it - so it was
+       the first line that lay across the drawing, not the second. Both sizes
+       are checked against the card's edge in the run below rather than judged
+       by eye; the first drafts were 52px over it. */
+    s1: 52, sz: 88,
+    l1: 'BEAM TO COLUMN', l2: 'SIMPLE<br>CONNECTION' }
 ];
 
 const LIB = f => {
@@ -123,8 +141,8 @@ const PAGE = (f, hero) => `<meta charset="utf-8"><style>${FONTCSS}</style><style
        padding:10px 20px;border-radius:12px;letter-spacing:-.03em}
  .no i{font:800 40px/1 Inter,sans-serif;color:#64748b;font-style:normal;
        letter-spacing:-.02em}
- .l1{font:800 62px/1 Inter,sans-serif;color:#cbd5e1;letter-spacing:-.03em}
- .l2{font:800 ${f.l2.length > 12 ? 104 : 122}px/1.02 Inter,sans-serif;color:#38bdf8;
+ .l1{font:800 ${f.s1 || 62}px/1 Inter,sans-serif;color:#cbd5e1;letter-spacing:-.03em}
+ .l2{font:800 ${f.sz || (f.l2.length > 12 ? 104 : 122)}px/1.02 Inter,sans-serif;color:#38bdf8;
      letter-spacing:-.05em;margin-top:8px}
 </style>
 <div class="hero"><img src="data:image/png;base64,${fs.readFileSync(hero).toString('base64')}"></div>
@@ -166,13 +184,23 @@ const PAGE = (f, hero) => `<meta charset="utf-8"><style>${FONTCSS}</style><style
       .then(() => document.fonts.load('800 40px Inter'))
       .then(() => document.fonts.ready)).catch(() => {});
     await card.waitForTimeout(400);
+    /* Measured, not eyeballed: the right edge of the type against the left
+       edge of the card. Every early draft of the Simple connector thumbnail
+       had the first line lying across the drawing by about 50px. */
+    const over = await card.evaluate(() => {
+      const t = document.querySelector('.txt').getBoundingClientRect();
+      const h = document.querySelector('.hero').getBoundingClientRect();
+      return Math.round(t.right - h.left);
+    });
     const png = SP + '/thumb_' + f.id + '_2x.png';
     await card.screenshot({ path: png });
     const out = SP + '/../' + f.out;
     execFileSync(FF, ['-hide_banner', '-loglevel', 'error', '-y', '-i', png,
       '-vf', 'scale=1280:720:flags=lanczos', '-q:v', '2', out]);
     console.log('  ' + f.out + '  ' + (fs.statSync(out).size / 1024).toFixed(0) +
-                ' KB  ·  1280x720');
+                ' KB  ·  1280x720  ·  ' +
+                (over > 0 ? '** type over the card by ' + over + 'px **'
+                          : 'type clears the card by ' + (-over) + 'px'));
   }
   await browser.close();
 })();
