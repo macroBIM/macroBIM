@@ -38,6 +38,16 @@
      to be edited would be the one nobody noticed. */
   var TEMPLATE = BASE + 'plate3d/PLATE3D_COLUMN.xlsx?v=' + Date.now();
   var EXCELJS  = 'https://cdnjs.cloudflare.com/ajax/libs/exceljs/4.3.0/exceljs.min.js';
+  /* The film that walks through this form, cut for cut. It is on YouTube and
+     not on our server on purpose: three minutes at 1440p is 19 MB we would be
+     paying to send, and the tiering, the seeking and the captions are all
+     things YouTube already does better than we would.
+
+     The link goes out to a new tab rather than into a player on this page. A
+     player would be a new part of the UI to own, and it would sit next to a
+     form somebody has already typed into - the film is worth a full screen,
+     and the form is still here when they come back. */
+  var TUTORIAL = 'https://www.youtube.com/watch?v=0ZDpFQPKjoE';
   var USER  = 'user define';
 
   /* ---------------- style ---------------- */
@@ -53,6 +63,12 @@
     '.qsc-btn:hover{background:#f1f5f9}',
     '.qsc-btn.primary{background:#1d4ed8;border-color:#1d4ed8;color:#fff}',
     '.qsc-btn.primary:hover{background:#1e40af}',
+    /* The one button that is a link. It is an <a> and not a button with a
+       window.open, so it behaves the way a link behaves - middle click, ctrl
+       click, copy the address - and it has to be told not to look like one. */
+    'a.qsc-btn{display:inline-flex;align-items:center;gap:6px;text-decoration:none}',
+    'a.qsc-btn .g{font-size:10px;color:#94a3b8;line-height:1}',
+    'a.qsc-btn:hover .g{color:#1d4ed8}',
     '.qsc-menu{position:relative;display:inline-block}',
     '.qsc-menu>.d{position:absolute;right:0;top:calc(100% + 4px);z-index:20;display:none;',
       'min-width:150px;background:#fff;border:1px solid #cbd5e1;border-radius:6px;',
@@ -186,6 +202,12 @@
       '          <button type="button" data-cmd="exportIFC">Save IFC</button>' +
       '        </span>' +
       '      </span>' +
+      /* Last, past the file buttons: the bar reads left to right from what you
+         do every minute to what you do once. Nothing above it moves. */
+      '      <a class="qsc-btn" id="qsc-tutorial" href="' + TUTORIAL + '"' +
+      '         target="_blank" rel="noopener noreferrer"' +
+      '         title="Watch the walkthrough on YouTube (opens in a new tab)">' +
+      '        <span class="g" aria-hidden="true">&#9658;</span>Tutorial</a>' +
       '    </div>' +
       '    <div id="qsc-body"></div>' +
       '  </div>' +

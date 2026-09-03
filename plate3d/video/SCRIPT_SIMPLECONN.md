@@ -53,6 +53,13 @@ The spreadsheet was there all along.
 | 태그 | BIM · steel connection · column beam joint · beam to column · column splice · stiffener · coping · end plate · fin plate · shop drawing · DXF · BOQ · bill of quantities · parametric model · structural steel · browser BIM · PLATE3D · macroBIM |
 | 규격 | 3:08 · 2560×1440 · 30 fps · 무음 |
 | 썸네일 | `PLATE3D_SIMPLECONN_thumb.jpg` — `BEAM TO COLUMN` / `SIMPLE CONNECTION` |
+| 공개 | https://www.youtube.com/watch?v=0ZDpFQPKjoE |
+
+**앱이 이 주소를 겁니다.** Simple connector 툴바 오른쪽 끝의 `► Tutorial`
+버튼이 여기로 갑니다 — 사이트에서 바깥으로 나가는 **첫 링크**이고, 새 탭으로
+엽니다. 영상을 우리 서버에 두지 않는 것은 결정입니다: 3분 1440p 가 19 MB 이고,
+화질 단계·탐색·자막은 유튜브가 이미 우리보다 잘 합니다. 완성본 mp4 는 그래서
+저장소에도 서버에도 없습니다 — 도구가 명령 몇 줄로 다시 만듭니다.
 
 **제목은 썸네일과 다른 말을 합니다.** 목록에서 둘이 나란히 놓이므로 같은 말을 두 번
 할 이유가 없습니다 — 썸네일이 `BEAM TO COLUMN`, 제목이 `COLUMN-BEAM JOINT BIM`.
