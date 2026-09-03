@@ -1889,7 +1889,7 @@
         var partId = str(v[0]).toUpperCase();
         if (!partId) { warn('row ' + (r + 1) + ': MODULE without ID'); continue; }
         if (!parts[partId]) {
-          parts[partId] = { ID: partId, pos: [], base: null, fits: [] };
+          parts[partId] = { ID: partId, pos: [], base: null, fits: [], off: 0 };
           counts.module++;
         }
         currentPart = parts[partId];
@@ -1905,7 +1905,7 @@
           continue;
         }
         // the same switched-off row, on the placing side: no member, nothing to place
-        if (msub === '') continue;
+        if (msub === '') { currentPart.off++; continue; }
         var mplate = resolvePlate(msub);
         if (!mplate) { noSuchMember(r, 'MODULE', msub); continue; }
         if (palias[str(v[2]).toUpperCase()]) {   // legacy: <plate> PLANE Ref.Pt L.X L.Y L.ROT OFFSET
@@ -2202,8 +2202,14 @@
         });
       });
     });
+    /* A module every one of whose rows was switched off is switched off, not
+       broken. A blank member cell is already read as "nothing to place" up in
+       the MODULE branch, and a sheet that turns a piece off leaves the rows in
+       place so a formula can turn it back on - so counting that as a slip
+       called the ordinary way of writing a sheet a mistake. The hint is still
+       worth having for a module that has no rows to switch off either. */
     Object.keys(parts).forEach(function (id) {
-      if (!parts[id].pos.length) hint('MODULE ' + id + ': has no POS rows');
+      if (!parts[id].pos.length) { if (!parts[id].off) hint('MODULE ' + id + ': has no POS rows'); }
       else if (!parts[id].base) warn('MODULE ' + id + ': BASE not defined — add "MODULE ' + id +
                                      ' BASE <member> <point>". Falling back to the local origin (0,0,0)');
       else if (!parts[id].pos.some(function (p) { return p.NO === parts[id].base.inst; }))
