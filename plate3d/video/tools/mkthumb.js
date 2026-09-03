@@ -70,12 +70,16 @@ const FILMS = [
   { id: 'simpleconn',
     out: 'PLATE3D_SIMPLECONN_thumb.jpg',
     book: P3 + '/PLATE3D_COLUMN.xlsx',
-    /* The engine's own azimuth, pulled in a fifth. It is the one angle where
-       the whole joint reads at thumbnail size - the column, the bolt patterns
-       above and below it, and all four beams spreading. Closer than 0.65 and
-       the camera is inside the connection: 0.55 showed a wall of flange, 0.45
-       showed one beam. */
-    hero: { kind: 'model', az: -48, el: 28, dist: 0.80 },
+    /* The engine's own azimuth turned a quarter, and pulled in a third. The
+       quarter turn brings the beam that was hiding behind the column round to
+       the front right, so three of the four read as separate members instead
+       of two and a stub; the other quarter turns put the column across the
+       joint and hid it. Closer than 0.65 and the camera is inside the
+       connection - 0.45 was one beam and a wall of flange.
+
+       The framing is the CAMERA's, not a crop of a wider render: cropping to
+       zoom throws away the pixels it is zooming into. */
+    hero: { kind: 'model', az: 42, el: 28, dist: 0.65 },
     /* Two lines for the claim, and a smaller first line, because the type has
        to stop before the card. COLUMN-BEAM JOINT at 62 is 17 characters and
        the WIDEST thing on the card - wider than the claim under it - so it was
@@ -120,8 +124,57 @@ async function grabHero(page, f) {
       return window.__pbCanvas.toDataURL('image/png');
     });
     fs.writeFileSync(dst, Buffer.from(d.split(',')[1], 'base64'));
+    await tightCrop(page, dst, f.hero.pad == null ? 0.05 : f.hero.pad);
   }
   return dst;
+}
+
+/* The model is a tall thing and the viewport is 16:9, so the engine fits it by
+   HEIGHT and leaves half the picture as empty floor either side. On a card that
+   is read at 320px wide, that empty floor is most of the card: the joint came
+   out small with nothing round it but grid.
+
+   So the frame is cut back to the steel. Which is not the same as cutting back
+   to the ink - the grid is drawn right across the floor, so any "what differs
+   from the background" box is the whole canvas. The members are the SATURATED
+   pixels: green, blue, yellow, orange, brown against a neutral grey grid and a
+   near-black ground. That separates them cleanly, and the crop keeps a margin
+   so the joint is not shaved. */
+async function tightCrop(page, file, pad) {
+  const b64 = fs.readFileSync(file).toString('base64');
+  const out = await page.evaluate(a => new Promise(ok => {
+    const im = new Image();
+    im.onload = () => {
+      const w = im.width, h = im.height;
+      const c = document.createElement('canvas');
+      c.width = w; c.height = h;
+      const x = c.getContext('2d');
+      x.drawImage(im, 0, 0);
+      const px = x.getImageData(0, 0, w, h).data;
+      let x0 = w, y0 = h, x1 = -1, y1 = -1;
+      for (let yy = 0; yy < h; yy += 2) {
+        for (let xx = 0; xx < w; xx += 2) {
+          const o = (yy * w + xx) * 4, r = px[o], g = px[o + 1], b = px[o + 2];
+          const mx = Math.max(r, g, b), mn = Math.min(r, g, b);
+          if (mx - mn < 34) continue;                 // grey: grid, ground, shadow
+          if (xx < x0) x0 = xx; if (xx > x1) x1 = xx;
+          if (yy < y0) y0 = yy; if (yy > y1) y1 = yy;
+        }
+      }
+      if (x1 < x0) return ok(null);                   // nothing saturated: leave it be
+      const mw = (x1 - x0) * a.pad, mh = (y1 - y0) * a.pad;
+      x0 = Math.max(0, Math.floor(x0 - mw)); x1 = Math.min(w, Math.ceil(x1 + mw));
+      y0 = Math.max(0, Math.floor(y0 - mh)); y1 = Math.min(h, Math.ceil(y1 + mh));
+      const d = document.createElement('canvas');
+      d.width = x1 - x0; d.height = y1 - y0;
+      d.getContext('2d').drawImage(c, x0, y0, d.width, d.height, 0, 0, d.width, d.height);
+      ok({ url: d.toDataURL('image/png'), w: d.width, h: d.height, was: w + 'x' + h });
+    };
+    im.src = 'data:image/png;base64,' + a.b64;
+  }), { b64: b64, pad: pad });
+  if (!out) return;
+  fs.writeFileSync(file, Buffer.from(out.url.split(',')[1], 'base64'));
+  console.log('    hero cropped to the steel: ' + out.was + ' -> ' + out.w + 'x' + out.h);
 }
 
 const PAGE = (f, hero) => `<meta charset="utf-8"><style>${FONTCSS}</style><style>
