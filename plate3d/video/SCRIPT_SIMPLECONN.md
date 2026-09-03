@@ -61,7 +61,7 @@ The spreadsheet was there all along.
 | 컷 | 역할 | 문구 |
 |---|---|---|
 | 1 | 형상 | This joint. |
-| 2 | 선언 | COLUMN-BEAM JOINTS. / NO SPREADSHEET. |
+| 2 | 선언 | COLUMN-BEAM JOINTS. / ONE PREDEFINED FORM. |
 | 3 | 문턱 없음 | *Nothing to download. It is already open.* |
 | 4 | 목록 | Everything it takes is in six blocks. |
 | 5 | 기둥 | Three pieces. Put 0 in one and it goes. |
@@ -81,7 +81,7 @@ The spreadsheet was there all along.
 | # | 시간 | 길이 | 화면 | 자막 |
 |---|---|---|---|---|
 | 1 | 0:00 | 6s | **완성된 접합부, 천천히 회전.** 이음·스티프너·네 방향 보·코핑된 플랜지가 한 바퀴에 다 보이게 | **This joint.** |
-| 2 | 0:06 | 4s | 타이틀 카드 | **COLUMN-BEAM JOINTS.**<br>**NO SPREADSHEET.** |
+| 2 | 0:06 | 4s | 타이틀 카드 | **COLUMN-BEAM JOINTS.**<br>**ONE PREDEFINED FORM.** |
 | 3 | 0:10 | 6s | 사이드바 → **MacroPLATE3D** 펼침 → **Simple connector** → 폼이 뜸 | *Nothing to download. It is already open.* |
 | 4 | 0:16 | 6s | 폼 전체를 위에서 아래로 한 번 훑음 · 여섯 장 제목만 밝게 | **Everything it takes**<br>**is in six blocks.** |
 | 5 | 0:22 | 12s | **보를 다 지운 기둥**(111 부재)에서 시작 · **1장 Length** upper 700 / middle 1400 / lower 700 에 링 · upper → **0** → 위 조각과 그 이음이 사라짐 → 되돌림 | **Three pieces.**<br>**Put 0 in one and it goes.** |
@@ -236,6 +236,27 @@ H-300 은 110 그대로라 **배포 워크북의 입력값은 한 칸도 안 바
 ## 11. 찍었다
 
 **`PLATE3D_SIMPLECONN.mp4` · 2:42 · 1920×1080 · 30 fps · 무음 · 183 스틸 · 자막 14장.**
+
+### 제목을 고쳤다 — `NO SPREADSHEET.` → `ONE PREDEFINED FORM.`
+
+처음 제목은 **`COLUMN-BEAM JOINTS. / NO SPREADSHEET.`** 였고, **두 번 틀렸습니다.**
+
+1. **사실이 아닙니다.** 폼은 시트를 없애지 않습니다. 대신 써 줍니다.
+2. **영상이 자기와 싸웁니다.** 15번 컷이 `Export .xlsx` 로 워크북을 열면서
+   *The spreadsheet was there all along* 이라고 끝나는데, 제목이 앞에서 시트를
+   부정해 놓으면 그 끝이 **반전이 아니라 모순**이 됩니다.
+
+**`ONE PREDEFINED FORM.`** 은 이 영상이 16컷 내내 하는 주장 그대로입니다.
+
+- **`ONE`** 이 두 가지를 합니다 — 배울 것은 하나뿐이고(문턱), 그 하나가 형강·각관,
+  보 1~4개, 엔드플레이트·핀플레이트를 **다 덮습니다**(범위).
+- **`PREDEFINED`** 가 회의적인 사람의 질문에 같은 숨에 답합니다 — "또 배워야 하는
+  범용 모델러냐?" 아니오, **테두리가 있는 폼**입니다.
+
+**둘째 줄은 첫 줄보다 짧게 둡니다.** 앞 영상 카드가 그렇습니다
+(`BOLTED CONNECTIONS.` / `MADE SIMPLE.`) — 첫 줄이 주어로 서고 둘째 줄이 떨어져야
+위계가 섭니다. 118px 기준 폭이 첫 줄 1290px 이라, `DETAILED BY A PREDEFINED FORM.`
+(1518px) 은 둘째 줄이 첫 줄을 넘어서서 뒤집힙니다. 동사를 빼면 1313px 로 들어옵니다.
 
 ### 화면을 어떻게 짰나 — 이 영상만의 것
 

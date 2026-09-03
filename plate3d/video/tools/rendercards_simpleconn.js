@@ -8,7 +8,9 @@ const SP = __dirname + '/simpleconn';
   const b = await chromium.launch({ executablePath: '/opt/pw-browsers/chromium', args: ['--no-sandbox'] });
   const p = await b.newPage({ viewport: { width: 1920, height: 1080 } });
   await p.route('**/fonts.{googleapis,gstatic}.com/**', r => r.abort());
-  const files = fs.readdirSync(SP).filter(f => /^s_.*\.html$/.test(f)).sort();
+  // only the cards mkcards wrote - the prep pages share this directory
+  const files = JSON.parse(fs.readFileSync(SP + '/cards.json', 'utf8'))
+    .map(id => id + '.html').sort();
   for (const f of files) {
     await p.goto('file://' + SP + '/' + f, { waitUntil: 'load', timeout: 20000 }).catch(() => {});
     /* Inter is embedded as a data: URL with font-display:swap, so it is fetched

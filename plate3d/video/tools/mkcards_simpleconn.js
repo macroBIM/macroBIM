@@ -19,7 +19,13 @@ const FONT = `<meta charset="utf-8">\n<style>${FONTCSS}</style>`;
 const BASE = `*{margin:0;padding:0;box-sizing:border-box}
  html,body{width:1920px;height:1080px;overflow:hidden}
  body{font-family:Inter,system-ui,sans-serif;-webkit-font-smoothing:antialiased}`;
-const w = (id, html) => fs.writeFileSync(OUT + '/s_' + id + '.html', FONT + html);
+/* prep_simpleconn.js writes its take-off, drawing and workbook pages into this
+   same directory, and they are s_*.html too. So the cards say which ones they
+   are rather than letting the renderer guess from the names and screenshot a
+   29000-pixel drawing sheet as if it were a caption. */
+const made = [];
+const w = (id, html) => { made.push('s_' + id);
+  fs.writeFileSync(OUT + '/s_' + id + '.html', FONT + html); };
 
 /* ---- caption pill, bottom centre. It has to read over a near-black viewport
    and over a white form in the same film, so it carries its own ground. */
@@ -55,16 +61,28 @@ quiet('c13', ['You set the room it leaves.'], 42);
 quiet('c14', ['The drawings and the take-off come with it.'], 42);
 pill('c15',  ['The spreadsheet', 'was there all along.'], 50);
 
-/* ---- title card, cut 2. The first three films opened by claiming a
-   spreadsheet could do this. This one opens by taking the spreadsheet away,
-   because the whole film is about the threshold. Both lines stop with a full
-   stop; that is the rhythm, not a typo. */
+/* ---- title card, cut 2.
+
+   It said NO SPREADSHEET. once, and that was wrong twice over. The form does
+   not take the sheet away - it fills one in for you, and cut 15 ends the film
+   by opening the workbook it wrote. A title that denies the sheet makes the
+   ending a contradiction instead of a payoff.
+
+   ONE PREDEFINED FORM. is the claim the film actually spends sixteen cuts
+   making. ONE does two jobs at once: there is only one thing to learn, and
+   that one thing covers the lot - H or tube, one to four beams, end plate or
+   fin plate. PREDEFINED answers the sceptic's question in the same breath:
+   not a general modeller you have to learn, a form with edges.
+
+   Both lines stop with a full stop; that is the rhythm, not a typo. And the
+   second line stays shorter than the first, as the other films' cards do, so
+   the subject stands and the claim falls away from it. */
 w('t02', `<style>${BASE}
  body{background:#0b1220;display:flex;flex-direction:column;align-items:center;
       justify-content:center;gap:10px}
  .l{font-weight:800;font-size:118px;letter-spacing:-.05em;color:#fff;line-height:1.06}
  .l.b{color:#38bdf8}
-</style><div class="l">COLUMN-BEAM JOINTS.</div><div class="l b">NO SPREADSHEET.</div>`);
+</style><div class="l">COLUMN-BEAM JOINTS.</div><div class="l b">ONE PREDEFINED FORM.</div>`);
 
 /* ---- outro, cut 16 ---- */
 w('o16', `<style>${BASE}
@@ -78,5 +96,5 @@ w('o16', `<style>${BASE}
 <div class="t">by macroBIM</div>
 <div class="u">www.macroBIM.com</div>`);
 
-console.log('wrote ' + fs.readdirSync(OUT).filter(f => /\.html$/.test(f)).length +
-            ' cards to tools/simpleconn/');
+fs.writeFileSync(OUT + '/cards.json', JSON.stringify(made, null, 1));
+console.log('wrote ' + made.length + ' cards to tools/simpleconn/');
