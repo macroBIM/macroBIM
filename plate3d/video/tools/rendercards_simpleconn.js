@@ -6,7 +6,10 @@ const fs = require('fs');
 const SP = __dirname + '/simpleconn';
 (async () => {
   const b = await chromium.launch({ executablePath: '/opt/pw-browsers/chromium', args: ['--no-sandbox'] });
-  const p = await b.newPage({ viewport: { width: 1920, height: 1080 } });
+    /* At 2x. The film is finished at 2560x1440, so a card drawn at 1920 would be
+     blown up over a picture that was not - and a caption is type, which is
+     exactly what shows it. 3840 comes back down instead. */
+  const p = await b.newPage({ viewport: { width: 1920, height: 1080 }, deviceScaleFactor: 2 });
   await p.route('**/fonts.{googleapis,gstatic}.com/**', r => r.abort());
   // only the cards mkcards wrote - the prep pages share this directory
   const files = JSON.parse(fs.readFileSync(SP + '/cards.json', 'utf8'))

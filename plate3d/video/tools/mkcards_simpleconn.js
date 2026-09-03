@@ -60,6 +60,10 @@ pill('c12',  ['Where they meet,', 'the flange comes off.'], 48);
 quiet('c13', ['You set the room it leaves.'], 42);
 quiet('c14', ['The drawings and the take-off come with it.'], 42);
 pill('c15',  ['The spreadsheet', 'was there all along.'], 50);
+/* And it is on the shelf next door. Whoever would rather edit rows than fill
+   boxes can take the same workbook out of PLATE3D's Example list - the form is
+   one door in, not the only one. */
+quiet('c16', ['Or take the same workbook out of PLATE3D.'], 42);
 
 /* ---- title card, cut 2.
 
@@ -84,8 +88,8 @@ w('t02', `<style>${BASE}
  .l.b{color:#38bdf8}
 </style><div class="l">COLUMN-BEAM JOINTS.</div><div class="l b">ONE PREDEFINED FORM.</div>`);
 
-/* ---- outro, cut 16 ---- */
-w('o16', `<style>${BASE}
+/* ---- outro, cut 17 ---- */
+w('o17', `<style>${BASE}
  body{background:#fff;display:flex;flex-direction:column;align-items:center;
       justify-content:center;gap:34px}
  .w{font-weight:800;font-size:130px;letter-spacing:-.045em;color:#0f172a}

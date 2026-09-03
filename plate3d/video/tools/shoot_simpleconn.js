@@ -39,7 +39,11 @@ const LIBDIR = MB + '/plate3d/tools';
 const FPS = 30, MO = 15;
 const VW = 1400, VH = 900;                            // sized for the inset
 const CW = 1400, CH = 788;                            // 16:9 window of it, for chrome shots
-const OW = 1920, OH = 1080;                           // the film
+/* 2560x1440, as the other three films ship at: 1080p is the tier YouTube gives
+   its thinnest bitrate, and a bolted joint is thin lines and small type. Both
+   sources clear it without being blown up - the page shots are 2800x1576 off a
+   1400x900 window at 2x, and the canvas is 2700 across at the ratio below. */
+const OW = 2560, OH = 1440;                           // the film
 const INS = { w: 0.55, m: 40 };                       // inset width as a fraction, and its margin
 
 fs.rmSync(SRC, { recursive: true, force: true });
@@ -60,6 +64,12 @@ const save = () => fs.writeFileSync(SP + '/shots_simpleconn.json',
                    shots: shots, caps: caps }, null, 1));
 
 /* ---------------- serving the two repos, and the harness ---------------- */
+/* The two web fonts the site links. Neither can be fetched at capture time, so
+   both are served from a local copy of the SAME version: Inter out of
+   v_font.css, the icons out of bi_font.css (node mkbicons.js). */
+const BICONS = 'https://cdnjs.cloudflare.com/ajax/libs/bootstrap-icons/1.11.3/font/bootstrap-icons.min.css';
+const FONTCSS = () => fs.readFileSync(SP + '/v_font.css', 'utf8');
+const ICONCSS = () => fs.readFileSync(SP + '/bi_font.css', 'utf8');
 const LIB = f => {
   let p = LIBDIR + '/node_modules/three/build/three.min.js';
   if (f.includes('OrbitControls')) p = LIBDIR + '/node_modules/three/examples/js/controls/OrbitControls.js';
@@ -69,12 +79,12 @@ const LIB = f => {
 };
 /* Capture only. The engine caps its own pixel ratio at 2, which is right for a
    browser and not enough here: the view pane is about 675 CSS wide at the
-   window this film is shot at, and the picture has to reach 1920 across without
+   window this film is shot at, and the picture has to reach 2560 across without
    being blown up. three.js hangs setPixelRatio off the instance, not the
    prototype, so the constructor is what has to be wrapped. */
 const RATIO = '<script>(function(){var W=THREE.WebGLRenderer;' +
   'THREE.WebGLRenderer=function(p){var o=new W(p);var S=o.setPixelRatio.bind(o);' +
-  'o.setPixelRatio=function(){return S(3);};S(3);return o;};' +
+  'o.setPixelRatio=function(){return S(4);};S(4);return o;};' +
   'THREE.WebGLRenderer.prototype=W.prototype;})();</script>';
 /* Lifted out of video_page.html rather than copied, so the four films cannot
    drift apart on what the harness is. */
@@ -85,9 +95,17 @@ const SHIM = (() => {
   if (a < 0 || b < a) throw new Error('capture harness not found in video_page.html');
   return s.slice(a, b + '})();\n</script>'.length) + RATIO;
 })();
+/* The page a visitor gets, head and all. The first pass wrote its own <body>
+   style and left out both stylesheets the real page links, so the film showed a
+   sidebar with every icon missing and Inter falling back to the system face -
+   a left menu no visitor has ever seen. layout_style.css already styles body;
+   nothing here should second-guess it. */
 const HOST = '<!DOCTYPE html><html lang="en"><head><meta charset="utf-8">' +
+  '<meta name="viewport" content="width=device-width, initial-scale=1.0">' +
+  '<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">' +
+  '<link rel="stylesheet" href="' + BICONS + '">' +
   '<link rel="stylesheet" href="/design/layout_style.css"></head>' +
-  '<body style="margin:0;display:flex;flex-direction:column;height:100vh">' +
+  '<body>' +
   '<div id="app-root"></div>' +
   ['rebartable_claude', 'steelsection_claude', 'mod_concrete', 'mod_rebar',
    'mod_rebar_leng', 'layout_body'].map(f => '<script src="/design/' + f + '.js"></script>').join('') +
@@ -151,8 +169,14 @@ async function serve(page) {
       return route.fulfill({ contentType: 'text/html', body: HOST });
     if (u.hostname === 'shoot.test' && p === '/stage.html')
       return route.fulfill({ contentType: 'text/html', body: STAGE });
+    // the icon sheet first: it is on cdnjs too, and the branch below would
+    // hand it three.js
+    if (/bootstrap-icons/.test(u.href))
+      return route.fulfill({ contentType: 'text/css', body: ICONCSS() });
     if (u.hostname.includes('unpkg') || u.hostname.includes('cdnjs'))
       return route.fulfill({ contentType: 'application/javascript', body: LIB(u.href) });
+    if (u.hostname.includes('fonts.googleapis'))
+      return route.fulfill({ contentType: 'text/css', body: FONTCSS() });
     if (u.hostname.includes('fonts.')) return route.abort();
     let f = null;
     if (p.startsWith('/design/')) f = path.join(DZ, p.slice(8));
@@ -218,6 +242,54 @@ const chrome = dur => A.screenshot({ type: 'png', clip: { x: 0, y: 0, width: CW,
   .then(b => put(b, dur));
 const still = dur => D.screenshot({ type: 'png' }).then(b => put(b, dur));
 
+/* The cursor. Nothing about the click is faked - the app's own handler runs -
+   but a click with no pointer on screen reads as the page moving by itself. */
+async function pointer() {
+  await A.evaluate(() => {
+    if (document.getElementById('__cur')) return;
+    const d = document.createElement('div');
+    d.id = '__cur';
+    d.style.cssText = 'position:fixed;z-index:99999;pointer-events:none;left:-99px;top:-99px;' +
+      'filter:drop-shadow(0 3px 7px rgba(0,0,0,.55))';
+    d.innerHTML = '<svg viewBox="0 0 24 32" width="26" height="35">' +
+      '<path d="M2 1 L2 25 L8 19.6 L12.2 29 L16.4 27 L12.2 17.8 L20 17.8 Z"' +
+      ' fill="#fff" stroke="#0f172a" stroke-width="1.7" stroke-linejoin="round"/></svg>';
+    document.body.appendChild(d);
+  });
+}
+const curTo = (x, y) => A.evaluate(p => {
+  const d = document.getElementById('__cur');
+  if (d) { d.style.left = p.x + 'px'; d.style.top = p.y + 'px'; }
+}, { x: Math.round(x), y: Math.round(y) });
+const hideCur = () => A.evaluate(() => { const d = document.getElementById('__cur');
+  if (d) d.style.left = '-99px'; });
+const boxOf = sel => A.evaluate(q => {
+  const e = document.querySelector(q); if (!e) return null;
+  const r = e.getBoundingClientRect();
+  return { x: r.left, y: r.top, w: r.width, h: r.height,
+           cx: r.left + r.width / 2, cy: r.top + r.height / 2 };
+}, sel);
+/* Walk the pointer to a thing, press it, and let the app do the rest. */
+async function reach(sel, from, secs) {
+  const b = await boxOf(sel);
+  if (!b) throw new Error('nothing to click at ' + sel);
+  const k = Math.max(2, Math.round((secs || 1.2) * 12));
+  for (let i = 0; i < k; i++) {
+    const u = ease(i / (k - 1));
+    await curTo(mix(from.x, b.x + 14, u), mix(from.y, b.cy - 2, u));
+    await chrome((secs || 1.2) / k);
+  }
+  return b;
+}
+async function press(sel, hold) {
+  await A.evaluate(q => { const e = document.querySelector(q);
+    if (e) { e.style.transform = 'scale(.985)'; e.style.filter = 'brightness(.95)'; } }, sel);
+  await chrome(hold || 0.22);
+  await A.evaluate(q => { const e = document.querySelector(q);
+    if (e) { e.style.transform = ''; e.style.filter = ''; } }, sel);
+  await A.click(sel);
+}
+
 async function page2(file) {
   await D.goto('file://' + SP + '/' + file, { waitUntil: 'load', timeout: 30000 });
   await D.evaluate(() => document.fonts.load('700 26px Inter')
@@ -228,6 +300,15 @@ async function page2(file) {
 /* What the model came out as, read back off the panel the way a viewer reads
    it. Every number this film quotes is measured here, never assumed. */
 async function built() {
+  /* Navigating away from the form empties its mount, and the frame this was
+     reading goes with it. A cut that changes pages has no panel to read, which
+     is not a failure - so say nothing rather than take the pass down with it. */
+  if (!emb || emb.isDetached()) return { n: null, kg: null };
+  try {
+    return await panel();
+  } catch (e) { return { n: null, kg: null }; }
+}
+async function panel() {
   const t = await emb.evaluate(() => (document.getElementById('pb-result') || {}).innerText || '');
   const m = t.match(/placed (\d+)/);
   const w = (await emb.evaluate(() => (document.getElementById('pb-total') || {}).innerText || ''))
@@ -273,7 +354,8 @@ async function pick(k, value, box) {
   const browser = await chromium.launch({ executablePath: '/opt/pw-browsers/chromium',
     args: ['--no-sandbox', '--use-gl=angle', '--use-angle=swiftshader',
            '--enable-unsafe-swiftshader'] });
-  A = await browser.newPage({ viewport: { width: VW, height: VH }, deviceScaleFactor: 2 });
+  A = await browser.newPage({ viewport: { width: VW, height: VH }, deviceScaleFactor: 2,
+                              acceptDownloads: true });
   await serve(A);
   A.on('pageerror', e => console.log('  ERR ' + String(e).slice(0, 140)));
   await A.goto('https://shoot.test/host.html', { waitUntil: 'domcontentloaded' });
@@ -319,21 +401,31 @@ async function pick(k, value, box) {
   await still(4.0);
   await log('2 title');
 
-  /* ---- 3  it is already open: the sidebar, the group, the item ---- */
+  /* ---- 3  it is already open. Two clicks, both real and both shown: the
+       group opens, then the item under it. The first pass called showPage()
+       from code and the menu appeared to work itself. ---- */
   await A.evaluate(() => window.showPage('home'));
   await A.waitForTimeout(900);
-  caption('c03', T + 0.3, 5.4);
-  await chrome(1.4);
-  await A.evaluate(() => { const t = document.getElementById('quick3dToggle');
-    if (t) t.click(); });
-  await A.waitForTimeout(700);
-  await chrome(1.8);
-  await A.evaluate(() => window.showPage('quick-simpleconn'));
-  await A.waitForTimeout(2600);
+  await pointer();
+  await curTo(VW * 0.52, VH * 0.62);
+  caption('c03', T + 0.3, 8.4);
+  await chrome(1.0);
+  await reach('#quick3dToggle', { x: VW * 0.52, y: VH * 0.62 }, 1.5);
+  await press('#quick3dToggle');
+  await A.waitForTimeout(600);
+  await chrome(1.1);                                   // the group opens
+  const sub = '#quick3d-sub a[data-page="quick-simpleconn"]';
+  const g = await boxOf('#quick3dToggle');
+  await reach(sub, { x: g.x + 14, y: g.cy - 2 }, 0.9);
+  await press(sub);
+  await A.waitForFunction(() => !!document.querySelector('#mount-quick-simpleconn iframe'),
+                          null, { timeout: 60000 });
+  await hideCur();
+  await chrome(1.0);
+  await A.waitForTimeout(9000);                        // the frame builds
   emb = A.frames().find(f => /embed/.test(f.url()));
-  await A.waitForTimeout(7000);
-  await chrome(2.8);
-  await log('3 already open');
+  await chrome(2.4);
+  await log('3 two clicks, and the form');
 
   /* ---- 4  the whole form, once, top to bottom ---- */
   caption('c04', T + 0.3, 5.4);
@@ -521,10 +613,80 @@ async function pick(k, value, box) {
   await still(6.0);
   await log('15 the sheet, all along');
 
-  /* ---- 16  the signature ---- */
-  await page2(CARD + 's_o16.html');
+  /* ---- 16  and it is a workbook too. The form is one door; the sheet it
+       writes is on the shelf next door, in PLATE3D's own Example list, so
+       anyone who would rather edit rows than fill boxes can take it and go.
+       Shown by opening the real list and finding the row by its NAME, so a
+       re-ordered sample list cannot ring the wrong one. ---- */
+  await A.evaluate(() => window.showPage('draw-plate3d'));
+  await A.waitForFunction(() => !!document.querySelector('#mount-draw-plate3d iframe'),
+                          null, { timeout: 60000 });
+  await A.waitForTimeout(9000);
+  const pv = A.frames().find(f => /embed/.test(f.url()) && !/ui=quick/.test(f.url()));
+  if (!pv) throw new Error('the PLATE3D page never brought up its frame');
+  emb = pv;                                    // the panel worth reading now
+  await pv.evaluate(() => window.plateBuilder.openSamples());
+  await A.waitForTimeout(900);
+  caption('c16', T + 0.3, 9.6);
+  await chrome(2.2);                                   // the whole list first
+  /* The row is found by its FILE, not by a position: a re-ordered sample list
+     cannot then ring the wrong one. Nothing is loaded here - the joint has been
+     on screen for three minutes and this beat is about the workbook, not the
+     model. */
+  const which = await pv.evaluate(() => {
+    const rows = [...document.querySelectorAll('#pb-ex .ext tbody tr')];
+    const i = rows.findIndex(r => /PLATE3D_COLUMN\.xlsx/i.test(r.textContent));
+    if (i < 0) return -1;
+    const tr = rows[i];
+    tr.style.outline = '3px solid #b45309';
+    tr.style.outlineOffset = '-1px';
+    tr.style.background = '#fffbeb';
+    tr.style.borderRadius = '6px';
+    tr.scrollIntoView({ block: 'center' });
+    return i;
+  });
+  if (which < 0) throw new Error('no PLATE3D_COLUMN.xlsx row in the Example list');
+  await A.waitForTimeout(500);
+  await chrome(4.6);                                   // the row, and its DOWNLOAD
+  /* The download, pressed for real. The control is inside the frame, so the
+     pointer has to be put in the page's coordinates: the iframe's own corner
+     plus the control's rectangle within it. */
+  const fo = await A.evaluate(() => {
+    const f = document.querySelector('#mount-draw-plate3d iframe');
+    const r = f.getBoundingClientRect();
+    return { x: r.left, y: r.top };
+  });
+  const rb = await pv.evaluate(i => {
+    const e = document.getElementById('pb-exb' + i);
+    const r = e.getBoundingClientRect();
+    return { x: r.left, y: r.top, w: r.width, h: r.height };
+  }, which);
+  const tgt = { x: fo.x + rb.x + rb.w * 0.35, y: fo.y + rb.y + rb.h * 0.5 };
+  await pointer();
+  const kC = 14;
+  for (let i = 0; i < kC; i++) {
+    const u = ease(i / (kC - 1));
+    await curTo(mix(VW * 0.30, tgt.x, u), mix(VH * 0.78, tgt.y, u));
+    await chrome(1.7 / kC);
+  }
+  await pv.evaluate(i => { const e = document.getElementById('pb-exb' + i);
+    e.style.transform = 'scale(.94)'; e.style.filter = 'brightness(.92)'; }, which);
+  await chrome(0.3);
+  await pv.evaluate(i => { const e = document.getElementById('pb-exb' + i);
+    e.style.transform = ''; e.style.filter = ''; }, which);
+  await pv.click('#pb-exb' + which).catch(() => {});
+  await A.waitForTimeout(700);
+  await hideCur();
+  /* Short. Taking the file shuts the dialog, which is what taking it looks
+     like - but the cut belongs to the row, not to whatever model the page had
+     open behind it. A long tail here put the caption over a tower crane. */
+  await chrome(1.2);
+  await log('16 the workbook, off the shelf  (row ' + which + ')');
+
+  /* ---- 17  the signature ---- */
+  await page2(CARD + 's_o17.html');
   await still(5.0);
-  await log('16 outro');
+  await log('17 outro');
 
   save();
   console.log('\n' + shots.length + ' stills · ' + caps.length + ' captions · ' +

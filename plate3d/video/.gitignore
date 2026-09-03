@@ -108,3 +108,7 @@ tools/norm_simpleconn/
 tools/seq_simpleconn/
 tools/shots_simpleconn.json
 tools/filter_simpleconn.txt
+
+# The icon font, inlined by tools/mkbicons.js from npm - same rule as
+# tools/v_font.css above: the generator is kept, the 250 KB of base64 is not.
+tools/bi_font.css

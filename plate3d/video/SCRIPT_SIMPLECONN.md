@@ -51,7 +51,7 @@ The spreadsheet was there all along.
 | 설명 1행 | `Fill in a form. The column-beam joint stands up in 3D BIM in your browser — nothing to install, nothing to download.` |
 | 설명 2행 | `Column in three pieces, H or tube, up to four beams, the connections and the stiffeners — with the drawings and the take-off.` |
 | 태그 | BIM · steel connection · column beam joint · splice · stiffener · coping · end plate · fin plate · shop drawing · DXF · BOQ · parametric model · structural steel · browser BIM · PLATE3D · macroBIM |
-| 규격 | 약 2:47 · 1920×1080 · 30 fps · 무음 |
+| 규격 | 2:54 · 2560×1440 · 30 fps · 무음 |
 
 앞 영상들보다 **깁니다.** 안내라서 그렇습니다 — 여섯 블록을 하나씩 짚는 데
 1분으로는 안 됩니다. 대신 **컷마다 하나씩만** 말합니다.
@@ -71,9 +71,10 @@ The spreadsheet was there all along.
 | 11 | 조인트 | Declare a connection. Name it against a beam. |
 | 12 | 스티프너 | Where they meet, the flange comes off. |
 | 15 | 반전 | The spreadsheet was there all along. |
-| 16 | 서명 | PLATE3D by macroBIM |
+| 16 | 다른 문 | *Or take the same workbook out of PLATE3D.* |
+| 17 | 서명 | PLATE3D by macroBIM |
 
-1번이 **형상**으로 열고 15번이 **시트**로 닫습니다. 앞 영상들이 시트로 열어 형상으로
+1번이 **형상**으로 열고 15·16번이 **시트**로 닫습니다. 앞 영상들이 시트로 열어 형상으로
 닫은 것과 반대입니다 — 안내는 "이게 뭔지" 부터 보여야 따라옵니다.
 
 ## 5. 컷 리스트
@@ -82,7 +83,7 @@ The spreadsheet was there all along.
 |---|---|---|---|---|
 | 1 | 0:00 | 6s | **완성된 접합부, 천천히 회전.** 이음·스티프너·네 방향 보·코핑된 플랜지가 한 바퀴에 다 보이게 | **This joint.** |
 | 2 | 0:06 | 4s | 타이틀 카드 | **COLUMN-BEAM JOINTS.**<br>**ONE PREDEFINED FORM.** |
-| 3 | 0:10 | 6s | 사이드바 → **MacroPLATE3D** 펼침 → **Simple connector** → 폼이 뜸 | *Nothing to download. It is already open.* |
+| 3 | 0:10 | 8s | 사이드바에서 **MacroPLATE3D 를 클릭**해 펼치고, 그 아래 **Simple connector 를 클릭** → 폼이 뜸. 두 번 다 진짜 클릭이고 커서가 보임 | *Nothing to download. It is already open.* |
 | 4 | 0:16 | 6s | 폼 전체를 위에서 아래로 한 번 훑음 · 여섯 장 제목만 밝게 | **Everything it takes**<br>**is in six blocks.** |
 | 5 | 0:22 | 12s | **보를 다 지운 기둥**(111 부재)에서 시작 · **1장 Length** upper 700 / middle 1400 / lower 700 에 링 · upper → **0** → 위 조각과 그 이음이 사라짐 → 되돌림 | **Three pieces.**<br>**Put 0 in one and it goes.** |
 | 6 | 0:34 | 14s | **1장 Type = H** · Section 드롭다운 → **H-440×300×11×18 r13** 을 고름 → **h·b·tw·tf·r·kg/m 여섯 칸이 스스로 채워지고** 기둥이 깊어짐 (94 → **121 kg/m**) · Alpha 로 90° 돌림 | **Name the section.**<br>**Five boxes fill themselves.** |
@@ -95,9 +96,15 @@ The spreadsheet was there all along.
 | 13 | 2:08 | 10s | 2장 **clearance 20 → 0** · 코핑 자국이 판에 딱 붙음 · 중량이 501.079 → **502.298** | *You set the room it leaves.* |
 | 14 | 2:18 | 14s | **Save DXF** → 도면 · **Save BOQ** → 산출서 | *The drawings and the take-off come with it.* |
 | 15 | 2:32 | 10s | **Export .xlsx** → 워크북 · PARAM 탭을 지나 **`input` 탭의 행들**이 흘러감 | **The spreadsheet**<br>**was there all along.** |
-| 16 | 2:42 | 5s | 로고 | **PLATE3D by macroBIM** |
+| 16 | 2:39 | 10s | **PLATE3D 페이지 → Example** · 목록에서 **Simple connector**(`PLATE3D_COLUMN.xlsx` · 179행 → 129부재 · 468 kg) 를 짚고 **DOWNLOAD 를 누름** | *Or take the same workbook out of PLATE3D.* |
+| 17 | 2:49 | 5s | 로고 | **PLATE3D by macroBIM** |
 
-**총 2:47.**
+**총 2:54.**
+
+**16번은 문을 하나 더 엽니다.** 폼은 문턱을 없앤 문이고, 같은 워크북이 PLATE3D 의
+Example 목록에 그대로 있습니다. 행을 채우는 편이 편한 사람은 받아서 그렇게 하면
+됩니다. 앞의 세 영상이 가르친 문법이 여기서도 닫히지 않는다는 것을, 말로 하지 않고
+목록을 보여주는 것으로 말합니다.
 
 ### 순서의 논리
 
@@ -110,7 +117,7 @@ The spreadsheet was there all along.
 | **보** | 10 | 몇 개까지, 어느 방향으로 |
 | **접합** | 11 | 보를 기둥에 어떻게 붙이나 |
 | **기둥 속** | 12–13 | 스티프너, 그리고 그것 때문에 잘리는 것 |
-| 나오는 것 | 14–15 | 도면 · 산출서 · 그리고 시트 |
+| 나오는 것 | 14–16 | 도면 · 산출서 · 시트 · 그리고 그 시트를 받아가는 문 |
 
 **12번이 마지막인 이유:** 코핑은 **보와 스티프너가 둘 다 있어야** 말이 됩니다.
 보를 모르는 사람에게 "여기가 잘린다"고 해도 무엇이 무엇을 자르는지 안 보입니다.
@@ -235,7 +242,33 @@ H-300 은 110 그대로라 **배포 워크북의 입력값은 한 칸도 안 바
 
 ## 11. 찍었다
 
-**`PLATE3D_SIMPLECONN.mp4` · 2:42 · 1920×1080 · 30 fps · 무음 · 183 스틸 · 자막 14장.**
+**`PLATE3D_SIMPLECONN.mp4` · 2:54 · 2560×1440 · 30 fps · 무음 · 233 스틸 · 자막 15장.**
+
+### 왼쪽 메뉴를 잘못 찍었다 — 고쳤다
+
+첫 판의 사이드바에는 **아이콘이 하나도 없었고 글꼴도 달랐습니다.** 촬영용 페이지를
+제가 손으로 지으면서 진짜 페이지의 `<head>` 를 재현하지 않은 탓입니다. 진짜 페이지는
+둘을 링크합니다 — Google Fonts 의 **Inter**, cdnjs 의 **Bootstrap Icons 1.11.3**.
+게다가 라우트가 cdnjs 를 통째로 three.js 로 답하고 있어서, 아이콘 자리에 엉뚱한
+파일이 갔습니다. **아무도 본 적 없는 사이드바를 찍고 있었던 것입니다.**
+
+촬영 중에는 네트워크가 없으므로 **같은 버전을 로컬에 두고 냅니다** — Inter 는
+`v_font.css`, 아이콘은 `bi_font.css`(`node mkbicons.js` 가 npm 에서 1.11.3 을 받아
+woff2 를 인라인). 그리고 `<body>` 에 제 스타일을 얹던 것도 뺐습니다.
+`layout_style.css` 가 이미 body 를 잡고 있고, 거기에 토를 달 이유가 없습니다.
+
+### 3번 컷은 진짜 클릭 두 번
+
+`showPage()` 를 코드로 부르면 메뉴가 저절로 움직이는 것처럼 보입니다. 이제 커서가
+**MacroPLATE3D 로 가서 누르고**, 그룹이 펼쳐지면 **그 아래 Simple connector 를
+누릅니다.** 누르는 것은 앱 자신의 핸들러이고, 연출은 커서뿐입니다.
+
+### 화질
+
+**2560×1440.** 앞의 세 영상과 같은 자리입니다 — 1080p 는 유튜브가 제일 얇은
+비트레이트를 주는 층이고, 볼트 접합부는 가는 선과 작은 글씨입니다. 두 소스 다
+확대 없이 들어갑니다: 페이지 샷은 1400×900 창을 2배로 떠서 2800×1576, 3D 는 촬영
+샤임의 배율을 4로 올려 2700 폭. 자막 카드도 2배(3840×2160)로 떠서 내려옵니다.
 
 ### 제목을 고쳤다 — `NO SPREADSHEET.` → `ONE PREDEFINED FORM.`
 
