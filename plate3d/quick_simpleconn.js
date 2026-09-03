@@ -34,15 +34,15 @@
   /* ui=quick strips Load Excel, Example and the .xlsx drop. Under a form all
      three would leave the inputs above describing something the model below is
      not, with nothing on screen admitting it. */
-  var FRAME = BASE + 'plate3d/embed.html?v=88&ui=quick';
-  var MODEL = BASE + 'plate3d/column_model.js?v=88';
+  var FRAME = BASE + 'plate3d/embed.html?v=89&ui=quick';
+  var MODEL = BASE + 'plate3d/column_model.js?v=89';
   /* Export patches the shipped workbook rather than building one. Everything
      that makes that sheet a sheet - the dropdowns, the two defined names the
      Section list depends on, seven conditional formats, the catalogue tabs,
      every width and merge - is already in it. Rebuilding all of that in a
      browser would be a second definition of the same layout, and the first one
      to be edited would be the one nobody noticed. */
-  var TEMPLATE = BASE + 'plate3d/PLATE3D_COLUMN.xlsx?v=88';
+  var TEMPLATE = BASE + 'plate3d/PLATE3D_COLUMN.xlsx?v=89';
   var EXCELJS  = 'https://cdnjs.cloudflare.com/ajax/libs/exceljs/4.3.0/exceljs.min.js';
   var USER  = 'user define';
 
@@ -427,9 +427,14 @@
                 ['joint', Hs ? 'bearing — the ends meet'
                              : 'two end plates, ' + 2 * V.epT + ' thick'],
                 ['plate steel, kg', Math.round(kg * 10) / 10],
+                /* The inner plate is judged against the FILLET: it sits on
+                   its own bolt lines under the flange, and what it can run
+                   into is the corner where the web meets it. */
                 ['plates fit', !Hs ? 'n/a'
                   : (V.foW > D.b ? 'flange plate too wide'
-                  : V.wpW > D.h - 2 * D.tf - 2 * D.r ? 'web plate too deep' : 'ok')]];
+                  : V.wpW > D.h - 2 * D.tf - 2 * D.r ? 'web plate too deep'
+                  : V.fiW / 2 > D.fiY - (D.tw / 2 + D.r) ? 'inner plate hits the fillet'
+                  : 'ok')]];
       }
     });
 

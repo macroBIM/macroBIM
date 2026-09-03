@@ -84,7 +84,9 @@
          defaults below. */
 
       foW: 300, foT: 12,                       // flange plate, outer
-      fiW: 110, fiT: 10,                       // flange plate, inner - two per flange
+      fiT: 10,                                 // flange plate, inner - two per flange
+      /* fiW is not here. It has to clear the column's root fillet, so it is
+         worked out in derive() where the section is known - see there. */
       wpW: 234, wpT: 10,                       // web plate - two
       fNL: 4, fIL: 70, fOL: 45,                // flange group: along the column
       fNT: 4, fIT: 100, fOT: 40,               //               across the flange
@@ -185,6 +187,17 @@
     D.pWL = pHalf(V.cpL, V.wNL, V.wIL, V.wOL);      // web, along
     D.pWT = pFull(V.wpW, V.wNT, V.wIT, V.wOT);      // web, through the depth
     D.fiY = V.fIT / 2 + D.pFT / 2;                  // inner plate, on its own two lines
+    /* The inner plate's inboard edge has to stand clear of the root fillet,
+       which reaches `tw/2 + r` out from the column's centre line. The plate is
+       centred on its own two bolt lines and cannot move, so what gives is its
+       width. 110 is the shop value and it holds on the sections it was chosen
+       for; on a deeper column the fillet grows - 23 on an H-300, 28.5 on an
+       H-400 - and 110 would leave 3.5 mm of plate inside the steel. The clash
+       report said so (PL.FI x SC.C2) and nothing in the form did.
+       Filled in HERE rather than in defaults() so it follows whatever section
+       the sheet opens with, and only when the sheet has not already said
+       otherwise - a typed width is left alone and `plates fit` judges it. */
+    if (V.fiW == null) V.fiW = rnd(Math.min(110, 2 * (D.fiY - (D.tw / 2 + D.r))));
     D.gripF = V.foT + D.tf + V.fiT;
     D.gripW = D.tw + 2 * V.wpT;
     // end plate

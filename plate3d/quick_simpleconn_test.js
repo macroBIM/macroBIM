@@ -421,9 +421,14 @@
                 ['joint', Hs ? 'bearing — the ends meet'
                              : 'two end plates, ' + 2 * V.epT + ' thick'],
                 ['plate steel, kg', Math.round(kg * 10) / 10],
+                /* The inner plate is judged against the FILLET: it sits on
+                   its own bolt lines under the flange, and what it can run
+                   into is the corner where the web meets it. */
                 ['plates fit', !Hs ? 'n/a'
                   : (V.foW > D.b ? 'flange plate too wide'
-                  : V.wpW > D.h - 2 * D.tf - 2 * D.r ? 'web plate too deep' : 'ok')]];
+                  : V.wpW > D.h - 2 * D.tf - 2 * D.r ? 'web plate too deep'
+                  : V.fiW / 2 > D.fiY - (D.tw / 2 + D.r) ? 'inner plate hits the fillet'
+                  : 'ok')]];
       }
     });
 

@@ -297,10 +297,16 @@ checked(R.pChk, [
   /* A plate narrower than the steel it covers is a detail; a plate wider is a
      mistake, and changing the section is exactly how you get one without
      noticing - the plate widths are typed, so they do not follow. */
-  ['plates fit', `IF(${isH},IF(AND(${K.foW}<=${K.b},${K.wpW}<=${K.h}-2*${K.tf}-2*${K.r}),"ok",` +
-    `IF(${K.foW}>${K.b},"flange plate too wide","web plate too deep")),"n/a")`,
-    pick(V.foW <= D.b && V.wpW <= D.h - 2 * D.tf - 2 * D.r ? 'ok'
-         : (V.foW > D.b ? 'flange plate too wide' : 'web plate too deep'), 'n/a')],
+  /* The inner plate is judged against the FILLET, not against the flange: it
+     sits on its own bolt lines under the flange, and what it can run into is
+     the corner where the web meets it. `tw/2 + r` is where that corner ends. */
+  ['plates fit', `IF(${isH},IF(AND(${K.foW}<=${K.b},${K.wpW}<=${K.h}-2*${K.tf}-2*${K.r},` +
+    `${K.fiW}/2<=${F.fiY}-(${K.tw}/2+${K.r})),"ok",` +
+    `IF(${K.foW}>${K.b},"flange plate too wide",` +
+    `IF(${K.wpW}>${K.h}-2*${K.tf}-2*${K.r},"web plate too deep","inner plate hits the fillet"))),"n/a")`,
+    pick(V.foW > D.b ? 'flange plate too wide'
+         : V.wpW > D.h - 2 * D.tf - 2 * D.r ? 'web plate too deep'
+         : V.fiW / 2 > D.fiY - (D.tw / 2 + D.r) ? 'inner plate hits the fillet' : 'ok', 'n/a')],
   /* An H splice BEARS - the upper piece stands on the lower one and the plates
      hold it in line, so the ends meet and there is nothing to say about a gap.
      A tube is different: its two end plates really are in there, so the pieces
