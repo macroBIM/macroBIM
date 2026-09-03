@@ -226,16 +226,6 @@
     '  border:1px solid var(--line); border-radius:10px; padding:11px 12px; }',
     '#pb-side::-webkit-scrollbar { width:6px; }',
     '#pb-side::-webkit-scrollbar-thumb { background:#cbd5e1; border-radius:4px; }',
-    /* Narrow: a phone, or the viewer docked in a column beside a form. Side by
-       side there, 320 of list would leave about 300 of model - a list with a
-       thumbnail next to it, which is the wrong way round for a viewer. Stacked,
-       the model takes the whole width and the list keeps its place directly
-       under it. The view goes first because it is the thing being looked at. */
-    '@media (max-width:760px) {',
-    '  #pb-body { flex-direction:column; }',
-    '  #pb-viewwrap { order:-1; align-self:stretch; }',
-    '  #pb-side { width:auto; min-width:0; align-self:stretch; max-height:264px; }',
-    '}',
     // the view sits at the top of its pane, not floating in the middle of it
     '#pb-viewwrap { flex:1 1 auto; min-width:0; display:flex;',
     '  align-items:flex-start; justify-content:center; }',
@@ -11568,16 +11558,8 @@
          shorter - two boxes of different heights side by side, and the panel
          scrolling because it thought it had more room than it was showing. */
       var sd = document.getElementById('pb-side');
-      // matching the view's height is what makes two boxes side by side line
-      // up; stacked, the panel is under the view and sizes itself
-      if (sd) sd.style.height = stacked() ? '' : ch + 'px';
+      if (sd) sd.style.height = ch + 'px';
       tellHost();
-    }
-    /* Asked of the layout rather than of the window, so the breakpoint lives in
-       one place - the stylesheet - and this cannot disagree with it. */
-    function stacked() {
-      var bd = document.getElementById('pb-body');
-      return !!bd && getComputedStyle(bd).flexDirection === 'column';
     }
     /* How tall this page needs to be, told to whoever framed it. In an iframe
        the height is a guess made outside - the macroBIM layout reserved a
@@ -11603,14 +11585,6 @@
       var need = Math.ceil(bar.offsetTop + bar.offsetHeight +
                            parseFloat(bcs.paddingTop) + parseFloat(bcs.paddingBottom) +
                            availW * 9 / 16);
-      /* Stacked, the list is no longer beside the view but under it, so it is
-         height the host has to find as well. Left out, the frame comes back
-         exactly the view's height and the panel is cut off at the fold. */
-      if (stacked()) {
-        var sd2 = document.getElementById('pb-side');
-        var gap = parseFloat(bcs.rowGap);         // "normal" when no gap is set
-        if (sd2) need += sd2.offsetHeight + (isFinite(gap) ? gap : 0);
-      }
       if (!(need > 0) || Math.abs(need - toldHost) < 2) return;
       toldHost = need;
       try { window.parent.postMessage({ plate3d: 'height', h: need }, '*'); } catch (e) {}
