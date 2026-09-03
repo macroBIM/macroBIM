@@ -34,15 +34,15 @@
   /* ui=quick strips Load Excel, Example and the .xlsx drop. Under a form all
      three would leave the inputs above describing something the model below is
      not, with nothing on screen admitting it. */
-  var FRAME = BASE + 'plate3d/embed.html?v=89&ui=quick';
-  var MODEL = BASE + 'plate3d/column_model.js?v=89';
+  var FRAME = BASE + 'plate3d/embed.html?v=90&ui=quick';
+  var MODEL = BASE + 'plate3d/column_model.js?v=90';
   /* Export patches the shipped workbook rather than building one. Everything
      that makes that sheet a sheet - the dropdowns, the two defined names the
      Section list depends on, seven conditional formats, the catalogue tabs,
      every width and merge - is already in it. Rebuilding all of that in a
      browser would be a second definition of the same layout, and the first one
      to be edited would be the one nobody noticed. */
-  var TEMPLATE = BASE + 'plate3d/PLATE3D_COLUMN.xlsx?v=89';
+  var TEMPLATE = BASE + 'plate3d/PLATE3D_COLUMN.xlsx?v=90';
   var EXCELJS  = 'https://cdnjs.cloudflare.com/ajax/libs/exceljs/4.3.0/exceljs.min.js';
   var USER  = 'user define';
 
