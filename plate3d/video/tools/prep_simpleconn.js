@@ -105,13 +105,88 @@ function dxfPage() {
 <div id="st">${svg}</div>
 <script>
 window.__meta = ${JSON.stringify(meta)};
-window.__view = function (i, z) {
+/* Fit the DRAWING, not the band it sits in.
+
+   A view's top and bottom are where the exporter put the block, and a block is
+   mostly paper: the isometric's band is 6666 tall for a joint about 2500 tall
+   and 5440 wide for one about 1600 wide. Fitting the band made the drawing a
+   sixth of the height it could have been, with white all round it and the
+   title clipped off the top. So the ink is measured - every drawable whose own
+   box sits inside the band - and THAT is what fills the frame, centred, with a
+   margin and the tab kept clear. */
+/* The ink of a view, measured once and kept.
+
+   Measured on SCREEN, not with getBBox. getBBox answers in the element's own
+   coordinate space, so anything under a nested <g transform> comes back in the
+   wrong units and the union blows out to the whole sheet - which is what
+   happened to two of the three views. With the sheet sitting untransformed at
+   the origin, a client rect minus the sheet's own is exactly sheet
+   coordinates, whatever transforms lie between.
+
+   CONTAINED in the band, not merely centred in it: a sheet-wide background
+   rectangle has its centre in whichever band straddles the middle of the paper,
+   and it dragged the PLATES view out to the full 29143-tall sheet. */
+window.__ink = function (i) {
+  window.__inkC = window.__inkC || {};
+  if (window.__inkC[i]) return window.__inkC[i];
   var v = window.__meta.views[i], st = document.getElementById('st');
-  var k = z || Math.min(1780 / window.__meta.width, 900 / (v.bottom - v.top));
+  var t = st.style.transform, l = st.style.left, tp = st.style.top;
+  st.style.transform = 'none'; st.style.left = '0px'; st.style.top = '0px';
+  var base = st.getBoundingClientRect();
+  var x0 = 1e9, y0 = 1e9, x1 = -1e9, y1 = -1e9;
+  var all = st.querySelectorAll('path,line,polyline,polygon,circle,ellipse,rect,text');
+  for (var n = 0; n < all.length; n++) {
+    var r = all[n].getBoundingClientRect();
+    if (!r || (!r.width && !r.height)) continue;
+    var bx = r.left - base.left, by = r.top - base.top;
+    if (by < v.top - 1 || by + r.height > v.bottom + 1) continue;
+    if (bx < x0) x0 = bx;
+    if (by < y0) y0 = by;
+    if (bx + r.width > x1) x1 = bx + r.width;
+    if (by + r.height > y1) y1 = by + r.height;
+  }
+  if (x1 < x0) { x0 = 0; x1 = window.__meta.width; y0 = v.top; y1 = v.bottom; }
+  st.style.transform = t; st.style.left = l; st.style.top = tp;
+  return (window.__inkC[i] = { x0: x0, y0: y0, x1: x1, y1: y1,
+                               w: x1 - x0, h: y1 - y0, title: v.title });
+};
+window.__PAD = 54; window.__TAB = 64;
+window.__area = function () {
+  return { W: 1920 - 2 * window.__PAD, H: 1080 - window.__TAB - 2 * window.__PAD };
+};
+/* Whole, if the block is anything like the shape of the frame. A drawing of the
+   joint is; a column of fifteen plate details, 1000 wide and 9300 tall, is not -
+   fitted whole it is a hairline. So a long block fills the WIDTH and is read
+   top to bottom instead. Nothing is cropped away either way: one is seen at
+   once, the other is seen through. */
+window.__long = function (i) {
+  var m = window.__ink(i);
+  return (m.h / m.w) > 3;              // taller than three times its width
+};
+window.__view = function (i) {
+  var m = window.__ink(i), a = window.__area(), st = document.getElementById('st');
+  var k = Math.min(a.W / m.w, a.H / m.h);
   st.style.transform = 'scale(' + k + ')';
-  st.style.left = ((1920 - window.__meta.width * k) / 2) + 'px';
-  st.style.top  = (64 + (1016 - (v.bottom - v.top) * k) / 2 - v.top * k) + 'px';
-  return { title: v.title, scale: k };
+  st.style.left = (window.__PAD + (a.W - m.w * k) / 2 - m.x0 * k) + 'px';
+  st.style.top  = (window.__TAB + window.__PAD + (a.H - m.h * k) / 2 - m.y0 * k) + 'px';
+  return { title: m.title, scale: Math.round(k * 1000) / 1000,
+           w: Math.round(m.w), h: Math.round(m.h), long: window.__long(i) };
+};
+/* A long block, at the scale its width asks for, positioned by u in 0..1 - 0 is
+   its top against the top of the frame, 1 is its bottom against the bottom. */
+window.__band = function (i, u) {
+  var m = window.__ink(i), a = window.__area(), st = document.getElementById('st');
+  /* A quarter of the block on screen at a time, and never wider than the frame.
+     Filling the WIDTH was the obvious rule and the wrong one: the plate list is
+     only 1000 wide, so it magnified 1.8x and one plate label filled the screen.
+     Reading a long sheet means several details at once. */
+  var k = Math.min(a.W / m.w, a.H / (m.h / 4));
+  var over = m.h * k - a.H;                       // how much taller than the frame
+  st.style.transform = 'scale(' + k + ')';
+  st.style.left = (window.__PAD + (a.W - m.w * k) / 2 - m.x0 * k) + 'px';   // centred across
+  st.style.top  = (window.__TAB + window.__PAD - m.y0 * k -
+                   (over > 0 ? over * Math.max(0, Math.min(1, u)) : -(a.H - m.h * k) / 2)) + 'px';
+  return { title: m.title, scale: Math.round(k * 1000) / 1000, over: Math.round(over) };
 };
 window.__at = function (x, y, k) {
   var st = document.getElementById('st');

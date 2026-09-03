@@ -296,6 +296,52 @@ async function press(sel, hold) {
   await A.click(sel);
 }
 
+/* Some pages are drawn at the size their content happens to be - a take-off is
+   as wide as its columns - so they land small and to the left of a 16:9 frame.
+   This centres and scales the whole page to fill it. It is a camera move: every
+   width, font and rule the file has is untouched, the picture is simply taken
+   closer. The drawing page does its own framing, view by view, and is left
+   alone. */
+async function fitPage(pad, spill) {
+  return D.evaluate(a => {
+    const m = a.pad;
+    /* Excel spills a long label into the empty cell beside it; xlsxpreview's
+       td carries overflow:hidden and cuts it instead, so the take-off's own
+       title came out as "PLATE3D - BILL OF". Letting it spill is the faithful
+       one: no width, font or rule is touched, the text simply goes where Excel
+       puts it. (The other films' sheet pages have the same clip and would want
+       this too, whenever they are next shot.) */
+    if (a.spill && !document.getElementById('__spill')) {
+      const st = document.createElement('style');
+      st.id = '__spill';
+      st.textContent = 'td{overflow:visible!important}';
+      document.head.appendChild(st);
+    }
+    let d = document.getElementById('__fit');
+    if (!d) {
+      d = document.createElement('div');
+      d.id = '__fit';
+      while (document.body.firstChild) d.appendChild(document.body.firstChild);
+      document.body.appendChild(d);
+      d.style.transformOrigin = 'top left';
+      d.style.position = 'absolute';
+      /* Spilled text stops at the sheet's own right edge rather than running
+         off the frame - which is what Excel does when the window ends. */
+      d.style.overflow = 'hidden';
+      document.body.style.margin = '0';
+    }
+    d.style.transform = 'none'; d.style.left = '0px'; d.style.top = '0px';
+    const r = d.getBoundingClientRect();
+    const W = window.innerWidth, H = window.innerHeight;
+    if (!(r.width > 0) || !(r.height > 0)) return null;
+    const k = Math.min((W - 2 * m) / r.width, (H - 2 * m) / r.height);
+    d.style.transform = 'scale(' + k + ')';
+    d.style.left = ((W - r.width * k) / 2) + 'px';
+    d.style.top = ((H - r.height * k) / 2) + 'px';
+    return { w: Math.round(r.width), h: Math.round(r.height), k: Math.round(k * 100) / 100 };
+  }, { pad: pad == null ? 40 : pad, spill: !!spill });
+}
+
 async function page2(file) {
   await D.goto('file://' + SP + '/' + file, { waitUntil: 'load', timeout: 30000 });
   await D.evaluate(() => document.fonts.load('700 26px Inter')
@@ -378,7 +424,14 @@ async function pick(k, value, box) {
   S = await browser.newPage({ viewport: { width: OW, height: OH } });
   await serve(S);
   await S.goto('https://shoot.test/stage.html', { waitUntil: 'domcontentloaded' });
-  D = await browser.newPage({ viewport: { width: OW, height: OH }, deviceScaleFactor: 2 });
+  /* The document pages - the cards, the drawing, the take-off, the workbook -
+     are all drawn 1920x1080, so the window that renders them is 1920x1080 and
+     the film's own size is the assembler's business. Giving this page the
+     film's 2560x1440 instead left every one of them sitting in the top-left
+     1920 of the frame with the rest blank: measured, the ink came out centred
+     on x=960 of a 2560-wide picture. At 2x it is 3840x2160 into 2560x1440,
+     which is a fit and not a blow-up. */
+  D = await browser.newPage({ viewport: { width: 1920, height: 1080 }, deviceScaleFactor: 2 });
   await wire(D);
 
   const log = async m => { save(); const b = await built();
@@ -617,13 +670,25 @@ async function pick(k, value, box) {
   await page2(CARD + 's_dxf.html');
   const nv = await D.evaluate(() => window.__meta.views.length);
   for (let i = 0; i < nv; i++) {
-    await D.evaluate(k => window.__view(k), i);
+    const v = await D.evaluate(k => window.__view(k), i);
     await D.waitForTimeout(160);
-    await still(6.6 / nv);
+    if (!v.long) { await still(3.2); continue; }
+    /* Taller than three times its width - fifteen plate details in a column.
+       Fitted whole it is a hairline, so it fills the width and is read top to
+       bottom instead. Nothing is cropped away: it is seen through rather than
+       at once. */
+    const kP = 18;
+    for (let j = 0; j < kP; j++) {
+      await D.evaluate(a => window.__band(a.i, a.u), { i: i, u: ease(j / (kP - 1)) });
+      await D.waitForTimeout(60);
+      await still(4.2 / kP);
+    }
   }
   await page2(CARD + 's_boq1.html');
+  await fitPage(40, true);
   await still(3.4);
   await page2(CARD + 's_boq2.html');
+  await fitPage(40, true);
   await still(4.0);
   await log('14 drawing and take-off');
 
@@ -633,8 +698,10 @@ async function pick(k, value, box) {
        first three films taught. ---- */
   caption('c15', T + 0.3, 9.4);
   await page2(CARD + 's_param.html');
+  await fitPage(40, true);
   await still(4.0);
   await page2(CARD + 's_input.html');
+  await fitPage(40, true);
   await still(6.0);
   await log('15 the sheet, all along');
 

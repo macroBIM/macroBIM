@@ -51,7 +51,7 @@ The spreadsheet was there all along.
 | 설명 1행 | `Fill in a form. The column-beam joint stands up in 3D BIM in your browser — nothing to install, nothing to download.` |
 | 설명 2행 | `Column in three pieces, H or tube, up to four beams, the connections and the stiffeners — with the drawings and the take-off.` |
 | 태그 | BIM · steel connection · column beam joint · splice · stiffener · coping · end plate · fin plate · shop drawing · DXF · BOQ · parametric model · structural steel · browser BIM · PLATE3D · macroBIM |
-| 규격 | 3:04 · 2560×1440 · 30 fps · 무음 |
+| 규격 | 3:08 · 2560×1440 · 30 fps · 무음 |
 
 앞 영상들보다 **깁니다.** 안내라서 그렇습니다 — 여섯 블록을 하나씩 짚는 데
 1분으로는 안 됩니다. 대신 **컷마다 하나씩만** 말합니다.
@@ -96,12 +96,12 @@ The spreadsheet was there all along.
 | 11 | 1:46 | 16s | **5장 CONNECTION** 에서 `C1 end plate` · `C3 fin plate` 선언 → **6장 각 보의 Detail 칸 드롭다운**에 그 이름이 뜸 → Y+ 를 C1 로 바꿈 → 핀플레이트가 엔드플레이트로 | **Declare a connection.**<br>**Name it against a beam.** |
 | 12 | 2:02 | 16s | **2장 COLUMN STIFFENER** — 레벨 8줄 · offset · width · depth · thick 짚기 → **thick 12 → 0** → 스티프너가 사라지고 **잘렸던 보 플랜지가 돌아옴** → 되돌리면 다시 잘림 | **Where they meet,**<br>**the flange comes off.** |
 | 13 | 2:18 | 10s | 2장 **clearance 20 → 0** · 코핑 자국이 판에 딱 붙음 · 중량이 501.079 → **502.298** | *You set the room it leaves.* |
-| 14 | 2:28 | 14s | **Save DXF** → 도면 · **Save BOQ** → 산출서 | *The drawings and the take-off come with it.* |
+| 14 | 2:28 | 18s | **Save DXF** → 도면 3장(등각은 통째로, 플레이트 목록은 위에서 아래로 훑음, 단면은 통째로) · **Save BOQ** → SUMMARY · PART LIST | *The drawings and the take-off come with it.* |
 | 15 | 2:42 | 10s | **Export .xlsx** → 워크북 · PARAM 탭을 지나 **`input` 탭의 행들**이 흘러감 | **The spreadsheet**<br>**was there all along.** |
 | 16 | 2:49 | 10s | **PLATE3D 페이지 → Example** · 목록에서 **Simple connector**(`PLATE3D_COLUMN.xlsx` · 179행 → 129부재 · 468 kg) 를 짚고 **DOWNLOAD 를 누름** | *Or take the same workbook out of PLATE3D.* |
 | 17 | 2:59 | 5s | 로고 | **PLATE3D by macroBIM** |
 
-**총 3:04.**
+**총 3:08.**
 
 **16번은 문을 하나 더 엽니다.** 폼은 문턱을 없앤 문이고, 같은 워크북이 PLATE3D 의
 Example 목록에 그대로 있습니다. 행을 채우는 편이 편한 사람은 받아서 그렇게 하면
@@ -244,7 +244,7 @@ H-300 은 110 그대로라 **배포 워크북의 입력값은 한 칸도 안 바
 
 ## 11. 찍었다
 
-**`PLATE3D_SIMPLECONN.mp4` · 3:04 · 2560×1440 · 30 fps · 무음 · 240 스틸 · 자막 16장.**
+**`PLATE3D_SIMPLECONN.mp4` · 3:08 · 2560×1440 · 30 fps · 무음 · 257 스틸 · 자막 16장.**
 
 ### 10b — 보의 높이
 
@@ -307,6 +307,38 @@ woff2 를 인라인). 그리고 `<body>` 에 제 스타일을 얹던 것도 뺐�
 (`BOLTED CONNECTIONS.` / `MADE SIMPLE.`) — 첫 줄이 주어로 서고 둘째 줄이 떨어져야
 위계가 섭니다. 118px 기준 폭이 첫 줄 1290px 이라, `DETAILED BY A PREDEFINED FORM.`
 (1518px) 은 둘째 줄이 첫 줄을 넘어서서 뒤집힙니다. 동사를 빼면 1313px 로 들어옵니다.
+
+### 문서 화면을 왜 다시 짰나
+
+넷이 전부 **왼쪽으로 치우쳐 작게** 나왔습니다 — 제목 카드, 도면, 산출서, 로고.
+재보니 잉크의 중심이 죄다 **x=960** 이었습니다. 960 = 1920/2. 영상을 2560×1440
+으로 올리면서 **문서 페이지의 창만 키우고 그 안에 그리는 페이지는 1920×1080 인
+채로** 뒀던 것입니다. 내용이 왼쪽 1920 칸에만 들어가고 나머지가 비었습니다.
+창을 1920×1080 으로 되돌리고 2배로 뜹니다 — 3840×2160 에서 2560×1440 이니
+확대가 아니라 축소입니다.
+
+**도면은 띠가 아니라 그림에 맞춥니다.** 뷰의 top·bottom 은 내보내기가 블록을
+놓은 자리이고 블록은 대부분 여백입니다 — 등각의 띠는 6666 인데 접합부는 2500
+남짓입니다. 띠에 맞추니 도면이 될 수 있는 크기의 6분의 1이었고 제목이 위로
+잘렸습니다. 이제 **잉크를 재서** 그것을 채웁니다.
+
+재는 방법도 두 번 틀렸습니다. `getBBox()` 는 요소 자기 좌표계로 답해서 중첩
+변환 밑의 것이 엉뚱한 단위로 나왔고, 화면 좌표로 바꾼 뒤에는 **시트 전체를 덮는
+사각형 하나**가 중심이 어느 띠에 걸리느냐에 따라 그 뷰의 상자를 시트 전체로
+불려 놓았습니다. 지금은 **띠 안에 완전히 들어오는 것만** 셉니다.
+
+**긴 블록은 훑습니다.** 플레이트 목록은 1000 × 9311 — 세로가 가로의 9배라
+통째로 맞추면 실오라기입니다. 세로가 가로의 3배를 넘으면 **한 화면에 4분의 1씩**
+담아 위에서 아래로 갑니다. 폭을 채우는 규칙을 먼저 썼다가 1.8배로 확대돼 상세
+하나가 화면을 덮었습니다 — 긴 시트를 읽는다는 것은 여러 개를 한눈에 보는 것입니다.
+
+**산출서는 엑셀처럼 흘려보냅니다.** `xlsxpreview` 의 `td` 에 `overflow:hidden`
+이 있어 제목이 `PLATE3D — BILL OF` 에서 잘렸습니다. 엑셀은 옆 칸이 비면
+흘려보내니 **자르는 쪽이 파일과 다릅니다.** 촬영 때만 흘려보내고, 시트 자기
+오른쪽 끝에서 끊습니다. 폭·글꼴·괘선은 하나도 안 건드립니다. (앞 영상들의 시트
+화면도 같은 곳에서 잘립니다 — 다시 찍을 일이 있으면 같이 볼 것.)
+
+측정한 결과: 다섯 화면 모두 프레임 중심에서 **30픽셀 안**, 도면은 2415×1407.
 
 ### 화면을 어떻게 짰나 — 이 영상만의 것
 
