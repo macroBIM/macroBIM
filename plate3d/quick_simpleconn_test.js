@@ -48,6 +48,22 @@
      form somebody has already typed into - the film is worth a full screen,
      and the form is still here when they come back. */
   var TUTORIAL = 'https://www.youtube.com/watch?v=0ZDpFQPKjoE';
+  /* Bootstrap Icons' book, byte for byte the ICON_BOOK in plate_builder*.js.
+     Two copies of one path is not ideal, but the other one lives inside the
+     iframe and nothing crosses that boundary except postMessage - so the only
+     way to share it would be a third file existing to hold one string. If the
+     drawn shape there ever changes, change it here too: what has to match is
+     what the reader sees, and they see these side by side. */
+  var ICON_BOOK =
+    '<svg viewBox="0 0 16 16" width="14" height="14" fill="currentColor" aria-hidden="true">' +
+    '<path d="M1 2.828c.885-.37 2.154-.769 3.388-.893 1.33-.134 2.458.063 3.112.752v9.746c-.935' +
+    '-.53-2.12-.603-3.213-.493-1.18.12-2.37.461-3.287.811V2.828zm7.5-.141c.654-.689 1.782-.886' +
+    ' 3.112-.752 1.234.124 2.503.523 3.388.893v9.923c-.918-.35-2.107-.692-3.287-.81-1.094-.111' +
+    '-2.278-.039-3.213.492V2.687zM8 1.783C7.015.936 5.587.81 4.287.94c-1.514.153-3.042.672' +
+    '-3.994 1.105A.5.5 0 0 0 0 2.5v11a.5.5 0 0 0 .707.455c.882-.4 2.303-.881 3.68-1.02 1.409' +
+    '-.142 2.59.087 3.223.877a.5.5 0 0 0 .78 0c.633-.79 1.814-1.019 3.222-.877 1.378.139 2.8' +
+    '.62 3.681 1.02A.5.5 0 0 0 16 13.5v-11a.5.5 0 0 0-.293-.455c-.952-.433-2.48-.952-3.994' +
+    '-1.105C10.413.809 8.985.936 8 1.783z"/></svg>';
   var USER  = 'user define';
 
   /* ---------------- style ---------------- */
@@ -63,12 +79,29 @@
     '.qsc-btn:hover{background:#f1f5f9}',
     '.qsc-btn.primary{background:#1d4ed8;border-color:#1d4ed8;color:#fff}',
     '.qsc-btn.primary:hover{background:#1e40af}',
-    /* The one button that is a link. It is an <a> and not a button with a
-       window.open, so it behaves the way a link behaves - middle click, ctrl
-       click, copy the address - and it has to be told not to look like one. */
-    'a.qsc-btn{display:inline-flex;align-items:center;gap:6px;text-decoration:none}',
-    'a.qsc-btn .g{font-size:10px;color:#94a3b8;line-height:1}',
-    'a.qsc-btn:hover .g{color:#1d4ed8}',
+    /* Tutorial. PLATE3D's own toolbar has had a button of this name for a
+       while - #pb-bar button.guide.tut - and it is violet with a book on it.
+       The same word had no business looking like two different things on two
+       pages of one site, so the colours and the icon are that button's.
+
+       What is NOT copied is the box: padding, radius and font come from
+       .qsc-btn, because this button's neighbours are Import / Export / Save,
+       and a button that matched a bar in another frame while standing a pixel
+       taller than the three next to it would have traded one mismatch for a
+       worse one. Unify the thing that carries the meaning, not the metrics.
+
+       It is an <a> and not a button with a window.open, so it behaves the way
+       a link behaves - middle click, ctrl click, copy the address - and it has
+       to be told not to look like one. */
+    'a.qsc-btn{display:inline-flex;align-items:center;gap:5px;text-decoration:none;',
+      'color:#6d28d9;border-color:#ddd6fe;background:#f5f3ff}',
+    'a.qsc-btn:hover{background:#ede9fe;border-color:#c4b5fd}',
+    /* The icon is 14px and the line beside it is 12, so left alone the book
+       would make this button two pixels taller than Import / Export / Save.
+       The negative margin lets it draw at full size without paying for the
+       height - the drawn shape stays the one PLATE3D draws, the box stays the
+       one its neighbours have. */
+    'a.qsc-btn svg{flex:0 0 auto;margin:-1px 0}',
     '.qsc-menu{position:relative;display:inline-block}',
     '.qsc-menu>.d{position:absolute;right:0;top:calc(100% + 4px);z-index:20;display:none;',
       'min-width:150px;background:#fff;border:1px solid #cbd5e1;border-radius:6px;',
@@ -206,8 +239,12 @@
          do every minute to what you do once. Nothing above it moves. */
       '      <a class="qsc-btn" id="qsc-tutorial" href="' + TUTORIAL + '"' +
       '         target="_blank" rel="noopener noreferrer"' +
-      '         title="Watch the walkthrough on YouTube (opens in a new tab)">' +
-      '        <span class="g" aria-hidden="true">&#9658;</span>Tutorial</a>' +
+      /* PLATE3D's Tutorial opens a pane; this one leaves for YouTube. The
+         button looks the same because it means the same thing - learn this
+         page - and the title says where it goes, which is where the two
+         differ. */
+      '         title="watch the walkthrough on YouTube - opens in a new tab">' +
+      ICON_BOOK + 'Tutorial</a>' +
       '    </div>' +
       '    <div id="qsc-body"></div>' +
       '  </div>' +
