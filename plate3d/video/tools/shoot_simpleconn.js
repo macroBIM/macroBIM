@@ -305,17 +305,34 @@ async function press(sel, hold) {
 async function fitPage(pad, spill) {
   return D.evaluate(a => {
     const m = a.pad;
-    /* Excel spills a long label into the empty cell beside it; xlsxpreview's
-       td carries overflow:hidden and cuts it instead, so the take-off's own
-       title came out as "PLATE3D - BILL OF". Letting it spill is the faithful
-       one: no width, font or rule is touched, the text simply goes where Excel
-       puts it. (The other films' sheet pages have the same clip and would want
-       this too, whenever they are next shot.) */
+    /* Excel spills a long label into the cell beside it ONLY IF that cell is
+       empty; if it has something in it, Excel clips. xlsxpreview's td carries
+       overflow:hidden always, so the take-off's own title came out as
+       "PLATE3D - BILL OF".
+
+       So the rule here is Excel's, cell by cell, and not a blanket
+       overflow:visible - which is what this did first and it wrecked the PARAM
+       tab. A merged label is written into EVERY cell of its merge (84 of them
+       on that sheet), and hidden they read as one continuous line while
+       visible they all draw in full, on top of each other, into mush.
+
+       No width, font or rule is touched: the text simply goes where Excel puts
+       it, and the wrapper stops it at the sheet's own right edge. (The other
+       films' sheet pages clip the same way and would want this whenever they
+       are next shot.) */
     if (a.spill && !document.getElementById('__spill')) {
-      const st = document.createElement('style');
-      st.id = '__spill';
-      st.textContent = 'td{overflow:visible!important}';
-      document.head.appendChild(st);
+      const mark = document.createElement('span');
+      mark.id = '__spill';
+      mark.style.display = 'none';
+      document.body.appendChild(mark);
+      [...document.querySelectorAll('tr')].forEach(tr => {
+        const txt = [...tr.cells].map(c => c.innerText.trim());
+        txt.forEach((t, i) => {
+          if (!t) return;
+          const rest = txt.slice(i + 1);
+          if (rest.length && rest.every(x => !x)) tr.cells[i].style.overflow = 'visible';
+        });
+      });
     }
     let d = document.getElementById('__fit');
     if (!d) {

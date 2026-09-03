@@ -63,6 +63,19 @@ function fmt(v, f) {
     let tds = '';
     for (let ci = 1; ci <= nCol; ci++) {
       const c = row.getCell(ci);
+      /* A merged cell is ONE cell that spans several columns. ExcelJS answers
+         the master's value for every address in the range, so writing them all
+         out repeated the text once per column - "Type decides... Type
+         decides... Type decides..." across a chapter heading. The master gets
+         a colspan and the cells it covers are skipped, which is what the sheet
+         actually looks like. */
+      if (c.isMerged && c.master && c.master.address !== c.address) continue;
+      let span = 1;
+      if (c.isMerged && c.master && c.master.address === c.address) {
+        while (ci + span <= nCol && row.getCell(ci + span).isMerged &&
+               row.getCell(ci + span).master &&
+               row.getCell(ci + span).master.address === c.address) span++;
+      }
       const f = c.font || {};
       const b = c.border || {};
       const st = [];
@@ -80,8 +93,10 @@ function fmt(v, f) {
       const numeric = typeof (c.value && c.value.result !== undefined ? c.value.result : c.value) === 'number';
       st.push('text-align:' + (al.horizontal || (numeric ? 'right' : 'left')));
       st.push('vertical-align:' + (al.vertical === 'middle' ? 'middle' : 'bottom'));
-      tds += '<td style="' + st.join(';') + '">' + String(fmt(c.value, c.numFmt))
+      tds += '<td' + (span > 1 ? ' colspan="' + span + '"' : '') +
+             ' style="' + st.join(';') + '">' + String(fmt(c.value, c.numFmt))
         .replace(/&/g, '&amp;').replace(/</g, '&lt;') + '</td>';
+      ci += span - 1;
     }
     body += '<tr style="height:' + h + '">' + tds + '</tr>';
   });
