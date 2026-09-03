@@ -51,7 +51,7 @@ The spreadsheet was there all along.
 | 설명 1행 | `Fill in a form. The column-beam joint stands up in 3D BIM in your browser — nothing to install, nothing to download.` |
 | 설명 2행 | `Column in three pieces, H or tube, up to four beams, the connections and the stiffeners — with the drawings and the take-off.` |
 | 태그 | BIM · steel connection · column beam joint · splice · stiffener · coping · end plate · fin plate · shop drawing · DXF · BOQ · parametric model · structural steel · browser BIM · PLATE3D · macroBIM |
-| 규격 | 2:54 · 2560×1440 · 30 fps · 무음 |
+| 규격 | 3:04 · 2560×1440 · 30 fps · 무음 |
 
 앞 영상들보다 **깁니다.** 안내라서 그렇습니다 — 여섯 블록을 하나씩 짚는 데
 1분으로는 안 됩니다. 대신 **컷마다 하나씩만** 말합니다.
@@ -68,6 +68,7 @@ The spreadsheet was there all along.
 | 6 | 형강 | Name the section. Five boxes fill themselves. |
 | 7 | 각관 | Or a tube. The detail follows. |
 | 10 | 보 | Up to four. Type a length, get a beam. |
+| 10b | 높이 | And how high each one sits. |
 | 11 | 조인트 | Declare a connection. Name it against a beam. |
 | 12 | 스티프너 | Where they meet, the flange comes off. |
 | 15 | 반전 | The spreadsheet was there all along. |
@@ -91,15 +92,16 @@ The spreadsheet was there all along.
 | 8 | 1:00 | 10s | 다시 **H** 로 · **3장 COLUMN SPLICE PLATES** — 커버플레이트 3종 + 엔드플레이트, `over` 는 각관 줄에만 | *Cover plates on an H. An end plate on a tube.* |
 | 9 | 1:10 | 6s | **4장 BOLTS** — dia · hole · grade, 그리고 **그립마다 따로 나오는 길이** | *Every grip gets its own length.* |
 | 10 | 1:16 | 20s | **6장 BEAMS** — 네 줄 전부 Length 0 · **하나씩 900 을 친다** · X+ → X− → Y+ → Y− · 보가 한 개씩 선다 | **Up to four.**<br>**Type a length, get a beam.** |
-| 11 | 1:36 | 16s | **5장 CONNECTION** 에서 `C1 end plate` · `C3 fin plate` 선언 → **6장 각 보의 Detail 칸 드롭다운**에 그 이름이 뜸 → Y+ 를 C1 로 바꿈 → 핀플레이트가 엔드플레이트로 | **Declare a connection.**<br>**Name it against a beam.** |
-| 12 | 1:52 | 16s | **2장 COLUMN STIFFENER** — 레벨 8줄 · offset · width · depth · thick 짚기 → **thick 12 → 0** → 스티프너가 사라지고 **잘렸던 보 플랜지가 돌아옴** → 되돌리면 다시 잘림 | **Where they meet,**<br>**the flange comes off.** |
-| 13 | 2:08 | 10s | 2장 **clearance 20 → 0** · 코핑 자국이 판에 딱 붙음 · 중량이 501.079 → **502.298** | *You set the room it leaves.* |
-| 14 | 2:18 | 14s | **Save DXF** → 도면 · **Save BOQ** → 산출서 | *The drawings and the take-off come with it.* |
-| 15 | 2:32 | 10s | **Export .xlsx** → 워크북 · PARAM 탭을 지나 **`input` 탭의 행들**이 흘러감 | **The spreadsheet**<br>**was there all along.** |
-| 16 | 2:39 | 10s | **PLATE3D 페이지 → Example** · 목록에서 **Simple connector**(`PLATE3D_COLUMN.xlsx` · 179행 → 129부재 · 468 kg) 를 짚고 **DOWNLOAD 를 누름** | *Or take the same workbook out of PLATE3D.* |
-| 17 | 2:49 | 5s | 로고 | **PLATE3D by macroBIM** |
+| 10b | 1:36 | 10s | **6장 `level`** — Y+ 에 **300** 을 침 → 그 보만 올라감 (501.079 → **503.820 kg**, 스티프너에서 비켜나 플랜지가 덜 잘려서) → 0 으로 되돌림 | **And how high**<br>**each one sits.** |
+| 11 | 1:46 | 16s | **5장 CONNECTION** 에서 `C1 end plate` · `C3 fin plate` 선언 → **6장 각 보의 Detail 칸 드롭다운**에 그 이름이 뜸 → Y+ 를 C1 로 바꿈 → 핀플레이트가 엔드플레이트로 | **Declare a connection.**<br>**Name it against a beam.** |
+| 12 | 2:02 | 16s | **2장 COLUMN STIFFENER** — 레벨 8줄 · offset · width · depth · thick 짚기 → **thick 12 → 0** → 스티프너가 사라지고 **잘렸던 보 플랜지가 돌아옴** → 되돌리면 다시 잘림 | **Where they meet,**<br>**the flange comes off.** |
+| 13 | 2:18 | 10s | 2장 **clearance 20 → 0** · 코핑 자국이 판에 딱 붙음 · 중량이 501.079 → **502.298** | *You set the room it leaves.* |
+| 14 | 2:28 | 14s | **Save DXF** → 도면 · **Save BOQ** → 산출서 | *The drawings and the take-off come with it.* |
+| 15 | 2:42 | 10s | **Export .xlsx** → 워크북 · PARAM 탭을 지나 **`input` 탭의 행들**이 흘러감 | **The spreadsheet**<br>**was there all along.** |
+| 16 | 2:49 | 10s | **PLATE3D 페이지 → Example** · 목록에서 **Simple connector**(`PLATE3D_COLUMN.xlsx` · 179행 → 129부재 · 468 kg) 를 짚고 **DOWNLOAD 를 누름** | *Or take the same workbook out of PLATE3D.* |
+| 17 | 2:59 | 5s | 로고 | **PLATE3D by macroBIM** |
 
-**총 2:54.**
+**총 3:04.**
 
 **16번은 문을 하나 더 엽니다.** 폼은 문턱을 없앤 문이고, 같은 워크북이 PLATE3D 의
 Example 목록에 그대로 있습니다. 행을 채우는 편이 편한 사람은 받아서 그렇게 하면
@@ -114,7 +116,7 @@ Example 목록에 그대로 있습니다. 행을 채우는 편이 편한 사람�
 |---|---|---|
 | 형상 | 1–4 | 이게 뭐고, 어디서 여나 |
 | **기둥** | 5–9 | 몇 조각인가 · 무슨 단면인가 · 이음을 어떻게 하나 |
-| **보** | 10 | 몇 개까지, 어느 방향으로 |
+| **보** | 10–10b | 몇 개까지, 어느 방향으로, 그리고 어느 높이에 |
 | **접합** | 11 | 보를 기둥에 어떻게 붙이나 |
 | **기둥 속** | 12–13 | 스티프너, 그리고 그것 때문에 잘리는 것 |
 | 나오는 것 | 14–16 | 도면 · 산출서 · 시트 · 그리고 그 시트를 받아가는 문 |
@@ -242,7 +244,22 @@ H-300 은 110 그대로라 **배포 워크북의 입력값은 한 칸도 안 바
 
 ## 11. 찍었다
 
-**`PLATE3D_SIMPLECONN.mp4` · 2:54 · 2560×1440 · 30 fps · 무음 · 233 스틸 · 자막 15장.**
+**`PLATE3D_SIMPLECONN.mp4` · 3:04 · 2560×1440 · 30 fps · 무음 · 240 스틸 · 자막 16장.**
+
+### 10b — 보의 높이
+
+보 네 개가 **한 평면에만** 있을 수 있었습니다. 보는 높이를 갖고 오는데, 그 높이가
+폼이 말하게 해 주지 않는 유일한 것이었습니다. 6장에 `level` 칸이 생겼고(기둥
+중심에서 잰 부호값, 2장 offset 과 같은 기준), 10b 가 그것을 씁니다.
+
+**Y+ 에 300 을 치면 501.079 → 503.820 kg 으로 무거워집니다.** 보가 스티프너에서
+비켜나 **플랜지가 덜 잘렸기** 때문입니다. `NOTCH ... BY` 가 판을 이름으로 지목하고
+모양은 엔진이 실제 자리에서 계산하니, 코핑은 저절로 따라옵니다.
+
+**스티프너는 안 따라갑니다.** 보가 깊이를 바꿀 때 정한 규칙 그대로 — 사람이 정한
+숫자를 밑에서 바꾸지 않습니다. 대신 검사줄이 **스티프너가 서야 할 높이를 전부**
+나열합니다. 간섭이 나면 **알려만 줍니다**: 보를 0/150/300/−200 에 두면 겹침 1,
+`PL.STF2` × `PL.CND`, 물린 크기 10×109×12.
 
 ### 왼쪽 메뉴를 잘못 찍었다 — 고쳤다
 

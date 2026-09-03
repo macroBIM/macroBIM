@@ -184,8 +184,14 @@ async function serve(page) {
     if (f && fs.existsSync(f)) {
       if (/embed(_test)?\.html$/.test(f)) {                 // the harness, ahead of the engine
         const h = fs.readFileSync(f, 'utf8');
-        const at = h.search(/<script src="plate_builder(_test)?\.js/);
-        if (at < 0) throw new Error('no engine tag in ' + f);
+        /* The two embeds name the engine differently - embed.html has a plain
+           <script src>, embed_test.html sets s.src from JS so it can cache-bust
+           itself - so the anchor is the first mention of the engine either way,
+           and the shim goes before whatever <script> block holds it. */
+        const eng = h.search(/plate_builder(_test)?\.js/);
+        if (eng < 0) throw new Error('no engine named in ' + f);
+        const at = h.lastIndexOf('<script', eng);
+        if (at < 0) throw new Error('engine in ' + f + ' is not inside a script');
         return route.fulfill({ contentType: 'text/html', body: h.slice(0, at) + SHIM + '\n' + h.slice(at) });
       }
       return route.fulfill({ body: fs.readFileSync(f), contentType: mime(f) });
