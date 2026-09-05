@@ -83,10 +83,16 @@
     '.qcb-chk{font:600 10.5px/1.6 Arial,sans-serif;color:#b45309;padding:3px 2px 0;',
       'display:flex;flex-wrap:wrap;gap:4px 18px}',
     '.qcb-chk .k{color:#64748b;font-weight:400}',
-    '.qcb-add{font:600 10.5px/1 Arial,sans-serif;color:#1d4ed8;background:none;border:0;',
-      'cursor:pointer;padding:6px 2px 0}',
-    '.qcb-add:hover{text-decoration:underline}',
-    '.qcb-add.del{color:#94a3b8;margin-left:10px}',
+    /* 줄을 더하고 빼는 버튼. 사이트에 이미 있는 모양을 그대로 쓴다 —
+       beam_multi.js 의 .cb-ladd (「+ Add load」), PIER 의 「+ Add pier」.
+       같은 일을 하는 버튼이 화면마다 다르게 생길 이유가 없다. */
+    '.qcb-addrow{display:flex;justify-content:center;gap:8px;',
+      'border-top:1px solid #eef0f3;padding:9px 0 2px;margin-top:6px}',
+    '.qcb-add{border:1px solid #cbd5e1;background:#fff;color:#2563eb;border-radius:6px;',
+      'padding:3px 11px;font:600 11px/1.6 Arial,sans-serif;cursor:pointer}',
+    '.qcb-add:hover{border-color:#2563eb}',
+    '.qcb-add.del{color:#64748b}',
+    '.qcb-add.del:hover{border-color:#64748b}',
     /* the drawing sits under the form, as wide as it */
     '#qcb-views{display:flex;gap:12px;align-items:flex-start}',
     '.qcb-view{border:1px solid #e3e6ea;border-radius:8px;background:#15181c;padding:10px}',
@@ -345,8 +351,10 @@
         'every girder that named it is still right. Variable-depth girders — a flange that ' +
         'changes along the span — are a later step; one section runs the whole span here.',
         '');
-      C.gtypes += '<button class="qcb-add" data-add="gt">+ Add girder type</button>' +
-           (V.gt.length > 1 ? '<button class="qcb-add del" data-del="gt">− Remove last</button>' : '');
+      C.gtypes += '<div class="qcb-addrow">' +
+        '<button type="button" class="qcb-add" data-add="gt">+ Add girder type</button>' +
+        (V.gt.length > 1 ? '<button type="button" class="qcb-add del" data-del="gt"'
+          + ' title="Remove the last row">− Remove last</button>' : '') + '</div>';
 
       /* 3 — stiffener and scallop */
       var thick = V.gt.reduce(function (a, t) { return Math.max(a, t.tb); }, 0);
@@ -389,8 +397,10 @@
         'one of the five, so they share one library. <b>Pick a solid form and the chord cells ' +
         'go quiet; pick a truss and the section cell does.</b>',
         '');
-      C.ctypes += '<button class="qcb-add" data-add="ct">+ Add crossbeam type</button>' +
-           (V.ct.length > 1 ? '<button class="qcb-add del" data-del="ct">− Remove last</button>' : '');
+      C.ctypes += '<div class="qcb-addrow">' +
+        '<button type="button" class="qcb-add" data-add="ct">+ Add crossbeam type</button>' +
+        (V.ct.length > 1 ? '<button type="button" class="qcb-add del" data-del="ct"'
+          + ' title="Remove the last row">− Remove last</button>' : '') + '</div>';
 
       /* the bolted connection — what makes it a shop drawing rather than a
          stick model. Ten cells, one row; the manual's own symbols. */
@@ -425,8 +435,10 @@
                  ' &middot; group ' + q.span + ' in plate ' + b.W +
                  (q.fitOK ? ' OK' : ' TOO WIDE');
         }).join(''));
-      C.conn += '<button class="qcb-add" data-add="bc">+ Add connection</button>' +
-           (V.bc.length > 1 ? '<button class="qcb-add del" data-del="bc">− Remove last</button>' : '');
+      C.conn += '<div class="qcb-addrow">' +
+        '<button type="button" class="qcb-add" data-add="bc">+ Add connection</button>' +
+        (V.bc.length > 1 ? '<button type="button" class="qcb-add del" data-del="bc"'
+          + ' title="Remove the last row">− Remove last</button>' : '') + '</div>';
 
       /* 5 — crossbeam layout */
       var bays = V.ng - 1, bh = [''], ba = [''];
