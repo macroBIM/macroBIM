@@ -249,16 +249,30 @@
       '  </div>' +
       '  <div id="qcb-views">' +
       '    <div class="qcb-view" style="flex:1;min-width:0">' +
-      '      <h4>GIRDER SECTION</h4><div id="qcb-d3"></div>' +
+      '      <h4>1 &middot; GIRDER SECTION</h4><div id="qcb-d3"></div>' +
       '      <div class="qcb-cap" id="qcb-cap3"></div>' +
       '    </div>' +
-      '    <div class="qcb-view" style="flex:1.4;min-width:0">' +
-      '      <h4>CROSSBEAM &amp; CONNECTION</h4><div id="qcb-d4"></div>' +
+      '    <div class="qcb-view" style="flex:1.35;min-width:0">' +
+      '      <h4>2 &middot; CROSSBEAM</h4><div id="qcb-d4"></div>' +
       '      <div class="qcb-cap" id="qcb-cap4"></div>' +
       '    </div>' +
+      '    <div class="qcb-view" style="flex:1.05;min-width:0">' +
+      '      <h4>3 &middot; BOLT GROUP</h4><div id="qcb-d5"></div>' +
+      '      <div class="qcb-cap" id="qcb-cap5"></div>' +
+      '    </div>' +
+      '  </div>' +
+      '  <div id="qcb-views">' +
       '    <div class="qcb-view" style="flex:1;min-width:0">' +
-      '      <h4>STIFFENER &amp; SCALLOP</h4><div id="qcb-d2"></div>' +
+      '      <h4>4 &middot; STIFFENER &amp; SCALLOP</h4><div id="qcb-d2"></div>' +
       '      <div class="qcb-cap" id="qcb-cap2"></div>' +
+      '    </div>' +
+      '    <div class="qcb-view" style="flex:1.35;min-width:0">' +
+      '      <h4>6 &middot; DECK SLAB</h4><div id="qcb-d6"></div>' +
+      '      <div class="qcb-cap" id="qcb-cap6"></div>' +
+      '    </div>' +
+      '    <div class="qcb-view" style="flex:1.05;min-width:0">' +
+      '      <h4>7 &middot; BARRIER</h4><div id="qcb-d7"></div>' +
+      '      <div class="qcb-cap" id="qcb-cap7"></div>' +
       '    </div>' +
       '  </div>' +
       '</div>');
@@ -664,7 +678,17 @@
 
       drawGirder();
       drawCross();
+      drawBolt();
       drawStiff();
+      drawSlab();
+      drawBarrier();
+    }
+
+    /* ---- 기호 붙이기. 표의 머리글에 적은 글자를 그림에 그대로 쓴다.
+       칸과 그림을 잇는 것은 그 글자 하나뿐이므로, 다르게 쓰면 안 이어진다. ---- */
+    function sym(g, x, y, t, col) {
+      g.push('<text x="' + x + '" y="' + y + '" fill="' + (col || '#fbbf24') +
+        '" font-size="11" font-weight="700">' + t + '</text>');
     }
 
     /* ---- 주거더 형상. 1장에서 적은 여섯 숫자가 무엇을 정하는지 한 장으로. ---- */
@@ -717,6 +741,136 @@
       wrap.querySelector('#qcb-cap3').innerHTML =
         '<b>' + esc(t.m) + '</b> &middot; ' + rnd(D.kgm(t), 1) + ' kg/m &middot; used by ' +
         (used.length ? used.join(', ') : '&mdash; nothing yet');
+    }
+
+    /* ---- 3장 볼트 연결. 연결판 한 장을 크게, 매뉴얼의 기호를 그대로 얹어.
+       표에 A·B·C·E·F·T·W 라고 적어 두고 그림에 안 적으면 아무도 못 잇는다. ---- */
+    function drawBolt() {
+      var t = D.ctOf(0), b = D.bcOf(t.c), q = D.bcChk(b);
+      var w = 340, h = 400;
+      var pw = b.W, ph = (b.nr - 1) * b.pit + 2 * b.e;
+      var SC = Math.min(210 / Math.max(pw, 1), 250 / Math.max(ph, 1));
+      var x0 = w / 2 - 24, y0 = h / 2 + (ph * SC) / 2 - 10;
+      var X = function (m) { return rnd(x0 - (pw * SC) / 2 + m * SC, 1); };
+      var Y = function (m) { return rnd(y0 - m * SC, 1); };
+      var g = [];
+      g.push('<rect x="' + X(0) + '" y="' + Y(ph) + '" width="' + (pw * SC) + '" height="' +
+        (ph * SC) + '" fill="#a78bfa" fill-opacity="0.30" stroke="#c4b5fd" stroke-width="1.2"/>');
+      var gx0 = (pw - (b.nc - 1) * b.ga) / 2, ic, ir;
+      for (ic = 0; ic < b.nc; ic++) for (ir = 0; ir < b.nr; ir++)
+        g.push('<circle cx="' + X(gx0 + ic * b.ga) + '" cy="' + Y(b.e + ir * b.pit) +
+          '" r="' + Math.max(2.5, q.d / 2 * SC) + '" fill="none" stroke="#ddd6fe" stroke-width="1.4"/>');
+      var dh = function (x1, x2, sy, lab) {
+        g.push('<line x1="' + X(x1) + '" y1="' + sy + '" x2="' + X(x2) + '" y2="' + sy +
+          '" stroke="#ef4444" stroke-width="1"/><line x1="' + X(x1) + '" y1="' + (sy - 4) +
+          '" x2="' + X(x1) + '" y2="' + (sy + 4) + '" stroke="#ef4444"/><line x1="' + X(x2) +
+          '" y1="' + (sy - 4) + '" x2="' + X(x2) + '" y2="' + (sy + 4) + '" stroke="#ef4444"/>');
+        sym(g, (X(x1) + X(x2)) / 2 - 12, sy - 6, lab);
+      };
+      var dv = function (sx, y1, y2, lab) {
+        g.push('<line x1="' + sx + '" y1="' + Y(y1) + '" x2="' + sx + '" y2="' + Y(y2) +
+          '" stroke="#ef4444" stroke-width="1"/><line x1="' + (sx - 4) + '" y1="' + Y(y1) +
+          '" x2="' + (sx + 4) + '" y2="' + Y(y1) + '" stroke="#ef4444"/><line x1="' + (sx - 4) +
+          '" y1="' + Y(y2) + '" x2="' + (sx + 4) + '" y2="' + Y(y2) + '" stroke="#ef4444"/>');
+        sym(g, sx + 5, (Y(y1) + Y(y2)) / 2 + 4, lab);
+      };
+      dh(0, pw, Y(ph) - 22, 'W ' + pw);
+      if (b.nc > 1) dh(gx0, gx0 + b.ga, Y(ph) - 6, 'F ' + b.ga);
+      dv(X(pw) + 14, 0, b.e, 'A ' + b.e);
+      if (b.nr > 1) dv(X(pw) + 60, b.e, b.e + b.pit, 'C ' + b.pit);
+      sym(g, X(0) - 4, Y(ph) - 38, 'T ' + b.T + '  ·  ' + esc(b.dia) + ' L' + b.len, '#94a3b8');
+      sym(g, X(0), Y(0) + 24, 'B ' + b.nr + ' rows  ×  E ' + b.nc + ' cols  =  ' +
+        (b.nr * b.nc), '#7dd3fc');
+      wrap.querySelector('#qcb-d5').innerHTML =
+        '<svg viewBox="0 0 ' + w + ' ' + h + '" preserveAspectRatio="xMidYMid meet">' +
+        g.join('') + '</svg>';
+      wrap.querySelector('#qcb-cap5').innerHTML =
+        '<b>' + esc(b.m) + '</b> &middot; edge <b>A</b> ' + b.e +
+        (q.edgeOK ? ' &ge; ' + q.need + ' OK' : ' &lt; ' + q.need + ' <b>SHORT</b>') +
+        ' &middot; group ' + q.span + ' in <b>W</b> ' + b.W + (q.fitOK ? ' OK' : ' <b>too wide</b>');
+    }
+
+    /* ---- 6장 슬래브. 한쪽 끝에서 마루까지 잘라, T·T1·H·A·W1 을 얹는다. ---- */
+    function drawSlab() {
+      var w = 440, h = 300, half = D.half, SC = Math.min(330 / half, 0.9);
+      var x0 = 30, y0 = 165;
+      var X = function (m) { return rnd(x0 + (m + half) * SC, 1); };
+      var Y = function (m) { return rnd(y0 - m * SC * 3.2, 1); };   // 두께 방향은 과장
+      var top = function (m) { return -(-m) * V.slopeL / 100; };
+      var g = [], botZ = D.level ? (top(-half) - V.T1) : null;
+      var xs = [-half, D.gx[0], 0];
+      g.push('<path d="M ' + X(-half) + ' ' + Y(top(-half) + V.pav) + ' L ' + X(0) + ' ' +
+        Y(V.pav) + '" stroke="#64748b" stroke-dasharray="5 3" fill="none"/>');
+      var p = 'M ' + X(-half) + ' ' + Y(top(-half)) + ' L ' + X(0) + ' ' + Y(0);
+      if (D.level) {
+        var hb = D.gtOf(0).bt + 120, gx = D.gx[0];
+        p += ' L ' + X(0) + ' ' + Y(botZ) +
+             ' L ' + X(gx + hb / 2) + ' ' + Y(botZ) +
+             ' L ' + X(gx + hb / 2 - 70) + ' ' + Y(botZ - V.hh) +
+             ' L ' + X(gx - hb / 2 + 70) + ' ' + Y(botZ - V.hh) +
+             ' L ' + X(gx - hb / 2) + ' ' + Y(botZ) + ' L ' + X(-half) + ' ' + Y(botZ) + ' Z';
+      } else {
+        p += ' L ' + X(0) + ' ' + Y(-V.T1) + ' L ' + X(-half) + ' ' + Y(top(-half) - V.T1) + ' Z';
+      }
+      g.push('<path d="' + p + '" fill="url(#qcbHz2)" stroke="#38bdf8" stroke-width="1.4"/>');
+      var dvS = function (sx, z1, z2, lab) {
+        g.push('<line x1="' + sx + '" y1="' + Y(z1) + '" x2="' + sx + '" y2="' + Y(z2) +
+          '" stroke="#ef4444" stroke-width="1"/>');
+        sym(g, sx + 5, (Y(z1) + Y(z2)) / 2 + 4, lab);
+      };
+      dvS(X(-half) - 16, top(-half), (D.level ? botZ : top(-half) - V.T1), 'T1 ' + V.T1);
+      dvS(X(0) - 66, 0, (D.level ? botZ : -V.T1), 'T ' + rnd(D.crownT, 0));
+      dvS(X(-half) + 30, top(-half), top(-half) + V.pav, 'A ' + V.pav);
+      if (D.level) dvS(X(D.gx[0]) - 6, botZ, botZ - V.hh, 'H ' + V.hh);
+      g.push('<line x1="' + X(-half) + '" y1="' + (Y(top(-half)) + 34) + '" x2="' +
+        X(-half + V.ovh) + '" y2="' + (Y(top(-half)) + 34) + '" stroke="#ef4444"/>');
+      sym(g, X(-half) + 2, Y(top(-half)) + 50, 'W1 ' + V.ovh);
+      sym(g, X(-half * 0.45), Y(top(-half * 0.45)) - 12, '&minus;' + V.slopeL.toFixed(1) + ' %');
+      sym(g, X(0) - 40, Y(0) - 26, 'crown', '#94a3b8');
+      wrap.querySelector('#qcb-d6').innerHTML =
+        '<svg viewBox="0 0 ' + w + ' ' + h + '" preserveAspectRatio="xMidYMid meet">' +
+        '<defs><pattern id="qcbHz2" width="7" height="7" patternTransform="rotate(45)"' +
+        ' patternUnits="userSpaceOnUse"><line x1="0" y1="0" x2="0" y2="7" stroke="#334155"' +
+        ' stroke-width="1.6"/></pattern></defs>' + g.join('') + '</svg>';
+      wrap.querySelector('#qcb-cap6').innerHTML =
+        'Left half, crown at the right. Thickness exaggerated 3.2&times; so <b>T</b> and ' +
+        '<b>H</b> can be read. Soffit <b>' + esc(V.soffit).toLowerCase() + '</b>.';
+    }
+
+    /* ---- 7장 방호벽. H1·H2·H3 과 위아래 폭. ---- */
+    function drawBarrier() {
+      var w = 300, h = 400, H3 = V.bh1 + V.bh2 + V.bh3;
+      var SC = Math.min(200 / Math.max(V.bwb, 1), 250 / Math.max(H3, 1));
+      var x0 = w / 2 - 30, y0 = 320;
+      var X = function (m) { return rnd(x0 + m * SC, 1); };
+      var Y = function (m) { return rnd(y0 - m * SC, 1); };
+      var g = [];
+      g.push('<path d="M ' + X(0) + ' ' + Y(0) + ' L ' + X(V.bwb) + ' ' + Y(0) +
+        ' L ' + X(V.bwt) + ' ' + Y(H3) + ' L ' + X(0) + ' ' + Y(H3) +
+        ' Z" fill="url(#qcbHz3)" stroke="#38bdf8" stroke-width="1.4"/>');
+      [[0, V.bh1, 'H1 ' + V.bh1], [V.bh1, V.bh1 + V.bh2, 'H2 ' + V.bh2],
+       [V.bh1 + V.bh2, H3, 'H3 ' + V.bh3]].forEach(function (d, i) {
+        var sx = X(V.bwb) + 16;
+        g.push('<line x1="' + sx + '" y1="' + Y(d[0]) + '" x2="' + sx + '" y2="' + Y(d[1]) +
+          '" stroke="#ef4444" stroke-width="1"/><line x1="' + (sx - 4) + '" y1="' + Y(d[0]) +
+          '" x2="' + (sx + 4) + '" y2="' + Y(d[0]) + '" stroke="#ef4444"/><line x1="' + (sx - 4) +
+          '" y1="' + Y(d[1]) + '" x2="' + (sx + 4) + '" y2="' + Y(d[1]) + '" stroke="#ef4444"/>');
+        sym(g, sx + 5, (Y(d[0]) + Y(d[1])) / 2 + 4, d[2]);
+      });
+      g.push('<line x1="' + X(0) + '" y1="' + (Y(H3) - 14) + '" x2="' + X(V.bwt) + '" y2="' +
+        (Y(H3) - 14) + '" stroke="#ef4444"/>');
+      sym(g, X(0), Y(H3) - 20, 'top ' + V.bwt);
+      g.push('<line x1="' + X(0) + '" y1="' + (Y(0) + 22) + '" x2="' + X(V.bwb) + '" y2="' +
+        (Y(0) + 22) + '" stroke="#ef4444"/>');
+      sym(g, X(0), Y(0) + 38, 'btm ' + V.bwb);
+      wrap.querySelector('#qcb-d7').innerHTML =
+        '<svg viewBox="0 0 ' + w + ' ' + h + '" preserveAspectRatio="xMidYMid meet">' +
+        '<defs><pattern id="qcbHz3" width="7" height="7" patternTransform="rotate(45)"' +
+        ' patternUnits="userSpaceOnUse"><line x1="0" y1="0" x2="0" y2="7" stroke="#334155"' +
+        ' stroke-width="1.6"/></pattern></defs>' + g.join('') + '</svg>';
+      wrap.querySelector('#qcb-cap7').innerHTML =
+        'Height ' + H3 + ' &middot; area ' + rnd(D.barA, 2) + ' m&sup2; &middot; ' +
+        (V.bSym ? 'both sides the same' : 'each side entered on its own');
     }
 
     /* ---- 가로보 형상. 한 칸을 정면에서 — 현재·사재·연결판·볼트가 어디 붙는지. ---- */
@@ -823,12 +977,19 @@
       g.push('<text x="' + X(-t.bb / 2 + 10) + '" y="' + Y(-t.tb - 60) +
              '" fill="#94a3b8" font-size="11">' + esc(V.gAsg[0]) + ' bottom flange ' +
              t.bb + '&times;' + t.tb + '</text>');
+      /* T 와 G 는 교축방향이라 이 단면에 안 나타난다. 그림에 없다고 표에만
+         남겨 두면 그 두 칸은 끝까지 뜻을 모른 채로 남는다 — 글로 잇는다. */
+      sym(g, X(-t.tw / 2 - V.stW - 118), Y(300),
+        'W ' + V.stW + ' &times; T ' + V.stT, '#c4b5fd');
       wrap.querySelector('#qcb-d2').innerHTML =
         '<svg viewBox="0 0 ' + w + ' ' + h + '" preserveAspectRatio="xMidYMid meet">' +
         g.join('') + '</svg>';
       wrap.querySelector('#qcb-cap2').innerHTML =
-        'Enlarged at the bottom. Flange t' + thick + ' &rarr; the <b>' +
-        (thick > 16 ? 't &gt; 16' : 't &le; 16') + '</b> scallop set.';
+        '<b>W</b> ' + V.stW + ' &middot; <b>T</b> ' + V.stT + ' &middot; <b>G</b> ' + V.stG +
+        ' &middot; <b>H</b> ' + V.stH + ' &middot; scallop a' + a + '&middot;c' + c +
+        '. <b>T</b> and <b>G</b> run along the bridge, so they do not show in this section. ' +
+        'Flange t' + thick + ' &rarr; the <b>' + (thick > 16 ? 't &gt; 16' : 't &le; 16') +
+        '</b> set.';
     }
 
     /* ---------------- writing a value back ----------------
