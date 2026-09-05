@@ -139,11 +139,20 @@
       scA: [25, 25, 35], scB: [35, 35, 50],   // scallop: t <= 16 / t > 16
       ct: [                                   // crossbeam type library
         { m: 'CT1', f: 'V frame', s: 'H-500x200x10x16', u: 'L-130x130x12',
-          l: 'L-130x130x12', d: 'L-130x130x12', p: 12, b: 'M22' },
+          l: 'L-130x130x12', d: 'L-130x130x12', c: 'BC1' },
         { m: 'CT2', f: 'Inverted V frame', s: 'H-500x200x10x16', u: 'L-150x150x15',
-          l: 'L-150x150x15', d: 'L-150x150x15', p: 14, b: 'M22' },
+          l: 'L-150x150x15', d: 'L-150x150x15', c: 'BC2' },
         { m: 'CT3', f: 'Rolled beam', s: 'H-500x200x10x16', u: '', l: '', d: '',
-          p: 12, b: 'M22' }
+          c: 'BC1' }
+      ],
+      /* Bolted connection library. The symbols are the manual's own, from
+         §2.4.9 — A the edge distance, B and C the count and pitch one way,
+         E and F the count and gauge the other, T and W the plate, L the bolt.
+         It is kept apart from the crossbeam types because a field splice
+         (§2.4.9 proper) is described by exactly these nine numbers too. */
+      bc: [
+        { m: 'BC1', T: 12, W: 300, dia: 'M22', len: 55, nr: 2, pit: 90, nc: 2, ga: 90, e: 40 },
+        { m: 'BC2', T: 14, W: 340, dia: 'M24', len: 60, nr: 3, pit: 90, nc: 2, ga: 90, e: 45 }
       ],
       cAsg: ['CT1', 'CT1', 'CT1', 'CT1'],
       cEnd: 'CT2', cPitch: 5000, cSeat: 'Sloped',
@@ -183,6 +192,18 @@
       var m = V.cAsg[i];
       for (var k = 0; k < V.ct.length; k++) if (V.ct[k].m === m) return V.ct[k];
       return V.ct[0];
+    };
+    D.bcOf = function (m) {
+      for (var k = 0; k < V.bc.length; k++) if (V.bc[k].m === m) return V.bc[k];
+      return V.bc[0];
+    };
+    /* 기하 검사 — 내력이 아니라 「들어가느냐」. 볼트 지름의 1.5배가 연단거리의
+       흔한 최소값이고, 판 폭이 볼트군을 담는지도 여기서 잰다. */
+    D.bcChk = function (b) {
+      var d = num(String(b.dia).replace(/[^0-9.]/g, ''), 22);
+      var need = Math.ceil(d * 1.5);
+      var span = (b.nc - 1) * b.ga + 2 * b.e;
+      return { d: d, need: need, edgeOK: b.e >= need, span: span, fitOK: span <= b.W };
     };
     D.kgm = function (t) {
       return (t.hw * t.tw + t.bt * t.tt + t.bb * t.tb) * 7.85e-6 * 1000;
@@ -356,11 +377,11 @@
                          tr ? sel('ct.' + k + '.u', t.u, ANGLES) : inp('ct.' + k + '.u', '—', true),
                          tr ? sel('ct.' + k + '.l', t.l, ANGLES) : inp('ct.' + k + '.l', '—', true),
                          tr ? sel('ct.' + k + '.d', t.d, ANGLES) : inp('ct.' + k + '.d', '—', true),
-                         inp('ct.' + k + '.p', t.p), sel('ct.' + k + '.b', t.b, BOLTS),
+                         sel('ct.' + k + '.c', t.c, V.bc.map(function (q) { return q.m; }), 'mk'),
                          out(isTruss(t.f) ? 'truss of angles' : 'one solid member')], 2);
       }).join('');
       C.ctypes = chapter(4, 'Crossbeam types', 'one row is one type — five forms', 'APlate §2.4.10 · §2.4.11',
-        { w: W9, h: ['', 'Form', 'Section', 'Top chord', 'Btm chord', 'Diagonal', 'Plate t', 'Bolt', ''] },
+        { w: W9, h: ['', 'Form', 'Section', 'Top chord', 'Btm chord', 'Diagonal', 'Connection', ''] },
         ctRows,
         'The manual keeps these on two screens: <b>§2.4.10, the crossbeam</b> is one solid member — ' +
         'rolled beam, built-up plate, or connected straight to the stiffener — and ' +
@@ -370,6 +391,42 @@
         '');
       C.ctypes += '<button class="qcb-add" data-add="ct">+ Add crossbeam type</button>' +
            (V.ct.length > 1 ? '<button class="qcb-add del" data-del="ct">− Remove last</button>' : '');
+
+      /* the bolted connection — what makes it a shop drawing rather than a
+         stick model. Ten cells, one row; the manual's own symbols. */
+      var W10 = ['11%', '8%', '8%', '8.5%', '8%', '7%', '8%', '7%', '8%', '8%', '18.5%'];
+      var bcRows = V.bc.map(function (b, k) {
+        var q = D.bcChk(b);
+        return row(b.m, [inp('bc.' + k + '.T', b.T), inp('bc.' + k + '.W', b.W),
+                         sel('bc.' + k + '.dia', b.dia, BOLTS), inp('bc.' + k + '.len', b.len),
+                         inp('bc.' + k + '.nr', b.nr), inp('bc.' + k + '.pit', b.pit),
+                         inp('bc.' + k + '.nc', b.nc), inp('bc.' + k + '.ga', b.ga),
+                         inp('bc.' + k + '.e', b.e),
+                         out('<b>' + (b.nr * b.nc) + '</b> bolts &middot; ' +
+                             (q.edgeOK && q.fitOK ? 'fits' : 'check below'))], 2);
+      }).join('');
+      C.conn = chapter(0, 'Bolted connection', 'the bolt group a crossbeam type calls by name',
+        'APlate §2.4.9',
+        { w: W10, h: ['', 'Plate T', 'Plate W', 'Bolt', 'Length L', 'Rows B', 'Pitch C',
+                      'Cols E', 'Gauge F', 'Edge A', ''] },
+        bcRows,
+        'The symbols are the manual\'s own (§2.4.9): <b>A</b> the edge distance, <b>B</b> and ' +
+        '<b>C</b> the count and pitch one way, <b>E</b> and <b>F</b> the count and gauge the ' +
+        'other, <b>T</b> and <b>W</b> the plate, <b>L</b> the bolt. It is a library of its own ' +
+        'because a field splice is described by exactly these nine numbers too — <b>one ' +
+        'description, two users.</b> A crossbeam type names one of these in chapter 2, and ' +
+        '<b>the drawing below counts and spaces the bolts from here</b>, so a wrong number ' +
+        'shows rather than hides.',
+        V.bc.map(function (b) {
+          var q = D.bcChk(b);
+          return '<span class="k">' + esc(b.m) + '</span> ' + (b.nr * b.nc) + '&times;' +
+                 esc(b.dia) + ' &middot; edge ' + b.e +
+                 (q.edgeOK ? ' &ge; ' + q.need + ' OK' : ' &lt; ' + q.need + ' SHORT') +
+                 ' &middot; group ' + q.span + ' in plate ' + b.W +
+                 (q.fitOK ? ' OK' : ' TOO WIDE');
+        }).join(''));
+      C.conn += '<button class="qcb-add" data-add="bc">+ Add connection</button>' +
+           (V.bc.length > 1 ? '<button class="qcb-add del" data-del="bc">− Remove last</button>' : '');
 
       /* 5 — crossbeam layout */
       var bays = V.ng - 1, bh = [''], ba = [''];
@@ -440,7 +497,7 @@
          배치가 뒤에 온다. 타입을 안 만들어 두고 거더에 붙이라고 하면 고를
          것이 없다. 번호는 %N% 가 이 배열 순서대로 채운다. */
       var n = 0;
-      var H = [C.gtypes, C.ctypes, C.stiff,
+      var H = [C.gtypes, C.ctypes, C.conn, C.stiff,
                C.glayout, C.clayout,
                C.slab, C.barrier, C.material].join('')
               .replace(/%N%/g, function () { return ++n; });
@@ -652,7 +709,7 @@
 
     /* ---- 가로보 형상. 한 칸을 정면에서 — 현재·사재·연결판·볼트가 어디 붙는지. ---- */
     function drawCross() {
-      var t = D.ctOf(0), gt = D.gtOf(0), w = 460, h = 400;
+      var t = D.ctOf(0), gt = D.gtOf(0), bc = D.bcOf(t.c), w = 460, h = 400;
       var bay = V.sp, dep = gt.hw - 320;
       var SC = Math.min(400 / bay, 260 / Math.max(dep, 1));
       var x0 = w / 2, y0 = 320;
@@ -683,16 +740,18 @@
           ln(L + ins, 0, 0, dep, '#22d3ee', 4); ln(R - ins, 0, 0, dep, '#22d3ee', 4);
           g.push('<circle cx="' + X(0) + '" cy="' + Y(dep) + '" r="4" fill="#a78bfa"/>');
         }
-        /* 연결판(거셋) 네 귀퉁이 + 볼트 */
-        [[L + ins, dep], [R - ins, dep], [L + ins, 0], [R - ins, 0]].forEach(function (c) {
-          var s = 300;
-          g.push('<rect x="' + X(c[0] - (c[0] < 0 ? 0 : s)) + '" y="' +
-            Y(c[1] + (c[1] > 0 ? 0 : s)) + '" width="' + (s * SC) + '" height="' + (s * SC) +
-            '" fill="#a78bfa" fill-opacity="0.35" stroke="#c4b5fd"/>');
-          var b0 = c[0] < 0 ? c[0] + 70 : c[0] - 230, b1 = c[1] > 0 ? c[1] - 70 : c[1] + 230;
-          [0, 1].forEach(function (ix) { [0, 1].forEach(function (iy) {
-            g.push('<circle cx="' + X(b0 + ix * 90) + '" cy="' + Y(b1 - iy * 90) +
-              '" r="2.6" fill="#ddd6fe"/>'); }); });
+        /* 연결판과 볼트 — 크기도 개수도 간격도 연결 상세(BC)가 정한다.
+           그리는 것이 적은 값을 따라가지 않으면 그림이 거짓말을 한다. */
+        var pw = bc.W, ph = (bc.nr - 1) * bc.pit + 2 * bc.e;
+        [[L + ins, dep, 1, -1], [R - ins, dep, -1, -1],
+         [L + ins, 0, 1, 1], [R - ins, 0, -1, 1]].forEach(function (c) {
+          var ox = c[2] > 0 ? c[0] : c[0] - pw, oy = c[3] > 0 ? c[1] : c[1] - ph;
+          g.push('<rect x="' + X(ox) + '" y="' + Y(oy + ph) + '" width="' + (pw * SC) +
+            '" height="' + (ph * SC) + '" fill="#a78bfa" fill-opacity="0.35" stroke="#c4b5fd"/>');
+          var gx0 = ox + (pw - (bc.nc - 1) * bc.ga) / 2, gy0 = oy + bc.e;
+          for (var ic = 0; ic < bc.nc; ic++) for (var ir = 0; ir < bc.nr; ir++)
+            g.push('<circle cx="' + X(gx0 + ic * bc.ga) + '" cy="' + Y(gy0 + ir * bc.pit) +
+              '" r="2.6" fill="#ddd6fe"/>');
         });
         g.push('<text x="' + X(0) + '" y="' + (Y(dep) - 12) + '" fill="#7dd3fc"' +
           ' font-size="10" text-anchor="middle">top ' + esc(t.u) + '</text>');
@@ -705,10 +764,14 @@
       wrap.querySelector('#qcb-d4').innerHTML =
         '<svg viewBox="0 0 ' + w + ' ' + h + '" preserveAspectRatio="xMidYMid meet">' +
         g.join('') + '</svg>';
+      var q = D.bcChk(bc);
       wrap.querySelector('#qcb-cap4').innerHTML =
-        '<b>' + esc(t.m) + '</b> &middot; ' + esc(t.f) +
-        (isTruss(t.f) ? ' &middot; plate t' + t.p + ' &middot; ' + esc(t.b) +
-                        ' &middot; between G1 and G2' : ' &middot; between G1 and G2');
+        '<b>' + esc(t.m) + '</b> &middot; ' + esc(t.f) + ' &middot; between G1 and G2' +
+        (isTruss(t.f)
+          ? ' &middot; <b>' + esc(bc.m) + '</b> ' + (bc.nr * bc.nc) + '&times;' + esc(bc.dia) +
+            ' @ ' + bc.pit + '/' + bc.ga + ' on plate ' + bc.W + '&times;' + bc.T +
+            ' &middot; edge ' + bc.e + (q.edgeOK ? '' : ' <b>short</b>')
+          : ' &middot; ' + esc(t.s));
     }
 
     /* The stiffener end, drawn large. A whole section puts 1800 mm in one panel
@@ -797,10 +860,19 @@
         var gone = V.gt.pop().m;
         V.gAsg = V.gAsg.map(function (m) { return m === gone ? V.gt[0].m : m; });
         build();
+      } else if (add === 'bc') {
+        var b0 = V.bc[V.bc.length - 1];
+        V.bc.push({ m: 'BC' + (V.bc.length + 1), T: b0.T, W: b0.W, dia: b0.dia, len: b0.len,
+                    nr: b0.nr, pit: b0.pit, nc: b0.nc, ga: b0.ga, e: b0.e });
+        build();
+      } else if (del === 'bc' && V.bc.length > 1) {
+        var goneB = V.bc.pop().m;
+        V.ct.forEach(function (t) { if (t.c === goneB) t.c = V.bc[0].m; });
+        build();
       } else if (add === 'ct') {
         var c0 = V.ct[V.ct.length - 1];
         V.ct.push({ m: 'CT' + (V.ct.length + 1), f: c0.f, s: c0.s, u: c0.u,
-                    l: c0.l, d: c0.d, p: c0.p, b: c0.b });
+                    l: c0.l, d: c0.d, c: c0.c });
         build();
       } else if (del === 'ct' && V.ct.length > 1) {
         var goneC = V.ct.pop().m;
