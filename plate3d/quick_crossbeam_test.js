@@ -93,6 +93,19 @@
     '.qcb-add:hover{border-color:#2563eb}',
     '.qcb-add.del{color:#64748b}',
     '.qcb-add.del:hover{border-color:#64748b}',
+    /* 장 안의 그림. Simple connector 의 .qsc-guide 와 같은 자리다 —
+       표 바로 아래, 가운데. 값을 적은 곳과 그 값이 무엇인지가 붙어 있어야
+       읽힌다. 맨 밑에 모아 두면 눈이 표와 그림 사이를 오간다. */
+    '.qcb-guide{padding:10px 0 2px;max-width:660px;margin:0 auto}',
+    '.qcb-guide.wide{max-width:100%}',
+    /* 그림은 제 크기로 선다. width:100% 로 두면 660px 짜리 상세가 되어
+       표보다 커진다 — 상세는 표를 설명하는 것이지 표를 밀어내는 게 아니다. */
+    '.qcb-guide svg{display:block;height:auto;max-width:100%;margin:0 auto}',
+    '.qcb-cap{font:600 10.5px/1.5 Arial,sans-serif;color:#64748b;padding:6px 2px 0;',
+      'text-align:center}',
+    /* 지금 그려지고 있는 줄. 그림이 어느 줄 것인지 눈으로 잇는다 */
+    '.qcb-tbl tr.on td{background:#faf5ff}',
+    '.qcb-tbl tr.on td.rl{color:#7c3aed}',
     /* the drawing sits under the form, as wide as it */
     '#qcb-views{display:flex;gap:12px;align-items:flex-start}',
     '.qcb-view{border:1px solid #e3e6ea;border-radius:8px;background:#15181c;padding:10px}',
@@ -231,6 +244,8 @@
     style();
 
     var V = defaults(), D = derive(V);
+    /* 어느 줄을 그리고 있나. 라이브러리마다 하나씩. */
+    var ACT = { gt: 0, ct: 0, bc: 0 };
 
     var wrap = el(
       '<div id="qcb-wrap">' +
@@ -241,39 +256,6 @@
       '      <span class="sp"></span>' +
       '    </div>' +
       '    <div id="qcb-body"></div>' +
-      '  </div>' +
-      /* 전체 한 장이 위에, 그것을 이루는 상세 셋이 아래. 도면집이 그런 순서다 */
-      '  <div class="qcb-view">' +
-      '    <h4>TYPICAL CROSS SECTION</h4><div id="qcb-d1"></div>' +
-      '    <div class="qcb-cap" id="qcb-cap1"></div>' +
-      '  </div>' +
-      '  <div id="qcb-views">' +
-      '    <div class="qcb-view" style="flex:1;min-width:0">' +
-      '      <h4>1 &middot; GIRDER SECTION</h4><div id="qcb-d3"></div>' +
-      '      <div class="qcb-cap" id="qcb-cap3"></div>' +
-      '    </div>' +
-      '    <div class="qcb-view" style="flex:1.35;min-width:0">' +
-      '      <h4>2 &middot; CROSSBEAM</h4><div id="qcb-d4"></div>' +
-      '      <div class="qcb-cap" id="qcb-cap4"></div>' +
-      '    </div>' +
-      '    <div class="qcb-view" style="flex:1.05;min-width:0">' +
-      '      <h4>3 &middot; BOLT GROUP</h4><div id="qcb-d5"></div>' +
-      '      <div class="qcb-cap" id="qcb-cap5"></div>' +
-      '    </div>' +
-      '  </div>' +
-      '  <div id="qcb-views">' +
-      '    <div class="qcb-view" style="flex:1;min-width:0">' +
-      '      <h4>4 &middot; STIFFENER &amp; SCALLOP</h4><div id="qcb-d2"></div>' +
-      '      <div class="qcb-cap" id="qcb-cap2"></div>' +
-      '    </div>' +
-      '    <div class="qcb-view" style="flex:1.35;min-width:0">' +
-      '      <h4>6 &middot; DECK SLAB</h4><div id="qcb-d6"></div>' +
-      '      <div class="qcb-cap" id="qcb-cap6"></div>' +
-      '    </div>' +
-      '    <div class="qcb-view" style="flex:1.05;min-width:0">' +
-      '      <h4>7 &middot; BARRIER</h4><div id="qcb-d7"></div>' +
-      '      <div class="qcb-cap" id="qcb-cap7"></div>' +
-      '    </div>' +
       '  </div>' +
       '</div>');
     mount.appendChild(wrap);
@@ -296,7 +278,7 @@
     var out = function (h) { return '<div class="out">' + h + '</div>'; };
     var hd  = function (h) { return '<div class="hd">' + h + '</div>'; };
 
-    function chapter(n, title, sub, src, cols, rows, note, chk) {
+    function chapter(n, title, sub, src, cols, rows, note, chk, guide) {
       return '<div class="qcb-ch"><h3>%N%. ' + title +
         (sub ? '<em>' + sub + '</em>' : '') +
         '<span class="src">' + src + '</span></h3>' +
@@ -304,11 +286,19 @@
         cols.w.map(function (x) { return '<col style="width:' + x + '">'; }).join('') +
         '</colgroup><tr>' + cols.h.map(function (h) { return '<th>' + h + '</th>'; }).join('') +
         '</tr>' + rows + '</table>' +
+        (guide ? '<div class="qcb-guide' + (guide.wide ? ' wide' : '') + '">' +
+                 '<div id="qcb-d' + guide.n + '"></div>' +
+                 '<div class="qcb-cap" id="qcb-cap' + guide.n + '"></div></div>' : '') +
         (note ? '<div class="qcb-note">' + note + '</div>' : '') +
         (chk ? '<div class="qcb-chk">' + chk + '</div>' : '') + '</div>';
     }
-    function row(label, cells, kind) {
-      return '<tr><td class="rl' + (kind === 1 ? ' sub' : '') + (kind === 2 ? ' mk' : '') + '">' +
+    /* pick = 'gt:0' 같은 이름표. 그 줄을 누르면 켜지고, 장 안의 그림이
+       그 줄을 그린다. 라이브러리의 줄은 서로 대안이라 「어느 것을 그리나」를
+       정해야 하는데, 새 버튼을 두는 대신 만지는 줄이 곧 보는 줄이 되게 했다. */
+    function row(label, cells, kind, pick) {
+      var on = pick && ACT[pick.split(':')[0]] === +pick.split(':')[1];
+      return '<tr' + (pick ? ' data-pick="' + pick + '"' : '') + (on ? ' class="on"' : '') + '>' +
+        '<td class="rl' + (kind === 1 ? ' sub' : '') + (kind === 2 ? ' mk' : '') + '">' +
         label + '</td>' + cells.map(function (c) {
           return '<td>' + (c == null ? '' : c) + '</td>';
         }).join('') + '</tr>';
@@ -347,7 +337,8 @@
         'girders heavier is two cells, not two girders.',
         '<span class="k">Girder levels</span> ' +
         (D.level ? '<b>all equal</b> — the soffit is level, so the cross slope is carried by slab thickness'
-                 : D.gz.map(function (z, k) { return 'G' + (k + 1) + ' ' + rnd(z, 0); }).join(' / ')));
+                 : D.gz.map(function (z, k) { return 'G' + (k + 1) + ' ' + rnd(z, 0); }).join(' / ')),
+        { n: 1, wide: 1 });
 
       /* 2 — girder type library */
       var gtRows = V.gt.map(function (t, k) {
@@ -355,7 +346,7 @@
                          inp('gt.' + k + '.bt', t.bt), inp('gt.' + k + '.tt', t.tt),
                          inp('gt.' + k + '.bb', t.bb), inp('gt.' + k + '.tb', t.tb), null,
                          out('Depth <b>' + D.depth(t) + '</b> &middot; <b>' +
-                             rnd(D.kgm(t), 1) + ' kg/m</b>')], 2);
+                             rnd(D.kgm(t), 1) + ' kg/m</b>')], 2, 'gt:' + k);
       }).join('');
       C.gtypes = chapter(2, 'Girder types', 'one row is one type — declared here, called by name above',
         'APlate §2.3.17', { w: W9, h: ['', 'Web H', 'Web t', 'Top B', 'Top t', 'Btm B', 'Btm t', '', ''] },
@@ -364,7 +355,7 @@
         'meaning of its own</b>, this row says what it is. So GT1 can be made heavier and ' +
         'every girder that named it is still right. Variable-depth girders — a flange that ' +
         'changes along the span — are a later step; one section runs the whole span here.',
-        '');
+        '', { n: 3 });
       C.gtypes += '<div class="qcb-addrow">' +
         '<button type="button" class="qcb-add" data-add="gt">+ Add girder type</button>' +
         (V.gt.length > 1 ? '<button type="button" class="qcb-add del" data-del="gt"'
@@ -389,7 +380,7 @@
         'plate of 16 mm as the manual has it; <b>which set applies is read off the flange, ' +
         'not asked.</b>',
         '<span class="k">In use</span> flange t' + thick + ' &rarr; <b>' +
-        (thick > 16 ? 't &gt; 16' : 't &le; 16') + '</b> set (' + sc.join(' · ') + ')');
+        (thick > 16 ? 't &gt; 16' : 't &le; 16') + '</b> set (' + sc.join(' · ') + ')', { n: 2 });
 
       /* 4 — crossbeam type library */
       var ctRows = V.ct.map(function (t, k) {
@@ -400,7 +391,7 @@
                          tr ? sel('ct.' + k + '.l', t.l, ANGLES) : inp('ct.' + k + '.l', '—', true),
                          tr ? sel('ct.' + k + '.d', t.d, ANGLES) : inp('ct.' + k + '.d', '—', true),
                          sel('ct.' + k + '.c', t.c, V.bc.map(function (q) { return q.m; }), 'mk'),
-                         out(isTruss(t.f) ? 'truss of angles' : 'one solid member')], 2);
+                         out(isTruss(t.f) ? 'truss of angles' : 'one solid member')], 2, 'ct:' + k);
       }).join('');
       C.ctypes = chapter(4, 'Crossbeam types', 'one row is one type — five forms', 'APlate §2.4.10 · §2.4.11',
         { w: W9, h: ['', 'Form', 'Section', 'Top chord', 'Btm chord', 'Diagonal', 'Connection', ''] },
@@ -410,7 +401,7 @@
         '<b>§2.4.11, the vertical bracing</b> is a truss of angles, V or inverted V. A bay picks exactly ' +
         'one of the five, so they share one library. <b>Pick a solid form and the chord cells ' +
         'go quiet; pick a truss and the section cell does.</b>',
-        '');
+        '', { n: 4 });
       C.ctypes += '<div class="qcb-addrow">' +
         '<button type="button" class="qcb-add" data-add="ct">+ Add crossbeam type</button>' +
         (V.ct.length > 1 ? '<button type="button" class="qcb-add del" data-del="ct"'
@@ -427,7 +418,7 @@
                          inp('bc.' + k + '.nc', b.nc), inp('bc.' + k + '.ga', b.ga),
                          inp('bc.' + k + '.e', b.e),
                          out('<b>' + (b.nr * b.nc) + '</b> bolts &middot; ' +
-                             (q.edgeOK && q.fitOK ? 'fits' : 'check below'))], 2);
+                             (q.edgeOK && q.fitOK ? 'fits' : 'check below'))], 2, 'bc:' + k);
       }).join('');
       C.conn = chapter(0, 'Bolted connection', 'the bolt group a crossbeam type calls by name',
         'APlate §2.4.9',
@@ -448,7 +439,7 @@
                  (q.edgeOK ? ' &ge; ' + q.need + ' OK' : ' &lt; ' + q.need + ' SHORT') +
                  ' &middot; group ' + q.span + ' in plate ' + b.W +
                  (q.fitOK ? ' OK' : ' TOO WIDE');
-        }).join(''));
+        }).join(''), { n: 5 });
       C.conn += '<div class="qcb-addrow">' +
         '<button type="button" class="qcb-add" data-add="bc">+ Add connection</button>' +
         (V.bc.length > 1 ? '<button type="button" class="qcb-add del" data-del="bc"'
@@ -497,7 +488,7 @@
         'calls this "level applied from the road centre" and says it is what makes the girder elevations differ. ' +
         '<b>Concrete is drawn as a section only</b> — it is reported by area, never weighed as steel.',
         '<span class="k">Slab</span> crown ' + rnd(D.crownT, 0) + ' / edges ' + V.T1 + ' &middot; ' + V.T2 +
-        ' &nbsp; <span class="k">Fall</span> ' + rnd(D.dropL, 0) + ' left / ' + rnd(D.dropR, 0) + ' right');
+        ' &nbsp; <span class="k">Fall</span> ' + rnd(D.dropL, 0) + ' left / ' + rnd(D.dropR, 0) + ' right', { n: 6 });
 
       /* 7 — barrier */
       C.barrier = chapter(7, 'Barrier', 'a section only, like the slab', 'APlate §2.3.21',
@@ -506,7 +497,7 @@
                         inp('bwt', V.bwt), inp('bwb', V.bwb),
                         sel('bSym', V.bSym ? 'Symmetric' : 'Each side', ['Symmetric', 'Each side']),
                         out('Area <b>' + rnd(D.barA, 2) + ' m&sup2;</b>')]),
-        'Unlock <b>Each side</b> when the two are not the same.', '');
+        'Unlock <b>Each side</b> when the two are not the same.', '', { n: 7 });
 
       /* 8 — material */
       C.material = chapter(8, 'Material', '', 'engine change pending',
@@ -667,7 +658,7 @@
       dim(-D.half, D.half, dimY2, 'out to out ' + D.W);
 
       wrap.querySelector('#qcb-d1').innerHTML =
-        '<svg viewBox="0 0 ' + w + ' ' + h + '" preserveAspectRatio="xMidYMid meet">' +
+        '<svg width="' + w + '" viewBox="0 0 ' + w + ' ' + h + '" preserveAspectRatio="xMidYMid meet">' +
         '<defs><pattern id="qcbHz" width="7" height="7" patternTransform="rotate(45)"' +
         ' patternUnits="userSpaceOnUse"><line x1="0" y1="0" x2="0" y2="7" stroke="#334155"' +
         ' stroke-width="1.6"/></pattern></defs>' + g.join('') + '</svg>';
@@ -693,7 +684,7 @@
 
     /* ---- 주거더 형상. 1장에서 적은 여섯 숫자가 무엇을 정하는지 한 장으로. ---- */
     function drawGirder() {
-      var t = V.gt[0], w = 380, h = 400;
+      var t = V.gt[Math.min(ACT.gt, V.gt.length - 1)], w = 380, h = 400;
       var SC = 300 / Math.max(D.depth(t), 1);
       var x0 = w / 2 - 55, y0 = 350;
       var X = function (m) { return rnd(x0 + m * SC, 1); };
@@ -734,7 +725,7 @@
       g.push('<text x="' + X(t.bb / 2 + 12) + '" y="' + (Y(yB + t.tb / 2) + 4) +
         '" fill="#94a3b8" font-size="10">t' + t.tb + '</text>');
       wrap.querySelector('#qcb-d3').innerHTML =
-        '<svg viewBox="0 0 ' + w + ' ' + h + '" preserveAspectRatio="xMidYMid meet">' +
+        '<svg width="' + w + '" viewBox="0 0 ' + w + ' ' + h + '" preserveAspectRatio="xMidYMid meet">' +
         g.join('') + '</svg>';
       var used = [];
       V.gAsg.forEach(function (m, k) { if (m === t.m) used.push('G' + (k + 1)); });
@@ -746,11 +737,11 @@
     /* ---- 3장 볼트 연결. 연결판 한 장을 크게, 매뉴얼의 기호를 그대로 얹어.
        표에 A·B·C·E·F·T·W 라고 적어 두고 그림에 안 적으면 아무도 못 잇는다. ---- */
     function drawBolt() {
-      var t = D.ctOf(0), b = D.bcOf(t.c), q = D.bcChk(b);
-      var w = 340, h = 400;
+      var b = V.bc[Math.min(ACT.bc, V.bc.length - 1)], q = D.bcChk(b);
+      var w = 340, h = 290;
       var pw = b.W, ph = (b.nr - 1) * b.pit + 2 * b.e;
-      var SC = Math.min(210 / Math.max(pw, 1), 250 / Math.max(ph, 1));
-      var x0 = w / 2 - 24, y0 = h / 2 + (ph * SC) / 2 - 10;
+      var SC = Math.min(210 / Math.max(pw, 1), 170 / Math.max(ph, 1));
+      var x0 = w / 2 - 24, y0 = h / 2 + (ph * SC) / 2 + 4;
       var X = function (m) { return rnd(x0 - (pw * SC) / 2 + m * SC, 1); };
       var Y = function (m) { return rnd(y0 - m * SC, 1); };
       var g = [];
@@ -782,7 +773,7 @@
       sym(g, X(0), Y(0) + 24, 'B ' + b.nr + ' rows  ×  E ' + b.nc + ' cols  =  ' +
         (b.nr * b.nc), '#7dd3fc');
       wrap.querySelector('#qcb-d5').innerHTML =
-        '<svg viewBox="0 0 ' + w + ' ' + h + '" preserveAspectRatio="xMidYMid meet">' +
+        '<svg width="' + w + '" viewBox="0 0 ' + w + ' ' + h + '" preserveAspectRatio="xMidYMid meet">' +
         g.join('') + '</svg>';
       wrap.querySelector('#qcb-cap5').innerHTML =
         '<b>' + esc(b.m) + '</b> &middot; edge <b>A</b> ' + b.e +
@@ -828,7 +819,7 @@
       sym(g, X(-half * 0.45), Y(top(-half * 0.45)) - 12, '&minus;' + V.slopeL.toFixed(1) + ' %');
       sym(g, X(0) - 40, Y(0) - 26, 'crown', '#94a3b8');
       wrap.querySelector('#qcb-d6').innerHTML =
-        '<svg viewBox="0 0 ' + w + ' ' + h + '" preserveAspectRatio="xMidYMid meet">' +
+        '<svg width="' + w + '" viewBox="0 0 ' + w + ' ' + h + '" preserveAspectRatio="xMidYMid meet">' +
         '<defs><pattern id="qcbHz2" width="7" height="7" patternTransform="rotate(45)"' +
         ' patternUnits="userSpaceOnUse"><line x1="0" y1="0" x2="0" y2="7" stroke="#334155"' +
         ' stroke-width="1.6"/></pattern></defs>' + g.join('') + '</svg>';
@@ -864,7 +855,7 @@
         (Y(0) + 22) + '" stroke="#ef4444"/>');
       sym(g, X(0), Y(0) + 38, 'btm ' + V.bwb);
       wrap.querySelector('#qcb-d7').innerHTML =
-        '<svg viewBox="0 0 ' + w + ' ' + h + '" preserveAspectRatio="xMidYMid meet">' +
+        '<svg width="' + w + '" viewBox="0 0 ' + w + ' ' + h + '" preserveAspectRatio="xMidYMid meet">' +
         '<defs><pattern id="qcbHz3" width="7" height="7" patternTransform="rotate(45)"' +
         ' patternUnits="userSpaceOnUse"><line x1="0" y1="0" x2="0" y2="7" stroke="#334155"' +
         ' stroke-width="1.6"/></pattern></defs>' + g.join('') + '</svg>';
@@ -875,7 +866,7 @@
 
     /* ---- 가로보 형상. 한 칸을 정면에서 — 현재·사재·연결판·볼트가 어디 붙는지. ---- */
     function drawCross() {
-      var t = D.ctOf(0), gt = D.gtOf(0), bc = D.bcOf(t.c), w = 460, h = 400;
+      var t = V.ct[Math.min(ACT.ct, V.ct.length - 1)], gt = D.gtOf(0), bc = D.bcOf(t.c), w = 460, h = 400;
       var bay = V.sp, dep = gt.hw - 320;
       var SC = Math.min(400 / bay, 260 / Math.max(dep, 1));
       var x0 = w / 2, y0 = 320;
@@ -928,7 +919,7 @@
         (Y(0) + 44) + '" stroke="#ef4444" stroke-width="1"/><text x="' + X(0) + '" y="' +
         (Y(0) + 39) + '" fill="#fca5a5" font-size="10" text-anchor="middle">bay ' + bay + '</text>');
       wrap.querySelector('#qcb-d4').innerHTML =
-        '<svg viewBox="0 0 ' + w + ' ' + h + '" preserveAspectRatio="xMidYMid meet">' +
+        '<svg width="' + w + '" viewBox="0 0 ' + w + ' ' + h + '" preserveAspectRatio="xMidYMid meet">' +
         g.join('') + '</svg>';
       var q = D.bcChk(bc);
       wrap.querySelector('#qcb-cap4').innerHTML =
@@ -982,7 +973,7 @@
       sym(g, X(-t.tw / 2 - V.stW - 118), Y(300),
         'W ' + V.stW + ' &times; T ' + V.stT, '#c4b5fd');
       wrap.querySelector('#qcb-d2').innerHTML =
-        '<svg viewBox="0 0 ' + w + ' ' + h + '" preserveAspectRatio="xMidYMid meet">' +
+        '<svg width="' + w + '" viewBox="0 0 ' + w + ' ' + h + '" preserveAspectRatio="xMidYMid meet">' +
         g.join('') + '</svg>';
       wrap.querySelector('#qcb-cap2').innerHTML =
         '<b>W</b> ' + V.stW + ' &middot; <b>T</b> ' + V.stT + ' &middot; <b>G</b> ' + V.stG +
@@ -1018,6 +1009,11 @@
       build();
     });
     body.addEventListener('click', function (e) {
+      var tr = e.target && e.target.closest ? e.target.closest('tr[data-pick]') : null;
+      if (tr) {
+        var sp = tr.getAttribute('data-pick').split(':');
+        if (ACT[sp[0]] !== +sp[1]) { ACT[sp[0]] = +sp[1]; build(); return; }
+      }
       var t = e.target;
       var add = t.getAttribute && t.getAttribute('data-add');
       var del = t.getAttribute && t.getAttribute('data-del');
