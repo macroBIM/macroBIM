@@ -23,7 +23,9 @@
    ── 매뉴얼과 일부러 다르게 한 것 ──────────────────────────────
    같은 값을 여러 번 적게 하지 않는다.
 
-     · 간격을 하나만 적으면 등간격이다 (매뉴얼은 L1…Ln 을 다 받는다)
+     · 배치는 「중심 이격(L1…Ln)」이 아니라 「사이 간격」으로 받는다.
+       SL · Bay 1…n · SR 한 줄 — 시공자가 내는 것이 간격이고, 매뉴얼이 받는
+       이격은 그 줄에서 계산되어 그림에 같이 그려진다 (§2.3.4 의 두 읽기)
      · 편경사는 퍼센트 둘이면 된다 — 거더 높이차는 우리가 계산한다
      · 보강재 좌우는 「대칭」이면 네 칸이다 (매뉴얼은 LW/RW…LH/RH 여덟 칸)
      · 스캘럽은 두 벌 받아 두고, 어느 줄을 쓸지는 플랜지 두께를 보고 고른다
@@ -162,13 +164,13 @@
      2.5 m apart, 1.2 m of overhang each side — which is 12.4 m out to out. */
   function defaults() {
     return {
-      ng: 5, sp: 2500, even: 1, sl: 1200, sr: 1200,
-      /* 칸마다의 간격. even 일 때는 안 쓰이고, Per bay 로 바꾸는 순간
-         sp 로 채워진다 — 고르자마자 빈 칸이 나오면 지운 것처럼 보인다. */
+      ng: 5, sp: 2500, sl: 1200, sr: 1200,
+      /* 칸마다의 간격. 등간격이라는 상태는 따로 두지 않는다 — 같은 숫자가
+         적혀 있으면 그게 등간격이다. sp 는 칸을 새로 더할 때의 씨앗으로만 남는다. */
       spl: [2500, 2500, 2500, 2500],
       gt: [                                   // girder type library
-        { m: 'GT1', hw: 1800, tw: 12, bt: 400, tt: 22, bb: 500, tb: 28 },
-        { m: 'GT2', hw: 1800, tw: 14, bt: 500, tt: 28, bb: 600, tb: 36 }
+        { m: 'GT1', hw: 1800, tw: 12, bt: 400, ttf: 22, bb: 500, tbf: 28 },
+        { m: 'GT2', hw: 1800, tw: 14, bt: 500, ttf: 28, bb: 600, tbf: 36 }
       ],
       gAsg: ['GT2', 'GT1', 'GT1', 'GT1', 'GT2'],
       stW: 130, stT: 12, stG: 60, stH: 25, stSide: 'Both sides', stPitch: 2500,
@@ -203,10 +205,9 @@
      edit V and ask again without the derivation drifting. */
   function derive(V) {
     var D = {};
-    /* 칸의 간격. 등간격이면 하나가 모두를 맡고, 아니면 칸마다 제 값을 쓴다. */
+    /* 칸의 간격. 칸마다 제 값이고, 비어 있으면 씨앗값을 쓴다. */
     D.bay = [];
-    for (var i = 0; i < V.ng - 1; i++)
-      D.bay.push(V.even ? V.sp : num(V.spl[i], V.sp));
+    for (var i = 0; i < V.ng - 1; i++) D.bay.push(num(V.spl[i], V.sp));
     D.gw = D.bay.reduce(function (a2, b2) { return a2 + b2; }, 0);
     D.W = D.gw + V.sl + V.sr;                        // out to out
     D.half = D.W / 2;
@@ -246,9 +247,9 @@
       return { d: d, need: need, edgeOK: b.e >= need, span: span, fitOK: span <= b.W };
     };
     D.kgm = function (t) {
-      return (t.hw * t.tw + t.bt * t.tt + t.bb * t.tb) * 7.85e-6 * 1000;
+      return (t.hw * t.tw + t.bt * t.ttf + t.bb * t.tbf) * 7.85e-6 * 1000;
     };
-    D.depth = function (t) { return t.hw + t.tt + t.tb; };
+    D.depth = function (t) { return t.hw + t.ttf + t.tbf; };
     /* Slab area, cut across. Level soffit: a trapezoid whose top is the two
        falls and whose bottom is flat. Sloped soffit: a constant thickness. */
     D.slabA = D.level
@@ -333,54 +334,73 @@
       D = derive(V);
       var C = {}, i;
 
-      /* 1 — girder layout, and which girder is which type */
-      var head = [''], asg = [''];
-      for (i = 0; i < V.ng; i++) {
-        head.push(hd('G' + (i + 1)));
-        asg.push(sel('gAsg.' + i, V.gAsg[i], V.gt.map(function (t) { return t.m; }), 'mk'));
+      /* 1 — girder layout. 두 줄이다: 간격 한 줄, 타입 한 줄.
+         간격은 왼쪽 내민 길이로 시작해서 칸을 지나 오른쪽 내민 길이로 끝난다 —
+         단면을 왼쪽에서 오른쪽으로 훑는 순서 그대로다. 「등간격이냐 칸마다냐」를
+         고르게 하던 것은 없앴다: 등간격이면 같은 숫자를 그냥 적으면 되고,
+         고르는 칸 하나가 나머지 칸을 열었다 닫았다 하는 것이 더 헷갈렸다.
+
+         칸 수는 거더 수를 따라간다. 거더 수를 숫자로 받지 않고 버튼으로 받는
+         까닭은, 이 폼의 다른 라이브러리(거더·가로보·이음)가 이미 그렇게 늘고
+         줄기 때문이다 — 같은 일을 하는 자리가 화면마다 다르게 생길 이유가 없다. */
+      var nSp = V.ng + 1;                                  // SL · bay 1…n-1 · SR
+      var spH = [''], spR = [], gH = [''], gR = [];
+      spH.push(hd('SL'));
+      spR.push(inp('sl', V.sl));
+      for (i = 0; i < V.ng - 1; i++) {
+        spH.push(hd('Bay ' + (i + 1)));
+        spR.push(inp('spl.' + i, D.bay[i]));
       }
-      while (head.length < 8) { head.push(''); asg.push(''); }
-      head.length = 8; asg.length = 8;
-      head.push(''); asg.push(out('<b>' + V.gt.length + '</b> types'));
+      spH.push(hd('SR'));
+      spR.push(inp('sr', V.sr));
+      for (i = 0; i < V.ng; i++) {
+        gH.push(hd('G' + (i + 1)));
+        gR.push(sel('gAsg.' + i, V.gAsg[i], V.gt.map(function (t) { return t.m; }), 'mk'));
+      }
+      /* 열 너비는 거더 수에서 나온다. 아홉 칸에 맞춰 자르면 거더 여덟 개짜리
+         다리를 못 적는다 — 폼은 HTML 이라 묶일 이유가 없다 (FORMS.md). */
+      var lw = ['15%'], lh = [''], free = 68 / nSp;
+      for (i = 0; i < nSp; i++) { lw.push(free.toFixed(2) + '%'); lh.push(''); }
+      lw.push('17%'); lh.push('');
+      var pad = function (a, n) {
+        var b = a.slice(0, n);
+        while (b.length < n) b.push('');
+        return b;
+      };
       C.glayout = chapter(1, 'Girder layout',
-        'how many, how far apart — and which type each one is', 'APlate §2.3.4',
-        { w: W9, h: ['', 'Girders', 'Spacing L', 'Overhang SL', 'Overhang SR', '', '', '', ''] },
-        row('Layout', [inp('ng', V.ng), inp('sp', V.sp, !V.even), inp('sl', V.sl), inp('sr', V.sr),
-                       null, null, null, out('Out to out <b>' + D.W + '</b>')]) +
-        row('Spacing', [sel('even', V.even ? 'Equal' : 'Per bay', ['Equal', 'Per bay']),
-                        null, null, null, null, null, null,
-                        out('Girder to girder <b>' + D.gw + '</b>')], 1) +
-        /* Per bay 를 고르면 칸이 나온다. 거더가 늘면 칸도 는다. */
-        (V.even ? '' :
-          /* 「Bay」로 부른다. 매뉴얼에서 L1…Ln 은 도로중심에서 각 거더까지의
-             이격이지 칸의 간격이 아니다 — 같은 글자를 두 뜻으로 쓰면 그림의
-             L1 과 표의 L1 이 다른 것을 가리키게 된다. */
-          row('', D.bay.map(function (x, k) { return hd('Bay ' + (k + 1)); })
-                   .concat(['', '', '', '', '', '', '']).slice(0, 8), 1) +
-          row('Bay spacing', D.bay.map(function (x, k) { return inp('spl.' + k, x); })
-                   .concat(['', '', '', '', '', '', '']).slice(0, 7)
-                   .concat([out(D.bay.join(' + '))]), 2)) +
-        row('', head.slice(1), 1) +
-        row('Girder type', asg.slice(1), 2),
-        'Type one spacing and every bay takes it. The manual asks for SL · L1…L' +
-        (V.ng - 1) + ' · SR one by one; <b>the same number is not worth typing five times.</b> ' +
-        'Each girder then picks a type by name from chapter 2 — making only the outer ' +
-        'girders heavier is two cells, not two girders.',
+        'how far apart, and which type each one is', 'APlate §2.3.4',
+        { w: lw, h: lh },
+        row('', pad(spH.slice(1), nSp), 1) +
+        row('Spacing', pad(spR, nSp).concat([out('Out to out <b>' + D.W + '</b>')]), 2) +
+        row('', pad(gH.slice(1), nSp), 1) +
+        row('Girder type', pad(gR, nSp).concat([out('Girder to girder <b>' + D.gw + '</b>')]), 2),
+        'The manual (§2.3.4) asks for SL · L1…L' + V.ng + ' · SR — offsets from the road ' +
+        'centre. Here the same line is entered as the gaps between them, left to right, ' +
+        'because a gap is what a fabricator sets out; <b>the offsets are drawn below</b> so ' +
+        'both readings are on one page. Each girder then picks a type by name from ' +
+        'chapter 2 — making only the outer girders heavier is two cells, not two girders.',
         '<span class="k">Girder levels</span> ' +
         (D.level ? '<b>all equal</b> — the soffit is level, so the cross slope is carried by slab thickness'
                  : D.gz.map(function (z, k) { return 'G' + (k + 1) + ' ' + rnd(z, 0); }).join(' / ')),
         { n: 1, wide: 1 });
+      C.glayout += '<div class="qcb-addrow">' +
+        '<button type="button" class="qcb-add" data-add="g">+ Add girder</button>' +
+        (V.ng > 2 ? '<button type="button" class="qcb-add del" data-del="g"'
+          + ' title="Remove the last girder">− Remove last</button>' : '') + '</div>';
 
       /* 2 — girder type library */
       var gtRows = V.gt.map(function (t, k) {
         return row(t.m, [inp('gt.' + k + '.hw', t.hw), inp('gt.' + k + '.tw', t.tw),
-                         inp('gt.' + k + '.bt', t.bt), inp('gt.' + k + '.tt', t.tt),
-                         inp('gt.' + k + '.bb', t.bb), inp('gt.' + k + '.tb', t.tb), null,
+                         inp('gt.' + k + '.bt', t.bt), inp('gt.' + k + '.ttf', t.ttf),
+                         inp('gt.' + k + '.bb', t.bb), inp('gt.' + k + '.tbf', t.tbf), null,
                          out('Depth <b>' + D.depth(t) + '</b> &middot; <b>' +
                              rnd(D.kgm(t), 1) + ' kg/m</b>')], 2, 'gt:' + k);
       }).join('');
       C.gtypes = chapter(2, 'Girder types', 'one row is one type — declared here, called by name above',
-        'APlate §2.3.17', { w: W9, h: ['', 'Web H', 'Web t', 'Top B', 'Top t', 'Btm B', 'Btm t', '', ''] },
+        /* 기호는 도면이 쓰는 그대로. tw 복부, ttf 상부플랜지, tbf 하부플랜지 —
+           「Top t」처럼 자리로 부르면 그림에 적을 이름이 없다. */
+        'APlate §2.3.17',
+        { w: W9, h: ['', 'Web H', 'tw', 'Top B', 'ttf', 'Btm B', 'tbf', '', ''] },
         gtRows,
         'The same shape as Simple connector\'s connection library: <b>the mark carries no ' +
         'meaning of its own</b>, this row says what it is. So GT1 can be made heavier and ' +
@@ -393,7 +413,7 @@
           + ' title="Remove the last row">− Remove last</button>' : '') + '</div>';
 
       /* 3 — stiffener and scallop */
-      var thick = V.gt.reduce(function (a, t) { return Math.max(a, t.tb); }, 0);
+      var thick = V.gt.reduce(function (a, t) { return Math.max(a, t.tbf); }, 0);
       var sc = thick > 16 ? V.scB : V.scA;
       C.stiff = chapter(3, 'Stiffener &amp; scallop', 'left and right, and how the end is cut away',
         'APlate §2.4.13 · §2.4.2',
@@ -551,7 +571,8 @@
               .replace(/%N%/g, function () { return ++n; });
       body.innerHTML = H;
       draw();
-      say(V.ng + ' girders · ' + (V.ng - 1) + ' bays · out to out ' + D.W);
+      say(V.ng + ' girders · ' + (V.ng - 1) + (V.ng === 2 ? ' bay' : ' bays') +
+          ' · out to out ' + D.W);
     }
 
     function say(t, bad) { status.textContent = t; status.className = bad ? 'bad' : ''; }
@@ -564,81 +585,53 @@
          (width 속성 = viewBox 폭) 좌표를 줄이면 도형만 줄고 font-size 는 그대로
          픽셀이다. 화면을 덜 먹으면서 읽히는 자리가 여기다 — 통째로 축소하면
          글씨까지 같이 작아져서 결국 못 읽는다. */
+      /* 이 장이 받는 것은 「거더가 어디에 있느냐」뿐이다 — 매뉴얼 §2.3.4 도
+         도로중심에서 잰 SL · L1…Ln · SR 만 받는다. 슬래브 두께·포장·마루·
+         방호벽은 7·8장 것이고 거기에 제 그림이 따로 있다. 여기까지 같이
+         그리면 이 장이 정하지 않는 것을 이 장이 정하는 것처럼 보인다.
+         남긴 것은 거더가 매달리는 슬래브 밑면 한 줄 — 높이를 어디서 재는지는
+         보여야 하고, 그 줄은 여기서 정하는 게 아니라 7장에서 따라온다. */
       var w = 900, SC, i;
       var span = D.W * 1.06;
       SC = (w - 56) / span;
       var sL = V.slopeL / 100, sR = V.slopeR / 100;
       var top = function (m) { return m < 0 ? -(-m) * sL : -m * sR; };  // slab top, crown at 0
-      /* 위쪽 여백은 세는 것이 아니라 재는 것이다 — 방호벽이 높아지면 그만큼
-         원점이 내려온다. 고정값으로 두면 언젠가 방호벽 머리가 잘린다. */
-      var mTop = Math.max(top(-D.half), top(D.half)) + V.bh1 + V.bh2 + V.bh3;
-      var x0 = w / 2, y0 = rnd(Math.max(28 + mTop * SC, 50 + V.pav * SC), 1);
+      var botZ = D.level ? (top(-D.half) - V.T1) : null;
+      var sof = function (m) { return D.level ? botZ : (top(m) - V.T1); };
+      /* 위쪽 여백은 세는 것이 아니라 재는 것이다 — 편경사가 커지면 밑면이
+         기울고, 그만큼 원점이 따라 움직인다. */
+      var mTop = Math.max(sof(-D.half), sof(0), sof(D.half));
+      var x0 = w / 2, y0 = rnd(30 + mTop * SC, 1);
       var X = function (m) { return rnd(x0 + m * SC, 1); };
       var Y = function (m) { return rnd(y0 - m * SC, 1); };
       var g = [];
 
-      /* pavement line */
-      g.push('<path d="M ' + X(-D.half) + ' ' + Y(top(-D.half) + V.pav) + ' L ' + X(0) + ' ' +
-             Y(V.pav) + ' L ' + X(D.half) + ' ' + Y(top(D.half) + V.pav) +
-             '" stroke="#64748b" stroke-dasharray="5 3" fill="none"/>');
-
-      /* the slab. Level soffit: the underside is one flat line with a haunch
-         dropped at each girder. Sloped: it simply follows the top. */
-      var botZ = D.level ? (top(-D.half) - V.T1) : null;
-      var p = 'M ' + X(-D.half) + ' ' + Y(top(-D.half)) + ' L ' + X(0) + ' ' + Y(0) +
-              ' L ' + X(D.half) + ' ' + Y(top(D.half));
-      if (D.level) {
-        p += ' L ' + X(D.half) + ' ' + Y(botZ);
-        for (i = V.ng - 1; i >= 0; i--) {
-          var hb = D.gtOf(i).bt + 120, gx = D.gx[i];
-          p += ' L ' + X(gx + hb / 2) + ' ' + Y(botZ) +
-               ' L ' + X(gx + hb / 2 - 70) + ' ' + Y(botZ - V.hh) +
-               ' L ' + X(gx - hb / 2 + 70) + ' ' + Y(botZ - V.hh) +
-               ' L ' + X(gx - hb / 2) + ' ' + Y(botZ);
-        }
-        p += ' L ' + X(-D.half) + ' ' + Y(botZ) + ' Z';
-      } else {
-        p += ' L ' + X(D.half) + ' ' + Y(top(D.half) - V.T1) +
-             ' L ' + X(0) + ' ' + Y(-V.T1) +
-             ' L ' + X(-D.half) + ' ' + Y(top(-D.half) - V.T1) + ' Z';
-      }
-      g.push('<path d="' + p + '" fill="url(#qcbHz)" stroke="#38bdf8" stroke-width="1.4"/>');
-
-      /* barriers */
-      [[-D.half, 1], [D.half, -1]].forEach(function (b) {
-        var bx = b[0], s = b[1], t = top(bx), H3 = V.bh1 + V.bh2 + V.bh3;
-        g.push('<path d="M ' + X(bx) + ' ' + Y(t) + ' L ' + X(bx + s * V.bwb) + ' ' + Y(t) +
-               ' L ' + X(bx + s * V.bwt) + ' ' + Y(t + H3) + ' L ' + X(bx) + ' ' + Y(t + H3) +
-               ' Z" fill="url(#qcbHz)" stroke="#38bdf8" stroke-width="1.4"/>');
-      });
-
-      /* crown mark and the two falls */
-      g.push('<line x1="' + X(0) + '" y1="' + (Y(V.pav) - 16) + '" x2="' + X(0) + '" y2="' +
-             (Y(0) + 6) + '" stroke="#fbbf24" stroke-dasharray="3 2"/>' +
-             '<text x="' + X(0) + '" y="' + (Y(V.pav) - 21) + '" fill="#fbbf24" font-size="11"' +
-             ' font-weight="700" text-anchor="middle">crown &middot; ' + esc(V.crown) + '</text>');
-      g.push('<text x="' + X(-D.half * 0.55) + '" y="' + (Y(top(-D.half * 0.55)) - 13) +
-             '" fill="#fbbf24" font-size="11" font-weight="700" text-anchor="middle">&minus;' +
-             V.slopeL.toFixed(1) + ' %</text>');
-      g.push('<text x="' + X(D.half * 0.55) + '" y="' + (Y(top(D.half * 0.55)) - 13) +
-             '" fill="#fbbf24" font-size="11" font-weight="700" text-anchor="middle">&minus;' +
-             V.slopeR.toFixed(1) + ' %</text>');
+      /* 슬래브 밑면 — 거더가 매달리는 줄. 파선으로 긋는다: 이 장의 입력이
+         아니라는 뜻이다. */
+      g.push('<path d="M ' + X(-D.half) + ' ' + Y(sof(-D.half)) + ' L ' + X(0) + ' ' +
+             Y(sof(0)) + ' L ' + X(D.half) + ' ' + Y(sof(D.half)) +
+             '" stroke="#38bdf8" stroke-width="1.4" stroke-dasharray="9 4" fill="none"/>');
+      g.push('<text x="' + X(-D.half) + '" y="' + (Y(sof(-D.half)) - 8) + '" fill="#7dd3fc"' +
+             ' font-size="10">slab soffit &middot; ' + esc(V.soffit).toLowerCase() +
+             ' &middot; haunch ' + V.hh + '</text>');
 
       /* girders, each drawn as the type it was given */
       var yTop = [], yBot = [];
       D.gx.forEach(function (gx, k) {
         var t = D.gtOf(k);
-        var yT = (D.level ? botZ : (top(gx) - V.T1)) - V.hh;
+        var yT = sof(gx) - V.hh;
         yTop.push(yT);
-        var yB = yT - t.tt - t.hw - t.tb;
+        g.push('<line x1="' + X(gx) + '" y1="' + Y(sof(gx)) + '" x2="' + X(gx) + '" y2="' +
+               Y(yT) + '" stroke="#64748b" stroke-width="1" stroke-dasharray="2 2"/>');
+        var yB = yT - t.ttf - t.hw - t.tbf;
         var P = function (x, y) { return X(x) + ' ' + Y(y); };
         var col = V.gAsg[k] === V.gt[0].m ? '#cbd5e1' : '#fbbf24';
         g.push('<path d="M ' + P(gx - t.bt / 2, yT) + ' L ' + P(gx + t.bt / 2, yT) +
-          ' L ' + P(gx + t.bt / 2, yT - t.tt) + ' L ' + P(gx + t.tw / 2, yT - t.tt) +
-          ' L ' + P(gx + t.tw / 2, yB + t.tb) + ' L ' + P(gx + t.bb / 2, yB + t.tb) +
+          ' L ' + P(gx + t.bt / 2, yT - t.ttf) + ' L ' + P(gx + t.tw / 2, yT - t.ttf) +
+          ' L ' + P(gx + t.tw / 2, yB + t.tbf) + ' L ' + P(gx + t.bb / 2, yB + t.tbf) +
           ' L ' + P(gx + t.bb / 2, yB) + ' L ' + P(gx - t.bb / 2, yB) +
-          ' L ' + P(gx - t.bb / 2, yB + t.tb) + ' L ' + P(gx - t.tw / 2, yB + t.tb) +
-          ' L ' + P(gx - t.tw / 2, yT - t.tt) + ' L ' + P(gx - t.bt / 2, yT - t.tt) +
+          ' L ' + P(gx - t.bb / 2, yB + t.tbf) + ' L ' + P(gx - t.tw / 2, yB + t.tbf) +
+          ' L ' + P(gx - t.tw / 2, yT - t.ttf) + ' L ' + P(gx - t.bt / 2, yT - t.ttf) +
           ' Z" fill="' + col + '" stroke="#e2e8f0" stroke-width="1"/>');
         g.push('<text x="' + X(gx) + '" y="' + (Y(yB) + 20) + '" fill="#f59e0b" font-size="12"' +
                ' font-weight="700" text-anchor="middle">G' + (k + 1) + '</text>');
@@ -651,7 +644,7 @@
       for (i = 0; i < V.ng - 1; i++) {
         var ta = D.gtOf(i), tb2 = D.gtOf(i + 1);
         var a = D.gx[i], b2 = D.gx[i + 1], mid = (a + b2) / 2;
-        var yA = yTop[i] - ta.tt, yB2 = yTop[i + 1] - tb2.tt;
+        var yA = yTop[i] - ta.ttf, yB2 = yTop[i + 1] - tb2.ttf;
         var baA = yA - ta.hw, baB = yB2 - tb2.hw;
         var ct = D.ctOf(i);
         var ln = function (x1, y1, x2, y2, c, wd) {
@@ -701,8 +694,9 @@
 
       /* 매뉴얼 §2.3.4 의 방식 — 도로중심에서 각 거더 중심까지의 이격을
          계단으로 쌓아 보인다. 「−」가 왼쪽, 「+」가 오른쪽이라는 것까지 매뉴얼
-         그대로다. 칸 사이 간격(위)과 중심 이격(아래)은 다른 것을 재는 두 벌이고,
-         Per bay 로 칸을 열었으면 둘 다 보여야 어디를 고쳤는지 보인다. */
+         그대로다. 표는 「사이 간격」으로 받고 그림은 「중심 이격」으로도 보인다 —
+         같은 한 줄을 두 가지로 읽는 것이고, 매뉴얼을 든 사람이 제 숫자를
+         여기서 찾을 수 있어야 한다. */
       var oy = dimY2 + 22, step = 12, h = rnd(oy + step * (V.ng + 1) + 12, 0);
       g.push('<line x1="' + X(0) + '" y1="' + (Y(0) + 6) + '" x2="' + X(0) + '" y2="' +
         (oy + step * (V.ng + 1)) + '" stroke="#fbbf24" stroke-width="1" stroke-dasharray="3 3"/>');
@@ -725,13 +719,12 @@
 
       wrap.querySelector('#qcb-d1').innerHTML =
         '<svg width="' + w + '" viewBox="0 0 ' + w + ' ' + h + '" preserveAspectRatio="xMidYMid meet">' +
-        '<defs><pattern id="qcbHz" width="7" height="7" patternTransform="rotate(45)"' +
-        ' patternUnits="userSpaceOnUse"><line x1="0" y1="0" x2="0" y2="7" stroke="#334155"' +
-        ' stroke-width="1.6"/></pattern></defs>' + g.join('') + '</svg>';
+        g.join('') + '</svg>';
       wrap.querySelector('#qcb-cap1').innerHTML =
-        V.ng + ' girders @ ' + (V.even ? V.sp : D.bay.join('/')) + ' &middot; overhang ' + V.sl + ' / ' + V.sr +
-        ' &middot; out to out ' + D.W + ' &middot; slopes &minus;' + V.slopeL.toFixed(1) +
-        ' / &minus;' + V.slopeR.toFixed(1) + ' %, soffit ' + esc(V.soffit).toLowerCase();
+        V.ng + ' girders &middot; ' + V.sl + ' / ' + D.bay.join(' / ') + ' / ' + V.sr +
+        ' &middot; out to out <b>' + D.W + '</b> &middot; girder to girder <b>' + D.gw +
+        '</b>. Slab, pavement and barrier are chapters 7 and 8 &mdash; only the soffit ' +
+        'they set is drawn here, as the line the girders hang from.';
 
       drawGirder();
       drawCross();
@@ -781,19 +774,19 @@
 
     /* ---- 주거더 형상. 1장에서 적은 여섯 숫자가 무엇을 정하는지 한 장으로. ---- */
     function drawGirder() {
-      var t = V.gt[Math.min(ACT.gt, V.gt.length - 1)], w = 238, h = 268;
+      var t = V.gt[Math.min(ACT.gt, V.gt.length - 1)], w = 250, h = 268;
       var SC = 196 / Math.max(D.depth(t), 1);
-      var x0 = 56, y0 = 232;
+      var x0 = 78, y0 = 232;
       var X = function (m) { return rnd(x0 + m * SC, 1); };
       var Y = function (m) { return rnd(y0 - m * SC, 1); };
       var P = function (x, y) { return X(x) + ' ' + Y(y); };
-      var yB = 0, yT = t.tb + t.hw + t.tt, g = [];
+      var yB = 0, yT = t.tbf + t.hw + t.ttf, g = [];
       g.push('<path d="M ' + P(-t.bt / 2, yT) + ' L ' + P(t.bt / 2, yT) +
-        ' L ' + P(t.bt / 2, yT - t.tt) + ' L ' + P(t.tw / 2, yT - t.tt) +
-        ' L ' + P(t.tw / 2, yB + t.tb) + ' L ' + P(t.bb / 2, yB + t.tb) +
+        ' L ' + P(t.bt / 2, yT - t.ttf) + ' L ' + P(t.tw / 2, yT - t.ttf) +
+        ' L ' + P(t.tw / 2, yB + t.tbf) + ' L ' + P(t.bb / 2, yB + t.tbf) +
         ' L ' + P(t.bb / 2, yB) + ' L ' + P(-t.bb / 2, yB) +
-        ' L ' + P(-t.bb / 2, yB + t.tb) + ' L ' + P(-t.tw / 2, yB + t.tb) +
-        ' L ' + P(-t.tw / 2, yT - t.tt) + ' L ' + P(-t.bt / 2, yT - t.tt) +
+        ' L ' + P(-t.bb / 2, yB + t.tbf) + ' L ' + P(-t.tw / 2, yB + t.tbf) +
+        ' L ' + P(-t.tw / 2, yT - t.ttf) + ' L ' + P(-t.bt / 2, yT - t.ttf) +
         ' Z" fill="#cbd5e1" stroke="#e2e8f0" stroke-width="1.2"/>');
       /* 치수선의 x 는 화면 좌표로 잡는다. 모델 단위로 밀어 두면 단면이 바뀔
          때마다 두 줄이 서로 붙거나 그림 밖으로 나간다 — 한 번 겪었다. */
@@ -811,16 +804,18 @@
           (y - 5) + '" fill="#fca5a5" font-size="10" text-anchor="middle">' + s + '</text>');
       };
       var edge = X(Math.max(t.bt, t.bb) / 2);
-      dv(edge + 22, yB + t.tb, yT - t.tt, 'H ' + t.hw);
+      dv(edge + 22, yB + t.tbf, yT - t.ttf, 'H ' + t.hw);
       dv(edge + 72, yB, yT, 'depth ' + D.depth(t));
       dh(-t.bt / 2, t.bt / 2, Y(yT) - 14, 'B ' + t.bt);
       dh(-t.bb / 2, t.bb / 2, Y(yB) + 26, 'B ' + t.bb);
       g.push('<text x="' + X(t.tw / 2 + 60) + '" y="' + Y(yT / 2) +
-        '" fill="#94a3b8" font-size="10">web t' + t.tw + '</text>');
-      g.push('<text x="' + X(t.bt / 2 + 30) + '" y="' + (Y(yT - t.tt / 2) + 4) +
-        '" fill="#94a3b8" font-size="10">t' + t.tt + '</text>');
-      g.push('<text x="' + X(t.bb / 2 + 30) + '" y="' + (Y(yB + t.tb / 2) + 4) +
-        '" fill="#94a3b8" font-size="10">t' + t.tb + '</text>');
+        '" fill="#94a3b8" font-size="10">tw ' + t.tw + '</text>');
+      /* 플랜지 두께는 왼쪽에 적는다. 오른쪽은 H·depth 치수선 자리라, 거기
+         같이 두면 글자가 치수선을 타고 넘는다. */
+      g.push('<text x="' + X(-t.bt / 2 - 10) + '" y="' + (Y(yT - t.ttf / 2) + 4) +
+        '" fill="#94a3b8" font-size="10" text-anchor="end">ttf ' + t.ttf + '</text>');
+      g.push('<text x="' + X(-t.bb / 2 - 10) + '" y="' + (Y(yB + t.tbf / 2) + 4) +
+        '" fill="#94a3b8" font-size="10" text-anchor="end">tbf ' + t.tbf + '</text>');
       wrap.querySelector('#qcb-d3').innerHTML =
         '<svg width="' + w + '" viewBox="0 0 ' + w + ' ' + h + '" preserveAspectRatio="xMidYMid meet">' +
         g.join('') + '</svg>';
@@ -1063,7 +1058,7 @@
         chainV(g, X(R) + 16, [Y(yt), Y(yb)], ['H ' + bh]);
         g.push('<text x="' + X(0) + '" y="' + (Y(yt) - 10) + '" fill="#7dd3fc"' +
           ' font-size="10" text-anchor="middle">' + esc(t.s) +
-          (tf ? ' &middot; flange t' + tf + ', web t' + s.tw : '') + '</text>');
+          (tf ? ' &middot; tf ' + tf + ' &middot; tw ' + s.tw : '') + '</text>');
       } else {
         ln(L + ins, dep, R - ins, dep, '#22d3ee', 4);
         ln(L + ins, 0, R - ins, 0, '#0e7490', 4);
@@ -1106,9 +1101,9 @@
       var X = function (m) { return rnd(x0 + m * SC, 1); };
       var Y = function (m) { return rnd(y0 - m * SC, 1); };
       var P = function (x, y) { return X(x) + ' ' + Y(y); };
-      var thick = V.gt.reduce(function (a, q) { return Math.max(a, q.tb); }, 0);
+      var thick = V.gt.reduce(function (a, q) { return Math.max(a, q.tbf); }, 0);
       var sc = thick > 16 ? V.scB : V.scA, a = sc[0], c = sc[2], g = [];
-      g.push('<path d="M ' + P(-t.bb / 2, -t.tb) + ' L ' + P(t.bb / 2, -t.tb) + ' L ' +
+      g.push('<path d="M ' + P(-t.bb / 2, -t.tbf) + ' L ' + P(t.bb / 2, -t.tbf) + ' L ' +
              P(t.bb / 2, 0) + ' L ' + P(-t.bb / 2, 0) +
              ' Z" fill="#cbd5e1" stroke="#e2e8f0" stroke-width="1.2"/>');
       g.push('<path d="M ' + P(-t.tw / 2, 0) + ' L ' + P(t.tw / 2, 0) + ' L ' + P(t.tw / 2, 330) +
@@ -1134,9 +1129,9 @@
              '" fill="#c4b5fd" font-size="11">scallop a' + a + ' &middot; c' + c + '</text>' +
              '<line x1="' + X(t.tw / 2 + a) + '" y1="' + Y(V.stH) + '" x2="' + X(t.tw / 2 + a + 90) +
              '" y2="' + Y(V.stH + 110) + '" stroke="#a78bfa"/>');
-      g.push('<text x="' + X(-t.bb / 2 + 10) + '" y="' + Y(-t.tb - 60) +
+      g.push('<text x="' + X(-t.bb / 2 + 10) + '" y="' + Y(-t.tbf - 60) +
              '" fill="#94a3b8" font-size="11">' + esc(V.gAsg[0]) + ' bottom flange ' +
-             t.bb + '&times;' + t.tb + '</text>');
+             t.bb + '&times;' + t.tbf + '</text>');
       /* T 와 G 는 교축방향이라 이 단면에 안 나타난다. 그림에 없다고 표에만
          남겨 두면 그 두 칸은 끝까지 뜻을 모른 채로 남는다 — 글로 잇는다.
          자리는 왼쪽 아래, 플랜지 설명 밑: 위에 놓으면 W 치수와 부딪힌다. */
@@ -1160,23 +1155,27 @@
       var seg = path.split('.'), o = V, k;
       for (k = 0; k < seg.length - 1; k++) o = o[seg[k]];
       var last = seg[seg.length - 1], was = o[last];
-      if (path === 'even') {
-        V.even = raw === 'Equal' ? 1 : 0;
-        if (!V.even) for (var q = 0; q < V.ng - 1; q++)
-          if (!(num(V.spl[q], 0) > 0)) V.spl[q] = V.sp;
-        return;
-      }
       if (path === 'bSym') { V.bSym = raw === 'Symmetric' ? 1 : 0; return; }
       o[last] = (typeof was === 'number') ? num(raw, was) : raw;
-      if (path === 'ng') {
-        V.ng = Math.max(2, Math.min(12, Math.round(V.ng)));
-        while (V.gAsg.length < V.ng) V.gAsg.push(V.gt[0].m);
-        V.gAsg.length = V.ng;
-        while (V.cAsg.length < V.ng - 1) V.cAsg.push(V.ct[0].m);
-        V.cAsg.length = V.ng - 1;
-        while (V.spl.length < V.ng - 1) V.spl.push(V.sp);
-        V.spl.length = V.ng - 1;
-      }
+    }
+
+    /* 거더 수가 바뀌면 거더를 세는 배열도 같이 바뀐다 — 타입 배정, 칸의
+       간격, 칸의 가로보 배정. 한 곳에 모아 둔다: 세 군데에 흩어 두면 하나를
+       빼먹은 날 배열 길이가 어긋나고, 그건 화면이 아니라 값이 깨진 것이다. */
+    function resize(ng) {
+      V.ng = Math.max(2, Math.min(24, Math.round(ng)));
+      /* 새 칸의 간격은 마지막 칸을 따라간다 — 등간격 다리를 늘리는 것이
+         보통이니까. 새 거더·새 칸의 「타입」은 라이브러리의 첫 줄을 쓴다:
+         마지막 줄을 베끼면 바깥 거더가 무거운 다리에서 거더를 하나 늘릴
+         때마다 무거운 거더가 하나씩 는다. 치수는 이어지는 것이 맞고,
+         타입은 이어지는 것이 아니다. */
+      var seed = V.spl.length ? num(V.spl[V.spl.length - 1], V.sp) : V.sp;
+      while (V.gAsg.length < V.ng) V.gAsg.push(V.gt[0].m);
+      V.gAsg.length = V.ng;
+      while (V.cAsg.length < V.ng - 1) V.cAsg.push(V.ct[0].m);
+      V.cAsg.length = V.ng - 1;
+      while (V.spl.length < V.ng - 1) V.spl.push(seed);
+      V.spl.length = V.ng - 1;
     }
 
     body.addEventListener('change', function (e) {
@@ -1197,10 +1196,14 @@
       /* The library grows and shrinks. Nothing here is fixed at six — the sheet
          that gets written later is sized to what is here, not the other way
          round. FORMS.md holds the reasoning. */
-      if (add === 'gt') {
+      if (add === 'g') {
+        resize(V.ng + 1); build();
+      } else if (del === 'g' && V.ng > 2) {
+        resize(V.ng - 1); build();
+      } else if (add === 'gt') {
         var g0 = V.gt[V.gt.length - 1];
         V.gt.push({ m: 'GT' + (V.gt.length + 1), hw: g0.hw, tw: g0.tw, bt: g0.bt,
-                    tt: g0.tt, bb: g0.bb, tb: g0.tb });
+                    ttf: g0.ttf, bb: g0.bb, tbf: g0.tbf });
         build();
       } else if (del === 'gt' && V.gt.length > 1) {
         var gone = V.gt.pop().m;
