@@ -5,15 +5,20 @@
 
    입력 항목은 APlate 사용설명서를 따랐다. 스키마를 새로 짤 이유가 없다:
 
-     §2.3.4  횡단 구성          → 1장 Girder layout
-     §2.3.17 단면 타입 설정      → 2장 Girder types
-     §2.4.13 수직보강재 상세     → 3장 Stiffener
-     §2.4.2  스캘럽 상세         →   〃  (모재 t 16 을 경계로 두 벌)
-     §2.4.10 가로보 상세         → 4장 Crossbeam types  (형강·제작·수직보강재연결)
+     §2.3.17 단면 타입 설정      → 1장 Girder types
+     §2.4.10 가로보 상세         → 2장 Crossbeam types  (형강·제작·수직보강재연결)
      §2.4.11 수직브레이싱 상세   →   〃                  (V형·역V형)
-     §2.3.13 가로보 위치         → 5장 Crossbeam layout
-     §2.3.20 슬래브 제원         → 6장 Deck slab
-     §2.3.21 방호벽 제원         → 7장 Barrier
+     §2.4.9  볼트 이음 상세      → 3장 Bolted connection
+     §2.4.13 수직보강재 상세     → 4장 Stiffener & scallop
+     §2.4.2  스캘럽 상세         →   〃  (모재 t 16 을 경계로 두 벌)
+     §2.3.4  횡단 구성          → 5장 Girder layout
+     §2.3.13 가로보 위치         → 6장 Crossbeam layout
+     §2.3.20 슬래브 제원         → 7장 Deck slab
+     §2.3.21 방호벽 제원         → 8장 Barrier
+
+   장 순서는 「먼저 정의하고 나중에 배치한다」이다 — 타입(1~4)을 먼저 만들고,
+   그 다음에 어느 거더가·어느 칸이 어느 타입인지(5~6)를 고른다. 매뉴얼은
+   배치부터 받지만, 폼에서는 고를 것이 없는 드롭다운이 먼저 나오면 안 된다.
 
    ── 매뉴얼과 일부러 다르게 한 것 ──────────────────────────────
    같은 값을 여러 번 적게 하지 않는다.
@@ -136,6 +141,15 @@
   var FORMS = ['Rolled beam', 'Built-up plate', 'Stiffener-connected',
                'V frame', 'Inverted V frame'];
   var isTruss = function (f) { return f === 'V frame' || f === 'Inverted V frame'; };
+
+  /* 규격 이름이 곧 치수다. 「H-500x200x10x16」 에서 H·B·tw·tf 를 꺼낸다 —
+     형강을 골랐으면 단면을 또 적게 할 이유가 없다. 네 숫자가 안 나오면 null 이고,
+     그때 그림은 아는 척하지 않는다. 앵글(L-130x130x12)은 셋뿐이라 여기서 걸린다. */
+  function sect(name) {
+    var n = String(name || '').split(/[^0-9.]+/)
+      .filter(function (s) { return s !== ''; }).map(Number);
+    return n.length >= 4 ? { h: n[0], b: n[1], tw: n[2], tf: n[3] } : null;
+  }
 
   var ANGLES = ['L-100x100x10', 'L-130x130x12', 'L-150x150x15', 'L-175x175x15'];
   var BEAMS  = ['H-400x200x8x13', 'H-500x200x10x16', 'H-600x200x11x17'];
@@ -546,14 +560,21 @@
        The section is drawn from the same V the form holds, so there is no second
        description of the bridge to fall out of step. */
     function draw() {
-      var w = 1180, h = 580, SC, i;
+      /* 작아지는 것은 「그림」이지 「글씨」가 아니다. SVG 를 1:1 로 세워 두었으므로
+         (width 속성 = viewBox 폭) 좌표를 줄이면 도형만 줄고 font-size 는 그대로
+         픽셀이다. 화면을 덜 먹으면서 읽히는 자리가 여기다 — 통째로 축소하면
+         글씨까지 같이 작아져서 결국 못 읽는다. */
+      var w = 900, SC, i;
       var span = D.W * 1.06;
-      SC = (w - 60) / span;
-      var x0 = w / 2, y0 = 168;
-      var X = function (m) { return rnd(x0 + m * SC, 1); };
-      var Y = function (m) { return rnd(y0 - m * SC, 1); };
+      SC = (w - 56) / span;
       var sL = V.slopeL / 100, sR = V.slopeR / 100;
       var top = function (m) { return m < 0 ? -(-m) * sL : -m * sR; };  // slab top, crown at 0
+      /* 위쪽 여백은 세는 것이 아니라 재는 것이다 — 방호벽이 높아지면 그만큼
+         원점이 내려온다. 고정값으로 두면 언젠가 방호벽 머리가 잘린다. */
+      var mTop = Math.max(top(-D.half), top(D.half)) + V.bh1 + V.bh2 + V.bh3;
+      var x0 = w / 2, y0 = rnd(Math.max(28 + mTop * SC, 50 + V.pav * SC), 1);
+      var X = function (m) { return rnd(x0 + m * SC, 1); };
+      var Y = function (m) { return rnd(y0 - m * SC, 1); };
       var g = [];
 
       /* pavement line */
@@ -604,7 +625,7 @@
              V.slopeR.toFixed(1) + ' %</text>');
 
       /* girders, each drawn as the type it was given */
-      var yTop = [];
+      var yTop = [], yBot = [];
       D.gx.forEach(function (gx, k) {
         var t = D.gtOf(k);
         var yT = (D.level ? botZ : (top(gx) - V.T1)) - V.hh;
@@ -623,6 +644,7 @@
                ' font-weight="700" text-anchor="middle">G' + (k + 1) + '</text>');
         g.push('<text x="' + X(gx) + '" y="' + (Y(yB) + 34) + '" fill="#94a3b8" font-size="10"' +
                ' text-anchor="middle">' + esc(V.gAsg[k]) + '</text>');
+        yBot.push(Y(yB));
       });
 
       /* crossbeams, each drawn as the form its bay was given */
@@ -659,8 +681,11 @@
       /* Dimension string. Placed in SCREEN space, not model space: the girders
          are 1.8 m deep and the deck 12.4 m wide, so a line put a fixed number of
          millimetres under the steel lands outside the picture as soon as the
-         scale changes. Two rows under the marks, always visible. */
-      var dimY1 = 402, dimY2 = 424;
+         scale changes. Two rows under the marks, always visible.
+         자리는 강재가 어디까지 내려왔는지를 보고 잡는다 — 402 처럼 박아 두면
+         거더가 깊어지는 날 치수선이 거더 위에 얹힌다. */
+      var deep = Math.max.apply(null, yBot);
+      var dimY1 = rnd(deep + 52, 0), dimY2 = dimY1 + 20;
       var dim = function (x1, x2, sy, t) {
         g.push('<line x1="' + X(x1) + '" y1="' + sy + '" x2="' + X(x2) + '" y2="' + sy +
           '" stroke="#ef4444" stroke-width="1"/><line x1="' + X(x1) + '" y1="' + (sy - 5) +
@@ -678,7 +703,7 @@
          계단으로 쌓아 보인다. 「−」가 왼쪽, 「+」가 오른쪽이라는 것까지 매뉴얼
          그대로다. 칸 사이 간격(위)과 중심 이격(아래)은 다른 것을 재는 두 벌이고,
          Per bay 로 칸을 열었으면 둘 다 보여야 어디를 고쳤는지 보인다. */
-      var oy = dimY2 + 26, step = 15;
+      var oy = dimY2 + 22, step = 12, h = rnd(oy + step * (V.ng + 1) + 12, 0);
       g.push('<line x1="' + X(0) + '" y1="' + (Y(0) + 6) + '" x2="' + X(0) + '" y2="' +
         (oy + step * (V.ng + 1)) + '" stroke="#fbbf24" stroke-width="1" stroke-dasharray="3 3"/>');
       var offs = [{ x: -D.half, t: 'SL' }];
@@ -723,11 +748,42 @@
         '" font-size="11" font-weight="700">' + t + '</text>');
     }
 
+    /* ---- 치수 사슬. 마디마다 tick 을 긋고 마디 가운데에 글자를 놓는다.
+       좌표는 화면 좌표로 받는다 — 축척이 바뀌어도 자리가 안 무너진다.
+       좁은 마디는 글자를 생략한다: 겹쳐 적은 치수는 안 적은 것보다 나쁘고,
+       생략해도 전체 치수에서 되읽힌다. ---- */
+    function chainH(g, sy, px, labs) {
+      g.push('<line x1="' + px[0] + '" y1="' + sy + '" x2="' + px[px.length - 1] +
+        '" y2="' + sy + '" stroke="#ef4444" stroke-width="1"/>');
+      px.forEach(function (x) {
+        g.push('<line x1="' + x + '" y1="' + (sy - 4) + '" x2="' + x + '" y2="' +
+          (sy + 4) + '" stroke="#ef4444"/>');
+      });
+      labs.forEach(function (t, i) {
+        if (t == null || Math.abs(px[i + 1] - px[i]) < 22) return;
+        g.push('<text x="' + ((px[i] + px[i + 1]) / 2) + '" y="' + (sy - 5) +
+          '" fill="#fca5a5" font-size="10" text-anchor="middle">' + t + '</text>');
+      });
+    }
+    function chainV(g, sx, py, labs) {
+      g.push('<line x1="' + sx + '" y1="' + py[0] + '" x2="' + sx + '" y2="' +
+        py[py.length - 1] + '" stroke="#ef4444" stroke-width="1"/>');
+      py.forEach(function (y) {
+        g.push('<line x1="' + (sx - 4) + '" y1="' + y + '" x2="' + (sx + 4) + '" y2="' + y +
+          '" stroke="#ef4444"/>');
+      });
+      labs.forEach(function (t, i) {
+        if (t == null || Math.abs(py[i + 1] - py[i]) < 13) return;
+        g.push('<text x="' + (sx + 5) + '" y="' + ((py[i] + py[i + 1]) / 2 + 4) +
+          '" fill="#fca5a5" font-size="10">' + t + '</text>');
+      });
+    }
+
     /* ---- 주거더 형상. 1장에서 적은 여섯 숫자가 무엇을 정하는지 한 장으로. ---- */
     function drawGirder() {
-      var t = V.gt[Math.min(ACT.gt, V.gt.length - 1)], w = 380, h = 400;
-      var SC = 300 / Math.max(D.depth(t), 1);
-      var x0 = w / 2 - 55, y0 = 350;
+      var t = V.gt[Math.min(ACT.gt, V.gt.length - 1)], w = 238, h = 268;
+      var SC = 196 / Math.max(D.depth(t), 1);
+      var x0 = 56, y0 = 232;
       var X = function (m) { return rnd(x0 + m * SC, 1); };
       var Y = function (m) { return rnd(y0 - m * SC, 1); };
       var P = function (x, y) { return X(x) + ' ' + Y(y); };
@@ -755,15 +811,15 @@
           (y - 5) + '" fill="#fca5a5" font-size="10" text-anchor="middle">' + s + '</text>');
       };
       var edge = X(Math.max(t.bt, t.bb) / 2);
-      dv(edge + 26, yB + t.tb, yT - t.tt, 'H ' + t.hw);
-      dv(edge + 86, yB, yT, 'depth ' + D.depth(t));
-      dh(-t.bt / 2, t.bt / 2, Y(yT) - 16, 'B ' + t.bt);
-      dh(-t.bb / 2, t.bb / 2, Y(yB) + 30, 'B ' + t.bb);
-      g.push('<text x="' + X(t.tw / 2 + 30) + '" y="' + Y(yT / 2) +
+      dv(edge + 22, yB + t.tb, yT - t.tt, 'H ' + t.hw);
+      dv(edge + 72, yB, yT, 'depth ' + D.depth(t));
+      dh(-t.bt / 2, t.bt / 2, Y(yT) - 14, 'B ' + t.bt);
+      dh(-t.bb / 2, t.bb / 2, Y(yB) + 26, 'B ' + t.bb);
+      g.push('<text x="' + X(t.tw / 2 + 60) + '" y="' + Y(yT / 2) +
         '" fill="#94a3b8" font-size="10">web t' + t.tw + '</text>');
-      g.push('<text x="' + X(t.bt / 2 + 12) + '" y="' + (Y(yT - t.tt / 2) + 4) +
+      g.push('<text x="' + X(t.bt / 2 + 30) + '" y="' + (Y(yT - t.tt / 2) + 4) +
         '" fill="#94a3b8" font-size="10">t' + t.tt + '</text>');
-      g.push('<text x="' + X(t.bb / 2 + 12) + '" y="' + (Y(yB + t.tb / 2) + 4) +
+      g.push('<text x="' + X(t.bb / 2 + 30) + '" y="' + (Y(yB + t.tb / 2) + 4) +
         '" fill="#94a3b8" font-size="10">t' + t.tb + '</text>');
       wrap.querySelector('#qcb-d3').innerHTML =
         '<svg width="' + w + '" viewBox="0 0 ' + w + ' ' + h + '" preserveAspectRatio="xMidYMid meet">' +
@@ -775,44 +831,71 @@
         (used.length ? used.join(', ') : '&mdash; nothing yet');
     }
 
-    /* ---- 3장 볼트 연결. 연결판 한 장을 크게, 매뉴얼의 기호를 그대로 얹어.
-       표에 A·B·C·E·F·T·W 라고 적어 두고 그림에 안 적으면 아무도 못 잇는다. ---- */
+    /* ---- 3장 볼트 연결. 연결판 한 장에 볼트를 「배치 그대로」 찍고, 그 위아래로
+       주요 치수를 사슬로 건다. 매뉴얼 §2.4.9 의 기호를 그림에 그대로 얹는다 —
+       표에 A·B·C·E·F·T·W 라고 적어 두고 그림에 안 적으면 아무도 못 잇는다.
+
+       치수 두 벌을 건다. 안쪽 사슬은 「어떻게 나뉘는가」(연단 · F · 연단 /
+       A · C · A), 바깥 한 줄은 「전부 얼마인가」(W, 판 높이). 도면이 하는 방식이고,
+       하나만 적으면 나머지를 손으로 빼야 한다. ---- */
     function drawBolt() {
       var b = V.bc[Math.min(ACT.bc, V.bc.length - 1)], q = D.bcChk(b);
-      var w = 340, h = 290;
       var pw = b.W, ph = (b.nr - 1) * b.pit + 2 * b.e;
-      var SC = Math.min(210 / Math.max(pw, 1), 170 / Math.max(ph, 1));
-      var x0 = w / 2 - 24, y0 = h / 2 + (ph * SC) / 2 + 4;
-      var X = function (m) { return rnd(x0 - (pw * SC) / 2 + m * SC, 1); };
-      var Y = function (m) { return rnd(y0 - m * SC, 1); };
-      var g = [];
-      g.push('<rect x="' + X(0) + '" y="' + Y(ph) + '" width="' + (pw * SC) + '" height="' +
-        (ph * SC) + '" fill="#a78bfa" fill-opacity="0.30" stroke="#c4b5fd" stroke-width="1.2"/>');
-      var gx0 = (pw - (b.nc - 1) * b.ga) / 2, ic, ir;
-      for (ic = 0; ic < b.nc; ic++) for (ir = 0; ir < b.nr; ir++)
-        g.push('<circle cx="' + X(gx0 + ic * b.ga) + '" cy="' + Y(b.e + ir * b.pit) +
-          '" r="' + Math.max(2.5, q.d / 2 * SC) + '" fill="none" stroke="#ddd6fe" stroke-width="1.4"/>');
-      var dh = function (x1, x2, sy, lab) {
-        g.push('<line x1="' + X(x1) + '" y1="' + sy + '" x2="' + X(x2) + '" y2="' + sy +
-          '" stroke="#ef4444" stroke-width="1"/><line x1="' + X(x1) + '" y1="' + (sy - 4) +
-          '" x2="' + X(x1) + '" y2="' + (sy + 4) + '" stroke="#ef4444"/><line x1="' + X(x2) +
-          '" y1="' + (sy - 4) + '" x2="' + X(x2) + '" y2="' + (sy + 4) + '" stroke="#ef4444"/>');
-        sym(g, (X(x1) + X(x2)) / 2 - 12, sy - 6, lab);
-      };
-      var dv = function (sx, y1, y2, lab) {
-        g.push('<line x1="' + sx + '" y1="' + Y(y1) + '" x2="' + sx + '" y2="' + Y(y2) +
-          '" stroke="#ef4444" stroke-width="1"/><line x1="' + (sx - 4) + '" y1="' + Y(y1) +
-          '" x2="' + (sx + 4) + '" y2="' + Y(y1) + '" stroke="#ef4444"/><line x1="' + (sx - 4) +
-          '" y1="' + Y(y2) + '" x2="' + (sx + 4) + '" y2="' + Y(y2) + '" stroke="#ef4444"/>');
-        sym(g, sx + 5, (Y(y1) + Y(y2)) / 2 + 4, lab);
-      };
-      dh(0, pw, Y(ph) - 22, 'W ' + pw);
-      if (b.nc > 1) dh(gx0, gx0 + b.ga, Y(ph) - 6, 'F ' + b.ga);
-      dv(X(pw) + 14, 0, b.e, 'A ' + b.e);
-      if (b.nr > 1) dv(X(pw) + 60, b.e, b.e + b.pit, 'C ' + b.pit);
-      sym(g, X(0) - 4, Y(ph) - 38, 'T ' + b.T + '  ·  ' + esc(b.dia) + ' L' + b.len, '#94a3b8');
-      sym(g, X(0), Y(0) + 24, 'B ' + b.nr + ' rows  ×  E ' + b.nc + ' cols  =  ' +
-        (b.nr * b.nc), '#7dd3fc');
+      /* 판이 들어갈 상자를 픽셀로 먼저 정하고 축척은 거기서 나온다. 상자를
+         줄이면 그림만 줄고 글씨는 그대로다. */
+      var SC = Math.min(150 / Math.max(pw, 1), 122 / Math.max(ph, 1));
+      var pxW = pw * SC, pxH = ph * SC;
+      var x0 = 30, yT = 70, w = 296, h = rnd(yT + pxH + 40, 0);
+      var X = function (m) { return rnd(x0 + m * SC, 1); };
+      var Y = function (m) { return rnd(yT + pxH - m * SC, 1); };
+      var g = [], ic, ir;
+      /* 판 */
+      g.push('<rect x="' + X(0) + '" y="' + rnd(yT, 1) + '" width="' + rnd(pxW, 1) +
+        '" height="' + rnd(pxH, 1) + '" fill="#a78bfa" fill-opacity="0.26"' +
+        ' stroke="#c4b5fd" stroke-width="1.2"/>');
+      /* 볼트군은 판 폭 가운데에 놓인다. 세로는 연단거리 A 가 잡는다. */
+      var gx0 = (pw - (b.nc - 1) * b.ga) / 2;
+      var cx = [], cy = [], r = Math.max(2.2, q.d / 2 * SC);
+      for (ic = 0; ic < b.nc; ic++) cx.push(gx0 + ic * b.ga);
+      for (ir = 0; ir < b.nr; ir++) cy.push(b.e + ir * b.pit);
+      /* 중심선 먼저. 배치가 보이려면 중심선이 있어야 한다 — 구멍만 찍어 두면
+         어디를 기준으로 잰 치수인지가 그림에 없다. */
+      cx.forEach(function (m) {
+        g.push('<line x1="' + X(m) + '" y1="' + rnd(yT - 8, 1) + '" x2="' + X(m) + '" y2="' +
+          rnd(yT + pxH + 8, 1) + '" stroke="#8b5cf6" stroke-width="0.7"' +
+          ' stroke-dasharray="7 2 1.5 2"/>');
+      });
+      cy.forEach(function (m) {
+        g.push('<line x1="' + (X(0) - 8) + '" y1="' + Y(m) + '" x2="' + (X(pw) + 8) +
+          '" y2="' + Y(m) + '" stroke="#8b5cf6" stroke-width="0.7"' +
+          ' stroke-dasharray="7 2 1.5 2"/>');
+      });
+      cx.forEach(function (mx) {
+        cy.forEach(function (my) {
+          g.push('<circle cx="' + X(mx) + '" cy="' + Y(my) + '" r="' + rnd(r, 1) +
+            '" fill="#1e1b4b" stroke="#ddd6fe" stroke-width="1.3"/>');
+        });
+      });
+      /* 가로 사슬 — 연단 · F · … · F · 연단, 그리고 그 위에 W 하나 */
+      var px = [X(0)].concat(cx.map(X)).concat([X(pw)]);
+      var lh = [rnd(gx0, 0)];
+      for (ic = 1; ic < b.nc; ic++) lh.push('F ' + b.ga);
+      lh.push(rnd(gx0, 0));
+      chainH(g, yT - 11, px, lh);
+      chainH(g, yT - 31, [X(0), X(pw)], ['W ' + pw]);
+      /* 세로 사슬 — A · C · … · C · A, 그리고 그 옆에 판 높이 하나 */
+      var py = [Y(ph)].concat(cy.slice().reverse().map(Y)).concat([Y(0)]);
+      var lv = ['A ' + b.e];
+      for (ir = 1; ir < b.nr; ir++) lv.push('C ' + b.pit);
+      lv.push('A ' + b.e);
+      chainV(g, X(pw) + 14, py, lv);
+      /* 판 높이는 받는 값이 아니라 A·C·B 가 정하는 값이다 — 사슬 옆에 합계로 둔다. */
+      chainV(g, X(pw) + 62, [Y(ph), Y(0)], ['plate ' + rnd(ph, 0)]);
+      sym(g, X(0) - 4, 20, 'T ' + b.T + '  ·  ' + esc(b.dia) + ' L' + b.len, '#94a3b8');
+      var nb = b.nr * b.nc;
+      sym(g, X(0) - 4, rnd(yT + pxH + 26, 1),
+        'B ' + b.nr + (b.nr > 1 ? ' rows' : ' row') + '  &times;  E ' + b.nc +
+        (b.nc > 1 ? ' cols' : ' col') + '  =  ' + nb + (nb > 1 ? ' bolts' : ' bolt'), '#7dd3fc');
       wrap.querySelector('#qcb-d5').innerHTML =
         '<svg width="' + w + '" viewBox="0 0 ' + w + ' ' + h + '" preserveAspectRatio="xMidYMid meet">' +
         g.join('') + '</svg>';
@@ -824,8 +907,8 @@
 
     /* ---- 6장 슬래브. 한쪽 끝에서 마루까지 잘라, T·T1·H·A·W1 을 얹는다. ---- */
     function drawSlab() {
-      var w = 440, h = 300, half = D.half, SC = Math.min(330 / half, 0.9);
-      var x0 = 30, y0 = 165;
+      var w = 350, h = 168, half = D.half, SC = Math.min(262 / half, 0.7);
+      var x0 = 26, y0 = 62;
       var X = function (m) { return rnd(x0 + (m + half) * SC, 1); };
       var Y = function (m) { return rnd(y0 - m * SC * 3.2, 1); };   // 두께 방향은 과장
       var top = function (m) { return -(-m) * V.slopeL / 100; };
@@ -845,19 +928,24 @@
         p += ' L ' + X(0) + ' ' + Y(-V.T1) + ' L ' + X(-half) + ' ' + Y(top(-half) - V.T1) + ' Z';
       }
       g.push('<path d="' + p + '" fill="url(#qcbHz2)" stroke="#38bdf8" stroke-width="1.4"/>');
+      /* 얇은 켜(포장 A, 헌치 H)는 글자를 가운데 놓으면 켜의 선 위에 얹힌다.
+         20px 아래면 켜 위로 올려 적는다 — 재는 자리와 적는 자리는 달라도 된다. */
       var dvS = function (sx, z1, z2, lab) {
-        g.push('<line x1="' + sx + '" y1="' + Y(z1) + '" x2="' + sx + '" y2="' + Y(z2) +
+        var ya = Y(z1), yb2 = Y(z2);
+        g.push('<line x1="' + sx + '" y1="' + ya + '" x2="' + sx + '" y2="' + yb2 +
           '" stroke="#ef4444" stroke-width="1"/>');
-        sym(g, sx + 5, (Y(z1) + Y(z2)) / 2 + 4, lab);
+        sym(g, sx + 5, Math.abs(ya - yb2) < 20 ? Math.min(ya, yb2) - 5 : (ya + yb2) / 2 + 4, lab);
       };
       dvS(X(-half) - 16, top(-half), (D.level ? botZ : top(-half) - V.T1), 'T1 ' + V.T1);
       dvS(X(0) - 66, 0, (D.level ? botZ : -V.T1), 'T ' + rnd(D.crownT, 0));
       dvS(X(-half) + 30, top(-half), top(-half) + V.pav, 'A ' + V.pav);
       if (D.level) dvS(X(D.gx[0]) - 6, botZ, botZ - V.hh, 'H ' + V.hh);
-      g.push('<line x1="' + X(-half) + '" y1="' + (Y(top(-half)) + 34) + '" x2="' +
-        X(-half + V.ovh) + '" y2="' + (Y(top(-half)) + 34) + '" stroke="#ef4444"/>');
-      sym(g, X(-half) + 2, Y(top(-half)) + 50, 'W1 ' + V.ovh);
-      sym(g, X(-half * 0.45), Y(top(-half * 0.45)) - 12, '&minus;' + V.slopeL.toFixed(1) + ' %');
+      /* 내민 길이는 슬래브 밑을 지나 맨 아래에 둔다. 화면 좌표다 — 헌치가
+         깊어지면 모델 좌표로 잡은 자리는 슬래브 안으로 들어간다. */
+      g.push('<line x1="' + X(-half) + '" y1="' + (h - 26) + '" x2="' +
+        X(-half + V.ovh) + '" y2="' + (h - 26) + '" stroke="#ef4444"/>');
+      sym(g, X(-half) + 2, h - 12, 'W1 ' + V.ovh);
+      sym(g, X(-half * 0.45), Y(top(-half * 0.45)) - 21, '&minus;' + V.slopeL.toFixed(1) + ' %');
       sym(g, X(0) - 40, Y(0) - 26, 'crown', '#94a3b8');
       wrap.querySelector('#qcb-d6').innerHTML =
         '<svg width="' + w + '" viewBox="0 0 ' + w + ' ' + h + '" preserveAspectRatio="xMidYMid meet">' +
@@ -871,9 +959,9 @@
 
     /* ---- 7장 방호벽. H1·H2·H3 과 위아래 폭. ---- */
     function drawBarrier() {
-      var w = 300, h = 400, H3 = V.bh1 + V.bh2 + V.bh3;
-      var SC = Math.min(200 / Math.max(V.bwb, 1), 250 / Math.max(H3, 1));
-      var x0 = w / 2 - 30, y0 = 320;
+      var w = 244, h = 258, H3 = V.bh1 + V.bh2 + V.bh3;
+      var SC = Math.min(120 / Math.max(V.bwb, 1), 176 / Math.max(H3, 1));
+      var x0 = 42, y0 = 214;
       var X = function (m) { return rnd(x0 + m * SC, 1); };
       var Y = function (m) { return rnd(y0 - m * SC, 1); };
       var g = [];
@@ -905,29 +993,77 @@
         (V.bSym ? 'both sides the same' : 'each side entered on its own');
     }
 
-    /* ---- 가로보 형상. 한 칸을 정면에서 — 현재·사재·연결판·볼트가 어디 붙는지. ---- */
+    /* ---- 가로보 형상. 한 칸을 정면에서 — 현재·사재·연결판·볼트가 어디 붙는지.
+
+       형강 타입(Rolled beam·Built-up plate·Stiffener-connected)은 선 하나가
+       아니라 「측면도」로 그린다. 굵은 선 한 줄은 그것이 형강이라는 것도, 얼마나
+       깊은지도 말해 주지 않는다. 규격 이름에 이미 H·B·tw·tf 가 들어 있으므로
+       sect() 로 꺼내 외곽선과 플랜지 두 줄을 긋는다 — 이름이 곧 단면이다.
+       이름을 못 읽으면 깊이를 지어내지 않고 밋밋한 판으로 그린다.
+
+       화면 창은 형상마다 다르게 잡는다. 트러스는 거더 사이 높이를 다 쓰고,
+       형강은 제 깊이 둘레만 쓴다 — 한 창에 맞추면 형강 그림 위아래로 빈
+       칸만 남는다. ---- */
     function drawCross() {
-      var t = V.ct[Math.min(ACT.ct, V.ct.length - 1)], gt = D.gtOf(0), bc = D.bcOf(t.c), w = 460, h = 400;
-      var bay = D.bay[0] || V.sp, dep = gt.hw - 320;
-      var SC = Math.min(400 / bay, 260 / Math.max(dep, 1));
-      var x0 = w / 2, y0 = 320;
+      var t = V.ct[Math.min(ACT.ct, V.ct.length - 1)], gt = D.gtOf(0), bc = D.bcOf(t.c);
+      var w = 380, bay = D.bay[0] || V.sp, dep = gt.hw - 320;
+      var s = isTruss(t.f) ? null : sect(t.s);
+      var bh = s ? s.h : Math.round(dep * 0.42), tf = s ? s.tf : 0;
+      /* 연결판이 형강보다 깊을 수도 있다 — 창은 둘 중 큰 것을 담는다. */
+      var pw = bc.W, ph = (bc.nr - 1) * bc.pit + 2 * bc.e;
+      var vh = isTruss(t.f) ? dep : Math.max(bh, ph) * 1.15;
+      var base = isTruss(t.f) ? 0 : (dep - vh) / 2;
+      /* 폭은 128 을 남긴다 — 오른쪽에 깊이 치수가 서야 하고, 재 놓고 글자가
+         그림 밖으로 나가면 「H 5」 가 된다. 한 번 그렇게 나왔다. */
+      var SC = Math.min((w - 128) / bay, 190 / Math.max(vh, 1));
+      /* 위는 이름표가, 아래는 bay 치수가 설 만큼만 띄운다. 트러스는 아래
+         현재 이름이 한 줄 더 붙으므로 그만큼 더 든다. */
+      var padT = isTruss(t.f) ? 26 : 30, padB = isTruss(t.f) ? 46 : 30;
+      var x0 = w / 2, y0 = rnd(padT + vh * SC, 1), h = rnd(y0 + padB + 12, 0);
       var X = function (m) { return rnd(x0 + m * SC, 1); };
-      var Y = function (m) { return rnd(y0 - m * SC, 1); };
+      var Y = function (m) { return rnd(y0 - (m - base) * SC, 1); };
       var g = [], L = -bay / 2, R = bay / 2, ins = 90;
-      /* 양옆 거더의 웨브 — 가로보가 무엇에 붙는지 보이라고 */
+      /* 양옆 거더의 웨브 — 가로보가 무엇에 붙는지 보이라고. 위아래로는 그림
+         밖까지 뻗는다: 거더는 이 창에서 끝나지 않으니 끝나는 것처럼 그리지 않는다. */
       [L, R].forEach(function (gx) {
-        g.push('<rect x="' + X(gx - gt.tw / 2) + '" y="' + Y(dep + 200) + '" width="' +
-          Math.max(2, gt.tw * SC) + '" height="' + ((dep + 400) * SC) +
+        g.push('<rect x="' + X(gx - gt.tw / 2) + '" y="-10" width="' +
+          Math.max(2, rnd(gt.tw * SC, 1)) + '" height="' + (h + 20) +
           '" fill="#475569" stroke="#64748b"/>');
       });
       var ln = function (x1, y1, x2, y2, c, wd) {
         g.push('<line x1="' + X(x1) + '" y1="' + Y(y1) + '" x2="' + X(x2) + '" y2="' + Y(y2) +
           '" stroke="' + c + '" stroke-width="' + wd + '" stroke-linecap="round"/>');
       };
+      /* 연결판 한 장과 그 위의 볼트. 크기도 개수도 간격도 연결 상세(BC)가 정한다.
+         그리는 것이 적은 값을 따라가지 않으면 그림이 거짓말을 한다. */
+      var plate = function (mx, my, sx, sy) {   // sy 0 이면 my 를 가운데로 놓는다
+        var ox = sx > 0 ? mx : mx - pw;
+        var oy = sy > 0 ? my : (sy < 0 ? my - ph : my - ph / 2);
+        g.push('<rect x="' + X(ox) + '" y="' + Y(oy + ph) + '" width="' + rnd(pw * SC, 1) +
+          '" height="' + rnd(ph * SC, 1) + '" fill="#a78bfa" fill-opacity="0.35"' +
+          ' stroke="#c4b5fd"/>');
+        var gx0 = ox + (pw - (bc.nc - 1) * bc.ga) / 2, gy0 = oy + bc.e;
+        for (var ic = 0; ic < bc.nc; ic++) for (var ir = 0; ir < bc.nr; ir++)
+          g.push('<circle cx="' + X(gx0 + ic * bc.ga) + '" cy="' + Y(gy0 + ir * bc.pit) +
+            '" r="2.2" fill="#4c1d95"/>');
+      };
       if (!isTruss(t.f)) {
-        ln(L, dep / 2, R, dep / 2, '#22d3ee', 14);
-        g.push('<text x="' + X(0) + '" y="' + (Y(dep / 2) - 16) + '" fill="#7dd3fc"' +
-          ' font-size="10" text-anchor="middle">' + esc(t.s) + '</text>');
+        var cyM = dep / 2, yt = cyM + bh / 2, yb = cyM - bh / 2;
+        g.push('<rect x="' + X(L) + '" y="' + Y(yt) + '" width="' + rnd(bay * SC, 1) +
+          '" height="' + rnd(bh * SC, 1) + '" fill="#0e7490" fill-opacity="0.45"' +
+          ' stroke="#22d3ee" stroke-width="1.4"/>');
+        if (tf) {                       // 플랜지가 보이는 두 줄 — 이것이 측면도다
+          [yt - tf, yb + tf].forEach(function (yy) {
+            g.push('<line x1="' + X(L) + '" y1="' + Y(yy) + '" x2="' + X(R) + '" y2="' +
+              Y(yy) + '" stroke="#67e8f9" stroke-width="1.1"/>');
+          });
+        }
+        plate(L + gt.tw / 2, cyM, 1, 0); plate(R - gt.tw / 2, cyM, -1, 0);
+        /* 깊이는 재서 보인다. 형강이 무엇인지는 이름이, 얼마나 깊은지는 이 줄이. */
+        chainV(g, X(R) + 16, [Y(yt), Y(yb)], ['H ' + bh]);
+        g.push('<text x="' + X(0) + '" y="' + (Y(yt) - 10) + '" fill="#7dd3fc"' +
+          ' font-size="10" text-anchor="middle">' + esc(t.s) +
+          (tf ? ' &middot; flange t' + tf + ', web t' + s.tw : '') + '</text>');
       } else {
         ln(L + ins, dep, R - ins, dep, '#22d3ee', 4);
         ln(L + ins, 0, R - ins, 0, '#0e7490', 4);
@@ -938,45 +1074,35 @@
           ln(L + ins, 0, 0, dep, '#22d3ee', 4); ln(R - ins, 0, 0, dep, '#22d3ee', 4);
           g.push('<circle cx="' + X(0) + '" cy="' + Y(dep) + '" r="4" fill="#a78bfa"/>');
         }
-        /* 연결판과 볼트 — 크기도 개수도 간격도 연결 상세(BC)가 정한다.
-           그리는 것이 적은 값을 따라가지 않으면 그림이 거짓말을 한다. */
-        var pw = bc.W, ph = (bc.nr - 1) * bc.pit + 2 * bc.e;
-        [[L + ins, dep, 1, -1], [R - ins, dep, -1, -1],
-         [L + ins, 0, 1, 1], [R - ins, 0, -1, 1]].forEach(function (c) {
-          var ox = c[2] > 0 ? c[0] : c[0] - pw, oy = c[3] > 0 ? c[1] : c[1] - ph;
-          g.push('<rect x="' + X(ox) + '" y="' + Y(oy + ph) + '" width="' + (pw * SC) +
-            '" height="' + (ph * SC) + '" fill="#a78bfa" fill-opacity="0.35" stroke="#c4b5fd"/>');
-          var gx0 = ox + (pw - (bc.nc - 1) * bc.ga) / 2, gy0 = oy + bc.e;
-          for (var ic = 0; ic < bc.nc; ic++) for (var ir = 0; ir < bc.nr; ir++)
-            g.push('<circle cx="' + X(gx0 + ic * bc.ga) + '" cy="' + Y(gy0 + ir * bc.pit) +
-              '" r="2.6" fill="#ddd6fe"/>');
-        });
+        plate(L + ins, dep, 1, -1); plate(R - ins, dep, -1, -1);
+        plate(L + ins, 0, 1, 1);     plate(R - ins, 0, -1, 1);
         g.push('<text x="' + X(0) + '" y="' + (Y(dep) - 12) + '" fill="#7dd3fc"' +
           ' font-size="10" text-anchor="middle">top ' + esc(t.u) + '</text>');
         g.push('<text x="' + X(0) + '" y="' + (Y(0) + 20) + '" fill="#7dd3fc"' +
           ' font-size="10" text-anchor="middle">btm ' + esc(t.l) + ' &middot; diag ' + esc(t.d) + '</text>');
       }
-      g.push('<line x1="' + X(L) + '" y1="' + (Y(0) + 44) + '" x2="' + X(R) + '" y2="' +
-        (Y(0) + 44) + '" stroke="#ef4444" stroke-width="1"/><text x="' + X(0) + '" y="' +
-        (Y(0) + 39) + '" fill="#fca5a5" font-size="10" text-anchor="middle">bay ' + bay + '</text>');
+      g.push('<line x1="' + X(L) + '" y1="' + (h - 12) + '" x2="' + X(R) + '" y2="' +
+        (h - 12) + '" stroke="#ef4444" stroke-width="1"/><text x="' + X(0) + '" y="' +
+        (h - 17) + '" fill="#fca5a5" font-size="10" text-anchor="middle">bay ' + bay + '</text>');
       wrap.querySelector('#qcb-d4').innerHTML =
         '<svg width="' + w + '" viewBox="0 0 ' + w + ' ' + h + '" preserveAspectRatio="xMidYMid meet">' +
         g.join('') + '</svg>';
+      /* 이음은 두 형상 모두 볼트다. 트러스만 적어 두면 형강 타입은 무엇으로
+         붙는지 화면 어디에도 안 적힌 것이 된다. */
       var q = D.bcChk(bc);
       wrap.querySelector('#qcb-cap4').innerHTML =
         '<b>' + esc(t.m) + '</b> &middot; ' + esc(t.f) + ' &middot; between G1 and G2' +
-        (isTruss(t.f)
-          ? ' &middot; <b>' + esc(bc.m) + '</b> ' + (bc.nr * bc.nc) + '&times;' + esc(bc.dia) +
-            ' @ ' + bc.pit + '/' + bc.ga + ' on plate ' + bc.W + '&times;' + bc.T +
-            ' &middot; edge ' + bc.e + (q.edgeOK ? '' : ' <b>short</b>')
-          : ' &middot; ' + esc(t.s));
+        (isTruss(t.f) ? '' : ' &middot; ' + esc(t.s)) +
+        ' &middot; <b>' + esc(bc.m) + '</b> ' + (bc.nr * bc.nc) + '&times;' + esc(bc.dia) +
+        ' @ ' + bc.pit + '/' + bc.ga + ' on plate ' + bc.W + '&times;' + bc.T +
+        ' &middot; edge ' + bc.e + (q.edgeOK ? '' : ' <b>short</b>');
     }
 
     /* The stiffener end, drawn large. A whole section puts 1800 mm in one panel
        and squeezes the two things this chapter actually sets — the gap off the
        flange and the scallop — into a few pixels. Drawings zoom; so does this. */
     function drawStiff() {
-      var t = D.gtOf(0), w = 340, h = 420, SC = 0.50, x0 = 150, y0 = 340;
+      var t = D.gtOf(0), w = 258, h = 206, SC = 0.34, x0 = 110, y0 = 150;
       var X = function (m) { return rnd(x0 + m * SC, 1); };
       var Y = function (m) { return rnd(y0 - m * SC, 1); };
       var P = function (x, y) { return X(x) + ' ' + Y(y); };
@@ -994,9 +1120,11 @@
                ' L ' + P(x2, 330) + ' L ' + P(x1, 330) +
                ' Z" fill="#a78bfa" stroke="#ddd6fe" stroke-width="1.2"/>');
       });
+      /* H 는 몇 픽셀짜리 틈이다. 글자를 틈 한가운데 놓으면 플랜지 위에 얹히므로
+         틈 위에 적는다 — 재는 자리와 적는 자리는 달라도 된다. */
       g.push('<line x1="' + X(t.tw / 2 + V.stW + 20) + '" y1="' + Y(0) + '" x2="' +
              X(t.tw / 2 + V.stW + 20) + '" y2="' + Y(V.stH) + '" stroke="#ef4444"/>' +
-             '<text x="' + (X(t.tw / 2 + V.stW + 26)) + '" y="' + (Y(V.stH / 2) + 4) +
+             '<text x="' + (X(t.tw / 2 + V.stW + 26)) + '" y="' + (Y(V.stH) - 5) +
              '" fill="#fca5a5" font-size="11">H ' + V.stH + '</text>');
       g.push('<line x1="' + X(t.tw / 2) + '" y1="' + Y(365) + '" x2="' + X(t.tw / 2 + V.stW) +
              '" y2="' + Y(365) + '" stroke="#ef4444"/><text x="' +
@@ -1010,9 +1138,10 @@
              '" fill="#94a3b8" font-size="11">' + esc(V.gAsg[0]) + ' bottom flange ' +
              t.bb + '&times;' + t.tb + '</text>');
       /* T 와 G 는 교축방향이라 이 단면에 안 나타난다. 그림에 없다고 표에만
-         남겨 두면 그 두 칸은 끝까지 뜻을 모른 채로 남는다 — 글로 잇는다. */
-      sym(g, X(-t.tw / 2 - V.stW - 118), Y(300),
-        'W ' + V.stW + ' &times; T ' + V.stT, '#c4b5fd');
+         남겨 두면 그 두 칸은 끝까지 뜻을 모른 채로 남는다 — 글로 잇는다.
+         자리는 왼쪽 아래, 플랜지 설명 밑: 위에 놓으면 W 치수와 부딪힌다. */
+      sym(g, 6, h - 6, 'T ' + V.stT + ' &middot; G ' + V.stG + ' &mdash; along the bridge',
+        '#c4b5fd');
       wrap.querySelector('#qcb-d2').innerHTML =
         '<svg width="' + w + '" viewBox="0 0 ' + w + ' ' + h + '" preserveAspectRatio="xMidYMid meet">' +
         g.join('') + '</svg>';
