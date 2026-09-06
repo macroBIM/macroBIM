@@ -35,6 +35,17 @@
      · 보강재 좌우는 「대칭」이면 네 칸이다 (매뉴얼은 LW/RW…LH/RH 여덟 칸)
      · 스캘럽은 두 벌 받아 두고, 어느 줄을 쓸지는 플랜지 두께를 보고 고른다
 
+   ── 한 번에 한 군데 ──────────────────────────────────────────
+   매뉴얼은 다리 한 채를 통째로 세운다. 그래서 가로보를 위치별(§2.4.10 의
+   양측단 A · 교각 P · 분배 C)로 나눠 받고, 지간·지점 각도·시종점까지 받는다.
+
+   이 폼은 그렇지 않다. **한 군데의 표준횡단을 낸다.** 단부를 그릴 것이면
+   단부 값을 적어서 한 번, 지점부를 그릴 것이면 지점부 값을 적어서 한 번
+   돌린다. 그래서 「어느 위치냐」를 고르는 칸을 두지 않는다 — 두면 폼이 한
+   군데를 내면서 여러 군데를 내는 척하게 되고, 그건 없는 것을 있는 척하는
+   것이다. 교축방향으로 남긴 값은 Pitch 하나뿐이고, 그것은 위치를 고르는
+   값이 아니라 이 한 군데가 몇 미터마다 되풀이되는지를 말하는 값이다.
+
    ── 타입은 라이브러리다 ──────────────────────────────────────
    주형도 가로보도 「한 줄이 한 타입」이고, 거더와 칸이 이름으로 부른다.
    Simple connector 의 접합 라이브러리(C1~C6)와 같은 짜임이다. 다만 줄 수를
@@ -211,7 +222,7 @@
         { m: 'BC2', T: 14, W: 340, dia: 'M24', len: 60, nr: 3, pit: 90, nc: 2, ga: 90, e: 45 }
       ],
       cAsg: ['CT1', 'CT1', 'CT1', 'CT1'],
-      cEnd: 'CT2', cPitch: 5000, cSeat: 'Sloped',
+      cPitch: 5000, cSeat: 'Sloped',
       slopeL: 2.0, slopeR: 2.0, crown: 'Road centre', soffit: 'Level',
       T: 240, T1: 240, T2: 240, hh: 100, pav: 80, ovh: 300,
       bh1: 300, bh2: 500, bh3: 250, bwt: 250, bwb: 450, bSym: 1,
@@ -414,31 +425,27 @@
         'measured, once to be filled — so §2.3.13 (crossbeam position) is <b>the same table, ' +
         'not another one</b>: one more row on the bays that already exist. <b>Pitch</b> is ' +
         'the manual\'s base placing interval (§2.3.13), one number the whole span repeats, ' +
-        'from which it places every station. <b>End &amp; pier</b> ' +
-        'is there because the manual sets crossbeams <b>by station</b> (§2.4.10: type A at ' +
-        'the two abutments, P over a pier, C for the distributing beams between) — the row ' +
-        'above is C, this cell is A and P. <b>One cell covers both</b>, because an end and a ' +
-        'pier diaphragm are usually the same detail; say the word and they split in two.',
+        'from which it places every station. The manual also keeps crossbeams apart <b>by ' +
+        'station</b> (§2.4.10: A at the abutments, P over a pier, C for the distributing ' +
+        'beams between) — but that is for a whole bridge. <b>This form draws one station.</b> ' +
+        'Which one it is, is what you typed above; run it again for the next one.',
         '<span class="k">Girder levels</span> ' +
         (D.level ? '<b>all equal</b> — the soffit is level, so the cross slope is carried by slab thickness'
                  : D.gz.map(function (z, k) { return 'G' + (k + 1) + ' ' + rnd(z, 0); }).join(' / ')),
         { n: 1, wide: 1 },
-        /* Pitch 와 End & pier 는 칸마다가 아니라 다리마다 하나다. 표 안에
-           두었더니 열이 칸을 뜻하는 격자 위에 얹혀서 「칸마다 다른 pitch」처럼
-           읽혔다 — 한 번만 적는 값은 격자 밖 한 줄에 둔다.
+        /* Pitch 는 칸마다가 아니라 다리마다 하나다. 표 안에 두었더니 열이
+           칸을 뜻하는 격자 위에 얹혀서 「칸마다 다른 pitch」처럼 읽혔다 —
+           한 번만 적는 값은 격자 밖 한 줄에 둔다.
 
-           End & pier 를 남겨 둔 까닭은 매뉴얼에 있기 때문이다. §2.4.10 은
-           가로보를 「위치별」로 받는다 — "가로보 위치별(양측단 A 타입, 교각 P
-           타입, 분배가로보 C 타입) 상세 제원을 설정합니다." 위의 칸마다 줄이
-           C(분배)이고, 이 칸이 A 와 P 다. 다만 우리는 A 와 P 를 한 칸으로
-           묶었다: 단부와 지점부 격벽은 보통 같은 상세다. 묶은 것은 사실이므로
-           숨기지 않고 장 노트에 적어 둔다 — 나누려면 칸 하나만 더 내면 된다. */
+           「End & pier」 칸은 뺐다. 매뉴얼은 가로보를 위치별(§2.4.10 의 양측단
+           A · 교각 P · 분배 C)로 받지만, 그건 다리 한 채를 통째로 모델링하기
+           때문이다. 이 폼이 내는 것은 한 군데다 — 단부를 그릴 것이면 단부를
+           적어서 한 번, 지점부를 그릴 것이면 지점부를 적어서 한 번. 위치를
+           고르는 칸을 두면 폼은 한 군데를 내면서 여러 군데를 내는 척하게 된다.
+           있는 것만 있는 채로 둔다. */
         '<div class="qcb-span">' +
           '<label>Crossbeam pitch ' + inp('cPitch', V.cPitch) + '</label>' +
-          '<label>End &amp; pier type ' +
-            sel('cEnd', V.cEnd, V.ct.map(function (t) { return t.m; }), 'mk') + '</label>' +
-          '<em>one pitch for the whole bridge &middot; the abutment and pier stations ' +
-          'take this type instead of the bay one</em>' +
+          '<em>one pitch for the whole bridge, not one per bay</em>' +
         '</div>');
       C.glayout += '<div class="qcb-addrow">' +
         '<button type="button" class="qcb-add" data-add="g">+ Add girder</button>' +
@@ -568,10 +575,11 @@
           + ' title="Remove the last row">− Remove last</button>' : '') + '</div>';
 
       /* 「Crossbeam layout」 장은 없앴다. 받던 넷이 다 다른 데로 갔다:
-         칸마다의 타입과 Pitch·End & pier 는 1장 Layout 으로 — 칸은 이미 거기
-         있고, 같은 칸을 두 장에서 두 번 세는 것은 입력을 늘리는 게 아니라
-         어긋날 자리를 늘리는 것이다. 「단면배치(Seating)」는 4장 Crossbeam
-         types 로 — 매뉴얼이 §2.4.10 가로보 상세에서 받는 값이다. */
+         칸마다의 타입과 Pitch 는 1장 Layout 으로 — 칸은 이미 거기 있고, 같은
+         칸을 두 장에서 두 번 세는 것은 입력을 늘리는 게 아니라 어긋날 자리를
+         늘리는 것이다. 「단면배치(Seating)」는 4장 Crossbeam types 로 —
+         매뉴얼이 §2.4.10 가로보 상세에서 받는 값이다. 「End & pier」는 어디로도
+         안 갔다: 이 폼은 한 군데를 내므로 위치를 고를 일이 없다. */
 
       /* 5 — deck slab */
       C.slab = chapter(6, 'Deck slab', 'left and right slopes — and whether the soffit stays level',
@@ -1278,7 +1286,6 @@
       } else if (del === 'ct' && V.ct.length > 1) {
         var goneC = V.ct.pop().m;
         V.cAsg = V.cAsg.map(function (m) { return m === goneC ? V.ct[0].m : m; });
-        if (V.cEnd === goneC) V.cEnd = V.ct[0].m;
         build();
       }
     });
