@@ -3,9 +3,9 @@
 
     Single entry: fdraw_pscbox(mountId). Full parametric stack ported from the
     Seoul PhD app, specialized to box12cell:
-      · Variables card  — name/formula rows (calc.js scope, sequential refs)
       · Dimension card  — Section Type radio + live RWSVG guide + scrollable
-                          variable-mapping table (inputs hold formulas)
+                          variable-mapping table (inputs hold numbers or
+                          plain arithmetic, e.g. 6800/2 — no named variables)
       · REBAR card      — trebar/lrebar schema table + Excel loader
       · Rebar Physics   — engine render (ui.js/physics.js) via the generic
                           section adapter; bend-arc post-processing included.
@@ -170,7 +170,7 @@
 
   var PXBOX = {
     _mountId: 'mount-draw-pscbox',
-    _vars: null, _excelData: null, _rebarData: null, _focusId: null,
+    _excelData: null, _rebarData: null, _focusId: null,
     _lines: [], _arcs: [], _circs: [],
     _uiInited: false, _settleTimer: null, _rebarSettled: false, _lastAp: null, _lastStuckMsg: null,
     _showEngNormals: false, _showEngNodes: false, _engNormGroup: null, _engNodeGroup: null,
@@ -192,13 +192,12 @@
 
         function esc(v) { return String(v == null ? '' : v).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;'); }
 
-        // 셀 안의 수식 토큰을 변수값으로 치환해 표시 (예: a=th/2 → a=400). 평가 실패 토큰은 원문 유지.
-        var scope = (typeof Calc !== 'undefined') ? Calc.buildScope(this._vars || []).scope : {};
+        // 셀 안의 산술식을 계산해 표시 (예: a=6800/2 → a=3400). 평가 실패 토큰은 원문 유지.
         function evalTok(t) {
           t = String(t).trim(); if (t === '') return t;
           if (!isNaN(Number(t))) return t;                       // 순수 숫자는 그대로
           if (typeof Calc === 'undefined') return t;
-          var r = Calc.eval(t, scope);
+          var r = Calc.eval(t, {});
           if (r.error == null && isFinite(r.value)) return String(Math.round(r.value * 1000) / 1000);
           return t;                                              // 벽id(e5)·fit·ray 등 비수식은 원문
         }
@@ -253,29 +252,6 @@
 
       _rowIsComment: function (row) { var f = this._rowFirstToken(row); var ch = f.charAt(0); return ch === '#' || ch === '!'; },
 
-      _loadVariablesFromExcel: function (fullData) {
-        if (!Array.isArray(fullData)) return;
-        var vars = [];
-        for (var r = 0; r < fullData.length; r++) {
-          var row = fullData[r];
-          if (this._rowIsEnd(row)) break;          // end → 종료
-          if (this._rowIsComment(row)) continue;   // #variable/! 주석 무시
-          var hc = -1;
-          for (var c = 0; c < (row ? row.length : 0); c++) { if (String(row[c] == null ? '' : row[c]).trim().toLowerCase() === 'variable') { hc = c; break; } }
-          if (hc < 0) continue;                 // 타 블록·빈 행은 무시(빈 줄이어도 계속)
-          var name = String(row[hc + 1] == null ? '' : row[hc + 1]).trim();
-          if (!name) continue;
-          var expr = row[hc + 2];
-          expr = (expr == null) ? '' : String(expr).trim();
-          vars.push({ name: name, expr: expr });
-        }
-        if (!vars.length) return 0;
-        this._vars = vars;                      // 엑셀 variable 블록으로 교체 (로딩 전 초기화됨)
-        this._renderVarRows();                  // Variables 카드 입력창 갱신
-        console.log('[PSCBOX] variable 로드: ' + vars.length + '개 → ' + vars.map(function (v) { return v.name + '=' + v.expr; }).join(', '));
-        return vars.length;
-      },
-
       _extractRebarDataRows: function (fullData) {
         if (!Array.isArray(fullData)) return [];
         var out = [];
@@ -294,9 +270,7 @@
       },
 
       _parseRebar: function (fullData) {
-        // Variables 카드의 변수들을 스코프로 — 철근 수치 칸(segs/init/angs/dia 등)에서 th/2 같은 수식 사용 가능
-        this._rbVarScope = (typeof Calc !== 'undefined') ? Calc.buildScope(this._vars || []).scope : {};
-        this._evalErrs = [];                    // 미정의 변수/수식 평가 실패 수집 → 있으면 로딩 중단
+        this._evalErrs = [];                    // 수식 평가 실패 수집 → 있으면 로딩 중단
         var rows = this._extractRebarDataRows(fullData), out = [], self = this;
         rows.forEach(function (row) {
           var type = self._rbStr(row[0]).toLowerCase();
@@ -364,8 +338,8 @@
       _rbNum: function (v) {
         v = this._rbStr(v); if (v === '') return undefined;
         var n = Number(v); if (!isNaN(n)) return n;
-        if (typeof Calc !== 'undefined') {                          // 변수/수식 (예: th/2, W-100) → Variables 스코프로 평가
-          var r = Calc.eval(v, this._rbVarScope || {});
+        if (typeof Calc !== 'undefined') {                          // 산술식 (예: 6800/2) 평가. 숫자로 못 읽히면 오류
+          var r = Calc.eval(v, {});
           if (r.error == null && isFinite(r.value)) return r.value;
           var where = (this._rbCurId ? this._rbCurId + '의 ' : '') + '"' + v + '"';
           if (this._evalErrs) this._evalErrs.push(where + ' (' + r.error + ')');
@@ -1119,67 +1093,6 @@
         this._drawEngineNodes();
       },
 
-      _renderVarRows: function () {
-        var body = document.getElementById('varBody');
-        if (!body) return;
-        if (!this._vars || !this._vars.length) this._vars = [{ name: '', expr: '' }];
-        var self = this, h = '';
-        function half(i) {
-          var v = self._vars[i];
-          if (!v) return '<td class="var-c-name"></td><td></td><td class="var-c-val"></td><td class="var-c-del"></td>';
-          return '<td class="var-c-name"><input class="form-input var-name" placeholder="Name" value="' + self._esc(v.name) + '" oninput="PXBOX.onVarInput(' + i + ',\'name\',this.value)" onchange="PXBOX.onVarChange()"></td>' +
-                 '<td><input class="form-input var-expr" placeholder="Value / Formula" value="' + self._esc(v.expr) + '" oninput="PXBOX.onVarInput(' + i + ',\'expr\',this.value)" onchange="PXBOX.onVarChange()"></td>' +
-                 '<td class="var-c-val"><span class="var-val" id="varval-' + i + '"></span></td>' +
-                 '<td class="var-c-del"><button type="button" class="var-del" title="Delete row" onclick="PXBOX.removeVarRow(' + i + ')">×</button></td>';
-        }
-        for (var i = 0; i < this._vars.length; i += 2) h += '<tr>' + half(i) + half(i + 1) + '</tr>';
-        body.innerHTML = h;
-        this._evalScope();   // 미리보기 갱신
-      },
-
-      onVarInput: function (i, key, val) {
-        if (!this._vars || !this._vars[i]) return;
-        this._vars[i][key] = val;
-        this._evalScope();   // 계산값 미리보기만 (재작도는 onchange)
-      },
-
-      onVarChange: function () {
-        // 변수 변경 → 철근 수식(th/2 등)도 새 값으로 재평가 후 재작도
-        if (this._excelData) {
-          this._rebarData = this._parseRebar(this._excelData);
-          this._renderRebarTables();            // 표의 수식 표시값도 새 변수로 갱신
-          if (this._evalErrs && this._evalErrs.length) {
-            this._toast('철근 수식 오류 — 미정의 변수 확인: ' + this._evalErrs.join(' / ') + ' — 철근 로딩 중단', 'err');
-          }
-        }
-        this.redraw();
-      },
-
-      addVarRow: function () { if (!this._vars) this._vars = []; this._vars.push({ name: '', expr: '' }); this._renderVarRows(); },
-
-      removeVarRow: function (i) {
-        if (!this._vars) return;
-        this._vars.splice(i, 1);
-        if (!this._vars.length) this._vars.push({ name: '', expr: '' });
-        this._renderVarRows();
-        this.onVarChange();
-      },
-
-      _evalScope: function () {
-        var scope = {}, errors = [];
-        if (typeof Calc !== 'undefined') { var b = Calc.buildScope(this._vars || []); scope = b.scope; errors = b.errors; }
-        var errMap = {}; errors.forEach(function (e) { errMap[e.name] = e.msg; });
-        (this._vars || []).forEach(function (v, i) {
-          var span = document.getElementById('varval-' + i);
-          if (!span) return;
-          var nm = String(v.name || '').trim().toLowerCase();   // Calc 스코프 키가 소문자 정규화됨
-          if (!nm) { span.textContent = ''; span.className = 'var-val'; return; }
-          if (errMap[nm] || !(nm in scope) || !isFinite(scope[nm])) { span.textContent = '⚠ ' + (errMap[nm] || 'error'); span.className = 'var-val err'; }
-          else { span.textContent = '= ' + (Math.round(scope[nm] * 1000) / 1000); span.className = 'var-val ok'; }
-        });
-        return scope;
-      },
-
       _esc: function (v) { return String(v == null ? '' : v).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;'); },
 
       // ── 로딩 로그 패널 : 마지막 엑셀 로딩 결과 다시 보기 ──
@@ -1315,13 +1228,12 @@
           self._toast('Loading Excel\u2026', 'loading');
           window.loadSheetData(file, sheet).then(function (data) {
             console.log('[PSCBOX] 엑셀 로드 완료:', sheet, data.length + '행', data);
-            self._resetInputs();                 // ① 기존 웹 입력값 전체 초기화 (Variables/Dimension/철근)
+            self._resetInputs();                 // ① 기존 웹 입력값 전체 초기화 (Dimension/철근)
             self._excelData = data;
-            var nv = self._loadVariablesFromExcel(data);  // ② 'variable' 블록 → Variables 카드 (교체)
-            self._loadTypeFromExcel(data);       // ③ 'type' 블록 → Section Type (1c/2c)
-            var nd = self._loadDimsFromExcel(data);       // ④ 'dim' 블록 → Dimension 표 (대칭/비대칭 자동)
-            self._loadCoverFromExcel(data);      // ④-1 'cover' 블록 → 피복 3칸 (deck/exterior/interior)
-            self._renderRebarTables();           // ⑤ 'trebar/lrebar' 블록 → REBAR 표
+            self._loadTypeFromExcel(data);       // ② 'type' 블록 → Section Type (1c/2c)
+            var nd = self._loadDimsFromExcel(data);       // ③ 'dim' 블록 → Dimension 표 (대칭/비대칭 자동)
+            self._loadCoverFromExcel(data);      // ③-1 'cover' 블록 → 피복 3칸 (deck/exterior/interior)
+            self._renderRebarTables();           // ④ 'trebar/lrebar' 블록 → REBAR 표
             self._rebarData = self._parseRebar(data);
             console.log('[PSCBOX] 철근 파싱:', self._rebarData);
             self.redraw();              // 재작도 (physics 포함)
@@ -1334,20 +1246,21 @@
               'File      : ' + file.name,
               'Sheet     : ' + sheet + '  (' + data.length + ' rows)',
               'Section   : ' + (oncell ? oncell.value : '?') + ' cell',
-              'Variables : ' + (nv || 0),
               'Dims      : ' + (nd || 0),
               'Cover     : deck ' + cd('cover_deck_s') + ' / exterior ' + cd('cover_ext_s') + ' / interior ' + cd('cover_int_s'),
               'Rebar     : ' + nre + '  (trebar ' + ntre + ', lrebar ' + nlre + ')'
             ] };
             // 최종 결과 토스트 — 철근 id 중복이면 오류 상태로 (성공 토스트가 덮지 않게)
             if (self._evalErrs && self._evalErrs.length) {
-              self._toast('철근 수식 오류 — 미정의 변수 확인: ' + self._evalErrs.join(' / ') + ' — 철근 로딩 중단', 'err');
+              self._loadLog.ok = false;
+              self._loadLog.lines.push('ERROR     : bad number ' + self._evalErrs.join(' / ') + ' — rebar loading skipped');
+              self._toast('철근 수치 오류 — 숫자로 읽을 수 없음: ' + self._evalErrs.join(' / ') + ' — 철근 로딩 중단', 'err');
             } else if (self._dupIds && self._dupIds.length) {
               self._loadLog.ok = false;
               self._loadLog.lines.push('ERROR     : duplicate rebar id ' + self._dupIds.join(', ') + ' \u2014 rebar loading skipped');
-              self._toast('Duplicate rebar id: ' + self._dupIds.join(', ') + ' \u2014 rebar loading skipped (variables/dims loaded)', 'err');
+              self._toast('Duplicate rebar id: ' + self._dupIds.join(', ') + ' \u2014 rebar loading skipped (dims loaded)', 'err');
             } else {
-              self._toast('Excel loaded \u2014 variables ' + (nv || 0) + ', dims ' + (nd || 0) + ', rebar ' + nre, 'ok');
+              self._toast('Excel loaded \u2014 dims ' + (nd || 0) + ', rebar ' + nre, 'ok');
             }
           }).catch(function (e) {
             self._loadLog = { time: new Date().toLocaleString(), ok: false, lines: [
@@ -1364,21 +1277,10 @@
 
     // ── PSCBOX 전용 ────────────────────────────────────────────
 
-    // Variables 카드 시딩 : adefs_box12cell 의 (이름, 기본값)
-    _seedVars: function () {
-      var vars = [];
-      adefs_box12cell.forEach(function (d) { vars.push({ name: d[0], expr: String(d[1]) }); });
-      this._vars = vars;
-      this._renderVarRows();
-    },
-
     // 웹페이지 입력값 전체 초기화 — 엑셀 로딩 직전에 호출.
-    //   Variables 카드 완전 비움(엑셀 variable 블록만 남게), Dimension 은 숫자
-    //   기본값으로(변수 참조가 남아 깨지지 않도록), 대칭 체크박스 해제,
+    //   Dimension 은 숫자 기본값으로, 대칭 체크박스 해제,
     //   Section Type 1 Cell, trebar/lrebar 데이터 비움.
     _resetInputs: function () {
-      this._vars = [{ name: '', expr: '' }];
-      this._renderVarRows();
       this._excelData = null;
       this._rebarData = null;
       if (typeof Domain !== 'undefined') {
@@ -1517,15 +1419,16 @@
       }
     },
 
-    // 파라메트릭 재작도 : Variables scope → 매핑 수식 평가 → 가이드 + 물리 뷰
+    // 파라메트릭 재작도 : Dimension 입력칸(숫자 또는 산술식) 평가 → 가이드 + 물리 뷰
     redraw: function () {
       if (typeof adefs_box12cell === 'undefined') return;
-      var scope = this._evalScope();
       var ap = {};
       adefs_box12cell.forEach(function (d) {
         var el = document.getElementById(d[0] + '_s');
         var raw = el ? el.value : String(d[1]);
-        ap[d[0]] = (typeof Calc !== 'undefined') ? Calc.num(raw, scope, Number(raw)) : Number(raw);
+        ap[d[0]] = (typeof Calc !== 'undefined') ? Calc.num(raw, {}, Number(raw)) : Number(raw);
+        // 숫자로 못 읽히면 형상이 조용히 깨지므로 어디가 문제인지 남긴다 (변수명은 더 이상 못 씀)
+        if (!isFinite(ap[d[0]])) console.error('[PSCBOX] Dimension "' + d[0] + '" 를 숫자로 읽을 수 없음: "' + raw + '"');
       });
       var oncell = document.querySelector('input[name="box12cell_ncell"]:checked');
       ap.NCELL = oncell ? (Number(oncell.value) || 2) : 2;
@@ -1626,17 +1529,6 @@
         '  <div id="pxLoadLog" class="px-logpanel" style="display:none;"></div>' +
 
         '  <div class="draw-card">' +
-        '    <div class="draw-card-header"><div><span class="draw-card-title">Variables</span> <span class="draw-card-desc">(constants &amp; formulas &mdash; referenced by Dimension below. e.g. WL=6800, WR=WL/2)</span></div>' +
-        '      <button type="button" class="px-btn" onclick="PXBOX.addVarRow()">+ Add</button></div>' +
-        '    <div class="draw-card-body"><div class="var-tblwrap">' +
-        '      <table class="px-tbl var-tbl"><thead><tr>' +
-        '        <th>Variable</th><th>Value / Formula</th><th></th><th class="var-c-del"></th>' +
-        '        <th>Variable</th><th>Value / Formula</th><th></th><th class="var-c-del"></th>' +
-        '      </tr></thead><tbody id="varBody"></tbody></table>' +
-        '    </div></div>' +
-        '  </div>' +
-
-        '  <div class="draw-card">' +
         '    <div class="draw-card-header"><div><span class="draw-card-title">Dimension (mm)</span> <span class="draw-card-desc">PSC box girder &mdash; 1 / 2 cell</span></div>' +
         '      <button type="button" class="px-btn" onclick="PXBOX.sectionDXF()">&#8681; DXF</button></div>' +
         '    <div class="draw-card-body">' +
@@ -1681,7 +1573,6 @@
       }
 
       this._excelData = null; this._rebarData = null; this._uiInited = false;
-      this._seedVars();
       this._renderRebarTables();
       this.redraw();          // 가이드 + (마운트되는) Rebar Physics 카드
     }
