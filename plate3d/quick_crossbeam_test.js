@@ -149,6 +149,9 @@
   function defaults() {
     return {
       ng: 5, sp: 2500, even: 1, sl: 1200, sr: 1200,
+      /* 칸마다의 간격. even 일 때는 안 쓰이고, Per bay 로 바꾸는 순간
+         sp 로 채워진다 — 고르자마자 빈 칸이 나오면 지운 것처럼 보인다. */
+      spl: [2500, 2500, 2500, 2500],
       gt: [                                   // girder type library
         { m: 'GT1', hw: 1800, tw: 12, bt: 400, tt: 22, bb: 500, tb: 28 },
         { m: 'GT2', hw: 1800, tw: 14, bt: 500, tt: 28, bb: 600, tb: 36 }
@@ -186,11 +189,15 @@
      edit V and ask again without the derivation drifting. */
   function derive(V) {
     var D = {};
-    D.W = V.sp * (V.ng - 1) + V.sl + V.sr;          // out to out
+    /* 칸의 간격. 등간격이면 하나가 모두를 맡고, 아니면 칸마다 제 값을 쓴다. */
+    D.bay = [];
+    for (var i = 0; i < V.ng - 1; i++)
+      D.bay.push(V.even ? V.sp : num(V.spl[i], V.sp));
+    D.gw = D.bay.reduce(function (a2, b2) { return a2 + b2; }, 0);
+    D.W = D.gw + V.sl + V.sr;                        // out to out
     D.half = D.W / 2;
-    D.gw = V.sp * (V.ng - 1);                        // first girder to last
-    D.gx = [];
-    for (var i = 0; i < V.ng; i++) D.gx.push(-D.gw / 2 + i * V.sp);
+    D.gx = [-D.gw / 2];
+    for (i = 0; i < D.bay.length; i++) D.gx.push(D.gx[i] + D.bay[i]);
     /* The soffit rule, and the whole reason chapter 6 has that cell. A roof
        (both sides falling away from the crown) is normally built with a LEVEL
        soffit: the girders all sit at one height and the slab thickens toward
@@ -329,6 +336,16 @@
         row('Spacing', [sel('even', V.even ? 'Equal' : 'Per bay', ['Equal', 'Per bay']),
                         null, null, null, null, null, null,
                         out('Girder to girder <b>' + D.gw + '</b>')], 1) +
+        /* Per bay 를 고르면 칸이 나온다. 거더가 늘면 칸도 는다. */
+        (V.even ? '' :
+          /* 「Bay」로 부른다. 매뉴얼에서 L1…Ln 은 도로중심에서 각 거더까지의
+             이격이지 칸의 간격이 아니다 — 같은 글자를 두 뜻으로 쓰면 그림의
+             L1 과 표의 L1 이 다른 것을 가리키게 된다. */
+          row('', D.bay.map(function (x, k) { return hd('Bay ' + (k + 1)); })
+                   .concat(['', '', '', '', '', '', '']).slice(0, 8), 1) +
+          row('Bay spacing', D.bay.map(function (x, k) { return inp('spl.' + k, x); })
+                   .concat(['', '', '', '', '', '', '']).slice(0, 7)
+                   .concat([out(D.bay.join(' + '))]), 2)) +
         row('', head.slice(1), 1) +
         row('Girder type', asg.slice(1), 2),
         'Type one spacing and every bay takes it. The manual asks for SL · L1…L' +
@@ -529,7 +546,7 @@
        The section is drawn from the same V the form holds, so there is no second
        description of the bridge to fall out of step. */
     function draw() {
-      var w = 1180, h = 445, SC, i;
+      var w = 1180, h = 580, SC, i;
       var span = D.W * 1.06;
       SC = (w - 60) / span;
       var x0 = w / 2, y0 = 168;
@@ -653,9 +670,33 @@
           ' font-size="11" text-anchor="middle">' + t + '</text>');
       };
       dim(-D.half, D.gx[0], dimY1, V.sl);
-      for (i = 0; i < V.ng - 1; i++) dim(D.gx[i], D.gx[i + 1], dimY1, V.sp);
+      for (i = 0; i < V.ng - 1; i++) dim(D.gx[i], D.gx[i + 1], dimY1, D.bay[i]);
       dim(D.gx[V.ng - 1], D.half, dimY1, V.sr);
       dim(-D.half, D.half, dimY2, 'out to out ' + D.W);
+
+      /* 매뉴얼 §2.3.4 의 방식 — 도로중심에서 각 거더 중심까지의 이격을
+         계단으로 쌓아 보인다. 「−」가 왼쪽, 「+」가 오른쪽이라는 것까지 매뉴얼
+         그대로다. 칸 사이 간격(위)과 중심 이격(아래)은 다른 것을 재는 두 벌이고,
+         Per bay 로 칸을 열었으면 둘 다 보여야 어디를 고쳤는지 보인다. */
+      var oy = dimY2 + 26, step = 15;
+      g.push('<line x1="' + X(0) + '" y1="' + (Y(0) + 6) + '" x2="' + X(0) + '" y2="' +
+        (oy + step * (V.ng + 1)) + '" stroke="#fbbf24" stroke-width="1" stroke-dasharray="3 3"/>');
+      var offs = [{ x: -D.half, t: 'SL' }];
+      D.gx.forEach(function (gx, k) { offs.push({ x: gx, t: 'L' + (k + 1) }); });
+      offs.push({ x: D.half, t: 'SR' });
+      offs.sort(function (a2, b2) { return Math.abs(a2.x) - Math.abs(b2.x); });
+      offs.forEach(function (o, k) {
+        var sy = oy + k * step;
+        g.push('<line x1="' + X(0) + '" y1="' + sy + '" x2="' + X(o.x) + '" y2="' + sy +
+          '" stroke="#a78bfa" stroke-width="1"/><line x1="' + X(o.x) + '" y1="' + (sy - 4) +
+          '" x2="' + X(o.x) + '" y2="' + (sy + 4) + '" stroke="#a78bfa"/>');
+        g.push('<text x="' + (X(o.x) + (o.x < 0 ? -6 : 6)) + '" y="' + (sy + 4) +
+          '" fill="#c4b5fd" font-size="10" text-anchor="' + (o.x < 0 ? 'end' : 'start') + '">' +
+          o.t + ' ' + (o.x < 0 ? '&minus;' : (o.x > 0 ? '+' : '')) + rnd(Math.abs(o.x), 0) +
+          '</text>');
+      });
+      g.push('<text x="' + X(0) + '" y="' + (oy - 8) + '" fill="#fbbf24" font-size="10"' +
+        ' font-weight="700" text-anchor="middle">road centre</text>');
 
       wrap.querySelector('#qcb-d1').innerHTML =
         '<svg width="' + w + '" viewBox="0 0 ' + w + ' ' + h + '" preserveAspectRatio="xMidYMid meet">' +
@@ -663,7 +704,7 @@
         ' patternUnits="userSpaceOnUse"><line x1="0" y1="0" x2="0" y2="7" stroke="#334155"' +
         ' stroke-width="1.6"/></pattern></defs>' + g.join('') + '</svg>';
       wrap.querySelector('#qcb-cap1').innerHTML =
-        V.ng + ' girders @ ' + V.sp + ' &middot; overhang ' + V.sl + ' / ' + V.sr +
+        V.ng + ' girders @ ' + (V.even ? V.sp : D.bay.join('/')) + ' &middot; overhang ' + V.sl + ' / ' + V.sr +
         ' &middot; out to out ' + D.W + ' &middot; slopes &minus;' + V.slopeL.toFixed(1) +
         ' / &minus;' + V.slopeR.toFixed(1) + ' %, soffit ' + esc(V.soffit).toLowerCase();
 
@@ -867,7 +908,7 @@
     /* ---- 가로보 형상. 한 칸을 정면에서 — 현재·사재·연결판·볼트가 어디 붙는지. ---- */
     function drawCross() {
       var t = V.ct[Math.min(ACT.ct, V.ct.length - 1)], gt = D.gtOf(0), bc = D.bcOf(t.c), w = 460, h = 400;
-      var bay = V.sp, dep = gt.hw - 320;
+      var bay = D.bay[0] || V.sp, dep = gt.hw - 320;
       var SC = Math.min(400 / bay, 260 / Math.max(dep, 1));
       var x0 = w / 2, y0 = 320;
       var X = function (m) { return rnd(x0 + m * SC, 1); };
@@ -990,7 +1031,12 @@
       var seg = path.split('.'), o = V, k;
       for (k = 0; k < seg.length - 1; k++) o = o[seg[k]];
       var last = seg[seg.length - 1], was = o[last];
-      if (path === 'even') { V.even = raw === 'Equal' ? 1 : 0; return; }
+      if (path === 'even') {
+        V.even = raw === 'Equal' ? 1 : 0;
+        if (!V.even) for (var q = 0; q < V.ng - 1; q++)
+          if (!(num(V.spl[q], 0) > 0)) V.spl[q] = V.sp;
+        return;
+      }
       if (path === 'bSym') { V.bSym = raw === 'Symmetric' ? 1 : 0; return; }
       o[last] = (typeof was === 'number') ? num(raw, was) : raw;
       if (path === 'ng') {
@@ -999,6 +1045,8 @@
         V.gAsg.length = V.ng;
         while (V.cAsg.length < V.ng - 1) V.cAsg.push(V.ct[0].m);
         V.cAsg.length = V.ng - 1;
+        while (V.spl.length < V.ng - 1) V.spl.push(V.sp);
+        V.spl.length = V.ng - 1;
       }
     }
 
