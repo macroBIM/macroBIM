@@ -1496,8 +1496,13 @@
       var lblMap = {};
       adefs_box12cell.forEach(function (d) { lblMap[d[0]] = ((d.length > 2) ? d[2] : d[0]).replace('(0, if not necessary)', '<small>(0=X)</small>'); });
       var layout = DIM_LAYOUT;
+      // 초기값 : adefs_box12cell 의 기본 수치. (Variables 카드가 있던 때는 변수명을 넣어
+      //          같은 이름의 변수를 참조했지만, 이제 칸에 숫자가 직접 들어간다.)
+      var defByKey = {};
+      adefs_box12cell.forEach(function (d) { defByKey[d[0]] = String(d[1]); });
+      function dimDef(key) { return defByKey[key] == null ? '' : defByKey[key]; }
       function dimInput(key, extra) {
-        return '<input type="text" spellcheck="false" class="form-input" id="' + key + '_s" value="' + key + '" onchange="PXBOX.redraw()"' + (extra || '') + '>';
+        return '<input type="text" spellcheck="false" class="form-input" id="' + key + '_s" value="' + dimDef(key) + '" onchange="PXBOX.redraw()"' + (extra || '') + '>';
       }
       var rows = layout.map(function (it) {
         if (it.t === 'group') return '<tr class="px-2cell-hdr"><td colspan="5">' + it.label + '</td></tr>';
@@ -1506,12 +1511,12 @@
                                       '<td class="px-dim">' + lblMap[it.r] + '</td><td>' + dimInput(it.r) + '</td></tr>';
         // sym : 좌측 입력 → 우측 미러. 체크박스 체크 시 우측 독립 입력(비대칭).
         return '<tr><td class="px-dim">' + lblMap[it.l] + '</td>' +
-               '<td><input type="text" spellcheck="false" class="form-input" id="' + it.l + '_s" value="' + it.l + '" ' +
+               '<td><input type="text" spellcheck="false" class="form-input" id="' + it.l + '_s" value="' + dimDef(it.l) + '" ' +
                    'oninput="PXBOX.onSymLeft(\'' + it.l + '\',\'' + it.r + '\')" onchange="PXBOX.redraw()"></td>' +
                '<td class="px-symc"><input type="checkbox" id="asym_' + it.r + '" title="Check to enter the right side independently (asymmetric)" ' +
                    'onchange="PXBOX.onAsymToggle(\'' + it.l + '\',\'' + it.r + '\',this.checked)"></td>' +
                '<td class="px-dim">' + lblMap[it.r] + '</td>' +
-               '<td><input type="text" spellcheck="false" class="form-input" id="' + it.r + '_s" value="' + it.l + '" disabled ' +
+               '<td><input type="text" spellcheck="false" class="form-input" id="' + it.r + '_s" value="' + dimDef(it.l) + '" disabled ' +
                    'onchange="PXBOX.redraw()"></td></tr>';
       }).join('');
 
