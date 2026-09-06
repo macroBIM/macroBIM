@@ -98,6 +98,19 @@
     /* 줄을 더하고 빼는 버튼. 사이트에 이미 있는 모양을 그대로 쓴다 —
        beam_multi.js 의 .cb-ladd (「+ Add load」), PIER 의 「+ Add pier」.
        같은 일을 하는 버튼이 화면마다 다르게 생길 이유가 없다. */
+    /* 표 밑 한 줄 — 격자 밖의 값. 열이 칸을 뜻하는 표 안에 「전체에 하나」인
+       값을 끼워 넣으면 그 값도 칸마다인 것처럼 읽힌다. 한 번 그렇게 나왔다. */
+    '.qcb-span{display:flex;flex-wrap:wrap;align-items:center;gap:6px 20px;',
+      'border-top:1px solid #eef0f3;margin-top:8px;padding:9px 2px 2px}',
+    '.qcb-span label{display:inline-flex;align-items:center;gap:7px;',
+      'font:700 11px/1 Arial,sans-serif;color:#0f172a}',
+    '.qcb-span input,.qcb-span select{width:104px;box-sizing:border-box;',
+      'font:700 11px/1 Arial,sans-serif;color:#1d4ed8;background:#eff6ff;',
+      'border:1px solid #cbd5e1;border-radius:4px;padding:5px 4px;text-align:center}',
+    '.qcb-span select{text-align:left;padding:5px 2px 5px 5px}',
+    '.qcb-span select.mk{color:#7c3aed;background:#f5f3ff;border-color:#ddd6fe}',
+    '.qcb-span input:focus,.qcb-span select:focus{outline:2px solid #93c5fd;outline-offset:-1px}',
+    '.qcb-span em{font:400 10.5px/1.5 Arial,sans-serif;color:#64748b}',
     '.qcb-addrow{display:flex;justify-content:center;gap:8px;',
       'border-top:1px solid #eef0f3;padding:9px 0 2px;margin-top:6px}',
     '.qcb-add{border:1px solid #cbd5e1;background:#fff;color:#2563eb;border-radius:6px;',
@@ -305,14 +318,17 @@
     var out = function (h) { return '<div class="out">' + h + '</div>'; };
     var hd  = function (h) { return '<div class="hd">' + h + '</div>'; };
 
-    function chapter(n, title, sub, src, cols, rows, note, chk, guide) {
+    /* extra: 표 바로 밑에 붙는 한 줄. 열이 무엇인가를 뜻하는 표(칸마다·거더마다)
+       안에 「전체에 하나」인 값을 끼워 넣으면 그 값도 열마다인 것처럼 읽힌다.
+       한 번만 적는 값은 격자 밖에 둔다. */
+    function chapter(n, title, sub, src, cols, rows, note, chk, guide, extra) {
       return '<div class="qcb-ch"><h3>%N%. ' + title +
         (sub ? '<em>' + sub + '</em>' : '') +
         '<span class="src">' + src + '</span></h3>' +
         '<table class="qcb-tbl"><colgroup>' +
         cols.w.map(function (x) { return '<col style="width:' + x + '">'; }).join('') +
         '</colgroup><tr>' + cols.h.map(function (h) { return '<th>' + h + '</th>'; }).join('') +
-        '</tr>' + rows + '</table>' +
+        '</tr>' + rows + '</table>' + (extra || '') +
         (guide ? '<div class="qcb-guide' + (guide.wide ? ' wide' : '') + '">' +
                  '<div id="qcb-d' + guide.n + '"></div>' +
                  '<div class="qcb-cap" id="qcb-cap' + guide.n + '"></div></div>' : '') +
@@ -390,11 +406,7 @@
         row('Girder type', pad(gR, nSp).concat([out('Girder to girder <b>' + D.gw + '</b>')]), 2) +
         row('', pad(cH, nSp), 1) +
         row('Crossbeam', pad(cR, nSp).concat([out('<b>' + (V.ng - 1) + '</b> bay' +
-          (V.ng === 2 ? '' : 's') + ' &middot; <b>' + V.ct.length + '</b> types')]), 2) +
-        row('', pad([hd('Pitch'), hd('End &amp; pier')], nSp), 1) +
-        row('Along the span', pad([inp('cPitch', V.cPitch),
-          sel('cEnd', V.cEnd, V.ct.map(function (t) { return t.m; }), 'mk')], nSp)
-          .concat([out('One pitch repeats')]), 2),
+          (V.ng === 2 ? '' : 's') + ' &middot; <b>' + V.ct.length + '</b> types')]), 2),
         'The manual (§2.3.4) asks for SL · L1…L' + V.ng + ' · SR — offsets from the road ' +
         'centre. Here the same line is entered as the gaps between them, left to right, ' +
         'because a gap is what a fabricator sets out; <b>the offsets are drawn below</b> so ' +
@@ -405,7 +417,16 @@
         '<span class="k">Girder levels</span> ' +
         (D.level ? '<b>all equal</b> — the soffit is level, so the cross slope is carried by slab thickness'
                  : D.gz.map(function (z, k) { return 'G' + (k + 1) + ' ' + rnd(z, 0); }).join(' / ')),
-        { n: 1, wide: 1 });
+        { n: 1, wide: 1 },
+        /* Pitch 와 End & pier 는 칸마다가 아니라 다리마다 하나다. 표 안에
+           두었더니 열이 칸을 뜻하는 격자 위에 얹혀서 「칸마다 다른 pitch」처럼
+           읽혔다 — 한 번만 적는 값은 격자 밖 한 줄에 둔다. */
+        '<div class="qcb-span">' +
+          '<label>Crossbeam pitch ' + inp('cPitch', V.cPitch) + '</label>' +
+          '<label>End &amp; pier type ' +
+            sel('cEnd', V.cEnd, V.ct.map(function (t) { return t.m; }), 'mk') + '</label>' +
+          '<em>one pitch for the whole bridge, not one per bay</em>' +
+        '</div>');
       C.glayout += '<div class="qcb-addrow">' +
         '<button type="button" class="qcb-add" data-add="g">+ Add girder</button>' +
         (V.ng > 2 ? '<button type="button" class="qcb-add del" data-del="g"'
