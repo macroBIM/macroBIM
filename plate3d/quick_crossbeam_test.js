@@ -9,6 +9,7 @@
      §2.4.10 가로보 상세         → 2장 Crossbeam types  (형강·제작·수직보강재연결)
      §2.4.11 수직브레이싱 상세   →   〃                  (V형·역V형)
      §2.4.10 단면배치            →   〃  (Section arrangement — 매뉴얼도 여기서 받는다)
+     §2.4.9  이음판 접두사 u·d·s →   〃  (자리마다 이음 하나 — 세 칸)
      §2.4.9  볼트 이음 상세      → 3장 Bolted connection
      §2.4.13 수직보강재 상세     → 4장 Stiffener & scallop
      §2.4.2  스캘럽 상세         →   〃  (모재 t 16 을 경계로 두 벌)
@@ -47,9 +48,18 @@
    값이 아니라 이 한 군데가 몇 미터마다 되풀이되는지를 말하는 값이다.
 
    ── 타입은 라이브러리다 ──────────────────────────────────────
-   주형도 가로보도 「한 줄이 한 타입」이고, 거더와 칸이 이름으로 부른다.
-   Simple connector 의 접합 라이브러리(C1~C6)와 같은 짜임이다. 다만 줄 수를
-   묶지 않는다 — 폼은 HTML 이라 묶일 이유가 없고, 그게 FORMS.md 의 규칙이다.
+   주형도 가로보도 이음도 「한 줄이 한 타입」이고, 거더와 칸과 자리가 이름으로
+   부른다. Simple connector 의 접합 라이브러리(C1~C6)와 같은 짜임이다. 다만
+   줄 수를 묶지 않는다 — 폼은 HTML 이라 묶일 이유가 없고, 그게 FORMS.md 의
+   규칙이다.
+
+   가로보 한 대가 이음 하나를 부르지 않는다. 매뉴얼이 기호를 한 벌 정해 두고
+   접두사로 여러 판에 붙이므로(§2.4.9 의 u 상부 · d 하부 · s 복부), 타입도
+   자리마다 하나씩 세 개를 부른다. 세 칸이 형상마다 다르게 읽히는 것이 이
+   짜임의 값이다 — 트러스는 상현재·하현재·사재가 거셋에 붙고, 형강은
+   상부플랜지·하부플랜지·복부가 이음판으로 붙는다. 같은 세 자리, 같은 세 이름.
+   「—」를 고르면 그 자리는 볼트로 안 붙는다: 어느 자리가 비는지는 코드가
+   아니라 시트가 정한다.
 
    지금 이 파일이 하는 일은 「입력 → 그림」까지다. PLATE3D 로 모델을 보내는
    것과 워크북을 내보내는 것은 아직 없다. 없는 것을 있는 척하지 않는다.
@@ -185,6 +195,7 @@
   var ANGLES = ['L-100x100x10', 'L-130x130x12', 'L-150x150x15', 'L-175x175x15'];
   var BEAMS  = ['H-400x200x8x13', 'H-500x200x10x16', 'H-600x200x11x17'];
   var BOLTS  = ['M20', 'M22', 'M24'];
+  var NONE   = '\u2014';                 // 「—」 = 이 자리는 볼트로 안 붙는다
   var STEELS = ['SS275', 'SM355', 'SM420'];
   var CONCS  = ['C24', 'C27', 'C30', 'C35'];
 
@@ -204,22 +215,37 @@
       gAsg: ['GT2', 'GT1', 'GT1', 'GT1', 'GT2'],
       stW: 130, stT: 12, stG: 60, stH: 25, stSide: 'Both sides', stPitch: 2500,
       scA: [25, 25, 35], scB: [35, 35, 50],   // scallop: t <= 16 / t > 16
+      /* 가로보 타입. u·l·d 는 부재(상현재·하현재·사재)이고, cu·cd·cs 는 그
+         부재가 부르는 이음이다 — 매뉴얼 §2.4.9 의 접두사 u(상부)·d(하부)·
+         s(복부) 그대로다. 부재의 d(사재)와 이음의 cd(하부)가 글자를 나눠
+         쓰는 것이 어색하지만, 부재 이름은 이미 쓰던 것이고 접두사는 매뉴얼
+         것이라 둘 다 못 바꾼다. c 접두어가 「이음」이라는 표시다. */
       ct: [                                   // crossbeam type library
         { m: 'CT1', f: 'V frame', s: 'H-500x200x10x16', u: 'L-130x130x12',
-          l: 'L-130x130x12', d: 'L-130x130x12', c: 'BC1' },
+          l: 'L-130x130x12', d: 'L-130x130x12', cu: 'BC1', cd: 'BC1', cs: 'BC2' },
         { m: 'CT2', f: 'Inverted V frame', s: 'H-500x200x10x16', u: 'L-150x150x15',
-          l: 'L-150x150x15', d: 'L-150x150x15', c: 'BC2' },
+          l: 'L-150x150x15', d: 'L-150x150x15', cu: 'BC2', cd: 'BC2', cs: 'BC2' },
         { m: 'CT3', f: 'Rolled beam', s: 'H-500x200x10x16', u: '', l: '', d: '',
-          c: 'BC1' }
+          cu: 'BC1', cd: 'BC1', cs: 'BC2' }
       ],
-      /* Bolted connection library. The symbols are the manual's own, from
-         §2.4.9 — A the edge distance, B and C the count and pitch one way,
-         E and F the count and gauge the other, T and W the plate, L the bolt.
-         It is kept apart from the crossbeam types because a field splice
-         (§2.4.9 proper) is described by exactly these nine numbers too. */
+      /* Bolted connection library — 매뉴얼 §2.4.9 의 기호를 글자도 뜻도 그대로.
+         A 최외단거리, B 종방향 볼트 「칸」 갯수, C 종방향 간격, C1 중앙부 간격,
+         E 횡방향 「칸」 갯수, F 횡방향 간격, T·W 이음판, L 볼트 길이.
+
+         B 와 E 는 칸 수이지 볼트 수가 아니다. 매뉴얼 도면이 사슬을
+         「sA · sB@sC · sC1」로 적는다 — B칸 @ C간격. 그러니 볼트는 B+1 개다.
+         전에는 이 둘을 볼트 수로 읽으면서 「매뉴얼의 기호」라고 적어 두었다:
+         기호를 빌려 썼으면 뜻도 같아야 한다.
+
+         C1 은 이음 중심의 틈이다. 0 이면 한 줄로 죽 이어지고, 넣으면 중심을
+         두고 양쪽으로 갈린다 — 그때 한 줄의 볼트는 2(B+1) 개다.
+
+         타입과 따로 두는 까닭은 현장이음(§2.4.9)도 같은 열 숫자로 적히기
+         때문이다. 매뉴얼 NOTE 가 그렇게 말한다: "모든 이음판의 제원 심볼이
+         통일되어 있습니다.(현장이음, 가로보)" — 한 벌의 설명, 두 쓰임. */
       bc: [
-        { m: 'BC1', T: 12, W: 300, dia: 'M22', len: 55, nr: 2, pit: 90, nc: 2, ga: 90, e: 40 },
-        { m: 'BC2', T: 14, W: 340, dia: 'M24', len: 60, nr: 3, pit: 90, nc: 2, ga: 90, e: 45 }
+        { m: 'BC1', T: 12, W: 300, dia: 'M22', len: 55, B: 1, C: 90, C1: 0, E: 1, F: 90, A: 40 },
+        { m: 'BC2', T: 14, W: 340, dia: 'M24', len: 60, B: 2, C: 90, C1: 0, E: 1, F: 90, A: 45 }
       ],
       cAsg: ['CT1', 'CT1', 'CT1', 'CT1'],
       cPitch: 5000, cSeat: 'Sloped',
@@ -263,7 +289,10 @@
       for (var k = 0; k < V.ct.length; k++) if (V.ct[k].m === m) return V.ct[k];
       return V.ct[0];
     };
+    /* 이름이 「—」면 그 자리는 볼트로 안 붙는다. 없는 것을 첫 줄로 갈음하지
+       않는다 — 그러면 안 그려야 할 판이 그려진다. */
     D.bcOf = function (m) {
+      if (!m || m === NONE) return null;
       for (var k = 0; k < V.bc.length; k++) if (V.bc[k].m === m) return V.bc[k];
       return V.bc[0];
     };
@@ -272,8 +301,15 @@
     D.bcChk = function (b) {
       var d = num(String(b.dia).replace(/[^0-9.]/g, ''), 22);
       var need = Math.ceil(d * 1.5);
-      var span = (b.nc - 1) * b.ga + 2 * b.e;
-      return { d: d, need: need, edgeOK: b.e >= need, span: span, fitOK: span <= b.W };
+      /* 칸 수 → 볼트 수. C1 이 있으면 중심을 두고 두 무리가 된다. */
+      var nB = b.C1 > 0 ? 2 * (b.B + 1) : b.B + 1;
+      var nE = b.E + 1;
+      var run = 2 * b.A + (b.C1 > 0 ? 2 * b.B * b.C + b.C1 : b.B * b.C);
+      var across = b.E * b.F;                       // 횡방향 볼트군 폭
+      var edgeW = (b.W - across) / 2;               // 판 폭에서 남는 연단거리
+      return { d: d, need: need, nB: nB, nE: nE, n: nB * nE,
+               run: run, across: across, edgeW: edgeW,
+               edgeOK: b.A >= need, fitOK: edgeW >= need };
     };
     D.kgm = function (t) {
       return (t.hw * t.tw + t.bt * t.ttf + t.bb * t.tbf) * 7.85e-6 * 1000;
@@ -360,6 +396,8 @@
 
     var W9 = ['13%', '9.5%', '9.5%', '9.5%', '9.5%', '9.5%', '9.5%', '9.5%', '21%'];
     var W8 = ['14%', '11%', '11%', '11%', '11%', '11%', '11%', '20%'];
+    /* 가로보 타입은 이음 셋이 붙어 열이 여덟이다. W9 로는 안 들어간다. */
+    var WCT = ['9.5%', '11%', '11.5%', '9.5%', '9.5%', '9.5%', '8.5%', '8.5%', '8.5%', '12.5%'];
 
     /* ---------------- draw the form ---------------- */
     function build() {
@@ -498,18 +536,38 @@
         (thick > 16 ? 't &gt; 16' : 't &le; 16') + '</b> set (' + sc.join(' · ') + ')', { n: 2 });
 
       /* 4 — crossbeam type library */
+      /* 이음은 자리마다 하나씩 — 세 칸이다. 매뉴얼은 기호를 한 벌 정해 두고
+         접두사로 여러 판에 붙인다 (§2.4.9: u 상부 · d 하부 · s 복부). 세 칸이
+         형상마다 다르게 읽히는 것이 이 짜임의 값이다:
+
+           트러스 — 상현재 · 하현재 · 사재가 각각 거셋에 붙는다
+           형강   — 상부플랜지 · 하부플랜지 · 복부가 각각 이음판으로 붙는다
+
+         같은 세 자리, 같은 세 이름. 그래서 라이브러리 하나가 둘 다 섬긴다.
+         「—」를 고르면 그 자리는 볼트로 안 붙는다 — 수직보강재연결처럼 복부
+         하나만 붙는 형상이 있는데, 그걸 코드가 정하지 않고 시트가 정한다. */
+      var bcMarks = [NONE].concat(V.bc.map(function (q) { return q.m; }));
       var ctRows = V.ct.map(function (t, k) {
-        var tr = isTruss(t.f);
+        var tr = isTruss(t.f), n = 0;
+        ['cu', 'cd', 'cs'].forEach(function (q) { if (D.bcOf(t[q])) n++; });
         return row(t.m, [sel('ct.' + k + '.f', t.f, FORMS),
-                         tr ? inp('ct.' + k + '.s', '—', true) : sel('ct.' + k + '.s', t.s, BEAMS),
-                         tr ? sel('ct.' + k + '.u', t.u, ANGLES) : inp('ct.' + k + '.u', '—', true),
-                         tr ? sel('ct.' + k + '.l', t.l, ANGLES) : inp('ct.' + k + '.l', '—', true),
-                         tr ? sel('ct.' + k + '.d', t.d, ANGLES) : inp('ct.' + k + '.d', '—', true),
-                         sel('ct.' + k + '.c', t.c, V.bc.map(function (q) { return q.m; }), 'mk'),
-                         out(isTruss(t.f) ? 'truss of angles' : 'one solid member')], 2, 'ct:' + k);
+                         tr ? inp('ct.' + k + '.s', NONE, true) : sel('ct.' + k + '.s', t.s, BEAMS),
+                         tr ? sel('ct.' + k + '.u', t.u, ANGLES) : inp('ct.' + k + '.u', NONE, true),
+                         tr ? sel('ct.' + k + '.l', t.l, ANGLES) : inp('ct.' + k + '.l', NONE, true),
+                         tr ? sel('ct.' + k + '.d', t.d, ANGLES) : inp('ct.' + k + '.d', NONE, true),
+                         sel('ct.' + k + '.cu', t.cu, bcMarks, 'mk'),
+                         sel('ct.' + k + '.cd', t.cd, bcMarks, 'mk'),
+                         sel('ct.' + k + '.cs', t.cs, bcMarks, 'mk'),
+                         out((tr ? 'truss' : 'solid') + ' &middot; <b>' + n + '</b> ' +
+                             (tr ? (n === 1 ? 'set' : 'sets') : (n === 1 ? 'plate' : 'plates')))],
+                   2, 'ct:' + k);
       }).join('');
-      C.ctypes = chapter(4, 'Crossbeam types', 'one row is one type — five forms', 'APlate §2.4.10 · §2.4.11',
-        { w: W9, h: ['', 'Form', 'Section', 'Top chord', 'Btm chord', 'Diagonal', 'Connection', ''] },
+      C.ctypes = chapter(4, 'Crossbeam types',
+        'one row is one type — and each of its three positions names a connection',
+        'APlate §2.4.10 · §2.4.11 · §2.4.9',
+        { w: WCT, h: ['', 'Form', 'Section', 'Top chord', 'Btm chord', 'Diagonal',
+                      'Conn <b>u</b>&middot;top', 'Conn <b>d</b>&middot;btm',
+                      'Conn <b>s</b>&middot;web', ''] },
         ctRows +
         /* 매뉴얼의 「단면배치」다 (§2.4.10). 배치 장이 아니라 가로보 상세 장에
            있는 항목이라 여기 둔다 — 매뉴얼이 어디서 받는지가 그 값이 무엇에
@@ -517,14 +575,21 @@
            경우 가로보의 배치 형상에 따른 설정 옵션을 선택하는 곳입니다.
            수평을 선택할 경우 낮은쪽에 맞춰서 자동으로 변경됩니다." */
         row('Section arrangement', [sel('cSeat', V.cSeat, ['Sloped', 'Level']),
-          null, null, null, null, null,
+          null, null, null, null, null, null, null,
           out(D.level ? 'No step &mdash; soffit level'
                       : (V.cSeat === 'Level' ? 'Set to the lower girder' : 'Follows the step'))], 1),
         'The manual keeps these on two screens: <b>§2.4.10, the crossbeam</b> is one solid member — ' +
         'rolled beam, built-up plate, or connected straight to the stiffener — and ' +
         '<b>§2.4.11, the vertical bracing</b> is a truss of angles, V or inverted V. A bay picks exactly ' +
         'one of the five, so they share one library. <b>Pick a solid form and the chord cells ' +
-        'go quiet; pick a truss and the section cell does.</b> <b>Section arrangement</b> is the ' +
+        'go quiet; pick a truss and the section cell does.</b> ' +
+        '<b>One connection became three.</b> The manual gives the nine symbols once and then ' +
+        'applies them with a <b>prefix</b> (&sect;2.4.9): <b>u</b> the upper splice plate, ' +
+        '<b>d</b> the lower, <b>s</b> the web plate. The three columns read differently by ' +
+        'form and that is the point &mdash; a truss bolts its top chord, bottom chord and ' +
+        'diagonal to a gusset; a solid beam splices its top flange, bottom flange and web. ' +
+        '<b>Same three positions, same three names</b>, so one library serves both. Set a ' +
+        'position to <b>&mdash;</b> and nothing is bolted there. <b>Section arrangement</b> is the ' +
         'manual\'s own cell on this same screen (&sect;2.4.10, "section arrangement"): when the ' +
         'cross slope leaves the two girders at different heights, sit the crossbeam ' +
         '<b>sloped</b>, or <b>level</b> &mdash; which the manual says it then sets automatically ' +
@@ -538,36 +603,46 @@
 
       /* the bolted connection — what makes it a shop drawing rather than a
          stick model. Ten cells, one row; the manual's own symbols. */
-      var W10 = ['11%', '8%', '8%', '8.5%', '8%', '7%', '8%', '7%', '8%', '8%', '18.5%'];
+      var W11 = ['7%', '7.5%', '7.5%', '8%', '7.5%', '7.5%', '7%', '7.5%', '7.5%', '7%', '7%',
+                 '19%'];
       var bcRows = V.bc.map(function (b, k) {
         var q = D.bcChk(b);
         return row(b.m, [inp('bc.' + k + '.T', b.T), inp('bc.' + k + '.W', b.W),
                          sel('bc.' + k + '.dia', b.dia, BOLTS), inp('bc.' + k + '.len', b.len),
-                         inp('bc.' + k + '.nr', b.nr), inp('bc.' + k + '.pit', b.pit),
-                         inp('bc.' + k + '.nc', b.nc), inp('bc.' + k + '.ga', b.ga),
-                         inp('bc.' + k + '.e', b.e),
-                         out('<b>' + (b.nr * b.nc) + '</b> bolts &middot; ' +
+                         inp('bc.' + k + '.B', b.B), inp('bc.' + k + '.C', b.C),
+                         inp('bc.' + k + '.C1', b.C1),
+                         inp('bc.' + k + '.E', b.E), inp('bc.' + k + '.F', b.F),
+                         inp('bc.' + k + '.A', b.A),
+                         out('<b>' + q.nB + '</b>&times;<b>' + q.nE + '</b> = <b>' + q.n +
+                             '</b> bolts &middot; ' +
                              (q.edgeOK && q.fitOK ? 'fits' : 'check below'))], 2, 'bc:' + k);
       }).join('');
-      C.conn = chapter(0, 'Bolted connection', 'the bolt group a crossbeam type calls by name',
+      C.conn = chapter(0, 'Bolted connection', 'the bolt group a crossbeam position calls by name',
         'APlate §2.4.9',
-        { w: W10, h: ['', 'Plate T', 'Plate W', 'Bolt', 'Length L', 'Rows B', 'Pitch C',
-                      'Cols E', 'Gauge F', 'Edge A', ''] },
+        { w: W11, h: ['', 'Plate T', 'Plate W', 'Bolt', 'Length L', 'Spaces B', 'Pitch C',
+                      'Centre C1', 'Spaces E', 'Gauge F', 'Edge A', ''] },
         bcRows,
-        'The symbols are the manual\'s own (§2.4.9): <b>A</b> the edge distance, <b>B</b> and ' +
-        '<b>C</b> the count and pitch one way, <b>E</b> and <b>F</b> the count and gauge the ' +
-        'other, <b>T</b> and <b>W</b> the plate, <b>L</b> the bolt. It is a library of its own ' +
-        'because a field splice is described by exactly these nine numbers too — <b>one ' +
-        'description, two users.</b> A crossbeam type names one of these, and ' +
+        'The symbols are the manual\'s own (§2.4.9), <b>and so is what they mean</b>: <b>A</b> ' +
+        'the distance from the outermost bolt to the edge, <b>B</b> and <b>C</b> the ' +
+        'number of bolt <b>spaces</b> and their pitch one way, <b>C1</b> the wider gap at the ' +
+        'joint centre, <b>E</b> and <b>F</b> the spaces and gauge the other way, <b>T</b> and ' +
+        '<b>W</b> the plate, <b>L</b> the bolt. <b>B and E count spaces, not bolts</b> — the ' +
+        'manual dimensions the run as <b>sA · sB@sC · sC1</b>, <i>B spaces at C</i>, so ' +
+        '<b>B = 1</b> is two bolts. The out cell shows what it works out to. Leave <b>C1</b> at ' +
+        '<b>0</b> for one plain run; set it and the run splits either side of the joint, ' +
+        'giving 2(B+1) a line. It is a library of its own because a field splice is described ' +
+        'by exactly these ten numbers too, and the manual says so itself — <i>every splice ' +
+        'plate shares one symbol set, field splice and crossbeam alike</i>. <b>One ' +
+        'description, two users.</b> A crossbeam position names one of these, and ' +
         '<b>the drawing below counts and spaces the bolts from here</b>, so a wrong number ' +
         'shows rather than hides.',
         V.bc.map(function (b) {
           var q = D.bcChk(b);
-          return '<span class="k">' + esc(b.m) + '</span> ' + (b.nr * b.nc) + '&times;' +
-                 esc(b.dia) + ' &middot; edge ' + b.e +
+          return '<span class="k">' + esc(b.m) + '</span> ' + q.n + '&times;' +
+                 esc(b.dia) + ' &middot; run ' + q.run + ' &middot; edge A ' + b.A +
                  (q.edgeOK ? ' &ge; ' + q.need + ' OK' : ' &lt; ' + q.need + ' SHORT') +
-                 ' &middot; group ' + q.span + ' in plate ' + b.W +
-                 (q.fitOK ? ' OK' : ' TOO WIDE');
+                 ' &middot; across ' + q.across + ' in W ' + b.W + ' leaves ' + rnd(q.edgeW, 0) +
+                 (q.fitOK ? ' OK' : ' TOO NARROW');
         }).join(''), { n: 5 });
       C.conn += '<div class="qcb-addrow">' +
         '<button type="button" class="qcb-add" data-add="bc">+ Add connection</button>' +
@@ -895,69 +970,89 @@
        하나만 적으면 나머지를 손으로 빼야 한다. ---- */
     function drawBolt() {
       var b = V.bc[Math.min(ACT.bc, V.bc.length - 1)], q = D.bcChk(b);
-      var pw = b.W, ph = (b.nr - 1) * b.pit + 2 * b.e;
+      var pw = b.W, ph = q.run;                 // 판 폭 · 판 길이(사슬이 정한다)
       /* 판이 들어갈 상자를 픽셀로 먼저 정하고 축척은 거기서 나온다. 상자를
          줄이면 그림만 줄고 글씨는 그대로다. */
-      var SC = Math.min(150 / Math.max(pw, 1), 122 / Math.max(ph, 1));
+      var SC = Math.min(150 / Math.max(pw, 1), 170 / Math.max(ph, 1));
       var pxW = pw * SC, pxH = ph * SC;
-      var x0 = 30, yT = 70, w = 296, h = rnd(yT + pxH + 40, 0);
+      var x0 = 30, yT = 70, w = 300, h = rnd(yT + pxH + 40, 0);
       var X = function (m) { return rnd(x0 + m * SC, 1); };
       var Y = function (m) { return rnd(yT + pxH - m * SC, 1); };
-      var g = [], ic, ir;
+      var g = [], i;
       /* 판 */
       g.push('<rect x="' + X(0) + '" y="' + rnd(yT, 1) + '" width="' + rnd(pxW, 1) +
         '" height="' + rnd(pxH, 1) + '" fill="#a78bfa" fill-opacity="0.26"' +
         ' stroke="#c4b5fd" stroke-width="1.2"/>');
-      /* 볼트군은 판 폭 가운데에 놓인다. 세로는 연단거리 A 가 잡는다. */
-      var gx0 = (pw - (b.nc - 1) * b.ga) / 2;
-      var cx = [], cy = [], r = Math.max(2.2, q.d / 2 * SC);
-      for (ic = 0; ic < b.nc; ic++) cx.push(gx0 + ic * b.ga);
-      for (ir = 0; ir < b.nr; ir++) cy.push(b.e + ir * b.pit);
+      /* 볼트 자리. 세로는 A 에서 시작해 B 칸을 C 로 걷고, C1 이 있으면 그
+         틈을 넘어 다시 B 칸을 걷는다 — 매뉴얼의 sA · sB@sC · sC1 그대로다.
+         가로는 E 칸을 F 로 걷고, 그 군을 판 폭 가운데에 놓는다. */
+      var cy = [], m = b.A;
+      for (i = 0; i <= b.B; i++) cy.push(b.A + i * b.C);
+      if (b.C1 > 0) {
+        m = b.A + b.B * b.C + b.C1;
+        for (i = 0; i <= b.B; i++) cy.push(m + i * b.C);
+      }
+      var gx0 = (pw - q.across) / 2, cx = [];
+      for (i = 0; i <= b.E; i++) cx.push(gx0 + i * b.F);
+      var r = Math.max(2.2, q.d / 2 * SC);
       /* 중심선 먼저. 배치가 보이려면 중심선이 있어야 한다 — 구멍만 찍어 두면
          어디를 기준으로 잰 치수인지가 그림에 없다. */
-      cx.forEach(function (m) {
-        g.push('<line x1="' + X(m) + '" y1="' + rnd(yT - 8, 1) + '" x2="' + X(m) + '" y2="' +
+      cx.forEach(function (v) {
+        g.push('<line x1="' + X(v) + '" y1="' + rnd(yT - 8, 1) + '" x2="' + X(v) + '" y2="' +
           rnd(yT + pxH + 8, 1) + '" stroke="#8b5cf6" stroke-width="0.7"' +
           ' stroke-dasharray="7 2 1.5 2"/>');
       });
-      cy.forEach(function (m) {
-        g.push('<line x1="' + (X(0) - 8) + '" y1="' + Y(m) + '" x2="' + (X(pw) + 8) +
-          '" y2="' + Y(m) + '" stroke="#8b5cf6" stroke-width="0.7"' +
+      cy.forEach(function (v) {
+        g.push('<line x1="' + (X(0) - 8) + '" y1="' + Y(v) + '" x2="' + (X(pw) + 8) +
+          '" y2="' + Y(v) + '" stroke="#8b5cf6" stroke-width="0.7"' +
           ' stroke-dasharray="7 2 1.5 2"/>');
       });
+      /* 이음 중심 — C1 이 있을 때만. 어디가 「중앙부」인지가 보여야 한다. */
+      if (b.C1 > 0) {
+        var mid = b.A + b.B * b.C + b.C1 / 2;
+        g.push('<line x1="' + (X(0) - 12) + '" y1="' + Y(mid) + '" x2="' + (X(pw) + 12) +
+          '" y2="' + Y(mid) + '" stroke="#fbbf24" stroke-width="1" stroke-dasharray="4 3"/>');
+      }
       cx.forEach(function (mx) {
         cy.forEach(function (my) {
           g.push('<circle cx="' + X(mx) + '" cy="' + Y(my) + '" r="' + rnd(r, 1) +
             '" fill="#1e1b4b" stroke="#ddd6fe" stroke-width="1.3"/>');
         });
       });
-      /* 가로 사슬 — 연단 · F · … · F · 연단, 그리고 그 위에 W 하나 */
-      var px = [X(0)].concat(cx.map(X)).concat([X(pw)]);
-      var lh = [rnd(gx0, 0)];
-      for (ic = 1; ic < b.nc; ic++) lh.push('F ' + b.ga);
-      lh.push(rnd(gx0, 0));
-      chainH(g, yT - 11, px, lh);
+      /* 사슬은 매뉴얼의 표기를 그대로 쓴다 — 「B@C」, 즉 B칸 @ C간격. 같은
+         치수를 칸마다 되풀이해 적으면 글자가 서로 밀어내고, 그러면 좁은 마디는
+         생략되어 결국 아무 숫자도 안 남는다. 한 번 적으면 다 읽힌다. */
+      var px = [X(0), X(gx0), X(gx0 + q.across), X(pw)];
+      chainH(g, yT - 11, px,
+        [rnd(q.edgeW, 0), 'E ' + b.E + ' @ F ' + b.F, rnd(q.edgeW, 0)]);
       chainH(g, yT - 31, [X(0), X(pw)], ['W ' + pw]);
-      /* 세로 사슬 — A · C · … · C · A, 그리고 그 옆에 판 높이 하나 */
-      var py = [Y(ph)].concat(cy.slice().reverse().map(Y)).concat([Y(0)]);
-      var lv = ['A ' + b.e];
-      for (ir = 1; ir < b.nr; ir++) lv.push('C ' + b.pit);
-      lv.push('A ' + b.e);
-      chainV(g, X(pw) + 14, py, lv);
-      /* 판 높이는 받는 값이 아니라 A·C·B 가 정하는 값이다 — 사슬 옆에 합계로 둔다. */
-      chainV(g, X(pw) + 62, [Y(ph), Y(0)], ['plate ' + rnd(ph, 0)]);
+      /* 세로 사슬 — A · B@C · (C1 · B@C) · A. 화면은 위가 큰 쪽이므로 뒤집는다. */
+      var ym = [0, b.A, b.A + b.B * b.C];
+      if (b.C1 > 0) {
+        ym.push(b.A + b.B * b.C + b.C1);
+        ym.push(b.A + 2 * b.B * b.C + b.C1);
+      }
+      ym.push(ph);
+      var lv = ['A ' + b.A, 'B ' + b.B + ' @ C ' + b.C];
+      if (b.C1 > 0) lv.push('C1 ' + b.C1, 'B ' + b.B + ' @ C ' + b.C);
+      lv.push('A ' + b.A);
+      chainV(g, X(pw) + 14, ym.slice().reverse().map(Y), lv.slice().reverse());
+      /* 판 길이는 받는 값이 아니라 A·B·C·C1 이 정하는 값이다 — 합계로 둔다. */
+      chainV(g, X(pw) + 66, [Y(ph), Y(0)], ['plate ' + rnd(ph, 0)]);
       sym(g, X(0) - 4, 20, 'T ' + b.T + '  ·  ' + esc(b.dia) + ' L' + b.len, '#94a3b8');
-      var nb = b.nr * b.nc;
+      /* 「B 칸 → 볼트 몇 개」를 글로 잇는다. 표에 적은 것은 칸 수이고 그림에
+         찍힌 것은 볼트라, 둘을 잇는 문장이 없으면 세어 보게 된다. */
       sym(g, X(0) - 4, rnd(yT + pxH + 26, 1),
-        'B ' + b.nr + (b.nr > 1 ? ' rows' : ' row') + '  &times;  E ' + b.nc +
-        (b.nc > 1 ? ' cols' : ' col') + '  =  ' + nb + (nb > 1 ? ' bolts' : ' bolt'), '#7dd3fc');
+        'B ' + b.B + '  &rarr;  ' + q.nB + '  &times;  E ' + b.E + '  &rarr;  ' + q.nE +
+        '  =  ' + q.n + (q.n > 1 ? ' bolts' : ' bolt'), '#7dd3fc');
       wrap.querySelector('#qcb-d5').innerHTML =
         '<svg width="' + w + '" viewBox="0 0 ' + w + ' ' + h + '" preserveAspectRatio="xMidYMid meet">' +
         g.join('') + '</svg>';
       wrap.querySelector('#qcb-cap5').innerHTML =
-        '<b>' + esc(b.m) + '</b> &middot; edge <b>A</b> ' + b.e +
+        '<b>' + esc(b.m) + '</b> &middot; edge <b>A</b> ' + b.A +
         (q.edgeOK ? ' &ge; ' + q.need + ' OK' : ' &lt; ' + q.need + ' <b>SHORT</b>') +
-        ' &middot; group ' + q.span + ' in <b>W</b> ' + b.W + (q.fitOK ? ' OK' : ' <b>too wide</b>');
+        ' &middot; across ' + q.across + ' in <b>W</b> ' + b.W + ' leaves ' + rnd(q.edgeW, 0) +
+        (q.fitOK ? ' OK' : ' <b>too narrow</b>');
     }
 
     /* ---- 6장 슬래브. 한쪽 끝에서 마루까지 잘라, T·T1·H·A·W1 을 얹는다. ---- */
@@ -1060,13 +1155,16 @@
        형강은 제 깊이 둘레만 쓴다 — 한 창에 맞추면 형강 그림 위아래로 빈
        칸만 남는다. ---- */
     function drawCross() {
-      var t = V.ct[Math.min(ACT.ct, V.ct.length - 1)], gt = D.gtOf(0), bc = D.bcOf(t.c);
+      var t = V.ct[Math.min(ACT.ct, V.ct.length - 1)], gt = D.gtOf(0);
       var w = 380, bay = D.bay[0] || V.sp, dep = gt.hw - 320;
       var s = isTruss(t.f) ? null : sect(t.s);
       var bh = s ? s.h : Math.round(dep * 0.42), tf = s ? s.tf : 0;
-      /* 연결판이 형강보다 깊을 수도 있다 — 창은 둘 중 큰 것을 담는다. */
-      var pw = bc.W, ph = (bc.nr - 1) * bc.pit + 2 * bc.e;
-      var vh = isTruss(t.f) ? dep : Math.max(bh, ph) * 1.15;
+      /* 이음 셋. 자리마다 제 판이고, 「—」인 자리는 판이 없다. */
+      var CU = D.bcOf(t.cu), CD = D.bcOf(t.cd), CS = D.bcOf(t.cs);
+      var run = function (c) { return c ? D.bcChk(c).run : 0; };
+      /* 연결판이 형강보다 깊을 수도 있다 — 창은 제일 큰 것을 담는다. */
+      var pmax = Math.max(run(CU), run(CD), run(CS), 1);
+      var vh = isTruss(t.f) ? dep : Math.max(bh, pmax) * 1.15;
       var base = isTruss(t.f) ? 0 : (dep - vh) / 2;
       /* 폭은 128 을 남긴다 — 오른쪽에 깊이 치수가 서야 하고, 재 놓고 글자가
          그림 밖으로 나가면 「H 5」 가 된다. 한 번 그렇게 나왔다. */
@@ -1089,18 +1187,53 @@
         g.push('<line x1="' + X(x1) + '" y1="' + Y(y1) + '" x2="' + X(x2) + '" y2="' + Y(y2) +
           '" stroke="' + c + '" stroke-width="' + wd + '" stroke-linecap="round"/>');
       };
-      /* 연결판 한 장과 그 위의 볼트. 크기도 개수도 간격도 연결 상세(BC)가 정한다.
-         그리는 것이 적은 값을 따라가지 않으면 그림이 거짓말을 한다. */
-      var plate = function (mx, my, sx, sy) {   // sy 0 이면 my 를 가운데로 놓는다
-        var ox = sx > 0 ? mx : mx - pw;
-        var oy = sy > 0 ? my : (sy < 0 ? my - ph : my - ph / 2);
-        g.push('<rect x="' + X(ox) + '" y="' + Y(oy + ph) + '" width="' + rnd(pw * SC, 1) +
-          '" height="' + rnd(ph * SC, 1) + '" fill="#a78bfa" fill-opacity="0.35"' +
-          ' stroke="#c4b5fd"/>');
-        var gx0 = ox + (pw - (bc.nc - 1) * bc.ga) / 2, gy0 = oy + bc.e;
-        for (var ic = 0; ic < bc.nc; ic++) for (var ir = 0; ir < bc.nr; ir++)
-          g.push('<circle cx="' + X(gx0 + ic * bc.ga) + '" cy="' + Y(gy0 + ir * bc.pit) +
-            '" r="2.2" fill="#4c1d95"/>');
+      /* 판 한 장과 그 위의 볼트. 크기도 개수도 간격도 그 자리가 부르는 BC 가
+         정한다 — 그리는 것이 적은 값을 따라가지 않으면 그림이 거짓말을 한다.
+
+         판은 부재를 따라 「눕는다」. 매뉴얼의 A·B·C·C1 사슬은 종방향, 즉 부재가
+         뻗는 쪽이고 W 는 그것을 가로지르는 폭이다. 세워 그리면 길이와 폭이
+         뒤바뀌어, 이음이 부재보다 깊은 괴상한 그림이 된다. 한 번 그렇게 나왔다.
+
+         보이는 모양도 자리마다 다르다. 복부판·거셋은 정면으로 보이니 판 전체와
+         볼트 격자가 보이고, 플랜지 이음판은 옆에서 보므로 두께만 한 줄로 보인다
+         — 폭 W 는 지면 속으로 들어간다. 안 보이는 것을 그리지 않는다.
+
+         자리 이름(u·d·s)을 판 옆에 찍어 둔다: 세 자리가 어느 판인지 보이라고. */
+      var plate = function (c, tag, mx, my, sx, face) {
+        if (!c) return;
+        var qc = D.bcChk(c);
+        var pl = Math.min(qc.run, bay * 0.42);       // 두 끝이 서로 넘지 않게
+        var ox = sx > 0 ? mx : mx - pl;              // 부재 안쪽으로 뻗는다
+        var xs = [], ys = [], i2;
+        for (i2 = 0; i2 <= c.B; i2++) xs.push(c.A + i2 * c.C);
+        if (c.C1 > 0) {
+          var m2 = c.A + c.B * c.C + c.C1;
+          for (i2 = 0; i2 <= c.B; i2++) xs.push(m2 + i2 * c.C);
+        }
+        xs = xs.filter(function (v) { return v <= pl; });
+        if (face) {
+          var pwv = c.W, gy0 = -qc.across / 2;
+          for (i2 = 0; i2 <= c.E; i2++) ys.push(gy0 + i2 * c.F);
+          g.push('<rect x="' + X(ox) + '" y="' + Y(my + pwv / 2) + '" width="' + rnd(pl * SC, 1) +
+            '" height="' + rnd(pwv * SC, 1) + '" fill="#a78bfa" fill-opacity="0.35"' +
+            ' stroke="#c4b5fd"/>');
+        } else {
+          /* 옆에서 본 이음판 — 두께만 보인다. 몇 픽셀은 남겨 둔다. */
+          var th = Math.max(2.2, c.T * SC);
+          g.push('<rect x="' + X(ox) + '" y="' + (Y(my) - th / 2) + '" width="' +
+            rnd(pl * SC, 1) + '" height="' + rnd(th, 1) + '" fill="#a78bfa"' +
+            ' fill-opacity="0.55" stroke="#c4b5fd"/>');
+          ys.push(0);
+        }
+        xs.forEach(function (vx) {
+          ys.forEach(function (vy) {
+            g.push('<circle cx="' + X(ox + vx) + '" cy="' + Y(my + vy) +
+              '" r="1.8" fill="#4c1d95"/>');
+          });
+        });
+        g.push('<text x="' + X(ox + pl / 2) + '" y="' +
+          (Y(my) + (face ? 4 : -6)) + '" fill="#4c1d95" font-size="10"' +
+          ' font-weight="700" text-anchor="middle">' + tag + '</text>');
       };
       if (!isTruss(t.f)) {
         var cyM = dep / 2, yt = cyM + bh / 2, yb = cyM - bh / 2;
@@ -1113,7 +1246,13 @@
               Y(yy) + '" stroke="#67e8f9" stroke-width="1.1"/>');
           });
         }
-        plate(L + gt.tw / 2, cyM, 1, 0); plate(R - gt.tw / 2, cyM, -1, 0);
+        /* u 상부플랜지 · d 하부플랜지 · s 복부 — 양쪽 끝에 같은 셋이 선다.
+           플랜지 이음판은 옆모습(두께 한 줄), 복부 이음판은 정면(판과 격자). */
+        [[L + gt.tw / 2, 1], [R - gt.tw / 2, -1]].forEach(function (e) {
+          plate(CU, 'u', e[0], yt - tf / 2, e[1], 0);
+          plate(CD, 'd', e[0], yb + tf / 2, e[1], 0);
+          plate(CS, 's', e[0], cyM, e[1], 1);
+        });
         /* 깊이는 재서 보인다. 형강이 무엇인지는 이름이, 얼마나 깊은지는 이 줄이. */
         chainV(g, X(R) + 16, [Y(yt), Y(yb)], ['H ' + bh]);
         g.push('<text x="' + X(0) + '" y="' + (Y(yt) - 10) + '" fill="#7dd3fc"' +
@@ -1122,15 +1261,21 @@
       } else {
         ln(L + ins, dep, R - ins, dep, '#22d3ee', 4);
         ln(L + ins, 0, R - ins, 0, '#0e7490', 4);
+        var apex = t.f === 'V frame' ? 0 : dep;
         if (t.f === 'V frame') {
           ln(L + ins, dep, 0, 0, '#22d3ee', 4); ln(R - ins, dep, 0, 0, '#22d3ee', 4);
-          g.push('<circle cx="' + X(0) + '" cy="' + Y(0) + '" r="4" fill="#a78bfa"/>');
         } else {
           ln(L + ins, 0, 0, dep, '#22d3ee', 4); ln(R - ins, 0, 0, dep, '#22d3ee', 4);
-          g.push('<circle cx="' + X(0) + '" cy="' + Y(dep) + '" r="4" fill="#a78bfa"/>');
         }
-        plate(L + ins, dep, 1, -1); plate(R - ins, dep, -1, -1);
-        plate(L + ins, 0, 1, 1);     plate(R - ins, 0, -1, 1);
+        g.push('<circle cx="' + X(0) + '" cy="' + Y(apex) + '" r="4" fill="#a78bfa"/>');
+        /* u 상현재 · d 하현재 — 양 끝. s 사재 — 두 사재가 만나는 마루.
+           같은 세 이름이 형강에서는 플랜지와 복부였다. 그것이 이 짜임의 값이다. */
+        plate(CU, 'u', L + ins, dep, 1, 1); plate(CU, 'u', R - ins, dep, -1, 1);
+        plate(CD, 'd', L + ins, 0, 1, 1);   plate(CD, 'd', R - ins, 0, -1, 1);
+        /* 사재 거셋은 두 사재가 만나는 마루에. 사재 방향으로 눕히지 않고
+           수평으로 그린다 — 거셋은 이음판이 아니라 판이고, 그 모양을 A·B·C 가
+           정하지 않는다. 여기서 말하는 것은 「여기에 볼트로 붙는다」까지다. */
+        plate(CS, 's', -run(CS) / 2, apex, 1, 1);
         g.push('<text x="' + X(0) + '" y="' + (Y(dep) - 12) + '" fill="#7dd3fc"' +
           ' font-size="10" text-anchor="middle">top ' + esc(t.u) + '</text>');
         g.push('<text x="' + X(0) + '" y="' + (Y(0) + 20) + '" fill="#7dd3fc"' +
@@ -1142,15 +1287,17 @@
       wrap.querySelector('#qcb-d4').innerHTML =
         '<svg width="' + w + '" viewBox="0 0 ' + w + ' ' + h + '" preserveAspectRatio="xMidYMid meet">' +
         g.join('') + '</svg>';
-      /* 이음은 두 형상 모두 볼트다. 트러스만 적어 두면 형강 타입은 무엇으로
-         붙는지 화면 어디에도 안 적힌 것이 된다. */
-      var q = D.bcChk(bc);
+      /* 세 자리를 다 적는다. 하나만 적어 두면 나머지 둘은 화면 어디에도
+         없는 것이 되고, 「—」로 비워 둔 자리도 비운 것인지 잊은 것인지 모른다. */
+      var say3 = [['u', t.cu, CU], ['d', t.cd, CD], ['s', t.cs, CS]].map(function (e) {
+        if (!e[2]) return '<b>' + e[0] + '</b> none';
+        var qq = D.bcChk(e[2]);
+        return '<b>' + e[0] + '</b> ' + esc(e[2].m) + ' ' + qq.n + '&times;' + esc(e[2].dia) +
+               (qq.edgeOK && qq.fitOK ? '' : ' <b>check</b>');
+      }).join(' &middot; ');
       wrap.querySelector('#qcb-cap4').innerHTML =
         '<b>' + esc(t.m) + '</b> &middot; ' + esc(t.f) + ' &middot; between G1 and G2' +
-        (isTruss(t.f) ? '' : ' &middot; ' + esc(t.s)) +
-        ' &middot; <b>' + esc(bc.m) + '</b> ' + (bc.nr * bc.nc) + '&times;' + esc(bc.dia) +
-        ' @ ' + bc.pit + '/' + bc.ga + ' on plate ' + bc.W + '&times;' + bc.T +
-        ' &middot; edge ' + bc.e + (q.edgeOK ? '' : ' <b>short</b>');
+        (isTruss(t.f) ? '' : ' &middot; ' + esc(t.s)) + ' &middot; ' + say3;
     }
 
     /* The stiffener end, drawn large. A whole section puts 1800 mm in one panel
@@ -1272,16 +1419,20 @@
       } else if (add === 'bc') {
         var b0 = V.bc[V.bc.length - 1];
         V.bc.push({ m: 'BC' + (V.bc.length + 1), T: b0.T, W: b0.W, dia: b0.dia, len: b0.len,
-                    nr: b0.nr, pit: b0.pit, nc: b0.nc, ga: b0.ga, e: b0.e });
+                    B: b0.B, C: b0.C, C1: b0.C1, E: b0.E, F: b0.F, A: b0.A });
         build();
       } else if (del === 'bc' && V.bc.length > 1) {
+        /* 지운 이음을 부르던 자리는 「—」로 떨어뜨린다. 첫 줄로 갈음하면
+           사용자가 고른 적 없는 판이 조용히 그려진다. */
         var goneB = V.bc.pop().m;
-        V.ct.forEach(function (t) { if (t.c === goneB) t.c = V.bc[0].m; });
+        V.ct.forEach(function (t) {
+          ['cu', 'cd', 'cs'].forEach(function (q) { if (t[q] === goneB) t[q] = NONE; });
+        });
         build();
       } else if (add === 'ct') {
         var c0 = V.ct[V.ct.length - 1];
         V.ct.push({ m: 'CT' + (V.ct.length + 1), f: c0.f, s: c0.s, u: c0.u,
-                    l: c0.l, d: c0.d, c: c0.c });
+                    l: c0.l, d: c0.d, cu: c0.cu, cd: c0.cd, cs: c0.cs });
         build();
       } else if (del === 'ct' && V.ct.length > 1) {
         var goneC = V.ct.pop().m;
