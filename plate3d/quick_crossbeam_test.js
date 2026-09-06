@@ -8,17 +8,22 @@
      §2.3.17 단면 타입 설정      → 1장 Girder types
      §2.4.10 가로보 상세         → 2장 Crossbeam types  (형강·제작·수직보강재연결)
      §2.4.11 수직브레이싱 상세   →   〃                  (V형·역V형)
+     §2.4.10 단면배치            →   〃  (Section arrangement — 매뉴얼도 여기서 받는다)
      §2.4.9  볼트 이음 상세      → 3장 Bolted connection
      §2.4.13 수직보강재 상세     → 4장 Stiffener & scallop
      §2.4.2  스캘럽 상세         →   〃  (모재 t 16 을 경계로 두 벌)
-     §2.3.4  횡단 구성          → 5장 Girder layout
-     §2.3.13 가로보 위치         → 6장 Crossbeam layout
-     §2.3.20 슬래브 제원         → 7장 Deck slab
-     §2.3.21 방호벽 제원         → 8장 Barrier
+     §2.3.4  횡단 구성          → 5장 Layout
+     §2.3.13 가로보 및 수직브레이싱 위치 → 〃  (같은 칸이라 같은 표다)
+     §2.3.20 슬래브 제원         → 6장 Deck slab
+     §2.3.21 방호벽 제원         → 7장 Barrier
 
    장 순서는 「먼저 정의하고 나중에 배치한다」이다 — 타입(1~4)을 먼저 만들고,
-   그 다음에 어느 거더가·어느 칸이 어느 타입인지(5~6)를 고른다. 매뉴얼은
+   그 다음에 어느 거더가·어느 칸이 어느 타입인지(5장)를 고른다. 매뉴얼은
    배치부터 받지만, 폼에서는 고를 것이 없는 드롭다운이 먼저 나오면 안 된다.
+
+   §2.3.4 와 §2.3.13 은 한 장이다. 매뉴얼은 두 화면으로 받지만 세는 것이 같다 —
+   거더 사이의 「칸」. 칸을 두 장에서 두 번 세면 입력이 느는 게 아니라 어긋날
+   자리가 는다. 간격을 적는 줄 바로 밑에 가로보 줄을 놓았고, 열도 맞춰 두었다.
 
    ── 매뉴얼과 일부러 다르게 한 것 ──────────────────────────────
    같은 값을 여러 번 적게 하지 않는다.
@@ -213,7 +218,7 @@
     D.half = D.W / 2;
     D.gx = [-D.gw / 2];
     for (i = 0; i < D.bay.length; i++) D.gx.push(D.gx[i] + D.bay[i]);
-    /* The soffit rule, and the whole reason chapter 6 has that cell. A roof
+    /* The soffit rule, and the whole reason the slab chapter has that cell. A roof
        (both sides falling away from the crown) is normally built with a LEVEL
        soffit: the girders all sit at one height and the slab thickens toward
        the crown. Slope the soffit instead and the girders step. */
@@ -344,12 +349,20 @@
          까닭은, 이 폼의 다른 라이브러리(거더·가로보·이음)가 이미 그렇게 늘고
          줄기 때문이다 — 같은 일을 하는 자리가 화면마다 다르게 생길 이유가 없다. */
       var nSp = V.ng + 1;                                  // SL · bay 1…n-1 · SR
-      var spH = [''], spR = [], gH = [''], gR = [];
+      var spH = [], spR = [], gH = [], gR = [], cH = [], cR = [];
       spH.push(hd('SL'));
       spR.push(inp('sl', V.sl));
       for (i = 0; i < V.ng - 1; i++) {
         spH.push(hd('Bay ' + (i + 1)));
         spR.push(inp('spl.' + i, D.bay[i]));
+      }
+      /* 가로보 줄은 한 칸 밀어 놓는다. 그러면 Bay k 가 간격 줄의 Bay k 와
+         같은 열에 선다 — 머리글이 있으니 안 밀어도 읽히기는 하지만, 같은 칸을
+         가리키는 두 줄이 다른 열에 있으면 눈이 한 번 더 헤맨다. */
+      cH.push(''); cR.push('');
+      for (i = 0; i < V.ng - 1; i++) {
+        cH.push(hd('Bay ' + (i + 1)));
+        cR.push(sel('cAsg.' + i, V.cAsg[i], V.ct.map(function (t) { return t.m; }), 'mk'));
       }
       spH.push(hd('SR'));
       spR.push(inp('sr', V.sr));
@@ -367,18 +380,28 @@
         while (b.length < n) b.push('');
         return b;
       };
-      C.glayout = chapter(1, 'Girder layout',
-        'how far apart, and which type each one is', 'APlate §2.3.4',
+      C.glayout = chapter(1, 'Layout',
+        'girders across the deck, crossbeams between them, and how often along the span',
+        'APlate §2.3.4 · §2.3.13',
         { w: lw, h: lh },
-        row('', pad(spH.slice(1), nSp), 1) +
+        row('', pad(spH, nSp), 1) +
         row('Spacing', pad(spR, nSp).concat([out('Out to out <b>' + D.W + '</b>')]), 2) +
-        row('', pad(gH.slice(1), nSp), 1) +
-        row('Girder type', pad(gR, nSp).concat([out('Girder to girder <b>' + D.gw + '</b>')]), 2),
+        row('', pad(gH, nSp), 1) +
+        row('Girder type', pad(gR, nSp).concat([out('Girder to girder <b>' + D.gw + '</b>')]), 2) +
+        row('', pad(cH, nSp), 1) +
+        row('Crossbeam', pad(cR, nSp).concat([out('<b>' + (V.ng - 1) + '</b> bay' +
+          (V.ng === 2 ? '' : 's') + ' &middot; <b>' + V.ct.length + '</b> types')]), 2) +
+        row('', pad([hd('Pitch'), hd('End &amp; pier')], nSp), 1) +
+        row('Along the span', pad([inp('cPitch', V.cPitch),
+          sel('cEnd', V.cEnd, V.ct.map(function (t) { return t.m; }), 'mk')], nSp)
+          .concat([out('One pitch repeats')]), 2),
         'The manual (§2.3.4) asks for SL · L1…L' + V.ng + ' · SR — offsets from the road ' +
         'centre. Here the same line is entered as the gaps between them, left to right, ' +
         'because a gap is what a fabricator sets out; <b>the offsets are drawn below</b> so ' +
-        'both readings are on one page. Each girder then picks a type by name from ' +
-        'chapter 2 — making only the outer girders heavier is two cells, not two girders.',
+        'both readings are on one page. The bays are the same bays twice over — once to be ' +
+        'measured, once to be filled — so §2.3.13 (crossbeam position) is <b>the same table, ' +
+        'not another one</b>: one more row on the bays that already exist, plus the pitch that ' +
+        'repeats along the span and the type used at the ends and over piers.',
         '<span class="k">Girder levels</span> ' +
         (D.level ? '<b>all equal</b> — the soffit is level, so the cross slope is carried by slab thickness'
                  : D.gz.map(function (z, k) { return 'G' + (k + 1) + ' ' + rnd(z, 0); }).join(' / ')),
@@ -396,7 +419,7 @@
                          out('Depth <b>' + D.depth(t) + '</b> &middot; <b>' +
                              rnd(D.kgm(t), 1) + ' kg/m</b>')], 2, 'gt:' + k);
       }).join('');
-      C.gtypes = chapter(2, 'Girder types', 'one row is one type — declared here, called by name above',
+      C.gtypes = chapter(2, 'Girder types', 'one row is one type — declared here, called by name in Layout',
         /* 기호는 도면이 쓰는 그대로. tw 복부, ttf 상부플랜지, tbf 하부플랜지 —
            「Top t」처럼 자리로 부르면 그림에 적을 이름이 없다. */
         'APlate §2.3.17',
@@ -446,12 +469,26 @@
       }).join('');
       C.ctypes = chapter(4, 'Crossbeam types', 'one row is one type — five forms', 'APlate §2.4.10 · §2.4.11',
         { w: W9, h: ['', 'Form', 'Section', 'Top chord', 'Btm chord', 'Diagonal', 'Connection', ''] },
-        ctRows,
+        ctRows +
+        /* 매뉴얼의 「단면배치」다 (§2.4.10). 배치 장이 아니라 가로보 상세 장에
+           있는 항목이라 여기 둔다 — 매뉴얼이 어디서 받는지가 그 값이 무엇에
+           딸린 것인지를 말해 준다. 원문: "편경사에 의해서 좌우의 단차가 발생할
+           경우 가로보의 배치 형상에 따른 설정 옵션을 선택하는 곳입니다.
+           수평을 선택할 경우 낮은쪽에 맞춰서 자동으로 변경됩니다." */
+        row('Section arrangement', [sel('cSeat', V.cSeat, ['Sloped', 'Level']),
+          null, null, null, null, null,
+          out(D.level ? 'No step &mdash; soffit level'
+                      : (V.cSeat === 'Level' ? 'Set to the lower girder' : 'Follows the step'))], 1),
         'The manual keeps these on two screens: <b>§2.4.10, the crossbeam</b> is one solid member — ' +
         'rolled beam, built-up plate, or connected straight to the stiffener — and ' +
         '<b>§2.4.11, the vertical bracing</b> is a truss of angles, V or inverted V. A bay picks exactly ' +
         'one of the five, so they share one library. <b>Pick a solid form and the chord cells ' +
-        'go quiet; pick a truss and the section cell does.</b>',
+        'go quiet; pick a truss and the section cell does.</b> <b>Section arrangement</b> is the ' +
+        'manual\'s own cell on this same screen (&sect;2.4.10, "section arrangement"): when the ' +
+        'cross slope leaves the two girders at different heights, sit the crossbeam ' +
+        '<b>sloped</b>, or <b>level</b> &mdash; which the manual says it then sets automatically ' +
+        'to the lower girder. <b>It belongs to the type, not to the layout</b>, and that is ' +
+        'where the manual keeps it.',
         '', { n: 4 });
       C.ctypes += '<div class="qcb-addrow">' +
         '<button type="button" class="qcb-add" data-add="ct">+ Add crossbeam type</button>' +
@@ -480,7 +517,7 @@
         '<b>C</b> the count and pitch one way, <b>E</b> and <b>F</b> the count and gauge the ' +
         'other, <b>T</b> and <b>W</b> the plate, <b>L</b> the bolt. It is a library of its own ' +
         'because a field splice is described by exactly these nine numbers too — <b>one ' +
-        'description, two users.</b> A crossbeam type names one of these in chapter 2, and ' +
+        'description, two users.</b> A crossbeam type names one of these, and ' +
         '<b>the drawing below counts and spaces the bolts from here</b>, so a wrong number ' +
         'shows rather than hides.',
         V.bc.map(function (b) {
@@ -496,32 +533,13 @@
         (V.bc.length > 1 ? '<button type="button" class="qcb-add del" data-del="bc"'
           + ' title="Remove the last row">− Remove last</button>' : '') + '</div>';
 
-      /* 5 — crossbeam layout */
-      var bays = V.ng - 1, bh = [''], ba = [''];
-      for (i = 0; i < bays; i++) {
-        bh.push(hd('G' + (i + 1) + '–G' + (i + 2)));
-        ba.push(sel('cAsg.' + i, V.cAsg[i], V.ct.map(function (t) { return t.m; }), 'mk'));
-      }
-      while (bh.length < 6) { bh.push(''); ba.push(''); }
-      bh.length = 6; ba.length = 6;
-      bh.push(hd('Pitch')); ba.push(inp('cPitch', V.cPitch));
-      bh.push(hd('End &amp; pier'));
-      ba.push(sel('cEnd', V.cEnd, V.ct.map(function (t) { return t.m; }), 'mk'));
-      bh.push(''); ba.push(out('<b>' + bays + '</b> bays'));
-      C.clayout = chapter(5, 'Crossbeam layout', 'a type on every bay between two girders', 'APlate §2.3.13',
-        { w: W9, h: ['', '', '', '', '', '', '', '', ''] },
-        row('', bh.slice(1), 1) +
-        row('Type', ba.slice(1), 2) +
-        row('Seating', [sel('cSeat', V.cSeat, ['Sloped', 'Level']), null, null, null, null, null,
-                        null, out(D.level ? 'No step — soffit is level' : 'Step across a bay')], 1),
-        'Five girders make <b>four bays</b>, and each can take a different type — a solid beam ' +
-        'under the median, a truss elsewhere. Along the span one pitch repeats, and the ends ' +
-        'and piers are named separately. <b>Seating</b> is what to do when the cross slope ' +
-        'leaves the two girders at different heights: sit the crossbeam <b>sloped</b>, or ' +
-        '<b>level</b> against the lower one (§2.4.10, "section arrangement").',
-        '');
+      /* 「Crossbeam layout」 장은 없앴다. 받던 넷이 다 다른 데로 갔다:
+         칸마다의 타입과 Pitch·End & pier 는 1장 Layout 으로 — 칸은 이미 거기
+         있고, 같은 칸을 두 장에서 두 번 세는 것은 입력을 늘리는 게 아니라
+         어긋날 자리를 늘리는 것이다. 「단면배치(Seating)」는 4장 Crossbeam
+         types 로 — 매뉴얼이 §2.4.10 가로보 상세에서 받는 값이다. */
 
-      /* 6 — deck slab */
+      /* 5 — deck slab */
       C.slab = chapter(6, 'Deck slab', 'left and right slopes — and whether the soffit stays level',
         'APlate §2.3.20',
         { w: W9, h: ['', 'Slope left', 'Slope right', 'Soffit', 'Base t', 'Edge T1', 'Edge T2', 'Haunch', ''] },
@@ -566,7 +584,7 @@
          것이 없다. 번호는 %N% 가 이 배열 순서대로 채운다. */
       var n = 0;
       var H = [C.gtypes, C.ctypes, C.conn, C.stiff,
-               C.glayout, C.clayout,
+               C.glayout,
                C.slab, C.barrier, C.material].join('')
               .replace(/%N%/g, function () { return ++n; });
       body.innerHTML = H;
@@ -723,7 +741,7 @@
       wrap.querySelector('#qcb-cap1').innerHTML =
         V.ng + ' girders &middot; ' + V.sl + ' / ' + D.bay.join(' / ') + ' / ' + V.sr +
         ' &middot; out to out <b>' + D.W + '</b> &middot; girder to girder <b>' + D.gw +
-        '</b>. Slab, pavement and barrier are chapters 7 and 8 &mdash; only the soffit ' +
+        '</b>. Slab, pavement and barrier have chapters of their own &mdash; only the soffit ' +
         'they set is drawn here, as the line the girders hang from.';
 
       drawGirder();
