@@ -412,20 +412,33 @@
         'because a gap is what a fabricator sets out; <b>the offsets are drawn below</b> so ' +
         'both readings are on one page. The bays are the same bays twice over — once to be ' +
         'measured, once to be filled — so §2.3.13 (crossbeam position) is <b>the same table, ' +
-        'not another one</b>: one more row on the bays that already exist, plus the pitch that ' +
-        'repeats along the span and the type used at the ends and over piers.',
+        'not another one</b>: one more row on the bays that already exist. <b>Pitch</b> is ' +
+        'the manual\'s base placing interval (§2.3.13), one number the whole span repeats, ' +
+        'from which it places every station. <b>End &amp; pier</b> ' +
+        'is there because the manual sets crossbeams <b>by station</b> (§2.4.10: type A at ' +
+        'the two abutments, P over a pier, C for the distributing beams between) — the row ' +
+        'above is C, this cell is A and P. <b>One cell covers both</b>, because an end and a ' +
+        'pier diaphragm are usually the same detail; say the word and they split in two.',
         '<span class="k">Girder levels</span> ' +
         (D.level ? '<b>all equal</b> — the soffit is level, so the cross slope is carried by slab thickness'
                  : D.gz.map(function (z, k) { return 'G' + (k + 1) + ' ' + rnd(z, 0); }).join(' / ')),
         { n: 1, wide: 1 },
         /* Pitch 와 End & pier 는 칸마다가 아니라 다리마다 하나다. 표 안에
            두었더니 열이 칸을 뜻하는 격자 위에 얹혀서 「칸마다 다른 pitch」처럼
-           읽혔다 — 한 번만 적는 값은 격자 밖 한 줄에 둔다. */
+           읽혔다 — 한 번만 적는 값은 격자 밖 한 줄에 둔다.
+
+           End & pier 를 남겨 둔 까닭은 매뉴얼에 있기 때문이다. §2.4.10 은
+           가로보를 「위치별」로 받는다 — "가로보 위치별(양측단 A 타입, 교각 P
+           타입, 분배가로보 C 타입) 상세 제원을 설정합니다." 위의 칸마다 줄이
+           C(분배)이고, 이 칸이 A 와 P 다. 다만 우리는 A 와 P 를 한 칸으로
+           묶었다: 단부와 지점부 격벽은 보통 같은 상세다. 묶은 것은 사실이므로
+           숨기지 않고 장 노트에 적어 둔다 — 나누려면 칸 하나만 더 내면 된다. */
         '<div class="qcb-span">' +
           '<label>Crossbeam pitch ' + inp('cPitch', V.cPitch) + '</label>' +
           '<label>End &amp; pier type ' +
             sel('cEnd', V.cEnd, V.ct.map(function (t) { return t.m; }), 'mk') + '</label>' +
-          '<em>one pitch for the whole bridge, not one per bay</em>' +
+          '<em>one pitch for the whole bridge &middot; the abutment and pier stations ' +
+          'take this type instead of the bay one</em>' +
         '</div>');
       C.glayout += '<div class="qcb-addrow">' +
         '<button type="button" class="qcb-add" data-add="g">+ Add girder</button>' +
