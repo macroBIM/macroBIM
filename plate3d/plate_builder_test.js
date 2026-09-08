@@ -11861,7 +11861,13 @@
     { f: 'PLATE3D_TANK.xlsx', n: 'Tank', s: '54 rows → 16 members · 4.9 kg',
       d: 'Reverse-engineered from a five-sheet A4 drawing set.' },
     { f: 'PLATE3D_TURRET.xlsx', n: 'Turret', s: '56 rows → 12 members · 0.65 kg',
-      d: 'A machined part: octagons, and a channel rolled on its axis.' }
+      d: 'A machined part: octagons, and a channel rolled on its axis.' },
+    /* Last, and the only one at the size of a real structure: 2 km of bridge
+       out of four modules. It earns its place by showing what the repeat and
+       the two ASSY rows are for - one cable plane written once is 255 rows and
+       comes out on both sides, and one truss bay is 20 bays. */
+    { f: 'PLATE3D_GGB.xlsx', n: 'Golden Gate Bridge', s: '396 rows → 2219 members · 81,624 t',
+      d: 'Four modules, one per part, at full size: 1280 m between the towers.' }
   ];
   var exOpen = false;
   /* The picker is a window rather than a dropdown, so each example has room for

@@ -306,7 +306,8 @@ node tools/check_tutorial.js                # 실제 앱에서 8단계를 다 �
     `Esc` 로 닫는다. 목록은 —
     **`PLATE3D_BASIC`(모든 키워드가 하나의 실모델에 — 여기서 시작)** ·
     `PLATE3D_SAMPLE`(명령어별 최소 예시, 사전용) · `PLATE3D_CRANE`(타워크레인) ·
-    `PLATE3D_TANK` · `PLATE3D_TURRET`. `plate_builder.js`가 로드된 **같은 폴더**에서
+    `PLATE3D_TANK` · `PLATE3D_TURRET` · `PLATE3D_GGB`(골든게이트교 — 실제 크기).
+    `plate_builder.js`가 로드된 **같은 폴더**에서
     받아오므로 macroBIM 서버·GitHub Pages·jsDelivr 어디서 띄우든 동작한다
     (fetch → blob 방식이라 교차 출처에서도 파일명 그대로 저장됨).
     예제를 추가하려면 엔진의 `SAMPLES` 배열에 한 줄만 넣으면 된다
