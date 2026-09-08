@@ -259,15 +259,20 @@ async function typeInto(sel, val, dur) {
   await hideCur(); await shot(4.0);
   caption('c08', c8, T - c8);
 
-  /* 9 — 끝단면만 다르게. 가이드는 시작단면이라 그대로다. */
+  /* 9 — 변단면. 끝단면을 다르게 주고, 두 단면 사이 거리까지 친다.
+        가이드는 시작단면이라 그대로다 — 달라지는 것은 표의 End 열과 평면도다.
+
+        값은 형상이 성립하는 것으로 고른다. 캔틸레버 사슬
+        WTL 4500 + WCAL1 1000 + WCAL2 200 = 5700 ≤ WL 6000.
+        첫 판은 WL 을 5200 으로 줬는데 사슬(6500)이 데크보다 넓어져
+        상부슬래브가 밖으로 튀어나온 도면을 찍었다. */
   const c9 = T;
-  await typeInto('#TH_e', '2200', 1.3);
-  await typeInto('#WL_e', '5200', 1.3);
-  await app.evaluate(() => { document.getElementById('asym_WR').checked = true; PSC.onAsymToggle('WL','WR',true);
-                             document.getElementById('WR_e').value = '5200'; });
-  await typeInto('#WBL_e', '3000', 1.3);
-  await app.evaluate(() => { document.getElementById('WBR_e').value = '3000'; PSC.redraw(); });
-  await hideCur(); await shot(5.0);
+  await typeInto('#TH_e', '2200', 1.2);
+  await typeInto('#WL_e', '6000', 1.2);
+  await typeInto('#WCAL2_e', '200', 1.0);
+  await typeInto('#WBL_e', '3000', 1.2);
+  await typeInto('#segLen_s', '12000', 1.3);
+  await hideCur(); await shot(4.6);
   caption('c09', c9, T - c9);
 
   /* 10 — 배치입력. 3줄을 붙여넣으면 130칸이 한 번에 바뀐다. */
@@ -279,8 +284,9 @@ async function typeInto(sel, val, dur) {
     const b = keys.map(k => document.getElementById(k + '_s').value);
     const e = b.slice();
     const set = (k, v) => { e[keys.indexOf(k)] = v; };
-    set('TH', '2200'); set('WL', '5200'); set('WR', '5200'); set('WBL', '3000'); set('WBR', '3000');
-    window.__csv = b.join(',') + '\n' + e.join(',') + '\n2';
+    set('TH', '2200'); set('WL', '6000'); set('WR', '6000');
+    set('WCAL2', '200'); set('WCAR2', '200'); set('WBL', '3000'); set('WBR', '3000');
+    window.__csv = b.join(',') + '\n' + e.join(',') + '\n2\n12000';
   });
   const csv = await app.evaluate(() => window.__csv);
   const lines = csv.split('\n');
@@ -334,16 +340,9 @@ async function typeInto(sel, val, dur) {
   await doc.goto('file://' + SP + '/psc_dxf.html', { waitUntil: 'load' });
   await doc.waitForTimeout(700);
   const dshot = dur => doc.screenshot({ type: 'png' }).then(b => put(b, dur));
-  await dshot(6.0);
-  await doc.evaluate(() => {                            // 평면도 쪽으로 천천히 밀고 들어간다
-    const i = document.querySelector('img');
-    i.style.transition = 'none'; i.style.transformOrigin = '50% 22%';
-  });
-  for (let s = 1; s <= 12; s++) {
-    await doc.evaluate(k => { document.querySelector('img').style.transform = 'scale(' + (1 + k * 0.055) + ')'; }, s);
-    await dshot(0.16);
-  }
-  await dshot(4.0);
+  /* 줌 없이 넉 장을 한 화면에 둔다. 자막이 "Both sections. Both slab plans." 인데
+     밀고 들어가면 단면이 프레임 밖으로 나간다 — 자막이 가리키는 것을 잘라내는 셈이다. */
+  await dshot(11.0);
   caption('c13', c13, T - c13);
 
   /* 14 — 로고. */
