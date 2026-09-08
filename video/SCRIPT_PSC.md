@@ -45,13 +45,17 @@ both sections, both slab plans.
 
 | 항목 | 내용 |
 |---|---|
-| 제목 | `PSC BOX GIRDER DXF — Type the Dimensions, Get the Section and the Slab Plans \| macroBIM` |
+| 제목 | `PSC BOX GIRDER DRAWING \| macroBIM` |
 | 설명 1행 | `Type the dimensions of a PSC box girder. The section drawing and both slab plans come out as DXF — in the browser, nothing to install.` |
 | 설명 2행 | `One or two cells, a begin and an end section, left tied to right or free, and a batch line that fills all 65 boxes at once.` |
 | 태그 | PSC box girder · box girder · prestressed concrete · bridge section · DXF · CAD drawing · parametric section · slab plan · concrete bridge · browser CAD · macroBIM |
 | 규격 | 2:07 · 2560×1440 · 30 fps · 무음 |
-| 썸네일 | `PSC_thumb.jpg` — `PSC BOX GIRDER` / `65 BOXES → 4 VIEWS` |
+| 썸네일 | `PSC_thumb.jpg` — `PSC BOX GIRDER` / `SECTION & SLAB PLANS` (확정 대기) |
 | 공개 | **미정** |
+
+**제목은 짧게 갑니다.** PLATE3D 영상들은 `이름 — 설명문 | PLATE3D` 였지만 여기서는
+설명문을 붙이지 않습니다. 검색으로 찾아오는 말이 `PSC box girder drawing` 그대로이고,
+설명은 바로 아래 두 줄이 합니다.
 
 ## 4. 자막 뼈대
 
@@ -165,6 +169,7 @@ both sections, both slab plans.
 
 | 무엇 | 결정 |
 |---|---|
+| 제목 | **`PSC BOX GIRDER DRAWING \| macroBIM`** — 설명문 없이 |
 | 파일 위치 | **`video/`** — PLATE3D 가 아니므로 `plate3d/video/` 아래로 넣지 않는다 |
 | `► Tutorial` 버튼 | **안 만든다.** PSC 화면에서 영상으로 나가는 링크는 없다 |
 | 시리즈 | **없다.** 한 편으로 끝난다 |
@@ -174,6 +179,6 @@ both sections, both slab plans.
 
 | 무엇 | 왜 물어보나 |
 |---|---|
-| **제목·썸네일** | `plate3d/video/README.md` 가 "영상의 자막 카드·타이틀은 고객과의 약속" 이라 임의로 못 정합니다 |
+| **썸네일** | 제목이 정해졌으니 그에 맞춰 `PSC BOX GIRDER` / `SECTION & SLAB PLANS` 를 제안합니다 |
 | **공개 주소** | 올린 뒤 3장 메타 표에 적습니다 |
 | **길이** | 2:07 로 짰습니다. 더 짧게 가려면 7·12번이 먼저 빠집니다 |
