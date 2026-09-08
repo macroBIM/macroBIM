@@ -71,7 +71,8 @@ both sections, both slab plans.
 | 7c | 형고 | Change the depth. The deck stays put. |
 | 8 | 산술 | *A box takes arithmetic.* |
 | 9 | 변단면 | A tapered girder — two sections and the distance. |
-| 10 | 배치 | Or paste the whole thing. Four lines. |
+| 10 | 안내 | Begin, end, type, length. One line each. |
+| 10b | 배치 | One paste. Every box. |
 | 11 | 왕복 | *It writes itself back.* |
 | 13 | 출력 | Both sections. Both slab plans. |
 | 14 | 서명 | macroBIM |
@@ -95,7 +96,8 @@ both sections, both slab plans.
 | 7c | 1:00 | 8s | **TH 3000 → 4200** → 박스가 깊어짐. **데크는 제자리**, 하부만 내려감 (−3000 → **−4200**) → 되돌림 | **Change the depth.**<br>**The deck stays put.** |
 | 8 | 1:08 | 8s | 칸에 **`13600/2`** 를 치고 탭 → **6800** 이 되어 단면이 그대로 | *A box takes arithmetic.* |
 | 9 | 1:16 | 14s | **End 열**을 고치고 이어서 **Segment Length** 를 침 — TH **2200**, WL·WR **6000**, WCAL2 **200**, WBL·WBR **3000**, 길이 **24000** · 가이드는 시작단면이라 그대로 · 표의 오른쪽 열과 길이 칸만 달라짐 | **A tapered girder —**<br>**two sections and the distance.** |
-| 10 | 1:30 | 16s | **Batch Input** 창을 전체 선택 → **4줄 CSV 를 붙여넣음** → **130칸이 한 번에** 바뀌고 가이드가 다시 그려짐 | **Or paste the whole thing.**<br>**Four lines.** |
+| 10 | 1:30 | 5s | 커서가 창 위의 **안내줄을 왼쪽에서 오른쪽으로 훑음** — `1st = BEGIN section / 2nd = END section / 3rd = section type / 4th = segment length` | **Begin, end, type, length.**<br>**One line each.** |
+| 10b | 1:35 | 11s | **Batch Input** 창에 **4줄 CSV 를 붙여넣음** → **130칸이 한 번에** 바뀌고 Section Type·길이까지 따라오며 가이드가 다시 그려짐 | **One paste.**<br>**Every box.** |
 | 11 | 1:46 | 8s | 반대 방향 — 칸 하나(**TTS 280 → 350**)를 고치자 **CSV 창의 그 자리 숫자가 따라 바뀜** | *It writes itself back.* |
 | 12 | 1:54 | 8s | 가이드에서 **휠 줌 · 드래그 팬** 으로 헌치를 크게 보고 **REGEN** 으로 복귀 | *Zoom in on any dimension.* |
 | 13 | 2:02 | 16s | **DXF 버튼** → 나온 파일을 열면 **네 장**. 위 두 장이 평면도, 아래 두 장이 단면. 상부 평면도의 **사다리꼴**(9번에서 준 테이퍼)과 **은선으로 깔린 복부·헌치**를 커서로 짚음 | **Both sections.**<br>**Both slab plans.** |
@@ -116,7 +118,7 @@ both sections, both slab plans.
 | 형상 | 1–4 | 이게 뭐고, 어디서 여나 |
 | **한 단면** | 5–8 | 셀이 몇 개인가 · 좌우를 어떻게 묶나 · **한 칸이 형상을 어떻게 바꾸나** · 칸에 뭘 칠 수 있나 |
 | **두 단면** | 9 | 시작과 끝이 다를 수 있다 |
-| **빠른 길** | 10–12 | 칸을 안 거치고 넣는 법, 그리고 되받는 법 |
+| **빠른 길** | 10–12 | 네 줄이 무엇인지 · 한 번에 넣는 법 · 되받는 법 |
 | 나오는 것 | 13 | 도면 네 장 |
 
 **9번이 13번의 전제입니다.** 평면도가 사다리꼴로 나오는 이유는 9번에서 끝단면을
@@ -124,7 +126,14 @@ both sections, both slab plans.
 **"평면도가 두 단면에서 나온다"는 이 도구의 유일한 주장이 화면에 안 보입니다.**
 그래서 9번은 길이를 줄이더라도 빼지 않습니다.
 
-**10번이 11번보다 먼저인 이유:** 붙여넣기가 먼저 놀랍고, 되받아쓰기는 그 다음에야
+**10번이 10b 보다 먼저인 이유:** 배치입력은 낯선 기능이라 **네 줄이 뭔지 먼저
+보여주고** 붙여넣어야 "이래서 편하구나" 가 됩니다. 순서를 뒤집으면 긴 숫자 뭉치가
+지나간 것으로만 남습니다. 첫 판이 그랬습니다 — 붙여넣기만 있고 설명이 없었습니다.
+
+**설명을 자막으로 새로 쓰지 않습니다.** 앱이 창 위에 이미 써 둔 안내줄을 커서로
+훑습니다. 화면에 있는 문장을 읽게 하는 것이지, 영상이 따로 지어내는 것이 아닙니다.
+
+**10b 가 11번보다 먼저인 이유:** 붙여넣기가 먼저 놀랍고, 되받아쓰기는 그 다음에야
 "아 저게 왕복이구나" 로 읽힙니다. 순서를 뒤집으면 11번이 그냥 화면 갱신으로 보입니다.
 
 **6번이 이 도구에서 제일 설명이 필요한 자리입니다.** 좌우가 묶여 있다가 체크 하나로

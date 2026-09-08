@@ -275,8 +275,18 @@ async function typeInto(sel, val, dur) {
   await hideCur(); await shot(4.6);
   caption('c09', c9, T - c9);
 
-  /* 10 — 배치입력. 3줄을 붙여넣으면 130칸이 한 번에 바뀐다. */
+  /* 10 — 네 줄이 각각 무엇인지 먼저 보여준다. 앱이 창 위에 이미 써 둔 안내줄을
+        커서로 훑는다 — 없는 말을 지어내지 않고 화면에 있는 문장을 읽게 한다.
+        첫 판은 이 컷 없이 바로 붙여넣었다. 결과만 지나가고 왜 편한지가 안 남았다. */
   const c10 = T;
+  const hint = await boxOf('.px-batch-hint');
+  await curTo(hint.x + 18, hint.cy); await shot(0.7);
+  await glide(3.2, { x: hint.x + 18, y: hint.cy }, { x: hint.x + hint.w - 24, y: hint.cy });
+  await shot(1.1);
+  caption('c10', c10, T - c10);
+
+  /* 10b — 붙여넣기. 130칸이 한 번에 채워진다. */
+  const c10b = T;
   const tb = await boxOf('#pscBatch');
   await curTo(tb.cx, tb.cy); await shot(0.8);
   await app.evaluate(() => {
@@ -298,7 +308,7 @@ async function typeInto(sel, val, dur) {
   await app.evaluate(() => { document.getElementById('pscBatch').dispatchEvent(new Event('change')); });
   await app.waitForTimeout(400);
   await hideCur(); await shot(5.5);
-  caption('c10', c10, T - c10);
+  caption('c10b', c10b, T - c10b);
 
   /* 11 — 되받아쓰기. 칸을 고치면 CSV 가 따라 바뀐다. */
   const c11 = T;
