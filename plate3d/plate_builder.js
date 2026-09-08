@@ -1059,16 +1059,21 @@
                                                blank/O = BASE point, 9-point name =
                                                module bbox point, INSTANCE.POINT =
                                                explicit plate point)
-       VIEW  ID FROM [title]                  (a drawing, for Save DXF. ID names a MODULE
-                                               or an ASSY. FROM is one of
+       VIEW  ID FROM [] [] SCALE [title]      (a drawing, for Save DXF. ID names a MODULE
+                                               or an ASSY, or is the word ALL, which draws
+                                               everything placed - the general arrangement,
+                                               which no id can ask for because a bridge's
+                                               elevation is its towers AND its cables AND
+                                               its deck. FROM is one of
                                                FRONT / BACK / LEFT / RIGHT / TOP / BOTTOM,
                                                an isometric corner named for where the
                                                viewer stands - ISO / ISO-SE / ISO-SW /
                                                ISO-NW / ISO-NE, ISO being SE - or the word
-                                               3D, which takes two more columns. The title
-                                               is what is written over the drawing.
-                                               No VIEW rows, no VIEWS block - the scale
-                                               is asked for in the dialog like the others)
+                                               3D, which takes the two columns a named
+                                               direction leaves empty. SCALE is this
+                                               drawing's own and is required: 20 means
+                                               1:20. The title is written over the drawing.
+                                               No VIEW rows, no VIEWS block)
        VIEW  ID 3D AZ EL [title]              (the same drawing seen from any direction.
                                                AZ walks the viewer round the model in the
                                                ground plane, from +X (east) anticlockwise;
@@ -1795,9 +1800,9 @@
                    DX2: num(v[9], 0), DY2: num(v[10], 0), REP2: num(v[11], 0) };
         notches.push(nc);
         counts.notch++;
-      } else if (kw === 'VIEW') {         // VIEW <module> <direction> [title]
-        /* A drawing the sheet asks for by name: which module, seen from where,
-           and what to call it. All three are content - the person who knows
+      } else if (kw === 'VIEW') {         // VIEW <module|assy|ALL> <dir> [AZ EL] <scale> [title]
+        /* A drawing the sheet asks for by name: which module - or assembly, or
+           ALL of it - seen from where, and what to call it. All three are content - the person who knows
            them is whoever wrote the workbook, not whoever presses Save DXF.
            The scale is not among them. A scale is a property of the paper
            rather than of the model - but it is a property of THIS drawing's
@@ -1813,7 +1818,7 @@
         var is3D = vdir === '3D';
         var vaz = num(v[2], 0), vel = num(v[3], 0);
         var vscl = num(v[4], 0), vttl = str(v[5]);
-        if (!vmod) { warn('row ' + (r + 1) + ': VIEW without a module'); continue; }
+        if (!vmod) { warn('row ' + (r + 1) + ': VIEW without a subject (a MODULE, an ASSY, or ALL)'); continue; }
         if (!viewSpec(vdir, vaz, vel)) {
           warn('row ' + (r + 1) + ': VIEW ' + vmod + ' — unknown direction "' +
                (str(v[1]) || '(blank)') + '" (use ' + viewDirNames() + ')');
@@ -2221,12 +2226,25 @@
        MODULE or an ASSY will do: both are things a person points at and calls
        a thing, and a sheet that can draw one should be able to draw the other.
        A view of nothing is dropped: better no drawing than an empty frame with
-       a title over it. */
+       a title over it.
+
+       ALL needs no definition - it means everything the sheet placed. If the
+       sheet also happens to define something called ALL, the word still means
+       everything and the row is told so, because silently drawing one module
+       where a general arrangement was asked for is the worse of the two. */
     views = views.filter(function (vw) {
+      if (vw.MODULE === 'ALL') {
+        if (parts.ALL || assyIds.ALL) {
+          warn('row ' + vw.ROW + ': VIEW ALL draws the whole model, so it does not ' +
+               'draw the MODULE/ASSY this sheet also calls ALL. Rename that one to ' +
+               'draw it on its own');
+        }
+        return true;
+      }
       if (parts[vw.MODULE] || assyIds[vw.MODULE]) return true;
       warn('row ' + vw.ROW + ': VIEW names ' + vw.MODULE +
-           ', which the sheet defines neither as a MODULE nor as an ASSY — ' +
-           'no drawing is made');
+           ', which the sheet defines neither as a MODULE nor as an ASSY (ALL ' +
+           'draws the whole model) — no drawing is made');
       counts.view--;
       return false;
     });
@@ -6891,7 +6909,78 @@
 
   /* One segment against every face that could cover it. Returns the stretches
      of it that are still to be drawn, as [t0,t1] pairs of its own length. */
-  function visibleRuns(seg, faces) {
+  /* Where the faces landed on the page, so a test does not walk past all of
+     them to find the few it could be behind.
+
+     seenPoint and visibleRuns ask the same question - what steel is over this
+     spot - and both used to answer it by looking at EVERY face in the drawing
+     and throwing nearly all of them away on a bounding box. The box is cheap;
+     visiting it is not. That is fine for a bracket and quadratic for a bridge:
+     at 1:5000 a segment beside the west tower was measured against every face
+     beside the east one, 2 km away, and Save DXF took minutes.
+
+     The faces, the tests and the answers are unchanged. Only the search is:
+     each face is filed under the cells it covers, and a query looks in the
+     cells it touches. A face too big to file usefully goes in `wide` and is
+     always looked at - which stops a face that covers the page from being
+     filed under every cell, and is the one case where nothing is saved. */
+  var FX_MARK = 0;
+  var FX_HITS = [];            // one scratch list, refilled per query. Nothing
+                               // holds it across another query - do not nest.
+  function faceIndex(faces) {
+    var x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
+    for (var i = 0; i < faces.length; i++) {
+      var f = faces[i];
+      if (f.x0 < x0) x0 = f.x0;
+      if (f.y0 < y0) y0 = f.y0;
+      if (f.x1 > x1) x1 = f.x1;
+      if (f.y1 > y1) y1 = f.y1;
+    }
+    // roughly one face per cell: enough to cut the scan, not so many cells that
+    // filing the faces costs more than the scan did
+    var n = Math.max(1, Math.min(128, Math.round(Math.sqrt(faces.length))));
+    var cw = (x1 - x0) / n, ch = (y1 - y0) / n;
+    if (!(cw > 0)) cw = 1;
+    if (!(ch > 0)) ch = 1;
+    function ix(v) { var k = Math.floor((v - x0) / cw); return k < 0 ? 0 : k > n - 1 ? n - 1 : k; }
+    function jy(v) { var k = Math.floor((v - y0) / ch); return k < 0 ? 0 : k > n - 1 ? n - 1 : k; }
+    var cells = new Array(n * n), wide = [], span = n * n / 8;
+    for (var m = 0; m < faces.length; m++) {
+      var g = faces[m];
+      var a = ix(g.x0), b = ix(g.x1), c = jy(g.y0), e = jy(g.y1);
+      if ((b - a + 1) * (e - c + 1) > span) { wide.push(g); continue; }
+      for (var j = c; j <= e; j++) {
+        for (var k = a; k <= b; k++) {
+          var t = j * n + k;
+          if (cells[t]) cells[t].push(g); else cells[t] = [g];
+        }
+      }
+    }
+    return { n: n, cells: cells, wide: wide, ix: ix, jy: jy };
+  }
+  // the faces over a box on the page, each one once
+  function faceHits(fx, x0, y0, x1, y1) {
+    var out = FX_HITS;
+    out.length = 0;
+    for (var w = 0; w < fx.wide.length; w++) out.push(fx.wide[w]);
+    var mark = ++FX_MARK;
+    var i0 = fx.ix(x0), i1 = fx.ix(x1), j0 = fx.jy(y0), j1 = fx.jy(y1);
+    for (var j = j0; j <= j1; j++) {
+      for (var i = i0; i <= i1; i++) {
+        var c = fx.cells[j * fx.n + i];
+        if (!c) continue;
+        for (var k = 0; k < c.length; k++) {
+          var f = c[k];
+          if (f.mk === mark) continue;
+          f.mk = mark;
+          out.push(f);
+        }
+      }
+    }
+    return out;
+  }
+
+  function visibleRuns(seg, fx) {
     var px = seg[0][0], py = seg[0][1], pd = seg[0][2];
     var qx = seg[1][0], qy = seg[1][1], qd = seg[1][2];
     var dx = qx - px, dy = qy - py, dd = qd - pd;
@@ -6899,6 +6988,7 @@
     var sy0 = Math.min(py, qy), sy1 = Math.max(py, qy);
     var sd0 = Math.min(pd, qd);
     var hid = [];
+    var faces = faceHits(fx, sx0, sy0, sx1, sy1);
     for (var k = 0; k < faces.length; k++) {
       var f = faces[k];
       if (f.x1 < sx0 || f.x0 > sx1 || f.y1 < sy0 || f.y0 > sy1) continue;
@@ -6931,11 +7021,11 @@
   /* The whole pass. segs carry a third component - the depth of each end - put
      there by dxfMemberEdges; it is ignored by everything that writes DXF, which
      reads [0] and [1] only. */
-  function hideSegs(segs, faces) {
+  function hideSegs(segs, fx) {
     var out = [];
     segs.forEach(function (s) {
       if (s[0][2] === undefined) { out.push(s); return; }
-      var runs = visibleRuns(s, faces);
+      var runs = visibleRuns(s, fx);
       if (runs.length === 1 && runs[0][0] === 0 && runs[0][1] === 1) { out.push(s); return; }
       var dx = s[1][0] - s[0][0], dy = s[1][1] - s[0][1], dd = s[1][2] - s[0][2];
       runs.forEach(function (r) {
@@ -6947,7 +7037,8 @@
     return out;
   }
   // is this point on the page, at this depth, in front of every face over it?
-  function seenPoint(faces, x, y, d) {
+  function seenPoint(fx, x, y, d) {
+    var faces = faceHits(fx, x, y, x, y);
     for (var k = 0; k < faces.length; k++) {
       var f = faces[k];
       if (f.x1 < x || f.x0 > x || f.y1 < y || f.y0 > y) continue;
@@ -6959,12 +7050,12 @@
   /* An arc is kept unless the whole of it is behind steel. There is no partial
      ARC in R12, and a hole turned into a polygon so that half of it could be
      removed would cost more than the honesty is worth. */
-  function hideArcs(arcs, faces) {
+  function hideArcs(arcs, fx) {
     return arcs.filter(function (ac) {
       if (ac.c[2] === undefined) return true;
       for (var i = 0; i < 16; i++) {
         var th = i / 16 * Math.PI * 2;
-        if (seenPoint(faces, ac.c[0] + ac.r * Math.cos(th),
+        if (seenPoint(fx, ac.c[0] + ac.r * Math.cos(th),
                       ac.c[1] + ac.r * Math.sin(th), ac.c[2])) return true;
       }
       return false;
@@ -6972,9 +7063,9 @@
   }
   /* The hole centres the pitch chains are built from. A hole that was removed
      for being behind a flange must not leave its dimension behind. */
-  function hidePoints(pts, faces) {
+  function hidePoints(pts, fx) {
     return pts.filter(function (p) {
-      return p[2] === undefined || seenPoint(faces, p[0], p[1], p[2]);
+      return p[2] === undefined || seenPoint(fx, p[0], p[1], p[2]);
     });
   }
 
@@ -7932,7 +8023,7 @@
          face on land on the same lines and the deduper keeps whichever came
          first; were that the far cap, the near cap's own face would then hide it
          and the plate would disappear entirely. */
-      var faces = viewFaces(members, vw);
+      var faces = faceIndex(viewFaces(members, vw));
       segs = dxfDedupe(hideSegs(segs, faces));
       arcs = arcDedupe(hideArcs(arcs, faces));
       holes = hidePoints(holes, faces);
@@ -8378,8 +8469,14 @@
       /* Taken from what the ASSY rows placed rather than from the definition,
          so the subject is drawn where it ended up. The id names a MODULE or an
          ASSY - it.group carries the ASSY row's own id - because both are things
-         a person points at and calls a thing. */
-      var mem = list.filter(function (it) {
+         a person points at and calls a thing.
+
+         ALL is the third thing a person points at: the structure. It is the
+         general arrangement - the drawing every set opens with - and no id
+         could ask for it, because a bridge's elevation is its towers AND its
+         cables AND its deck and those are three assemblies. `list` is what is
+         VISIBLE, so ALL follows hide/show exactly as every other view does. */
+      var mem = vr.MODULE === 'ALL' ? list.slice() : list.filter(function (it) {
         return it.moduleId === vr.MODULE || it.group === vr.MODULE;
       });
       if (!mem.length) return false;          // never placed, or every member hidden
@@ -8513,8 +8610,8 @@
     if (!lastViews.length && !lastPlots.length) {
       alert('The sheet does not ask for any drawing.\n\n' +
             'Add a row saying what to draw and at what scale:\n\n' +
-            '    VIEW  <module or assy>  ISO   <scale>  <title>\n' +
-            '    VIEW  <module or assy>  3D  <AZ> <EL>  <scale>  <title>\n' +
+            '    VIEW  <module or assy or ALL>  ISO   <scale>  <title>\n' +
+            '    VIEW  <module or assy or ALL>  3D  <AZ> <EL>  <scale>  <title>\n' +
             '    PLOT  PART  <id or ALL>  <scale>\n' +
             '    PLOT  SECT  <id or ALL>  <scale>\n\n' +
             'A scale of 20 means 1:20. Nothing is drawn that was not asked for.');
@@ -9819,8 +9916,11 @@
     ' exactly: <b>PLOT</b> draws a <i>part</i> on its own at its standard section, so it takes',
     ' a <code>PLATE</code> or a <code>SECT</code> and nothing else. <b>VIEW</b> draws a thing',
     ' <i>as placed</i>, seen from somewhere, so it takes a <code>MODULE</code> or an',
-    ' <code>ASSY</code>. Neither is produced unless a row asks for it &mdash; see',
-    ' <b>Save DXF</b> below.</p>',
+    ' <code>ASSY</code> &mdash; or <code>ALL</code>, which is the structure itself. A general',
+    ' arrangement is towers <i>and</i> cables <i>and</i> deck, so no one id can name it, and',
+    ' it is the drawing a set opens with. <code>ALL</code> draws what is visible, so hiding',
+    ' an assembly takes it out of the drawing too. Neither is produced unless a row asks for',
+    ' it &mdash; see <b>Save DXF</b> below.</p>',
     '<p>The point of the middle tier is leverage. Define a column once; place it eight times.',
     ' Change its plate thickness and all eight change with it.</p>',
 
@@ -11861,7 +11961,14 @@
     { f: 'PLATE3D_TANK.xlsx', n: 'Tank', s: '54 rows → 16 members · 4.9 kg',
       d: 'Reverse-engineered from a five-sheet A4 drawing set.' },
     { f: 'PLATE3D_TURRET.xlsx', n: 'Turret', s: '56 rows → 12 members · 0.65 kg',
-      d: 'A machined part: octagons, and a channel rolled on its axis.' }
+      d: 'A machined part: octagons, and a channel rolled on its axis.' },
+    /* Last, and the only one at the size of a real structure: 2 km of bridge
+       out of five modules. It earns its place by showing what the repeat and
+       the paired ASSY rows are for - one truss bay written once is 20 bays, and
+       one cable plane comes out on both sides of the bridge from one row each.
+       It is also the sheet that asks for VIEW ALL. */
+    { f: 'PLATE3D_GGB.xlsx', n: 'Golden Gate Bridge', s: '414 rows → 2219 members · 81,624 t · 9 drawings',
+      d: 'Five modules, one per part, at full size: 1280 m between the towers.' }
   ];
   var exOpen = false;
   /* The picker is a window rather than a dropdown, so each example has room for
