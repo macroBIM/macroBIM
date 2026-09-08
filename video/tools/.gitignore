@@ -1,0 +1,15 @@
+# 빌드 산물 — 만드는 법(스크립트)만 남긴다. plate3d/video/tools 와 같은 규칙.
+v_font.css
+bi_font.css
+node_modules/
+package*.json
+src_psc/
+norm_psc/
+seq_psc/
+psc/
+shots_psc.json
+filter_psc.txt
+PSC.dxf
+PSC.svg
+psc_dxf.html
+thumb_psc.html
