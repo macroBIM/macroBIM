@@ -33,8 +33,12 @@ const HERE = __dirname;
 const GEN = path.resolve(HERE, '../../tools/make_ggb.js');
 const OUT = process.argv[2] || path.resolve(HERE, '../ggb');
 
-const NT = 24;          // truss frames, tower to mid-span
-const ND = 24;          // deck frames, following it
+/* One frame, one bay. The main span is 82 bays and grows from both towers, so
+   41 steps is every distinct state there is - ask for more and the extra files
+   are duplicates of their neighbours, ask for fewer and the deck jumps two
+   panels at a time. The granularity is the structure's, not the editor's. */
+const NT = 41;          // truss frames, tower to mid-span
+const ND = 41;          // deck frames, following it
 
 const frames = [];
 const at = (name, env) => frames.push({ name: name, env: env });
