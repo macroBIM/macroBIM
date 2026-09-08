@@ -6909,7 +6909,78 @@
 
   /* One segment against every face that could cover it. Returns the stretches
      of it that are still to be drawn, as [t0,t1] pairs of its own length. */
-  function visibleRuns(seg, faces) {
+  /* Where the faces landed on the page, so a test does not walk past all of
+     them to find the few it could be behind.
+
+     seenPoint and visibleRuns ask the same question - what steel is over this
+     spot - and both used to answer it by looking at EVERY face in the drawing
+     and throwing nearly all of them away on a bounding box. The box is cheap;
+     visiting it is not. That is fine for a bracket and quadratic for a bridge:
+     at 1:5000 a segment beside the west tower was measured against every face
+     beside the east one, 2 km away, and Save DXF took minutes.
+
+     The faces, the tests and the answers are unchanged. Only the search is:
+     each face is filed under the cells it covers, and a query looks in the
+     cells it touches. A face too big to file usefully goes in `wide` and is
+     always looked at - which stops a face that covers the page from being
+     filed under every cell, and is the one case where nothing is saved. */
+  var FX_MARK = 0;
+  var FX_HITS = [];            // one scratch list, refilled per query. Nothing
+                               // holds it across another query - do not nest.
+  function faceIndex(faces) {
+    var x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
+    for (var i = 0; i < faces.length; i++) {
+      var f = faces[i];
+      if (f.x0 < x0) x0 = f.x0;
+      if (f.y0 < y0) y0 = f.y0;
+      if (f.x1 > x1) x1 = f.x1;
+      if (f.y1 > y1) y1 = f.y1;
+    }
+    // roughly one face per cell: enough to cut the scan, not so many cells that
+    // filing the faces costs more than the scan did
+    var n = Math.max(1, Math.min(128, Math.round(Math.sqrt(faces.length))));
+    var cw = (x1 - x0) / n, ch = (y1 - y0) / n;
+    if (!(cw > 0)) cw = 1;
+    if (!(ch > 0)) ch = 1;
+    function ix(v) { var k = Math.floor((v - x0) / cw); return k < 0 ? 0 : k > n - 1 ? n - 1 : k; }
+    function jy(v) { var k = Math.floor((v - y0) / ch); return k < 0 ? 0 : k > n - 1 ? n - 1 : k; }
+    var cells = new Array(n * n), wide = [], span = n * n / 8;
+    for (var m = 0; m < faces.length; m++) {
+      var g = faces[m];
+      var a = ix(g.x0), b = ix(g.x1), c = jy(g.y0), e = jy(g.y1);
+      if ((b - a + 1) * (e - c + 1) > span) { wide.push(g); continue; }
+      for (var j = c; j <= e; j++) {
+        for (var k = a; k <= b; k++) {
+          var t = j * n + k;
+          if (cells[t]) cells[t].push(g); else cells[t] = [g];
+        }
+      }
+    }
+    return { n: n, cells: cells, wide: wide, ix: ix, jy: jy };
+  }
+  // the faces over a box on the page, each one once
+  function faceHits(fx, x0, y0, x1, y1) {
+    var out = FX_HITS;
+    out.length = 0;
+    for (var w = 0; w < fx.wide.length; w++) out.push(fx.wide[w]);
+    var mark = ++FX_MARK;
+    var i0 = fx.ix(x0), i1 = fx.ix(x1), j0 = fx.jy(y0), j1 = fx.jy(y1);
+    for (var j = j0; j <= j1; j++) {
+      for (var i = i0; i <= i1; i++) {
+        var c = fx.cells[j * fx.n + i];
+        if (!c) continue;
+        for (var k = 0; k < c.length; k++) {
+          var f = c[k];
+          if (f.mk === mark) continue;
+          f.mk = mark;
+          out.push(f);
+        }
+      }
+    }
+    return out;
+  }
+
+  function visibleRuns(seg, fx) {
     var px = seg[0][0], py = seg[0][1], pd = seg[0][2];
     var qx = seg[1][0], qy = seg[1][1], qd = seg[1][2];
     var dx = qx - px, dy = qy - py, dd = qd - pd;
@@ -6917,6 +6988,7 @@
     var sy0 = Math.min(py, qy), sy1 = Math.max(py, qy);
     var sd0 = Math.min(pd, qd);
     var hid = [];
+    var faces = faceHits(fx, sx0, sy0, sx1, sy1);
     for (var k = 0; k < faces.length; k++) {
       var f = faces[k];
       if (f.x1 < sx0 || f.x0 > sx1 || f.y1 < sy0 || f.y0 > sy1) continue;
@@ -6949,11 +7021,11 @@
   /* The whole pass. segs carry a third component - the depth of each end - put
      there by dxfMemberEdges; it is ignored by everything that writes DXF, which
      reads [0] and [1] only. */
-  function hideSegs(segs, faces) {
+  function hideSegs(segs, fx) {
     var out = [];
     segs.forEach(function (s) {
       if (s[0][2] === undefined) { out.push(s); return; }
-      var runs = visibleRuns(s, faces);
+      var runs = visibleRuns(s, fx);
       if (runs.length === 1 && runs[0][0] === 0 && runs[0][1] === 1) { out.push(s); return; }
       var dx = s[1][0] - s[0][0], dy = s[1][1] - s[0][1], dd = s[1][2] - s[0][2];
       runs.forEach(function (r) {
@@ -6965,7 +7037,8 @@
     return out;
   }
   // is this point on the page, at this depth, in front of every face over it?
-  function seenPoint(faces, x, y, d) {
+  function seenPoint(fx, x, y, d) {
+    var faces = faceHits(fx, x, y, x, y);
     for (var k = 0; k < faces.length; k++) {
       var f = faces[k];
       if (f.x1 < x || f.x0 > x || f.y1 < y || f.y0 > y) continue;
@@ -6977,12 +7050,12 @@
   /* An arc is kept unless the whole of it is behind steel. There is no partial
      ARC in R12, and a hole turned into a polygon so that half of it could be
      removed would cost more than the honesty is worth. */
-  function hideArcs(arcs, faces) {
+  function hideArcs(arcs, fx) {
     return arcs.filter(function (ac) {
       if (ac.c[2] === undefined) return true;
       for (var i = 0; i < 16; i++) {
         var th = i / 16 * Math.PI * 2;
-        if (seenPoint(faces, ac.c[0] + ac.r * Math.cos(th),
+        if (seenPoint(fx, ac.c[0] + ac.r * Math.cos(th),
                       ac.c[1] + ac.r * Math.sin(th), ac.c[2])) return true;
       }
       return false;
@@ -6990,9 +7063,9 @@
   }
   /* The hole centres the pitch chains are built from. A hole that was removed
      for being behind a flange must not leave its dimension behind. */
-  function hidePoints(pts, faces) {
+  function hidePoints(pts, fx) {
     return pts.filter(function (p) {
-      return p[2] === undefined || seenPoint(faces, p[0], p[1], p[2]);
+      return p[2] === undefined || seenPoint(fx, p[0], p[1], p[2]);
     });
   }
 
@@ -7950,7 +8023,7 @@
          face on land on the same lines and the deduper keeps whichever came
          first; were that the far cap, the near cap's own face would then hide it
          and the plate would disappear entirely. */
-      var faces = viewFaces(members, vw);
+      var faces = faceIndex(viewFaces(members, vw));
       segs = dxfDedupe(hideSegs(segs, faces));
       arcs = arcDedupe(hideArcs(arcs, faces));
       holes = hidePoints(holes, faces);
