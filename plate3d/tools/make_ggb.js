@@ -218,6 +218,51 @@ blank();
 // side span, the main span, the east side span. Each run stops at the face of
 // the tower leg with a short closing bay, which is the one place the panel grid
 // does not reach - the leg is 7220 either side of the tower centreline.
+/* ===================== erection stages ===================== */
+// STAGE=<truss>[,<deck>] writes the bridge part-built, for the video: two
+// fractions 0..1 of the way out from the towers. Unset, nothing below changes
+// and the workbook is the finished bridge, byte for byte.
+//
+// A bay only exists once the bays between it and a tower do. That is not a
+// nicety - it is how a suspended deck goes up, out from the towers, and a
+// sequence that grew from mid-span would be a picture of something nobody has
+// ever built. The main span grows inward from BOTH towers and meets; a side
+// span grows outward from its one.
+/* PARTS=twr,mcb,hgr,trs,dk picks which assemblies get placed. A module that no
+   ASSY row places is defined and not drawn - the engine's own rule - so the
+   erection can be a single run of workbooks with the camera never moving,
+   rather than a run of files plus a hand on the checkboxes. */
+const PARTS = (process.env.PARTS || '').trim();
+const has = k => !PARTS || PARTS.split(',').map(v => v.trim()).indexOf(k) >= 0;
+
+const ST = (process.env.STAGE || '').split(',').filter(v => v !== '').map(Number);
+const staged = ST.length > 0;
+const STT = staged ? Math.max(0, Math.min(1, ST[0])) : 1;
+const STD = staged ? Math.max(0, Math.min(1, ST.length > 1 ? ST[1] : ST[0])) : 1;
+
+// the bays of a run that stand at fraction f, as [first bay, how many]
+function bays(run, f) {
+  const i0 = (run.both || run.startHi) ? 1 : 0;
+  const i1 = (run.both || run.endHi) ? run.n - 1 : run.n;
+  const nb = i1 - i0;
+  if (f >= 1) return [[i0, nb]];
+  if (run.both) {
+    const k = Math.round(f * Math.floor(nb / 2));
+    return k ? [[i0, k], [i1 - k, k]] : [];
+  }
+  const k = Math.round(f * nb);
+  if (!k) return [];
+  return run.endHi ? [[i1 - k, k]] : [[i0, k]];   // always the tower end first
+}
+// does this group reach the leg at the run's start / end?
+const atStart = (run, g) => g[0] === ((run.both || run.startHi) ? 1 : 0);
+const atEnd = (run, g) => g[0] + g[1] === ((run.both || run.endHi) ? run.n - 1 : run.n);
+/* A module's BASE is a member, and a staged run does not start where the
+   finished one does. So the datum is read off the first member actually
+   written and the ASSY row is told the same place - otherwise every stage
+   would slide the truss along the bridge by however much was missing. */
+let trsX = null, dkX = null;
+
 push('#', 'ONE STIFFENING TRUSS - 25 ft deep, stopping at the tower legs');
 const RUN = [
   { x0: -XA, p: PS, n: NS, endHi: true },        // west side span -> tower
@@ -225,32 +270,41 @@ const RUN = [
   { x0: TX, p: PS, n: NS, startHi: true }        // tower -> east side span
 ];
 RUN.forEach(run => {
-  // full bays: the first and last of a run are inside the leg and are dropped
+  // the first and last bay of a run are inside the leg and are dropped
   const i0 = (run.both || run.startHi) ? 1 : 0;
   const i1 = (run.both || run.endHi) ? run.n - 1 : run.n;   // exclusive
-  const x0 = run.x0 + i0 * run.p, nb = i1 - i0;
-  [ZTC, ZBC].forEach(z => A('md.trs', 'sc.chd', [x0, 0, z],
-                            [x0 + run.p, 0, z], 0, 0, [run.p, 0, 0, nb - 1]));
-  // and the short bay that closes onto the leg face
-  if (run.both || run.startHi) [ZTC, ZBC].forEach(z =>
-    A('md.trs', 'sc.chd', [run.x0 + LEGX, 0, z], [x0, 0, z], 0, 10));
-  if (run.both || run.endHi) [ZTC, ZBC].forEach(z =>
-    A('md.trs', 'sc.chd', [x0 + nb * run.p, 0, z],
-      [run.x0 + run.n * run.p - LEGX, 0, z], 10, 0));
-  // a post on every panel point that is not inside a leg. Posts and diagonals
-  // are written between the chord FACES, not the work lines: a member cut back
-  // along its own axis by half a chord still leaves a sloping end inside the
-  // chord, and the clash report is right to say so.
-  A('md.trs', 'sc.vpt', [x0, 0, ZI0], [x0, 0, ZI1], 0, 0, [run.p, 0, 0, nb]);
-  // diagonals fall away from mid-span, so they turn over at the centre
-  const half = run.both ? Math.floor(nb / 2) : nb;
-  A('md.trs', 'sc.dia', [x0 + DGX, 0, ZD0], [x0 + run.p - DGX, 0, ZD1], 0, 0,
-    [run.p, 0, 0, half - 1]);
-  if (run.both) A('md.trs', 'sc.dia', [x0 + half * run.p + DGX, 0, ZD1],
-                  [x0 + (half + 1) * run.p - DGX, 0, ZD0], 0, 0,
-                  [run.p, 0, 0, nb - half - 1]);
+  const nb = i1 - i0;
+  const half = run.both ? Math.floor(nb / 2) : nb;   // where the diagonals turn
+  bays(run, STT).forEach(g => {
+    const b0 = g[0], k = g[1], x0 = run.x0 + b0 * run.p;
+    if (trsX === null) trsX = x0;
+    [ZTC, ZBC].forEach(z => A('md.trs', 'sc.chd', [x0, 0, z],
+                              [x0 + run.p, 0, z], 0, 0, [run.p, 0, 0, k - 1]));
+    // and the short bay that closes onto the leg face
+    if ((run.both || run.startHi) && atStart(run, g)) [ZTC, ZBC].forEach(z =>
+      A('md.trs', 'sc.chd', [run.x0 + LEGX, 0, z], [x0, 0, z], 0, 10));
+    if ((run.both || run.endHi) && atEnd(run, g)) [ZTC, ZBC].forEach(z =>
+      A('md.trs', 'sc.chd', [x0 + k * run.p, 0, z],
+        [run.x0 + run.n * run.p - LEGX, 0, z], 10, 0));
+    // a post on every panel point of this group. Posts and diagonals are
+    // written between the chord FACES, not the work lines: a member cut back
+    // along its own axis by half a chord still leaves a sloping end inside the
+    // chord, and the clash report is right to say so.
+    A('md.trs', 'sc.vpt', [x0, 0, ZI0], [x0, 0, ZI1], 0, 0, [run.p, 0, 0, k]);
+    // diagonals fall away from mid-span, so they turn over at the centre - and
+    // a group can sit wholly on one side of that turn, or straddle it
+    const up1 = Math.min(b0 + k, i0 + half);
+    if (up1 > b0) A('md.trs', 'sc.dia', [x0 + DGX, 0, ZD0],
+                    [x0 + run.p - DGX, 0, ZD1], 0, 0, [run.p, 0, 0, up1 - b0 - 1]);
+    const dn0 = Math.max(b0, i0 + half);
+    if (b0 + k > dn0) {
+      const xd = run.x0 + dn0 * run.p;
+      A('md.trs', 'sc.dia', [xd + DGX, 0, ZD1], [xd + run.p - DGX, 0, ZD0], 0, 0,
+        [run.p, 0, 0, b0 + k - dn0 - 1]);
+    }
+  });
 });
-BASE('md.trs', 'sc.chd_1', 'mc');       // top chord, first bay of the west side span
+if (trsX !== null) BASE('md.trs', 'sc.chd_1', 'mc');   // top chord, first bay written
 blank();
 
 /* ===================== the floor system and the deck ===================== */
@@ -259,29 +313,55 @@ blank();
 // the legs take the footway and a narrower bay is what is left - the pinch that
 // is there on the bridge.
 push('#', 'FLOOR BEAMS, STRINGERS, DECK - full width but at the legs');
-RUN.forEach(run => {
-  const i0 = run.startHi || run.both ? 1 : 0;
-  const i1 = run.endHi || run.both ? run.n - 1 : run.n;
-  const x0 = run.x0 + i0 * run.p;
-  A('md.dk', 'sc.fb', [x0, -CY + FBI, ZFB], [x0, CY - FBI, ZFB], 0, 0,
-    [run.p, 0, 0, i1 - i0]);
-});
-blank();
-[0, -6000, 6000].forEach(y => RUN.forEach(run =>
-  A('md.dk', 'sc.sg', [run.x0, y, ZSG], [run.x0 + run.p, y, ZSG], 350, 350,
-    [run.p, 0, 0, run.n - 1])));
-blank();
-RUN.forEach(run => {
-  const wide = run.p === PM ? 'pl.dkm' : 'pl.dks';
-  const narrow = run.p === PM ? 'pl.dnm' : 'pl.dns';
-  const i0 = run.startHi || run.both ? 1 : 0;
-  const i1 = run.endHi || run.both ? run.n - 1 : run.n;
-  const c = i => run.x0 + (i + 0.5) * run.p;    // bay centre
-  M('md.dk', wide, 'mc', c(i0), 0, ZDK, 'XY', [run.p, 0, 0, i1 - i0 - 1]);
-  if (i0) M('md.dk', narrow, 'mc', c(0), 0, ZDK, 'XY');
-  if (i1 < run.n) M('md.dk', narrow, 'mc', c(run.n - 1), 0, ZDK, 'XY');
-});
-BASE('md.dk', 'sc.fb_1', 'mc');
+if (!staged) {
+  RUN.forEach(run => {
+    const i0 = run.startHi || run.both ? 1 : 0;
+    const i1 = run.endHi || run.both ? run.n - 1 : run.n;
+    const x0 = run.x0 + i0 * run.p;
+    if (dkX === null) dkX = x0;
+    A('md.dk', 'sc.fb', [x0, -CY + FBI, ZFB], [x0, CY - FBI, ZFB], 0, 0,
+      [run.p, 0, 0, i1 - i0]);
+  });
+  blank();
+  [0, -6000, 6000].forEach(y => RUN.forEach(run =>
+    A('md.dk', 'sc.sg', [run.x0, y, ZSG], [run.x0 + run.p, y, ZSG], 350, 350,
+      [run.p, 0, 0, run.n - 1])));
+  blank();
+  RUN.forEach(run => {
+    const wide = run.p === PM ? 'pl.dkm' : 'pl.dks';
+    const narrow = run.p === PM ? 'pl.dnm' : 'pl.dns';
+    const i0 = run.startHi || run.both ? 1 : 0;
+    const i1 = run.endHi || run.both ? run.n - 1 : run.n;
+    const c = i => run.x0 + (i + 0.5) * run.p;    // bay centre
+    M('md.dk', wide, 'mc', c(i0), 0, ZDK, 'XY', [run.p, 0, 0, i1 - i0 - 1]);
+    if (i0) M('md.dk', narrow, 'mc', c(0), 0, ZDK, 'XY');
+    if (i1 < run.n) M('md.dk', narrow, 'mc', c(run.n - 1), 0, ZDK, 'XY');
+  });
+} else {
+  /* Staged, the floor system follows the truss it sits on: beams, stringers
+     and slab for the bays that stand, and the bay inside the leg goes on with
+     whichever group reaches that tower. */
+  RUN.forEach(run => {
+    const i0 = run.startHi || run.both ? 1 : 0;
+    const i1 = run.endHi || run.both ? run.n - 1 : run.n;
+    const wide = run.p === PM ? 'pl.dkm' : 'pl.dks';
+    const narrow = run.p === PM ? 'pl.dnm' : 'pl.dns';
+    const c = i => run.x0 + (i + 0.5) * run.p;
+    bays(run, STD).forEach(g => {
+      const b0 = g[0], k = g[1], x0 = run.x0 + b0 * run.p;
+      if (dkX === null) dkX = x0;
+      A('md.dk', 'sc.fb', [x0, -CY + FBI, ZFB], [x0, CY - FBI, ZFB], 0, 0,
+        [run.p, 0, 0, k]);
+      [0, -6000, 6000].forEach(y =>
+        A('md.dk', 'sc.sg', [x0, y, ZSG], [x0 + run.p, y, ZSG], 350, 350,
+          [run.p, 0, 0, k - 1]));
+      M('md.dk', wide, 'mc', c(b0), 0, ZDK, 'XY', [run.p, 0, 0, k - 1]);
+      if (i0 && atStart(run, g)) M('md.dk', narrow, 'mc', c(0), 0, ZDK, 'XY');
+      if (i1 < run.n && atEnd(run, g)) M('md.dk', narrow, 'mc', c(run.n - 1), 0, ZDK, 'XY');
+    });
+  });
+}
+if (dkX !== null) BASE('md.dk', 'sc.fb_1', 'mc');
 blank();
 
 /* ===================== the drawings the sheet asks for ===================== */
@@ -300,6 +380,10 @@ blank();
 // The plan of the trusses is the one row that names an ASSY rather than a
 // module, and it has to be. A module is ONE plane of the bridge, so its plan is
 // a line; the pair of them 27.4 m apart is the plan somebody wants.
+// A staged or part-picked workbook is for the camera, not for paper: the parts
+// it leaves out would be VIEW rows naming something that is not there, and the
+// engine would be right to say so on every one of 52 files.
+if (!staged && !PARTS) {
 push('# VIEW', 'module', 'dir', 'AZ', 'EL', 'scale', 'title');
 push('VIEW', 'ALL', 'FRONT', '', '', 5000, 'GOLDEN GATE BRIDGE - GENERAL ARRANGEMENT');
 push('VIEW', 'md.twr', 'RIGHT', '', '', 500, 'TOWER - ELEVATION ACROSS THE BRIDGE');
@@ -310,6 +394,7 @@ push('VIEW', 'md.hgr', 'FRONT', '', '', 5000, 'HANGER ROPES - ELEVATION');
 push('VIEW', 'md.trs', 'FRONT', '', '', 5000, 'STIFFENING TRUSS - ELEVATION');
 push('VIEW', 'as.trs', 'TOP', '', '', 5000, 'STIFFENING TRUSSES - PLAN');
 push('VIEW', 'md.dk', 'TOP', '', '', 5000, 'FLOOR SYSTEM AND DECK - PLAN');
+}
 blank();
 
 /* ===================== the bridge ===================== */
@@ -322,27 +407,35 @@ blank();
 // so the two halves cannot drift apart.
 push('# ASSY', 'id', 'ref', 'cmd', 'G.X', 'G.Y', 'G.Z');
 push('#', 'TOWERS - one module, both piers');
-push('ASSY', 'as.twr', 'md.twr', 'ADD', -TX, -CY, 0);
-push('ASSY', 'as.twr', 'md.twr', 'ADD', TX, -CY, 0);
+if (has('twr')) {
+  push('ASSY', 'as.twr', 'md.twr', 'ADD', -TX, -CY, 0);
+  push('ASSY', 'as.twr', 'md.twr', 'ADD', TX, -CY, 0);
+}
 blank();
 push('# ASSY', 'id', 'ref', 'cmd', 'G.X', 'G.Y', 'G.Z');
 push('#', 'MAIN CABLES - one plane, both sides');
-push('ASSY', 'as.mcb', 'md.mcb', 'ADD', r1(-XA - TAIL), -CY, r1(ZANC));
-push('ASSY', 'as.mcb', 'md.mcb', 'ADD', r1(-XA - TAIL), CY, r1(ZANC));
+if (has('mcb')) {
+  push('ASSY', 'as.mcb', 'md.mcb', 'ADD', r1(-XA - TAIL), -CY, r1(ZANC));
+  push('ASSY', 'as.mcb', 'md.mcb', 'ADD', r1(-XA - TAIL), CY, r1(ZANC));
+}
 blank();
 push('# ASSY', 'id', 'ref', 'cmd', 'G.X', 'G.Y', 'G.Z');
 push('#', 'HANGER ROPES - the same two planes, hung off the cables above');
-push('ASSY', 'as.hgr', 'md.hgr', 'ADD', -XA, -CY, ZEND);
-push('ASSY', 'as.hgr', 'md.hgr', 'ADD', -XA, CY, ZEND);
+if (has('hgr')) {
+  push('ASSY', 'as.hgr', 'md.hgr', 'ADD', -XA, -CY, ZEND);
+  push('ASSY', 'as.hgr', 'md.hgr', 'ADD', -XA, CY, ZEND);
+}
 blank();
 push('# ASSY', 'id', 'ref', 'cmd', 'G.X', 'G.Y', 'G.Z');
 push('#', 'STIFFENING TRUSSES - one plane, both sides');
-push('ASSY', 'as.trs', 'md.trs', 'ADD', -XA, -CY, ZTC);
-push('ASSY', 'as.trs', 'md.trs', 'ADD', -XA, CY, ZTC);
+if (trsX !== null && has('trs')) {
+  push('ASSY', 'as.trs', 'md.trs', 'ADD', r1(trsX), -CY, ZTC);
+  push('ASSY', 'as.trs', 'md.trs', 'ADD', r1(trsX), CY, ZTC);
+}
 blank();
 push('# ASSY', 'id', 'ref', 'cmd', 'G.X', 'G.Y', 'G.Z');
 push('#', 'FLOOR SYSTEM AND DECK');
-push('ASSY', 'as.dk', 'md.dk', 'ADD', -XA, -CY + FBI, ZFB);
+if (dkX !== null && has('dk')) push('ASSY', 'as.dk', 'md.dk', 'ADD', r1(dkX), -CY + FBI, ZFB);
 push('END');
 
 /* ===================== write ===================== */
