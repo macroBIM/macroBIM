@@ -3,7 +3,8 @@
 
     Single entry: fdraw_psc(mountId).
     bim_pscbox_test.js 에서 철근(REBAR 표·Rebar Physics·엔진 글루)을 뺀 순수 콘크리트 단면판.
-      · Dimension card — Section Type 라디오 + RWSVG 가이드 + 치수 입력표(좌/우 대칭 미러)
+      · Dimension card — Batch Input(CSV) + Section Type 라디오 + RWSVG 가이드
+                        + 치수 입력표(좌/우 대칭 미러)
       · 단면 DXF 출력
 
     엔진(physics/trebar/domain/ui/konva)을 로드하지 않는다 — 철근이 없으므로.
@@ -104,7 +105,13 @@
     '.px-tbl small{color:#94a3b8;font-size:10px;font-weight:400;}' +
     '.px-tbl input{width:100%;font-family:inherit;}' +
     '.px-tbl.dim-tbl th{background:#1e293b;color:#fff;font-weight:600;text-align:center;border-bottom:1px solid #334155;border-right:1px solid #334155;}.px-tbl.dim-tbl th:last-child{border-right:none;}' +
-    '@media(max-width:1000px){.px-split{flex-direction:column;}.px-tblwrap{max-height:320px;width:100%;height:auto !important;}}';
+    '@media(max-width:1000px){.px-split{flex-direction:column;}.px-tblwrap{max-height:320px;width:100%;height:auto !important;}}' +
+    '.px-batch-wrap{padding:0 0 11px;margin-bottom:11px;border-bottom:1px dashed var(--hair);}' +
+    '.px-batch-lbl{display:flex;align-items:baseline;gap:8px;flex-wrap:wrap;font-size:10px;font-weight:700;letter-spacing:.07em;text-transform:uppercase;color:#64748b;margin-bottom:5px;}' +
+    '.px-batch-hint{font-weight:400;text-transform:none;letter-spacing:0;color:#94a3b8;font-family:ui-monospace,Menlo,Consolas,monospace;font-size:10.5px;}' +
+    '.px-batch-order{max-height:34px;overflow-y:auto;font-family:ui-monospace,Menlo,Consolas,monospace;font-size:10px;line-height:1.5;color:#94a3b8;background:#f8fafc;border:1px solid var(--hair);border-radius:5px;padding:3px 7px;margin-bottom:5px;word-break:break-all;}' +
+    '.px-batch{width:100%;resize:vertical;font-family:ui-monospace,Menlo,Consolas,monospace;font-size:11.5px;line-height:1.5;padding:6px 8px;border:1px solid var(--line);border-radius:6px;background:#fff;color:var(--ink);white-space:pre;overflow-x:auto;}' +
+    '.px-batch:focus{outline:2px solid var(--dim);outline-offset:1px;border-color:var(--dim);}';
 
   var PSC = {
     _mountId: 'mount-draw-psc',
@@ -129,6 +136,63 @@
         this.redraw();
       }
     },
+    // ── BATCH INPUT (CSV) ────────────────────────────────────
+    //  1줄 = adefs_box12cell 순서의 치수값, 2줄(선택) = Section Type(1/2).
+    //  칸을 고치면 redraw 가 이 창을 다시 채우고, 이 창을 고치면 칸이 채워진다.
+
+    _dimKeys: function () { return adefs_box12cell.map(function (d) { return d[0]; }); },
+
+    // 현재 입력칸 → CSV 문자열
+    _currentCSV: function () {
+      var vals = this._dimKeys().map(function (k) {
+        var el = document.getElementById(k + '_s');
+        return el ? String(el.value).trim() : '';
+      });
+      var oncell = document.querySelector('input[name="box12cell_ncell"]:checked');
+      return vals.join(',') + '\n' + (oncell ? oncell.value : '1');
+    },
+
+    // 입력칸이 바뀔 때마다 CSV 창을 최신으로 (편집 중에는 건드리지 않는다)
+    _syncBatch: function () {
+      var ta = document.getElementById('pscBatch');
+      if (!ta || document.activeElement === ta) return;
+      ta.value = this._currentCSV();
+    },
+
+    // CSV → 입력칸. 값이 모자라면 준 만큼만 채운다. 빈 칸은 건너뛴다.
+    applyBatch: function () {
+      var ta = document.getElementById('pscBatch');
+      if (!ta) return;
+      var lines = String(ta.value).split(/\r?\n/);
+      var vals = (lines[0] || '').split(',').map(function (v) { return v.trim(); });
+      var keys = this._dimKeys();
+      var n = 0;
+      keys.forEach(function (k, i) {
+        if (i >= vals.length || vals[i] === '') return;
+        var el = document.getElementById(k + '_s');
+        if (el) { el.value = vals[i]; n++; }
+      });
+      // 좌/우 쌍 정리 : 우측이 좌측과 다르면 비대칭 체크를 켜고 독립 입력으로 둔다
+      DIM_LAYOUT.forEach(function (it) {
+        if (it.t !== 'sym' || !it.r) return;
+        var li = document.getElementById(it.l + '_s'), ri = document.getElementById(it.r + '_s');
+        var cb = document.getElementById('asym_' + it.r);
+        if (!li || !ri || !cb) return;
+        var diff = String(ri.value).trim() !== String(li.value).trim();
+        cb.checked = diff;
+        ri.disabled = !diff;
+        if (!diff) ri.value = li.value;
+      });
+      // 2줄째 = Section Type (선택)
+      var nc = (lines[1] || '').trim();
+      if (nc === '1' || nc === '2') {
+        var rb = document.querySelector('input[name="box12cell_ncell"][value="' + nc + '"]');
+        if (rb) rb.checked = true;
+      }
+      console.log('[PSC] batch 입력: ' + n + '개 치수 반영' + ((nc === '1' || nc === '2') ? ', ' + nc + ' cell' : ''));
+      this.redraw();
+    },
+
     // 파라메트릭 재작도 : Dimension 입력칸(숫자 또는 산술식) 평가 → 가이드 + 물리 뷰
     redraw: function () {
       if (typeof adefs_box12cell === 'undefined') return;
@@ -155,6 +219,7 @@
         this._arcs = g.arcs.map(function (a) { return [a.x, a.y, a.r, a.angb, a.ange]; });
         this._circs = [];
       } catch (e) { console.error('[PSC] section:', e); }
+      this._syncBatch();
     },
 
     // 단면 DXF (가이드 기준 형상)
@@ -204,6 +269,7 @@
                '<td><input type="text" spellcheck="false" class="form-input" id="' + it.r + '_s" value="' + dimDef(it.l) + '" disabled ' +
                    'onchange="PSC.redraw()"></td></tr>';
       }).join('');
+      var keyOrder = adefs_box12cell.map(function (d) { return d[0]; }).join(', ');
 
       root.innerHTML =
         '<style>' + CSS + '</style>' +
@@ -213,6 +279,11 @@
         '    <div class="draw-card-header"><div><span class="draw-card-title">Dimension (mm)</span> <span class="draw-card-desc">PSC box girder &mdash; 1 / 2 cell (concrete section only)</span></div>' +
         '      <button type="button" class="px-btn" onclick="PSC.sectionDXF()">&#8681; DXF</button></div>' +
         '    <div class="draw-card-body">' +
+        '      <div class="px-batch-wrap">' +
+        '        <div class="px-batch-lbl">Batch Input (CSV) <span class="px-batch-hint">1st line = values in the order below &nbsp;/&nbsp; 2nd line = section type (1 or 2)</span></div>' +
+        '        <div class="px-batch-order">' + keyOrder + '</div>' +
+        '        <textarea class="px-batch" id="pscBatch" rows="3" spellcheck="false" onchange="PSC.applyBatch()"></textarea>' +
+        '      </div>' +
         '      <div class="px-radio"><b>Section Type :</b>' +
         '        <label><input type="radio" name="box12cell_ncell" value="1" checked onchange="PSC.redraw()"> 1 Cell</label>' +
         '        <label><input type="radio" name="box12cell_ncell" value="2" onchange="PSC.redraw()"> 2 Cell</label>' +
