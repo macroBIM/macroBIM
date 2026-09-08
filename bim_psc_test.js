@@ -283,7 +283,7 @@
     },
 
     // ── DXF ──────────────────────────────────────────────────
-    //  시작단면 / 끝단면 / 상부슬래브 평면도 / 하부슬래브 평면도. (측면도 없음)
+    //  끝단면 / 상부·하부 슬래브 평면도 / 시작단면 — 위에서 아래로. (측면도 없음)
     //  세그먼트 길이는 입력받지 않고 시작단면의 박스 전폭(WL+WR)을 기본값으로 쓴다.
 
     // 평면도에 나타낼 x 위치들 — 이름으로 뽑는다. (2cell 전용 점은 없으면 건너뜀)
@@ -349,10 +349,17 @@
       var L = this._segLen();                 // 평면도 길이 = 입력한 세그먼트 길이
 
       var W = Math.max(bb.x2 - bb.x1, be.x2 - be.x1);
-      var H = Math.max(bb.y2 - bb.y1, be.y2 - be.y1);
-      var gap = Math.max(W, L) * 0.30;
-      var dx = W + gap;                       // 열 간격 (좌: 시작/상부평면, 우: 끝/하부평면)
-      var dy = H / 2 + L / 2 + gap;           // 단면 행 위로 평면도 행
+      var gap = Math.max(W, L) * 0.14;
+      var dx = W + gap * 1.6;                 // 좌: 상부 평면도 · 우: 하부 평면도
+
+      /* 배치 — 평면도를 가운데 두고 단면을 제 끝에 놓는다.
+                          END SECTION            (평면도 위쪽 = 종점)
+             TOP SLAB PLAN  |  BOTTOM SLAB PLAN
+                          BEGIN SECTION          (평면도 아래쪽 = 시점)
+         평면도는 y ∈ [−L/2, +L/2] 를 쓰고, 그 y 의 양 끝이 곧 두 단면의 자리다.
+         단면과 평면도는 x 좌표가 같으므로 x 를 어긋내지 않는다 — 투상이 맞는다.  */
+      var oyB = -L / 2 - gap - bb.y2;         // 시작단면 : 윗변이 평면도 아래끝에 닿게
+      var oyE =  L / 2 + gap - be.y1;         // 끝단면   : 아랫변이 평면도 위끝에 닿게
 
       var o = dxf_generator();
       o.init();
@@ -360,19 +367,19 @@
       o.layer('psc-hid', 4, 'HIDDEN');        // 은선 (복부·헌치 위치)
       o.layer('psc-txt', 2, 'CONTINUOUS');    // 뷰 제목
 
-      this._dxfSection(o, gb, 0, 0, 'psc');            // 시작단면
-      this._dxfSection(o, ge, dx, 0, 'psc');           // 끝단면
-      this._dxfPlan(o, gb, ge, this._PLAN.top, L, 0, dy, 'psc', 'psc-hid');    // 상부슬래브 평면도
-      this._dxfPlan(o, gb, ge, this._PLAN.bot, L, dx, dy, 'psc', 'psc-hid');   // 하부슬래브 평면도
+      this._dxfPlan(o, gb, ge, this._PLAN.top, L, 0, 0, 'psc', 'psc-hid');    // 상부슬래브 평면도
+      this._dxfPlan(o, gb, ge, this._PLAN.bot, L, dx, 0, 'psc', 'psc-hid');   // 하부슬래브 평면도
+      this._dxfSection(o, gb, 0, oyB, 'psc');                                  // 시작단면 (아래)
+      this._dxfSection(o, ge, 0, oyE, 'psc');                                  // 끝단면 (위)
 
       // 뷰 제목 (dxf_generator 가 text 를 지원할 때만)
       if (typeof o.text === 'function') {
-        var th = Math.max(W, L) * 0.045;
+        var th = Math.max(W, L) * 0.030;
         var put = function (t, x, y) { o.text(x, y, th, 0, t, 'psc-txt'); };
-        put('BEGIN SECTION',     bb.x1,      bb.y1 - th * 2);
-        put('END SECTION',       be.x1 + dx, bb.y1 - th * 2);
-        put('TOP SLAB PLAN',     bb.x1,      dy - L / 2 - th * 2);
-        put('BOTTOM SLAB PLAN',  bb.x1 + dx, dy - L / 2 - th * 2);
+        put('END SECTION',      bb.x1, be.y1 + oyE - th * 1.8);   // 제목은 넷 다 뷰 아래
+        put('TOP SLAB PLAN',    bb.x1, -L / 2 - th * 1.8);
+        put('BOTTOM SLAB PLAN', bb.x1 + dx, -L / 2 - th * 1.8);
+        put('BEGIN SECTION',    bb.x1, bb.y1 + oyB - th * 1.8);
       }
       console.log('[PSC] DXF: 시작/끝 단면 + 상·하부 슬래브 평면도, 세그먼트 길이 ' + Math.round(L) + 'mm');
       o.download('PSC.dxf');
