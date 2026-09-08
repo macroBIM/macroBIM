@@ -49,7 +49,7 @@ both sections, both slab plans.
 | 설명 1행 | `Type the dimensions of a PSC box girder. The section drawing and both slab plans come out as DXF — in the browser, nothing to install.` |
 | 설명 2행 | `One or two cells, a begin and an end section, left tied to right or free, and a batch line that fills all 65 boxes at once.` |
 | 태그 | PSC box girder · box girder · prestressed concrete · bridge section · DXF · CAD drawing · parametric section · slab plan · concrete bridge · browser CAD · macroBIM |
-| 규격 | 2:07 · 2560×1440 · 30 fps · 무음 |
+| 규격 | 2:23 · 2560×1440 · 30 fps · 무음 |
 | 썸네일 | `PSC_thumb.jpg` — `PSC BOX GIRDER` / `SECTION & SLAB PLANS` (확정 대기) |
 | 공개 | **미정** |
 
@@ -67,6 +67,8 @@ both sections, both slab plans.
 | 4 | 목록 | Every dimension twice. Begin and end. |
 | 5 | 셀 | One cell or two. One click. |
 | 6 | 대칭 | Type the left. The right follows — until you say no. |
+| 7 | 편경사 | Each side has its own slope. |
+| 7c | 형고 | Change the depth. The deck stays put. |
 | 8 | 산술 | *A box takes arithmetic.* |
 | 9 | 테이퍼 | The far end can be another section. |
 | 10 | 배치 | Or paste the whole thing. Three lines. |
@@ -88,16 +90,22 @@ both sections, both slab plans.
 | 4 | 0:16 | 6s | 표를 위에서 아래로 한 번 훑음. **36행 · Begin / End 두 열 · 입력칸 130개** | **Every dimension twice.**<br>**Begin and end.** |
 | 5 | 0:22 | 10s | **1 Cell → 2 Cell** 라디오 클릭 → 표에 `2 Cell only` 그룹행이 나타나고 가이드에 중앙 복부가 생김 (**30선 → 40선**) → 다시 1 Cell 로 | **One cell or two.**<br>**One click.** |
 | 6 | 0:32 | 12s | **WL** 6800 → **8000** 입력 → **WR 이 따라 8000** 으로 · 그다음 **⇄ 체크** → WR 만 **5000** 으로 고침 → 좌우가 다른 단면 | **Type the left.**<br>**The right follows —<br>until you say no.** |
-| 7 | 0:44 | 8s | **SLL 2 / SLR −2** 를 짚음. 체크박스가 없는 자리 — 부호가 반대라 애초에 묶이지 않는다 | *Slopes are their own pair.* |
-| 8 | 0:52 | 8s | 칸에 **`13600/2`** 를 치고 탭 → **6800** 이 되어 단면이 그대로 | *A box takes arithmetic.* |
-| 9 | 1:00 | 14s | **End 열**만 고침 — TH **2200**, WL·WR **5200**, WBL·WBR **3000** · 가이드는 시작단면이라 그대로 · 표의 오른쪽 열만 달라짐 | **The far end<br>can be another section.** |
-| 10 | 1:14 | 16s | **Batch Input** 창을 전체 선택 → **3줄 CSV 를 붙여넣음** → **130칸이 한 번에** 바뀌고 가이드가 다시 그려짐 | **Or paste the whole thing.**<br>**Three lines.** |
-| 11 | 1:30 | 8s | 반대 방향 — 칸 하나(**TTS 280 → 350**)를 고치자 **CSV 창의 그 자리 숫자가 따라 바뀜** | *It writes itself back.* |
-| 12 | 1:38 | 8s | 가이드에서 **휠 줌 · 드래그 팬** 으로 헌치를 크게 보고 **REGEN** 으로 복귀 | *Zoom in on any dimension.* |
-| 13 | 1:46 | 16s | **DXF 버튼** → 나온 파일을 열면 **네 장**. 위 두 장이 평면도, 아래 두 장이 단면. 상부 평면도의 **사다리꼴**(9번에서 준 테이퍼)과 **은선으로 깔린 복부·헌치**를 커서로 짚음 | **Both sections.**<br>**Both slab plans.** |
-| 14 | 2:02 | 5s | 로고 | **macroBIM** |
+| 7 | 0:44 | 10s | **SLL 2 → 6** → 좌측 데크가 기울어 끝이 **−136 → −408** 로 내려감 → 되돌림 · **SLR −2 → −6** → 이번엔 우측만 같은 만큼 → 되돌림 | **Each side<br>has its own slope.** |
+| 7b | 0:54 | 6s | **SLB 0 → 3** → 하부 슬래브가 통째로 기욺 (좌 **−3114** · 우 **−2886**) → 되돌림 | *The bottom slab, too.* |
+| 7c | 1:00 | 8s | **TH 3000 → 4200** → 박스가 깊어짐. **데크는 제자리**, 하부만 내려감 (−3000 → **−4200**) → 되돌림 | **Change the depth.**<br>**The deck stays put.** |
+| 8 | 1:08 | 8s | 칸에 **`13600/2`** 를 치고 탭 → **6800** 이 되어 단면이 그대로 | *A box takes arithmetic.* |
+| 9 | 1:16 | 14s | **End 열**만 고침 — TH **2200**, WL·WR **5200**, WBL·WBR **3000** · 가이드는 시작단면이라 그대로 · 표의 오른쪽 열만 달라짐 | **The far end<br>can be another section.** |
+| 10 | 1:30 | 16s | **Batch Input** 창을 전체 선택 → **3줄 CSV 를 붙여넣음** → **130칸이 한 번에** 바뀌고 가이드가 다시 그려짐 | **Or paste the whole thing.**<br>**Three lines.** |
+| 11 | 1:46 | 8s | 반대 방향 — 칸 하나(**TTS 280 → 350**)를 고치자 **CSV 창의 그 자리 숫자가 따라 바뀜** | *It writes itself back.* |
+| 12 | 1:54 | 8s | 가이드에서 **휠 줌 · 드래그 팬** 으로 헌치를 크게 보고 **REGEN** 으로 복귀 | *Zoom in on any dimension.* |
+| 13 | 2:02 | 16s | **DXF 버튼** → 나온 파일을 열면 **네 장**. 위 두 장이 평면도, 아래 두 장이 단면. 상부 평면도의 **사다리꼴**(9번에서 준 테이퍼)과 **은선으로 깔린 복부·헌치**를 커서로 짚음 | **Both sections.**<br>**Both slab plans.** |
+| 14 | 2:18 | 5s | 로고 | **macroBIM** |
 
-**총 2:07.**
+**총 2:23.**
+
+**7·7b·7c 는 한 덩어리입니다.** 셋 다 **한 칸을 고치면 형상이 그 자리에서 바뀌는 것**만
+보여줍니다. 값을 바꾸고 **반드시 되돌립니다** — 되돌리지 않으면 9번의 테이퍼가 무엇
+때문에 생긴 건지 흐려집니다.
 
 ### 순서의 논리
 
@@ -106,7 +114,7 @@ both sections, both slab plans.
 | 묶음 | 컷 | 무엇을 답하나 |
 |---|---|---|
 | 형상 | 1–4 | 이게 뭐고, 어디서 여나 |
-| **한 단면** | 5–8 | 셀이 몇 개인가 · 좌우를 어떻게 묶나 · 칸에 뭘 칠 수 있나 |
+| **한 단면** | 5–8 | 셀이 몇 개인가 · 좌우를 어떻게 묶나 · **한 칸이 형상을 어떻게 바꾸나** · 칸에 뭘 칠 수 있나 |
 | **두 단면** | 9 | 시작과 끝이 다를 수 있다 |
 | **빠른 길** | 10–12 | 칸을 안 거치고 넣는 법, 그리고 되받는 법 |
 | 나오는 것 | 13 | 도면 네 장 |
@@ -140,6 +148,20 @@ both sections, both slab plans.
 | 9번 끝단면 | TH **2200** · 전폭 **10400** · 하부 **6000** |
 | 평면도 길이 | 시작단면 전폭 = **13600** (입력칸 없음) |
 
+**7·7b·7c 에서 화면이 실제로 이렇게 움직입니다.** 기본값은 데크 양 끝 **−136**,
+하부 **−3000**, 총높이 **3000** 입니다.
+
+| 컷 | 바꾸는 값 | 움직이는 곳 | 안 움직이는 곳 |
+|---|---|---|---|
+| 7 | SLL **2 → 6** | 좌측 데크 끝 −136 → **−408** | 우측 −136 그대로 |
+| 7 | SLR **−2 → −6** | 우측 데크 끝 −136 → **−408** | 좌측 −136 그대로 |
+| 7b | SLB **0 → 3** | 하부 좌 −3000 → **−3114** · 우 −3000 → **−2886** (총높이 **3114**) | 데크 그대로 |
+| 7c | TH **3000 → 4200** | 하부 −3000 → **−4200** (총높이 **4200**) | 데크 −136 그대로 |
+
+**SLB 는 크라운이 아니라 한 방향 기울기입니다.** 좌가 내려가고 우가 올라갑니다 —
+`PBL.y = −TH − WBL·SLB/100`, `PBR.y = −TH + WBR·SLB/100`. 화면에서 좌우가 반대로
+움직이는 것이 이 값의 성격이므로, 한쪽만 잡고 찍으면 안 됩니다.
+
 ## 7. 나오는 파일 — 어떻게 그리나
 
 `plate3d/video/README.md` 의 규칙이 그대로 적용됩니다. **DXF 는 파일 생긴 대로
@@ -159,8 +181,9 @@ both sections, both slab plans.
 
 ## 8. 촬영 규칙
 
-- **값은 진짜로 친다.** 6·8·9·11번의 숫자는 실제로 타이핑하고, 화면이 다시 그려지는
-  것을 그대로 담습니다.
+- **값은 진짜로 친다.** 6·7·7b·7c·8·9·11번의 숫자는 실제로 타이핑하고, 화면이 다시
+  그려지는 것을 그대로 담습니다.
+- **바꾼 값은 되돌린다.** 7·7b·7c 는 되돌린 뒤 다음 컷으로 넘어갑니다.
 - **클릭은 진짜 클릭.** 3·5·13번은 커서가 보이고, 눌린 뒤에 화면이 바뀝니다.
 - **무음.** 자막만으로 읽힙니다.
 - **철근은 안 나온다.** 박스만 파는 영상입니다.
@@ -181,4 +204,4 @@ both sections, both slab plans.
 |---|---|
 | **썸네일** | 제목이 정해졌으니 그에 맞춰 `PSC BOX GIRDER` / `SECTION & SLAB PLANS` 를 제안합니다 |
 | **공개 주소** | 올린 뒤 3장 메타 표에 적습니다 |
-| **길이** | 2:07 로 짰습니다. 더 짧게 가려면 7·12번이 먼저 빠집니다 |
+| **길이** | 2:23 로 짰습니다. 더 짧게 가려면 **7b · 12번**이 먼저 빠집니다 (7 과 7c 는 형상이 바뀌는 것을 보여주는 자리라 남깁니다) |
