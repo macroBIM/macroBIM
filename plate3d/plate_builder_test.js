@@ -6653,6 +6653,27 @@
       flat.push({ c: pc, r: k.r });
       if (holes) holes.push(pc);            // for the pitch chain
     });
+    /* The member's OWN rim, when the member is round. ringDraw has always known
+       how to turn a run of edges on a circle into an arc - what it was never
+       told is that the outline is a circle too, because the only circles ever
+       handed to it were the ones CUT OUT. So a Ø400 disc came out of the DXF as
+       48 straight lines, and half of one as 28.
+
+       Asked of the outline BEFORE anything was cut out of it. A half disc's
+       ring cannot pass ringCircle on its own - it is half the area of the
+       circle it runs on, and the test rightly wants both the radius and the
+       area - but the circle it runs on is the one the plate was ORDERED as, and
+       cutting a piece off does not move it. So the rim is matched against that,
+       and what survives the cut is drawn as the arc it still is.
+
+       Not pushed to `holes`: that list is the pitch chain, which is about bolt
+       holes. A plate is not a hole in itself, and putting its centre there
+       would invent a bolt at the middle of every round plate. */
+    if (faceOn) (it.rawOuter || []).forEach(function (rg) {
+      var k = ringCircle(rg);
+      if (!k) return;
+      flat.push({ c: proj(k.c[0], k.c[1], Z.lo(k.c[0], k.c[1])), r: k.r });
+    });
 
     /* ZL and ZH are where this ring's two ends sit. For a plain member they
        are the member's own cap planes, which can lean; for one stretch of a
