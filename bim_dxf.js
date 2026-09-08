@@ -56,6 +56,14 @@
             let s = g(0, "ARC") + g(8, layerName) + g(10, cx) + g(20, cy) + g(40, r) + g(50, startAngle) + g(51, endAngle);
             entities.push(s);
         }
+
+        // 단일행 문자 (R12 TEXT). x,y = 좌하단 기준점, h = 문자 높이, rot = 회전각(도)
+        function text(x, y, h, rot, str, layerName = "0") {
+            let s = g(0, "TEXT") + g(8, layerName) + g(10, x) + g(20, y) + g(40, h) +
+                    g(1, String(str == null ? "" : str));
+            if (rot) s += g(50, rot);
+            entities.push(s);
+        }
 		
 		function rect(cx, cy, db, dh, layerName = "0") {
 			
@@ -304,7 +312,7 @@
             return true; // 성공 반환
         }
 
-        return { 	init, layer, line, circle, arc, rect, hbeam, hbeam_top, hbeam_bot, hbeam_side, print,
+        return { 	init, layer, line, circle, arc, text, rect, hbeam, hbeam_top, hbeam_bot, hbeam_side, print,
 					download };
     }
 
