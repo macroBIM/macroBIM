@@ -1,0 +1,10 @@
+# 설치물과 생성물. 저장소가 들고 있을 이유가 없는 것들이다.
+
+# tools/check_*.js 와 tools/shot_ggb.js 가 쓰는 의존성(three · polybooljs ·
+# exceljs · playwright-core). 받아서 쓰는 것이지 저장소가 나르는 것이 아니다.
+# plate3d/tools/node_modules 는 여기로 거는 심볼릭 링크.
+node_modules/
+plate3d/tools/node_modules
+
+# shot_ggb.js 가 남기는 뷰별 그림. 워크북에서 언제든 다시 나온다.
+plate3d/tools/shot/
