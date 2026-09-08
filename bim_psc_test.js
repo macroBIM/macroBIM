@@ -3,12 +3,13 @@
 
     Single entry: fdraw_psc(mountId).
     bim_pscbox_test.js 에서 철근(REBAR 표·Rebar Physics·엔진 글루)을 뺀 순수 콘크리트 단면판.
-      · Dimension card — Batch Input(CSV) + Section Type 라디오 + RWSVG 가이드
+      · Dimension card — Batch Input(CSV) + Section Type·세그먼트 길이 + RWSVG 가이드
                         + 치수 입력표(좌/우 대칭 미러)
       · 단면 DXF 출력
 
     엔진(physics/trebar/domain/ui/konva)을 로드하지 않는다 — 철근이 없으므로.
-    엑셀 로더와 피복(cover) 입력도 없다 — 치수는 표에 직접 넣는다.
+    엑셀 로더와 피복(cover) 입력은 없다 — 치수는 표에 직접 넣는다.
+    세그먼트 길이는 시점 단면에서 종점 단면까지의 거리이고, 평면도의 길이가 된다.
 */
 (function () {
 
@@ -52,6 +53,8 @@
         { t: 'single', l: 'TWEBC' }
   ];
 
+
+  var SEG_DEF = 20000;      // 세그먼트 길이 기본값 (mm) — 시점 단면에서 종점 단면까지
 
   var PAGES = 'https://macrobim.github.io/macroBIM/';
 
@@ -105,6 +108,8 @@
     '.px-tbl small{color:#94a3b8;font-size:10px;font-weight:400;}' +
     '.px-tbl input{width:100%;font-family:inherit;}' +
     '.px-tbl th.px-be{font-size:10.5px;letter-spacing:.06em;}' +
+    '.px-optrow{gap:16px;margin-left:0;}.px-opthalf{flex:1 1 0;min-width:0;display:flex;gap:12px;align-items:center;flex-wrap:wrap;}' +
+    '.px-seg{width:92px;text-align:right;}' +
     '.px-tbl.dim-tbl th{background:#1e293b;color:#fff;font-weight:600;text-align:center;border-bottom:1px solid #334155;border-right:1px solid #334155;}.px-tbl.dim-tbl th:last-child{border-right:none;}' +
     '@media(max-width:1000px){.px-split{flex-direction:column;}.px-tblwrap{max-height:320px;width:100%;height:auto !important;}}' +
     '.px-batch-wrap{padding:0 0 11px;margin-bottom:11px;border-bottom:1px dashed var(--hair);}' +
@@ -140,7 +145,8 @@
     },
     // ── BATCH INPUT (CSV) ────────────────────────────────────
     //  box1cell 과 같은 3줄 구성 —
-    //   1줄 = 시작단면(Begin) 치수, 2줄 = 끝단면(End) 치수, 3줄(선택) = Section Type(1/2).
+    //   1줄 = 시작단면(Begin) 치수, 2줄 = 끝단면(End) 치수,
+    //   3줄(선택) = Section Type(1/2), 4줄(선택) = 세그먼트 길이.
     //  칸을 고치면 redraw 가 이 창을 다시 채우고, 이 창을 고치면 칸이 채워진다.
 
     _dimKeys: function () { return adefs_box12cell.map(function (d) { return d[0]; }); },
@@ -155,7 +161,9 @@
     // 현재 입력칸 → CSV 문자열
     _currentCSV: function () {
       var oncell = document.querySelector('input[name="box12cell_ncell"]:checked');
-      return this._csvLine('_s') + '\n' + this._csvLine('_e') + '\n' + (oncell ? oncell.value : '1');
+      var sl = document.getElementById('segLen_s');
+      return this._csvLine('_s') + '\n' + this._csvLine('_e') + '\n' +
+             (oncell ? oncell.value : '1') + '\n' + (sl ? String(sl.value).trim() : String(SEG_DEF));
     },
 
     // 입력칸이 바뀔 때마다 CSV 창을 최신으로 (편집 중에는 건드리지 않는다)
@@ -216,7 +224,13 @@
         var rb = document.querySelector('input[name="box12cell_ncell"][value="' + nc + '"]');
         if (rb) rb.checked = true;
       }
-      console.log('[PSC] batch 입력: ' + n + '개 칸 반영' + ((nc === '1' || nc === '2') ? ', ' + nc + ' cell' : ''));
+      // 4줄째 = 세그먼트 길이 (선택)
+      var sl = String(lines[3] || '').trim();
+      if (sl !== '') { var se = document.getElementById('segLen_s'); if (se) se.value = sl; }
+
+      console.log('[PSC] batch 입력: ' + n + '개 칸 반영' +
+                  ((nc === '1' || nc === '2') ? ', ' + nc + ' cell' : '') +
+                  (sl !== '' ? ', 세그먼트 ' + sl : ''));
       this.redraw();
     },
 
@@ -233,6 +247,18 @@
       var oncell = document.querySelector('input[name="box12cell_ncell"]:checked');
       ap.NCELL = oncell ? (Number(oncell.value) || 2) : 2;
       return ap;
+    },
+
+    // 세그먼트 길이 — 시점 단면에서 종점 단면까지. 평면도의 길이가 된다.
+    _segLen: function () {
+      var el = document.getElementById('segLen_s');
+      var raw = el ? el.value : String(SEG_DEF);
+      var v = (typeof Calc !== 'undefined') ? Calc.num(raw, {}, Number(raw)) : Number(raw);
+      if (!isFinite(v) || v <= 0) {
+        console.error('[PSC] Segment Length 를 숫자로 읽을 수 없음: "' + raw + '" — 기본값 ' + SEG_DEF + ' 사용');
+        return SEG_DEF;
+      }
+      return v;
     },
 
     // 파라메트릭 재작도 : 가이드는 시작단면 기준. 끝단면은 DXF(평면도)에서 쓴다.
@@ -320,9 +346,7 @@
       var gb = geo_box12cell(apB), ge = geo_box12cell(apE);
       var bb = this._bbox(gb), be = this._bbox(ge);
 
-      // 세그먼트 길이 = 시작단면 박스 전폭 (입력 없음)
-      var L = Math.abs(Number(apB.WL) || 0) + Math.abs(Number(apB.WR) || 0);
-      if (!isFinite(L) || L <= 0) L = Math.max(bb.x2 - bb.x1, 1000);
+      var L = this._segLen();                 // 평면도 길이 = 입력한 세그먼트 길이
 
       var W = Math.max(bb.x2 - bb.x1, be.x2 - be.x1);
       var H = Math.max(bb.y2 - bb.y1, be.y2 - be.y1);
@@ -350,7 +374,7 @@
         put('TOP SLAB PLAN',     bb.x1,      dy - L / 2 - th * 2);
         put('BOTTOM SLAB PLAN',  bb.x1 + dx, dy - L / 2 - th * 2);
       }
-      console.log('[PSC] DXF: 시작/끝 단면 + 상·하부 슬래브 평면도, 세그먼트 길이 ' + Math.round(L) + 'mm (박스 전폭)');
+      console.log('[PSC] DXF: 시작/끝 단면 + 상·하부 슬래브 평면도, 세그먼트 길이 ' + Math.round(L) + 'mm');
       o.download('PSC.dxf');
     },
 
@@ -409,13 +433,18 @@
         '      <button type="button" class="px-btn" onclick="PSC.sectionDXF()">&#8681; DXF</button></div>' +
         '    <div class="draw-card-body">' +
         '      <div class="px-batch-wrap">' +
-        '        <div class="px-batch-lbl">Batch Input (CSV) <span class="px-batch-hint">1st line = BEGIN section &nbsp;/&nbsp; 2nd line = END section (blank = same as begin) &nbsp;/&nbsp; 3rd line = section type (1 or 2)</span></div>' +
+        '        <div class="px-batch-lbl">Batch Input (CSV) <span class="px-batch-hint">1st = BEGIN section &nbsp;/&nbsp; 2nd = END section (blank = same as begin) &nbsp;/&nbsp; 3rd = section type (1 or 2) &nbsp;/&nbsp; 4th = segment length</span></div>' +
         '        <div class="px-batch-order">' + keyOrder + '</div>' +
         '        <textarea class="px-batch" id="pscBatch" rows="3" spellcheck="false" onchange="PSC.applyBatch()"></textarea>' +
         '      </div>' +
-        '      <div class="px-radio"><b>Section Type :</b>' +
-        '        <label><input type="radio" name="box12cell_ncell" value="1" checked onchange="PSC.redraw()"> 1 Cell</label>' +
-        '        <label><input type="radio" name="box12cell_ncell" value="2" onchange="PSC.redraw()"> 2 Cell</label>' +
+        '      <div class="px-radio px-optrow">' +
+        '        <div class="px-opthalf"><b>Section Type :</b>' +
+        '          <label><input type="radio" name="box12cell_ncell" value="1" checked onchange="PSC.redraw()"> 1 Cell</label>' +
+        '          <label><input type="radio" name="box12cell_ncell" value="2" onchange="PSC.redraw()"> 2 Cell</label>' +
+        '        </div>' +
+        '        <div class="px-opthalf"><b>Segment Length (mm) :</b>' +
+        '          <label><input type="text" spellcheck="false" class="form-input px-seg" id="segLen_s" value="' + SEG_DEF + '" onchange="PSC.redraw()" title="Distance from the begin section to the end section — the length of the slab plans"></label>' +
+        '        </div>' +
         '      </div>' +
         '      <div class="px-split">' +
         '        <div class="px-guide" id="box12cell_guide"></div>' +
