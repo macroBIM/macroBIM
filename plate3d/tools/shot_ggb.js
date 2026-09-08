@@ -2,6 +2,10 @@
 
        node tools/shot_ggb.js [BOOK.xlsx] [outdir]
 
+   ENGINE=prod points it at host_lock.html - the shipped engine, which is the
+   one a visitor actually gets - instead of the test build. A sheet that only
+   works on the test engine is a sheet nobody can use yet.
+
    Loads the book into the real app, prints what the result panel says - rows,
    members, weight, and every warning - and saves one picture per view. The
    panel is the point: a model that draws is not the same as a model the engine
@@ -38,7 +42,9 @@ const LIB = f => {
   const errs = [];
   page.on('pageerror', e => errs.push(String(e).slice(0, 300)));
   page.on('dialog', async d => { errs.push('alert: ' + d.message()); await d.dismiss(); });
-  await page.goto('file://' + SP + '/host_test.html', { waitUntil: 'domcontentloaded' });
+  const HOST = process.env.ENGINE === 'prod' ? '/host_lock.html' : '/host_test.html';
+  await page.goto('file://' + SP + HOST, { waitUntil: 'domcontentloaded' });
+  console.log('engine: ' + HOST.slice(1));
   await page.waitForTimeout(2500);
 
   const name = path.basename(BOOK);

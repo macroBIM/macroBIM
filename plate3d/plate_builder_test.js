@@ -11890,9 +11890,10 @@
     { f: 'PLATE3D_TURRET.xlsx', n: 'Turret', s: '56 rows → 12 members · 0.65 kg',
       d: 'A machined part: octagons, and a channel rolled on its axis.' },
     /* Last, and the only one at the size of a real structure: 2 km of bridge
-       out of four modules. It earns its place by showing what the repeat and
-       the two ASSY rows are for - one cable plane written once is 255 rows and
-       comes out on both sides, and one truss bay is 20 bays. */
+       out of five modules. It earns its place by showing what the repeat and
+       the paired ASSY rows are for - one truss bay written once is 20 bays, and
+       one cable plane comes out on both sides of the bridge from one row each.
+       It is also the sheet that asks for VIEW ALL. */
     { f: 'PLATE3D_GGB.xlsx', n: 'Golden Gate Bridge', s: '414 rows → 2219 members · 81,624 t · 9 drawings',
       d: 'Five modules, one per part, at full size: 1280 m between the towers.' }
   ];
