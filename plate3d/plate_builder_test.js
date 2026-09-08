@@ -11866,8 +11866,8 @@
        out of four modules. It earns its place by showing what the repeat and
        the two ASSY rows are for - one cable plane written once is 255 rows and
        comes out on both sides, and one truss bay is 20 bays. */
-    { f: 'PLATE3D_GGB.xlsx', n: 'Golden Gate Bridge', s: '396 rows → 2219 members · 81,624 t',
-      d: 'Four modules, one per part, at full size: 1280 m between the towers.' }
+    { f: 'PLATE3D_GGB.xlsx', n: 'Golden Gate Bridge', s: '408 rows → 2219 members · 81,624 t',
+      d: 'Five modules, one per part, at full size: 1280 m between the towers.' }
   ];
   var exOpen = false;
   /* The picker is a window rather than a dropdown, so each example has room for

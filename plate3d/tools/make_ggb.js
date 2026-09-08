@@ -5,7 +5,8 @@
 // the water, 500 ft of tower above the roadway, 220 ft of clearance under it,
 // a 25 ft stiffening truss, suspenders every 50 ft and a 36-3/8 in cable.
 // Five things get built and no more - towers, cables, stiffening truss, floor
-// system, deck - which is what makes it readable as a sheet.
+// system, deck - which is what makes it readable as a sheet, and each of them is
+// its own ASSY so the list on the left reads the way the bridge is talked about.
 //
 // Three decisions carry the model:
 //   - the parabola is arithmetic, not shape. Every cable node is z = ZCL + a x^2
@@ -187,7 +188,7 @@ blank();
 // 128 straight bars and 127 suspenders, in the plane y = 0. Every node comes
 // out of the parabola, so the sag is a number in this file and not a drawing:
 // change SAG and the cable, the suspenders and nothing else follow.
-push('#', 'ONE CABLE PLANE - 128 bars on the parabola, 127 suspenders');
+push('#', 'ONE MAIN CABLE - 130 bars on the parabola, anchorage to anchorage');
 const NODE = [[-XA - TAIL, ZANC]];      // west anchorage
 for (let j = NS; j >= 0; j--) NODE.push([-TX - j * PS, cblSide(j * PS)]);
 for (let i = 1; i <= NM; i++) NODE.push([-TX + i * PM, cblMain(-TX + i * PM)]);
@@ -195,16 +196,21 @@ for (let j = 1; j <= NS; j++) NODE.push([TX + j * PS, cblSide(j * PS)]);
 NODE.push([XA + TAIL, ZANC]);           // east anchorage
 const SAD1 = 1 + NS, SAD2 = SAD1 + NM;  // the two nodes that sit on a saddle
 for (let i = 0; i < NODE.length - 1; i++)
-  A('md.cbl', 'bar.cbl', [NODE[i][0], 0, NODE[i][1]],
+  A('md.mcb', 'bar.cbl', [NODE[i][0], 0, NODE[i][1]],
     [NODE[i + 1][0], 0, NODE[i + 1][1]],
     i === SAD1 || i === SAD2 ? 400 : 30, i + 1 === SAD1 || i + 1 === SAD2 ? 400 : 30);
 blank();
-push('#', 'suspenders - every node but the saddles and the two anchorages');
+// The ropes are their own module and their own assembly. They are a different
+// thing from the cable that carries them - a different member, hung vertically
+// instead of run on the curve, replaced on their own cycle and counted on their
+// own line - and a take-off that says so is worth two rows in the ASSY block.
+push('#', 'THE HANGER ROPES - vertical, one at every node but the saddles');
 NODE.forEach((n, i) => {
   if (i === 0 || i === NODE.length - 1 || i === SAD1 || i === SAD2) return;
-  A('md.cbl', 'bar.hgr', [n[0], 0, n[1]], [n[0], 0, ZTOPF], 700);
+  A('md.hgr', 'bar.hgr', [n[0], 0, n[1]], [n[0], 0, ZTOPF], 700);
 });
-BASE('md.cbl', 'bar.cbl_1', 'mc');      // the first bar, at the west anchorage
+BASE('md.mcb', 'bar.cbl_1', 'mc');      // the first bar, at the west anchorage
+BASE('md.hgr', 'bar.hgr_1', 'mc');      // the first rope, at the end of the side span
 blank();
 
 /* ===================== one stiffening truss ===================== */
@@ -278,9 +284,25 @@ RUN.forEach(run => {
 BASE('md.dk', 'sc.fb_1', 'mc');
 blank();
 
+/* ===================== the drawings the sheet asks for ===================== */
+// Without these rows Save DXF hands back a file with nothing drawn in it. The
+// sheet knows which module is worth a sheet of paper, from where, and at what
+// scale - and at these lengths the scale is most of the decision: 1:500 puts a
+// 227 m tower on 450 mm of paper, and the 2 km truss needs 1:5000 to fit at all.
+// The two tower views are the drawings a shop would work to; the truss is the
+// general arrangement. A cable elevation or a deck plan is one more row.
+push('# VIEW', 'module', 'dir', 'AZ', 'EL', 'scale', 'title');
+push('VIEW', 'md.twr', 'RIGHT', '', '', 500, 'TOWER - ELEVATION ACROSS THE BRIDGE');
+push('VIEW', 'md.twr', 'FRONT', '', '', 500, 'TOWER - ELEVATION ALONG THE BRIDGE');
+push('VIEW', 'md.trs', 'FRONT', '', '', 5000, 'STIFFENING TRUSS - GENERAL ARRANGEMENT');
+blank();
+
 /* ===================== the bridge ===================== */
 // One assembly per major part, which is how the bridge is talked about and how
-// the left-hand list should read: towers, cables, trusses, floor system. Each
+// the left-hand list should read: towers, main cables, hanger ropes, trusses,
+// floor system. The two cables are split because they are two members doing two
+// jobs, and a list that says `as.hgr 254 x bar.hgr` answers a question that one
+// merged CABLES assembly cannot. Each
 // module is written once for one plane and the ASSY rows put it on both sides,
 // so the two halves cannot drift apart.
 push('# ASSY', 'id', 'ref', 'cmd', 'G.X', 'G.Y', 'G.Z');
@@ -289,9 +311,14 @@ push('ASSY', 'as.twr', 'md.twr', 'ADD', -TX, -CY, 0);
 push('ASSY', 'as.twr', 'md.twr', 'ADD', TX, -CY, 0);
 blank();
 push('# ASSY', 'id', 'ref', 'cmd', 'G.X', 'G.Y', 'G.Z');
-push('#', 'MAIN CABLES AND SUSPENDERS - one plane, both sides');
-push('ASSY', 'as.cbl', 'md.cbl', 'ADD', r1(-XA - TAIL), -CY, r1(ZANC));
-push('ASSY', 'as.cbl', 'md.cbl', 'ADD', r1(-XA - TAIL), CY, r1(ZANC));
+push('#', 'MAIN CABLES - one plane, both sides');
+push('ASSY', 'as.mcb', 'md.mcb', 'ADD', r1(-XA - TAIL), -CY, r1(ZANC));
+push('ASSY', 'as.mcb', 'md.mcb', 'ADD', r1(-XA - TAIL), CY, r1(ZANC));
+blank();
+push('# ASSY', 'id', 'ref', 'cmd', 'G.X', 'G.Y', 'G.Z');
+push('#', 'HANGER ROPES - the same two planes, hung off the cables above');
+push('ASSY', 'as.hgr', 'md.hgr', 'ADD', -XA, -CY, ZEND);
+push('ASSY', 'as.hgr', 'md.hgr', 'ADD', -XA, CY, ZEND);
 blank();
 push('# ASSY', 'id', 'ref', 'cmd', 'G.X', 'G.Y', 'G.Z');
 push('#', 'STIFFENING TRUSSES - one plane, both sides');
@@ -318,11 +345,15 @@ push('END');
   put(at('PLATE', 'pl.dkm'), 'one deck bay, 50 ft x 90 ft');
   put(at('PLATE', 'pl.dnm'), 'and the narrow bay beside a tower leg');
   put(at('MODULE', 'md.twr'), 'ONE tower: 8 leg lifts x 2, 8 portal struts, 2 saddles');
-  put(at('#', 'ONE CABLE PLANE - 128 bars on the parabola, 127 suspenders') + 1,
+  put(at('MODULE', 'md.hgr'), 'and the ropes on their own, so they count on their own line');
+  put(at('#', 'ONE MAIN CABLE - 130 bars on the parabola, anchorage to anchorage') + 1,
       'west anchorage. z = ZCL + a x^2 gives every node from here on');
+  put(at('#', 'THE HANGER ROPES - vertical, one at every node but the saddles') + 1,
+      'the same nodes, straight down to the top chord');
   put(at('#', 'ONE STIFFENING TRUSS - 25 ft deep, stopping at the tower legs') + 1,
       'one row = 20 bays. The chord is a repeat, not 20 rows');
-  put(at('# ASSY'), 'one assembly per part - towers, cables, trusses, floor system');
+  put(at('# VIEW'), 'three drawings, named by the sheet. Save DXF asks for the scale');
+  put(at('# ASSY'), 'one assembly per part - towers, main cables, ropes, trusses, deck');
   R.forEach((r, i) => ws.addRow(r.length ? [notes[i] || ''].concat(r) : []));
   ws.getColumn(1).width = 52;
   ws.getColumn(2).width = 11;
