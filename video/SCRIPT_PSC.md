@@ -49,9 +49,55 @@ both sections, both slab plans.
 | 설명 1행 | `Type the dimensions of a PSC box girder. The section drawing and both slab plans come out as DXF — in the browser, nothing to install.` |
 | 설명 2행 | `One or two cells, a begin and an end section with the distance between them, left tied to right or free, and a batch block that fills every box at once.` |
 | 태그 | PSC box girder · box girder · prestressed concrete · bridge section · tapered girder · variable depth · DXF · CAD drawing · parametric section · slab plan · concrete bridge · browser CAD · macroBIM |
-| 규격 | 2560×1440 · 30 fps · 무음 (길이는 촬영본 기준으로 확정) |
-| 썸네일 | `PSC_thumb.jpg` — `PSC BOX GIRDER` / `SECTION & SLAB PLANS` (확정 대기) |
+| 규격 | 1:44 · 2560×1440 · 30 fps · 무음 · 432 스틸 · 자막 17장 |
+| 썸네일 | `PSC_thumb.jpg` — `PSC BOX GIRDER` / `Section & slab plans, straight to DXF` |
 | 공개 | **미정** |
+
+### 설명란 전문
+
+```
+Type the dimensions of a PSC box girder. The section drawing and both slab plans come out as DXF — in the browser, nothing to install, nothing to download.
+
+One or two cells, a begin and an end section with the distance between them, left tied to right or free — or one block of text that fills every box at once.
+
+WHAT YOU TYPE
+· 1 cell or 2 — one click, and the centre web appears with its own haunches
+· 65 dimensions, twice — once for the begin section, once for the end
+· Left tied to right, until you untie it — 29 pairs mirror, each with its own checkbox
+· Cross slopes for the deck and the bottom slab, each side on its own
+· Depth, cantilevers, webs, haunches, fillets — every one of them a box
+· The distance between the two sections
+· Any box takes arithmetic — 13600/2 is 6800
+
+WHAT COMES OUT
+· The guide, redrawn as you type, dimensioned
+· The DXF — begin section, end section, top slab plan, bottom slab plan
+· Webs and haunches on a hidden layer, so the plans read as plans
+· A tapered girder needs nothing else: give the two ends and the length
+
+BATCH INPUT
+Four lines of comma-separated numbers — begin, end, section type, segment length.
+Paste it and every box fills at once. Change one box and the block rewrites itself,
+so a girder you already drew is four lines you can keep and paste back.
+
+Try it: www.macroBIM.com — Drawings ▸ PSC
+
+0:00 The section
+0:09 Where to open it
+0:14 Every dimension twice — begin and end
+0:20 One cell or two
+0:27 Left tied to right, until you untie it
+0:34 The slopes, and the depth
+0:49 A box takes arithmetic
+0:54 A tapered girder — two sections and the distance
+1:03 Batch input — four lines
+1:21 Zoom in on any dimension
+1:27 The DXF — both sections, both slab plans
+```
+
+**장 구분은 컷 그대로가 아니라 묶음입니다.** 15컷을 다 적으면 목록이 되지 설명이
+안 됩니다. §5 의 「순서의 논리」를 그대로 열한 줄로 옮긴 것이고, 시간은 촬영
+로그(`shots_psc.json`)에서 잰 것입니다.
 
 **제목은 짧게 갑니다.** PLATE3D 영상들은 `이름 — 설명문 | PLATE3D` 였지만 여기서는
 설명문을 붙이지 않습니다. 검색으로 찾아오는 말이 `PSC box girder drawing` 그대로이고,
