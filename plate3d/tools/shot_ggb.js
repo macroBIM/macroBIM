@@ -15,6 +15,7 @@ const SP = __dirname;
 const P3 = path.resolve(SP, '..');
 const BOOK = process.argv[2] || path.join(P3, 'PLATE3D_GGB.xlsx');
 const OUT = process.argv[3] || path.join(SP, 'shot');
+const TAG = process.env.TAG ? '_' + process.env.TAG : '';
 
 const LIB = f => {
   let p = SP + '/node_modules/three/build/three.min.js';
@@ -59,10 +60,24 @@ const LIB = f => {
   console.log(info.total.trim() + '   clashes: ' + info.clash);
   console.log('----------------------------------------------------------\n');
 
+  /* Colour is not in the sheet - the engine hands out a palette in read order
+     and the only way to say otherwise is the swatch in the left-hand list. So
+     the same override the swatch calls is available here, which is what makes a
+     picture in a chosen livery repeatable:
+         COLOURS='md.dk=#f04a00,md.twr=#c0362c' node tools/shot_ggb.js         */
+  const CL = (process.env.COLOURS || process.env.COLORS || '').split(',').filter(Boolean);
+  for (const c of CL) {
+    const [k, hex] = c.split('=');
+    await page.evaluate(a => window.plateBuilder.setColor(
+      a.k.indexOf('as.') === 0 ? 'module' : 'module', a.k.trim().toUpperCase(), a.hex.trim()),
+      { k, hex });
+  }
+  if (CL.length) { await page.waitForTimeout(2500); console.log('  colours: ' + CL.join(' ')); }
+
   for (const v of ['iso', 'front', 'side', 'top']) {
     await page.evaluate(k => window.plateBuilder.setView(k), v);
     await page.waitForTimeout(1800);
-    const f = path.join(OUT, name.replace(/\.xlsx$/i, '') + '_' + v + '.png');
+    const f = path.join(OUT, name.replace(/\.xlsx$/i, '') + TAG + '_' + v + '.png');
     await page.screenshot({ path: f });
     console.log('  ' + f);
   }

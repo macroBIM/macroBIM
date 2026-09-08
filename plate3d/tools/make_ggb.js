@@ -286,15 +286,24 @@ blank();
 
 /* ===================== the drawings the sheet asks for ===================== */
 // Without these rows Save DXF hands back a file with nothing drawn in it. The
-// sheet knows which module is worth a sheet of paper, from where, and at what
+// sheet knows which part is worth a sheet of paper, from where, and at what
 // scale - and at these lengths the scale is most of the decision: 1:500 puts a
-// 227 m tower on 450 mm of paper, and the 2 km truss needs 1:5000 to fit at all.
-// The two tower views are the drawings a shop would work to; the truss is the
-// general arrangement. A cable elevation or a deck plan is one more row.
+// 227 m tower on 450 mm of paper, and 2 km of bridge needs 1:5000 to fit at all.
+// Every part gets its drawing: leaving the cable and the deck out left a DXF
+// that was missing the two things a suspension bridge is.
+//
+// The plan of the trusses is the one row that names an ASSY rather than a
+// module, and it has to be. A module is ONE plane of the bridge, so its plan is
+// a line; the pair of them 27.4 m apart is the plan somebody wants.
 push('# VIEW', 'module', 'dir', 'AZ', 'EL', 'scale', 'title');
 push('VIEW', 'md.twr', 'RIGHT', '', '', 500, 'TOWER - ELEVATION ACROSS THE BRIDGE');
 push('VIEW', 'md.twr', 'FRONT', '', '', 500, 'TOWER - ELEVATION ALONG THE BRIDGE');
-push('VIEW', 'md.trs', 'FRONT', '', '', 5000, 'STIFFENING TRUSS - GENERAL ARRANGEMENT');
+push('VIEW', 'md.twr', 'TOP', '', '', 500, 'TOWER - PLAN');
+push('VIEW', 'md.mcb', 'FRONT', '', '', 5000, 'MAIN CABLE - ANCHORAGE TO ANCHORAGE');
+push('VIEW', 'md.hgr', 'FRONT', '', '', 5000, 'HANGER ROPES - ELEVATION');
+push('VIEW', 'md.trs', 'FRONT', '', '', 5000, 'STIFFENING TRUSS - ELEVATION');
+push('VIEW', 'as.trs', 'TOP', '', '', 5000, 'STIFFENING TRUSSES - PLAN');
+push('VIEW', 'md.dk', 'TOP', '', '', 5000, 'FLOOR SYSTEM AND DECK - PLAN');
 blank();
 
 /* ===================== the bridge ===================== */
@@ -352,7 +361,7 @@ push('END');
       'the same nodes, straight down to the top chord');
   put(at('#', 'ONE STIFFENING TRUSS - 25 ft deep, stopping at the tower legs') + 1,
       'one row = 20 bays. The chord is a repeat, not 20 rows');
-  put(at('# VIEW'), 'three drawings, named by the sheet. Save DXF asks for the scale');
+  put(at('# VIEW'), 'eight drawings, named by the sheet - and the scale is the sheet\'s too');
   put(at('# ASSY'), 'one assembly per part - towers, main cables, ropes, trusses, deck');
   R.forEach((r, i) => ws.addRow(r.length ? [notes[i] || ''].concat(r) : []));
   ws.getColumn(1).width = 52;
