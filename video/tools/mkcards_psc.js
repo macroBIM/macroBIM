@@ -43,20 +43,24 @@ pill('c07', ['Each side', 'has its own slope.'], 48);
 pill('c07b', ['The bottom slab, too.'], 46, true);
 pill('c07c', ['Change the depth.', 'The deck stays put.'], 48);
 pill('c08', ['A box takes arithmetic.'], 46, true);
-pill('c09', ['The far end', 'can be another section.'], 48);
-pill('c10', ['Or paste the whole thing.', 'Three lines.'], 48);
+pill('c09', ['A tapered girder —', 'two sections and the distance.'], 46);
+pill('c10', ['Begin, end, type, length.', 'One line each.'], 48);
+pill('c10b', ['One paste.', 'Every box.'], 50);
 pill('c11', ['It writes itself back.'], 46, true);
 pill('c12', ['Zoom in on any dimension.'], 46, true);
 pill('c13', ['Both sections.', 'Both slab plans.'], 50);
 
-/* ---- 타이틀 카드, 2번 컷. 제목이 파는 것은 "칠 게 이것뿐" 이므로 두 줄 다
-   마침표로 끊는다. 색은 앱의 파랑(#2563eb) 계열에서 한 칸 밝은 쪽. */
+/* ---- 타이틀 카드, 2번 컷. 두 줄 다 마침표로 끊는다. 색은 앱의 파랑(#2563eb)
+   계열에서 한 칸 밝은 쪽.
+   첫 판은 둘째 줄이 "SIXTY-FIVE BOXES." 였다 — 입력칸 65개를 뜻했는데 윗줄이
+   BOX GIRDER 라서 "박스거더 65개" 로 읽혔다. 무엇이 들어가고 무엇이 나오는지로
+   바꿨다. */
 w('t02', `<style>${BASE}
  body{background:#0b1220;display:flex;flex-direction:column;align-items:center;
       justify-content:center;gap:10px}
- .l{font-weight:800;font-size:124px;letter-spacing:-.05em;color:#fff;line-height:1.06}
+ .l{font-weight:800;font-size:104px;letter-spacing:-.05em;color:#fff;line-height:1.08;text-align:center}
  .l.b{color:#38bdf8}
-</style><div class="l">PSC BOX GIRDER.</div><div class="l b">SIXTY-FIVE BOXES.</div>`);
+</style><div class="l">PSC BOX GIRDER.</div><div class="l b">DIMENSIONS IN. DXF OUT.</div>`);
 
 /* ---- 아웃트로, 14번 컷 ---- */
 w('o14', `<style>${BASE}
