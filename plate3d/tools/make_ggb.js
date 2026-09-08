@@ -292,10 +292,16 @@ blank();
 // Every part gets its drawing: leaving the cable and the deck out left a DXF
 // that was missing the two things a suspension bridge is.
 //
+// The first row names neither a module nor an assembly. A general arrangement
+// is the towers AND the cables AND the deck, and those are three assemblies, so
+// no id can ask for it - which is why `ALL` exists. It is the drawing the set
+// opens with, and the one that shows the bridge is a bridge.
+//
 // The plan of the trusses is the one row that names an ASSY rather than a
 // module, and it has to be. A module is ONE plane of the bridge, so its plan is
 // a line; the pair of them 27.4 m apart is the plan somebody wants.
 push('# VIEW', 'module', 'dir', 'AZ', 'EL', 'scale', 'title');
+push('VIEW', 'ALL', 'FRONT', '', '', 5000, 'GOLDEN GATE BRIDGE - GENERAL ARRANGEMENT');
 push('VIEW', 'md.twr', 'RIGHT', '', '', 500, 'TOWER - ELEVATION ACROSS THE BRIDGE');
 push('VIEW', 'md.twr', 'FRONT', '', '', 500, 'TOWER - ELEVATION ALONG THE BRIDGE');
 push('VIEW', 'md.twr', 'TOP', '', '', 500, 'TOWER - PLAN');
@@ -361,7 +367,7 @@ push('END');
       'the same nodes, straight down to the top chord');
   put(at('#', 'ONE STIFFENING TRUSS - 25 ft deep, stopping at the tower legs') + 1,
       'one row = 20 bays. The chord is a repeat, not 20 rows');
-  put(at('# VIEW'), 'eight drawings, named by the sheet - and the scale is the sheet\'s too');
+  put(at('# VIEW'), 'nine drawings. The first is ALL - the whole bridge on one sheet');
   put(at('# ASSY'), 'one assembly per part - towers, main cables, ropes, trusses, deck');
   R.forEach((r, i) => ws.addRow(r.length ? [notes[i] || ''].concat(r) : []));
   ws.getColumn(1).width = 52;

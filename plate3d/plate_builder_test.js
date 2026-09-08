@@ -1059,16 +1059,21 @@
                                                blank/O = BASE point, 9-point name =
                                                module bbox point, INSTANCE.POINT =
                                                explicit plate point)
-       VIEW  ID FROM [title]                  (a drawing, for Save DXF. ID names a MODULE
-                                               or an ASSY. FROM is one of
+       VIEW  ID FROM [] [] SCALE [title]      (a drawing, for Save DXF. ID names a MODULE
+                                               or an ASSY, or is the word ALL, which draws
+                                               everything placed - the general arrangement,
+                                               which no id can ask for because a bridge's
+                                               elevation is its towers AND its cables AND
+                                               its deck. FROM is one of
                                                FRONT / BACK / LEFT / RIGHT / TOP / BOTTOM,
                                                an isometric corner named for where the
                                                viewer stands - ISO / ISO-SE / ISO-SW /
                                                ISO-NW / ISO-NE, ISO being SE - or the word
-                                               3D, which takes two more columns. The title
-                                               is what is written over the drawing.
-                                               No VIEW rows, no VIEWS block - the scale
-                                               is asked for in the dialog like the others)
+                                               3D, which takes the two columns a named
+                                               direction leaves empty. SCALE is this
+                                               drawing's own and is required: 20 means
+                                               1:20. The title is written over the drawing.
+                                               No VIEW rows, no VIEWS block)
        VIEW  ID 3D AZ EL [title]              (the same drawing seen from any direction.
                                                AZ walks the viewer round the model in the
                                                ground plane, from +X (east) anticlockwise;
@@ -1795,9 +1800,9 @@
                    DX2: num(v[9], 0), DY2: num(v[10], 0), REP2: num(v[11], 0) };
         notches.push(nc);
         counts.notch++;
-      } else if (kw === 'VIEW') {         // VIEW <module> <direction> [title]
-        /* A drawing the sheet asks for by name: which module, seen from where,
-           and what to call it. All three are content - the person who knows
+      } else if (kw === 'VIEW') {         // VIEW <module|assy|ALL> <dir> [AZ EL] <scale> [title]
+        /* A drawing the sheet asks for by name: which module - or assembly, or
+           ALL of it - seen from where, and what to call it. All three are content - the person who knows
            them is whoever wrote the workbook, not whoever presses Save DXF.
            The scale is not among them. A scale is a property of the paper
            rather than of the model - but it is a property of THIS drawing's
@@ -1813,7 +1818,7 @@
         var is3D = vdir === '3D';
         var vaz = num(v[2], 0), vel = num(v[3], 0);
         var vscl = num(v[4], 0), vttl = str(v[5]);
-        if (!vmod) { warn('row ' + (r + 1) + ': VIEW without a module'); continue; }
+        if (!vmod) { warn('row ' + (r + 1) + ': VIEW without a subject (a MODULE, an ASSY, or ALL)'); continue; }
         if (!viewSpec(vdir, vaz, vel)) {
           warn('row ' + (r + 1) + ': VIEW ' + vmod + ' — unknown direction "' +
                (str(v[1]) || '(blank)') + '" (use ' + viewDirNames() + ')');
@@ -2221,12 +2226,25 @@
        MODULE or an ASSY will do: both are things a person points at and calls
        a thing, and a sheet that can draw one should be able to draw the other.
        A view of nothing is dropped: better no drawing than an empty frame with
-       a title over it. */
+       a title over it.
+
+       ALL needs no definition - it means everything the sheet placed. If the
+       sheet also happens to define something called ALL, the word still means
+       everything and the row is told so, because silently drawing one module
+       where a general arrangement was asked for is the worse of the two. */
     views = views.filter(function (vw) {
+      if (vw.MODULE === 'ALL') {
+        if (parts.ALL || assyIds.ALL) {
+          warn('row ' + vw.ROW + ': VIEW ALL draws the whole model, so it does not ' +
+               'draw the MODULE/ASSY this sheet also calls ALL. Rename that one to ' +
+               'draw it on its own');
+        }
+        return true;
+      }
       if (parts[vw.MODULE] || assyIds[vw.MODULE]) return true;
       warn('row ' + vw.ROW + ': VIEW names ' + vw.MODULE +
-           ', which the sheet defines neither as a MODULE nor as an ASSY — ' +
-           'no drawing is made');
+           ', which the sheet defines neither as a MODULE nor as an ASSY (ALL ' +
+           'draws the whole model) — no drawing is made');
       counts.view--;
       return false;
     });
@@ -8378,8 +8396,14 @@
       /* Taken from what the ASSY rows placed rather than from the definition,
          so the subject is drawn where it ended up. The id names a MODULE or an
          ASSY - it.group carries the ASSY row's own id - because both are things
-         a person points at and calls a thing. */
-      var mem = list.filter(function (it) {
+         a person points at and calls a thing.
+
+         ALL is the third thing a person points at: the structure. It is the
+         general arrangement - the drawing every set opens with - and no id
+         could ask for it, because a bridge's elevation is its towers AND its
+         cables AND its deck and those are three assemblies. `list` is what is
+         VISIBLE, so ALL follows hide/show exactly as every other view does. */
+      var mem = vr.MODULE === 'ALL' ? list.slice() : list.filter(function (it) {
         return it.moduleId === vr.MODULE || it.group === vr.MODULE;
       });
       if (!mem.length) return false;          // never placed, or every member hidden
@@ -8513,8 +8537,8 @@
     if (!lastViews.length && !lastPlots.length) {
       alert('The sheet does not ask for any drawing.\n\n' +
             'Add a row saying what to draw and at what scale:\n\n' +
-            '    VIEW  <module or assy>  ISO   <scale>  <title>\n' +
-            '    VIEW  <module or assy>  3D  <AZ> <EL>  <scale>  <title>\n' +
+            '    VIEW  <module or assy or ALL>  ISO   <scale>  <title>\n' +
+            '    VIEW  <module or assy or ALL>  3D  <AZ> <EL>  <scale>  <title>\n' +
             '    PLOT  PART  <id or ALL>  <scale>\n' +
             '    PLOT  SECT  <id or ALL>  <scale>\n\n' +
             'A scale of 20 means 1:20. Nothing is drawn that was not asked for.');
@@ -9819,8 +9843,11 @@
     ' exactly: <b>PLOT</b> draws a <i>part</i> on its own at its standard section, so it takes',
     ' a <code>PLATE</code> or a <code>SECT</code> and nothing else. <b>VIEW</b> draws a thing',
     ' <i>as placed</i>, seen from somewhere, so it takes a <code>MODULE</code> or an',
-    ' <code>ASSY</code>. Neither is produced unless a row asks for it &mdash; see',
-    ' <b>Save DXF</b> below.</p>',
+    ' <code>ASSY</code> &mdash; or <code>ALL</code>, which is the structure itself. A general',
+    ' arrangement is towers <i>and</i> cables <i>and</i> deck, so no one id can name it, and',
+    ' it is the drawing a set opens with. <code>ALL</code> draws what is visible, so hiding',
+    ' an assembly takes it out of the drawing too. Neither is produced unless a row asks for',
+    ' it &mdash; see <b>Save DXF</b> below.</p>',
     '<p>The point of the middle tier is leverage. Define a column once; place it eight times.',
     ' Change its plate thickness and all eight change with it.</p>',
 
@@ -11866,7 +11893,7 @@
        out of four modules. It earns its place by showing what the repeat and
        the two ASSY rows are for - one cable plane written once is 255 rows and
        comes out on both sides, and one truss bay is 20 bays. */
-    { f: 'PLATE3D_GGB.xlsx', n: 'Golden Gate Bridge', s: '413 rows → 2219 members · 81,624 t · 8 drawings',
+    { f: 'PLATE3D_GGB.xlsx', n: 'Golden Gate Bridge', s: '414 rows → 2219 members · 81,624 t · 9 drawings',
       d: 'Five modules, one per part, at full size: 1280 m between the towers.' }
   ];
   var exOpen = false;
