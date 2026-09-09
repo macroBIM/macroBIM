@@ -6,8 +6,14 @@
 node_modules/
 plate3d/tools/node_modules
 
-# shot_ggb.js 가 남기는 뷰별 그림. 워크북에서 언제든 다시 나온다.
+# shot_ggb.js 가 남기는 뷰별 그림. 워크북에서 언제든 다시 나온다. 책마다
+# 폴더가 하나씩 늘고(shot_eif, shot_eifp 처럼 엔진별로도) 전부 같은 성격이다.
 plate3d/tools/shot/
+plate3d/tools/shot_*/
+
+# 눈으로 확인해 보려고 뽑은 것들 - DXF, SVG, 대조용 그림. 확인이 끝나면
+# 남을 이유가 없고, 남으면 모델을 고칠 때마다 같이 낡는다.
+plate3d/tools/chk/
 
 # make_ggb_stages.js 가 만드는 가설 단계 워크북 52장. 명령 한 줄에 30초면
 # 다시 나오고, 저장소가 들고 있으면 모델을 고칠 때마다 52장이 같이 낡는다.
