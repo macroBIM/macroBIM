@@ -101,7 +101,7 @@ const CARDS = {
   truss:  { kind: 'over', html: over('Out from both towers.', 'Meeting at mid-span.') },
   deck:   { kind: 'over', html: over('', 'the deck follows') },
   dxf:    { kind: 'over', html: over('Nine drawings.', 'Two kilometres on one sheet.') },
-  dxfrun: { kind: 'over', html: over('', '82 bays of stiffening truss,<br>at reading size') },
+  dxfrun: { kind: 'over', html: over('', 'the general arrangement,<br>end to end') },
   count:  { kind: 'over', html: over('', 'The app counts it:<br>2,219 members, 81,624 t.') },
 
   /* The ending. The film has spent two minutes on what came out; these are the

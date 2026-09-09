@@ -21,6 +21,7 @@
 ## 2. 카피
 
 ```
+BY PLATE3D
 PLATE3D 로 만드는 골든게이트 브릿지
 쉽고 빠르게
 
@@ -44,7 +45,7 @@ PLATE3D 로 만드는 골든게이트 브릿지
 | 설명 1행 | `Modelling the Golden Gate Bridge in PLATE3D — a tower lift, a truss bay, a cable. Three things written, and 2,219 members stand.` |
 | 설명 2행 | `Watch it go up the way it was built: towers, main cables, hanger ropes, then the stiffening truss and deck out from both towers to mid-span.` |
 | 태그 | golden gate bridge · suspension bridge · bridge modeling · bridge erection · 3D model · BIM · structural engineering · steel structure · spreadsheet · Excel · parametric model · DXF · main cable · stiffening truss · PLATE3D · macroBIM |
-| 규격 | 2:04 · 1920×1080 · 30 fps · 무음 · **자막 영어** |
+| 규격 | 2:43 · 1920×1080 · 30 fps · 무음 · **자막 영어** |
 | 썸네일 | `PLATE3D_GGB_thumb.jpg` — `GOLDEN GATE BRIDGE` / `Three sections. 2,219 members.` |
 | 공개 | **미정** |
 
@@ -77,7 +78,8 @@ THE PUBLISHED FIGURES ARE THE INPUT
 Nine drawings come out as DXF, including a general arrangement of the whole
 bridge — 2,311 m on one sheet.
 
-Runs in the browser. The workbook is on the Example menu.
+Runs in the browser. The workbook is on the Example menu — the film ends by
+scrolling the whole input tab and then showing you where to download it.
 macrobim.github.io
 ```
 
@@ -91,33 +93,39 @@ macrobim.github.io
 1:16  The deck follows
 1:32  Finished
 1:42  The drawings
+2:12  The input sheet
+2:27  Download it
 ```
 
 ## 4. 자막 뼈대
 
 ```
-1   선언   MODELLING THE GOLDEN GATE BRIDGE.  SIMPLE AND FAST.
+1   선언   BY PLATE3D / MODELLING THE GOLDEN GATE BRIDGE.  SIMPLE AND FAST.
 3   재료   Three sections.  Everything else is these, repeated.
 6   순서   Now it goes up the way it was built.
 9   핵심   Out from both towers.  Meeting at mid-span.
-13  마무리 Three sections.  2,219 members.
-14  서명   PLATE3D by macroBIM
+13  마무리 The app counts it: 2,219 members, 81,624 t.
+14  입력   This is the whole file.  One tab. 414 rows.
+15  받기   (자막 없음 — 패널이 스스로 말한다)
+16  권유   COME AND BUILD ONE.  It really is this easy.
+17  서명   PLATE3D by macroBIM
 ```
 
-1번과 13번이 **셋**이라는 같은 말로 열고 닫습니다.
+1번이 **BY PLATE3D** 로 열고 16번이 **와서 하나 지어 봐라**로 닫습니다.
+영상이 다리 이야기이면서 도구 이야기인 것을 제목과 마지막이 같이 말합니다.
 
 9번이 이 영상의 문장입니다. 트러스가 중앙에서 바깥으로 자라면 그림은 비슷해
 보여도 **거짓말**입니다 — 매달 것이 없는 곳에는 아무것도 세울 수 없습니다.
 그 순서를 지키는 것이 이 영상이 흔한 조립 애니메이션과 다른 유일한 점이고,
 자막이 그것을 말합니다.
 
-## 5. 컷 리스트 — 2:04 · 1920×1080 · 30 fps · 무음
+## 5. 컷 리스트 — 2:43 · 1920×1080 · 30 fps · 무음
 
 자막은 전부 영어입니다.
 
 | # | 시간 | 길이 | 화면 | 자막 |
 |---|---|---|---|---|
-| 1 | 0:00 | 6s | 검은 화면, 오프닝 카드 | **MODELLING THE**<br>**GOLDEN GATE BRIDGE.**<br>**SIMPLE AND FAST.** |
+| 1 | 0:00 | 6s | 검은 화면, 오프닝 카드 | **BY PLATE3D**<br>**MODELLING THE**<br>**GOLDEN GATE BRIDGE.**<br>**SIMPLE AND FAST.** |
 | 2 | 0:06 | 12s | **전체 조감도 — ISO.** 전장이 다 들어오는 각(§7)에서 24° 궤도로 아주 천천히. International Orange | *1,280 m of main span.*<br>*2,219 members.* |
 | 3 | 0:18 | 9s | **주탑 세그먼트** — `md.twr` 미리보기. 다리 한 짝이 8단으로 끊긴 것이 보이게 천천히 줌 → 시트의 `SECT sc.lg1…8` 여덟 줄 | **Three sections.**<br>*① a tower lift — eight of them* |
 | 4 | 0:27 | 9s | **거더 세그먼트** — `md.trs` 미리보기에서 한 경간(현재·수직재·사재)으로 줌 → 시트의 `sc.chd` 한 줄, 끝 칸 `rep 81` | *② a truss bay —*<br>*one row, 82 of them* |
@@ -128,9 +136,12 @@ macrobim.github.io
 | 9 | 1:00 | 16s | **트러스가 주탑에서 양쪽으로 뻗는다.** 41프레임, **한 프레임에 한 경간씩.** 주경간은 두 주탑에서 안쪽으로, 측경간은 바깥으로. 마지막 프레임에서 중앙이 닫힌다 | **Out from both towers.**<br>**Meeting at mid-span.** |
 | 10 | 1:16 | 16s | **바닥판이 트러스를 따라간다.** 41프레임, 같은 순서 같은 방향 | *the deck follows* |
 | 11 | 1:32 | 10s | 완성. **주탑 밑에서 케이블을 올려다보며** 15° 궤도 | — |
-| 12 | 1:42 | 10s | `File ▸ Save DXF` → 아홉 장이 쌓인 시트를 훑고 → 맨 위 **일반도**로 줌, 전장 `2311505` 가 프레임에 들어옴 | **Nine drawings.**<br>**Two kilometres on one sheet.** |
-| 13 | 1:52 | 6s | 앱의 부재 수·중량 줄 | **Three sections.**<br>**2,219 members.** |
-| 14 | 1:58 | 6s | 로고 | **PLATE3D by macroBIM** |
+| 12 | 1:42 | 24s | `File ▸ Save DXF` → 시트 전체 3초 → **도면 아홉 장을 한 장씩 1.6초** → 마지막에 일반도를 프레임 높이로 잡고 **끝에서 끝까지 7초 주행** | **Nine drawings.**<br>**Two kilometres on one sheet.**<br>*the general arrangement, end to end* |
+| 13 | 2:06 | 6s | 앱의 부재 수·중량 줄 | *The app counts it:*<br>*2,219 members, 81,624 t.* |
+| 14 | 2:12 | 15s | **입력 시트 414행을 위에서 아래로 훑는다.** `mkparampage.js` 가 출하 워크북에서 셀 단위로 읽은 것 — 행 번호가 파일의 행 번호다 | **This is the whole file.**<br>*One tab. 414 rows.*<br>*Sections and plates, then modules,*<br>*then five assemblies.* |
+| 15 | 2:27 | 5s | **앱의 Example 목록**, 골든게이트 줄이 켜지고 `DOWNLOAD` 가 초록 | — |
+| 16 | 2:32 | 6s | 권유 카드 | **COME AND BUILD ONE**<br>*PLATE3D → Example → Golden Gate Bridge.*<br>*Open it, change a number, load it again.*<br>*It really is this easy.* |
+| 17 | 2:38 | 5s | 로고 | **PLATE3D by macroBIM** |
 
 9·10 번이 각 16초입니다. 41프레임을 16초면 **프레임당 0.39초**(30 fps 에서 12장)
 — 한 경간이 놓이는 것이 눈에 보이면서 기다리게는 안 되는 속도입니다. 더
@@ -148,6 +159,17 @@ macrobim.github.io
 화면입니다.
 
 **11 번에 자막이 없습니다.** 다 지은 다음에 할 말은 없습니다.
+
+**15 번에도 자막이 없습니다.** 다른 이유입니다 — 패널에 이미 *Example
+workbooks* 라고 쓰여 있고, 줄에 *Golden Gate Bridge* 라고 쓰여 있고, 버튼에
+*DOWNLOAD* 라고 쓰여 있습니다. 그 위에 카드를 얹으면 **화면을 소리내어 읽는
+두 번째 목소리**가 되고, 목록을 안 가리는 자리도 없습니다. 말은 바로 뒤
+16 번 카드가 합니다.
+
+**12–17 번이 이 영상의 두 번째 절반의 논리입니다.** 12·13 이 *나온 것*(도면과
+수량), 14 가 *들어간 것*(시트 414행), 15 가 *어디서 받나*, 16 이 *와서 해봐라*.
+앞의 열한 컷이 다리를 보여 주고, 뒤의 여섯 컷이 **그게 파일 한 장이었다**고
+말합니다.
 
 ## 6. 가설 시퀀스 — 어떻게 찍나
 
@@ -215,7 +237,8 @@ X 축을 따르므로 **`az 90` 이 정면 입면**입니다.
 | 3–5 세그먼트 | 미리보기 창 자체 카메라 | — | — | — | 휠 줌 | |
 | **6–10 가설** | **`0, 0, 125000`** | **1,050,000** | **85 고정** | **4 고정** | **없음** | **확인함 ✔** |
 | **11 히어로** | **`640080, 0, 165000`** | **360,000** | **55 → 70** | **−4** | 15° 궤도, 10초 | **확인함 ✔** |
-| 12 도면 | — | — | — | — | `dxf2svg.js` 로 그린 시트를 팬·줌 | |
+| 12 도면 | — | — | — | — | 도면마다 실측한 프레임(`ggb_frames.json`) + 일반도 주행 | **확인함 ✔** |
+| 14 시트 | — | — | — | — | `ggb_sheet.html` 을 위에서 아래로 스크롤 | **확인함 ✔** |
 
 ✔ 세 값 모두 `video/tools/aim_ggb.js` 로 실제 잡아 보고 정했습니다. 궤도의
 시작값만 확인했고, 끝값은 같은 궤도 위이므로 촬영 때 이어서 봅니다.
@@ -249,6 +272,29 @@ X 축을 따르므로 **`az 90` 이 정면 입면**입니다.
 
 **12 번 DXF 는 앱이 실제로 내보낸 파일을 `tools/dxf2svg.js` 로 그립니다.**
 다시 조판하지 않습니다 — `video/README.md` 의 첫 규칙입니다.
+
+**12 번의 첫 판은 프레임이 텅 비었습니다.** 두 가지가 겹쳤습니다. 페이지가
+svg 에 제 크기를 정하게 뒀더니(`width:100%; height:auto`) 가로로 긴 창은
+1080 px 페이지 맨 위에 120 px 짜리 띠로 그려졌고 — **중앙부가 빈 것이 아니라
+중앙부가 없었습니다** — 창을 시트 높이의 분수(`[0,0.16]` 따위)로 잡았으니
+3,785,154 단위짜리 종이의 아무 데나 짚었습니다. 지금은 페이지가 1920×1080 에
+고정이고 `prep_ggb.js` 가 **도면마다 실제 잉크의 범위를 재서** 프레임을
+줍니다.
+
+**주행 컷은 트러스가 아니라 일반도입니다.** 처음엔 보강트러스 입면을
+따라가려 했는데, DXF 는 선 굵기를 **시트 기준**으로 정하므로 1:5000 에서
+현재 선 하나가 트러스 깊이의 28 % 입니다 — 아무리 당겨도 격자가 되지 않고
+빗금 친 막대가 됩니다. 일반도는 2 km 에 340 m 라 프레임 높이로 잡으면
+**주탑, 거기서 흘러나가는 케이블, 셀 수 있는 행어, 경간 중앙**이 차례로
+지나갑니다. "두 킬로미터가 한 장에" 를 말이 아니라 화면으로 하는 것이
+이 컷입니다.
+
+**아홉 중 둘은 시트에서도 실제로 비어 있습니다.** `VIEW md.twr FRONT` 와
+`VIEW md.twr TOP` 은 모듈이 **놓인 자리마다** 그리므로, 1:500 으로 주탑 둘을
+1,280 m 떨어뜨려 그립니다 — 주탑, 1 km 의 공기, 주탑. 영상에서는 잉크를
+x 로 뭉쳐 보고 **빈 구간이 도면 높이의 2.5배를 넘으면 갈라서** 한 기만
+잡습니다. 출하 워크북은 건드리지 않았습니다 — VIEW 가 배치를 고르는 방식을
+바꾸는 일이라 영상과 따로 판단할 문제입니다.
 
 **색은 시트가 아니라 클릭입니다.** International Orange 로 찍되, 시트에서 색을
 정하는 것처럼 보이게 하면 안 됩니다(§9).
@@ -329,14 +375,15 @@ X 축을 따르므로 **`az 90` 이 정면 입면**입니다.
 
 - 3–5 번(적는 것)과 9–10 번(자라는 것)이 같은 순서로 짝을 이룬다
 - 트러스·바닥판은 **주탑에서 바깥으로만** 자란다
-- 11 번에 자막을 넣지 않는다
+- 11·15 번에 자막을 넣지 않는다
 - 시리즈 예고를 하지 않는다 — 2편이 만들어지기 전까지 약속하지 않는다
+- 제목이 **BY PLATE3D** 로 열고 마지막 카드가 **와서 하나 지어 봐라**로 닫는다
+- 끝에 입력 시트 414행을 통째로 훑는다 — 만든 것을 보였으면 만든 재료도 보인다
 
 확정 대기:
 
 - 썸네일 문구 · 공개 여부
-- 2·11 번 궤도의 **끝값** — 시작값은 확인했고, 도는 동안 무엇이 가려지는지는
-  이어 찍어 봐야 안다
+- 주탑 입면·평면 두 장이 시트에서 반쯤 비는 문제 (VIEW 가 배치를 고르는 방식)
 
 정해진 것에서 뺀 질문:
 
@@ -355,15 +402,20 @@ plate3d/video/tools/aim_ggb.js           카메라 값을 눈으로 고르는 �
 plate3d/video/ggb/                       생성물 — 저장소에 넣지 않음
 ```
 
-아직 없는 것:
+촬영 도구:
 
 ```
+video/tools/prep_ggb.js          워크북 86장 + DXF + 도면 페이지·프레임 + 입력 시트 페이지
 video/tools/mkcards_ggb.js       자막·타이틀·아웃트로 카드
-video/tools/rendercards_ggb.js   카드 → PNG
-video/tools/shoot_ggb_video.js   촬영 — 86장 로드 + __aim 카메라
+video/tools/rendercards_ggb.js   카드 → PNG / JPEG
+video/tools/shoot_ggb.js         촬영 — 86장 로드 + __aim 카메라, 17컷
 video/tools/assemble_ggb.js      조립
+video/tools/mkparampage.js       입력 시트를 시트로 그림 (FITW 모드)
 ```
 
 TOWER·SPLICE 와 달리 **값을 바꾸는 컷이 없어** 셀 카드(`mkcellcards.js`)가
-필요 없습니다. `tools/shot_ggb.js` 가 이미 색과 엔진을 명령줄에서 잡으므로,
-촬영 스크립트는 그 위에 카메라 경로와 86장 로드만 얹으면 됩니다.
+필요 없습니다.
+
+`mkparampage.js` 에 `FITW` 를 붙였습니다 — **폭에 맞추고 높이는 두는** 모드라
+414행을 1080 px 안에 뭉개는 대신 읽는 크기로 팬할 수 있습니다. 기본값은
+그대로여서 TOWER·SPLICE·BASIC 이 쓰는 페이지는 한 픽셀도 안 움직입니다.

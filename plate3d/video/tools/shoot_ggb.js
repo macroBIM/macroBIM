@@ -222,16 +222,14 @@ const mix = (a, b, u) => a + (b - a) * u;
       await doc.waitForTimeout(450);
       put(await doc.screenshot({ type: 'jpeg', quality: 92 }), 1.6);
     }
-    /* And one of them close enough to read. The stiffening truss is 2 km of
-       drawing 7.6 m deep - whole, it is a line. This runs the frame along it at
-       the height of the drawing, which is the only way the lattice is on
-       screen at all. */
+    /* And then along one of them at frame height. Nine held frames say there
+       are nine drawings; this says how big one of them is. */
     caption('dxfrun', T, 7);
-    const t = fr.find(d => /STIFFENING TRUSS/.test(d.title)) || fr[0];
-    const wv = t.box[3] * 16 / 9, x0 = t.box[0], x1 = t.box[0] + t.box[2] - wv;
-    const kk = Math.round(7 * MO);
+    const t = fr.find(d => /GENERAL ARRANGEMENT/.test(d.title) && d.run) ||
+              fr.filter(d => d.run)[0];
+    const r = t.run, kk = Math.round(7 * MO);
     for (let i = 0; i < kk; i++) {
-      await look([mix(x0, x1, ease(i / (kk - 1))), t.box[1], wv, t.box[3]]);
+      await look([mix(r.from, r.to, ease(i / (kk - 1))), r.y, r.w, r.h]);
       put(await doc.screenshot({ type: 'jpeg', quality: 92 }), 7 / kk);
     }
     await doc.close();
@@ -289,8 +287,11 @@ const mix = (a, b, u) => a + (b - a) * u;
      line the shot exists for - the Golden Gate row - too small to read. */
   const bx = await app.evaluate(() => {
     const r = document.querySelector('#pb-ex .box').getBoundingClientRect();
-    const w = Math.min(innerWidth, Math.max(r.width * 1.34, 1180));
-    const h = w * 9 / 16;
+    /* Sized off the panel's HEIGHT. Sizing it off the width put the last row -
+       the Golden Gate one, the row the shot exists for - on the bottom edge of
+       the frame with its own border cut off. */
+    let h = Math.min(innerHeight, r.height * 1.09), w = h * 16 / 9;
+    if (w > innerWidth) { w = innerWidth; h = w * 9 / 16; }
     return { x: Math.max(0, Math.min(innerWidth - w, r.x + r.width / 2 - w / 2)),
              y: Math.max(0, Math.min(innerHeight - h, r.y + r.height / 2 - h / 2)),
              width: w, height: h };

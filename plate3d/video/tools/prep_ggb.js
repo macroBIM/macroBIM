@@ -209,10 +209,29 @@ function drawingBoxes(svg) {
         if (p[1] < ya) ya = p[1]; if (p[1] > yb) yb = p[1]; } });
       if (runs.length === 1) { x0 = a; x1 = c; ya = b; yb = d; }
       else if (k === 0) { x0 = Math.min(x0, t.x); ya = Math.min(ya, b); }
-      out.push({ title: title, half: runs.length > 1, box: pad(x0, ya, x1, yb, 0.04) });
+      out.push({ title: title, half: runs.length > 1, box: pad(x0, ya, x1, yb, 0.04),
+                 run: runBox(pad(x0, ya, x1, yb, 0.04)) });
     });
   });
   return out;
+}
+
+/* A window to run ALONG a drawing, for the one shot that travels instead of
+   holding. The window is the drawing's own height and 16:9 of it wide, so the
+   structure fills the frame top to bottom and the frame walks the length.
+
+   It was aimed at the stiffening truss first, and that was wrong twice over.
+   Wound in far enough to read, the drawing's own ink stops being lines - a DXF
+   sets line weights against the sheet, so at 1:5000 a chord line is 28 % of the
+   truss's depth and no magnification will make a lattice of it. And the shot
+   was never about the truss: the general arrangement is two kilometres long and
+   340 m tall, which at frame height gives a tower, the cables coming off it,
+   hangers close enough to count, and mid-span - which is what "two kilometres
+   on one sheet" means when you go and look. */
+function runBox(box) {
+  const h = box[3], w = h * 16 / 9;
+  if (box[2] < w * 1.5) return null;              // nothing to travel along
+  return { y: box[1], h: h, w: w, from: box[0], to: box[0] + box[2] - w };
 }
 
 /* The input tab, drawn as the tab - read back out of the shipped workbook, at
