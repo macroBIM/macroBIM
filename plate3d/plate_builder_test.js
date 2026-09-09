@@ -1842,7 +1842,7 @@
         notches.push(nc);
         counts.notch++;
       } else if (kw === 'TAPER') {
-        /* TAPER <taper id> <시작단면> <끝단면> <시작단면 pt> <끝단면 pt> <taper pt> [from] [to]
+        /* TAPER <taper id> <시작단면> <끝단면> <시작단면 pt> <끝단면 pt> <taper pt> <Length>
 
            변단면. 이 줄은 부재를 「고치는」 것이 아니라 부재를 「만든다」.
            PLATE 나 SECT 가 한 줄로 부재 하나를 세우듯, TAPER 는 이미 정의된
@@ -1851,19 +1851,18 @@
            이름으로 부른다.
 
            두 단면은 PLATE 나 SECT 로 정의된 것을 이름으로 부른다. 두 행의
-           BASE.pt 는 읽지 않는다 — 정렬은 이 줄의 pt 칸이 정한다. 길이와 재질은
-           시작단면 행의 것을 그대로 쓴다: 부재의 몸이 거기서 나오기 때문이고,
-           같은 값을 두 군데 적어 두면 언젠가 어긋난다.
+           BASE.pt 도 길이도 읽지 않는다 — 정렬은 이 줄의 pt 칸이, 길이는 이 줄의
+           Length 칸이 정한다. 재질은 시작단면 행의 것을 쓴다.
 
            pt 가 셋인 이유는 하는 일이 셋이기 때문이다.
              시작단면 pt · 끝단면 pt — 두 단면의 그 점이 같은 축선 위에 놓인다.
                bc·bc 면 밑면이 평평하고, bc·tc 면 편심이 된다. 형상의 문제다.
-             taper pt — MODULE 이 이 부재를 잡는 점. 배치의 문제다.
+             taper pt — MODULE 이 이 부재를 잡는 점. 시점(시작단면)에서 잰다.
            겹쳐 쓰면 배치를 고치려다 형상이 따라 움직인다. 그래서 갈라 두었다.
 
-           from 은 단면이 시작단면 그대로인 자리, to 는 끝단면에 도달하는 자리다.
-           NOTCH 의 from/to 가 「구간」인 것과 다르다 — 여기서는 두 자리에 각각
-           역할이 있어서 from > to 가 정상이다. 양단 헌치가 두 줄로 적힌다. */
+           변단면은 처음부터 끝까지 변단면이다. 「일부만 변단면」은 없다 — 그런
+           부재는 변단면 부재 하나와 등단면 부재 하나로 쪼개 잇는다. 그래서 구간을
+           가리키는 칸이 없고, 길이 하나면 이 줄이 끝난다. */
         var ttg = str(v[0]).toUpperCase();
         if (!ttg) { warn('row ' + (r + 1) + ': TAPER without an id'); continue; }
         if (plates[ttg] || holes[ttg]) {
@@ -1917,19 +1916,29 @@
                ' Give them the same shape and the same radii, and vary the sizes.');
           continue;
         }
-        /* 새 부재. 몸은 시작단면 것을 그대로 베끼고, 배치점만 이 줄이 정한다.
+        /* 길이는 이 줄의 것이다. 두 단면 행의 길이를 몰래 가져다 쓰면 그 행을
+           고칠 때마다 이 부재가 따라 움직이므로, 비었으면 빌려 오지 않고 묻는다.
+           SECT 가 길이 0 을 고쳐 주지 않고 거절하는 것과 같은 자리다. */
+        var tlen = num(v[6], 0);
+        if (!(tlen > 0)) {
+          warn('row ' + (r + 1) + ': TAPER ' + ttg + ' — Length must be greater than 0.' +
+               ' A taper is one member with its own length; the two section rows are' +
+               ' read for their shape only.');
+          continue;
+        }
+        /* 새 부재. 몸은 시작단면 것을 그대로 베끼되 길이와 배치점은 이 줄이 정한다.
            베낀 것이지 가리킨 것이 아니므로 시작단면은 저대로 따로 놓아도 된다. */
         var tsp2 = {};
         for (var tk in tst) if (Object.prototype.hasOwnProperty.call(tst, tk)) tsp2[tk] = tst[tk];
-        tsp2.ID = ttg; tsp2.__bo = null;
+        tsp2.ID = ttg; tsp2.__bo = null; tsp2.THK = tlen;
         tsp2.BASEPT = tbp ? normPoint(tbp) : (tst.BASEPT || defaultBase(tst));
+        tsp2.__taper = { BEG: tbeg, END: tend, ROW: r + 1, SPEC: tsrc,
+                         SPT: tsp ? normPoint(tsp) : (tst.BASEPT || defaultBase(tst)),
+                         EPT: tep ? normPoint(tep) : (tsrc.BASEPT || defaultBase(tsrc)) };
         plates[ttg] = tsp2;
         current = ttg;
-        tapers.push({ PLATE: ttg, BEG: tbeg, END: tend, ROW: r + 1,
-                      SPT: tsp ? normPoint(tsp) : (tst.BASEPT || defaultBase(tst)),
-                      EPT: tep ? normPoint(tep) : (tsrc.BASEPT || defaultBase(tsrc)),
-                      FROM: str(v[6]) === '' ? null : num(v[6], 0),
-                      TO:   str(v[7]) === '' ? null : num(v[7], 0) });
+        tapers.push(tsp2.__taper);
+        tsp2.__taper.PLATE = ttg;
         counts.taper = (counts.taper || 0) + 1;
       } else if (kw === 'VIEW') {         // VIEW <module|assy|ALL> <dir> [AZ EL] <scale> [title]
         /* A drawing the sheet asks for by name: which module - or assembly, or
@@ -3238,7 +3247,7 @@
     return outlineOf(e2).map(function (q) { return [q[0] + As[0], q[1] + As[1]]; });
   }
 
-  function buildSegments(spec, cuts, notches, plates, len, tapers) {
+  function buildSegments(spec, cuts, notches, plates, len) {
     var base = buildPlate2D(spec, cuts, plates);
     /* A BY row carries no stretch of its own - it is answered where the member
        is placed and arrives here already turned into an ordinary one. The
@@ -3249,33 +3258,21 @@
     });
     var whole = { base: base, raw: base, bit: false,
                   segs: [{ rings: base, area: base.area, z0: -len / 2, z1: len / 2 }] };
-    /* 변단면. 지금은 한 부재에 한 줄만 읽는다 — 두 줄이면 뒤엣것이 이긴다고
-       조용히 정하지 않고 말해 준다. 양단 헌치는 부재를 둘로 두면 된다. */
-    var myT = (tapers || []).filter(function (t) { return t.PLATE === spec.ID; });
-    if (myT.length && len > 0) {
-      var tp = myT[0], endRing = taperRings(spec, tp, plates);
+    /* 변단면. 처음부터 끝까지 하나다 — 「일부만 변단면」은 없으므로 구간을 나눌
+       일이 없고, 부재 하나가 곧 한 덩어리의 loft 다. 부분 변단면인 부재는 시트가
+       변단면 부재와 등단면 부재로 쪼개 잇는다. */
+    if (spec.__taper && len > 0) {
+      var endRing = taperRings(spec, spec.__taper, plates);
       if (endRing) {
-        var f = tp.FROM === null ? 0 : Math.max(0, Math.min(len, tp.FROM));
-        var t2 = tp.TO === null ? len : Math.max(0, Math.min(len, tp.TO));
-        var lo2 = Math.min(f, t2), hi2 = Math.max(f, t2);
         /* 끝단면만으로 이뤄진 profile — 자른 것은 시작단면 것을 그대로 쓴다.
            CUT 은 부재에 걸린 것이지 단면에 걸린 것이 아니다. */
         var endRings = { outers: [endRing], holes: [[]],
                          cuts: base.cuts || [], area: Math.abs(ringAreaTrue(endRing)) };
-        var segsT = [];
-        var push = function (z0, z1, r0, r1) {
-          if (z1 - z0 < 1e-6) return;
-          segsT.push({ rings: r0, rings1: r1 || null,
-                       area: r1 ? (r0.area + r1.area) / 2 : r0.area,
-                       area0: r0.area, area1: r1 ? r1.area : null,
-                       z0: z0 - len / 2, z1: z1 - len / 2 });
-        };
-        /* from 쪽 바깥은 적은 대로, to 쪽 바깥은 끝단면. from>to 면 뒤집힌다. */
-        var atFrom = f <= t2 ? base : endRings, atTo = f <= t2 ? endRings : base;
-        push(0, lo2, atFrom);
-        push(lo2, hi2, f <= t2 ? base : endRings, f <= t2 ? endRings : base);
-        push(hi2, len, atTo);
-        if (segsT.length) return { base: base, raw: base, bit: true, segs: segsT, taper: true };
+        return { base: base, raw: base, bit: true, taper: true,
+                 segs: [{ rings: base, rings1: endRings,
+                          area: (base.area + endRings.area) / 2,
+                          area0: base.area, area1: endRings.area,
+                          z0: -len / 2, z1: len / 2 }] };
       }
     }
     if (!mine.length || !(len > 0)) return whole;
@@ -4020,7 +4017,7 @@
                            ' <from> <to> <L.X> <L.Y> <shape>.');
       });
       var built = buildSegments(spec, cuts, byCuts.length ? notches.concat(byCuts) : notches,
-                                plates, thk, tapers);
+                                plates, thk);
       /* A mark that was worked out and then took nothing away is the same
          silence as a hand-written notch that missed: same weight, same drawing,
          and nothing on the page admitting it. Said in the BY row's own terms -
@@ -9010,8 +9007,24 @@
       var ded = (it.rawArea > 0 && thk0 > 0)
         ? it.rawArea * thk0 * RHO - it.mass : 0;
       if (Math.abs(ded) < 1e-9) ded = 0;
+      /* 변단면은 노치가 아니다. 무게가 「적힌 치수대로의 각기둥」보다 가벼운 것은
+         같지만, 따낸 것이 아니라 다른 단면으로 흘러간 것이므로 공제로 적으면
+         파낸 적 없는 노치를 적는 것이 된다. 대신 끝단면을 제 줄로 적는다 —
+         BOQ 가 하려는 말이 「이 부재가 무엇인가」이기 때문이다. */
+      var tpr = spec.__taper && spec.__taper.SPEC &&
+                boqKind(spec.__taper.SPEC) === k ? spec.__taper : null;
+      var end = null;
+      if (tpr) {
+        ded = 0;
+        var eArea = (it.segs && it.segs.length && it.segs[0].area1) || 0;
+        end = { id: tpr.END,
+                vals: def.f.map(function (p) {
+                  return p[1] === 'THK' ? null : +num(tpr.SPEC[p[1]], 0).toFixed(4); }),
+                areaMM: eArea, kgm: eArea * RHO * 1000 };
+      }
       var key = def.count ? k + '|' + (spec.MAT || '') + '|' + vals.join(',')
                           : k + '|' + spec.ID + '|' + vals.join(',') +
+                            (end ? '|t' + end.id + ',' + end.vals.join(',') : '') +
                             (ded ? '|n' + rnd(ded) : '');
       var e = map[key];
       if (!e) {
@@ -9028,7 +9041,15 @@
            matches no steel table and that nobody can check the line against.
            So a notched member reports the section it was CUT FROM, and what came
            away is a deduction of its own, in its own column. */
-        var aMM = ded ? it.rawArea : (thk ? it.mass / (thk * RHO) : 0);
+        /* 변단면도 「적힌 대로」를 적는다: 첫 줄의 넓이는 시작단면의 것이고,
+           둘째 줄이 끝단면의 것이다. 무게를 되돌려 나눈 평균 넓이가 아니다 —
+           그런 kg/m 은 어느 강재표에도 없어서 아무도 검산할 수 없다. */
+        var aMM = (ded || end) ? it.rawArea : (thk ? it.mass / (thk * RHO) : 0);
+        /* 두 점 평균이 이 부재에 대해 정확한가. 한 치수만 변하면 넓이가 z 를 따라
+           직선이라 정확하고, 폭과 두께처럼 곱해지는 두 치수가 같이 변하면 2차식이
+           되어 어긋난다. 어긋나면 수식 대신 정확한 숫자를 적는다. */
+        var lin = !end ||
+          Math.abs((aMM + end.areaMM) / 2 * thk * RHO - it.mass) < 0.005;
         e = map[key] = { kind: k,
                          id: def.count ? 'M' + rnd(num(spec.D, 0)) : spec.ID,
                          mat: spec.MAT || '—', vals: vals,
@@ -9036,6 +9057,7 @@
                          cuts: def.area ? cutCount(spec.ID) : null,
                          areaMM: def.area ? null : aMM,
                          kgm: def.area ? null : aMM * RHO * 1000,
+                         end: end, lin: lin,
                          notch: ded, unit: it.mass, qty: 0, wt: 0 };
         keys.push(key);
       }
@@ -9205,7 +9227,15 @@
       if (anyNotch)
         cols.push({ h: 'NOTCH kg', f: BQ_WT, k: function (r) { return r.notch; } });
       cols.push({ h: 'UNIT kg', f: BQ_WT, k: function (r) { return r.unit; },
-                 fm: function (rn, ix) {
+                 fm: function (rn, ix, r) {
+                   /* 변단면은 아랫줄에 끝단면이 있다. 두 kg/m 의 평균 × 길이 —
+                      그 평균이 이 부재에 대해 정확하지 않으면(폭과 두께가 같이
+                      변하는 경우) 수식을 쓰지 않고 정확한 숫자만 적는다. */
+                   if (r && r.end)
+                     return r.lin ? '(' + ref(ix, 'kg/m', rn) + '+' +
+                                    ref(ix, 'kg/m', rn + 1) + ')/2*' +
+                                    ref(ix, 'LENGTH', rn) + '/1000'
+                                  : null;
                    return ref(ix, 'kg/m', rn) + '*' + ref(ix, 'LENGTH', rn) + '/1000' +
                           (anyNotch ? '-' + ref(ix, 'NOTCH kg', rn) : ''); } });
     }
@@ -9239,14 +9269,37 @@
       var row = ws.addRow(cols.map(function (c) { return c.k(r); }));
       if (first === null) first = row.number;
       last = row.number;
-      bqStyle(row, { bottom: 'thin' });
+      bqStyle(row, { bottom: r.end ? null : 'thin' });
       cols.forEach(function (c, i) {
         var cell = row.getCell(i + 1);
-        if (c.fm) cell.value = fx(c.fm(row.number, ix), num(c.k(r), 0));
+        var f = c.fm ? c.fm(row.number, ix, r) : null;
+        if (f) cell.value = fx(f, num(c.k(r), 0));
         if (!c.f) return;
         cell.numFmt = c.f;
         cell.alignment = { horizontal: 'right', vertical: 'middle' };
         if (c.sum) sums[i] += num(c.k(r), 0);
+      });
+      /* 변단면은 두 줄이다. 윗줄이 시작단면, 아랫줄이 끝단면 — 부재는 하나이므로
+         수량도 무게도 윗줄에만 있고, 아랫줄은 「이 부재가 저기서는 이 단면이다」를
+         말한다. 소계는 SUM 범위라 빈 칸을 알아서 지나간다. */
+      if (!r.end) return;
+      var er = ws.addRow(cols.map(function (c) {
+        if (c.h === 'ID') return '↳ ' + r.end.id;
+        if (c.h === 'AREA mm²') return r.end.areaMM;
+        if (c.h === 'kg/m') return r.end.kgm;
+        var di = -1;
+        def.f.forEach(function (p, j) { if (p[0] === c.h) di = j; });
+        return di >= 0 ? r.end.vals[di] : null;
+      }));
+      last = er.number;
+      bqStyle(er, { bottom: 'thin', color: BQ_DIM });
+      cols.forEach(function (c, i) {
+        if (!c.f) return;
+        var cell = er.getCell(i + 1);
+        if (c.h === 'kg/m') cell.value = fx(ref(ix, 'AREA mm²', er.number) + '*0.00785',
+                                            num(r.end.kgm, 0));
+        cell.numFmt = c.f;
+        cell.alignment = { horizontal: 'right', vertical: 'middle' };
       });
     });
     var sub = ws.addRow(cols.map(function (c, i) {
@@ -9262,6 +9315,17 @@
       sub.getCell(i + 1).alignment = { horizontal: 'right', vertical: 'middle' };
       at[c.h] = L + sub.number;
     });
+    /* 살아 있는 수식은 이 책의 약속이므로, 한 칸이라도 수식이 아니면 왜 그런지
+       그 자리에서 말한다. 말없이 숫자만 놓여 있으면 읽는 사람은 그것도 수식인 줄
+       안다 — 편집해도 안 따라오는 수식인 줄. */
+    var stiff = rows.filter(function (r) { return r.end && !r.lin; });
+    if (stiff.length)
+      bqStyle(ws.addRow(['UNIT kg on ' +
+        stiff.map(function (r) { return r.id; }).join(', ') +
+        ' is the exact weight, not a formula: this taper varies two dimensions that' +
+        ' multiply, so its area does not run straight from end to end and the average' +
+        ' of the two ends is not its weight.']),
+        { italic: true, size: 9, color: BQ_DIM });
     ws.addRow([]);
     return { kind: kind, n: rows.length, sums: sums, at: at };
   }
