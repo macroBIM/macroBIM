@@ -26,6 +26,21 @@
 //     degrees three times about the tower axis. Four piers cannot drift from
 //     each other because there is only one of them in the file. Same for the
 //     arch.
+//
+// THE PAINT IS NOT IN THIS FILE. The engine hands out its palette in read
+// order; a swatch in the app changes it and the choice does not go back into
+// the workbook. For a picture or a film, set it the way shot_ggb.js does:
+//
+//   COLOURS=md.leg=#e0862e,md.arc=#efa04a,md.pl1=#ffe3bc,md.pl2=#ffe3bc,\
+//           md.pl3=#ffe9cc,md.shf=#ffcb8c,md.top=#fffaf0 \
+//     node tools/shot_ggb.js PLATE3D_EIFFEL.xlsx
+//
+// It goes LIGHTER as it goes up, which is not a taste - the real tower is
+// three tones of one brown, darkest at the bottom, so that it reads as one
+// colour against the sky. On a near-black viewport the same idea has to be
+// lifted: same hue, same order, higher value. The tower's own brown put
+// unlifted on this background disappears above the second platform, which is
+// the thing this grade exists to fix.
 const ExcelJS = require('exceljs');
 const OUT = process.argv[2] || __dirname + '/../PLATE3D_EIFFEL.xlsx';
 
