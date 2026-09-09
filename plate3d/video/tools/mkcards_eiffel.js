@@ -64,6 +64,11 @@ const CARDS = {
   end:    { kind: 'full', html: full('PLATE3D', 'by macroBIM') },
 
   mem:    { kind: 'over', html: over('', '709 rows.<br>1,528 members.') },
+  /* The ending's two lines. The first is over the site, where there is room;
+     the second is over the list, where there is not - so it says the one thing
+     the screen does not already say and gets out of the way. */
+  nav:    { kind: 'over', html: over('It is on macroBIM.', 'PLATE3D &rarr; Example') },
+  dl:     { kind: 'over', html: over('', 'download it and try it') },
   arc:    { kind: 'over', html: over('', 'the arches') },
   pl1:    { kind: 'over', html: over('', 'the first platform') },
   one:    { kind: 'over', html: over('', 'and the four become one') },

@@ -30,6 +30,7 @@ const path = require('path');
 const SP = __dirname;
 const P3T = path.resolve(SP, '../../tools');
 const BOOKS = path.resolve(SP, '../eiffel');
+const P3 = path.resolve(SP, '../..');
 const CARDS = path.join(SP, 'cards_eif');
 const SRC = path.join(SP, 'eif_src');
 
@@ -38,6 +39,11 @@ const MO = 12;                     // stills per second of camera motion
 const VW = 2336, VH = 1294;        // -> 1920x1080 after the assembler's crop
 const BUILD = 70;                  // seconds of tower going up
 const HOLD = 8;                    // and of it standing there, still turning
+/* ONLY=tail skips the 70-second take and shoots the ending alone. The take is
+   twenty minutes and the ending is thirty seconds; when the ending is what is
+   being worked on, shooting the take again is twenty minutes of the same
+   frames. It writes its own shots file, which the assembler is not given. */
+const ONLY = process.env.ONLY || '';
 
 /* The model's own grade, lifted for a near-black viewport - see the head of
    tools/make_eiffel.js. Lighter as it goes up, which is how the real tower is
@@ -123,11 +129,11 @@ const card = (id, dur) => put(fs.readFileSync(path.join(CARDS, 't_' + id + '.jpg
   }
 
   /* 1 - the card the film opens on */
-  card('open', 4);
-  console.log('  1 opening card');
+  if (!ONLY) { card('open', 4); console.log('  1 opening card'); }
 
   /* 2 - the take. Heights come out of the file names' order, which is the
      order make_eiffel_stages.js wrote them: panel top by panel top. */
+  if (!ONLY) {
   const K = Math.round(BUILD * MO);          // stills in the build
   const per = K / books.length;              // and how many each book holds
   caption('mem', T, 7);
@@ -155,76 +161,114 @@ const card = (id, dur) => put(fs.readFileSync(path.join(CARDS, 't_' + id + '.jpg
     put(await grab(), HOLD / H);
   }
   console.log('  3 finished');
+  }
 
-  /* 4 - where to get it, shown rather than spelled out. The app's own Examples
-     panel, opened by the button that opens it, and the row's own DOWNLOAD
-     pressed. The engine fetches the workbook beside itself, so the request is
-     routed to the file on disk: the button really goes to `saved` because the
-     download really happened, which is the only reason to film it. */
-  const clip = async () => {
-    const b = await app.evaluate(() => {
-      const x = document.querySelector('#pb-ex .box').getBoundingClientRect();
-      /* Wide enough for the panel AND for 16:9. Sized on height alone the frame
-         came out narrower than the 880 px panel and cut the buttons off - which
-         are the thing the shot is about. */
-      let w = Math.max(x.width * 1.16, Math.min(innerHeight, x.height * 1.09) * 16 / 9);
-      let h = w * 9 / 16;
-      if (w > innerWidth) { w = innerWidth; h = w * 9 / 16; }
-      if (h > innerHeight) { h = innerHeight; w = h * 16 / 9; }
-      return { x: Math.max(0, Math.min(innerWidth - w, x.x + x.width / 2 - w / 2)),
-               y: Math.max(0, Math.min(innerHeight - h, x.y + x.height / 2 - h / 2)),
-               width: w, height: h };
-    });
-    return app.screenshot({ type: 'jpeg', quality: 92, clip: b });
-  };
-  const row = () => app.evaluate(() => {
-    const rs = [].slice.call(document.querySelectorAll('#pb-exlist tbody tr'));
-    return rs.findIndex(t => (t.getAttribute('title') || '').indexOf('EIFFEL') >= 0);
+  /* 4 - where to get it, WALKED INTO rather than spelled out. The macroBIM
+     site is run off this disk: `site_page.html` is the shell the live PHP page
+     puts round `layout_body.js`, and that file - the design repository's own -
+     builds the sidebar and every page. So the menu on screen is the real menu
+     and PLATE3D opens the real embed. macrobim.github.io is routed to the
+     working tree, so the frame, the engine and the workbook all come off this
+     disk and nothing is fetched.
+
+     Which also makes the download real: the engine asks for the workbook on the
+     site's own origin, gets it, and the button says `saved` because it saved. */
+  const TYPE = f => f.endsWith('.html') ? 'text/html'
+    : f.endsWith('.js') ? 'application/javascript'
+    : f.endsWith('.css') ? 'text/css'
+    : f.endsWith('.xlsx') ? 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+    : 'application/octet-stream';
+  /* 1600x900, not the 2336x1294 the viewport shoots at. This page is a web
+     page, not a model: what has to be read is the menu, the Example button and
+     a row of a list, and at 2336 the frame scales DOWN to 1920 and all three
+     get smaller. At 1600 it scales up a fifth and they are legible. */
+  const site = await browser.newPage({ viewport: { width: 1600, height: 900 },
+                                       acceptDownloads: true });
+  await site.route('**/{unpkg.com,cdnjs.cloudflare.com}/**', r =>
+    r.fulfill({ contentType: 'application/javascript', body: LIB(r.request().url()) }));
+  await site.route('**/fonts.{googleapis,gstatic}.com/**', r => r.abort());
+  await site.route('**://macrobim.github.io/**', r => {
+    const rel = new URL(r.request().url()).pathname
+      .replace(/^\/macroBIM\//, '').replace(/^\/design\//, '');
+    const f = path.join(P3, '..', rel);
+    if (!fs.existsSync(f)) return r.abort();
+    r.fulfill({ contentType: TYPE(f), body: fs.readFileSync(f) });
   });
-  await app.evaluate(() => window.plateBuilder.openSamples());
-  await app.waitForTimeout(700);
-  /* And no caption over it. The panel already says Example workbooks, the row
-     already says Eiffel Tower, and the button already says SAVED - a card on
-     top is a second voice reading the screen aloud, and the only place to put
-     one is over the list. The Golden Gate film settled this and the first cut
-     of this one forgot it: the caption landed across the two rows the shot
-     exists for. */
-  put(await clip(), 2.2);                       // the list, as it opens
-  const ri = await row();
-  await app.evaluate(i => {                     // the row, lit the way a pointer lits it
+  let saved = false;
+  site.on('download', () => { saved = true; });
+  await site.goto('file://' + SP + '/site_page.html', { waitUntil: 'load' });
+  await site.waitForTimeout(1500);
+  const shot = d => site.screenshot({ type: 'jpeg', quality: 92 }).then(b => put(b, d));
+
+  caption('nav', T, 8);
+  await shot(2.6);                                   // the site, and its menu
+  const LEG = '#sidebar a[data-page="draw-plate3d"]';
+  await site.hover(LEG);
+  await site.waitForTimeout(400);
+  await shot(1.8);                                   // PLATE3D, under the pointer
+  await site.click(LEG);
+  const fr = await site.waitForSelector('iframe[title="PLATE3D"]')
+    .then(h => h.contentFrame());
+  await fr.waitForSelector('#pb-app', { timeout: 120000 });
+  await site.waitForTimeout(2200);
+  await shot(3.0);                                   // the app, in the page
+
+  await fr.hover('#pb-app .guide.ex');
+  await site.waitForTimeout(400);
+  await shot(1.8);                                   // Example, under the pointer
+  await fr.click('#pb-app .guide.ex');
+  await site.waitForTimeout(1500);              // the panel has to be up before it is filmed
+  caption('dl', T, 9);
+  await shot(2.4);                                   // the list
+  const ri = await fr.evaluate(() => [].slice.call(
+    document.querySelectorAll('#pb-exlist tbody tr'))
+    .findIndex(t => (t.getAttribute('title') || '').indexOf('EIFFEL') >= 0));
+  if (ri < 0) throw new Error('no Eiffel row on the Example list');
+  await fr.evaluate(i => {
     const r = document.querySelectorAll('#pb-exlist tbody tr')[i];
     r.style.background = '#f0fdf4'; r.scrollIntoView({ block: 'center' });
     const b = r.querySelector('.exb');
     if (b) { b.style.background = '#047857'; b.style.color = '#fff'; b.style.borderColor = '#047857'; }
   }, ri);
-  await app.waitForTimeout(400);
-  put(await clip(), 2.2);
+  await site.waitForTimeout(400);
+  await shot(2.2);                                   // the row
   /* The engine clears the `saved` badge 2.6 s after it sets it - long enough
-     for a person reading the list, shorter than a screenshot of a WebGL page
-     under a software rasteriser. So that one timer is stopped before the button
-     is pressed. Nothing else is touched: the fetch, the download and the badge
-     all really happen, and the frame is taken of the state the app reached. */
-  await app.evaluate(() => {
+     for a person reading the list, shorter than a screenshot of this page. So
+     that one timer is stopped. Everything else really happens. */
+  await fr.evaluate(() => {
     const st = window.setTimeout;
     window.setTimeout = (fn, ms) => (ms === 2600 ? 0 : st(fn, ms));
   });
-  await app.evaluate(i => window.plateBuilder.getSample(i), ri);
-  await app.waitForFunction(i => {
+  await fr.evaluate(i => window.plateBuilder.getSample(i), ri);
+  await fr.waitForFunction(i => {
     const b = document.getElementById('pb-exb' + i);
     return b && /saved|failed/i.test(b.textContent);
   }, ri, { timeout: 60000 });
-  const said = await app.evaluate(i =>
+  const said = await fr.evaluate(i =>
     document.getElementById('pb-exb' + i).textContent.trim(), ri);
-  /* Loudly, rather than filming whatever it says. A shot of a button that says
-     `failed` is a shot of the thing not working. */
   if (!/saved/i.test(said)) throw new Error('the download said "' + said + '"');
-  put(await clip(), 3.4);                       // and it says saved, because it is
-  console.log('  4 the Examples panel, and the button pressed');
+  /* Belt and braces on the badge. Stopping the 2.6 s timer should be enough and
+     was not - the reset still landed before the frame. So the state the app
+     REALLY reached, asserted on the line above, is written back immediately
+     before the shutter. Holding a state is not inventing one. */
+  await fr.evaluate(i => { const b = document.getElementById('pb-exb' + i);
+    b.textContent = 'saved'; b.className = 'exb ok'; }, ri);
+  /* The frame comes off another origin, so Chromium runs it in its own process
+     and a page screenshot can be a paint behind it. The DOM said `saved` and the
+     picture said `download` - the same frame, two processes. Two animation
+     frames inside the iframe and a beat outside it, and they agree. */
+  await fr.evaluate(() => new Promise(r =>
+    requestAnimationFrame(() => requestAnimationFrame(r))));
+  await site.waitForTimeout(900);
+  await shot(3.6);                                   // and it says saved
+  if (!saved) throw new Error('the button said saved but nothing was downloaded');
+  await site.close();
+  console.log('  4 into the site, and the workbook taken');
 
   /* 5 */
   card('end', 4);
 
-  fs.writeFileSync(path.join(SP, 'shots_eif.json'),
+  fs.writeFileSync(path.join(SP, ONLY ? 'shots_eif_' + ONLY + '.json' : 'shots_eif.json'),
     JSON.stringify({ fps: FPS, src: 'eif_src', out: 'PLATE3D_EIFFEL.mp4',
                      shots: shots, caps: caps }, null, 1));
   await browser.close();

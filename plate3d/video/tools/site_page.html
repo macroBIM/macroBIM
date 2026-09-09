@@ -1,0 +1,27 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>macroBIM</title>
+<!--
+  The macroBIM site, run locally so the film can walk into it.
+
+  THE BODY IS THE SITE'S OWN. `layout_body.js` from the design repository
+  builds the sidebar and every page, and `initLayout()` is the call the live
+  PHP page makes. What is written here is only the shell that page puts round
+  it: the stylesheet, the icon font, and that one call. So the menu on screen
+  is the real menu, in the real order, with the real names - not a drawing of
+  one - and PLATE3D opens the real embed the site opens.
+
+  The shoot routes macrobim.github.io to the working tree, so the iframe, the
+  engine and the example workbook all come off this disk. Nothing is fetched.
+-->
+<link rel="stylesheet" href="node_modules/bootstrap-icons/font/bootstrap-icons.css">
+<link rel="stylesheet" href="site/layout_style.css">
+<style>html,body{margin:0;height:100%}body{display:flex}</style>
+</head>
+<body>
+<!-- #app-root is what initLayout fills. The live page provides it; so does this. -->
+<div id="app-root"></div>
+<script src="site/layout_body.js"></script>
+<script>initLayout();</script>
+</body></html>
