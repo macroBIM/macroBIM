@@ -46,7 +46,7 @@ PLATE3D 로 만드는 골든게이트 브릿지
 | 설명 2행 | `Watch it go up the way it was built: towers, main cables, hanger ropes, then the stiffening truss and deck out from both towers to mid-span.` |
 | 태그 | golden gate bridge · suspension bridge · bridge modeling · bridge erection · 3D model · BIM · structural engineering · steel structure · spreadsheet · Excel · parametric model · DXF · main cable · stiffening truss · PLATE3D · macroBIM |
 | 규격 | 2:43 · 1920×1080 · 30 fps · 무음 · **자막 영어** |
-| 썸네일 | `PLATE3D_GGB_thumb.jpg` — `3D BIM MODELING` / `GOLDEN GATE BRIDGE` / `414 rows → 2,219 members` — 만들어 둠 |
+| 썸네일 | `PLATE3D_GGB_thumb.jpg` — 전체 ISO 풀블리드, `3D BIM MODELING` / `GOLDEN GATE BRIDGE` / `by PLATE3D` — 만들어 둠 |
 | 공개 | **미정** |
 
 ### 설명란 전문
@@ -396,6 +396,10 @@ x 로 뭉쳐 보고 **빈 구간이 도면 높이의 2.5배를 넘으면 갈라�
   **그림이 어느 다리인지 이미 말한다**는 전제가 틀렸습니다 — 멈춰서 본 사람에게는
   맞고 스크롤하는 사람에게는 아닙니다. **THREE SECTIONS 를 검색하는 사람은
   없습니다.** 이름을 크게 쓰고 사람들이 실제로 검색하는 말을 그 위에 얹습니다
+- ~~썸네일 그림~~ → **전체 ISO 풀블리드** (`az −45 · el 34 · dist 1,500,000`).
+  흰 카드를 없앴습니다 — 640 px 카드 위의 2.3 km 다리는 실 한 오라기입니다.
+  대각선인 것은 취향이 아니라 산수입니다: 다리 전체가 들어와야 하고 화면이
+  16:9 이므로 쓸 수 있는 가장 긴 선이 대각선입니다
 
 ## 11. 필요한 파일
 

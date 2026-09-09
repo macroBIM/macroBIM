@@ -7,10 +7,18 @@
    of type and lost two of them for exactly that reason.
 
    The look is the films', not a new one: the title card's ground, Inter 800,
-   the same accent on the second line, and the picture on a white card because
-   that is how the app really shows it - on the dark blue alone it was a dark
-   canvas on a dark page. Someone who has seen one of these should recognise the
-   next without reading it.
+   the same accent on the second line. Two layouts share it.
+
+   CARD is the teaching films': the picture on a tilted white card bleeding off
+   the right, because that is how the app really shows a part - on the dark blue
+   alone it was a dark canvas on a dark page. It suits a joint or a plate, which
+   is a compact object with a white sheet behind it.
+
+   BLEED is for a structure. A 2.3 km bridge on a 640 px card is a thread; the
+   same bridge across the whole frame, corner to corner, is the picture. The
+   type moves to the bottom-left corner - which the diagonal leaves empty - and
+   sits under a soft radial wash rather than a straight-edged veil. Someone who
+   has seen one of these should recognise the next without reading it.
 
    The teaching films do not repeat their own YouTube title, which sits directly
    underneath in the same list - there, saying PLATE & CUT twice wastes the only
@@ -90,36 +98,41 @@ const FILMS = [
      And the paint is set, because International Orange is the one thing about
      this bridge everybody already knows. The engine hands out its palette in
      read order; the film restates it on every load and so does this. */
+  /* The bridge, and the one entry that does not use the card. Three things
+     here that no earlier thumbnail needed.
+
+     FULL BLEED. On a 640 px card a 2.3 km bridge is a thread; across the whole
+     frame it is the picture. The first cut of this put the tower close-up on
+     the card, which reads at full size and turns to an orange stick at 120 px.
+
+     A DIAGONAL, and that is arithmetic rather than taste. The whole bridge has
+     to be in frame and the frame is 16:9, so the longest line available runs
+     corner to corner - az -45 / el 34 is the aim whose bounding box comes out
+     at 1.81:1, near enough that cropping it to 16:9 leaves almost no sky. Every
+     closer angle tried lost the far tower; every flatter one left the bridge a
+     band across the middle with air above and below.
+
+     AND THE DECK IS ORANGE. The engine's default and the film's own livery
+     leave the deck near white, which at thumbnail size is a white ribbon with
+     two orange sticks on it - the bridge everyone knows is orange end to end.
+     So the deck and the truss are taken down INTO the orange rather than up
+     out of it, and the towers stay the brightest thing. */
   { id: 'ggb',
     out: 'PLATE3D_GGB_thumb.jpg',
     book: P3 + '/PLATE3D_GGB.xlsx',
-    /* Six framings were shot and looked at. The film's own hero - in under the
-       tower, looking up - is a tower and two dark diagonals: dramatic at full
-       size, unreadable at 120 px. This one stands back until the WHOLE tower is
-       in, with the main cable coming down across it and the deck running off to
-       the corner. That silhouette is the one thing a viewer recognises before
-       reading anything. The tower sits right of centre because the card bleeds
-       off the right edge and the type's wash covers the card's left third.
-       Straight on (az 90) put the two shafts of the tower on top of each other;
-       az 40 opens them. */
-    hero: { kind: 'model', aim: { tx: -640080, ty: 0, tz: 190000,
-                                  dist: 230000, az: 40, el: 6 },
-            pad: 0.05, aspect: 1.62 },
-    /* The film's five oranges, lifted. On screen for 16 seconds a dark tower
-       reads as steel; at 120 px in a list it reads as brown. */
-    livery: { 'MD.TWR': '#e04a1c', 'MD.MCB': '#ff7a35', 'MD.HGR': '#e0642e',
-              'MD.TRS': '#ffb070', 'MD.DK': '#ffdcc0' },
+    bleed: true,
+    hero: { kind: 'model', aim: { tx: 0, ty: 0, tz: 98000,
+                                  dist: 1500000, az: -45, el: 34 },
+            pad: 0.02, aspect: 16 / 9, fill: true },
+    livery: { 'MD.TWR': '#f04a14', 'MD.MCB': '#ff9a55', 'MD.HGR': '#ef6a2c',
+              'MD.TRS': '#e8531c', 'MD.DK': '#c9451a' },
     /* The name, big, and the words people type into the search box above it.
-       The first cut of this said THREE SECTIONS / 2,219 MEMBERS on the theory
-       that the picture already says which bridge - which is true of someone who
-       has stopped and looked, and false of everyone scrolling. Nobody searches
-       for three sections.
-
-       86 is not 88: at 88 the E of GOLDEN GATE lands 11 px over the white card.
-       The run below measures that every time rather than trusting the eye. */
-    s1: 52, sz: 86,
+       The first cut said THREE SECTIONS / 2,219 MEMBERS on the theory that the
+       picture already says which bridge - true of someone who has stopped and
+       looked, false of everyone scrolling. Nobody searches for three sections. */
+    s1: 46, sz: 82,
     l1: '3D BIM MODELING', l2: 'GOLDEN GATE<br>BRIDGE',
-    l3: '414 rows &rarr; 2,219 members' },
+    l3: 'by PLATE3D' },
 
   { id: 'simpleconn',
     out: 'PLATE3D_SIMPLECONN_thumb.jpg',
@@ -183,7 +196,8 @@ async function grabHero(page, f) {
       return window.__pbCanvas.toDataURL('image/png');
     });
     fs.writeFileSync(dst, Buffer.from(d.split(',')[1], 'base64'));
-    await tightCrop(page, dst, f.hero.pad == null ? 0.05 : f.hero.pad, f.hero.aspect);
+    await tightCrop(page, dst, f.hero.pad == null ? 0.05 : f.hero.pad,
+                    f.hero.aspect, f.hero.fill);
   }
   return dst;
 }
@@ -199,7 +213,7 @@ async function grabHero(page, f) {
    pixels: green, blue, yellow, orange, brown against a neutral grey grid and a
    near-black ground. That separates them cleanly, and the crop keeps a margin
    so the joint is not shaved. */
-async function tightCrop(page, file, pad, aspect) {
+async function tightCrop(page, file, pad, aspect, fill) {
   const b64 = fs.readFileSync(file).toString('base64');
   const out = await page.evaluate(a => new Promise(ok => {
     const im = new Image();
@@ -229,9 +243,15 @@ async function tightCrop(page, file, pad, aspect) {
          the short side is opened back up until the box is no wider than asked
          for - taking back sky and water, which is what a photograph of a bridge
          has in it anyway. */
-      if (a.aspect && (x1 - x0) / (y1 - y0) > a.aspect) {
-        const want = (x1 - x0) / a.aspect, add = (want - (y1 - y0)) / 2;
-        y0 = Math.max(0, Math.floor(y0 - add)); y1 = Math.min(h, Math.ceil(y1 + add));
+      if (a.aspect) {
+        const bw = x1 - x0, bh = y1 - y0;
+        if (bw / bh > a.aspect) {
+          const add = (bw / a.aspect - bh) / 2;
+          y0 = Math.max(0, Math.floor(y0 - add)); y1 = Math.min(h, Math.ceil(y1 + add));
+        } else if (a.fill) {                     // and the other way, for a bleed
+          const add = (bh * a.aspect - bw) / 2;
+          x0 = Math.max(0, Math.floor(x0 - add)); x1 = Math.min(w, Math.ceil(x1 + add));
+        }
       }
       const d = document.createElement('canvas');
       d.width = x1 - x0; d.height = y1 - y0;
@@ -239,7 +259,7 @@ async function tightCrop(page, file, pad, aspect) {
       ok({ url: d.toDataURL('image/png'), w: d.width, h: d.height, was: w + 'x' + h });
     };
     im.src = 'data:image/png;base64,' + a.b64;
-  }), { b64: b64, pad: pad, aspect: aspect || 0 });
+  }), { b64: b64, pad: pad, aspect: aspect || 0, fill: !!fill });
   if (!out) return;
   fs.writeFileSync(file, Buffer.from(out.url.split(',')[1], 'base64'));
   console.log('    hero cropped to the steel: ' + out.was + ' -> ' + out.w + 'x' + out.h);
@@ -250,13 +270,22 @@ const PAGE = (f, hero) => `<meta charset="utf-8"><style>${FONTCSS}</style><style
  html,body{width:1280px;height:720px;overflow:hidden}
  body{background:#0b1220;font-family:Inter,system-ui,sans-serif;
       -webkit-font-smoothing:antialiased;position:relative}
+${f.bleed ? `
+ .bleed{position:absolute;inset:0;background-size:cover;background-position:center;
+        background-image:url(data:image/png;base64,${fs.readFileSync(hero).toString('base64')})}
+ /* A radial wash in the corner the diagonal leaves empty, not a straight-edged
+    veil: an edge across a full-bleed picture reads as a band laid over it. */
+ .veil{position:absolute;inset:0;background:radial-gradient(120% 95% at 6% 96%,
+       rgba(11,18,32,.97) 0%,rgba(11,18,32,.9) 34%,
+       rgba(11,18,32,.35) 60%,rgba(11,18,32,0) 78%)}
+ .txt{position:absolute;left:62px;bottom:56px;z-index:2}` : `
  .hero{position:absolute;right:-56px;top:50%;transform:translateY(-50%) rotate(-6deg);
        width:640px;background:#fff;border-radius:18px;padding:16px;
        box-shadow:0 46px 90px rgba(0,0,0,.62)}
  .hero img{width:100%;display:block;border-radius:8px}
  .veil{position:absolute;inset:0;
        background:linear-gradient(100deg,#0b1220 42%,rgba(11,18,32,.9) 58%,rgba(11,18,32,0) 76%)}
- .txt{position:absolute;left:62px;top:50%;transform:translateY(-50%);z-index:2}
+ .txt{position:absolute;left:62px;top:50%;transform:translateY(-50%);z-index:2}`}
  .no{display:inline-flex;align-items:center;gap:14px;margin-bottom:22px}
  .no b{font:800 54px/1 Inter,sans-serif;color:#0b1220;background:#38bdf8;
        padding:10px 20px;border-radius:12px;letter-spacing:-.03em}
@@ -270,7 +299,8 @@ const PAGE = (f, hero) => `<meta charset="utf-8"><style>${FONTCSS}</style><style
     and anything bigger competes with the name above it. */
  .l3{font:600 34px/1 Inter,sans-serif;color:#7c8ea3;letter-spacing:-.01em;margin-top:20px}
 </style>
-<div class="hero"><img src="data:image/png;base64,${fs.readFileSync(hero).toString('base64')}"></div>
+${f.bleed ? '<div class="bleed"></div>'
+          : `<div class="hero"><img src="data:image/png;base64,${fs.readFileSync(hero).toString('base64')}"></div>`}
 <div class="veil"></div>
 <div class="txt">
   ${f.badge ? `<div class="no"><b>${f.badge}</b><i>${f.badgeNote}</i></div>` : ''}
@@ -314,9 +344,10 @@ const PAGE = (f, hero) => `<meta charset="utf-8"><style>${FONTCSS}</style><style
        edge of the card. Every early draft of the Simple connector thumbnail
        had the first line lying across the drawing by about 50px. */
     const over = await card.evaluate(() => {
+      const h = document.querySelector('.hero');
+      if (!h) return null;                       // bleed layout: no card to run into
       const t = document.querySelector('.txt').getBoundingClientRect();
-      const h = document.querySelector('.hero').getBoundingClientRect();
-      return Math.round(t.right - h.left);
+      return Math.round(t.right - h.getBoundingClientRect().left);
     });
     const png = SP + '/thumb_' + f.id + '_2x.png';
     await card.screenshot({ path: png });
@@ -325,8 +356,9 @@ const PAGE = (f, hero) => `<meta charset="utf-8"><style>${FONTCSS}</style><style
       '-vf', 'scale=1280:720:flags=lanczos', '-q:v', '2', out]);
     console.log('  ' + f.out + '  ' + (fs.statSync(out).size / 1024).toFixed(0) +
                 ' KB  ·  1280x720  ·  ' +
-                (over > 0 ? '** type over the card by ' + over + 'px **'
-                          : 'type clears the card by ' + (-over) + 'px'));
+                (over === null ? 'full bleed'
+                 : over > 0 ? '** type over the card by ' + over + 'px **'
+                            : 'type clears the card by ' + (-over) + 'px'));
   }
   await browser.close();
 })();
