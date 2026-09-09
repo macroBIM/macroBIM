@@ -12,3 +12,19 @@ plate3d/tools/shot/
 # make_ggb_stages.js 가 만드는 가설 단계 워크북 52장. 명령 한 줄에 30초면
 # 다시 나오고, 저장소가 들고 있으면 모델을 고칠 때마다 52장이 같이 낡는다.
 plate3d/video/ggb/
+
+# 골든게이트 영상이 만드는 것들. prep → mkcards → rendercards → shoot →
+# assemble 다섯 줄이면 다시 나오고, 저장소가 들고 있으면 모델을 고칠 때마다
+# 같이 낡는다. mp4 도 넣지 않는다 — 앞의 영상들도 넣지 않았다.
+plate3d/video/tools/node_modules
+plate3d/video/tools/cards_ggb/
+plate3d/video/tools/ggb_src/
+plate3d/video/tools/ggb_norm/
+plate3d/video/tools/ggb_seq/
+plate3d/video/tools/chk/
+plate3d/video/tools/ggb.dxf
+plate3d/video/tools/ggb.svg
+plate3d/video/tools/ggb_dxf.html
+plate3d/video/tools/shots_ggb.json
+plate3d/video/tools/filter_ggb.txt
+plate3d/video/*.mp4

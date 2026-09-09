@@ -38,6 +38,11 @@ const BOOKS = process.argv.slice(2);
       return r && r.innerText.indexOf(n) >= 0 && /Succeed|Failed|error/i.test(r.innerText);
     }, path.basename(bk), { timeout: 300000 });
     await page.waitForTimeout(1200);
+    const CL = (process.env.COLOURS || '').split(',').filter(Boolean);
+    for (const c of CL) { const [k, hex] = c.split('=');
+      await page.evaluate(a => window.plateBuilder.setColor('module', a.k.trim().toUpperCase(), a.hex.trim()),
+        { k, hex }); }
+    if (CL.length) await page.waitForTimeout(600);
     const ok = await page.evaluate(c => window.__aim(c.tx, c.ty, c.tz, c.dist, c.az, c.el), CAM);
     await page.waitForTimeout(400);
     const d = await page.evaluate(() => window.__grab(0.92));
