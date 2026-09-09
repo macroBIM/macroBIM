@@ -93,10 +93,15 @@ const card = (id, dur) => put(fs.readFileSync(path.join(CARDS, 't_' + id + '.jpg
 
   const books = fs.readdirSync(BOOKS).filter(f => /\.xlsx$/.test(f)).sort();
   if (!books.length) throw new Error('no workbooks - run make_eiffel_stages.js');
+  /* --allow-file-access-from-files, and downloads accepted. The last shot is
+     the app fetching the workbook and saving it; from a file:// page Chromium
+     refuses that fetch by default, and the button honestly reported `failed`.
+     A film that shows a download has to have downloaded something. */
   const browser = await chromium.launch({ executablePath: '/opt/pw-browsers/chromium',
     args: ['--no-sandbox', '--use-gl=angle', '--use-angle=swiftshader',
-           '--enable-unsafe-swiftshader'] });
-  const app = await browser.newPage({ viewport: { width: VW, height: VH } });
+           '--enable-unsafe-swiftshader', '--allow-file-access-from-files'] });
+  const app = await browser.newPage({ viewport: { width: VW, height: VH },
+                                      acceptDownloads: true });
   await app.route('**/{unpkg.com,cdnjs.cloudflare.com}/**', r =>
     r.fulfill({ contentType: 'application/javascript', body: LIB(r.request().url()) }));
   await app.goto('file://' + SP + '/video_page.html', { waitUntil: 'domcontentloaded' });
@@ -156,14 +161,16 @@ const card = (id, dur) => put(fs.readFileSync(path.join(CARDS, 't_' + id + '.jpg
      pressed. The engine fetches the workbook beside itself, so the request is
      routed to the file on disk: the button really goes to `saved` because the
      download really happened, which is the only reason to film it. */
-  await app.route('**/PLATE3D_EIFFEL.xlsx', r => r.fulfill({
-    contentType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-    body: fs.readFileSync(path.resolve(SP, '../../PLATE3D_EIFFEL.xlsx')) }));
   const clip = async () => {
     const b = await app.evaluate(() => {
       const x = document.querySelector('#pb-ex .box').getBoundingClientRect();
-      let h = Math.min(innerHeight, x.height * 1.09), w = h * 16 / 9;
+      /* Wide enough for the panel AND for 16:9. Sized on height alone the frame
+         came out narrower than the 880 px panel and cut the buttons off - which
+         are the thing the shot is about. */
+      let w = Math.max(x.width * 1.16, Math.min(innerHeight, x.height * 1.09) * 16 / 9);
+      let h = w * 9 / 16;
       if (w > innerWidth) { w = innerWidth; h = w * 9 / 16; }
+      if (h > innerHeight) { h = innerHeight; w = h * 16 / 9; }
       return { x: Math.max(0, Math.min(innerWidth - w, x.x + x.width / 2 - w / 2)),
                y: Math.max(0, Math.min(innerHeight - h, x.y + x.height / 2 - h / 2)),
                width: w, height: h };
@@ -187,12 +194,25 @@ const card = (id, dur) => put(fs.readFileSync(path.join(CARDS, 't_' + id + '.jpg
   }, ri);
   await app.waitForTimeout(400);
   put(await clip(), 2.2);
+  /* The engine clears the `saved` badge 2.6 s after it sets it - long enough
+     for a person reading the list, shorter than a screenshot of a WebGL page
+     under a software rasteriser. So that one timer is stopped before the button
+     is pressed. Nothing else is touched: the fetch, the download and the badge
+     all really happen, and the frame is taken of the state the app reached. */
+  await app.evaluate(() => {
+    const st = window.setTimeout;
+    window.setTimeout = (fn, ms) => (ms === 2600 ? 0 : st(fn, ms));
+  });
   await app.evaluate(i => window.plateBuilder.getSample(i), ri);
   await app.waitForFunction(i => {
     const b = document.getElementById('pb-exb' + i);
     return b && /saved|failed/i.test(b.textContent);
   }, ri, { timeout: 60000 });
-  await app.waitForTimeout(250);
+  const said = await app.evaluate(i =>
+    document.getElementById('pb-exb' + i).textContent.trim(), ri);
+  /* Loudly, rather than filming whatever it says. A shot of a button that says
+     `failed` is a shot of the thing not working. */
+  if (!/saved/i.test(said)) throw new Error('the download said "' + said + '"');
   put(await clip(), 3.4);                       // and it says saved, because it is
   console.log('  4 the Examples panel, and the button pressed');
 
