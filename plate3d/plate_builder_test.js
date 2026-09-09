@@ -1842,46 +1842,55 @@
         notches.push(nc);
         counts.notch++;
       } else if (kw === 'TAPER') {
-        /* TAPER <member> <endShape> <start.pt> <end.pt> [from] [to]
+        /* TAPER <taper id> <시작단면> <끝단면> <시작단면 pt> <끝단면 pt> <taper pt> [from] [to]
 
-           변단면. NOTCH 와 같은 자리에 선다 — 부재를 만들지 않고 이미 있는
-           부재를 가리켜 고친다. 부재 행은 한 글자도 안 바뀐다: 재질도 길이도
-           배치점(BASE.pt)도 그대로고, 이 줄이 없으면 등단면이다.
+           변단면. 이 줄은 부재를 「고치는」 것이 아니라 부재를 「만든다」.
+           PLATE 나 SECT 가 한 줄로 부재 하나를 세우듯, TAPER 는 이미 정의된
+           단면 둘을 불러다 그 사이를 흐르는 부재 하나를 세운다. 그래서 taper id
+           는 새 이름이고, MODULE·ASSY·CUT·NOTCH 는 이것을 여느 부재와 똑같이
+           이름으로 부른다.
 
-           끝단면은 PLATE 나 SECT 로 정의된 것을 이름으로 부른다. 그 행의
-           길이(THK)와 BASE.pt 는 읽지 않는다 — CUT 이 PLATE 를 칼로 쓸 때
-           그 판의 재질·두께를 안 읽는 것과 같다. 여기서 읽는 것은 모양뿐이다.
+           두 단면은 PLATE 나 SECT 로 정의된 것을 이름으로 부른다. 두 행의
+           BASE.pt 는 읽지 않는다 — 정렬은 이 줄의 pt 칸이 정한다. 길이와 재질은
+           시작단면 행의 것을 그대로 쓴다: 부재의 몸이 거기서 나오기 때문이고,
+           같은 값을 두 군데 적어 두면 언젠가 어긋난다.
 
-           정렬점 둘은 「두 단면의 그 점이 같은 축선 위에 놓인다」는 뜻이다.
-           bc·bc 면 밑면이 평평하고, bc·tc 면 편심이 된다. 배치점과 일부러
-           갈라 두었다: MODULE 이 잡는 점과 두 단면을 맞추는 축은 다른 일이고,
-           겹쳐 쓰면 배치를 고치려다 형상이 따라 움직인다.
+           pt 가 셋인 이유는 하는 일이 셋이기 때문이다.
+             시작단면 pt · 끝단면 pt — 두 단면의 그 점이 같은 축선 위에 놓인다.
+               bc·bc 면 밑면이 평평하고, bc·tc 면 편심이 된다. 형상의 문제다.
+             taper pt — MODULE 이 이 부재를 잡는 점. 배치의 문제다.
+           겹쳐 쓰면 배치를 고치려다 형상이 따라 움직인다. 그래서 갈라 두었다.
 
-           from 은 단면이 「적은 대로」인 자리, to 는 새 단면에 도달하는 자리다.
+           from 은 단면이 시작단면 그대로인 자리, to 는 끝단면에 도달하는 자리다.
            NOTCH 의 from/to 가 「구간」인 것과 다르다 — 여기서는 두 자리에 각각
            역할이 있어서 from > to 가 정상이다. 양단 헌치가 두 줄로 적힌다. */
-        var ttg = resolvePlate(str(v[0]).toUpperCase());
-        if (!ttg) {
-          warn('row ' + (r + 1) + ': TAPER names ' + (str(v[0]) || '(blank)') +
-               ', which no PLATE, BAR or SECT row defines.');
+        var ttg = str(v[0]).toUpperCase();
+        if (!ttg) { warn('row ' + (r + 1) + ': TAPER without an id'); continue; }
+        if (plates[ttg] || holes[ttg]) {
+          warn('row ' + (r + 1) + ': TAPER ' + ttg + ' reuses a ' +
+               (plates[ttg] ? 'PLATE, BAR or SECT' : 'HOLE') + ' id. The taper is a' +
+               ' member of its own, so give it a name nothing else has.');
           continue;
         }
-        var tend = str(v[1]).toUpperCase();
-        var tsrc = plates[tend];
-        if (!tsrc) {
-          warn('row ' + (r + 1) + ': TAPER ' + ttg + ' — the end section ' +
-               (tend || '(blank)') + ' is not a PLATE or SECT that has been defined.' +
-               ' Define it like any other, and leave it unplaced: only its shape is read.');
+        var tbeg = str(v[1]).toUpperCase(), tend = str(v[2]).toUpperCase();
+        var tst = plates[tbeg], tsrc = plates[tend];
+        var tsay = function (which, nm) {
+          warn('row ' + (r + 1) + ': TAPER ' + ttg + ' — the ' + which + ' section ' +
+               (nm || '(blank)') + ' is not a PLATE or SECT that has been defined.' +
+               ' Define it like any other, and leave it unplaced: the taper places it.');
+        };
+        if (!tst) { tsay('start', tbeg); continue; }
+        if (!tsrc) { tsay('end', tend); continue; }
+        if (tbeg === tend) {
+          warn('row ' + (r + 1) + ': TAPER ' + ttg + ' ' + tbeg + ' ' + tend +
+               ' — the two ends are the same section, so nothing tapers. Place ' +
+               tbeg + ' itself.');
           continue;
         }
-        if (tend === ttg) {
-          warn('row ' + (r + 1) + ': TAPER ' + ttg + ' ' + tend +
-               ' — a member cannot taper into itself.');
-          continue;
-        }
-        var tsp = str(v[2]).toLowerCase(), tep = str(v[3]).toLowerCase();
+        var tsp = str(v[3]).toLowerCase(), tep = str(v[4]).toLowerCase();
+        var tbp = str(v[5]).toLowerCase();
         var tpOK = function (spec, key, which) {
-          if (!key) return true;                       // blank = the row's own BASE.pt
+          if (!key) return true;                       // blank = that section row's BASE.pt
           if (POINT_KEYS.indexOf(key) < 0) {
             warn('row ' + (r + 1) + ': TAPER ' + ttg + ' — ' + which + ' point "' + key +
                  '" is not one of ' + POINT_KEYS.join(' ') + '.');
@@ -1894,21 +1903,33 @@
           }
           return true;
         };
-        if (!tpOK(plates[ttg], tsp, 'the start') || !tpOK(tsrc, tep, 'the end')) continue;
+        if (!tpOK(tst, tsp, 'the start section') ||
+            !tpOK(tsrc, tep, 'the end section') ||
+            !tpOK(tst, tbp, 'the taper')) continue;
         /* 꼭짓점이 짝지어져야 잇는다. 개수가 다르면 어느 점이 어느 점으로 가는지
            아무도 모르므로 근사하지 않고 거부한다 — 사각형에서 원으로 흐르는
            부재는 이 엔진이 말할 수 있는 것이 아니다. */
-        var n0 = outlineOf(plates[ttg]).length, n1 = outlineOf(tsrc).length;
+        var n0 = outlineOf(tst).length, n1 = outlineOf(tsrc).length;
         if (n0 !== n1) {
-          warn('row ' + (r + 1) + ': TAPER ' + ttg + ' ' + tend + ' — the two sections' +
-               ' do not have the same number of corners (' + n0 + ' and ' + n1 + '), so' +
-               ' there is no telling which corner runs into which. Give them the same' +
-               ' shape and the same radii, and vary the sizes.');
+          warn('row ' + (r + 1) + ': TAPER ' + ttg + ' ' + tbeg + ' ' + tend +
+               ' — the two sections do not have the same number of corners (' + n0 +
+               ' and ' + n1 + '), so there is no telling which corner runs into which.' +
+               ' Give them the same shape and the same radii, and vary the sizes.');
           continue;
         }
-        tapers.push({ PLATE: ttg, END: tend, SPT: tsp, EPT: tep, ROW: r + 1,
-                      FROM: str(v[4]) === '' ? null : num(v[4], 0),
-                      TO:   str(v[5]) === '' ? null : num(v[5], 0) });
+        /* 새 부재. 몸은 시작단면 것을 그대로 베끼고, 배치점만 이 줄이 정한다.
+           베낀 것이지 가리킨 것이 아니므로 시작단면은 저대로 따로 놓아도 된다. */
+        var tsp2 = {};
+        for (var tk in tst) if (Object.prototype.hasOwnProperty.call(tst, tk)) tsp2[tk] = tst[tk];
+        tsp2.ID = ttg; tsp2.__bo = null;
+        tsp2.BASEPT = tbp ? normPoint(tbp) : (tst.BASEPT || defaultBase(tst));
+        plates[ttg] = tsp2;
+        current = ttg;
+        tapers.push({ PLATE: ttg, BEG: tbeg, END: tend, ROW: r + 1,
+                      SPT: tsp ? normPoint(tsp) : (tst.BASEPT || defaultBase(tst)),
+                      EPT: tep ? normPoint(tep) : (tsrc.BASEPT || defaultBase(tsrc)),
+                      FROM: str(v[6]) === '' ? null : num(v[6], 0),
+                      TO:   str(v[7]) === '' ? null : num(v[7], 0) });
         counts.taper = (counts.taper || 0) + 1;
       } else if (kw === 'VIEW') {         // VIEW <module|assy|ALL> <dir> [AZ EL] <scale> [title]
         /* A drawing the sheet asks for by name: which module - or assembly, or
@@ -2435,6 +2456,7 @@
             (c.bolt ? ' &middot; bolts ' + c.bolt : '') +
             ' &middot; cuts ' + c.cut +
             (c.notch ? ' &middot; notches ' + c.notch : '') +
+            (c.taper ? ' &middot; tapers ' + c.taper : '') +
             ' &middot; modules ' + (c.module || 0) +
             ' &middot; assy ' + c.assy + ' &rarr; placed ' + placed +
             (c.fit ? ' &middot; fits ' + c.fit : '') +
@@ -3196,9 +3218,10 @@
 
      A member with no notches comes back as one segment holding exactly the
      profile it always had, so nothing that ships today goes down a new road. */
-  /* 변단면의 두 링. 시작단면은 부재의 것 그대로(BASE.pt 가 원점), 끝단면은
-     제 정렬점이 시작단면의 정렬점과 같은 자리에 오도록 옮겨 놓는다.
-     그 두 점이 「같은 축선 위에 놓인다」는 뜻이 이 옮김이다. */
+  /* 변단면의 두 링. 시작단면은 부재의 것 그대로 — 원점은 taper pt 이고, 그
+     기준은 시점(시작단면) 쪽에서 잰다. 끝단면은 제 정렬점이 시작단면의
+     정렬점과 같은 자리에 오도록 옮겨 놓는다. 그 두 점이 「같은 축선 위에
+     놓인다」는 뜻이 이 옮김이다. */
   function taperRings(spec, tp, plates) {
     var src = plates[tp.END];
     if (!src) return null;
