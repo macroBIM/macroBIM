@@ -67,6 +67,9 @@
         { t: 'single', l: 'TWEBC' }
   ];
 
+  // 격벽 개구부 기본값 — 셀당 하나. 사진의 맨홀을 기준으로 잡았다.
+  var OPEN_DEF = { shape: 'HEX', B: 1400, H: 1800, CTX: 300, CTY: 400, X: 0, Y: 500 };
+
   var PAGES = 'https://macrobim.github.io/macroBIM/';
 
   // const/class 로 선언된 전역도 감지 (window 프로퍼티가 아니므로 bare typeof 필요)
@@ -155,6 +158,26 @@
     '.px-tbl.var-tbl th{background:#1e293b;color:#fff;font-weight:600;text-align:center;border-bottom:1px solid #334155;border-right:1px solid #334155;}.px-tbl.var-tbl th:last-child{border-right:none;}' +
     '.px-tbl.dim-tbl th{background:#1e293b;color:#fff;font-weight:600;text-align:center;border-bottom:1px solid #334155;border-right:1px solid #334155;}.px-tbl.dim-tbl th:last-child{border-right:none;}' +
     '.px-cover{width:64px;text-align:right;}' +
+    '.op-wrap{display:flex;gap:18px;align-items:flex-start;flex-wrap:wrap;}' +
+    '.op-cell{flex:1 1 300px;min-width:280px;border:1px solid var(--hair);border-radius:8px;overflow:hidden;background:#fff;}' +
+    '.op-cell > h4{margin:0;padding:7px 12px;background:#f1f5f9;border-bottom:1px solid var(--hair);' +
+    '  font-size:11.5px;font-weight:700;letter-spacing:.07em;text-transform:uppercase;color:#475569;' +
+    '  display:flex;justify-content:space-between;align-items:center;gap:8px;}' +
+    '.op-cell > h4 label{display:flex;gap:5px;align-items:center;font-size:11px;letter-spacing:0;' +
+    '  text-transform:none;font-weight:500;color:#64748b;cursor:pointer;margin:0;}' +
+    '.op-body{display:flex;gap:12px;padding:11px 12px;align-items:flex-start;}' +
+    '.op-fields{flex:1 1 0;min-width:0;}' +
+    '.op-row{display:flex;align-items:center;gap:8px;margin-bottom:5px;}' +
+    '.op-row > span{flex:none;width:118px;font-size:12px;color:#334155;}' +
+    '.op-row > span i{font-style:normal;color:#94a3b8;font-size:11px;}' +
+    '.op-row input,.op-row select{flex:1 1 0;min-width:0;font:inherit;font-size:12px;padding:3px 7px;' +
+    '  border:1px solid var(--hair);border-radius:5px;color:var(--ink);background:#fff;}' +
+    '.op-row input:disabled{background:#f8fafc;color:#cbd5e1;}' +
+    '.op-sub{font-size:10.5px;color:#94a3b8;margin:9px 0 3px;letter-spacing:.06em;text-transform:uppercase;font-weight:700;}' +
+    '.op-prev{flex:none;width:132px;}' +
+    '.op-prev svg{display:block;width:132px;height:132px;border:1px solid var(--hair);border-radius:6px;background:#fbfdff;}' +
+    '.op-prev div{font-size:10.5px;color:#94a3b8;text-align:center;margin-top:3px;font-variant-numeric:tabular-nums;}' +
+    '.op-cell.off .op-body{opacity:.38;pointer-events:none;}' +
     '.px-menubar{display:flex;align-items:center;justify-content:flex-start;gap:8px;background:#fff;border:1px solid #e2e8f0;border-radius:10px;padding:8px 12px;margin-bottom:14px;}' +
     '.px-mb-label{font-size:12.5px;font-weight:600;color:#475569;white-space:nowrap;}' +
     '.px-btn-lite{background:#fff;color:#334155;border-color:#cbd5e1;}.px-btn-lite:hover{background:#f1f5f9;border-color:#cbd5e1;box-shadow:0 2px 6px rgba(15,23,42,.12);}.px-btn-lite.active{background:#2563eb;border-color:#2563eb;color:#fff;}' +
@@ -179,7 +202,7 @@
   var PXDIA = {
     _mountId: 'mount-draw-pscboxdia',
     _excelData: null, _rebarData: null, _focusId: null,
-    _lines: [], _arcs: [], _circs: [],
+    _lines: [], _arcs: [], _circs: [], _openings: [],
     _uiInited: false, _settleTimer: null, _rebarSettled: false, _lastAp: null, _lastStuckMsg: null,
     _showEngNormals: false, _showEngNodes: false, _engNormGroup: null, _engNodeGroup: null,
     _loadLog: null,
@@ -1452,8 +1475,150 @@
         this._lines = g.lines.map(function (l) { return [l.x1, l.y1, l.x2, l.y2]; });
         this._arcs = g.arcs.map(function (a) { return [a.x, a.y, a.r, a.angb, a.ange]; });
         this._circs = [];
+        this._syncOpenings(ap, g);          // 격벽 개구부 — 입력칸 → 형상·미리보기
         this._drawRebar();
       } catch (e) { console.error('[PSCDIA] section:', e); }
+    },
+
+    // ── 격벽 개구부 ────────────────────────────────────────────
+    //  셀당 하나. 1 Cell 이면 한 칸, 2 Cell 이면 좌·우 두 칸이 뜬다.
+    //  형상 셋은 별개가 아니라 "직사각형의 모서리를 얼마나 접느냐" 하나다 —
+    //    RECT 접지 않음 · HEX 위 두 모서리 · OCT 네 모서리 모두.
+    //  접기는 가로(Ctx)·세로(Cty)를 따로 받는다. 45° 로 고정하지 않는다.
+
+    _opShapes: [['RECT', 'Rectangle'], ['HEX', 'Hexagon'], ['OCT', 'Octagon']],
+
+    _ptx: function (geo, name) {
+      var f = ((geo && geo.points) || []).find(function (p) { return p.name === name; });
+      return f ? f[name].x : null;
+    },
+
+    // 입력칸 → 값. 없으면 기본값.
+    _readOpening: function (i) {
+      var g = function (id, d) {
+        var el = document.getElementById('op' + i + '_' + id);
+        if (!el) return d;
+        if (el.type === 'checkbox') return el.checked;
+        if (el.tagName === 'SELECT') return el.value;
+        var raw = el.value;
+        var v = (typeof Calc !== 'undefined') ? Calc.num(raw, {}, Number(raw)) : Number(raw);
+        if (!isFinite(v)) { console.error('[PSCDIA] Opening ' + i + ' "' + id + '" 를 숫자로 읽을 수 없음: "' + raw + '"'); return d; }
+        return v;
+      };
+      return { on: !g('none', false), shape: g('shape', OPEN_DEF.shape),
+               B: g('B', OPEN_DEF.B), H: g('H', OPEN_DEF.H),
+               ctx: g('CTX', OPEN_DEF.CTX), cty: g('CTY', OPEN_DEF.CTY),
+               X: g('X', OPEN_DEF.X), Y: g('Y', OPEN_DEF.Y) };
+    },
+
+    // 개구부 윤곽 (원점 = 개구부 하단 중앙). 반시계, 닫힌 폴리곤.
+    _openingPoly: function (o) {
+      var h = o.B / 2, H = o.H;
+      var cx = Math.max(0, Math.min(o.ctx, h - 1));         // 폭·높이를 넘어서지 않게
+      var cy = Math.max(0, Math.min(o.cty, H / 2 - 1));
+      if (o.shape === 'RECT') return [[-h, 0], [h, 0], [h, H], [-h, H]];
+      if (o.shape === 'HEX')  return [[-h, 0], [h, 0], [h, H - cy], [h - cx, H], [-h + cx, H], [-h, H - cy]];
+      return [[-h + cx, 0], [h - cx, 0], [h, cy], [h, H - cy],    // OCT
+              [h - cx, H], [-h + cx, H], [-h, H - cy], [-h, cy]];
+    },
+
+    // 셀 중앙 x — X 입력의 기준선. 1 Cell 은 단면 중앙, 2 Cell 은 각 셀의 가운데.
+    _cellCentre: function (ap, geo, i) {
+      if (Number(ap.NCELL) !== 2) return 0;
+      var px = this._ptx.bind(this);
+      var wc = Math.abs(Number(ap.TWEBC) || 0) / 2;
+      var inL = px(geo, 'PBHL1'), inR = px(geo, 'PBHR1');
+      if (i === 1) return (inL != null) ? (inL - wc) / 2 : 0;
+      return (inR != null) ? (inR + wc) / 2 : 0;
+    },
+
+    // 단면 좌표계에 앉힌 개구부. Y 는 하부슬래브 상면에서 개구부 하단까지.
+    _openingAt: function (ap, geo, i) {
+      var o = this._readOpening(i);
+      if (!o.on || !(o.B > 0) || !(o.H > 0)) return null;
+      var x0 = this._cellCentre(ap, geo, i) + o.X;
+      var slabTop = -Number(ap.TH) + Number(ap.TBS) + x0 * Number(ap.SLB) / 100;
+      var y0 = slabTop + o.Y;
+      return { o: o, x0: x0, y0: y0,
+               pts: this._openingPoly(o).map(function (p) { return [p[0] + x0, p[1] + y0]; }) };
+    },
+
+    // 카드 안 미리보기 — 개구부 하나를 제 비율대로 그린다 (형상 확인용)
+    _drawOpeningPreview: function (i, op) {
+      var box = document.getElementById('op' + i + '_prev');
+      if (!box) return;
+      if (!op) { box.innerHTML = '<svg viewBox="0 0 100 100"></svg><div>&mdash;</div>'; return; }
+      var pts = this._openingPoly(op.o);
+      var xs = pts.map(function (p) { return p[0]; }), ys = pts.map(function (p) { return p[1]; });
+      var x1 = Math.min.apply(null, xs), x2 = Math.max.apply(null, xs);
+      var y1 = Math.min.apply(null, ys), y2 = Math.max.apply(null, ys);
+      var w = x2 - x1, hh = y2 - y1, pad = Math.max(w, hh) * 0.16;
+      var d = pts.map(function (p) { return p[0].toFixed(0) + ',' + (-p[1]).toFixed(0); }).join(' ');
+      box.innerHTML =
+        '<svg viewBox="' + (x1 - pad) + ' ' + (-y2 - pad) + ' ' + (w + 2 * pad) + ' ' + (hh + 2 * pad) + '" preserveAspectRatio="xMidYMid meet">' +
+        '<polygon points="' + d + '" fill="#eff6ff" stroke="#2563eb" stroke-width="' + (Math.max(w, hh) / 46).toFixed(1) + '" stroke-linejoin="round"/>' +
+        '</svg><div>' + Math.round(op.o.B) + ' &times; ' + Math.round(op.o.H) + '</div>';
+    },
+
+    // 입력값 → 형상·미리보기·활성 상태 갱신. redraw 가 부른다.
+    _syncOpenings: function (ap, geo) {
+      var self = this, list = [];
+      var n = (Number(ap.NCELL) === 2) ? 2 : 1;
+      var c2 = document.getElementById('opCell2');
+      if (c2) c2.style.display = (n === 2) ? '' : 'none';
+      for (var i = 1; i <= 2; i++) {
+        var card = document.getElementById('opCell' + i);
+        if (i > n) { list.push(null); continue; }
+        var o = this._readOpening(i);
+        // RECT 는 모서리를 접지 않으므로 Ctx·Cty 를 잠근다
+        ['CTX', 'CTY'].forEach(function (k) {
+          var el = document.getElementById('op' + i + '_' + k);
+          if (el) el.disabled = !o.on || o.shape === 'RECT';
+        });
+        ['shape', 'B', 'H', 'X', 'Y'].forEach(function (k) {
+          var el = document.getElementById('op' + i + '_' + k);
+          if (el) el.disabled = !o.on;
+        });
+        if (card) card.classList.toggle('off', !o.on);
+        var placed = this._openingAt(ap, geo, i);
+        this._drawOpeningPreview(i, placed);
+        list.push(placed);
+      }
+      this._openings = list.filter(function (v) { return v; });
+      return this._openings;
+    },
+
+    // 개구부 카드 HTML (mount 에서 한 번)
+    _openingCardHTML: function () {
+      var self = this;
+      var row = function (i, k, label, hint, val) {
+        return '<div class="op-row"><span>' + label + (hint ? ' <i>' + hint + '</i>' : '') + '</span>' +
+               '<input type="text" spellcheck="false" id="op' + i + '_' + k + '" value="' + val + '" onchange="PXDIA.redraw()"></div>';
+      };
+      var cell = function (i, title) {
+        var opts = self._opShapes.map(function (o) {
+          return '<option value="' + o[0] + '"' + (o[0] === OPEN_DEF.shape ? ' selected' : '') + '>' + o[1] + '</option>';
+        }).join('');
+        return '<div class="op-cell" id="opCell' + i + '"' + (i === 2 ? ' style="display:none;"' : '') + '>' +
+          '<h4>' + title + '<label><input type="checkbox" id="op' + i + '_none" onchange="PXDIA.redraw()"> none</label></h4>' +
+          '<div class="op-body"><div class="op-fields">' +
+          '<div class="op-row"><span>Shape</span><select id="op' + i + '_shape" onchange="PXDIA.redraw()">' + opts + '</select></div>' +
+          row(i, 'B', 'B', 'width', OPEN_DEF.B) +
+          row(i, 'H', 'H', 'height', OPEN_DEF.H) +
+          row(i, 'CTX', 'Ctx', 'corner x', OPEN_DEF.CTX) +
+          row(i, 'CTY', 'Cty', 'corner y', OPEN_DEF.CTY) +
+          '<div class="op-sub">Position</div>' +
+          row(i, 'X', 'X', 'from cell centre', OPEN_DEF.X) +
+          row(i, 'Y', 'Y', 'slab top to bottom', OPEN_DEF.Y) +
+          '</div><div class="op-prev" id="op' + i + '_prev"></div></div></div>';
+      };
+      return '  <div class="draw-card">' +
+        '    <div class="draw-card-header"><div><span class="draw-card-title">OPENING</span> ' +
+        '<span class="draw-card-desc">Diaphragm opening &mdash; one per cell. Rectangle / Hexagon / Octagon by how far the corners are cut.</span></div></div>' +
+        '    <div class="draw-card-body"><div class="op-wrap">' +
+        cell(1, 'Cell 1') + cell(2, 'Cell 2') +
+        '    </div></div>' +
+        '  </div>';
     },
 
     // 단면 DXF (가이드 기준 형상)
@@ -1565,6 +1730,8 @@
         '      </div>' +
         '    </div>' +
         '  </div>' +
+
+        this._openingCardHTML() +
 
         '  <div class="draw-card">' +
         '    <div class="draw-card-header"><div><span class="draw-card-title">REBAR</span> <span class="draw-card-desc">trebar / lrebar input data</span></div>' +
