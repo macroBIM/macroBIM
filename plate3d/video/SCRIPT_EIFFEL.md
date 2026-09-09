@@ -21,7 +21,7 @@
 | 1 | 0:00 | 4s | 검은 화면, 오프닝 카드 | **BY PLATE3D**<br>**EIFFEL TOWER** |
 | **2** | **0:04** | **70s** | **원테이크.** 지면에서 교각 한 패널이 서고, 부재가 아래에서 위로 쌓인다. **카메라는 내내 돌면서 같이 올라간다.** 20 m 에서 아치, 57.6 에서 1층, 115.7 에서 네 다리가 하나, 276.1 에서 3층, 300.65 에서 멈춘다 | 0:04 **1,528 members.**<br>0:20 *the arches*<br>0:34 *the first platform*<br>0:50 *and the four become one*<br>1:06 *300.65 m — 1889* |
 | 3 | 1:14 | 8s | 완성. 카메라만 계속 돈다 | — |
-| 4 | 1:22 | 6s | 권유 카드 | **DOWNLOAD IT AND TRY IT**<br>*macrobim.github.io*<br>*PLATE3D → Example → Eiffel Tower* |
+| 4 | 1:22 | 8s | **앱의 Example 패널이 열리고, 에펠탑 줄에 불이 들어오고, DOWNLOAD 를 누르면 `saved` 로 바뀐다** | *Yours to download.*<br>*Example → Eiffel Tower* |
 | 5 | 1:28 | 4s | 로고 | **PLATE3D by macroBIM** |
 
 자막은 다섯 줄뿐입니다. **말이 적을수록 화면이 큽니다.**
@@ -128,9 +128,9 @@ by hand: the tower is only ever as tall as it has been built.
 709 rows in one spreadsheet tab. 1,528 members. No clashes.
 Nine drawings come out as DXF at the press of a button.
 
-DOWNLOAD IT AND TRY IT
-macrobim.github.io — PLATE3D → Example → Eiffel Tower.
-Open it in Excel, change a number, load it again.
+YOURS TO DOWNLOAD
+It is on the Example list in the app - the last shot of the film is
+somebody taking it. Open it in Excel, change a number, load it again.
 
 Runs in the browser. Nothing to install.
 
@@ -154,6 +154,11 @@ Runs in the browser. Nothing to install.
 | 겹침 | **0** (테스트·운영 엔진 동일) |
 | 모듈 7 · 조립체 5 | `md.leg` `md.arc` `md.pl1~3` `md.shf` `md.top` |
 | 도면 | 9 · 131,681 엔티티 · Save DXF 11.1 초 |
+
+**받는 장면은 진짜입니다.** 엔진의 fetch 를 디스크의 워크북으로 연결해
+두었으므로 버튼이 `saved` 가 되는 것은 실제로 받아졌기 때문입니다. 그게
+아니면 찍을 이유가 없습니다. 그러려면 Example 목록에 있어야 해서 두 엔진의
+`SAMPLES` 에 항목을 넣었습니다.
 
 ## 8. 이 영상이 하지 않는 것
 
@@ -184,7 +189,8 @@ Runs in the browser. Nothing to install.
 
 - 원테이크 · ISO · 밑에서 위로 · 카메라가 같이 돌며 올라간다
 - 자막 다섯 줄, 3 번 컷 무자막
-- 끝은 **다운로드해서 해 보라** 한 장
+- 끝은 **받는 장면**이다 — 문구 카드가 아니라 패널과 버튼. 주소를 화면에
+  쓰지 않는다: 패널이 보이면 어디를 눌러야 하는지가 곧 설명이다
 - **PARAM 앞장은 안 붙인다**
 - 도장은 위로 갈수록 밝다
 

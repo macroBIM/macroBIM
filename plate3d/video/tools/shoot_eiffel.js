@@ -151,10 +151,53 @@ const card = (id, dur) => put(fs.readFileSync(path.join(CARDS, 't_' + id + '.jpg
   }
   console.log('  3 finished');
 
-  /* 4-5 */
-  card('dl', 6);
+  /* 4 - where to get it, shown rather than spelled out. The app's own Examples
+     panel, opened by the button that opens it, and the row's own DOWNLOAD
+     pressed. The engine fetches the workbook beside itself, so the request is
+     routed to the file on disk: the button really goes to `saved` because the
+     download really happened, which is the only reason to film it. */
+  await app.route('**/PLATE3D_EIFFEL.xlsx', r => r.fulfill({
+    contentType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    body: fs.readFileSync(path.resolve(SP, '../../PLATE3D_EIFFEL.xlsx')) }));
+  const clip = async () => {
+    const b = await app.evaluate(() => {
+      const x = document.querySelector('#pb-ex .box').getBoundingClientRect();
+      let h = Math.min(innerHeight, x.height * 1.09), w = h * 16 / 9;
+      if (w > innerWidth) { w = innerWidth; h = w * 9 / 16; }
+      return { x: Math.max(0, Math.min(innerWidth - w, x.x + x.width / 2 - w / 2)),
+               y: Math.max(0, Math.min(innerHeight - h, x.y + x.height / 2 - h / 2)),
+               width: w, height: h };
+    });
+    return app.screenshot({ type: 'jpeg', quality: 92, clip: b });
+  };
+  const row = () => app.evaluate(() => {
+    const rs = [].slice.call(document.querySelectorAll('#pb-exlist tbody tr'));
+    return rs.findIndex(t => (t.getAttribute('title') || '').indexOf('EIFFEL') >= 0);
+  });
+  await app.evaluate(() => window.plateBuilder.openSamples());
+  await app.waitForTimeout(700);
+  caption('dl', T, 10);
+  put(await clip(), 2.2);                       // the list, as it opens
+  const ri = await row();
+  await app.evaluate(i => {                     // the row, lit the way a pointer lits it
+    const r = document.querySelectorAll('#pb-exlist tbody tr')[i];
+    r.style.background = '#f0fdf4'; r.scrollIntoView({ block: 'center' });
+    const b = r.querySelector('.exb');
+    if (b) { b.style.background = '#047857'; b.style.color = '#fff'; b.style.borderColor = '#047857'; }
+  }, ri);
+  await app.waitForTimeout(400);
+  put(await clip(), 2.2);
+  await app.evaluate(i => window.plateBuilder.getSample(i), ri);
+  await app.waitForFunction(i => {
+    const b = document.getElementById('pb-exb' + i);
+    return b && /saved|failed/i.test(b.textContent);
+  }, ri, { timeout: 60000 });
+  await app.waitForTimeout(250);
+  put(await clip(), 3.4);                       // and it says saved, because it is
+  console.log('  4 the Examples panel, and the button pressed');
+
+  /* 5 */
   card('end', 4);
-  console.log('  4 download it and try it');
 
   fs.writeFileSync(path.join(SP, 'shots_eif.json'),
     JSON.stringify({ fps: FPS, src: 'eif_src', out: 'PLATE3D_EIFFEL.mp4',

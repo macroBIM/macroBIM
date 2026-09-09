@@ -11968,7 +11968,14 @@
        one cable plane comes out on both sides of the bridge from one row each.
        It is also the sheet that asks for VIEW ALL. */
     { f: 'PLATE3D_GGB.xlsx', n: 'Golden Gate Bridge', s: '414 rows → 2219 members · 81,624 t · 9 drawings',
-      d: 'Five modules, one per part, at full size: 1280 m between the towers.' }
+      d: 'Five modules, one per part, at full size: 1280 m between the towers.' },
+    /* And beside it, the same size of thing built the other way round. The
+       bridge is one plane written once and put on both sides; the tower is one
+       pier written once and TURNED - ASSY ... ROT ... Z 90 3, one row for four
+       legs. Between the two of them the four ASSY commands are all shown at a
+       scale where getting them wrong would be obvious. */
+    { f: 'PLATE3D_EIFFEL.xlsx', n: 'Eiffel Tower', s: '709 rows → 1528 members · 4,773 t · 9 drawings',
+      d: 'One pier, written once and turned four ways. 300 m tall.' }
   ];
   var exOpen = false;
   /* The picker is a window rather than a dropdown, so each example has room for
