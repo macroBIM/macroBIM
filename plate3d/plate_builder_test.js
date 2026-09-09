@@ -1651,7 +1651,7 @@
               var t = str(x);
               return t !== '' && !isNum(t);
             })) continue;
-        var c = { PLATE: target, REFPT: refpt, __xlCut: true };
+        var c = { PLATE: target, REFPT: refpt, __xlCut: true, ROW: r + 1 };
         // Current grammar: CUT <plate> L.X L.Y <shape id> dx dy repeat dx2 dy2 repeat2.
         // The shape is a HOLE (or another PLATE) defined elsewhere, so the row
         // is a fixed width. L.X/L.Y are measured from the plate's own origin -
@@ -1833,7 +1833,7 @@
           }
           nu = npts[nkey][0]; nv = npts[nkey][1];
         }
-        var nc = { PLATE: ntg, REFPT: 'bc', __xlCut: true, __org: true,
+        var nc = { PLATE: ntg, REFPT: 'bc', __xlCut: true, __org: true, ROW: r + 1,
                    FROM: nfrom, TO: nto, ANG: 0,
                    U: nu, V: nv,
                    TYPE: 'REF', REF: nshape,
@@ -1905,15 +1905,40 @@
         if (!tpOK(tst, tsp, 'the start section') ||
             !tpOK(tsrc, tep, 'the end section') ||
             !tpOK(tst, tbp, 'the taper')) continue;
-        /* 꼭짓점이 짝지어져야 잇는다. 개수가 다르면 어느 점이 어느 점으로 가는지
-           아무도 모르므로 근사하지 않고 거부한다 — 사각형에서 원으로 흐르는
-           부재는 이 엔진이 말할 수 있는 것이 아니다. */
+        /* 같은 형상끼리만 흐른다. 꼭짓점 개수만 보던 때에는 각형강관이 통짜
+           판으로 흘러갔다 — 개수는 넷으로 같지만 속이 빈 것과 찬 것은 같은
+           물건이 아니고, 그렇게 나온 입체는 아무도 주문할 수 없다. */
+        var tfam = function (s) { return s.SHAPE === 'SECT' ? 'SECT.' + s.SECT : s.SHAPE; };
+        var tfamName = function (s) {
+          return s.SHAPE === 'SECT' ? 'a ' + s.SECT + ' section'
+               : s.SHAPE === 'CIRC' ? 'a circle' : 'a plate outline';
+        };
+        if (tfam(tst) !== tfam(tsrc)) {
+          warn('row ' + (r + 1) + ': TAPER ' + ttg + ' ' + tbeg + ' ' + tend + ' — ' +
+               tbeg + ' is ' + tfamName(tst) + ' and ' + tend + ' is ' + tfamName(tsrc) +
+               '. A taper flows one shape into the same shape at another size.' +
+               ' Two different shapes have no telling which corner runs into which,' +
+               ' and this engine will not guess.');
+          continue;
+        }
+        /* 꼭짓점이 짝지어져야 잇는다. 같은 형상이어도 필렛이 있고 없고에 따라
+           개수가 달라지므로, 개수가 다르면 근사하지 않고 거부한다. */
         var n0 = outlineOf(tst).length, n1 = outlineOf(tsrc).length;
         if (n0 !== n1) {
           warn('row ' + (r + 1) + ': TAPER ' + ttg + ' ' + tbeg + ' ' + tend +
                ' — the two sections do not have the same number of corners (' + n0 +
                ' and ' + n1 + '), so there is no telling which corner runs into which.' +
                ' Give them the same shape and the same radii, and vary the sizes.');
+          continue;
+        }
+        /* 속이 빈 단면은 구멍도 짝지어져야 한다. 한쪽만 비어 있으면 벽이
+           어디서 시작하는지 말할 수 없다. */
+        var bo0 = sectInner(tst), bo1 = sectInner(tsrc);
+        if (!bo0 !== !bo1 || (bo0 && bo1 && bo0.length !== bo1.length)) {
+          warn('row ' + (r + 1) + ': TAPER ' + ttg + ' ' + tbeg + ' ' + tend +
+               ' — one of them is hollow and the other is not, or their bores do' +
+               ' not have the same number of corners. A wall has to start' +
+               ' somewhere and end somewhere.');
           continue;
         }
         /* 길이는 이 줄의 것이다. 두 단면 행의 길이를 몰래 가져다 쓰면 그 행을
@@ -2405,6 +2430,28 @@
              ' tapered member leaves changes as you go into it, so it is not one' +
              ' notch. Write that cut yourself: NOTCH ' + n.PLATE +
              ' <from> <to> <L.X> <L.Y> <shape>.');
+      });
+      /* 변단면은 칼이 될 수 없듯 도마도 될 수 없다. 파고들수록 만나는 단면이
+         달라지므로 「이 자리에서 이 모양을 뺀다」가 한 가지 뜻을 갖지 않는다.
+         엔진이 말할 수 없는 것을 말한 척하느니 그 줄을 거절한다 — 조용히
+         무시하면 도면에도 무게에도 아무 표시가 없어서 아무도 못 알아챈다. */
+      cuts.forEach(function (c) {
+        if (!tapered[c.PLATE]) return;
+        c.__dead = 1;
+        warn('row ' + (c.ROW || '?') + ': CUT ' + c.PLATE + ' — ' + c.PLATE +
+             ' is tapered (row ' + tapered[c.PLATE] + '). What a cut takes out of' +
+             ' a section that changes along the member is not one shape, so this' +
+             ' engine will not say. Cut the two sections instead, or split the' +
+             ' member where the cut belongs.');
+      });
+      cuts = cuts.filter(function (c) { return !c.__dead; });
+      notches.forEach(function (n) {
+        if (n.__dead || !tapered[n.PLATE]) return;
+        n.__dead = 1;
+        warn('row ' + n.ROW + ': NOTCH ' + n.PLATE + ' — ' + n.PLATE +
+             ' is tapered (row ' + tapered[n.PLATE] + '), and a notch cuts the' +
+             ' member into stretches of one profile each, which a tapered member' +
+             ' does not have. Split it into a tapered member and a straight one.');
       });
       notches = notches.filter(function (n) { return !n.__dead; });
     }
@@ -3231,6 +3278,18 @@
      기준은 시점(시작단면) 쪽에서 잰다. 끝단면은 제 정렬점이 시작단면의
      정렬점과 같은 자리에 오도록 옮겨 놓는다. 그 두 점이 「같은 축선 위에
      놓인다」는 뜻이 이 옮김이다. */
+  /* 두 링을 반드시 **같은 생성기에서** 뽑는다. loft 는 i 번 꼭짓점을 i 번
+     꼭짓점에 잇는 일이므로 두 링의 차례가 같아야 뜻이 있는데, 속이 빈 단면의
+     시작 링을 buildPlate2D 에서 가져오면 PolyBool 이 구멍을 빼면서 링을 다시
+     짜 놓는다 — 시작 꼭짓점도 감는 방향도 보장이 없다. 그렇게 이었더니 각형
+     강관 변단면이 605 kg 대신 272 kg 으로 나왔다: 모서리가 엇갈려 이어진
+     비틀린 입체였고, 도면에도 3D 에도 그렇게 그려져 있었다. */
+  function ringsOf(spec) {
+    var ob = baseOffset(spec), bore = sectInner(spec);
+    return { outer: outlineOf(spec),
+             bore: bore ? bore.map(function (q) {
+                     return [q[0] - ob[0], q[1] - ob[1]]; }) : null };
+  }
   function taperRings(spec, tp, plates) {
     var src = plates[tp.END];
     if (!src) return null;
@@ -3244,7 +3303,20 @@
     var e2 = {};
     for (var k in src) if (Object.prototype.hasOwnProperty.call(src, k)) e2[k] = src[k];
     e2.BASEPT = eKey; e2.__bo = null;
-    return outlineOf(e2).map(function (q) { return [q[0] + As[0], q[1] + As[1]]; });
+    var mv = function (ring) {
+      return ring.map(function (q) { return [q[0] + As[0], q[1] + As[1]]; });
+    };
+    /* 속이 빈 단면은 구멍도 같이 흐른다. 떨어뜨려 두었더니 변단면 강관이
+       통짜가 되어 916 kg 짜리가 5145 kg 으로 나왔다 — 도면도 3D 도 무게도
+       모두 벽이 없는 물건이었다. 구멍은 CUT 이 아니라 단면 그 자체다. */
+    var a = ringsOf(spec), b = ringsOf(e2);
+    return { outer0: a.outer, bore0: a.bore,
+             outer1: mv(b.outer), bore1: b.bore ? mv(b.bore) : null };
+  }
+  function taperSide(outer, bore, cuts) {
+    return { outers: [outer], holes: [bore ? [bore] : []], cuts: cuts || [],
+             area: Math.abs(ringAreaTrue(outer)) -
+                   (bore ? Math.abs(ringAreaTrue(bore)) : 0) };
   }
 
   function buildSegments(spec, cuts, notches, plates, len) {
@@ -3262,16 +3334,15 @@
        일이 없고, 부재 하나가 곧 한 덩어리의 loft 다. 부분 변단면인 부재는 시트가
        변단면 부재와 등단면 부재로 쪼개 잇는다. */
     if (spec.__taper && len > 0) {
-      var endRing = taperRings(spec, spec.__taper, plates);
-      if (endRing) {
-        /* 끝단면만으로 이뤄진 profile — 자른 것은 시작단면 것을 그대로 쓴다.
-           CUT 은 부재에 걸린 것이지 단면에 걸린 것이 아니다. */
-        var endRings = { outers: [endRing], holes: [[]],
-                         cuts: base.cuts || [], area: Math.abs(ringAreaTrue(endRing)) };
-        return { base: base, raw: base, bit: true, taper: true,
-                 segs: [{ rings: base, rings1: endRings,
-                          area: (base.area + endRings.area) / 2,
-                          area0: base.area, area1: endRings.area,
+      var tr = taperRings(spec, spec.__taper, plates);
+      if (tr) {
+        var r0 = taperSide(tr.outer0, tr.bore0, base.cuts);
+        var r1 = taperSide(tr.outer1, tr.bore1, base.cuts);
+        r0.feats = base.feats;
+        return { base: r0, raw: r0, bit: true, taper: true,
+                 segs: [{ rings: r0, rings1: r1,
+                          area: (r0.area + r1.area) / 2,
+                          area0: r0.area, area1: r1.area,
                           z0: -len / 2, z1: len / 2 }] };
       }
     }
@@ -4115,12 +4186,23 @@
         if (sg.rings1 && !flatMode) {
           var r1i = (sg.rings1.outers || [])[i];
           if (r1i) {
-            var body = loftGeom(ring, r1i, sg.z0, sg.z1);
+            var parts = [loftGeom(ring, r1i, sg.z0, sg.z1)];
+            /* 구멍의 벽도 loft 다. 바깥만 이으면 변단면 강관이 통짜로 보인다. */
+            var h1s = (sg.rings1.holes || [])[i] || [];
+            var capBs = new THREE.Shape(
+              r1i.map(function (q) { return new THREE.Vector2(q[0], q[1]); }));
+            (sg.rings.holes[i] || []).forEach(function (h, hj) {
+              var h1 = h1s[hj];
+              if (!h1) return;
+              parts.push(loftGeom(h, h1, sg.z0, sg.z1));
+              var hh1 = ringArea(h1) * ringArea(r1i) > 0 ? h1.slice().reverse() : h1;
+              capBs.holes.push(new THREE.Path(
+                hh1.map(function (q) { return new THREE.Vector2(q[0], q[1]); })));
+            });
             var capA = new THREE.ShapeGeometry(shape);  capA.translate(0, 0, sg.z0);
-            var capB = new THREE.ShapeGeometry(new THREE.Shape(
-              r1i.map(function (q) { return new THREE.Vector2(q[0], q[1]); })));
-            capB.translate(0, 0, sg.z1);
-            geo = mergeGeoms([body, capA, capB]);
+            var capB = new THREE.ShapeGeometry(capBs);  capB.translate(0, 0, sg.z1);
+            parts.push(capA, capB);
+            geo = mergeGeoms(parts);
           }
         }
         if (!geo) geo = segGeom(shape, sg.z0, sg.z1, caps, first, last);
@@ -4220,12 +4302,21 @@
          — 표본추출이 아니라 공식이다. 가운데 단면의 넓이 Am 은 두 링을 반씩
          섞은 링의 넓이이지 두 넓이의 평균이 아니다: 폭과 높이가 같이 줄면
          넓이는 이차로 줄기 때문에, 평균으로 잡으면 언제나 무겁게 나온다. */
-      var midArea = function (sg) {
-        var a = (sg.rings.outers || [])[0], b = (sg.rings1.outers || [])[0];
-        if (!a || !b) return (sg.area0 + sg.area1) / 2;
+      var halfRing = function (a, b) {
         var n = Math.min(a.length, b.length), m = [];
         for (var i = 0; i < n; i++) m.push([(a[i][0] + b[i][0]) / 2, (a[i][1] + b[i][1]) / 2]);
         return Math.abs(ringAreaTrue(m));
+      };
+      var midArea = function (sg) {
+        var a = (sg.rings.outers || [])[0], b = (sg.rings1.outers || [])[0];
+        if (!a || !b) return (sg.area0 + sg.area1) / 2;
+        var m = halfRing(a, b);
+        /* 속이 빈 단면은 가운데 단면의 구멍도 반씩 섞은 링이다. 빼지 않으면
+           변단면 강관이 통짜 무게로 나온다. */
+        var h0 = ((sg.rings.holes || [])[0] || [])[0];
+        var h1 = ((sg.rings1.holes || [])[0] || [])[0];
+        if (h0 && h1) m -= halfRing(h0, h1);
+        return m;
       };
       var mass = segs.length > 1 || segs.some(function (sg) { return sg.rings1; })
         ? segs.reduce(function (t, sg) {
