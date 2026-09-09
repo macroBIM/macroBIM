@@ -59,14 +59,16 @@ excel**.
 
 ### 설명란 전문
 
+**최종본입니다 — 소유주가 직접 줄인 것.** 처음 초안은 적는 것 셋, 공표 제원
+여덟 줄, 도면 아홉 장이 무엇무엇인지를 다 적었는데, 그건 설명란이 아니라
+스크립트였습니다. 남긴 것은 **가설 순서**(영상의 주장)와 **파일을 어디서
+받나**(영상이 시청자에게 요구하는 것) 둘뿐입니다. 나머지 숫자는 영상 안에
+있고, 영상 안에 있는 것을 설명란이 되풀이할 이유가 없습니다.
+
 ```
-Modelling the Golden Gate Bridge in PLATE3D — simple, and fast.
+3D BIM Modelling the Golden Gate Bridge in PLATE3D — simple, and fast.
 
-Three things get written: a tower lift, a truss bay, a cable segment.
-Everything else is those three, repeated and placed. One spreadsheet tab,
-414 rows, 2,219 members, 81,624 t, no clashes.
-
-Then it goes up the way a suspension bridge goes up:
+The suspension bridge goes up:
 
   towers            the two things that stand on their own
   main cables       over the saddles, down to the anchorages
@@ -74,21 +76,6 @@ Then it goes up the way a suspension bridge goes up:
   stiffening truss  out from BOTH towers, meeting at mid-span
   deck              following the truss it sits on
 
-Every frame of that sequence is a real model built from a real sheet — 86 of
-them. Nothing is hidden by hand: a bay only exists once the bays between it
-and a tower do, because that is the only way a suspended deck can be built.
-
-THE PUBLISHED FIGURES ARE THE INPUT
-· 4,200 ft between the towers · 1,125 ft each side span
-· 746 ft of tower above the water · 500 ft of it above the roadway
-· 220 ft of clearance · a 25 ft stiffening truss
-· suspenders every 50 ft · a 36-3/8 in main cable
-
-NINE DRAWINGS COME OUT AS DXF
-A general arrangement of the whole bridge — 2,311 m on one sheet — the tower
-in elevation and in plan, the main cable anchorage to anchorage, the hanger
-ropes, the stiffening truss in elevation and in plan, and the floor system
-and deck. One button, six seconds.
 
 THE FILE IS YOURS
 The last half minute scrolls the whole input tab and then shows you where it
@@ -110,6 +97,10 @@ macrobim.github.io
 
 #GoldenGateBridge #BIM #3DModeling #StructuralEngineering #PLATE3D
 ```
+
+챕터 아홉 개는 그대로입니다. `0:18 Three sections` 는 설명란에서 그 문단이
+빠져도 남습니다 — 그 시각 화면의 자막이 **Three sections.** 이므로 챕터 이름이
+화면을 가리킵니다.
 
 ### 태그
 
