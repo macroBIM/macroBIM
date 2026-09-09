@@ -50,17 +50,24 @@ const BASE = `
                 margin: 46px 0 40px; border-radius: 3px; }
   .full h2 { font-size: 40px; font-weight: 500; letter-spacing: 0.02em;
              color: #9fb0c0; }
-  /* lower left, clear of the bridge which sits across the middle */
+  /* lower left, clear of the bridge which sits across the middle.
+
+     ON A PLATE, not on a shadow. White type with a soft shadow reads over the
+     dark viewport and DISAPPEARS over the drawing sheet and the input tab, both
+     of which are white paper - and half this film is now white paper. The plate
+     is dark enough to carry white type over anything and translucent enough
+     that the model still runs under it. */
   .over { width: 1920px; height: 1080px; background: transparent;
           display: flex; align-items: flex-end; }
-  .over .box { margin: 0 0 96px 108px; }
+  .over .box { margin: 0 0 88px 100px; padding: 30px 46px 34px;
+               background: rgba(9, 13, 18, 0.78); border-radius: 16px;
+               box-shadow: 0 10px 44px rgba(0,0,0,.35); }
   .over .lead { font-size: 54px; font-weight: 700; letter-spacing: -0.01em;
-                line-height: 1.2; color: #fff;
-                text-shadow: 0 2px 22px rgba(0,0,0,.85); }
+                line-height: 1.2; color: #fff; }
   .over .sub { font-size: 38px; font-weight: 400; line-height: 1.35;
-               color: #cfe0ee; text-shadow: 0 2px 22px rgba(0,0,0,.85); }
+               color: #cfe0ee; }
   .over .bar { width: 84px; height: 5px; background: ${ORANGE};
-               margin-bottom: 26px; border-radius: 3px; }
+               margin-bottom: 24px; border-radius: 3px; }
 `;
 
 const page = body =>
