@@ -1512,35 +1512,34 @@
     },
 
     // 개구부 윤곽 (원점 = 개구부 하단 중앙). 반시계, 닫힌 폴리곤.
-    _openingPoly: function (o) {
+    //  slope(%) 를 주면 상·하단면이 하부슬래브 경사와 나란해진다. 연직 전단이므로
+    //  옆면은 연직 그대로다 — 거푸집을 연직으로 세우고 위아래만 슬래브를 따라가는 실제와 같다.
+    //  H 는 개구부 중심선(x=0)에서 잰 연직 높이가 된다.
+    _openingPoly: function (o, slope) {
       var h = o.B / 2, H = o.H;
       var cx = Math.max(0, Math.min(o.ctx, h - 1));         // 폭·높이를 넘어서지 않게
       var cy = Math.max(0, Math.min(o.cty, H / 2 - 1));
-      if (o.shape === 'RECT') return [[-h, 0], [h, 0], [h, H], [-h, H]];
-      if (o.shape === 'HEX')  return [[-h, 0], [h, 0], [h, H - cy], [h - cx, H], [-h + cx, H], [-h, H - cy]];
-      return [[-h + cx, 0], [h - cx, 0], [h, cy], [h, H - cy],    // OCT
-              [h - cx, H], [-h + cx, H], [-h, H - cy], [-h, cy]];
+      var pts;
+      if (o.shape === 'RECT')      pts = [[-h, 0], [h, 0], [h, H], [-h, H]];
+      else if (o.shape === 'HEX')  pts = [[-h, 0], [h, 0], [h, H - cy], [h - cx, H], [-h + cx, H], [-h, H - cy]];
+      else                         pts = [[-h + cx, 0], [h - cx, 0], [h, cy], [h, H - cy],    // OCT
+                                          [h - cx, H], [-h + cx, H], [-h, H - cy], [-h, cy]];
+      var k = (Number(slope) || 0) / 100;
+      if (!k) return pts;
+      return pts.map(function (p) { return [p[0], p[1] + p[0] * k]; });
     },
 
-    // 셀 중앙 x — X 입력의 기준선. 1 Cell 은 단면 중앙, 2 Cell 은 각 셀의 가운데.
-    _cellCentre: function (ap, geo, i) {
-      if (Number(ap.NCELL) !== 2) return 0;
-      var px = this._ptx.bind(this);
-      var wc = Math.abs(Number(ap.TWEBC) || 0) / 2;
-      var inL = px(geo, 'PBHL1'), inR = px(geo, 'PBHR1');
-      if (i === 1) return (inL != null) ? (inL - wc) / 2 : 0;
-      return (inR != null) ? (inR + wc) / 2 : 0;
-    },
-
-    // 단면 좌표계에 앉힌 개구부. Y 는 하부슬래브 상면에서 개구부 하단까지.
+    // 단면 좌표계에 앉힌 개구부.
+    //  X 는 단면 중앙 기준 — 1 Cell 이든 2 Cell 이든 같은 기준선을 쓴다.
+    //  Y 는 하부슬래브 상면에서 개구부 하단까지.
     _openingAt: function (ap, geo, i) {
       var o = this._readOpening(i);
       if (!o.on || !(o.B > 0) || !(o.H > 0)) return null;
-      var x0 = this._cellCentre(ap, geo, i) + o.X;
-      var slabTop = -Number(ap.TH) + Number(ap.TBS) + x0 * Number(ap.SLB) / 100;
+      var x0 = o.X, slb = Number(ap.SLB) || 0;
+      var slabTop = -Number(ap.TH) + Number(ap.TBS) + x0 * slb / 100;
       var y0 = slabTop + o.Y;
-      return { o: o, x0: x0, y0: y0,
-               pts: this._openingPoly(o).map(function (p) { return [p[0] + x0, p[1] + y0]; }) };
+      return { o: o, x0: x0, y0: y0, slope: slb,
+               pts: this._openingPoly(o, slb).map(function (p) { return [p[0] + x0, p[1] + y0]; }) };
     },
 
     // 카드 안 미리보기 — 개구부 하나를 제 비율대로 그린다 (형상 확인용)
@@ -1548,7 +1547,7 @@
       var box = document.getElementById('op' + i + '_prev');
       if (!box) return;
       if (!op) { box.innerHTML = '<svg viewBox="0 0 100 100"></svg><div>&mdash;</div>'; return; }
-      var pts = this._openingPoly(op.o);
+      var pts = this._openingPoly(op.o, op.slope);
       var xs = pts.map(function (p) { return p[0]; }), ys = pts.map(function (p) { return p[1]; });
       var x1 = Math.min.apply(null, xs), x2 = Math.max.apply(null, xs);
       var y1 = Math.min.apply(null, ys), y2 = Math.max.apply(null, ys);
@@ -1585,6 +1584,18 @@
         list.push(placed);
       }
       this._openings = list.filter(function (v) { return v; });
+      // 기준선이 단면 중앙 하나이므로 2 Cell 기본값(둘 다 X=0)은 같은 자리에 겹친다.
+      // 조용히 겹친 채로 두면 도면이 하나처럼 보이므로 알려 준다.
+      if (this._openings.length === 2) {
+        var bx = this._openings.map(function (p) {
+          var xs = p.pts.map(function (q) { return q[0]; }), ys = p.pts.map(function (q) { return q[1]; });
+          return { x1: Math.min.apply(null, xs), x2: Math.max.apply(null, xs),
+                   y1: Math.min.apply(null, ys), y2: Math.max.apply(null, ys) };
+        });
+        if (bx[0].x1 < bx[1].x2 && bx[1].x1 < bx[0].x2 && bx[0].y1 < bx[1].y2 && bx[1].y1 < bx[0].y2)
+          console.warn('[PSCDIA] 개구부 둘이 겹칩니다 — X 는 단면 중앙 기준이므로 셀마다 다른 값을 주세요 ' +
+                       '(현재 ' + Math.round(this._openings[0].x0) + ' / ' + Math.round(this._openings[1].x0) + ')');
+      }
       return this._openings;
     },
 
@@ -1604,17 +1615,17 @@
           '<div class="op-body"><div class="op-fields">' +
           '<div class="op-row"><span>Shape</span><select id="op' + i + '_shape" onchange="PXDIA.redraw()">' + opts + '</select></div>' +
           row(i, 'B', 'B', 'width', OPEN_DEF.B) +
-          row(i, 'H', 'H', 'height', OPEN_DEF.H) +
+          row(i, 'H', 'H', 'height at centre', OPEN_DEF.H) +
           row(i, 'CTX', 'Ctx', 'corner x', OPEN_DEF.CTX) +
           row(i, 'CTY', 'Cty', 'corner y', OPEN_DEF.CTY) +
           '<div class="op-sub">Position</div>' +
-          row(i, 'X', 'X', 'from cell centre', OPEN_DEF.X) +
+          row(i, 'X', 'X', 'from section centre', OPEN_DEF.X) +
           row(i, 'Y', 'Y', 'slab top to bottom', OPEN_DEF.Y) +
           '</div><div class="op-prev" id="op' + i + '_prev"></div></div></div>';
       };
       return '  <div class="draw-card">' +
         '    <div class="draw-card-header"><div><span class="draw-card-title">OPENING</span> ' +
-        '<span class="draw-card-desc">Diaphragm opening &mdash; one per cell. Rectangle / Hexagon / Octagon by how far the corners are cut.</span></div></div>' +
+        '<span class="draw-card-desc">Diaphragm opening &mdash; one per cell. Rectangle / Hexagon / Octagon by how far the corners are cut. X is measured from the section centre, Y from the top of the bottom slab. Top and bottom faces run parallel to the bottom slab slope.</span></div></div>' +
         '    <div class="draw-card-body"><div class="op-wrap">' +
         cell(1, 'Cell 1') + cell(2, 'Cell 2') +
         '    </div></div>' +
