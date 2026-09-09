@@ -68,9 +68,14 @@
   ];
 
   // 격벽 개구부 기본값 — 셀당 하나. 사진의 맨홀을 기준으로 잡았다.
-  //  모서리 접기는 위·아래가 다른 경우가 있어 각각 받는다 (CTXT/CTYT · CTXB/CTYB).
+  //  모서리 접기(corner trim)는 위·아래가 다른 경우가 있어 각각 받는다 —
+  //  Cttx/Ctty 가 위, Ctbx/Ctby 가 아래. 이름이 자리를 말하므로 칸에 설명을 달지 않는다.
   var OPEN_DEF = { shape: 'HEX', B: 1400, H: 1800,
-                   CTXT: 300, CTYT: 400, CTXB: 300, CTYB: 300, X: 0, Y: 500 };
+                   CTTX: 300, CTTY: 400, CTBX: 300, CTBY: 300, X: 0, Y: 500 };
+
+  // 격벽이 놓이는 세그먼트의 길이 (mm) — 교축 방향. 단면 하나짜리 화면이라
+  //  begin/end 간격이 아니라 이 격벽이 속한 세그먼트의 길이다. PSC 와 같은 칸·같은 id 를 쓴다.
+  var SEG_DEF = 20000;
 
   var PAGES = 'https://macrobim.github.io/macroBIM/';
 
@@ -160,6 +165,9 @@
     '.px-tbl.var-tbl th{background:#1e293b;color:#fff;font-weight:600;text-align:center;border-bottom:1px solid #334155;border-right:1px solid #334155;}.px-tbl.var-tbl th:last-child{border-right:none;}' +
     '.px-tbl.dim-tbl th{background:#1e293b;color:#fff;font-weight:600;text-align:center;border-bottom:1px solid #334155;border-right:1px solid #334155;}.px-tbl.dim-tbl th:last-child{border-right:none;}' +
     '.px-cover{width:64px;text-align:right;}' +
+    '.px-seg{width:92px;text-align:right;}' +
+    // 라디오와 길이는 제 폭만 쓰고, 남는 자리는 칸이 셋인 Cover Depth 가 갖는다 (줄바꿈 방지)
+    '.px-optseg,.px-optsec{flex:0 0 auto;}' +
     '.op-wrap{display:flex;gap:18px;align-items:flex-start;flex-wrap:wrap;}' +
     // 칸은 늘어나지 않는다 — 내용 폭에 맞춰 서고 남는 자리는 여백으로 둔다.
     '.op-cell{flex:0 0 auto;border:1px solid var(--hair);border-radius:8px;overflow:hidden;background:#fff;}' +
@@ -1467,6 +1475,7 @@
       });
       var oncell = document.querySelector('input[name="box12cell_ncell"]:checked');
       ap.NCELL = oncell ? (Number(oncell.value) || 2) : 2;
+      ap.SEGL = this._segLen();
       this._lastAp = ap;
       if (typeof toggleCenterVars_box12cell === 'function') toggleCenterVars_box12cell(ap.NCELL);
       var ghdr = document.querySelector('#box12cell_vartable .px-2cell-hdr');
@@ -1488,9 +1497,22 @@
     //  셀당 하나. 1 Cell 이면 한 칸, 2 Cell 이면 좌·우 두 칸이 뜬다.
     //  형상 셋은 별개가 아니라 "직사각형의 모서리를 얼마나 접느냐" 하나다 —
     //    RECT 접지 않음 · HEX 위 두 모서리 · OCT 네 모서리 모두.
-    //  접기는 가로(Ctx)·세로(Cty)를 따로 받는다. 45° 로 고정하지 않는다.
+    //  접기(corner trim)는 가로·세로를 따로 받는다 — 45° 로 고정하지 않는다.
+    //    Cttx/Ctty 위 모서리 · Ctbx/Ctby 아래 모서리. 잘려 나간 삼각형의 두 직각변이다.
 
     _opShapes: [['RECT', 'Rectangle'], ['HEX', 'Hexagon'], ['OCT', 'Octagon']],
+
+    // 세그먼트 길이 (mm). 산술식도 받는다. 못 읽으면 기본값으로 물러난다.
+    _segLen: function () {
+      var el = document.getElementById('segLen_s');
+      var raw = el ? el.value : String(SEG_DEF);
+      var v = (typeof Calc !== 'undefined') ? Calc.num(raw, {}, Number(raw)) : Number(raw);
+      if (!isFinite(v) || v <= 0) {
+        console.error('[PSCDIA] Segment Length 를 숫자로 읽을 수 없음: "' + raw + '" — 기본값 ' + SEG_DEF + ' 사용');
+        return SEG_DEF;
+      }
+      return v;
+    },
 
     _ptx: function (geo, name) {
       var f = ((geo && geo.points) || []).find(function (p) { return p.name === name; });
@@ -1511,8 +1533,8 @@
       };
       return { on: !g('none', false), shape: g('shape', OPEN_DEF.shape),
                B: g('B', OPEN_DEF.B), H: g('H', OPEN_DEF.H),
-               ctxT: g('CTXT', OPEN_DEF.CTXT), ctyT: g('CTYT', OPEN_DEF.CTYT),
-               ctxB: g('CTXB', OPEN_DEF.CTXB), ctyB: g('CTYB', OPEN_DEF.CTYB),
+               cttx: g('CTTX', OPEN_DEF.CTTX), ctty: g('CTTY', OPEN_DEF.CTTY),
+               ctbx: g('CTBX', OPEN_DEF.CTBX), ctby: g('CTBY', OPEN_DEF.CTBY),
                X: g('X', OPEN_DEF.X), Y: g('Y', OPEN_DEF.Y) };
     },
 
@@ -1522,8 +1544,8 @@
       var h = o.B / 2, H = o.H;
       var lim = function (v, m) { return Math.max(0, Math.min(Number(v) || 0, m)); };
       var top = (o.shape === 'RECT') ? { x: 0, y: 0 }
-                                     : { x: lim(o.ctxT, h - 1), y: lim(o.ctyT, H - 1) };
-      var bot = (o.shape === 'OCT')  ? { x: lim(o.ctxB, h - 1), y: lim(o.ctyB, H - 1) }
+                                     : { x: lim(o.cttx, h - 1), y: lim(o.ctty, H - 1) };
+      var bot = (o.shape === 'OCT')  ? { x: lim(o.ctbx, h - 1), y: lim(o.ctby, H - 1) }
                                      : { x: 0, y: 0 };
       if (top.y + bot.y > H - 1) {
         var s = (H - 1) / (top.y + bot.y);
@@ -1565,7 +1587,7 @@
     },
 
     // 카드 안 미리보기 — 개구부 하나를 제 비율대로 그린다 (형상 확인용).
-    //  잘려 나간 모서리는 점선으로 되살리고 그 두 변에 Ctx·Cty 를 적는다. 위·아래
+    //  잘려 나간 모서리는 점선으로 되살리고 그 두 변에 이름을 적는다. 위·아래
     //  접기를 따로 받으므로, 어느 쪽 숫자가 어느 모서리인지 그림에서 바로 보여야 한다.
     _drawOpeningPreview: function (i, op) {
       var box = document.getElementById('op' + i + '_prev');
@@ -1597,8 +1619,8 @@
         var s = '<polyline points="' + S(h - cut.x, ye) + ' ' + S(h, ye) + ' ' + S(h, yi) +
                 '" fill="none" stroke="#94a3b8" stroke-width="' + sw.toFixed(1) +
                 '" stroke-dasharray="' + (sw * 3).toFixed(1) + ' ' + (sw * 2.2).toFixed(1) + '"/>';
-        if (cut.x > 0) s += text(h - cut.x / 2, ye, 0, top ? -fs * 0.35 : fs * 1.0, 'middle', 'Ctx');
-        if (cut.y > 0) s += text(h, (ye + yi) / 2, fs * 0.3, fs * 0.34, 'start', 'Cty');
+        if (cut.x > 0) s += text(h - cut.x / 2, ye, 0, top ? -fs * 0.35 : fs * 1.0, 'middle', top ? 'Cttx' : 'Ctbx');
+        if (cut.y > 0) s += text(h, (ye + yi) / 2, fs * 0.3, fs * 0.34, 'start', top ? 'Ctty' : 'Ctby');
         return s;
       };
 
@@ -1624,11 +1646,11 @@
         if (i > n) { list.push(null); continue; }
         var o = this._readOpening(i);
         // 접지 않는 모서리의 칸은 잠근다 — RECT 는 넷 다, HEX 는 아래 둘
-        ['CTXT', 'CTYT'].forEach(function (k) {
+        ['CTTX', 'CTTY'].forEach(function (k) {
           var el = document.getElementById('op' + i + '_' + k);
           if (el) el.disabled = !o.on || o.shape === 'RECT';
         });
-        ['CTXB', 'CTYB'].forEach(function (k) {
+        ['CTBX', 'CTBY'].forEach(function (k) {
           var el = document.getElementById('op' + i + '_' + k);
           if (el) el.disabled = !o.on || o.shape !== 'OCT';
         });
@@ -1675,10 +1697,10 @@
           row(i, 'B', 'B', 'width', OPEN_DEF.B) +
           row(i, 'H', 'H', 'height at centre', OPEN_DEF.H) +
           '<div class="op-sub">Corner cut</div>' +
-          row(i, 'CTXT', 'Ctx', 'top', OPEN_DEF.CTXT) +
-          row(i, 'CTYT', 'Cty', 'top', OPEN_DEF.CTYT) +
-          row(i, 'CTXB', 'Ctx', 'bottom', OPEN_DEF.CTXB) +
-          row(i, 'CTYB', 'Cty', 'bottom', OPEN_DEF.CTYB) +
+          row(i, 'CTTX', 'Cttx', '', OPEN_DEF.CTTX) +
+          row(i, 'CTTY', 'Ctty', '', OPEN_DEF.CTTY) +
+          row(i, 'CTBX', 'Ctbx', '', OPEN_DEF.CTBX) +
+          row(i, 'CTBY', 'Ctby', '', OPEN_DEF.CTBY) +
           '<div class="op-sub">Position</div>' +
           row(i, 'X', 'X', 'from centre', OPEN_DEF.X) +
           row(i, 'Y', 'Y', 'from slab top', OPEN_DEF.Y) +
@@ -1783,9 +1805,12 @@
         '      <button type="button" class="px-btn" onclick="PXDIA.sectionDXF()">&#8681; DXF</button></div>' +
         '    <div class="draw-card-body">' +
         '      <div class="px-radio px-optrow">' +
-        '        <div class="px-opthalf"><b>Section Type :</b>' +
+        '        <div class="px-opthalf px-optsec"><b>Section Type :</b>' +
         '          <label><input type="radio" name="box12cell_ncell" value="1" checked onchange="PXDIA.redraw()"> 1 Cell</label>' +
         '          <label><input type="radio" name="box12cell_ncell" value="2" onchange="PXDIA.redraw()"> 2 Cell</label>' +
+        '        </div>' +
+        '        <div class="px-opthalf px-optseg"><b>Segment Length (mm) :</b>' +
+        '          <label><input type="text" spellcheck="false" class="form-input px-seg" id="segLen_s" value="' + SEG_DEF + '" onchange="PXDIA.redraw()" title="Length of the segment this diaphragm belongs to, along the girder axis"></label>' +
         '        </div>' +
         '        <div class="px-opthalf"><b>Cover Depth (mm) :</b>' +
         '          <label>Deck <input type="text" spellcheck="false" class="form-input px-cover" id="cover_deck_s" value="50" onchange="PXDIA.redraw()" title="Top slab (deck) cover"></label>' +
