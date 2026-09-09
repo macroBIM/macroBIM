@@ -42,9 +42,13 @@ const HOLD = 8;                    // and of it standing there, still turning
 /* The model's own grade, lifted for a near-black viewport - see the head of
    tools/make_eiffel.js. Lighter as it goes up, which is how the real tower is
    painted and why the top does not disappear here. */
-const LIVERY = { 'MD.LEG': '#e0862e', 'MD.ARC': '#efa04a', 'MD.PL1': '#ffe3bc',
-                 'MD.PL2': '#ffe3bc', 'MD.PL3': '#ffe9cc', 'MD.SHF': '#ffcb8c',
-                 'MD.TOP': '#fffaf0' };
+const LIVERY = { 'MD.LEG': '#e0862e', 'MD.ARC': '#efa04a', 'MD.PL1': '#eec18c',
+                 'MD.PL2': '#eec18c', 'MD.PL3': '#f2cb9a', 'MD.SHF': '#ffcb8c',
+                 'MD.TOP': '#fff2dc' };
+/* The platforms came back near white in the first shoot. They are flat plates
+   and they catch all the light there is, so a value picked to be "the lightest
+   of the grade" turns into a bar of paper laid across the tower. Brought back
+   INTO the orange: still lighter than the piers, no longer a different film. */
 
 const HTOP = 300650;
 /* Camera as a function of how much has been built. u = 0 at the ground,
@@ -52,8 +56,13 @@ const HTOP = 300650;
    in TIME - the turn has to be even whether or not the structure is. */
 const cam = (u, t) => ({
   tx: 0, ty: 0,
-  tz: 12000 + (150000 - 12000) * u,
-  dist: 190000 + (620000 - 190000) * u,
+  tz: 12000 + (145000 - 12000) * u,
+  /* Sub-linear. Linear distance made the finished tower smaller in frame than
+     the half-built one: the camera has to back off to keep the top in, but the
+     tower's own height grows faster than its apparent size if the pull-back
+     matches it exactly. The 0.82 is what puts 300 m across two thirds of the
+     frame at the end, which is where the film has been going for 70 seconds. */
+  dist: 190000 + (490000 - 190000) * Math.pow(u, 0.82),
   az: -40 + 360 * t,
   el: 14 + 4 * u
 });
