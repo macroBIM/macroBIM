@@ -183,7 +183,12 @@ const card = (id, dur) => put(fs.readFileSync(path.join(CARDS, 't_' + id + '.jpg
   });
   await app.evaluate(() => window.plateBuilder.openSamples());
   await app.waitForTimeout(700);
-  caption('dl', T, 10);
+  /* And no caption over it. The panel already says Example workbooks, the row
+     already says Eiffel Tower, and the button already says SAVED - a card on
+     top is a second voice reading the screen aloud, and the only place to put
+     one is over the list. The Golden Gate film settled this and the first cut
+     of this one forgot it: the caption landed across the two rows the shot
+     exists for. */
   put(await clip(), 2.2);                       // the list, as it opens
   const ri = await row();
   await app.evaluate(i => {                     // the row, lit the way a pointer lits it

@@ -61,10 +61,6 @@ const over = (lead, sub) => page(
 
 const CARDS = {
   open:   { kind: 'full', html: full('EIFFEL TOWER', 'Watch it go up.', 'BY PLATE3D') },
-  /* No address on a card, and no card doing the downloading either. The film
-     shows the panel and the button, which is the same instruction without
-     anybody having to type anything. */
-  dl:     { kind: 'over', html: over('Yours to download.', 'Example &rarr; Eiffel Tower') },
   end:    { kind: 'full', html: full('PLATE3D', 'by macroBIM') },
 
   mem:    { kind: 'over', html: over('', '709 rows.<br>1,528 members.') },
