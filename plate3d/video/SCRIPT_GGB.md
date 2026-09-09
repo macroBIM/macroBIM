@@ -46,7 +46,7 @@ PLATE3D 로 만드는 골든게이트 브릿지
 | 설명 2행 | `Watch it go up the way it was built: towers, main cables, hanger ropes, then the stiffening truss and deck out from both towers to mid-span.` |
 | 태그 | golden gate bridge · suspension bridge · bridge modeling · bridge erection · 3D model · BIM · structural engineering · steel structure · spreadsheet · Excel · parametric model · DXF · main cable · stiffening truss · PLATE3D · macroBIM |
 | 규격 | 2:43 · 1920×1080 · 30 fps · 무음 · **자막 영어** |
-| 썸네일 | `PLATE3D_GGB_thumb.jpg` — `THREE SECTIONS` / `2,219 MEMBERS`, 주탑 히어로 — 만들어 둠 |
+| 썸네일 | `PLATE3D_GGB_thumb.jpg` — `3D BIM MODELING` / `GOLDEN GATE BRIDGE` / `414 rows → 2,219 members` — 만들어 둠 |
 | 공개 | **미정** |
 
 ### 설명란 전문
@@ -391,9 +391,11 @@ x 로 뭉쳐 보고 **빈 구간이 도면 높이의 2.5배를 넘으면 갈라�
 - ~~9–10 번 길이~~ → **각 16초, 41프레임.** 프레임 수는 구조물이 정합니다(§6)
 - ~~11 번 히어로 각도~~ → **`640080,0,165000 · 360,000 · az 55 · el −4`.** 잡아 봤습니다
 - ~~2 번 조감도~~ → **ISO `0,0,98000 · 1,950,000 · az −62 · el 19`.** 전장이 다 들어옵니다
-- ~~썸네일 문구~~ → **`THREE SECTIONS` / `2,219 MEMBERS`.** 그림이 골든게이트라고
-  말하므로 글자는 그걸 되풀이하지 않습니다 — 바로 밑에 붙는 유투브 제목과도
-  겹치지 않습니다(`mkthumb.js` 의 규칙)
+- ~~썸네일 문구~~ → **`3D BIM MODELING` / `GOLDEN GATE BRIDGE` /
+  `414 rows → 2,219 members`.** 첫 판은 `THREE SECTIONS` / `2,219 MEMBERS` 였는데,
+  **그림이 어느 다리인지 이미 말한다**는 전제가 틀렸습니다 — 멈춰서 본 사람에게는
+  맞고 스크롤하는 사람에게는 아닙니다. **THREE SECTIONS 를 검색하는 사람은
+  없습니다.** 이름을 크게 쓰고 사람들이 실제로 검색하는 말을 그 위에 얹습니다
 
 ## 11. 필요한 파일
 

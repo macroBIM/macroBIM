@@ -10,8 +10,15 @@
    the same accent on the second line, and the picture on a white card because
    that is how the app really shows it - on the dark blue alone it was a dark
    canvas on a dark page. Someone who has seen one of these should recognise the
-   next without reading it. None of them repeats its own YouTube title, which
-   sits directly underneath in the same list.
+   next without reading it.
+
+   The teaching films do not repeat their own YouTube title, which sits directly
+   underneath in the same list - there, saying PLATE & CUT twice wastes the only
+   two lines there are. A film about a famous structure is the other case: the
+   name IS the reason someone stops, and a thumbnail that shows an orange tower
+   and says something clever about section counts is a thumbnail that assumed
+   the picture speaks. So GGB names it, big, and carries the words people
+   actually search with above it.
 
    The hero is grabbed from the shipped engine, not from a frame of the film, so
    a thumbnail can be redrawn without the film's capture still being on disk.
@@ -102,10 +109,17 @@ const FILMS = [
        reads as steel; at 120 px in a list it reads as brown. */
     livery: { 'MD.TWR': '#e04a1c', 'MD.MCB': '#ff7a35', 'MD.HGR': '#e0642e',
               'MD.TRS': '#ffb070', 'MD.DK': '#ffdcc0' },
-    /* The picture says Golden Gate Bridge; the words do not repeat it, and
-       they do not repeat the YouTube title sitting under them either. What is
-       left to say is the surprising part - how little was written. */
-    l1: 'THREE SECTIONS', l2: '2,219<br>MEMBERS' },
+    /* The name, big, and the words people type into the search box above it.
+       The first cut of this said THREE SECTIONS / 2,219 MEMBERS on the theory
+       that the picture already says which bridge - which is true of someone who
+       has stopped and looked, and false of everyone scrolling. Nobody searches
+       for three sections.
+
+       86 is not 88: at 88 the E of GOLDEN GATE lands 11 px over the white card.
+       The run below measures that every time rather than trusting the eye. */
+    s1: 52, sz: 86,
+    l1: '3D BIM MODELING', l2: 'GOLDEN GATE<br>BRIDGE',
+    l3: '414 rows &rarr; 2,219 members' },
 
   { id: 'simpleconn',
     out: 'PLATE3D_SIMPLECONN_thumb.jpg',
@@ -251,6 +265,10 @@ const PAGE = (f, hero) => `<meta charset="utf-8"><style>${FONTCSS}</style><style
  .l1{font:800 ${f.s1 || 62}px/1 Inter,sans-serif;color:#cbd5e1;letter-spacing:-.03em}
  .l2{font:800 ${f.sz || (f.l2.length > 12 ? 104 : 122)}px/1.02 Inter,sans-serif;color:#38bdf8;
      letter-spacing:-.05em;margin-top:8px}
+ /* An optional third line, for a film whose claim is a number. Muted and small
+    on purpose: it is the line you read AFTER the other two have stopped you,
+    and anything bigger competes with the name above it. */
+ .l3{font:600 34px/1 Inter,sans-serif;color:#7c8ea3;letter-spacing:-.01em;margin-top:20px}
 </style>
 <div class="hero"><img src="data:image/png;base64,${fs.readFileSync(hero).toString('base64')}"></div>
 <div class="veil"></div>
@@ -258,6 +276,7 @@ const PAGE = (f, hero) => `<meta charset="utf-8"><style>${FONTCSS}</style><style
   ${f.badge ? `<div class="no"><b>${f.badge}</b><i>${f.badgeNote}</i></div>` : ''}
   <div class="l1">${f.l1}</div>
   <div class="l2">${f.l2}</div>
+  ${f.l3 ? `<div class="l3">${f.l3}</div>` : ''}
 </div>`;
 
 (async () => {
