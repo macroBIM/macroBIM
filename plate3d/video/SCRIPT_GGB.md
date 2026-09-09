@@ -41,21 +41,30 @@ PLATE3D 로 만드는 골든게이트 브릿지
 
 | 항목 | 내용 |
 |---|---|
-| 제목 | `GOLDEN GATE BRIDGE 3D MODELING — Three Sections, and It Stands \| PLATE3D` |
-| 설명 1행 | `Modelling the Golden Gate Bridge in PLATE3D — a tower lift, a truss bay, a cable. Three things written, and 2,219 members stand.` |
-| 설명 2행 | `Watch it go up the way it was built: towers, main cables, hanger ropes, then the stiffening truss and deck out from both towers to mid-span.` |
-| 태그 | golden gate bridge · suspension bridge · bridge modeling · bridge erection · 3D model · BIM · structural engineering · steel structure · spreadsheet · Excel · parametric model · DXF · main cable · stiffening truss · PLATE3D · macroBIM |
+| 제목 | `GOLDEN GATE BRIDGE 3D BIM — Built From One Excel Sheet \| PLATE3D` |
+| 대안 1 | `GOLDEN GATE BRIDGE 3D BIM — Three Sections, and It Stands \| PLATE3D` |
+| 대안 2 | `GOLDEN GATE BRIDGE 3D MODELING — 414 Rows, 2,219 Members \| PLATE3D` |
 | 규격 | 2:43 · 1920×1080 · 30 fps · 무음 · **자막 영어** |
-| 썸네일 | `PLATE3D_GGB_thumb.jpg` — 전체 ISO 풀블리드, `3D BIM MODELING` / `GOLDEN GATE BRIDGE` / `by PLATE3D` — 만들어 둠 |
+| 썸네일 | `PLATE3D_GGB_thumb.jpg` — 전체 ISO 풀블리드, `3D BIM MODELING` / `GOLDEN GATE BRIDGE` / `by PLATE3D` |
 | 공개 | **미정** |
+
+**제목이 썸네일과 겹치지 않습니다.** 썸네일이 이미 `3D BIM MODELING` /
+`GOLDEN GATE BRIDGE` 라고 말하므로 제목은 **그 다음 말**을 합니다 — 엑셀 시트
+한 장. 앞의 두 편(`STEEL BOLTED CONNECTION BIM — Type It in a Spreadsheet…`,
+`STEEL COLUMN-BEAM JOINT BIM — Fill In a Form…`)과 같은 꼴입니다: 대문자 이름 —
+주장 | PLATE3D.
+
+검색어는 제목 앞쪽에 다 들어 있습니다: **golden gate bridge · 3D · BIM ·
+excel**.
 
 ### 설명란 전문
 
 ```
 Modelling the Golden Gate Bridge in PLATE3D — simple, and fast.
 
-Three things get written: a tower lift, a truss bay, a cable segment. Everything
-else is those three, repeated and placed. 414 rows, 2,219 members, no clashes.
+Three things get written: a tower lift, a truss bay, a cable segment.
+Everything else is those three, repeated and placed. One spreadsheet tab,
+414 rows, 2,219 members, 81,624 t, no clashes.
 
 Then it goes up the way a suspension bridge goes up:
 
@@ -65,37 +74,55 @@ Then it goes up the way a suspension bridge goes up:
   stiffening truss  out from BOTH towers, meeting at mid-span
   deck              following the truss it sits on
 
-Every frame of that sequence is a real model built from a real sheet. Nothing is
-hidden by hand: a bay only exists once the bays between it and a tower do,
-because that is the only way a suspended deck can be built.
+Every frame of that sequence is a real model built from a real sheet — 86 of
+them. Nothing is hidden by hand: a bay only exists once the bays between it
+and a tower do, because that is the only way a suspended deck can be built.
 
 THE PUBLISHED FIGURES ARE THE INPUT
-· 4200 ft between the towers · 1125 ft each side span
+· 4,200 ft between the towers · 1,125 ft each side span
 · 746 ft of tower above the water · 500 ft of it above the roadway
 · 220 ft of clearance · a 25 ft stiffening truss
 · suspenders every 50 ft · a 36-3/8 in main cable
 
-Nine drawings come out as DXF, including a general arrangement of the whole
-bridge — 2,311 m on one sheet.
+NINE DRAWINGS COME OUT AS DXF
+A general arrangement of the whole bridge — 2,311 m on one sheet — the tower
+in elevation and in plan, the main cable anchorage to anchorage, the hanger
+ropes, the stiffening truss in elevation and in plan, and the floor system
+and deck. One button, six seconds.
 
-Runs in the browser. The workbook is on the Example menu — the film ends by
-scrolling the whole input tab and then showing you where to download it.
+THE FILE IS YOURS
+The last half minute scrolls the whole input tab and then shows you where it
+lives: PLATE3D → Example → Golden Gate Bridge. Open it in Excel, change a
+number, load it again.
+
+Runs in the browser. Nothing to install.
 macrobim.github.io
-```
 
-챕터:
-
-```
 0:00  The bridge
 0:18  Three sections
 0:45  Towers, cables, ropes
 1:00  The truss goes out
 1:16  The deck follows
 1:32  Finished
-1:42  The drawings
+1:42  Nine drawings
 2:12  The input sheet
 2:27  Download it
+
+#GoldenGateBridge #BIM #3DModeling #StructuralEngineering #PLATE3D
 ```
+
+### 태그
+
+```
+golden gate bridge, golden gate bridge 3d model, suspension bridge,
+suspension bridge modeling, bridge bim, bridge 3d model, bridge erection,
+bridge engineering, BIM, 3D modeling, structural engineering, steel structure,
+steel detailing, spreadsheet, excel, parametric model, DXF, shop drawings,
+main cable, stiffening truss, PLATE3D, macroBIM
+```
+
+챕터는 설명란 안에 그대로 들어갑니다 — 유투브가 `0:00` 으로 시작하는 줄부터
+읽어 갑니다. 아홉 개고 가장 짧은 구간이 15초라 유투브의 최소 10초를 넘습니다.
 
 ## 4. 자막 뼈대
 
