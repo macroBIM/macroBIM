@@ -31,6 +31,8 @@ const BOOKS = path.resolve(SP, '../ggb');
 const CARDS = path.join(SP, 'cards_ggb');
 const SRC = path.join(SP, 'ggb_src');
 const DXFPAGE = path.join(SP, 'ggb_dxf.html');
+const FRAMES = path.join(SP, 'ggb_frames.json');
+const SHEETPAGE = path.join(SP, 'ggb_sheet.html');
 
 const FPS = 30;
 const MO = 12;                    // stills per second of camera motion
@@ -188,24 +190,52 @@ const mix = (a, b, u) => a + (b - a) * u;
   log('11 hero');
 
   /* 12 — the drawings. A pre-rendered sheet, because Save DXF takes six
-     seconds and what the film shows is the file, not the wait. */
-  if (fs.existsSync(DXFPAGE)) {
+     seconds and what the film shows is the file, not the wait.
+
+     The first cut of this shot windowed the sheet by fractions of its height,
+     and every frame came out nearly empty. Two reasons, and both are fixed in
+     prep_ggb.js rather than here: the page let the svg size itself, so a wide
+     window rendered as a 120 px strip across the top of a white page; and a
+     fraction of a 3.8 million unit sheet does not land on a drawing. Now the
+     page is pinned at 1920x1080 and prep measures where each drawing actually
+     is, so a frame holds a drawing. */
+  if (fs.existsSync(DXFPAGE) && fs.existsSync(FRAMES)) {
+    const fr = JSON.parse(fs.readFileSync(FRAMES, 'utf8'));
     const doc = await browser.newPage({ viewport: { width: 1920, height: 1080 } });
     await doc.goto('file://' + DXFPAGE, { waitUntil: 'load', timeout: 180000 });
     await doc.waitForTimeout(3000);
-    caption('dxf', T, 10);
-    const vb = await doc.evaluate(() => document.querySelector('svg').getAttribute('viewBox'));
-    const v = vb.split(/\s+/).map(Number);
-    const views = [[0, 1], [0, 0.16], [0.02, 0.075], [0.03, 0.045]];  // sheet -> the GA
-    for (const [y0, h] of views) {
-      await doc.evaluate(a => document.querySelector('svg')
-        .setAttribute('viewBox', a[0] + ' ' + a[1] + ' ' + a[2] + ' ' + a[3]),
-        [v[0], v[1] + v[3] * y0, v[2], v[3] * h]);
-      await doc.waitForTimeout(700);
-      put(await doc.screenshot({ type: 'jpeg', quality: 92 }), 2.5);
+    const look = b => doc.evaluate(a => {
+      document.getElementById('sh').setAttribute('viewBox', a.join(' '));
+      const r = document.getElementById('cpr');       // and the clip with it
+      r.setAttribute('x', a[0]); r.setAttribute('y', a[1]);
+      r.setAttribute('width', a[2]); r.setAttribute('height', a[3]);
+    }, b);
+    const sheet = await doc.evaluate(() =>
+      document.getElementById('sh').getAttribute('viewBox').split(/\s+/).map(Number));
+
+    caption('dxf', T, 7);
+    await look(sheet);                                 // all nine, as one sheet
+    await doc.waitForTimeout(600);
+    put(await doc.screenshot({ type: 'jpeg', quality: 92 }), 3);
+    for (const d of fr) {                              // then one at a time
+      await look(d.box);
+      await doc.waitForTimeout(450);
+      put(await doc.screenshot({ type: 'jpeg', quality: 92 }), 1.6);
+    }
+    /* And one of them close enough to read. The stiffening truss is 2 km of
+       drawing 7.6 m deep - whole, it is a line. This runs the frame along it at
+       the height of the drawing, which is the only way the lattice is on
+       screen at all. */
+    caption('dxfrun', T, 7);
+    const t = fr.find(d => /STIFFENING TRUSS/.test(d.title)) || fr[0];
+    const wv = t.box[3] * 16 / 9, x0 = t.box[0], x1 = t.box[0] + t.box[2] - wv;
+    const kk = Math.round(7 * MO);
+    for (let i = 0; i < kk; i++) {
+      await look([mix(x0, x1, ease(i / (kk - 1))), t.box[1], wv, t.box[3]]);
+      put(await doc.screenshot({ type: 'jpeg', quality: 92 }), 7 / kk);
     }
     await doc.close();
-    log('12 nine drawings');
+    log('12 nine drawings, then along the truss');
   } else {
     console.log('  (no ' + path.basename(DXFPAGE) + ' - run prep_ggb.js; cut 12 skipped)');
   }
@@ -217,9 +247,65 @@ const mix = (a, b, u) => a + (b - a) * u;
   put(await app.screenshot({ type: 'jpeg', quality: 92 }), 6);
   log('13 members and weight');
 
-  /* 14 */
-  card('end', 6);
-  log('14 outro');
+  /* 14 — the file itself, panned down. Two minutes of what came out; this is
+     what went in, and it is one tab of one workbook. Drawn by mkparampage.js
+     out of the shipped book cell by cell, so what is on screen is what the
+     viewer opens - the row numbers are the file's own. */
+  if (fs.existsSync(SHEETPAGE)) {
+    const sh = await browser.newPage({ viewport: { width: 1920, height: 1080 } });
+    await sh.goto('file://' + SHEETPAGE, { waitUntil: 'load' });
+    await sh.waitForTimeout(800);
+    const H = await sh.evaluate(() => document.documentElement.scrollHeight - 1080);
+    caption('sheet', T, 6);
+    caption('sheet2', T + 7, 6);
+    const kk = Math.round(15 * MO);
+    for (let i = 0; i < kk; i++) {
+      await sh.evaluate(y => window.scrollTo(0, y), Math.round(ease(i / (kk - 1)) * H));
+      put(await sh.screenshot({ type: 'jpeg', quality: 92 }), 15 / kk);
+    }
+    await sh.close();
+    log('14 the input sheet');
+  }
+
+  /* 15 — where to get it. The app's own Examples list, opened the way the
+     button opens it, scrolled to the row. The row is lit the way it lights
+     under a pointer: this is a shot of the list, not a picture of one.
+     The finished bridge is still loaded from cut 13, so nothing is re-read. */
+  await app.evaluate(() => {
+    window.plateBuilder.openSamples();
+    const rows = [].slice.call(document.querySelectorAll('#pb-exlist tbody tr'));
+    const r = rows.filter(function (t) {
+      return (t.getAttribute('title') || '').indexOf('GGB') >= 0; })[0];
+    if (!r) return;
+    r.style.background = '#f0fdf4';
+    r.scrollIntoView({ block: 'center' });
+    const b = r.querySelector('.exb');
+    if (b) { b.style.background = '#047857'; b.style.color = '#fff';
+             b.style.borderColor = '#047857'; }
+  });
+  await app.waitForTimeout(600);
+  /* Framed on the panel rather than on the whole 2336 px window: the list is
+     880 px of 11 px type, and a full-window frame scaled to 1080 leaves the one
+     line the shot exists for - the Golden Gate row - too small to read. */
+  const bx = await app.evaluate(() => {
+    const r = document.querySelector('#pb-ex .box').getBoundingClientRect();
+    const w = Math.min(innerWidth, Math.max(r.width * 1.34, 1180));
+    const h = w * 9 / 16;
+    return { x: Math.max(0, Math.min(innerWidth - w, r.x + r.width / 2 - w / 2)),
+             y: Math.max(0, Math.min(innerHeight - h, r.y + r.height / 2 - h / 2)),
+             width: w, height: h };
+  });
+  /* No caption over this one. The panel already says Example workbooks, the
+     row already says Golden Gate Bridge, and the button already says DOWNLOAD -
+     a card on top of it would be a second voice reading the screen aloud, and
+     there is nowhere to put one that is not over the list. */
+  put(await app.screenshot({ type: 'jpeg', quality: 92, clip: bx }), 5);
+  log('15 the Examples list');
+
+  /* 16-17 */
+  card('invite', 6);
+  card('end', 5);
+  log('16 come and build one');
 
   fs.writeFileSync(path.join(SP, 'shots_ggb.json'),
     JSON.stringify({ fps: FPS, src: 'ggb_src', out: 'PLATE3D_GGB.mp4',

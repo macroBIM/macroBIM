@@ -42,6 +42,10 @@ const BASE = `
           align-items: center; text-align: center; }
   .full h1 { font-size: 92px; font-weight: 700; letter-spacing: -0.02em;
              line-height: 1.12; color: #fff; }
+  /* Whose tool built it, above the title rather than inside it: the film is
+     about the bridge for two minutes and about PLATE3D for the whole of it. */
+  .full .by { font-size: 30px; font-weight: 700; letter-spacing: 0.34em;
+              color: ${ORANGE}; margin-bottom: 34px; }
   .full .rule { width: 220px; height: 6px; background: ${ORANGE};
                 margin: 46px 0 40px; border-radius: 3px; }
   .full h2 { font-size: 40px; font-weight: 500; letter-spacing: 0.02em;
@@ -63,8 +67,9 @@ const page = body =>
   `<!DOCTYPE html><html><head><meta charset="utf-8">${FONT}` +
   `<style>${BASE}</style></head><body>${body}</body></html>`;
 
-const full = (h1, h2) => page(
-  `<div class="full"><h1>${h1}</h1><div class="rule"></div><h2>${h2}</h2></div>`);
+const full = (h1, h2, by) => page(
+  `<div class="full">` + (by ? `<div class="by">${by}</div>` : '') +
+  `<h1>${h1}</h1><div class="rule"></div><h2>${h2}</h2></div>`);
 
 const over = (lead, sub) => page(
   `<div class="over"><div class="box"><div class="bar"></div>` +
@@ -78,7 +83,11 @@ const over = (lead, sub) => page(
 const CARDS = {
   // full-screen, opaque: these ARE shots
   open:  { kind: 'full', html: full('MODELLING THE<br>GOLDEN GATE BRIDGE',
-                                    'Simple and fast.') },
+                                    'Simple and fast.', 'BY PLATE3D') },
+  invite:{ kind: 'full', html: full('COME AND BUILD ONE',
+                                    'PLATE3D &rarr; Example &rarr; Golden Gate Bridge.<br>' +
+                                    'Open it, change a number, load it again.<br>' +
+                                    'It really is this easy.') },
   end:   { kind: 'full', html: full('PLATE3D', 'by macroBIM') },
 
   // overlaid on the model
@@ -92,7 +101,15 @@ const CARDS = {
   truss:  { kind: 'over', html: over('Out from both towers.', 'Meeting at mid-span.') },
   deck:   { kind: 'over', html: over('', 'the deck follows') },
   dxf:    { kind: 'over', html: over('Nine drawings.', 'Two kilometres on one sheet.') },
-  count:  { kind: 'over', html: over('Three sections.', '2,219 members.') }
+  dxfrun: { kind: 'over', html: over('', '82 bays of stiffening truss,<br>at reading size') },
+  count:  { kind: 'over', html: over('', 'The app counts it:<br>2,219 members, 81,624 t.') },
+
+  /* The ending. The film has spent two minutes on what came out; these are the
+     forty seconds on what went in, and where to get it. */
+  sheet:  { kind: 'over', html: over('This is the whole file.',
+                                     'One tab. 414 rows.') },
+  sheet2: { kind: 'over', html: over('', 'Sections and plates, then modules,<br>' +
+                                        'then five assemblies.') }
 };
 
 fs.rmSync(OUT, { recursive: true, force: true });

@@ -25,6 +25,8 @@ plate3d/video/tools/chk/
 plate3d/video/tools/ggb.dxf
 plate3d/video/tools/ggb.svg
 plate3d/video/tools/ggb_dxf.html
+plate3d/video/tools/ggb_frames.json
+plate3d/video/tools/ggb_sheet.html
 plate3d/video/tools/shots_ggb.json
 plate3d/video/tools/filter_ggb.txt
 plate3d/video/*.mp4

@@ -19,7 +19,12 @@
 const ExcelJS = require('./node_modules/exceljs');
 const fs = require('fs');
 const SRC = __dirname + '/' + (process.env.BOOK || '../../PLATE3D_TOWER.xlsx');
-const FONTCSS = fs.readFileSync(__dirname + '/v_font.css', 'utf8');
+/* v_font.css (Inter as a data URI) is not in the repository - a woff2 as a
+   base64 string is not source - so a page can be drawn without it and falls
+   back to the system stack. When the file is there nothing about the output
+   changes. */
+const FONTCSS = fs.existsSync(__dirname + '/v_font.css')
+  ? fs.readFileSync(__dirname + '/v_font.css', 'utf8') : '';
 const SHEET = process.env.SHEET || 'PARAM';
 const FIRST = +(process.env.FIRST || 1);
 const LAST = +(process.env.LAST || 26);   // the tower's: down to the slew row
@@ -39,6 +44,12 @@ const TABS = process.env.TABS === undefined ? 'PARAM &middot; input' : process.e
    care, but a six-row PLATE block pinned to the top leaves the screen empty. */
 const ACTIVE = process.env.ACTIVE || 'PARAM';
 const VALIGN = process.env.VALIGN || 'top';
+/* FITW draws the sheet to the full width of the frame and lets it be as tall as
+   it needs to be, so the page can be SCROLLED instead of fitted. A 414-row
+   input tab shrunk into 1080 px is a grey texture; the same tab at reading size,
+   panned down, is a sheet someone could type. Off by default: every page the
+   other films shoot is a fitted crop and must not move. */
+const FITW = process.env.FITW === '1';
 
 const esc = s => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;');
 const argb = a => a ? '#' + String(a).slice(2) : null;
@@ -135,9 +146,15 @@ const argb = a => a ? '#' + String(a).slice(2) : null;
   });
   o.push('</svg>');
 
-  const scale = Math.min(1860 / W, 1000 / H);
-  const top = VALIGN === 'center'
+  const scale = FITW ? 1860 / W : Math.min(1860 / W, 1000 / H);
+  const top = (!FITW && VALIGN === 'center')
     ? Math.max(12, Math.round((1080 - 64 - H * scale) / 2)) : 12;
+  /* The scroller needs a real document height: the wrap is transform-scaled, and
+     a transform does not grow its parent, so the page would end up one viewport
+     tall with nothing to scroll. */
+  const PAGE = FITW
+    ? ' html,body{width:1920px;height:auto;overflow:visible;background:#fff}\n' +
+      ' .wrap{height:' + Math.ceil(H * scale) + 'px}\n' : '';
   fs.writeFileSync(OUT,
 `<meta charset="utf-8"><style>${FONTCSS}</style><style>
  *{margin:0;padding:0;box-sizing:border-box}
@@ -148,7 +165,7 @@ const argb = a => a ? '#' + String(a).slice(2) : null;
  .wrap{transform:scale(${scale.toFixed(4)});transform-origin:top left;margin:${top}px 0 0 46px}
  .ring{opacity:0}
  body.lit .ring{opacity:1}
-</style><div class="tab">${ACTIVE}<i>${TABS}</i></div>
+${PAGE}</style><div class="tab">${ACTIVE}<i>${TABS}</i></div>
 <div class="wrap">${o.join('')}</div>`);
   console.log(require('path').basename(OUT) + '  ' + W + 'x' + H + '  scale ' + scale.toFixed(3) +
               '  rings: ' + RING.join(', '));
