@@ -41,8 +41,22 @@
 // lifted: same hue, same order, higher value. The tower's own brown put
 // unlifted on this background disappears above the second platform, which is
 // the thing this grade exists to fix.
+//
+// TOPZ - the film's one switch. A tower is only ever as tall as it has been
+// built, so `TOPZ=57630 node make_eiffel.js out.xlsx` writes the tower as it
+// stood at the first platform: everything whose top is at or below that height,
+// and nothing above it. Members are not hidden - they are NOT WRITTEN, so each
+// frame of the film is a real model the engine built from a real sheet.
+//
+// The bridge needed two axes for this because its deck grew outward from the
+// towers. A tower needs one number, and 1887 is why.
+//
+// Unset, the file is byte for byte the workbook that ships. That is the
+// condition: the film must not change what a visitor downloads.
 const ExcelJS = require('exceljs');
 const OUT = process.argv[2] || __dirname + '/../PLATE3D_EIFFEL.xlsx';
+const TOPZ = process.env.TOPZ ? +process.env.TOPZ : Infinity;
+const staged = TOPZ !== Infinity;
 
 /* ===================== the published figures ===================== */
 const H1 = 57630;                  // first platform
@@ -103,6 +117,15 @@ const shLift = i => Math.min(SHLIFT - 1, Math.floor(i / PERSH));
 const shSide = k => Math.max(360,
   Math.round(2 * chordAt(wP(H2)) * Math.pow(HB3 / HA2, k / SHLIFT) / 10) * 10);
 
+/* STAGES=1 prints the heights a panel top sits at, one per line, and stops.
+   The film's stage list is the structure's own joints - the sequence writer
+   asks for it rather than repeating the panel arithmetic and drifting. */
+if (process.env.STAGES) {
+  console.log(ZP.slice(1).concat(ZS.slice(1)).concat(ZT.slice(1))
+    .map(z => Math.round(z)).join('\n'));
+  process.exit(0);
+}
+
 const r1 = v => Math.round(v * 10) / 10;
 const R = [];
 const push = (...r) => R.push(r);
@@ -115,16 +138,23 @@ const HDR_AX = ['# MODULE', 'id', 'member', 'Ref.Pt', 'LX1', 'LY1', 'LZ1',
                 'LX2', 'LY2', 'LZ2', 'OFF_B', 'OFF_E', 'Alpha',
                 'dx', 'dy', 'dz', 'rep'];
 let form = '';
+/* Which modules actually got a member. Below the first platform there is no
+   shaft and no lantern, and an ASSY that names a module with nothing in it is
+   an error - so the assembly rows at the bottom ask this. */
+const MADE = new Set();
 function M(id, mem, ref, x, y, z, pl) {
   if (form !== 'm') { push.apply(null, HDR_MOD); form = 'm'; }
   push('MODULE', id, mem, ref, r1(x), r1(y), r1(z), pl, '', '', '');
+  MADE.add(id);
 }
 function A(id, mem, a, b, ob, oe) {
   if (form !== 'a') { push.apply(null, HDR_AX); form = 'a'; }
   push('MODULE', id, mem, '', r1(a[0]), r1(a[1]), r1(a[2]),
        r1(b[0]), r1(b[1]), r1(b[2]), ob ? r1(ob) : '', oe ? r1(oe) : '', '');
+  MADE.add(id);
 }
 function BASE_(id, mem, pt) {
+  if (!MADE.has(id)) return;             // nothing to be the datum of
   if (form !== 'm') { push.apply(null, HDR_MOD); form = 'm'; }
   push('MODULE', id, 'BASE', mem, pt); form = '';
 }
@@ -204,6 +234,7 @@ const lerp = (a, b, t) => [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t];
 function lattice(id, ZL, halfOf, aOf, chordOf, hzSect, dgSect) {
   for (let i = 0; i < ZL.length - 1; i++) {
     const z0 = ZL[i], z1 = ZL[i + 1];
+    if (z1 > TOPZ) break;                // not built yet
     const c0 = corners(halfOf(z0), aOf(z0)), c1 = corners(halfOf(z1), aOf(z1));
     const cs = chordOf(i), o = cs / 2 + 900;
     for (let k = 0; k < 4; k++)
@@ -245,7 +276,8 @@ const AZ0 = 20000, AZC = 43000, ADEP = 4200, NA = 16;
 const AYS = hA(AZ0 + ADEP) - wP(AZ0 + ADEP) / 2 - 900;
 const arcZ = y => AZC - (AZC - AZ0) * (y / AYS) * (y / AYS);
 const arcPt = (y, up) => { const z = arcZ(y) + (up ? ADEP : 0); return [hA(z), y, z]; };
-for (let i = 0; i < NA; i++) {
+const ARCTOP = AZC + ADEP;
+for (let i = 0; ARCTOP <= TOPZ && i < NA; i++) {
   const y0 = -AYS + 2 * AYS * i / NA, y1 = -AYS + 2 * AYS * (i + 1) / NA;
   A('md.arc', 'sc.ar', arcPt(y0, 0), arcPt(y1, 0), 150, 150);
   A('md.arc', 'sc.ar', arcPt(y0, 1), arcPt(y1, 1), 150, 150);
@@ -254,7 +286,7 @@ for (let i = 0; i < NA; i++) {
    one number for all of them. A rib 900 deep lying at 59 degrees - which is what
    the parabola does at the springing - is 1740 of height, and a constant that
    clears the crown leaves six posts a panel in the rib. */
-for (let i = 1; i < NA; i++) {
+for (let i = 1; ARCTOP <= TOPZ && i < NA; i++) {
   const y = -AYS + 2 * AYS * i / NA;
   const t = Math.abs(2 * (AZC - AZ0) * y / (AYS * AYS));      // the rib's slope here
   const off = 450 / Math.cos(Math.atan(t)) + 200 * t + 150;
@@ -266,6 +298,7 @@ blank();
 /* ===================== the platforms ===================== */
 push('#', 'THE PLATFORMS - a ring on the four piers, one module each');
 function platform(id, p, tag) {
+  if (p.z > TOPZ) return;
   /* The girder ring is set 1400 CLEAR of the chord lines, outside and inside.
      On the lines themselves every girder would run through four chords, which
      is the platform holding itself up by passing through what holds it up. And
@@ -310,6 +343,7 @@ blank();
 // VIEW on a module draws it wherever it is PLACED, so one pier drawn front-on
 // is the four of them - which for a tower with four-fold symmetry is the
 // elevation everybody means.
+if (!staged) {
 push('# VIEW', 'module', 'dir', 'AZ', 'EL', 'scale', 'title');
 push('VIEW', 'ALL', 'FRONT', '', '', 1000, 'EIFFEL TOWER - GENERAL ARRANGEMENT');
 push('VIEW', 'ALL', 'TOP', '', '', 1000, 'EIFFEL TOWER - PLAN');
@@ -321,29 +355,35 @@ push('VIEW', 'md.pl2', 'TOP', '', '', 200, 'SECOND PLATFORM - PLAN');
 push('VIEW', 'md.shf', 'FRONT', '', '', 500, 'THE SHAFT - ELEVATION');
 push('VIEW', 'md.top', 'FRONT', '', '', 100, 'THE LANTERN - ELEVATION');
 blank();
+}
 
 /* ===================== the assemblies ===================== */
 // One pier and one arch, each turned three times about the tower axis. The
 // four-fold symmetry is a command, not four copies of the geometry.
 push('# ASSY', 'id', 'ref', 'cmd', 'G.X', 'G.Y', 'G.Z', 'ROT.X', 'ROT.Y', 'ROT.Z');
 push('#', 'THE PIERS - one module, turned four ways');
-push('ASSY', 'as.leg', 'md.leg', 'ADD', r1(hA(0) - wP(0) / 2), r1(hA(0) - wP(0) / 2), 0);
-push('ASSY', 'as.leg', 'as.leg', 'ROT', 0, 0, 0, 'Z', 90, 3);
+if (MADE.has('md.leg')) {
+  push('ASSY', 'as.leg', 'md.leg', 'ADD', r1(hA(0) - wP(0) / 2), r1(hA(0) - wP(0) / 2), 0);
+  push('ASSY', 'as.leg', 'as.leg', 'ROT', 0, 0, 0, 'Z', 90, 3);
+}
 blank();
 push('# ASSY', 'id', 'ref', 'cmd', 'G.X', 'G.Y', 'G.Z');
 push('#', 'THE ARCHES - the same, on the four sides');
-push('ASSY', 'as.arc', 'md.arc', 'ADD', r1(arcPt(-AYS, 0)[0]), r1(-AYS), r1(AZ0));
-push('ASSY', 'as.arc', 'as.arc', 'ROT', 0, 0, 0, 'Z', 90, 3);
+if (MADE.has('md.arc')) {
+  push('ASSY', 'as.arc', 'md.arc', 'ADD', r1(arcPt(-AYS, 0)[0]), r1(-AYS), r1(AZ0));
+  push('ASSY', 'as.arc', 'as.arc', 'ROT', 0, 0, 0, 'Z', 90, 3);
+}
 blank();
 push('# ASSY', 'id', 'ref', 'cmd', 'G.X', 'G.Y', 'G.Z');
 push('#', 'THE PLATFORMS - three of them, one assembly');
-PL.forEach(e => push('ASSY', 'as.plt', 'md.' + e[0], 'ADD',
-                     r1(-(e[1].ro + e[1].go)), r1(-(e[1].ro + e[1].go)), e[1].z));
+PL.forEach(e => { if (MADE.has('md.' + e[0]))
+  push('ASSY', 'as.plt', 'md.' + e[0], 'ADD',
+       r1(-(e[1].ro + e[1].go)), r1(-(e[1].ro + e[1].go)), e[1].z); });
 blank();
 push('# ASSY', 'id', 'ref', 'cmd', 'G.X', 'G.Y', 'G.Z');
 push('#', 'THE SHAFT AND THE LANTERN');
-push('ASSY', 'as.shf', 'md.shf', 'ADD', r1(-hB(H2)), r1(-hB(H2)), H2);
-push('ASSY', 'as.top', 'md.top', 'ADD', r1(-hC(H3)), r1(-hC(H3)), H3);
+if (MADE.has('md.shf')) push('ASSY', 'as.shf', 'md.shf', 'ADD', r1(-hB(H2)), r1(-hB(H2)), H2);
+if (MADE.has('md.top')) push('ASSY', 'as.top', 'md.top', 'ADD', r1(-hC(H3)), r1(-hC(H3)), H3);
 push('END');
 
 /* ===================== write ===================== */
