@@ -159,18 +159,19 @@
     '.px-tbl.dim-tbl th{background:#1e293b;color:#fff;font-weight:600;text-align:center;border-bottom:1px solid #334155;border-right:1px solid #334155;}.px-tbl.dim-tbl th:last-child{border-right:none;}' +
     '.px-cover{width:64px;text-align:right;}' +
     '.op-wrap{display:flex;gap:18px;align-items:flex-start;flex-wrap:wrap;}' +
-    '.op-cell{flex:1 1 300px;min-width:280px;border:1px solid var(--hair);border-radius:8px;overflow:hidden;background:#fff;}' +
+    // 칸은 늘어나지 않는다 — 내용 폭에 맞춰 서고 남는 자리는 여백으로 둔다.
+    '.op-cell{flex:0 0 auto;border:1px solid var(--hair);border-radius:8px;overflow:hidden;background:#fff;}' +
     '.op-cell > h4{margin:0;padding:7px 12px;background:#f1f5f9;border-bottom:1px solid var(--hair);' +
     '  font-size:11.5px;font-weight:700;letter-spacing:.07em;text-transform:uppercase;color:#475569;' +
     '  display:flex;justify-content:space-between;align-items:center;gap:8px;}' +
     '.op-cell > h4 label{display:flex;gap:5px;align-items:center;font-size:11px;letter-spacing:0;' +
     '  text-transform:none;font-weight:500;color:#64748b;cursor:pointer;margin:0;}' +
     '.op-body{display:flex;gap:12px;padding:11px 12px;align-items:flex-start;}' +
-    '.op-fields{flex:1 1 0;min-width:0;}' +
+    '.op-fields{flex:0 0 auto;}' +
     '.op-row{display:flex;align-items:center;gap:8px;margin-bottom:5px;}' +
     '.op-row > span{flex:none;width:118px;font-size:12px;color:#334155;}' +
     '.op-row > span i{font-style:normal;color:#94a3b8;font-size:11px;}' +
-    '.op-row input,.op-row select{flex:1 1 0;min-width:0;font:inherit;font-size:12px;padding:3px 7px;' +
+    '.op-row input,.op-row select{flex:0 0 118px;width:118px;font:inherit;font-size:12px;padding:3px 7px;' +
     '  border:1px solid var(--hair);border-radius:5px;color:var(--ink);background:#fff;}' +
     '.op-row input:disabled{background:#f8fafc;color:#cbd5e1;}' +
     '.op-sub{font-size:10.5px;color:#94a3b8;margin:9px 0 3px;letter-spacing:.06em;text-transform:uppercase;font-weight:700;}' +
@@ -1619,8 +1620,8 @@
           row(i, 'CTX', 'Ctx', 'corner x', OPEN_DEF.CTX) +
           row(i, 'CTY', 'Cty', 'corner y', OPEN_DEF.CTY) +
           '<div class="op-sub">Position</div>' +
-          row(i, 'X', 'X', 'from section centre', OPEN_DEF.X) +
-          row(i, 'Y', 'Y', 'slab top to bottom', OPEN_DEF.Y) +
+          row(i, 'X', 'X', 'from centre', OPEN_DEF.X) +
+          row(i, 'Y', 'Y', 'from slab top', OPEN_DEF.Y) +
           '</div><div class="op-prev" id="op' + i + '_prev"></div></div></div>';
       };
       return '  <div class="draw-card">' +
