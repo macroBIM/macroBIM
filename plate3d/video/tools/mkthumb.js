@@ -26,7 +26,12 @@ const path = require('path');
 
 const SP = __dirname;
 const P3 = path.resolve(SP, '../..');
-const FONTCSS = fs.readFileSync(SP + '/v_font.css', 'utf8');
+/* Inter as a data URI. Not in the repository - a woff2 as a base64 string is
+   not source - so a card can still be drawn without it, on the system stack.
+   The four thumbnails already shipped were drawn WITH it, so put the file back
+   next to this one before redrawing any of them or the set stops matching. */
+const FONTCSS = fs.existsSync(SP + '/v_font.css')
+  ? fs.readFileSync(SP + '/v_font.css', 'utf8') : '';
 
 /* One entry per film.
 
@@ -66,6 +71,41 @@ const FILMS = [
        still and showed nothing but web. */
     hero: { kind: 'model', az: 200, el: 24, dist: 0.85 },
     l1: 'BOLTED SPLICE', l2: 'MADE SIMPLE' },
+
+  /* The bridge. Two things here that no earlier thumbnail needed.
+
+     The camera is ABSOLUTE, not the engine's own view pulled in by a factor.
+     Every other hero is a small object the engine frames sensibly; a 2.3 km
+     bridge framed sensibly is a line across the middle of the picture, and no
+     multiple of that distance is a thumbnail. So this one stands where the
+     film's hero shot stands - under a tower, looking up along the cables.
+
+     And the paint is set, because International Orange is the one thing about
+     this bridge everybody already knows. The engine hands out its palette in
+     read order; the film restates it on every load and so does this. */
+  { id: 'ggb',
+    out: 'PLATE3D_GGB_thumb.jpg',
+    book: P3 + '/PLATE3D_GGB.xlsx',
+    /* Six framings were shot and looked at. The film's own hero - in under the
+       tower, looking up - is a tower and two dark diagonals: dramatic at full
+       size, unreadable at 120 px. This one stands back until the WHOLE tower is
+       in, with the main cable coming down across it and the deck running off to
+       the corner. That silhouette is the one thing a viewer recognises before
+       reading anything. The tower sits right of centre because the card bleeds
+       off the right edge and the type's wash covers the card's left third.
+       Straight on (az 90) put the two shafts of the tower on top of each other;
+       az 40 opens them. */
+    hero: { kind: 'model', aim: { tx: -640080, ty: 0, tz: 190000,
+                                  dist: 230000, az: 40, el: 6 },
+            pad: 0.05, aspect: 1.62 },
+    /* The film's five oranges, lifted. On screen for 16 seconds a dark tower
+       reads as steel; at 120 px in a list it reads as brown. */
+    livery: { 'MD.TWR': '#e04a1c', 'MD.MCB': '#ff7a35', 'MD.HGR': '#e0642e',
+              'MD.TRS': '#ffb070', 'MD.DK': '#ffdcc0' },
+    /* The picture says Golden Gate Bridge; the words do not repeat it, and
+       they do not repeat the YouTube title sitting under them either. What is
+       left to say is the surprising part - how little was written. */
+    l1: 'THREE SECTIONS', l2: '2,219<br>MEMBERS' },
 
   { id: 'simpleconn',
     out: 'PLATE3D_SIMPLECONN_thumb.jpg',
@@ -114,7 +154,12 @@ async function grabHero(page, f) {
     await page.evaluate(() => plateBuilder.closePreview());
     await page.waitForTimeout(500);
   } else {
+    if (f.livery) await page.evaluate(l => Object.keys(l).forEach(k => {
+      try { window.plateBuilder.setColor('module', k, l[k]); } catch (e) {}
+    }), f.livery);
     await page.evaluate(h => {
+      if (h.aim) return window.__aim(h.aim.tx, h.aim.ty, h.aim.tz,
+                                     h.aim.dist, h.aim.az, h.aim.el);
       const c = window.__cam();
       window.__aim(c.tx, c.ty, c.tz, c.dist * h.dist, h.az, h.el);
     }, f.hero);
@@ -124,7 +169,7 @@ async function grabHero(page, f) {
       return window.__pbCanvas.toDataURL('image/png');
     });
     fs.writeFileSync(dst, Buffer.from(d.split(',')[1], 'base64'));
-    await tightCrop(page, dst, f.hero.pad == null ? 0.05 : f.hero.pad);
+    await tightCrop(page, dst, f.hero.pad == null ? 0.05 : f.hero.pad, f.hero.aspect);
   }
   return dst;
 }
@@ -140,7 +185,7 @@ async function grabHero(page, f) {
    pixels: green, blue, yellow, orange, brown against a neutral grey grid and a
    near-black ground. That separates them cleanly, and the crop keeps a margin
    so the joint is not shaved. */
-async function tightCrop(page, file, pad) {
+async function tightCrop(page, file, pad, aspect) {
   const b64 = fs.readFileSync(file).toString('base64');
   const out = await page.evaluate(a => new Promise(ok => {
     const im = new Image();
@@ -165,13 +210,22 @@ async function tightCrop(page, file, pad) {
       const mw = (x1 - x0) * a.pad, mh = (y1 - y0) * a.pad;
       x0 = Math.max(0, Math.floor(x0 - mw)); x1 = Math.min(w, Math.ceil(x1 + mw));
       y0 = Math.max(0, Math.floor(y0 - mh)); y1 = Math.min(h, Math.ceil(y1 + mh));
+      /* A bridge is wide, so cropping to its steel gives a 2:1 letterbox, and a
+         letterbox on the white card reads as a slot rather than a picture. So
+         the short side is opened back up until the box is no wider than asked
+         for - taking back sky and water, which is what a photograph of a bridge
+         has in it anyway. */
+      if (a.aspect && (x1 - x0) / (y1 - y0) > a.aspect) {
+        const want = (x1 - x0) / a.aspect, add = (want - (y1 - y0)) / 2;
+        y0 = Math.max(0, Math.floor(y0 - add)); y1 = Math.min(h, Math.ceil(y1 + add));
+      }
       const d = document.createElement('canvas');
       d.width = x1 - x0; d.height = y1 - y0;
       d.getContext('2d').drawImage(c, x0, y0, d.width, d.height, 0, 0, d.width, d.height);
       ok({ url: d.toDataURL('image/png'), w: d.width, h: d.height, was: w + 'x' + h });
     };
     im.src = 'data:image/png;base64,' + a.b64;
-  }), { b64: b64, pad: pad });
+  }), { b64: b64, pad: pad, aspect: aspect || 0 });
   if (!out) return;
   fs.writeFileSync(file, Buffer.from(out.url.split(',')[1], 'base64'));
   console.log('    hero cropped to the steel: ' + out.was + ' -> ' + out.w + 'x' + out.h);

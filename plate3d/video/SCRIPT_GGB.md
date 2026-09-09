@@ -46,7 +46,7 @@ PLATE3D 로 만드는 골든게이트 브릿지
 | 설명 2행 | `Watch it go up the way it was built: towers, main cables, hanger ropes, then the stiffening truss and deck out from both towers to mid-span.` |
 | 태그 | golden gate bridge · suspension bridge · bridge modeling · bridge erection · 3D model · BIM · structural engineering · steel structure · spreadsheet · Excel · parametric model · DXF · main cable · stiffening truss · PLATE3D · macroBIM |
 | 규격 | 2:43 · 1920×1080 · 30 fps · 무음 · **자막 영어** |
-| 썸네일 | `PLATE3D_GGB_thumb.jpg` — `GOLDEN GATE BRIDGE` / `Three sections. 2,219 members.` |
+| 썸네일 | `PLATE3D_GGB_thumb.jpg` — `THREE SECTIONS` / `2,219 MEMBERS`, 주탑 히어로 — 만들어 둠 |
 | 공개 | **미정** |
 
 ### 설명란 전문
@@ -382,7 +382,7 @@ x 로 뭉쳐 보고 **빈 구간이 도면 높이의 2.5배를 넘으면 갈라�
 
 확정 대기:
 
-- 썸네일 문구 · 공개 여부
+- 공개 여부
 - 주탑 입면·평면 두 장이 시트에서 반쯤 비는 문제 (VIEW 가 배치를 고르는 방식)
 
 정해진 것에서 뺀 질문:
@@ -391,6 +391,9 @@ x 로 뭉쳐 보고 **빈 구간이 도면 높이의 2.5배를 넘으면 갈라�
 - ~~9–10 번 길이~~ → **각 16초, 41프레임.** 프레임 수는 구조물이 정합니다(§6)
 - ~~11 번 히어로 각도~~ → **`640080,0,165000 · 360,000 · az 55 · el −4`.** 잡아 봤습니다
 - ~~2 번 조감도~~ → **ISO `0,0,98000 · 1,950,000 · az −62 · el 19`.** 전장이 다 들어옵니다
+- ~~썸네일 문구~~ → **`THREE SECTIONS` / `2,219 MEMBERS`.** 그림이 골든게이트라고
+  말하므로 글자는 그걸 되풀이하지 않습니다 — 바로 밑에 붙는 유투브 제목과도
+  겹치지 않습니다(`mkthumb.js` 의 규칙)
 
 ## 11. 필요한 파일
 
@@ -411,6 +414,7 @@ video/tools/rendercards_ggb.js   카드 → PNG / JPEG
 video/tools/shoot_ggb.js         촬영 — 86장 로드 + __aim 카메라, 17컷
 video/tools/assemble_ggb.js      조립
 video/tools/mkparampage.js       입력 시트를 시트로 그림 (FITW 모드)
+video/tools/mkthumb.js           썸네일 — `node mkthumb.js ggb`
 ```
 
 TOWER·SPLICE 와 달리 **값을 바꾸는 컷이 없어** 셀 카드(`mkcellcards.js`)가
