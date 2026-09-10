@@ -1910,7 +1910,10 @@
            물건이 아니고, 그렇게 나온 입체는 아무도 주문할 수 없다. */
         var tfam = function (s) { return s.SHAPE === 'SECT' ? 'SECT.' + s.SECT : s.SHAPE; };
         var tfamName = function (s) {
-          return s.SHAPE === 'SECT' ? 'a ' + s.SECT + ' section'
+          /* "a H section" is not English. H, L and R are read aitch, el, ar -
+             all of them start on a vowel - while C and P do not. */
+          return s.SHAPE === 'SECT'
+               ? ('HLR'.indexOf(s.SECT) >= 0 ? 'an ' : 'a ') + s.SECT + ' section'
                : s.SHAPE === 'CIRC' ? 'a circle' : 'a plate outline';
         };
         if (tfam(tst) !== tfam(tsrc)) {
@@ -1932,7 +1935,13 @@
           continue;
         }
         /* 속이 빈 단면은 구멍도 짝지어져야 한다. 한쪽만 비어 있으면 벽이
-           어디서 시작하는지 말할 수 없다. */
+           어디서 시작하는지 말할 수 없다.
+
+           오늘은 여기까지 못 온다 — 갈래 검사가 관과 통짜를 먼저 갈라 놓고,
+           벽만 두꺼워 구멍이 사라지는 관은 SECT 가 「이 두께면 그냥 환봉이다」로
+           먼저 거절한다. 그래도 둔다: 속이 빈 SECT 타입을 새로 더하면서 이
+           줄을 잊는 것이 쉬운 실수이고, 그때 나오는 것은 벽 없는 부재다.
+           BOQ_KIND 를 잊었을 때 부재표를 통째로 잃는 것과 같은 자리다. */
         var bo0 = sectInner(tst), bo1 = sectInner(tsrc);
         if (!bo0 !== !bo1 || (bo0 && bo1 && bo0.length !== bo1.length)) {
           warn('row ' + (r + 1) + ': TAPER ' + ttg + ' ' + tbeg + ' ' + tend +
