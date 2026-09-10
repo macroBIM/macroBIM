@@ -107,6 +107,64 @@ const sideX = () => {
 };
 
 const r1 = v => Math.round(v * 10) / 10;
+
+/* ============== THE ERECTION SEQUENCE ==============
+   STAGE=<n> writes the bridge as it stood at step n. Unset writes the bridge.
+
+   A CABLE-STAYED BRIDGE IS NOT BUILT THE WAY A SUSPENSION BRIDGE IS. On the
+   Golden Gate the two towers go up, the cable is spun between them, and the
+   deck hangs off it inwards from both towers at once - two towers, one take.
+   Here there is no cable to hang from: each pylon has to hold up whatever it
+   has already built. So the deck grows OUT OF ONE PYLON IN BOTH DIRECTIONS AT
+   THE SAME TIME - main span and side span, one segment each way, then the two
+   stays that carry them, then the next pair - and the pylon stays balanced the
+   whole way out. Incheon has two pylons, so that happens twice at once, and
+   the two cantilevers close on each other at mid-span.
+
+   That is why the stages alternate. A segment and its stays are two beats, not
+   one, because on site they are two operations and on film you cannot see the
+   second one if it arrives with the first.
+
+     0            piers W2 and W3, and the 80 m end span standing on them
+     1 .. 8       the pylon, EL 13 to EL 238.5 in eight lifts
+     9            the pier table - the first deck either side of the pylon
+     10           stay ring 1, four cables, symmetric
+     11, 12       segment 2 both ways, then its stays
+     ...          twenty-six rings of that, working out to mid-span
+     61           closure: the last 20 m at mid-span, and onto pier W2         */
+const SG = process.env.STAGE === undefined || process.env.STAGE === ''
+  ? null : Math.round(+process.env.STAGE);
+const on = s => SG === null || SG >= s;
+const PIER = 0, PYL1 = 1, PYLN = 8;        // the pylon rises over eight stages
+const TBL = PYL1 + PYLN;                   // 9  the pier table
+const segStage = k => TBL + 2 * k;         // segment k out from the pylon
+const stayStage = k => TBL + 1 + 2 * k;    // and the ring of stays that holds it
+const CLOSE = stayStage(NC - 1) + 1;       // 61
+
+/* The pylon is clipped by an elevation, not by whole members, so that it
+   RISES rather than steps. A part-built taper is a real taper of its own -
+   the two end sections interpolated at the height the clip falls at - which
+   is a thing TAPER can be asked for directly. */
+const PTOP = (SG === null || SG >= TBL) ? ZPY
+           : (SG < PYL1 ? -1 : ZF + (ZPY - ZF) * (SG - PYL1 + 1) / PYLN);
+const lift = (z0, z1) => PTOP >= z1 ? 1 : (PTOP <= z0 ? 0 : (PTOP - z0) / (z1 - z0));
+const upto = (a, b, f) => [a[0] + (b[0] - a[0]) * f,
+                           a[1] + (b[1] - a[1]) * f,
+                           a[2] + (b[2] - a[2]) * f];
+const SDIM = { 'sc.la': [10000, 10000, 120, 0], 'sc.lb': [8000, 8000, 120, 0],
+               'sc.lc': [5000, 5000, 120, 0],
+               'sc.na': [11062, 7000, 120, 0], 'sc.nb': [6004, 7000, 120, 0] };
+const L1 = Math.hypot(YK - YB, ZK - ZF);
+const L2 = Math.hypot(YK - YN, ZN - ZK);
+const TP = [['tp.lg1', 'sc.la', 'sc.lb', ZF, ZK, L1],
+            ['tp.lg2', 'sc.lb', 'sc.lc', ZK, ZN, L2],
+            ['tp.nod', 'sc.na', 'sc.nb', ZN, ZA, ZA - ZN]].map(t => {
+  const f = lift(t[3], t[4]), part = f > 0 && f < 1;
+  return { id: t[0], a: t[1], b: t[2], L: t[5], f: f,
+           use: part ? t[0] + 'p' : t[0], end: part ? t[2] + 'p' : t[2],
+           part: part };
+});
+
 const R = [];
 const push = (...r) => R.push(r);
 const blank = () => R.push([]);
@@ -115,7 +173,7 @@ const HDR_MOD = ['# MODULE', 'id', 'member', 'Ref.Pt', 'L.X', 'L.Y', 'L.Z',
 const HDR_AX = ['# MODULE', 'id', 'member', 'Ref.Pt', 'LX1', 'LY1', 'LZ1',
                 'LX2', 'LY2', 'LZ2', 'OFF_B', 'OFF_E', 'Alpha'];
 let form = '';
-const MADE = new Set(), DATUM = {}, COUNT = {};
+const MADE = new Set(), DATUM = {}, COUNT = {}, FIRST = {};
 function A(id, mem, a, b, ob, oe) {
   ob = ob || 0; oe = oe || 0;
   const L = Math.hypot(b[0] - a[0], b[1] - a[1], b[2] - a[2]);
@@ -124,13 +182,15 @@ function A(id, mem, a, b, ob, oe) {
   push('MODULE', id, mem, '', r1(a[0]), r1(a[1]), r1(a[2]),
        r1(b[0]), r1(b[1]), r1(b[2]), ob ? r1(ob) : '', oe ? r1(oe) : '', '');
   MADE.add(id);
+  if (!FIRST[id]) FIRST[id] = mem;
   const k = id + '|' + mem;
   COUNT[k] = (COUNT[k] || 0) + 1;
   if (!DATUM[k]) DATUM[k] = [a[0], a[1], a[2]];
 }
 // BASE names an INSTANCE, and _1 only when there IS more than one of it here.
-function BASE_(id, mem) {
+function BASE_(id) {
   if (!MADE.has(id)) return;
+  const mem = FIRST[id];
   if (form !== 'm') { push.apply(null, HDR_MOD); form = 'm'; }
   push('MODULE', id, 'BASE', mem + (COUNT[id + '|' + mem] > 1 ? '_1' : ''), 'mc');
   form = '';
@@ -180,16 +240,19 @@ push('SECT', 'sc.nb', 'SM490', 1000, 'R', 'mc', 6004, 7000, 120, 0);
 push('SECT', 'sc.p3', 'SM490', r1(ZPY - ZA), 'R', 'mc', 6004, 7000, 120, 0);
 push('SECT', 'sc.px', 'SM490', 45000, 'R', 'mc', r1(XBT - ZK), 7000, 120, 0);
 push('SECT', 'sc.pc', 'SM490', r1(ZG - GD / 2), 'R', 'mc', 9000, 5000, 120, 0);
+/* A pylon caught half way up one of its tapers ends on a section that is not
+   in the drawing: the two ends of that taper, interpolated at the height the
+   lift reached. It is written out like any other section, because that is
+   what it is. */
+TP.filter(t => t.part).forEach(t => push('SECT', t.end, 'SM490', 1000, 'R', 'mc',
+  ...SDIM[t.a].map((v, i) => r1(v + (SDIM[t.b][i] - v) * t.f))));
 blank();
 
 /* ===================== the variable sections ===================== */
 push('# TAPER', 'id', 'begin', 'end', 'beg.pt', 'end.pt', 'taper.pt', 'Length');
-const L1 = Math.hypot(YK - YB, ZK - ZF);
-const L2 = Math.hypot(YK - YN, ZN - ZK);
 // mc to mc, because a column is concentric. bc to bc gives it one flat face.
-push('TAPER', 'tp.lg1', 'sc.la', 'sc.lb', 'mc', 'mc', 'mc', r1(L1));
-push('TAPER', 'tp.lg2', 'sc.lb', 'sc.lc', 'mc', 'mc', 'mc', r1(L2));
-push('TAPER', 'tp.nod', 'sc.na', 'sc.nb', 'mc', 'mc', 'mc', r1(ZA - ZN));
+TP.filter(t => t.f > 0).forEach(t =>
+  push('TAPER', t.use, t.a, t.end, 'mc', 'mc', 'mc', r1(t.L * t.f)));
 blank();
 
 /* ===================== the deck ===================== */
@@ -202,13 +265,29 @@ mainX().forEach(d => XS.add(XP - d));
 sideX().forEach(d => XS.add(XP + d));
 const XL = [...XS].sort((a, b) => a - b);
 const NODES = XL.slice().reverse().map(x => -x).concat(XL.slice(1)).sort((a, b) => a - b);
+/* WHEN EACH NODE ARRIVES. Node k out from a pylon arrives with segment k, on
+   both sides of that pylon at once and at both pylons at once - that is what
+   balanced cantilever means. Mid-span arrives last, at closure. The piers and
+   the 80 m end span standing on them are there from the first frame, because
+   that span is built on falsework and not cantilevered out of anything. */
+const NST = new Map();
+const nk = x => String(r1(x));
+const setN = (x, st) => { NST.set(nk(x), st); NST.set(nk(-x), st); };
+setN(-XP, TBL);
+mainX().forEach((d, k) => setN(-XP + d, segStage(k)));
+sideX().forEach((d, k) => setN(-XP - d, segStage(k)));
+setN(0, CLOSE);
+setN(-XW2, PIER); setN(-XW3, PIER);
+const nst = x => { const v = NST.get(nk(x)); return v === undefined ? CLOSE : v; };
+// a run needs BOTH its ends built, which is what puts the last 20 m at closure
 for (let i = 0; i < NODES.length - 1; i++)
-  A('md.dck', 'sc.gb', [NODES[i], 0, ZG], [NODES[i + 1], 0, ZG]);
+  if (on(Math.max(nst(NODES[i]), nst(NODES[i + 1]))))
+    A('md.dck', 'sc.gb', [NODES[i], 0, ZG], [NODES[i + 1], 0, ZG]);
 /* One bracket a side at every node, which is every stay point - a stay that
    lands between two brackets lands on nothing. */
-NODES.forEach(x => [-1, 1].forEach(s =>
-  A('md.dck', 'sc.br', [x, s * WY, ZG - 100], [x, s * WIDE / 2, ZG - 100], 200, 0)));
-BASE_('md.dck', 'sc.gb');
+NODES.forEach(x => { if (!on(nst(x))) return; [-1, 1].forEach(s =>
+  A('md.dck', 'sc.br', [x, s * WY, ZG - 100], [x, s * WIDE / 2, ZG - 100], 200, 0)); });
+BASE_('md.dck');
 blank();
 
 /* ===================== one pylon ===================== */
@@ -225,17 +304,25 @@ push('#', 'ONE PYLON - two legs that flow into one box, not two boxes that step'
 const A1 = Math.atan((YK - YB) / (ZK - ZF)), A2 = Math.atan((YK - YN) / (ZN - ZK));
 const KO = r1(4000 * Math.tan((A1 + A2) / 2) + 300);
 const TO = r1(2500 * Math.tan(A2) + 400);
+/* A lift that has not reached the next kink ends square, so it takes no trim
+   at its top - there is nothing above it yet to share steel with. */
+const [T1, T2, T3] = TP;
 [-1, 1].forEach(s => {
-  A('md.pyl', 'tp.lg1', [-XP, s * YB, ZF], [-XP, s * YK, ZK], 0, KO);
-  A('md.pyl', 'tp.lg2', [-XP, s * YK, ZK], [-XP, s * YN, ZN], KO, TO);
+  const a1 = [-XP, s * YB, ZF], b1 = [-XP, s * YK, ZK];
+  if (T1.f > 0) A('md.pyl', T1.use, a1, upto(a1, b1, T1.f), 0, T1.f >= 1 ? KO : 0);
+  const b2 = [-XP, s * YN, ZN];
+  if (T2.f > 0) A('md.pyl', T2.use, b1, upto(b1, b2, T2.f), KO, T2.f >= 1 ? TO : 0);
 });
-A('md.pyl', 'tp.nod', [-XP, 0, ZN], [-XP, 0, ZA], 0, 0);
-A('md.pyl', 'sc.p3', [-XP, 0, ZA], [-XP, 0, ZPY], 0, 0);
+const a3 = [-XP, 0, ZN], b3 = [-XP, 0, ZA], b4 = [-XP, 0, ZPY];
+if (T3.f > 0) A('md.pyl', T3.use, a3, upto(a3, b3, T3.f), 0, 0);
+const FS = lift(ZA, ZPY);
+if (FS > 0) A('md.pyl', 'sc.p3', b3, upto(b3, b4, FS), 0, 0);
 /* The crossbeam. 45 m between the leg faces at EL 68, and the deck bears on its
    top at EL 75.583 - which is why the deck in this file is not at a round
    height above the water. */
-A('md.pyl', 'sc.px', [-XP, -YK, (ZK + XBT) / 2], [-XP, YK, (ZK + XBT) / 2], 6000, 6000);
-BASE_('md.pyl', 'tp.lg1');
+if (PTOP >= XBT)
+  A('md.pyl', 'sc.px', [-XP, -YK, (ZK + XBT) / 2], [-XP, YK, (ZK + XBT) / 2], 6000, 6000);
+BASE_('md.pyl');
 blank();
 
 /* ===================== the stays ===================== */
@@ -272,43 +359,50 @@ const stay = (d, i, s, sec, R) => {
   const b = [-XP + d, s * AY, ZDK];
   A('md.stay', sec, a, b, 0, 400);
 };
-mainX().forEach((d, i) => [-1, 1].forEach(s =>
-  stay(d, i, s, d > 200000 ? 'sc.ca' : 'sc.cb', d > 200000 ? 100 : 80)));
-sideX().forEach((d, i) => [-1, 1].forEach(s => stay(-d, i, s, 'sc.ca', 100)));
-BASE_('md.stay', 'sc.ca');
+/* THE RING IS FOUR CABLES, and they go on together. Main span and side span,
+   left plane and right plane - the pylon is only balanced if the ring is
+   complete, so a stage that put on one of them would be a stage of a bridge
+   that would fall over. */
+mainX().forEach((d, i) => { if (!on(stayStage(i))) return; [-1, 1].forEach(s =>
+  stay(d, i, s, d > 200000 ? 'sc.ca' : 'sc.cb', d > 200000 ? 100 : 80)); });
+sideX().forEach((d, i) => { if (!on(stayStage(i))) return;
+  [-1, 1].forEach(s => stay(-d, i, s, 'sc.ca', 100)); });
+BASE_('md.stay');
 blank();
 
 /* ===================== the piers ===================== */
 push('#', 'PIERS W2 AND W3 - under the side span and under the end of the deck');
-[XW2, XW3].forEach((x, k) => [-1, 1].forEach(s =>
-  A('md.pie', 'sc.pc', [-x, s * WY, 0], [-x, s * WY, ZG - GD / 2 - 300], 0, 0)));
-[XW2, XW3].forEach(x =>
-  A('md.pie', 'sc.px', [-x, -WY, ZG - GD / 2 - 12000], [-x, WY, ZG - GD / 2 - 12000],
-    5000, 5000));
-BASE_('md.pie', 'sc.pc');
+if (on(PIER)) {
+  [XW2, XW3].forEach((x, k) => [-1, 1].forEach(s =>
+    A('md.pie', 'sc.pc', [-x, s * WY, 0], [-x, s * WY, ZG - GD / 2 - 300], 0, 0)));
+  [XW2, XW3].forEach(x =>
+    A('md.pie', 'sc.px', [-x, -WY, ZG - GD / 2 - 12000], [-x, WY, ZG - GD / 2 - 12000],
+      5000, 5000));
+}
+BASE_('md.pie');
 blank();
 
 /* ===================== the drawings ===================== */
 // RIGHT looks ALONG the bridge, which is the only direction a section can be
 // taken in - and a module placed many times lands on top of itself there.
 push('# VIEW', 'module', 'dir', 'AZ', 'EL', 'scale', 'title');
-push('VIEW', 'ALL', 'FRONT', '', '', 2000, 'INCHEON BRIDGE - GENERAL ARRANGEMENT');
-push('VIEW', 'ALL', 'TOP', '', '', 2000, 'INCHEON BRIDGE - PLAN');
-push('VIEW', 'md.pyl', 'FRONT', '', '', 500, 'THE PYLON - ELEVATION');
-push('VIEW', 'md.pyl', 'RIGHT', '', '', 500, 'THE PYLON - SECTION');
-push('VIEW', 'md.stay', 'FRONT', '', '', 1000, 'THE STAYS - ELEVATION');
-push('VIEW', 'md.stay', 'TOP', '', '', 1000, 'THE STAYS - PLAN');
-push('VIEW', 'md.dck', 'RIGHT', '', '', 200, 'THE DECK - CROSS SECTION');
-push('VIEW', 'md.pie', 'RIGHT', '', '', 200, 'PIER - SECTION');
+const V = (md, dir, sc, t) => { if (md === 'ALL' || MADE.has(md))
+  push('VIEW', md, dir, '', '', sc, t); };
+V('ALL', 'FRONT', 2000, 'INCHEON BRIDGE - GENERAL ARRANGEMENT');
+V('ALL', 'TOP', 2000, 'INCHEON BRIDGE - PLAN');
+V('md.pyl', 'FRONT', 500, 'THE PYLON - ELEVATION');
+V('md.pyl', 'RIGHT', 500, 'THE PYLON - SECTION');
+V('md.stay', 'FRONT', 1000, 'THE STAYS - ELEVATION');
+V('md.stay', 'TOP', 1000, 'THE STAYS - PLAN');
+V('md.dck', 'RIGHT', 200, 'THE DECK - CROSS SECTION');
+V('md.pie', 'RIGHT', 200, 'PIER - SECTION');
 blank();
 
 /* ===================== the assemblies ===================== */
 /* Every module is written WHERE IT STANDS, so every ADD row quotes that
    module's own datum back at it and moves nothing. Then one MIR does the rest:
    the bridge is symmetric about mid-span, so half of it is written. */
-const DATUM_OF = { 'md.dck': 'sc.gb', 'md.pyl': 'tp.lg1',
-                   'md.stay': 'sc.ca', 'md.pie': 'sc.pc' };
-const put = (as, md) => { const d = AT(md, DATUM_OF[md]);
+const put = (as, md) => { const d = AT(md, FIRST[md]);
   push('ASSY', as, md, 'ADD', r1(d[0]), r1(d[1]), r1(d[2])); };
 
 push('# ASSY', 'id', 'ref', 'cmd', 'G.X', 'G.Y', 'G.Z', 'PLANE');
@@ -339,14 +433,17 @@ push('END');
   const at = (kw, id) => R.findIndex(r => r[0] === kw && (id === undefined || r[1] === id));
   const notes = {};
   const note = (i, t) => { if (i >= 0) notes[i] = t; };
-  note(0, 'INCHEON BRIDGE  ·  800 m main span, 230.5 m pylons, 208 stays  ·  mm, Z up');
+  note(0, 'INCHEON BRIDGE  ·  800 m main span, 230.5 m pylons, 208 stays  ·  mm, Z up'
+       + (SG === null ? '' : '   ·   ERECTION STAGE ' + SG + ' of ' + CLOSE));
   note(at('SECT', 'sc.ca'), 'a stay. A PIPE, because a stay is strands inside a sheath');
   note(at('SECT', 'sc.gb'), 'the deck: one box, 17.6 m by 1,371, skin only');
-  note(at('SECT', 'sc.p1'), 'pylon leg, lower lift - 30 m off centre at the footing');
-  note(at('#', 'ONE PYLON - the leg is TWO straight pieces, and where they kink is what makes 45,000') + 1,
-       '30 m at the footing, 26 m at 60 m, then to the shaft at 175 m: 45,050 where the deck goes through');
-  note(at('#', 'THE STAYS - 26 a plane a side of a pylon, 208 in all, and every one of them one row') + 1,
-       '22.5 m to the first, then 2 at 11.25, then 23 at 15 - and 10 m short of mid-span');
+  // a note ON THE ROW AFTER a comment, and only if that comment is there -
+  // at() gives -1 when it is not, and -1 + 1 is the title row
+  const note1 = (i, t) => { if (i > 0) note(i + 1, t); };
+  note1(at('#', 'ONE PYLON - two legs that flow into one box, not two boxes that step'),
+        '32 m apart at the footing, 45 m at the crossbeam, then one shaft: a lozenge, not a Y');
+  note1(at('#', 'THE STAYS - 26 a plane a side of a pylon, 208 in all, and every one of them one row'),
+        '22.5 m to the first, then 2 at 11.25, then 23 at 15 - and 10 m short of mid-span');
   note(at('# VIEW'), 'eight drawings. RIGHT looks along the bridge - the only way a section can');
   note(at('# ASSY'), 'half the bridge written, one MIR about mid-span');
   R.forEach((r, i) => ws.addRow(r.length ? [notes[i] || ''].concat(r) : []));
@@ -363,5 +460,6 @@ push('END');
   }));
   ws.views = [{ state: 'frozen', ySplit: 1 }];
   await wb.xlsx.writeFile(OUT);
-  console.log('wrote ' + OUT + '  (' + R.length + ' rows)');
+  console.log('wrote ' + OUT + '  (' + R.length + ' rows'
+    + (SG === null ? '' : ', stage ' + SG + '/' + CLOSE) + ')');
 })();
