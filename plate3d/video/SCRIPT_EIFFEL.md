@@ -14,17 +14,17 @@
 
 버립니다. 남는 것은 **탑이 서는 것** 하나입니다.
 
-## 2. 컷 리스트 — 약 1:32
+## 2. 컷 리스트 — 1:43 (실측)
 
 | # | 시각 | 길이 | 화면 | 자막 |
 |---|---|---|---|---|
-| 1 | 0:00 | 4s | 검은 화면, 오프닝 카드 | **BY PLATE3D**<br>**EIFFEL TOWER** |
-| **2** | **0:04** | **70s** | **원테이크.** 지면에서 교각 한 패널이 서고, 부재가 아래에서 위로 쌓인다. **카메라는 내내 돌면서 같이 올라간다.** 20 m 에서 아치, 57.6 에서 1층, 115.7 에서 네 다리가 하나, 276.1 에서 3층, 300.65 에서 멈춘다 | 0:04 **1,528 members.**<br>0:20 *the arches*<br>0:34 *the first platform*<br>0:50 *and the four become one*<br>1:06 *300.65 m — 1889* |
+| 1 | 0:00 | 4s | 검은 화면, 오프닝 카드 | **BY PLATE3D**<br>**EIFFEL TOWER**<br>*Watch it go up.* |
+| **2** | **0:04** | **70s** | **원테이크.** 지면에서 교각 한 패널이 서고, 부재가 아래에서 위로 쌓인다. **카메라는 내내 돌면서 같이 올라간다.** 20 m 에서 아치, 57.6 에서 1층, 115.7 에서 네 다리가 하나, 276.1 에서 3층, 300.65 에서 멈춘다 | 0:04 *709 rows. 1,528 members.*<br>0:20 *the arches*<br>0:34 *the first platform*<br>0:50 *and the four become one*<br>1:08 **300.65 m** *in 1889* |
 | 3 | 1:14 | 8s | 완성. 카메라만 계속 돈다 | — |
-| 4 | 1:22 | 8s | **앱의 Example 패널이 열리고, 에펠탑 줄에 불이 들어오고, DOWNLOAD 를 누르면 `saved` 로 바뀐다** | *Yours to download.*<br>*Example → Eiffel Tower* |
-| 5 | 1:28 | 4s | 로고 | **PLATE3D by macroBIM** |
+| 4 | 1:22 | **17s** | **macroBIM 사이트가 열리고, 왼쪽 메뉴에서 PLATE3D 를 고르고, PLATE3D 창에서 Example download 를 누르고, 에펠탑 줄에 불이 들어오고, 버튼이 `saved` 로 바뀐다** — 일곱 장면 | 1:22 **It is on macroBIM.** *PLATE3D &rarr; Example*<br>1:31 *download it and try it* |
+| 5 | **1:39** | 4s | 로고 | **PLATE3D by macroBIM** |
 
-자막은 다섯 줄뿐입니다. **말이 적을수록 화면이 큽니다.**
+자막은 일곱 줄입니다 — 탑에 다섯, 사이트에 둘. **말이 적을수록 화면이 큽니다.**
 
 3 번에 자막이 없습니다 — 다 지은 다음에 할 말은 없습니다. 골든게이트에서
 정한 규칙 그대로입니다.
@@ -39,14 +39,17 @@
 
 | | 시작 (h = 0) | 끝 (h = 300.65 m) |
 |---|---|---|
-| target z | 12,000 | 150,000 |
-| dist | 190,000 | 620,000 |
+| target z | 12,000 | **145,000** |
+| dist | 190,000 | **490,000** (`u^0.82`) |
 | az | −40 | **+320** |
 | el | 14 | 18 |
 
 - **target z 는 지은 높이의 절반**을 따라갑니다. 자라는 끝이 언제나 화면
   위쪽 삼분의 일에 옵니다.
-- **dist 는 지은 높이에 비례**합니다. 탑이 화면을 채운 채로 커집니다.
+- **dist 는 지은 높이의 0.82 승**입니다. 선형으로 하면 다 지은 탑이
+  반쯤 지은 탑보다 화면에서 작아집니다 — 첫 촬영에서 그렇게 나왔습니다.
+  지수를 1 아래로 내리면 카메라가 뒤로 물러나는 속도가 탑이 자라는
+  속도보다 느려져서, 탑이 화면을 채운 채로 커집니다.
 - **az 는 70초에 360°** 를 돕니다. 초당 5도쯤이라 도는 것이 보이되
   어지럽지 않습니다.
 - **el 은 거의 안 움직입니다.** 낮게 두어야 300 m 가 300 m 로 보입니다.
@@ -63,7 +66,7 @@
 지금까지 지은 높이 아래는 있고, 그 위는 없습니다.
 
 ```
-node video/tools/make_eiffel_stages.js       # 약 60장
+node video/tools/make_eiffel_stages.js       # 31장, video/eiffel/EIF_01..31.xlsx
 ```
 
 | 구간 | 높이 | 장수 |
@@ -80,11 +83,12 @@ node video/tools/make_eiffel_stages.js       # 약 60장
 있었습니다. 각 프레임은 **엔진이 진짜 시트에서 지은 진짜 모델**이지,
 부재를 숨겼다 보였다 한 것이 아닙니다.
 
-**생성기에 붙일 스위치**(아직 없음):
+**생성기의 스위치**:
 
 | 스위치 | 뜻 |
 |---|---|
 | `TOPZ=<높이 mm>` | 이 높이 위는 쓰지 않는다 |
+| `STAGES=1` | 패널 상단 높이 31개를 찍고 끝낸다 |
 
 `TOPZ` 를 비우면 **출하되는 워크북과 행 내용이 완전히 같아야** 합니다.
 골든게이트에서 414행을 대조해 확인한 것과 같은 조건입니다 — 영상 때문에
@@ -110,7 +114,7 @@ md.pl2=#ffe3bc  md.pl3=#ffe9cc  md.shf=#ffcb8c  md.top=#fffaf0
 |---|---|
 | 제목 | `EIFFEL TOWER 3D BIM — Watch It Go Up \| PLATE3D` |
 | 대안 1 | `EIFFEL TOWER 3D BIM — Built From One Excel Sheet \| PLATE3D` |
-| 규격 | 약 1:32 · 1920×1080 · 30 fps · 무음 · **자막 영어** |
+| 규격 | **1:43** · 1920×1080 · 30 fps · **음악 있음** · **자막 영어** |
 | 썸네일 | `PLATE3D_EIFFEL_thumb.jpg` — 풀블리드 ISO, `3D BIM MODELING` / `EIFFEL TOWER` / `by PLATE3D` |
 | 공개 | **미정** |
 
@@ -137,9 +141,63 @@ Runs in the browser. Nothing to install.
 0:00  Eiffel Tower
 0:04  It goes up
 1:14  Finished
-1:22  Download it
+1:22  Get it at macroBIM
+1:39  PLATE3D
 
 #EiffelTower #BIM #3DModeling #StructuralEngineering #PLATE3D
+```
+
+## 6-1. 음악 — `Guitar House` / josh pan
+
+`tools/score.js` 가 붙입니다. **그림은 다시 인코딩하지 않습니다** — 스트림
+복사이므로 몇 초 걸리고 화질이 한 세대 내려가지 않습니다. 무음 마스터는
+`PLATE3D_EIFFEL_mute.mp4` 로 옆에 남습니다.
+
+```
+node video/tools/score.js PLATE3D_EIFFEL.mp4 <track.mp3>
+```
+
+곡을 먼저 재 보고 붙였습니다. 132.0 초 · 320 kb/s · 44.1 kHz 스테레오,
+피크 −9.9 dB, 트랜지언트 비 0.499(타악 우세), 최강 주기 0.50 초 = **120 BPM**.
+초당 라우드니스 봉투:
+
+```
+#@%##%%##@%##%%#%@%%#@%#%@%##@%%#@######%@##%###%@##%###%@##%###%@###@#%%@###@%%==:==-.==-.==-.=%@#%#@#%%@#%#@%@%@#%#@#%%@#%%@%@.
+```
+
+읽으면 이렇습니다.
+
+- **0 초부터 만렙입니다.** 조용한 인트로가 없습니다. 그래서 페이드 인
+  2.5 초가 장식이 아니라 필수입니다 — 안 넣으면 오프닝 카드에 소리가
+  따귀처럼 들어옵니다.
+- **78–95 초가 브레이크다운**입니다(위 봉투의 `==-.` 구간). 103.4 초
+  그림에 얹으면 **탑이 완성되고 macroBIM 화면으로 넘어가는 자리**에
+  정확히 옵니다. 우연이지만 편집으로 만들 수 있는 자리가 아닙니다.
+- **131 초에서 곡이 뚝 끊깁니다.** 그림보다 28.6 초 길므로 잘라서 씁니다
+  — 루프가 아닙니다. 페이드 아웃 4 초가 그 절단을 대신합니다.
+- 120 BPM 하우스입니다. 카메라가 70 초에 360° 를 도니까 초당 5°,
+  한 마디(2 초)에 10° 입니다. 회전과 박자가 맞물리진 않지만
+  **서로 싸우지도 않습니다** — 둘 다 등속입니다.
+
+레벨은 **−15 LUFS** 로 맞춥니다. 유튜브가 −14 근처로 정규화하므로
+−8 로 마스터된 곡은 플랫폼이 알아서 내립니다. 여기서 미리 내려 두면
+파일이 말하는 소리가 아니라 **보는 사람이 듣는 소리**를 듣게 됩니다.
+
+| | 값 |
+|---|---|
+| 무음 마스터 | 25.0 MB (crf 25) |
+| 음악 포함 | **27.6 MB** · AAC 192 kb/s 48 kHz |
+
+crf 를 24 에서 25 로 올렸습니다. 화질 판단이 아니라 **30 MB 안에 음악이
+들어갈 자리를 만든 것**입니다 — 24 는 무음 28.6 MB, 음악 붙이면 31.2 MB 로
+넘어갑니다. 격자와 검정 배경에서 24 와 25 의 차이는 안 보입니다.
+
+**저작자 표시는 확인이 필요합니다.** 유튜브 오디오 보관함 곡 중 일부는
+설명란에 크레딧을 요구합니다. 보관함에서 이 곡 옆에 그 표시가 있었으면
+설명란에 한 줄 넣어야 합니다:
+
+```
+Music: Guitar House by josh pan (YouTube Audio Library)
 ```
 
 ## 7. 실측값
@@ -188,39 +246,41 @@ Runs in the browser. Nothing to install.
 정해진 것:
 
 - 원테이크 · ISO · 밑에서 위로 · 카메라가 같이 돌며 올라간다
-- 자막 다섯 줄, 3 번 컷 무자막
-- 끝은 **받는 장면**이다 — 문구 카드가 아니라 패널과 버튼. 주소를 화면에
-  쓰지 않는다: 패널이 보이면 어디를 눌러야 하는지가 곧 설명이다
+- 자막 일곱 줄, 3 번 컷 무자막
+- 끝은 **받는 장면**이다 — 문구 카드가 아니라 왼쪽 메뉴, PLATE3D 창,
+  Example 목록, 그리고 `saved` 로 바뀌는 버튼. 주소를 화면에 쓰지 않는다:
+  메뉴가 보이면 어디를 눌러야 하는지가 곧 설명이다
+- **음악은 붙인다** — 그림과 따로, `score.js` 로 (§6-1)
 - **PARAM 앞장은 안 붙인다**
 - 도장은 위로 갈수록 밝다
 
 남은 것:
 
-- 썸네일 문구 · 공개 여부
-- 2 번 컷 70초가 맞는 길이인지 — 60장이면 장당 1.17초다. 찍어 보고
-  느리면 장수를 줄이는 것이 아니라 **보간 프레임을 줄인다**(같은 파일을
-  덜 오래 문다)
+- 썸네일 · 공개 여부
+- 오디오 보관함이 이 곡에 크레딧을 요구하는지 (§6-1)
+- ~~2 번 컷 70초가 맞는 길이인지~~ — 찍었습니다. 31장을 초당 12스틸로
+  보간해서 840 프레임, 장당 2.26초입니다. 부재가 붙는 순간이 보이면서
+  카메라가 끊기지 않는 지점입니다
 
-## 10. 필요한 파일
+## 10. 파일 — 전부 있습니다
 
-있는 것:
-
-```
-plate3d/PLATE3D_EIFFEL.xlsx            모델 709행
-plate3d/tools/make_eiffel.js           생성기 (도장 값도 머리에)
-plate3d/video/tools/video_page.html    촬영 하네스 — __aim / __grab
-plate3d/video/tools/mkthumb.js         썸네일 (bleed 판)
-```
-
-만들 것:
+`만들 것` 이 비었습니다. 아래 순서대로 돌리면 처음부터 다시 나옵니다.
 
 ```
-plate3d/tools/make_eiffel.js           TOPZ 스위치 추가
-video/tools/make_eiffel_stages.js      약 60장
-video/tools/mkcards_eiffel.js          카드 5장
-video/tools/shoot_eiffel.js            촬영 — 컷 5개, 카메라가 높이를 따라감
-video/tools/assemble_eiffel.js         조립
+plate3d/tools/make_eiffel.js           생성기. TOPZ= 로 잘라 짓고, STAGES=1 로
+                                       패널 상단 높이 31개를 뱉는다. 도장 값도 머리에
+plate3d/PLATE3D_EIFFEL.xlsx            출하되는 워크북 709행
+
+video/tools/make_eiffel_stages.js      EIF_01..31.xlsx 를 video/eiffel/ 에
+video/tools/mkcards_eiffel.js          카드 (full 2 · over 5)
+video/tools/rendercards_eiffel.js      카드 → PNG
+video/tools/shoot_eiffel.js            촬영. ONLY= 로 컷 하나만
+video/tools/assemble_eiffel.js         조립. CRF= 로 크기 조절 (기본 25)
+video/tools/score.js                   음악. 그림은 스트림 복사, 곡만 다시 씀
+video/tools/video_page.html            촬영 하네스 — __aim / __grab / __reveal
+video/tools/site_page.html             macroBIM 화면용 껍데기 (layout_body.js 를 감쌈)
+video/tools/mkthumb.js                 썸네일 (bleed 판) — 에펠 항목은 아직 없음
 ```
 
-골든게이트에서 만든 것을 거의 그대로 씁니다. 새로 판단할 것은 **카메라가
-높이를 따라가는 식** 하나입니다(§3).
+새로 판단한 것은 두 개였습니다: **카메라가 높이를 따라가는 식**(§3), 그리고
+**받는 장면을 진짜로 찍는 것**(§7).

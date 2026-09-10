@@ -77,12 +77,18 @@ cp.execFileSync(FF, ['-hide_banner', '-loglevel', 'error', '-y',
   ...inputs,
   '-filter_complex_script', path.join(SP, 'filter_eif.txt'), '-map', '[vout]',
   '-t', DUR.toFixed(3),
-  /* crf 24, where the Golden Gate film used 21. Not a quality decision - a
+  /* crf 25, where the Golden Gate film used 21. Not a quality decision - a
      content one. That film held still pictures for seconds at a time and x264
      spent almost nothing on them; this one orbits from the first frame to the
-     last, so every frame is a new frame and 21 came out at 42 MB. 24 is a
-     third of that and the difference is invisible on a lattice against black. */
-  '-c:v', 'libx264', '-preset', 'slow', '-crf', '24',
+     last, so every frame is a new frame and 21 came out at 42 MB. 24 came out
+     at 28.6 MB silent, and scoring it put the file at 31.2 MB - over the
+     30 MB the film has to travel in, for the sake of two minutes of music.
+     25 is 25.0 MB silent and 27.6 MB scored, and the difference in the
+     picture is invisible on a lattice against black.
+
+     CRF= overrides it. Raise it if the film ever gets longer; do not lower it
+     below 21 - past there x264 is spending bits on the black. */
+  '-c:v', 'libx264', '-preset', 'slow', '-crf', String(+(process.env.CRF || 25)),
   '-pix_fmt', 'yuv420p', '-movflags', '+faststart', '-r', String(FPS),
   OUT], { stdio: 'inherit' });
 
