@@ -76,6 +76,8 @@ const YB = 16000, YK = 22500;           // half of 32,000 and half of 45,000
 const XBT = 75583;                      // top of the crossbeam - the deck sits here
 const SHY = 6000, SHX = 7000;           // the shaft
 const ZJS = ZJ;                         // and the shaft starts at the node
+const ZN = 165000, ZA = 189800;         // the node: legs still two, then one
+const YN = 4300;                        // and where the leg axes are when it starts
 const CTOP = 230600, CBOT = 189800;     // the steel box anchorage
 /* The deck BEARS ON THE CROSSBEAM - the drawing marks the bearing region right
    there - so its soffit is the crossbeam's top and not a round number of metres
@@ -161,12 +163,33 @@ push('SECT', 'sc.cb', 'SM570', 150000, 'P', 'mc', 160, 12);
 push('SECT', 'sc.gb', 'SM490', 15000, 'R', 'mc', GD, BOXW, 30, 0);
 push('SECT', 'sc.br', 'SM490', r1(WIDE / 2 - WY), 'H', 'mc', 1100, 600, 600, 12, 18, 18, 12);
 // the pylon: square boxes, because a leaning leg has no up to be told about
-push('SECT', 'sc.p1', 'SM490', r1(ZK - ZF), 'R', 'mc', 10000, 10000, 120, 0);
-push('SECT', 'sc.p2', 'SM490', r1(ZJ - ZK), 'R', 'mc', 6000, 6000, 120, 0);
-push('SECT', 'sc.p3', 'SM490', r1(ZPY - ZJS), 'R', 'mc', SHY, SHX, 120, 0);
-// the crossbeam: 45 m between the legs, 7 m wide, 7.6 m deep, and the deck on it
+/* THE LEGS AND THE NODE ARE VARIABLE SECTION. TAPER builds a member out of two
+   already-defined sections - it does not modify one - so these are shapes only,
+   never placed; the TAPER rows place what they make of them.
+
+   The sizes come off the five sections through the node. Going up, the pylon is
+   two legs 3,567 wide with 2,401 between them (11,062 over all), then two of
+   1,650 with 700 between (6,879), then the single anchorage box at 6,004. So the
+   node is not a joint - it is twenty-five metres of pylon squeezing two legs
+   into one box, and one taper is exactly that. */
+push('SECT', 'sc.la', 'SM490', 1000, 'R', 'mc', 10000, 10000, 120, 0);
+push('SECT', 'sc.lb', 'SM490', 1000, 'R', 'mc', 8000, 8000, 120, 0);
+push('SECT', 'sc.lc', 'SM490', 1000, 'R', 'mc', 5000, 5000, 120, 0);
+push('SECT', 'sc.na', 'SM490', 1000, 'R', 'mc', 11062, 7000, 120, 0);
+push('SECT', 'sc.nb', 'SM490', 1000, 'R', 'mc', 6004, 7000, 120, 0);
+push('SECT', 'sc.p3', 'SM490', r1(ZPY - ZA), 'R', 'mc', 6004, 7000, 120, 0);
 push('SECT', 'sc.px', 'SM490', 45000, 'R', 'mc', r1(XBT - ZK), 7000, 120, 0);
 push('SECT', 'sc.pc', 'SM490', r1(ZG - GD / 2), 'R', 'mc', 9000, 5000, 120, 0);
+blank();
+
+/* ===================== the variable sections ===================== */
+push('# TAPER', 'id', 'begin', 'end', 'beg.pt', 'end.pt', 'taper.pt', 'Length');
+const L1 = Math.hypot(YK - YB, ZK - ZF);
+const L2 = Math.hypot(YK - YN, ZN - ZK);
+// mc to mc, because a column is concentric. bc to bc gives it one flat face.
+push('TAPER', 'tp.lg1', 'sc.la', 'sc.lb', 'mc', 'mc', 'mc', r1(L1));
+push('TAPER', 'tp.lg2', 'sc.lb', 'sc.lc', 'mc', 'mc', 'mc', r1(L2));
+push('TAPER', 'tp.nod', 'sc.na', 'sc.nb', 'mc', 'mc', 'mc', r1(ZA - ZN));
 blank();
 
 /* ===================== the deck ===================== */
@@ -189,29 +212,30 @@ BASE_('md.dck', 'sc.gb');
 blank();
 
 /* ===================== one pylon ===================== */
-push('#', 'ONE PYLON - the leg is TWO straight pieces, and where they kink is what makes 45,000');
-const legY = z => z <= ZK ? YB + (YK - YB) * (z - ZF) / (ZK - ZF)
-                          : YK * (ZJ - z) / (ZJ - ZK);
-/* The splay and the converge are two straight pieces meeting at the crossbeam,
-   and the turn there is 20 degrees - the widest kink anywhere in this file. Half
-   the box times the tangent of half of it is what comes off each end. */
-const A1 = Math.atan((YK - YB) / (ZK - ZF)), A2 = Math.atan(YK / (ZJ - ZK));
-const KO = r1(5000 * Math.tan((A1 + A2) / 2) + 300);
-/* And the top of the leg stops where its box clears the shaft's face. Two boxes
-   converging at 25 degrees always share steel at the apex; a real pylon has a
-   NODE there, which the drawing names, and this is that node's size. */
-const ZLT = ZJ - (SHY / 2 + 3000 + 400) * (ZJ - ZK) / YK;
+push('#', 'ONE PYLON - two legs that flow into one box, not two boxes that step');
+/* The legs never meet at a point and there is no hole where they would. They
+   splay to the crossbeam, converge to 3.5 m off centre at EL 165 - still two
+   legs, 2 m apart - and from there ONE tapered member squeezes 11 m of double
+   leg into the 6 m anchorage box by EL 189.8. Written as stepped boxes the same
+   twenty-five metres came out as a staircase with a black gap under it. */
+/* The kink at the crossbeam turns 21 degrees, so the two legs share steel there
+   like any other kink: half the box times the tangent of half the turn. And the
+   leg tops stop just short of the node's underside, because an inclined box's
+   corner reaches past the level its axis ends at. */
+const A1 = Math.atan((YK - YB) / (ZK - ZF)), A2 = Math.atan((YK - YN) / (ZN - ZK));
+const KO = r1(4000 * Math.tan((A1 + A2) / 2) + 300);
+const TO = r1(2500 * Math.tan(A2) + 400);
 [-1, 1].forEach(s => {
-  A('md.pyl', 'sc.p1', [-XP, s * YB, ZF], [-XP, s * YK, ZK], 0, KO);
-  A('md.pyl', 'sc.p2', [-XP, s * YK, ZK], [-XP, s * YK * (ZJ - ZLT) / (ZJ - ZK), ZLT],
-    KO, 0);
+  A('md.pyl', 'tp.lg1', [-XP, s * YB, ZF], [-XP, s * YK, ZK], 0, KO);
+  A('md.pyl', 'tp.lg2', [-XP, s * YK, ZK], [-XP, s * YN, ZN], KO, TO);
 });
-A('md.pyl', 'sc.p3', [-XP, 0, ZJS], [-XP, 0, ZPY], 0, 0);
+A('md.pyl', 'tp.nod', [-XP, 0, ZN], [-XP, 0, ZA], 0, 0);
+A('md.pyl', 'sc.p3', [-XP, 0, ZA], [-XP, 0, ZPY], 0, 0);
 /* The crossbeam. 45 m between the leg faces at EL 68, and the deck bears on its
    top at EL 75.583 - which is why the deck in this file is not at a round
    height above the water. */
 A('md.pyl', 'sc.px', [-XP, -YK, (ZK + XBT) / 2], [-XP, YK, (ZK + XBT) / 2], 6000, 6000);
-BASE_('md.pyl', 'sc.p1');
+BASE_('md.pyl', 'tp.lg1');
 blank();
 
 /* ===================== the stays ===================== */
@@ -282,7 +306,7 @@ blank();
 /* Every module is written WHERE IT STANDS, so every ADD row quotes that
    module's own datum back at it and moves nothing. Then one MIR does the rest:
    the bridge is symmetric about mid-span, so half of it is written. */
-const DATUM_OF = { 'md.dck': 'sc.gb', 'md.pyl': 'sc.p1',
+const DATUM_OF = { 'md.dck': 'sc.gb', 'md.pyl': 'tp.lg1',
                    'md.stay': 'sc.ca', 'md.pie': 'sc.pc' };
 const put = (as, md) => { const d = AT(md, DATUM_OF[md]);
   push('ASSY', as, md, 'ADD', r1(d[0]), r1(d[1]), r1(d[2])); };
