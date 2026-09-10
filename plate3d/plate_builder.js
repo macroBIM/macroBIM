@@ -12422,7 +12422,7 @@
        grammar, commented out, with room to type between the lines. Basic keeps
        its "Start here": the two say different things - write your own, or watch
        one work. */
-    { f: 'PLATE3D_TEMPLATE.xlsx', n: 'Template', s: '151 rows → 0 members, by design',
+    { f: 'PLATE3D_TEMPLATE.xlsx', n: 'Template', s: '212 rows → 0 members, by design',
       d: 'Every keyword and form, commented out. Write your own.' },
     { f: 'PLATE3D_BASIC.xlsx', n: 'Basic', s: '76 rows → 90 members · 1.70 t',
       d: 'Every keyword once, in one real model. Start here.' },
@@ -12465,13 +12465,7 @@
        legs. Between the two of them the four ASSY commands are all shown at a
        scale where getting them wrong would be obvious. */
     { f: 'PLATE3D_EIFFEL.xlsx', n: 'Eiffel Tower', s: '709 rows → 1528 members · 4,773 t · 9 drawings',
-      d: 'One pier, written once and turned four ways. 300 m tall.' },
-    /* And the third command. The tower TURNS one pier; this MIRRORS a quarter
-       of an arch twice - about the crown, then about the centre line - so four
-       half-trusses come out of one, and a 503 m span cannot go lopsided
-       because there is only one half of it in the file. */
-    { f: 'PLATE3D_HARBOUR.xlsx', n: 'Sydney Harbour Bridge', s: '274 rows → 1362 members · 52,826 t · 9 drawings',
-      d: 'A quarter of the arch, mirrored twice. 503 m span; 18,037 t of the weight is four granite pylons written as steel.' }
+      d: 'One pier, written once and turned four ways. 300 m tall.' }
   ];
   var exOpen = false;
   /* The picker is a window rather than a dropdown, so each example has room for
