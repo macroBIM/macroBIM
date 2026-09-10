@@ -219,33 +219,34 @@ push('#', 'THE STAYS - 26 a plane a side of a pylon, 208 in all, and every one o
 /* A semi-fan: the deck end of each stay is where the drawing puts it, and the
    pylon end is spread down the 55.5 m anchorage block - because a pure fan
    asks fifty-two cables to meet at one point. */
-const anch = i => CTOP - (CTOP - CBOT) * i / (NC - 1);
-/* How far a stay is INSIDE the shaft before it gets out, which for the steep
-   ones near the top is twenty-four metres. It is not a fudge: a stay at eight
-   degrees off vertical beside a 7 m shaft really does run inside the anchorage
-   block that far, which is what an anchorage block is for. Trimming all of
-   them by half the shaft instead put 208 cables through it. */
-/* How far a stay is INSIDE the shaft before it gets out, which for the steep
-   ones near the top is twenty metres. Not a fudge: a stay eight degrees off
-   vertical beside a 7 m shaft really does run that far inside the anchorage
-   block, which is what an anchorage block is for. And it counts from where the
-   stay is actually anchored, not from the shaft's centre - a stay staggered to
-   the far side of the box has the whole box to cross. */
-const stayOff = (a, b, R) => {
-  const dx = b[0] - a[0], L = Math.hypot(dx, b[1] - a[1], b[2] - a[2]);
-  const off = a[0] + XP;                       // where in the 7 m box it sits
-  const out = SHX / 2 + (dx > 0 ? -off : off) + R + 400;
-  return r1(out * L / Math.abs(dx));
-};
+/* THE LONGEST STAY ANCHORS HIGHEST. i counts outward along the deck, so i = 0
+   is the stay that lands 22.5 m from the pylon and i = 25 is the one that
+   reaches to within 10 m of mid-span - and it is that last, longest, flattest
+   one that goes to the top of the block. Written the other way round the fan
+   is upside down: the short steep stays crowd the top and the long ones leave
+   from the bottom, which no cable-stayed bridge does, because the whole point
+   of putting the anchorage high is to give the far end of the span some angle
+   to pull at. */
+const anch = i => CBOT + (CTOP - CBOT) * i / (NC - 1);
+/* A STAY LEAVES THE FACE OF THE ANCHORAGE BOX, not its centre line.
+
+   The first version started every stay on the shaft's axis and trimmed it back
+   out - twenty metres for the steep ones, which is true of the real cable and
+   wrong for a drawing of it. What you see is not a stay that starts inside the
+   box; it is a stay that starts twenty metres DOWN ITS OWN LENGTH, and since
+   the steep ones run nearly parallel to the shaft that put the bottom of the
+   fan at EL 164 when the anchorage block stops at EL 189.8. The fan reached a
+   quarter of the way down the pylon that has no cables on it at all.
+
+   This model is a skin - the inside of the box is not drawn and is not meant
+   to be - so the honest place to start a stay is where it comes out: the face
+   of the box, at the elevation it is anchored at. Then the fan is the block's
+   height and nothing else. */
 const stay = (d, i, s, sec, R) => {
-  /* ALTERNATING IN AND OUT along the bridge, which is what the anchorage box is
-     7 m deep for. Anchor them all on one line and adjacent stays near the top
-     come out 240 mm apart perpendicular with 225 mm of pipe between them - 12 mm
-     of air, and the clash report is right to say so. Three rows a
-     2.6 m apart and no two of them are ever close. */
-  const a = [-XP + [-1300, 0, 1300][i % 3], s * 700, anch(i)];
+  const out = SHX / 2 + R + 60;
+  const a = [-XP + (d > 0 ? out : -out), s * 700, anch(i)];
   const b = [-XP + d, s * AY, ZDK];
-  A('md.stay', sec, a, b, stayOff(a, b, R), 400);
+  A('md.stay', sec, a, b, 0, 400);
 };
 mainX().forEach((d, i) => [-1, 1].forEach(s =>
   stay(d, i, s, d > 200000 ? 'sc.ca' : 'sc.cb', d > 200000 ? 100 : 80)));
