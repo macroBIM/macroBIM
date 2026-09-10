@@ -11975,7 +11975,13 @@
        legs. Between the two of them the four ASSY commands are all shown at a
        scale where getting them wrong would be obvious. */
     { f: 'PLATE3D_EIFFEL.xlsx', n: 'Eiffel Tower', s: '709 rows → 1528 members · 4,773 t · 9 drawings',
-      d: 'One pier, written once and turned four ways. 300 m tall.' }
+      d: 'One pier, written once and turned four ways. 300 m tall.' },
+    /* And the third command. The tower TURNS one pier; this MIRRORS a quarter
+       of an arch twice - about the crown, then about the centre line - so four
+       half-trusses come out of one, and a 503 m span cannot go lopsided
+       because there is only one half of it in the file. */
+    { f: 'PLATE3D_HARBOUR.xlsx', n: 'Sydney Harbour Bridge', s: '269 rows → 1382 members · 41,990 t · 9 drawings',
+      d: 'A quarter of the arch, mirrored twice. 503 m span, 1,149 m overall.' }
   ];
   var exOpen = false;
   /* The picker is a window rather than a dropdown, so each example has room for
