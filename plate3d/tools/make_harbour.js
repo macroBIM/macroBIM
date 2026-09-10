@@ -77,8 +77,9 @@ const HU = RISEW + MSL;            // 122000  top chord at the crown
 const ZDK = DECKW + MSL;           //  37000  roadway
 const ZPY = PYLW + MSL;            //  77000  top of a pylon
 const DC = 16000;                  // truss depth at the crown        (mine)
-const DM = 65000;                  // and the number that opens it up (mine)
-const DP = 7000;                   // and the depth left AT the pin   (mine)
+const DM = 68000;                  // and the number that opens it up (mine)
+const DP = 20000;                  // and the SHOE it lands on        (mine)
+const PW = 1.8;                    // the bottom chord's exponent     (mine)
 const BY = 15000;                  // half the spacing of the two trusses (mine)
 /* THE BOTTOM CHORD IS THE PARABOLA, and the depth is stacked on top of it.
 
@@ -100,8 +101,20 @@ const BY = 15000;                  // half the spacing of the two trusses (mine)
    measured ALONG THE BRIDGE, not along the arch, because the hangers hang off
    the panel points and the hangers are what the deck is spaced by. */
 const ZLC = HU - DC;               // 106000  bottom chord at the crown
-const ZLP = -DP / 2;               //  -3500  and where it meets the casting
-const zlo = u => ZLP + (ZLC - ZLP) * (1 - u * u);
+const ZLP = -DP / 2;               // -10000  and the bottom of the shoe
+/* u to the 1.8, not squared. A parabola is FLAT at its vertex - the first
+   panel out from the crown drops 559 mm on a chord that falls 116 m in all -
+   so the middle third of the arch is a plateau and the crown does not read as
+   round. 1.8 drops 1,003 in that first panel and the top of the arch turns
+   where the eye expects it to.
+
+   It is a trade and worth writing down: the rounder the crown, the earlier the
+   bottom chord meets the roadway, because a chord that turns sooner is lower
+   everywhere in the middle. Squared puts the crossing 23% in from the pin,
+   1.8 puts it at 25%, and 1.5 would put it past 30% and look like the first
+   version of this file. 1.8 is where the crown looks right and the crossing is
+   still near the end. */
+const zlo = u => ZLP + (ZLC - ZLP) * (1 - Math.pow(u, PW));
 /* The depth grows as u SQUARED, and that is the difference between an arch and
    a lump. Growing it linearly opens the depth faster near the crown than the
    bottom chord falls, so the TOP CHORD RISES AWAY FROM THE CROWN - highest two
@@ -116,7 +129,12 @@ const zlo = u => ZLP + (ZLC - ZLP) * (1 - u * u);
    missing. The real bridge does not converge to a point either: it converges
    to a bearing casting a man can stand inside, and the last member across is
    that casting. */
-const dep = u => DP + (DC - DP + (DM - DC) * u * u) * (1 - Math.pow(u, 6));
+/* And it closes to a SHOE, not to a point. 7 m of depth at the pin makes the
+   springing a thin wedge, and the springing of this bridge is the thickest
+   thing on it - the two chords land 20 m apart on a bearing casting the size of
+   a house, and the depth is still 43 m one panel back. u^12 keeps the truss
+   deep until the last panel and then closes it in one. */
+const dep = u => DP + (DC - DP + (DM - DC) * u * u) * (1 - Math.pow(u, 12));
 const zup = u => zlo(u) + dep(u);
 
 const NH = 14;                     // panels in a half arch
@@ -259,6 +277,7 @@ push('# SECT', 'id', 'mat', 'length', 'TYPE', 'base.pt',
 push('SECT', 'sc.uc', 'SM490', r1(P), 'R', 'mc', 3200, 3200, 45, 0);
 push('SECT', 'sc.lc', 'SM490', r1(P), 'R', 'mc', 3400, 3400, 50, 0);
 push('SECT', 'sc.av', 'SM490', 30000, 'R', 'mc', 1600, 1600, 25, 0);
+push('SECT', 'sc.sh', 'SM490', r1(DP), 'R', 'mc', 5000, 5000, 90, 0);
 push('SECT', 'sc.ad', 'SM490', 36000, 'R', 'mc', 1800, 1800, 28, 0);
 push('SECT', 'sc.cs', 'SM490', 26000, 'R', 'mc', 2000, 2000, 30, 0);
 push('SECT', 'sc.cd', 'SM490', 34000, 'R', 'mc', 1200, 1200, 20, 0);
@@ -372,8 +391,8 @@ for (let j = 1; j < NH; j++) {                 // verticals, crown and pin exclu
    loop above stops one short of so that it is not written twice. It is the last
    member of the arch and the only one that is not steel doing structure - it is
    the bearing, and the two hinges of a two-hinged arch are these. */
-if (up(NH - 1)) A('md.arh', 'sc.av', [XJ(NH), -BY, zlo(1)], [XJ(NH), -BY, zup(1)],
-                  faceUp(zlo, half.lc, NH, 800), faceUp(zup, half.uc, NH, 800));
+if (up(NH - 1)) A('md.arh', 'sc.sh', [XJ(NH), -BY, zlo(1)], [XJ(NH), -BY, zup(1)],
+                  faceUp(zlo, half.lc, NH, 2500), faceUp(zup, half.uc, NH, 2500));
 BASE_('md.arh', 'sc.uc');
 blank();
 
@@ -539,15 +558,33 @@ blank();
 /* ===================== the drawings ===================== */
 if (!staged) {
 push('# VIEW', 'module', 'dir', 'AZ', 'EL', 'scale', 'title');
+/* RIGHT looks ALONG the bridge, which is the only direction a cross section can
+   be taken in. The first cut asked for the deck bay FRONT and called it a cross
+   section; FRONT looks across the bridge, and since VIEW draws a module at
+   every placement, sixty-four bays came out side by side as a 1,150 m strip.
+   It was a drawing - it was just an elevation of the whole deck with CROSS
+   SECTION written on it.
+
+   Looking along the bridge instead, those same sixty-four placements land on
+   top of each other and the drawing is one bay, seen the way a section is
+   seen.
+
+   Which is also why the section through the ARCH is taken on md.crn and not on
+   md.brc. Both are bracing; the difference is that md.brc has a strut at every
+   one of fourteen heights and md.crn has its four members at ONE station. Look
+   along the bridge at md.brc and all fourteen land on top of each other - not
+   a section, a smear of the whole arch's bracing, and it was on the sheet
+   titled SECTION THROUGH THE ARCH. A section wants a module that lives at one
+   station, and at the crown that is exactly what md.crn is. */
 push('VIEW', 'ALL', 'FRONT', '', '', 2000, 'SYDNEY HARBOUR BRIDGE - GENERAL ARRANGEMENT');
 push('VIEW', 'ALL', 'TOP', '', '', 2000, 'SYDNEY HARBOUR BRIDGE - PLAN');
 push('VIEW', 'md.arh', 'FRONT', '', '', 1000, 'THE ARCH - ELEVATION');
 push('VIEW', 'md.brc', 'TOP', '', '', 1000, 'ARCH BRACING - PLAN');
+push('VIEW', 'md.crn', 'RIGHT', '', '', 200, 'SECTION THROUGH THE ARCH AT THE CROWN');
 push('VIEW', 'md.brc', 'FRONT', '', '', 1000, 'HANGERS AND POSTS - ELEVATION');
-push('VIEW', 'md.dkb', 'FRONT', '', '', 100, 'ONE DECK BAY - CROSS SECTION');
-push('VIEW', 'md.dkb', 'TOP', '', '', 200, 'THE DECK - PLAN');
-push('VIEW', 'md.pyl', 'FRONT', '', '', 500, 'ONE PYLON - ELEVATION');
-push('VIEW', 'md.pie', 'FRONT', '', '', 200, 'ONE APPROACH PIER - ELEVATION');
+push('VIEW', 'md.dkb', 'RIGHT', '', '', 100, 'THE DECK - CROSS SECTION');
+push('VIEW', 'md.pyl', 'RIGHT', '', '', 300, 'THE PYLONS - SECTION');
+push('VIEW', 'md.pie', 'RIGHT', '', '', 200, 'APPROACH PIER - SECTION');
 blank();
 }
 

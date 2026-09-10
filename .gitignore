@@ -45,3 +45,4 @@ plate3d/video/tools/site/
 plate3d/video/tools/filter_ggb.txt
 plate3d/video/tools/filter_eif.txt
 plate3d/video/*.mp4
+plate3d/tools/draw/
