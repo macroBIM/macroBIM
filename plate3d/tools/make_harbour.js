@@ -77,7 +77,7 @@ const HU = RISEW + MSL;            // 122000  top chord at the crown
 const ZDK = DECKW + MSL;           //  37000  roadway
 const ZPY = PYLW + MSL;            //  77000  top of a pylon
 const DC = 18000;                  // truss depth at the crown        (mine)
-const DM = 70000;                  // and the number that opens it up (mine)
+const DM = 90000;                  // and the number that opens it up (mine)
 const DP = 9000;                   // and the depth left AT the pin   (mine)
 const ZA = HU - DC / 2;            // 113000  the arch axis at the crown
 const BY = 15000;                  // half the spacing of the two trusses (mine)
@@ -97,13 +97,21 @@ const BY = 15000;                  // half the spacing of the two trusses (mine)
    the last panel and a half, which is where the real arch shuts it, and lower
    exponents pinch the depth away over a third of the span. */
 const za = u => ZA * (1 - u * u);
-/* The depth does not close to a mathematical point. Two 3.5 m boxes converging
-   on one node at 56 degrees share four metres of steel with each other, and no
-   trim short of seven metres clears it - which would leave the tip of the arch
-   missing. The real bridge does not converge to a point either: it converges
-   to a bearing casting a man can stand inside. So the depth closes to 5 m and
-   the last member across is that casting. */
-const dep = u => DP + (DC - DP + (DM - DC) * u) * (1 - Math.pow(u, 6));
+/* The depth grows as u SQUARED, and that is the difference between an arch and
+   a lump. Growing it linearly makes the depth open faster near the crown than
+   the axis falls, so the TOP CHORD RISES AWAY FROM THE CROWN - highest two
+   panels out, then coming down. On the drawing it is a flat hump across the
+   middle third and it is the first thing you see is wrong. u squared is flat at
+   the crown, so the top chord's highest point is the crown, which is where an
+   arch keeps it.
+
+   And the depth does not close to a mathematical point. Two 3.5 m boxes
+   converging on one node at 56 degrees share four metres of steel with each
+   other, and no trim short of seven metres clears it - which would leave the
+   tip of the arch missing. The real bridge does not converge to a point either:
+   it converges to a bearing casting a man can stand inside. So the depth closes
+   to 9 m and the last member across is that casting. */
+const dep = u => DP + (DC - DP + (DM - DC) * u * u) * (1 - Math.pow(u, 6));
 const zup = u => za(u) + dep(u) / 2;
 const zlo = u => za(u) - dep(u) / 2;
 
@@ -200,10 +208,15 @@ function A(id, mem, a, b, ob, oe) {
   const k = id + '|' + mem;
   if (!DATUM[k]) DATUM[k] = [a[0], a[1], a[2]];
 }
+/* BASE names an INSTANCE, not a section. `BASE sc.uc` makes the engine say
+   "SC.UC names 14 members - taking the first" on the panel every time the book
+   is opened, which is a warning about the sheet being vague rather than about
+   anything being wrong. `sc.uc_1` is that same first member said out loud, and
+   the panel goes quiet. */
 function BASE_(id, mem) {
   if (!MADE.has(id)) return;
   if (form !== 'm') { push.apply(null, HDR_MOD); form = 'm'; }
-  push('MODULE', id, 'BASE', mem, 'mc'); form = '';
+  push('MODULE', id, 'BASE', mem + '_1', 'mc'); form = '';
 }
 const AT = (id, mem) => DATUM[id + '|' + mem] || [0, 0, 0];
 
@@ -342,13 +355,21 @@ const CDO = half.uc + 600 + 300;
 // steep the chord is there: a 3.2 m box on a 56 degree slope is 5.7 m deep
 // measured vertically, and 2.4 m of drop leaves the bracing inside it.
 const PB = j => r1(half.uc / Math.cos(steep(zup, j)) + 600 + 400);
+/* A strut is written only where it CLEARS THE ROADWAY, and it is asked the
+   same question whichever chord it is on. The deck's girders occupy a band
+   3,550 to 5,950 below the roadway right across the bridge, and both chords
+   cross that band on their way down to the pins - the bottom one at the tenth
+   node, the top one at the thirteenth. A strut there is a strut through the
+   deck it is holding up. Those two panel points are braced by the ones either
+   side of them, which is what the real bridge does at the same place and for
+   the same reason. */
+const clearsDeck = z => z + 1000 < CGZ - CGH / 2 || z - 1000 > CGT;
 for (let j = 1; j <= NH; j++) {
   if (!up(j - 1)) continue;
   const x = XJ(j), u = U(j);
-  A('md.brc', 'sc.cs', [x, -BY, zup(u)], [x, BY, zup(u)], CSO, CSO);
-  /* The bottom strut only where the lower chord is clear of the roadway. Where
-     it is not, the strut would run through the deck it is holding up. */
-  if (Math.abs(zlo(u) - ZDK) > 6000)
+  if (clearsDeck(zup(u)))
+    A('md.brc', 'sc.cs', [x, -BY, zup(u)], [x, BY, zup(u)], CSO, CSO);
+  if (clearsDeck(zlo(u)))
     A('md.brc', 'sc.cs', [x, -BY, zlo(u)], [x, BY, zlo(u)], CSL, CSL);
 }
 /* Plan bracing: ONE diagonal a bay, not an X. Two crossing diagonals meet in

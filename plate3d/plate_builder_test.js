@@ -11980,7 +11980,7 @@
        of an arch twice - about the crown, then about the centre line - so four
        half-trusses come out of one, and a 503 m span cannot go lopsided
        because there is only one half of it in the file. */
-    { f: 'PLATE3D_HARBOUR.xlsx', n: 'Sydney Harbour Bridge', s: '269 rows → 1382 members · 41,990 t · 9 drawings',
+    { f: 'PLATE3D_HARBOUR.xlsx', n: 'Sydney Harbour Bridge', s: '269 rows → 1382 members · 41,619 t · 9 drawings',
       d: 'A quarter of the arch, mirrored twice. 503 m span, 1,149 m overall.' }
   ];
   var exOpen = false;
