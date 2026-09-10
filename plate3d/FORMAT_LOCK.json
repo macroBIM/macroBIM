@@ -314,6 +314,14 @@
    "6 SECT s.R SS275 3500 R mc 100 100 6 12   "
   ],
   [
+   " A B C D E F G H I J K L",
+   "1 # SECT id mat length type BASE.pt h bb bt tw tf1 tf2",
+   "2 SECT sc.deep SM490 12000 H bc 1800 600 500 12 36 22",
+   "3 SECT sc.thin SM490 12000 H bc 900 600 500 12 36 22",
+   "4 # TAPER id start end start.pt end.pt taper.pt Length    ",
+   "5 TAPER tp.1 sc.deep sc.thin bc bc bc 9000    "
+  ],
+  [
    " A B C D E F G H I J K",
    "1 # BOLT id mat dia length hole head_af head_h nut_af nut_h proj",
    "2 BOLT bo.m16 F10T 16 50      ",

@@ -740,6 +740,47 @@
      stretches add is that an END CAP belongs only to the piece that owns it:
      the boundary between two stretches is inside the steel and is flat, so it
      is never sheared and, further down, never drawn. */
+  /* 두 링을 이어 만드는 몸통. 프리즘이 아니라 loft 다 — 꼭짓점 i 가 꼭짓점 i
+     로 흐르고, 그 사이가 삼각형 둘이다.
+
+     삼각형으로 나누는 것이 근사가 아니라는 것이 이 방식의 값이다. 사변형
+     하나가 평면이면 두 삼각형은 그 평면에 그대로 눕고, 평면이 아니어도 두
+     삼각형은 여전히 평평하다. 「a prism's surface is flat pieces」가 무너지지
+     않는 이유가 그것이고, 곡선 축이 못 하는 것이 그것이다. */
+  function loftGeom(r0, r1, zlo, zhi) {
+    var n = Math.min(r0.length, r1.length), pos = [], i;
+    for (i = 0; i < n; i++) {
+      var a0 = r0[i], b0 = r0[(i + 1) % n], a1 = r1[i], b1 = r1[(i + 1) % n];
+      pos.push(a0[0], a0[1], zlo,  b0[0], b0[1], zlo,  b1[0], b1[1], zhi);
+      pos.push(a0[0], a0[1], zlo,  b1[0], b1[1], zhi,  a1[0], a1[1], zhi);
+    }
+    var g = new THREE.BufferGeometry();
+    g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+    g.computeVertexNormals();
+    return g;
+  }
+
+  /* 지오메트리 몇 개를 하나로. three 의 BufferGeometryUtils 는 예제 폴더에
+     있어 이 페이지가 안 물고 있다 — 위치 배열만 이으면 되는 일이라 직접 짠다. */
+  function mergeGeoms(list) {
+    var pos = [];
+    list.forEach(function (g) {
+      var p = g.getAttribute('position');
+      if (!p) return;
+      if (g.index) {                        // 인덱스가 있으면 펼쳐서 붙인다
+        var ix = g.index.array;
+        for (var k = 0; k < ix.length; k++)
+          pos.push(p.getX(ix[k]), p.getY(ix[k]), p.getZ(ix[k]));
+      } else {
+        for (var j = 0; j < p.count; j++) pos.push(p.getX(j), p.getY(j), p.getZ(j));
+      }
+    });
+    var out = new THREE.BufferGeometry();
+    out.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+    out.computeVertexNormals();
+    return out;
+  }
+
   function segGeom(shape, zlo, zhi, caps, first, last) {
     if (flatMode) return new THREE.ShapeGeometry(shape);
     var g = new THREE.ExtrudeGeometry(shape, { depth: zhi - zlo, bevelEnabled: false,
@@ -1175,7 +1216,7 @@
 
   // fellBack = the name of the sheet read when the workbook had no "input" tab
   function parseExcelRows(rows, fellBack) {
-    var plates = {}, holes = {}, parts = {}, cuts = [], notches = [], assy = [], log = [];
+    var plates = {}, holes = {}, parts = {}, cuts = [], notches = [], tapers = [], assy = [], log = [];
     var assyIds = {};                    // ASSY ids already defined (can be referenced again)
     /* ---- naming inside an assembly ----
        The ID column is taken exactly as written and never suffixed: every row
@@ -1610,7 +1651,7 @@
               var t = str(x);
               return t !== '' && !isNum(t);
             })) continue;
-        var c = { PLATE: target, REFPT: refpt, __xlCut: true };
+        var c = { PLATE: target, REFPT: refpt, __xlCut: true, ROW: r + 1 };
         // Current grammar: CUT <plate> L.X L.Y <shape id> dx dy repeat dx2 dy2 repeat2.
         // The shape is a HOLE (or another PLATE) defined elsewhere, so the row
         // is a fixed width. L.X/L.Y are measured from the plate's own origin -
@@ -1792,7 +1833,7 @@
           }
           nu = npts[nkey][0]; nv = npts[nkey][1];
         }
-        var nc = { PLATE: ntg, REFPT: 'bc', __xlCut: true, __org: true,
+        var nc = { PLATE: ntg, REFPT: 'bc', __xlCut: true, __org: true, ROW: r + 1,
                    FROM: nfrom, TO: nto, ANG: 0,
                    U: nu, V: nv,
                    TYPE: 'REF', REF: nshape,
@@ -1800,6 +1841,139 @@
                    DX2: num(v[9], 0), DY2: num(v[10], 0), REP2: num(v[11], 0) };
         notches.push(nc);
         counts.notch++;
+      } else if (kw === 'TAPER') {
+        /* TAPER <taper id> <시작단면> <끝단면> <시작단면 pt> <끝단면 pt> <taper pt> <Length>
+
+           변단면. 이 줄은 부재를 「고치는」 것이 아니라 부재를 「만든다」.
+           PLATE 나 SECT 가 한 줄로 부재 하나를 세우듯, TAPER 는 이미 정의된
+           단면 둘을 불러다 그 사이를 흐르는 부재 하나를 세운다. 그래서 taper id
+           는 새 이름이고, MODULE·ASSY·CUT·NOTCH 는 이것을 여느 부재와 똑같이
+           이름으로 부른다.
+
+           두 단면은 PLATE 나 SECT 로 정의된 것을 이름으로 부른다. 두 행의
+           BASE.pt 도 길이도 읽지 않는다 — 정렬은 이 줄의 pt 칸이, 길이는 이 줄의
+           Length 칸이 정한다. 재질은 시작단면 행의 것을 쓴다.
+
+           pt 가 셋인 이유는 하는 일이 셋이기 때문이다.
+             시작단면 pt · 끝단면 pt — 두 단면의 그 점이 같은 축선 위에 놓인다.
+               bc·bc 면 밑면이 평평하고, bc·tc 면 편심이 된다. 형상의 문제다.
+             taper pt — MODULE 이 이 부재를 잡는 점. 시점(시작단면)에서 잰다.
+           겹쳐 쓰면 배치를 고치려다 형상이 따라 움직인다. 그래서 갈라 두었다.
+
+           변단면은 처음부터 끝까지 변단면이다. 「일부만 변단면」은 없다 — 그런
+           부재는 변단면 부재 하나와 등단면 부재 하나로 쪼개 잇는다. 그래서 구간을
+           가리키는 칸이 없고, 길이 하나면 이 줄이 끝난다. */
+        var ttg = str(v[0]).toUpperCase();
+        if (!ttg) { warn('row ' + (r + 1) + ': TAPER without an id'); continue; }
+        if (plates[ttg] || holes[ttg]) {
+          warn('row ' + (r + 1) + ': TAPER ' + ttg + ' reuses a ' +
+               (plates[ttg] ? 'PLATE, BAR or SECT' : 'HOLE') + ' id. The taper is a' +
+               ' member of its own, so give it a name nothing else has.');
+          continue;
+        }
+        var tbeg = str(v[1]).toUpperCase(), tend = str(v[2]).toUpperCase();
+        var tst = plates[tbeg], tsrc = plates[tend];
+        var tsay = function (which, nm) {
+          warn('row ' + (r + 1) + ': TAPER ' + ttg + ' — the ' + which + ' section ' +
+               (nm || '(blank)') + ' is not a PLATE or SECT that has been defined.' +
+               ' Define it like any other, and leave it unplaced: the taper places it.');
+        };
+        if (!tst) { tsay('start', tbeg); continue; }
+        if (!tsrc) { tsay('end', tend); continue; }
+        if (tbeg === tend) {
+          warn('row ' + (r + 1) + ': TAPER ' + ttg + ' ' + tbeg + ' ' + tend +
+               ' — the two ends are the same section, so nothing tapers. Place ' +
+               tbeg + ' itself.');
+          continue;
+        }
+        var tsp = str(v[3]).toLowerCase(), tep = str(v[4]).toLowerCase();
+        var tbp = str(v[5]).toLowerCase();
+        var tpOK = function (spec, key, which) {
+          if (!key) return true;                       // blank = that section row's BASE.pt
+          if (POINT_KEYS.indexOf(key) < 0) {
+            warn('row ' + (r + 1) + ': TAPER ' + ttg + ' — ' + which + ' point "' + key +
+                 '" is not one of ' + POINT_KEYS.join(' ') + '.');
+            return false;
+          }
+          if (spec.SHAPE === 'CIRC' && ['tl','tr','bl','br'].indexOf(key) >= 0) {
+            warn('row ' + (r + 1) + ': TAPER ' + ttg + ' — a circle has only' +
+                 ' tc ml mc mr bc, so ' + which + ' point ' + key + ' is not on it.');
+            return false;
+          }
+          return true;
+        };
+        if (!tpOK(tst, tsp, 'the start section') ||
+            !tpOK(tsrc, tep, 'the end section') ||
+            !tpOK(tst, tbp, 'the taper')) continue;
+        /* 같은 형상끼리만 흐른다. 꼭짓점 개수만 보던 때에는 각형강관이 통짜
+           판으로 흘러갔다 — 개수는 넷으로 같지만 속이 빈 것과 찬 것은 같은
+           물건이 아니고, 그렇게 나온 입체는 아무도 주문할 수 없다. */
+        var tfam = function (s) { return s.SHAPE === 'SECT' ? 'SECT.' + s.SECT : s.SHAPE; };
+        var tfamName = function (s) {
+          /* "a H section" is not English. H, L and R are read aitch, el, ar -
+             all of them start on a vowel - while C and P do not. */
+          return s.SHAPE === 'SECT'
+               ? ('HLR'.indexOf(s.SECT) >= 0 ? 'an ' : 'a ') + s.SECT + ' section'
+               : s.SHAPE === 'CIRC' ? 'a circle' : 'a plate outline';
+        };
+        if (tfam(tst) !== tfam(tsrc)) {
+          warn('row ' + (r + 1) + ': TAPER ' + ttg + ' ' + tbeg + ' ' + tend + ' — ' +
+               tbeg + ' is ' + tfamName(tst) + ' and ' + tend + ' is ' + tfamName(tsrc) +
+               '. A taper flows one shape into the same shape at another size.' +
+               ' Two different shapes have no telling which corner runs into which,' +
+               ' and this engine will not guess.');
+          continue;
+        }
+        /* 꼭짓점이 짝지어져야 잇는다. 같은 형상이어도 필렛이 있고 없고에 따라
+           개수가 달라지므로, 개수가 다르면 근사하지 않고 거부한다. */
+        var n0 = outlineOf(tst).length, n1 = outlineOf(tsrc).length;
+        if (n0 !== n1) {
+          warn('row ' + (r + 1) + ': TAPER ' + ttg + ' ' + tbeg + ' ' + tend +
+               ' — the two sections do not have the same number of corners (' + n0 +
+               ' and ' + n1 + '), so there is no telling which corner runs into which.' +
+               ' Give them the same shape and the same radii, and vary the sizes.');
+          continue;
+        }
+        /* 속이 빈 단면은 구멍도 짝지어져야 한다. 한쪽만 비어 있으면 벽이
+           어디서 시작하는지 말할 수 없다.
+
+           오늘은 여기까지 못 온다 — 갈래 검사가 관과 통짜를 먼저 갈라 놓고,
+           벽만 두꺼워 구멍이 사라지는 관은 SECT 가 「이 두께면 그냥 환봉이다」로
+           먼저 거절한다. 그래도 둔다: 속이 빈 SECT 타입을 새로 더하면서 이
+           줄을 잊는 것이 쉬운 실수이고, 그때 나오는 것은 벽 없는 부재다.
+           BOQ_KIND 를 잊었을 때 부재표를 통째로 잃는 것과 같은 자리다. */
+        var bo0 = sectInner(tst), bo1 = sectInner(tsrc);
+        if (!bo0 !== !bo1 || (bo0 && bo1 && bo0.length !== bo1.length)) {
+          warn('row ' + (r + 1) + ': TAPER ' + ttg + ' ' + tbeg + ' ' + tend +
+               ' — one of them is hollow and the other is not, or their bores do' +
+               ' not have the same number of corners. A wall has to start' +
+               ' somewhere and end somewhere.');
+          continue;
+        }
+        /* 길이는 이 줄의 것이다. 두 단면 행의 길이를 몰래 가져다 쓰면 그 행을
+           고칠 때마다 이 부재가 따라 움직이므로, 비었으면 빌려 오지 않고 묻는다.
+           SECT 가 길이 0 을 고쳐 주지 않고 거절하는 것과 같은 자리다. */
+        var tlen = num(v[6], 0);
+        if (!(tlen > 0)) {
+          warn('row ' + (r + 1) + ': TAPER ' + ttg + ' — Length must be greater than 0.' +
+               ' A taper is one member with its own length; the two section rows are' +
+               ' read for their shape only.');
+          continue;
+        }
+        /* 새 부재. 몸은 시작단면 것을 그대로 베끼되 길이와 배치점은 이 줄이 정한다.
+           베낀 것이지 가리킨 것이 아니므로 시작단면은 저대로 따로 놓아도 된다. */
+        var tsp2 = {};
+        for (var tk in tst) if (Object.prototype.hasOwnProperty.call(tst, tk)) tsp2[tk] = tst[tk];
+        tsp2.ID = ttg; tsp2.__bo = null; tsp2.THK = tlen;
+        tsp2.BASEPT = tbp ? normPoint(tbp) : (tst.BASEPT || defaultBase(tst));
+        tsp2.__taper = { BEG: tbeg, END: tend, ROW: r + 1, SPEC: tsrc,
+                         SPT: tsp ? normPoint(tsp) : (tst.BASEPT || defaultBase(tst)),
+                         EPT: tep ? normPoint(tep) : (tsrc.BASEPT || defaultBase(tsrc)) };
+        plates[ttg] = tsp2;
+        current = ttg;
+        tapers.push(tsp2.__taper);
+        tsp2.__taper.PLATE = ttg;
+        counts.taper = (counts.taper || 0) + 1;
       } else if (kw === 'VIEW') {         // VIEW <module|assy|ALL> <dir> [AZ EL] <scale> [title]
         /* A drawing the sheet asks for by name: which module - or assembly, or
            ALL of it - seen from where, and what to call it. All three are content - the person who knows
@@ -2248,8 +2422,50 @@
       counts.view--;
       return false;
     });
+    /* 변단면은 칼이 될 수 없다. 이미 있는 규칙이 그 이유를 적어 두었다 —
+       단면이 파고들수록 변하는 것은 「한 번의 노치」가 아니다. 형강을 거절하는
+       것과 같은 이유이고, 변단면은 그 성질을 정의상 갖는다.
+
+       NOTCH 행이 TAPER 행보다 먼저 올 수 있으므로 그 자리에서는 못 잡는다.
+       시트를 다 읽은 뒤에 한 번 훑는다. */
+    if (tapers.length) {
+      var tapered = {};
+      tapers.forEach(function (t) { tapered[t.PLATE] = t.ROW; });
+      notches.forEach(function (n) {
+        if (!n.BY || !tapered[n.BY]) return;
+        n.__dead = 1;
+        warn('row ' + n.ROW + ': NOTCH ' + n.PLATE + ' BY ' + n.BY +
+             ' — ' + n.BY + ' is tapered (row ' + tapered[n.BY] + '), and what a' +
+             ' tapered member leaves changes as you go into it, so it is not one' +
+             ' notch. Write that cut yourself: NOTCH ' + n.PLATE +
+             ' <from> <to> <L.X> <L.Y> <shape>.');
+      });
+      /* 변단면은 칼이 될 수 없듯 도마도 될 수 없다. 파고들수록 만나는 단면이
+         달라지므로 「이 자리에서 이 모양을 뺀다」가 한 가지 뜻을 갖지 않는다.
+         엔진이 말할 수 없는 것을 말한 척하느니 그 줄을 거절한다 — 조용히
+         무시하면 도면에도 무게에도 아무 표시가 없어서 아무도 못 알아챈다. */
+      cuts.forEach(function (c) {
+        if (!tapered[c.PLATE]) return;
+        c.__dead = 1;
+        warn('row ' + (c.ROW || '?') + ': CUT ' + c.PLATE + ' — ' + c.PLATE +
+             ' is tapered (row ' + tapered[c.PLATE] + '). What a cut takes out of' +
+             ' a section that changes along the member is not one shape, so this' +
+             ' engine will not say. Cut the two sections instead, or split the' +
+             ' member where the cut belongs.');
+      });
+      cuts = cuts.filter(function (c) { return !c.__dead; });
+      notches.forEach(function (n) {
+        if (n.__dead || !tapered[n.PLATE]) return;
+        n.__dead = 1;
+        warn('row ' + n.ROW + ': NOTCH ' + n.PLATE + ' — ' + n.PLATE +
+             ' is tapered (row ' + tapered[n.PLATE] + '), and a notch cuts the' +
+             ' member into stretches of one profile each, which a tapered member' +
+             ' does not have. Split it into a tapered member and a straight one.');
+      });
+      notches = notches.filter(function (n) { return !n.__dead; });
+    }
     return { plates: plates, holes: holes, parts: parts, cuts: cuts,
-             notches: notches, assy: assy,
+             notches: notches, tapers: tapers, assy: assy,
              views: views, plots: plots, log: log, counts: counts, yup: yup,
              fatal: fatals.length ? fatals : null };
   }
@@ -2305,6 +2521,7 @@
             (c.bolt ? ' &middot; bolts ' + c.bolt : '') +
             ' &middot; cuts ' + c.cut +
             (c.notch ? ' &middot; notches ' + c.notch : '') +
+            (c.taper ? ' &middot; tapers ' + c.taper : '') +
             ' &middot; modules ' + (c.module || 0) +
             ' &middot; assy ' + c.assy + ' &rarr; placed ' + placed +
             (c.fit ? ' &middot; fits ' + c.fit : '') +
@@ -3066,6 +3283,51 @@
 
      A member with no notches comes back as one segment holding exactly the
      profile it always had, so nothing that ships today goes down a new road. */
+  /* 변단면의 두 링. 시작단면은 부재의 것 그대로 — 원점은 taper pt 이고, 그
+     기준은 시점(시작단면) 쪽에서 잰다. 끝단면은 제 정렬점이 시작단면의
+     정렬점과 같은 자리에 오도록 옮겨 놓는다. 그 두 점이 「같은 축선 위에
+     놓인다」는 뜻이 이 옮김이다. */
+  /* 두 링을 반드시 **같은 생성기에서** 뽑는다. loft 는 i 번 꼭짓점을 i 번
+     꼭짓점에 잇는 일이므로 두 링의 차례가 같아야 뜻이 있는데, 속이 빈 단면의
+     시작 링을 buildPlate2D 에서 가져오면 PolyBool 이 구멍을 빼면서 링을 다시
+     짜 놓는다 — 시작 꼭짓점도 감는 방향도 보장이 없다. 그렇게 이었더니 각형
+     강관 변단면이 605 kg 대신 272 kg 으로 나왔다: 모서리가 엇갈려 이어진
+     비틀린 입체였고, 도면에도 3D 에도 그렇게 그려져 있었다. */
+  function ringsOf(spec) {
+    var ob = baseOffset(spec), bore = sectInner(spec);
+    return { outer: outlineOf(spec),
+             bore: bore ? bore.map(function (q) {
+                     return [q[0] - ob[0], q[1] - ob[1]]; }) : null };
+  }
+  function taperRings(spec, tp, plates) {
+    var src = plates[tp.END];
+    if (!src) return null;
+    var raw0 = rawPoints(spec), bo0 = baseOffset(spec);
+    var sKey = tp.SPT || (spec.BASEPT || defaultBase(spec));
+    var eKey = tp.EPT || (src.BASEPT || defaultBase(src));
+    var a0 = raw0[sKey] || raw0[defaultBase(spec)] || [0, 0];
+    /* 시작 정렬점을 부재 로컬 좌표로 */
+    var As = [a0[0] - bo0[0], a0[1] - bo0[1]];
+    /* 끝단면을 제 정렬점 원점으로 뽑고, 그 원점을 As 로 옮긴다 */
+    var e2 = {};
+    for (var k in src) if (Object.prototype.hasOwnProperty.call(src, k)) e2[k] = src[k];
+    e2.BASEPT = eKey; e2.__bo = null;
+    var mv = function (ring) {
+      return ring.map(function (q) { return [q[0] + As[0], q[1] + As[1]]; });
+    };
+    /* 속이 빈 단면은 구멍도 같이 흐른다. 떨어뜨려 두었더니 변단면 강관이
+       통짜가 되어 916 kg 짜리가 5145 kg 으로 나왔다 — 도면도 3D 도 무게도
+       모두 벽이 없는 물건이었다. 구멍은 CUT 이 아니라 단면 그 자체다. */
+    var a = ringsOf(spec), b = ringsOf(e2);
+    return { outer0: a.outer, bore0: a.bore,
+             outer1: mv(b.outer), bore1: b.bore ? mv(b.bore) : null };
+  }
+  function taperSide(outer, bore, cuts) {
+    return { outers: [outer], holes: [bore ? [bore] : []], cuts: cuts || [],
+             area: Math.abs(ringAreaTrue(outer)) -
+                   (bore ? Math.abs(ringAreaTrue(bore)) : 0) };
+  }
+
   function buildSegments(spec, cuts, notches, plates, len) {
     var base = buildPlate2D(spec, cuts, plates);
     /* A BY row carries no stretch of its own - it is answered where the member
@@ -3077,6 +3339,22 @@
     });
     var whole = { base: base, raw: base, bit: false,
                   segs: [{ rings: base, area: base.area, z0: -len / 2, z1: len / 2 }] };
+    /* 변단면. 처음부터 끝까지 하나다 — 「일부만 변단면」은 없으므로 구간을 나눌
+       일이 없고, 부재 하나가 곧 한 덩어리의 loft 다. 부분 변단면인 부재는 시트가
+       변단면 부재와 등단면 부재로 쪼개 잇는다. */
+    if (spec.__taper && len > 0) {
+      var tr = taperRings(spec, spec.__taper, plates);
+      if (tr) {
+        var r0 = taperSide(tr.outer0, tr.bore0, base.cuts);
+        var r1 = taperSide(tr.outer1, tr.bore1, base.cuts);
+        r0.feats = base.feats;
+        return { base: r0, raw: r0, bit: true, taper: true,
+                 segs: [{ rings: r0, rings1: r1,
+                          area: (r0.area + r1.area) / 2,
+                          area0: r0.area, area1: r1.area,
+                          z0: -len / 2, z1: len / 2 }] };
+      }
+    }
     if (!mine.length || !(len > 0)) return whole;
 
     var clamp = function (x) { return Math.max(0, Math.min(len, x)); };
@@ -3735,7 +4013,7 @@
 
   /* ---------------- scene build ---------------- */
   function buildAll(data, colors) {
-    var plates = {}, parts = {}, cuts, notches, assyRows;
+    var plates = {}, parts = {}, cuts, notches, tapers, assyRows;
     var colorSeq = 0;
     yupSheet = !!(data.__parsed && data.__parsed.yup);
     shapeLib = (data.__parsed && data.__parsed.holes) || {};
@@ -3744,9 +4022,11 @@
       parts = data.__parsed.parts || {};
       cuts = data.__parsed.cuts;
       notches = data.__parsed.notches || [];
+      tapers = data.__parsed.tapers || [];
       assyRows = data.__parsed.assy;
     } else {                             // JS sheet-array path
       notches = [];
+      tapers = [];
       cuts = sheetToObjects(data.CUT);
       assyRows = sheetToObjects(data.ASSY);
       parsePlateSheet(data.PLATE).forEach(function (p) { plates[p.ID] = p; });
@@ -3864,7 +4144,9 @@
         caps = flipCaps(caps);
       }
       var segs = built.segs.map(function (sg) {
-        return { rings: turn(sg.rings), area: sg.area, z0: sg.z0, z1: sg.z1 };
+        return { rings: turn(sg.rings), rings1: sg.rings1 ? turn(sg.rings1) : null,
+                 area: sg.area, area0: sg.area0, area1: sg.area1,
+                 z0: sg.z0, z1: sg.z1 };
       });
       /* The plate as ORDERED - its outline before anything was cut out of it.
          What a member has to get out of the way of is the plate that arrives on
@@ -3907,7 +4189,32 @@
           var hh = ringArea(h) * ringArea(ring) > 0 ? h.slice().reverse() : h;
           shape.holes.push(new THREE.Path(hh.map(function (q) { return new THREE.Vector2(q[0], q[1]); })));
         });
-        var geo = segGeom(shape, sg.z0, sg.z1, caps, first, last);
+        /* 변단면 구간은 프리즘이 아니라 두 링을 잇는 loft 다. 끝면은
+           ShapeGeometry 로 각각 덮는다 — 두 링이 다르므로 하나로는 못 덮는다. */
+        var geo;
+        if (sg.rings1 && !flatMode) {
+          var r1i = (sg.rings1.outers || [])[i];
+          if (r1i) {
+            var parts = [loftGeom(ring, r1i, sg.z0, sg.z1)];
+            /* 구멍의 벽도 loft 다. 바깥만 이으면 변단면 강관이 통짜로 보인다. */
+            var h1s = (sg.rings1.holes || [])[i] || [];
+            var capBs = new THREE.Shape(
+              r1i.map(function (q) { return new THREE.Vector2(q[0], q[1]); }));
+            (sg.rings.holes[i] || []).forEach(function (h, hj) {
+              var h1 = h1s[hj];
+              if (!h1) return;
+              parts.push(loftGeom(h, h1, sg.z0, sg.z1));
+              var hh1 = ringArea(h1) * ringArea(r1i) > 0 ? h1.slice().reverse() : h1;
+              capBs.holes.push(new THREE.Path(
+                hh1.map(function (q) { return new THREE.Vector2(q[0], q[1]); })));
+            });
+            var capA = new THREE.ShapeGeometry(shape);  capA.translate(0, 0, sg.z0);
+            var capB = new THREE.ShapeGeometry(capBs);  capB.translate(0, 0, sg.z1);
+            parts.push(capA, capB);
+            geo = mergeGeoms(parts);
+          }
+        }
+        if (!geo) geo = segGeom(shape, sg.z0, sg.z1, caps, first, last);
         var mesh = new THREE.Mesh(geo, mat);
         mesh.matrixAutoUpdate = false;
         mesh.matrix.copy(world);
@@ -3999,8 +4306,34 @@
          profile times one length. The steel that was cut away is not paid for,
          and a quote is what this number becomes. With one stretch it reduces to
          exactly what it always was. */
-      var mass = segs.length > 1
-        ? segs.reduce(function (t, sg) { return t + sg.area * (sg.z1 - sg.z0); }, 0) * RHO
+      /* 변단면 구간은 area x length 가 아니다. 두 끝면을 직선으로 이은 입체는
+         prismatoid 이고, 그 부피는 (A0 + 4·Am + A1)/6 x L 로 **정확히** 나온다
+         — 표본추출이 아니라 공식이다. 가운데 단면의 넓이 Am 은 두 링을 반씩
+         섞은 링의 넓이이지 두 넓이의 평균이 아니다: 폭과 높이가 같이 줄면
+         넓이는 이차로 줄기 때문에, 평균으로 잡으면 언제나 무겁게 나온다. */
+      var halfRing = function (a, b) {
+        var n = Math.min(a.length, b.length), m = [];
+        for (var i = 0; i < n; i++) m.push([(a[i][0] + b[i][0]) / 2, (a[i][1] + b[i][1]) / 2]);
+        return Math.abs(ringAreaTrue(m));
+      };
+      var midArea = function (sg) {
+        var a = (sg.rings.outers || [])[0], b = (sg.rings1.outers || [])[0];
+        if (!a || !b) return (sg.area0 + sg.area1) / 2;
+        var m = halfRing(a, b);
+        /* 속이 빈 단면은 가운데 단면의 구멍도 반씩 섞은 링이다. 빼지 않으면
+           변단면 강관이 통짜 무게로 나온다. */
+        var h0 = ((sg.rings.holes || [])[0] || [])[0];
+        var h1 = ((sg.rings1.holes || [])[0] || [])[0];
+        if (h0 && h1) m -= halfRing(h0, h1);
+        return m;
+      };
+      var mass = segs.length > 1 || segs.some(function (sg) { return sg.rings1; })
+        ? segs.reduce(function (t, sg) {
+            var L = sg.z1 - sg.z0;
+            if (!sg.rings1) return t + sg.area * L;
+            var A0 = sg.area0, A1 = sg.area1;
+            return t + (A0 + 4 * midArea(sg) + A1) / 6 * L;
+          }, 0) * RHO
         : g2d.area * axLen * RHO;
       var dims = spec.SHAPE === 'SECT'
         ? sectLabel(spec) + ' L' + (caps ? rnd(axLen) + '\u2220' : thk)
@@ -6653,25 +6986,62 @@
       flat.push({ c: pc, r: k.r });
       if (holes) holes.push(pc);            // for the pitch chain
     });
+    /* The member's OWN rim, when the member is round. ringDraw has always known
+       how to turn a run of edges on a circle into an arc - what it was never
+       told is that the outline is a circle too, because the only circles ever
+       handed to it were the ones CUT OUT. So a Ø400 disc came out of the DXF as
+       48 straight lines, and half of one as 28.
+
+       Asked of the outline BEFORE anything was cut out of it. A half disc's
+       ring cannot pass ringCircle on its own - it is half the area of the
+       circle it runs on, and the test rightly wants both the radius and the
+       area - but the circle it runs on is the one the plate was ORDERED as, and
+       cutting a piece off does not move it. So the rim is matched against that,
+       and what survives the cut is drawn as the arc it still is.
+
+       Not pushed to `holes`: that list is the pitch chain, which is about bolt
+       holes. A plate is not a hole in itself, and putting its centre there
+       would invent a bolt at the middle of every round plate. */
+    if (faceOn) (it.rawOuter || []).forEach(function (rg) {
+      var k = ringCircle(rg);
+      if (!k) return;
+      flat.push({ c: proj(k.c[0], k.c[1], Z.lo(k.c[0], k.c[1])), r: k.r });
+    });
 
     /* ZL and ZH are where this ring's two ends sit. For a plain member they
        are the member's own cap planes, which can lean; for one stretch of a
        notched member they are the two flat planes that stretch runs between.
        `thick` is whether there is any run at all - a zero-length stretch has
        no side walls to draw. */
-    function ring(pts, ZL, ZH, thick) {
+    /* pts1 은 먼 쪽 링이다. 등단면이면 pts 와 같은 것이 오고, 변단면이면 다른
+       링이 온다 — 그 한 가지가 이 함수가 프리즘 전용이던 이유였다.
+
+       두 군데가 달라진다. 먼 쪽 테두리를 pts 가 아니라 pts1 에서 뜨는 것이
+       하나고, 옆면이 무엇으로 펼쳐지는지가 둘이다. 프리즘의 옆면은 「모서리 x
+       압출방향」인데, 변단면의 옆면은 「모서리 x 그 꼭짓점이 흘러간 방향」이다.
+       모선이 모서리마다 다르므로 ez 하나로는 실루엣이 안 잡힌다.
+
+       옆면이 여전히 평평하다는 것이 이것이 되는 이유다. 사변형 하나가 평면이
+       아니어도 삼각형 둘로 나뉘어 평평하므로, 무엇이 무엇을 가리는지가 여전히
+       계산이지 표본추출이 아니다. 곡선 축이 못 넘는 자리가 그것이다. */
+    function ring(pts, ZL, ZH, thick, pts1) {
       var n = pts.length;
       if (n < 2) return;
+      var far = pts1 && pts1.length === n ? pts1 : pts;
       var faceFront = [];
       var lo = [], hi = [];
+      var rot = new THREE.Matrix4().extractRotation(m);
       for (var i = 0; i < n; i++) {
-        var a = pts[i], b = pts[(i + 1) % n];
+        var a = pts[i], b = pts[(i + 1) % n], a1 = far[i];
         lo.push(proj(a[0], a[1], ZL(a[0], a[1])));
-        if (thick) hi.push(proj(a[0], a[1], ZH(a[0], a[1])));
-        // side face i is spanned by edge a->b and the extrusion direction
-        var ea = new THREE.Vector3(b[0] - a[0], b[1] - a[1], 0)
-                   .applyMatrix4(new THREE.Matrix4().extractRotation(m));
-        var nrm = new THREE.Vector3().crossVectors(ea, ez);
+        if (thick) hi.push(proj(a1[0], a1[1], ZH(a1[0], a1[1])));
+        // side face i is spanned by edge a->b and the ruling a->a1
+        var ea = new THREE.Vector3(b[0] - a[0], b[1] - a[1], 0).applyMatrix4(rot);
+        var ru = far === pts ? ez
+               : new THREE.Vector3(a1[0] - a[0], a1[1] - a[1],
+                                   ZH(a1[0], a1[1]) - ZL(a[0], a[1]))
+                   .applyMatrix4(rot).normalize();
+        var nrm = new THREE.Vector3().crossVectors(ea, ru);
         faceFront[i] = nrm.dot(vd) > 0;
       }
       [lo, hi].forEach(function (cap) {
@@ -6692,15 +7062,19 @@
           corner = cosT < Math.cos(25 * Math.PI / 180);   // same 25 deg the 3D view creases at
         }
         var sil = faceFront[(j - 1 + n) % n] !== faceFront[j];
+        /* 모서리를 잇는 선은 세로가 아니라 모선이다 — 변단면에서는 위 끝이
+           옆으로도 옮겨 가 있다. */
+        var f2 = far[j];
         if (corner || sil) segs.push([proj(cur[0], cur[1], ZL(cur[0], cur[1])),
-                                      proj(cur[0], cur[1], ZH(cur[0], cur[1]))]);
+                                      proj(f2[0], f2[1], ZH(f2[0], f2[1]))]);
       }
     }
-    function walk(rings, ZL, ZH, thick) {
+    function walk(rings, ZL, ZH, thick, rings1) {
       (rings.outers || []).forEach(function (o, i) {
-        ring(o, ZL, ZH, thick);
-        if (!outlineOnly) ((rings.holes || [])[i] || []).forEach(function (h) {
-          ring(h, ZL, ZH, thick);
+        ring(o, ZL, ZH, thick, rings1 ? (rings1.outers || [])[i] : null);
+        if (!outlineOnly) ((rings.holes || [])[i] || []).forEach(function (h, hj) {
+          ring(h, ZL, ZH, thick,
+               rings1 ? (((rings1.holes || [])[i] || [])[hj] || null) : null);
         });
       });
     }
@@ -6708,12 +7082,16 @@
        two planes. The end caps of the whole member keep whatever lean FIT gave
        them; the planes between stretches are flat, because they are inside the
        steel and nothing ever cut them. */
-    if (it.segs && it.segs.length > 1) {
+    /* 구간이 여럿이거나, 구간 하나가 변단면이거나. 「여럿일 때만」으로 두었더니
+       끝에서 끝까지 변하는 부재는 구간이 하나라 이 길을 안 타고, 도면이 시작
+       단면만 그대로 뽑았다 — 3D 는 헌치인데 도면은 등단면이었다. */
+    if (it.segs && (it.segs.length > 1 ||
+                    it.segs.some(function (sg) { return !!sg.rings1; }))) {
       var K = function (z) { return function () { return z; }; };
       it.segs.forEach(function (sg, k) {
         var first = k === 0, last = k === it.segs.length - 1;
         walk(sg.rings, first ? Z.lo : K(sg.z0), last ? Z.hi : K(sg.z1),
-             Math.abs(sg.z1 - sg.z0) > 1e-9);
+             Math.abs(sg.z1 - sg.z0) > 1e-9, sg.rings1);
       });
       return;
     }
@@ -8729,8 +9107,24 @@
       var ded = (it.rawArea > 0 && thk0 > 0)
         ? it.rawArea * thk0 * RHO - it.mass : 0;
       if (Math.abs(ded) < 1e-9) ded = 0;
+      /* 변단면은 노치가 아니다. 무게가 「적힌 치수대로의 각기둥」보다 가벼운 것은
+         같지만, 따낸 것이 아니라 다른 단면으로 흘러간 것이므로 공제로 적으면
+         파낸 적 없는 노치를 적는 것이 된다. 대신 끝단면을 제 줄로 적는다 —
+         BOQ 가 하려는 말이 「이 부재가 무엇인가」이기 때문이다. */
+      var tpr = spec.__taper && spec.__taper.SPEC &&
+                boqKind(spec.__taper.SPEC) === k ? spec.__taper : null;
+      var end = null;
+      if (tpr) {
+        ded = 0;
+        var eArea = (it.segs && it.segs.length && it.segs[0].area1) || 0;
+        end = { id: tpr.END,
+                vals: def.f.map(function (p) {
+                  return p[1] === 'THK' ? null : +num(tpr.SPEC[p[1]], 0).toFixed(4); }),
+                areaMM: eArea, kgm: eArea * RHO * 1000 };
+      }
       var key = def.count ? k + '|' + (spec.MAT || '') + '|' + vals.join(',')
                           : k + '|' + spec.ID + '|' + vals.join(',') +
+                            (end ? '|t' + end.id + ',' + end.vals.join(',') : '') +
                             (ded ? '|n' + rnd(ded) : '');
       var e = map[key];
       if (!e) {
@@ -8747,7 +9141,15 @@
            matches no steel table and that nobody can check the line against.
            So a notched member reports the section it was CUT FROM, and what came
            away is a deduction of its own, in its own column. */
-        var aMM = ded ? it.rawArea : (thk ? it.mass / (thk * RHO) : 0);
+        /* 변단면도 「적힌 대로」를 적는다: 첫 줄의 넓이는 시작단면의 것이고,
+           둘째 줄이 끝단면의 것이다. 무게를 되돌려 나눈 평균 넓이가 아니다 —
+           그런 kg/m 은 어느 강재표에도 없어서 아무도 검산할 수 없다. */
+        var aMM = (ded || end) ? it.rawArea : (thk ? it.mass / (thk * RHO) : 0);
+        /* 두 점 평균이 이 부재에 대해 정확한가. 한 치수만 변하면 넓이가 z 를 따라
+           직선이라 정확하고, 폭과 두께처럼 곱해지는 두 치수가 같이 변하면 2차식이
+           되어 어긋난다. 어긋나면 수식 대신 정확한 숫자를 적는다. */
+        var lin = !end ||
+          Math.abs((aMM + end.areaMM) / 2 * thk * RHO - it.mass) < 0.005;
         e = map[key] = { kind: k,
                          id: def.count ? 'M' + rnd(num(spec.D, 0)) : spec.ID,
                          mat: spec.MAT || '—', vals: vals,
@@ -8755,6 +9157,7 @@
                          cuts: def.area ? cutCount(spec.ID) : null,
                          areaMM: def.area ? null : aMM,
                          kgm: def.area ? null : aMM * RHO * 1000,
+                         end: end, lin: lin,
                          notch: ded, unit: it.mass, qty: 0, wt: 0 };
         keys.push(key);
       }
@@ -8924,7 +9327,15 @@
       if (anyNotch)
         cols.push({ h: 'NOTCH kg', f: BQ_WT, k: function (r) { return r.notch; } });
       cols.push({ h: 'UNIT kg', f: BQ_WT, k: function (r) { return r.unit; },
-                 fm: function (rn, ix) {
+                 fm: function (rn, ix, r) {
+                   /* 변단면은 아랫줄에 끝단면이 있다. 두 kg/m 의 평균 × 길이 —
+                      그 평균이 이 부재에 대해 정확하지 않으면(폭과 두께가 같이
+                      변하는 경우) 수식을 쓰지 않고 정확한 숫자만 적는다. */
+                   if (r && r.end)
+                     return r.lin ? '(' + ref(ix, 'kg/m', rn) + '+' +
+                                    ref(ix, 'kg/m', rn + 1) + ')/2*' +
+                                    ref(ix, 'LENGTH', rn) + '/1000'
+                                  : null;
                    return ref(ix, 'kg/m', rn) + '*' + ref(ix, 'LENGTH', rn) + '/1000' +
                           (anyNotch ? '-' + ref(ix, 'NOTCH kg', rn) : ''); } });
     }
@@ -8958,14 +9369,37 @@
       var row = ws.addRow(cols.map(function (c) { return c.k(r); }));
       if (first === null) first = row.number;
       last = row.number;
-      bqStyle(row, { bottom: 'thin' });
+      bqStyle(row, { bottom: r.end ? null : 'thin' });
       cols.forEach(function (c, i) {
         var cell = row.getCell(i + 1);
-        if (c.fm) cell.value = fx(c.fm(row.number, ix), num(c.k(r), 0));
+        var f = c.fm ? c.fm(row.number, ix, r) : null;
+        if (f) cell.value = fx(f, num(c.k(r), 0));
         if (!c.f) return;
         cell.numFmt = c.f;
         cell.alignment = { horizontal: 'right', vertical: 'middle' };
         if (c.sum) sums[i] += num(c.k(r), 0);
+      });
+      /* 변단면은 두 줄이다. 윗줄이 시작단면, 아랫줄이 끝단면 — 부재는 하나이므로
+         수량도 무게도 윗줄에만 있고, 아랫줄은 「이 부재가 저기서는 이 단면이다」를
+         말한다. 소계는 SUM 범위라 빈 칸을 알아서 지나간다. */
+      if (!r.end) return;
+      var er = ws.addRow(cols.map(function (c) {
+        if (c.h === 'ID') return '↳ ' + r.end.id;
+        if (c.h === 'AREA mm²') return r.end.areaMM;
+        if (c.h === 'kg/m') return r.end.kgm;
+        var di = -1;
+        def.f.forEach(function (p, j) { if (p[0] === c.h) di = j; });
+        return di >= 0 ? r.end.vals[di] : null;
+      }));
+      last = er.number;
+      bqStyle(er, { bottom: 'thin', color: BQ_DIM });
+      cols.forEach(function (c, i) {
+        if (!c.f) return;
+        var cell = er.getCell(i + 1);
+        if (c.h === 'kg/m') cell.value = fx(ref(ix, 'AREA mm²', er.number) + '*0.00785',
+                                            num(r.end.kgm, 0));
+        cell.numFmt = c.f;
+        cell.alignment = { horizontal: 'right', vertical: 'middle' };
       });
     });
     var sub = ws.addRow(cols.map(function (c, i) {
@@ -8981,6 +9415,17 @@
       sub.getCell(i + 1).alignment = { horizontal: 'right', vertical: 'middle' };
       at[c.h] = L + sub.number;
     });
+    /* 살아 있는 수식은 이 책의 약속이므로, 한 칸이라도 수식이 아니면 왜 그런지
+       그 자리에서 말한다. 말없이 숫자만 놓여 있으면 읽는 사람은 그것도 수식인 줄
+       안다 — 편집해도 안 따라오는 수식인 줄. */
+    var stiff = rows.filter(function (r) { return r.end && !r.lin; });
+    if (stiff.length)
+      bqStyle(ws.addRow(['UNIT kg on ' +
+        stiff.map(function (r) { return r.id; }).join(', ') +
+        ' is the exact weight, not a formula: this taper varies two dimensions that' +
+        ' multiply, so its area does not run straight from end to end and the average' +
+        ' of the two ends is not its weight.']),
+        { italic: true, size: 9, color: BQ_DIM });
     ws.addRow([]);
     return { kind: kind, n: rows.length, sums: sums, at: at };
   }
@@ -9899,9 +10344,11 @@
     '<tr><td><b>PART</b></td><td>one piece of steel, defined once and used as often as you',
     ' like. A <b>PLATE</b> is a flat outline; a <b>SECT</b> is a steel section - a rolled',
     ' H, C or L, or a hollow P or R; a',
-    ' <b>BAR</b> is a round bar. A <b>HOLE</b> is not a part at all - it is a shape you',
+    ' <b>BAR</b> is a round bar. A <b>TAPER</b> is a member that flows from one of these',
+    ' sections into another. A <b>HOLE</b> is not a part at all - it is a shape you',
     ' subtract from a plate with <b>CUT</b>, which is how holes, notches and slots are made.</td>',
-    '<td><code>PLATE</code> <code>HOLE</code> <code>CUT</code> <code>SECT</code> <code>BAR</code></td>',
+    '<td><code>PLATE</code> <code>HOLE</code> <code>CUT</code> <code>SECT</code> <code>BAR</code>',
+    ' <code>TAPER</code></td>',
     '<td><code>PLOT&nbsp;PART</code><br><code>PLOT&nbsp;SECT</code></td></tr>',
     '<tr><td><b>MODULE</b></td><td>parts placed relative to each other - a column, a bracket,',
     ' a diaphragm. Plates, sections and bars all go in the same way. The module carries its',
@@ -10175,6 +10622,49 @@
     ' and rolls the profile about its own axis with <code>Alpha</code>. That is the one to reach',
     ' for on bracing - <code>length</code> becomes the stock length and a single SECT row serves',
     ' every member cut from it.</p>',
+
+    '<h3>TAPER - a member that changes section</h3>',
+    sheet([['# SECT', 'id', 'mat', 'length', 'type', 'BASE.pt', 'h', 'bb', 'bt', 'tw', 'tf1', 'tf2'],
+           ['SECT', 'sc.deep', 'SM490', 12000, 'H', 'bc', 1800, 600, 500, 12, 36, 22],
+           ['SECT', 'sc.thin', 'SM490', 12000, 'H', 'bc', 900, 600, 500, 12, 36, 22],
+           ['# TAPER', 'id', 'start', 'end', 'start.pt', 'end.pt', 'taper.pt', 'Length'],
+           ['TAPER', 'tp.1', 'sc.deep', 'sc.thin', 'bc', 'bc', 'bc', 9000]]),
+    '<p><b>TAPER makes a member</b>, the way PLATE and SECT do. It calls up two sections',
+    ' already defined and stands up one member that flows from the first into the second.',
+    ' <code>tp.1</code> is a <b>new name</b>, and MODULE, ASSY and VIEW use it like any',
+    ' other member. The two section rows are read for their <b>shape only</b> - their own',
+    ' BASE.pt and length are not read, and neither is placed unless you place it yourself.</p>',
+    '<p>Three points, because three different things are being said. <b>start.pt</b> and',
+    ' <b>end.pt</b> are shape: the named point on each section lands on the same axis, so',
+    ' <code>bc bc</code> keeps the underside flat and <code>bc tc</code> makes it eccentric.',
+    ' <b>taper.pt</b> is placement: the point MODULE grips, measured on the <b>start</b>',
+    ' section. Keeping them apart is what stops a change of grip from moving the shape.</p>',
+    '<p><b>Length is on this row</b>, not borrowed from a section row - one value doing two',
+    ' jobs in two places drifts apart sooner or later. A blank or zero length is refused.</p>',
+    '<p>A taper runs <b>end to end</b>. There is no such thing as a member that tapers over',
+    ' part of its length: that is a tapered member and a straight one, spliced. So there is',
+    ' no from/to, and one length finishes the row.</p>',
+    '<p class="warn"><b>The two sections must be the same shape at different sizes.</b>',
+    ' A taper interpolates corner to corner, so three things are checked and the row is',
+    ' refused by number if any of them differs: the <b>shape family</b> (H, C, L, P, R,',
+    ' circle, plate outline), the <b>number of corners</b> - the same H with a fillet on one',
+    ' end only does not match - and the <b>bore</b>, so a tube cannot flow into a solid.',
+    ' A refused TAPER makes no member, so the MODULE row below it then says the member does',
+    ' not exist: the row to fix is the TAPER row.</p>',
+    '<p>Hollow sections keep their wall: the bore flows with the outside, and the weight,',
+    ' the drawing and the solid all know it. Weight is not area&times;length but the',
+    ' prismatoid <code>(A0 + 4&middot;Am + A1)/6 &times; L</code> - exact for a straight loft,',
+    ' not an approximation.</p>',
+    '<p>The take-off gives a taper <b>two lines</b>: the start section carries the quantity',
+    ' and the weight, and the end section sits under it, indented and named, so the line says',
+    ' what the member actually is. No deduction column appears - nothing was notched out.</p>',
+    '<p><b>CUT and NOTCH are refused on a tapered member.</b> What a cut takes out of a',
+    ' section that changes along the member is not one shape. Cut the two sections instead,',
+    ' or split the member where the cut belongs. A tapered member cannot be a NOTCH ... BY',
+    ' knife either, for the same reason.</p>',
+    '<p>The axis is <b>straight</b>. The section varies along it and the run between the two',
+    ' ends is a straight interpolation, so an underside falls on a straight line. Curved',
+    ' haunches, and members swept along a curved path, are not in yet.</p>',
 
     '<h3>BOLT - a bar that knows it is a bolt</h3>',
     sheet([['# BOLT', 'id', 'mat', 'dia', 'length', 'hole', 'head_af', 'head_h', 'nut_af', 'nut_h', 'proj'],
