@@ -87,6 +87,20 @@ N('H = I-beam   C = channel   L = angle   P = round tube   R = rectangular tube'
 N('A radius left blank comes out as a square corner. On an R, r is the OUTER');
 N('corner - the inner one is r minus the wall and is not asked for.');
 X(3);
+H(['# TAPER', 'id', 'begin', 'end', 'beg.pt', 'end.pt', 'taper.pt', 'Length']);
+N('A member whose section changes along its length. This row does not MODIFY a');
+N('member, it MAKES one: it names two SECT rows written above and builds a single');
+N('member flowing between them, under a new id that MODULE and ASSY call like any');
+N('other. The two sections are shapes only - their own length and base.pt are not');
+N('used; the Length on this row is.');
+N('Both must be the same shape - H to H, R to R. A tube into a solid is refused,');
+N('and so is a different number of corners.');
+N('beg.pt / end.pt are SHAPE: which of the nine points of the two sections lie on');
+N('one axis. mc to mc is concentric; bc to bc keeps one flat face.');
+N('taper.pt is PLACEMENT: the point the MODULE row grips, on the START section.');
+N('A member that is prismatic for part of its length is written as two members.');
+N('CUT and NOTCH cannot be aimed at a tapered member.');
+X(3);
 H(['# HOLE', 'id', 'RECT', 'base.pt', 'B', 'H']);
 H(['# HOLE', 'id', 'TRAP', 'base.pt', 'WB', 'WT', 'H', 'OFF_T']);
 H(['# HOLE', 'id', 'CIRC', 'base.pt', 'D']);
@@ -99,6 +113,21 @@ N('dx/dy/repeat lay a row of copies; dx2/dy2/repeat2 step that whole row');
 N('sideways, so one line can be a whole bolt grid.');
 X();
 H(['# CUT', 'target', 'L.X', 'L.Y', 'shape', '[dx]', '[dy]', '[repeat]', '[dx2]', '[dy2]', '[repeat2]']);
+X(3);
+N('NOTCH is CUT with two more columns, and they are the whole difference. A CUT');
+N('on a section takes the shape out of the WHOLE length, because a profile has no');
+N('length; from / to say which stretch of the member instead. Both are distances');
+N('along the member from its start.');
+H(['# NOTCH', 'member', 'from', 'to', 'L.X', 'L.Y', 'shape',
+   '[dx]', '[dy]', '[repeat]', '[dx2]', '[dy2]', '[repeat2]']);
+X(2);
+N('Or name another member as the knife and let the engine work out the shape it');
+N('leaves. The word BY is not optional - both cells hold member names, and');
+N('without it only the order says which one does the cutting.');
+H(['# NOTCH', 'member', 'BY', 'member', '[clearance]']);
+N('BY takes a PLATE. A section is refused: the mark a section leaves changes as');
+N('you go into it - 300 of flange, then 10 of web - and a cut that changes along');
+N('the way is not a notch. Cut by a section with the form above.');
 X(3);
 
 B('3.  MODULE  ·  where each member sits inside one module');
@@ -117,6 +146,11 @@ H(['# MODULE', 'id', 'member', 'Ref.Pt', 'LX1', 'LY1', 'LZ1', 'LX2', 'LY2', 'LZ2
 X(3);
 N('the module’s own reference point - one of the nine points of a member');
 H(['# MODULE', 'id', 'BASE', 'instance', 'point']);
+X(2);
+N('a plate carried on one of this module’s own planes - a stiffener, a cover,');
+N('a base plate. L.X / L.Y are on that plane; OFFSET lifts it off the plane.');
+H(['# MODULE', 'id', 'POS', 'plate', 'PLANE', 'Ref.Pt', 'L.X', 'L.Y',
+   '[ROT]', '[OFFSET]']);
 X(2);
 /* FIT is not shown yet. The engine still reads it, so a sheet that already
    uses it keeps running - it is only that the template does not teach a
@@ -137,11 +171,29 @@ H(['# ASSY', 'id', 'source', 'ROT', 'C.X', 'C.Y', 'C.Z', 'AXIS', 'angle', 'repea
 N('repeat = EXTRA copies. repeat 4 leaves five in total.');
 X(4);
 
-B('5.  VIEW  ·  named drawings for Save DXF   (optional)');
-N('No VIEW rows means no VIEWS block in the DXF. Nothing else changes.');
+B('5.  DRAWINGS  ·  what Save DXF puts in the file   (optional)');
+N('No VIEW and no PLOT rows means no drawings in the DXF. Nothing else changes.');
 X();
-H(['# VIEW', 'module', 'FROM', '[title]']);
-N('FROM = FRONT / BACK / LEFT / RIGHT / TOP / BOTTOM');
+H(['# VIEW', 'module', 'dir', '[AZ]', '[EL]', 'scale', '[title]']);
+N('module = a MODULE id, an ASSY id, or ALL - the whole model in one drawing.');
+N('dir = FRONT / BACK / LEFT / RIGHT / TOP / BOTTOM');
+N('      ISO-NE / ISO-NW / ISO-SE / ISO-SW   (ISO_NE and "ISO NE" also read)');
+N('      3D - and then AZ and EL are yours to fill in.');
+N('A named direction leaves AZ and EL EMPTY rather than sliding the scale two');
+N('cells left. The columns do not move.');
+N('LEFT and RIGHT look ALONG the model, which is the only way a section can be');
+N('taken - and a module placed many times lands on top of itself there.');
+N('The scale is on the row because it belongs to THIS drawing’s paper. Save DXF');
+N('asks nothing at export time.');
+X(3);
+N('The other kind of drawing: not a thing in place seen from somewhere, but a');
+N('part on its own at its standard section, with how many were placed. The');
+N('subject is a definition rather than a position, which is why it is a');
+N('different word. ALL is allowed - asking for forty parts by name is asking for');
+N('the list to go stale.');
+H(['# PLOT', 'PART / SECT', 'id / ALL', 'scale', '[title]']);
+N('PART and SECT are split so each carries its own scale: a gusset and a');
+N('six-metre beam do not share one.');
 X(3);
 
 rows.push({ s: 'end', c: ['END'] });

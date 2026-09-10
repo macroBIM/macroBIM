@@ -147,9 +147,9 @@ cp plate3d/plate_builder_test.js plate3d/plate_builder.js   # 엔진 복사
 키워드를 예제에 넣으면 운영 엔진이 모르는 행을 받는다. 그래서 새 키워드는
 **엔진이 운영으로 갈 때** 예제에 들어간다.
 
-`PLATE3D_TEMPLATE.xlsx` 는 「모든 키워드와 형식을 주석으로」라고 말하지만 지금
-`NOTCH` · `PLOT` · `POS` · `TAPER` 가 빠져 있다. **넷을 한꺼번에** 채운다 —
-승격할 때.
+`PLATE3D_TEMPLATE.xlsx` 에 `NOTCH` · `PLOT` · `POS` · `TAPER` 가 들어갔다 — TAPER 를
+운영으로 올리면서 넷을 한꺼번에. `VIEW` 헤더도 고쳐다 — `module | FROM | [title]`
+로 멈춰 있어서 `ALL` 도 AZ·EL 도 축척도 없었다. 212행 · 27 형식.
 
 ## 포맷 잠금 (`FORMAT_LOCK.json`)
 
