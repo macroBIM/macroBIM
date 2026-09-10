@@ -76,44 +76,48 @@ const MSL = -12000;
 const HU = RISEW + MSL;            // 122000  top chord at the crown
 const ZDK = DECKW + MSL;           //  37000  roadway
 const ZPY = PYLW + MSL;            //  77000  top of a pylon
-const DC = 18000;                  // truss depth at the crown        (mine)
-const DM = 90000;                  // and the number that opens it up (mine)
-const DP = 9000;                   // and the depth left AT the pin   (mine)
-const ZA = HU - DC / 2;            // 113000  the arch axis at the crown
+const DC = 16000;                  // truss depth at the crown        (mine)
+const DM = 65000;                  // and the number that opens it up (mine)
+const DP = 7000;                   // and the depth left AT the pin   (mine)
 const BY = 15000;                  // half the spacing of the two trusses (mine)
+/* THE BOTTOM CHORD IS THE PARABOLA, and the depth is stacked on top of it.
 
-/* The arch, as an axis and a depth.
+   The first version made the arch's AXIS the parabola and split the depth
+   either side of it, which is how you would draw a rib in a textbook and it
+   is not this bridge. It puts the bottom chord well below a parabola out at
+   the haunch, so the chord dives early and meets the roadway a THIRD of the
+   way in from the pin. Measured off an elevation of the real bridge it meets
+   it a FIFTH of the way in, and the bottom chord through its whole length
+   fits z = ZL(1 - u^2) to within a metre or two.
+
+   Which makes sense of the structure rather than just matching a picture: the
+   bottom chord is the arch. It is the line the thrust runs down into the pin,
+   and a parabola is the line a uniform load wants. The top chord is a
+   stiffening chord standing off it, and how far off is a separate question
+   with a separate answer.
 
    u runs 0 at the crown to 1 at the pin, and x is linear in u - equal panels
    measured ALONG THE BRIDGE, not along the arch, because the hangers hang off
-   the panel points and the hangers are what the deck is spaced by.
-
-   The axis is a parabola: a parabolic arch under uniform load carries pure
-   thrust, which is the whole idea of an arch, and 4·ZA/SPAN puts the steel
-   into the pin at 42 degrees.
-
-   The depth closes to nothing at the pin. (1 - u^7) is what does it, and the
-   exponent is the one number here chosen by looking: 7 shuts the triangle in
-   the last panel and a half, which is where the real arch shuts it, and lower
-   exponents pinch the depth away over a third of the span. */
-const za = u => ZA * (1 - u * u);
+   the panel points and the hangers are what the deck is spaced by. */
+const ZLC = HU - DC;               // 106000  bottom chord at the crown
+const ZLP = -DP / 2;               //  -3500  and where it meets the casting
+const zlo = u => ZLP + (ZLC - ZLP) * (1 - u * u);
 /* The depth grows as u SQUARED, and that is the difference between an arch and
-   a lump. Growing it linearly makes the depth open faster near the crown than
-   the axis falls, so the TOP CHORD RISES AWAY FROM THE CROWN - highest two
+   a lump. Growing it linearly opens the depth faster near the crown than the
+   bottom chord falls, so the TOP CHORD RISES AWAY FROM THE CROWN - highest two
    panels out, then coming down. On the drawing it is a flat hump across the
    middle third and it is the first thing you see is wrong. u squared is flat at
    the crown, so the top chord's highest point is the crown, which is where an
    arch keeps it.
 
-   And the depth does not close to a mathematical point. Two 3.5 m boxes
-   converging on one node at 56 degrees share four metres of steel with each
-   other, and no trim short of seven metres clears it - which would leave the
-   tip of the arch missing. The real bridge does not converge to a point either:
-   it converges to a bearing casting a man can stand inside. So the depth closes
-   to 9 m and the last member across is that casting. */
+   And it closes to 7 m rather than to a point. Two 3.4 m boxes converging on
+   one node at 56 degrees share four metres of steel with each other, and no
+   trim short of seven metres clears it - which would leave the tip of the arch
+   missing. The real bridge does not converge to a point either: it converges
+   to a bearing casting a man can stand inside, and the last member across is
+   that casting. */
 const dep = u => DP + (DC - DP + (DM - DC) * u * u) * (1 - Math.pow(u, 6));
-const zup = u => za(u) + dep(u) / 2;
-const zlo = u => za(u) - dep(u) / 2;
+const zup = u => zlo(u) + dep(u);
 
 const NH = 14;                     // panels in a half arch
 const P = SPAN / 2 / NH;           // 17964.3 - and the deck's bay as well
@@ -159,8 +163,25 @@ const PIERN = 6, PIERE = 3;        // six piers a side, every three bays -
                                    // the sixth is the abutment the deck ends on
 
 /* ===================== the pylons ===================== */
-const PYX = SPAN / 2 + 10500, PYY = 34000;      // clear of a 48.8 m deck (mine)
-const PYB = 22000, PYD = 13000;                 // 22 by 13 on plan       (mine)
+/* Right at the springing and just outside it, straddling the roadway, which is
+   what the elevation shows: the arch lands between the two of them. Everything
+   here is mine except the 89 m. */
+const PYX = SPAN / 2 + 16000, PYY = 33500;
+/* Five lifts, not three. A pylon is a tapered tower and PLATE3D has no tapered
+   member, so the taper is a staircase - and three steps up 89 m is a staircase
+   you can count from the far side of the harbour. Five is fine at that
+   distance, and the step is 1.5 m on 30. */
+const NPY = 5;
+const PYB = [], PYD = [], PYF = [];             // along the bridge, across it, top
+for (let k = 0; k < NPY; k++) {
+  const t = k / (NPY - 1);
+  PYB.push(Math.round(30000 - 6000 * t));
+  PYD.push(Math.round(15000 - 3000 * t));
+  PYF.push((k + 1) / NPY);
+}
+const PYT = 80;                                 // the skin
+const PYH = PYF.map((f, i) => (ZPY - MSL) * (f - (i ? PYF[i - 1] : 0)));
+const PYZ = PYF.map((f, i) => MSL + (ZPY - MSL) * ((i ? PYF[i - 1] : 0) + f) / 2);
 
 const r1 = v => Math.round(v * 10) / 10;
 const R = [];
@@ -195,7 +216,7 @@ const MADE = new Set();
 
    So: every module is written where it stands, and A() remembers the START of
    the first member of each section for the ASSY row to quote back. */
-const DATUM = {};
+const DATUM = {}, COUNT = {};
 function A(id, mem, a, b, ob, oe) {
   ob = ob || 0; oe = oe || 0;
   const d = [b[0] - a[0], b[1] - a[1], b[2] - a[2]];
@@ -206,6 +227,7 @@ function A(id, mem, a, b, ob, oe) {
        r1(b[0]), r1(b[1]), r1(b[2]), ob ? r1(ob) : '', oe ? r1(oe) : '', '');
   MADE.add(id);
   const k = id + '|' + mem;
+  COUNT[k] = (COUNT[k] || 0) + 1;
   if (!DATUM[k]) DATUM[k] = [a[0], a[1], a[2]];
 }
 /* BASE names an INSTANCE, not a section. `BASE sc.uc` makes the engine say
@@ -216,7 +238,11 @@ function A(id, mem, a, b, ob, oe) {
 function BASE_(id, mem) {
   if (!MADE.has(id)) return;
   if (form !== 'm') { push.apply(null, HDR_MOD); form = 'm'; }
-  push('MODULE', id, 'BASE', mem + '_1', 'mc'); form = '';
+  // and _1 only when there IS more than one: a section used once keeps its own
+  // name, and asking for SC.PY1_1 where only SC.PY1 exists is an error, not a
+  // warning - the module falls back to the origin and the pylon walks off.
+  push('MODULE', id, 'BASE', mem + (COUNT[id + '|' + mem] > 1 ? '_1' : ''), 'mc');
+  form = '';
 }
 const AT = (id, mem) => DATUM[id + '|' + mem] || [0, 0, 0];
 
@@ -240,8 +266,19 @@ push('SECT', 'sc.hg', 'SM490', 40000, 'R', 'mc', 900, 900, 30, 0);
 push('SECT', 'sc.ps', 'SM490', 30000, 'R', 'mc', 1400, 1400, 25, 0);
 push('SECT', 'sc.cg', 'SM490', r1(2 * GY), 'H', 'mc', CGH, 1000, 1000, 22, 40, 40, 24);
 push('SECT', 'sc.st', 'SM490', r1(P), 'H', 'mc', STH, 400, 400, 12, 20, 20, 14);
-push('SECT', 'sc.pc', 'SM490', r1(ZPY - MSL), 'R', 'mc', 3000, 3000, 60, 0);
-push('SECT', 'sc.pr', 'SM490', r1(PYD), 'H', 'mc', 1200, 600, 600, 16, 24, 24, 18);
+/* The pylons, three lifts of one rectangular box each, and the box IS the
+   pylon - not a frame standing inside one. They are granite in life and this
+   sheet has no stone in it, so they are written as an 80 mm skin: thick enough
+   to be a section and thin enough that the tonnage they add is a number you
+   can subtract rather than a number that eats the bridge. The generator prints
+   what they weigh so the steel figure can be quoted without them. */
+/* Across the bridge FIRST, along it second. A box on a vertical member has no
+   "up" to line its section up with, so the engine takes the first dimension
+   across. Written the natural way round - 30 along the bridge, 15 across - the
+   pylons came out 30 m wide and ate the footway. */
+for (let k = 0; k < NPY; k++)
+  push('SECT', 'sc.py' + (k + 1), 'SM490', r1(PYH[k]), 'R', 'mc',
+       PYD[k], PYB[k], PYT, 0);
 push('SECT', 'sc.ic', 'SM490', r1(ZDK - MSL), 'R', 'mc', 2400, 2400, 50, 0);
 push('SECT', 'sc.ir', 'SM490', 30000, 'H', 'mc', 1400, 700, 700, 18, 26, 26, 20);
 blank();
@@ -354,7 +391,7 @@ const CDO = half.uc + 600 + 300;
 // The plan bracing hangs under the top chord, and how far under depends on how
 // steep the chord is there: a 3.2 m box on a 56 degree slope is 5.7 m deep
 // measured vertically, and 2.4 m of drop leaves the bracing inside it.
-const PB = j => r1(half.uc / Math.cos(steep(zup, j)) + 600 + 400);
+const PB = j => r1(half.uc / Math.cos(steep(zup, j)) + 600 + 900);
 /* A strut is written only where it CLEARS THE ROADWAY, and it is asked the
    same question whichever chord it is on. The deck's girders occupy a band
    3,550 to 5,950 below the roadway right across the bridge, and both chords
@@ -363,7 +400,10 @@ const PB = j => r1(half.uc / Math.cos(steep(zup, j)) + 600 + 400);
    deck it is holding up. Those two panel points are braced by the ones either
    side of them, which is what the real bridge does at the same place and for
    the same reason. */
-const clearsDeck = z => z + 1000 < CGZ - CGH / 2 || z - 1000 > CGT;
+// The deck is everything from the bottom of its girders to the road surface -
+// 3,450 of girder and then a metre of stringer. Measuring only to the girders
+// let a strut sit 30 mm clear of them and straight through twelve stringers.
+const clearsDeck = z => z + 1000 < CGZ - CGH / 2 || z - 1000 > ZDK;
 for (let j = 1; j <= NH; j++) {
   if (!up(j - 1)) continue;
   const x = XJ(j), u = U(j);
@@ -402,7 +442,14 @@ for (let j = 0; j < NH; j++) {
 for (let j = 1; j <= NH; j++) {          // j = 0 is the crown, and md.crn has it
   if (!up(j - 1)) continue;
   const u = U(j), x = XJ(j);
-  const onTop = zup(u) < ZDK - 4000;
+  /* Whichever chord is NEARER the roadway, which is the only rule that works
+     the whole way along. Near the crown that is the bottom chord and the member
+     hangs; past the springing the bottom chord has dived and the top chord is
+     what the deck stands on. Choosing by a fixed height instead put a post at
+     the thirteenth node on the bottom chord and sent it up through the top one
+     on the way. Where the nearer chord is at deck level there is nothing to
+     write - the deck bears on the truss directly - and A() drops it. */
+  const onTop = Math.abs(zup(u) - ZDK) < Math.abs(zlo(u) - ZDK);
   const z = onTop ? zup(u) : zlo(u), hang = z > ZDK;
   const t = onTop ? faceUp(zup, half.uc, j, hang ? 450 : 700)
                   : faceUp(zlo, half.lc, j, hang ? 450 : 700);
@@ -461,18 +508,12 @@ push('#', 'ONE PYLON - 89 m of granite over a steel frame, and it carries nothin
 // bare steel arch was thought to need an anchor for the eye. Modelled as the
 // frame inside the stone, which is the only part of a pylon a steel sheet has
 // anything to say about.
-const pyc = [[-PYX - PYB / 2, -PYY - PYD / 2], [-PYX + PYB / 2, -PYY - PYD / 2],
-             [-PYX + PYB / 2, -PYY + PYD / 2], [-PYX - PYB / 2, -PYY + PYD / 2]];
 if (GROW >= 1) {
-  pyc.forEach(c => A('md.pyl', 'sc.pc', [c[0], c[1], MSL], [c[0], c[1], ZPY], 0, 0));
-  for (let k = 0; k <= 5; k++) {
-    const z = MSL + (ZPY - MSL) * k / 5;
-    for (let i = 0; i < 4; i++) {
-      const a = pyc[i], b = pyc[(i + 1) % 4];
-      A('md.pyl', 'sc.pr', [a[0], a[1], z], [b[0], b[1], z], 1800, 1800);
-    }
-  }
-  BASE_('md.pyl', 'sc.pc');
+  for (let k = 0; k < NPY; k++)
+    A('md.pyl', 'sc.py' + (k + 1),
+      [-PYX, -PYY, MSL + (ZPY - MSL) * (k ? PYF[k - 1] : 0)],
+      [-PYX, -PYY, MSL + (ZPY - MSL) * PYF[k]], 0, 0);
+  BASE_('md.pyl', 'sc.py1');
 }
 blank();
 
@@ -505,7 +546,7 @@ push('VIEW', 'md.brc', 'TOP', '', '', 1000, 'ARCH BRACING - PLAN');
 push('VIEW', 'md.brc', 'FRONT', '', '', 1000, 'HANGERS AND POSTS - ELEVATION');
 push('VIEW', 'md.dkb', 'FRONT', '', '', 100, 'ONE DECK BAY - CROSS SECTION');
 push('VIEW', 'md.dkb', 'TOP', '', '', 200, 'THE DECK - PLAN');
-push('VIEW', 'md.pyl', 'FRONT', '', '', 200, 'ONE PYLON - ELEVATION');
+push('VIEW', 'md.pyl', 'FRONT', '', '', 500, 'ONE PYLON - ELEVATION');
 push('VIEW', 'md.pie', 'FRONT', '', '', 200, 'ONE APPROACH PIER - ELEVATION');
 blank();
 }
@@ -517,7 +558,7 @@ blank();
    an arch, one deck bay, one pylon and one pier, and the bridge is what the
    assembly rows make of them. */
 const DATUM_OF = { 'md.arh': 'sc.uc', 'md.brc': 'sc.cs', 'md.crn': 'sc.av',
-                   'md.dkb': 'sc.cg', 'md.pyl': 'sc.pc', 'md.pie': 'sc.ic' };
+                   'md.dkb': 'sc.cg', 'md.pyl': 'sc.py1', 'md.pie': 'sc.ic' };
 const put = (as, md) => { const d = AT(md, DATUM_OF[md]);
   push('ASSY', as, md, 'ADD', r1(d[0]), r1(d[1]), r1(d[2])); };
 
@@ -576,9 +617,10 @@ push('END');
   note(at('SECT', 'sc.uc'), 'arch top chord - a box, one piece per panel');
   note(at('SECT', 'sc.lc'), 'arch bottom chord - the one that comes through the roadway');
   note(at('SECT', 'sc.hg'), 'hanger. The same section stands as a post where the chord is below the deck');
-  note(at('SECT', 'sc.cg'), 'deck cross girder, 48.8 m, hung under the stringers');
+  note(at('SECT', 'sc.cg'), 'deck cross girder, in three pieces a bay - the arch comes through the roadway');
+  note(at('SECT', 'sc.py1'), 'pylon, lift 1 of 5. GRANITE in life: written as an 80 mm skin, and 18,037 t of the total is this');
   note(at('#', 'ONE HALF OF ONE ARCH TRUSS - mirrored about the crown, then about the centre line') + 1,
-      'axis = ZA(1 - u²), depth = (18 + 58u)(1 - u⁷) - and the depth shuts to nothing at the pin');
+      'the BOTTOM chord is the parabola: 106 m at the crown, and the depth stands on it');
   note(at('#', 'THE CROWN - the four members that stand ON the mirror plane, so they are placed once') + 1,
       'a member on the mirror plane would be reflected onto itself');
   note(at('#', 'ONE DECK BAY - a cross girder and seven stringers, copied sixty-four times') + 1,
@@ -599,5 +641,9 @@ push('END');
   }));
   ws.views = [{ state: 'frozen', ySplit: 1 }];
   await wb.xlsx.writeFile(OUT);
+  const pyv = PYB.reduce((a, b, i) =>
+    a + (b * PYD[i] - (b - 2 * PYT) * (PYD[i] - 2 * PYT)) * PYH[i], 0) * 4;
   console.log('wrote ' + OUT + '  (' + R.length + ' rows)');
+  console.log('  four pylons as an ' + PYT + ' mm skin: ' +
+              (pyv * 7.85e-6 / 1000).toFixed(0) + ' t of the total, and granite in life');
 })();
