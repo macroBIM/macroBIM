@@ -11980,7 +11980,7 @@
        of an arch twice - about the crown, then about the centre line - so four
        half-trusses come out of one, and a 503 m span cannot go lopsided
        because there is only one half of it in the file. */
-    { f: 'PLATE3D_HARBOUR.xlsx', n: 'Sydney Harbour Bridge', s: '253 rows → 1296 members · 51,402 t · 9 drawings',
+    { f: 'PLATE3D_HARBOUR.xlsx', n: 'Sydney Harbour Bridge', s: '274 rows → 1362 members · 52,826 t · 9 drawings',
       d: 'A quarter of the arch, mirrored twice. 503 m span; 18,037 t of the weight is four granite pylons written as steel.' }
   ];
   var exOpen = false;

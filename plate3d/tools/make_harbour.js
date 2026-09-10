@@ -137,14 +137,54 @@ const zlo = u => ZLP + (ZLC - ZLP) * (1 - Math.pow(u, PW));
 const dep = u => DP + (DC - DP + (DM - DC) * u * u) * (1 - Math.pow(u, 12));
 const zup = u => zlo(u) + dep(u);
 
-const NH = 14;                     // panels in a half arch
-const P = SPAN / 2 / NH;           // 17964.3 - and the deck's bay as well
-const U = j => j / NH;             // j = 0 at the crown, NH at the pin
+/* THE PANELS ARE NOT EQUAL IN X, and that is what the end of the arch was.
+
+   Equal steps along the BRIDGE give equal steps along the arch only where the
+   arch is flat. Out at the springing it is at 65 degrees, so an 18 m step in x
+   is a 42 m chord segment - two and a half times the one at the crown. The
+   web out there stops being a truss and becomes three enormous stretched
+   parallelograms, and the arch stops being a curve and becomes three long
+   straight runs into a point. That is the shape that was wrong at the end, and
+   it was never the depth or the profile: it was the panelling.
+
+   So the last stretch is spaced by ARC LENGTH along the top chord instead.
+   Equal in x while the deck needs it - every hanger has to land on a cross
+   girder - and equal along the steel once it does not.
+
+   NDK is the deck's own grid and stays 14 a half span whatever the arch does.
+   Past the crossing the deck stands on POSTS rather than hangs, and a post
+   bears on the chord wherever the deck needs it rather than at a panel point.
+   Not how you would detail it; it is how the deck stays one module copied. */
+const NDK = 14;                    // deck bays in a half span
+const P = SPAN / 2 / NDK;          // 17964.3
+/* Every deck station is still a node, and the long panels are SPLIT.
+
+   The first attempt spaced the last stretch purely by arc length, which threw
+   the arch's nodes off the deck's grid - and landing a metre away from a deck
+   station is worse than landing on it or well clear of it: the hangers came
+   down a metre from the verticals and shared steel with them. So the deck's
+   fourteen stations stay nodes, and each panel is divided into as many pieces
+   as its own length asks for. Flat panels ask for one. The last one, 42.5 m of
+   chord across 18 m of bridge, asks for three. */
+const TGT = 21000;                 // as long as a chord segment is allowed to be
+const US = [0];
+for (let m = 0; m < NDK; m++) {
+  const a = m / NDK, b = (m + 1) / NDK;
+  let L = 0, pu = a;
+  for (let i = 1; i <= 64; i++) {                 // the top chord's own length
+    const u = a + (b - a) * i / 64;
+    L += Math.hypot((u - pu) * SPAN / 2, zup(pu) - zup(u)); pu = u;
+  }
+  const k = Math.max(1, Math.ceil(L / TGT));
+  for (let i = 1; i <= k; i++) US.push(a + (b - a) * i / k);
+}
+const NP = US.length - 1;          // panels in a half arch
+const U = j => US[j];              // j = 0 at the crown, NP at the pin
 const XJ = j => -SPAN / 2 * U(j);  // the half that is written: x <= 0
 
 /* GROW: how many panels in from the pin have been riveted. The arch closes at
-   the crown, so building is j counting DOWN from NH. */
-const JBUILT = Math.round(NH * (1 - GROW));   // panels above this are not there yet
+   the crown, so building is j counting DOWN from NP. */
+const JBUILT = Math.round(NP * (1 - GROW));   // panels above this are not there yet
 const up = j => j >= JBUILT;
 
 /* ===================== the deck ===================== */
@@ -351,7 +391,7 @@ const half = { uc: 1600, lc: 1700 };
 const ang = (zf, j) => Math.atan((zf(U(j + 1)) - zf(U(j))) / (XJ(j + 1) - XJ(j)));
 function kink(zf, j) {
   if (j <= 0) return 2 * Math.abs(ang(zf, 0));   // the crown, against its mirror
-  if (j >= NH) return 0;                         // the pin: the chord stops
+  if (j >= NP) return 0;                         // the pin: the chord stops
   return Math.abs(ang(zf, j) - ang(zf, j - 1));
 }
 const chordOff = (zf, S, j) => r1(S * Math.tan(kink(zf, j) / 2) + 150);
@@ -363,13 +403,23 @@ const chordOff = (zf, S, j) => r1(S * Math.tan(kink(zf, j) / 2) + 150);
 // its centre does. Leaving that out is 950 mm at the haunch, which is exactly
 // what the report kept finding.
 const steep = (zf, j) => Math.max(j > 0 ? Math.abs(ang(zf, j - 1)) : 0,
-                                  j < NH ? Math.abs(ang(zf, j)) : 0);
+                                  j < NP ? Math.abs(ang(zf, j)) : 0);
+/* The same question asked anywhere along a chord rather than at a node, for the
+   deck's own stations - which are the deck's grid now and not the arch's. */
+const slopeAt = (zf, u) => {
+  const h = 0.004, a = Math.max(0, u - h), b = Math.min(1, u + h);
+  return Math.abs(Math.atan((zf(b) - zf(a)) / ((b - a) * -SPAN / 2)));
+};
+const faceAt = (zf, S, u, w) => {
+  const t = slopeAt(zf, u);
+  return r1(S / Math.cos(t) + w * Math.tan(t) + 400);
+};
 function faceUp(zf, S, j, w) {
   const t = steep(zf, j);
   return r1(S / Math.cos(t) + w * Math.tan(t) + 400);
 }
 const DGY = 2800;
-for (let j = 0; j < NH; j++) {                 // panels: j to j+1, crown outward
+for (let j = 0; j < NP; j++) {                 // panels: j to j+1, crown outward
   if (!up(j)) continue;
   const x0 = XJ(j), x1 = XJ(j + 1), u0 = U(j), u1 = U(j + 1);
   A('md.arh', 'sc.uc', [x0, -BY, zup(u0)], [x1, -BY, zup(u1)],
@@ -381,7 +431,7 @@ for (let j = 0; j < NH; j++) {                 // panels: j to j+1, crown outwar
   A('md.arh', 'sc.ad', [x0, -BY - DGY, zlo(u0)], [x1, -BY - DGY, zup(u1)],
     faceUp(zlo, half.lc, j, 900), faceUp(zup, half.uc, j + 1, 900));
 }
-for (let j = 1; j < NH; j++) {                 // verticals, crown and pin excluded
+for (let j = 1; j < NP; j++) {                 // verticals, crown and pin excluded
   if (!up(j)) continue;
   const u = U(j), x = XJ(j);
   A('md.arh', 'sc.av', [x, -BY, zlo(u)], [x, -BY, zup(u)],
@@ -391,8 +441,8 @@ for (let j = 1; j < NH; j++) {                 // verticals, crown and pin exclu
    loop above stops one short of so that it is not written twice. It is the last
    member of the arch and the only one that is not steel doing structure - it is
    the bearing, and the two hinges of a two-hinged arch are these. */
-if (up(NH - 1)) A('md.arh', 'sc.sh', [XJ(NH), -BY, zlo(1)], [XJ(NH), -BY, zup(1)],
-                  faceUp(zlo, half.lc, NH, 2500), faceUp(zup, half.uc, NH, 2500));
+if (up(NP - 1)) A('md.arh', 'sc.sh', [XJ(NP), -BY, zlo(1)], [XJ(NP), -BY, zup(1)],
+                  faceUp(zlo, half.lc, NP, 2500), faceUp(zup, half.uc, NP, 2500));
 BASE_('md.arh', 'sc.uc');
 blank();
 
@@ -423,7 +473,7 @@ const PB = j => r1(half.uc / Math.cos(steep(zup, j)) + 600 + 900);
 // 3,450 of girder and then a metre of stringer. Measuring only to the girders
 // let a strut sit 30 mm clear of them and straight through twelve stringers.
 const clearsDeck = z => z + 1000 < CGZ - CGH / 2 || z - 1000 > ZDK;
-for (let j = 1; j <= NH; j++) {
+for (let j = 1; j <= NP; j++) {
   if (!up(j - 1)) continue;
   const x = XJ(j), u = U(j);
   if (clearsDeck(zup(u)))
@@ -436,7 +486,7 @@ for (let j = 1; j <= NH; j++) {
    tower's braces cost five rounds of the clash report before they were pulled
    off the face. A Warren in plan never crosses itself. It hangs 2,400 under
    the top chord so it clears both the chord and the struts at the nodes. */
-for (let j = 0; j < NH; j++) {
+for (let j = 0; j < NP; j++) {
   if (!up(j)) continue;
   /* Not across the roadway. In the last panels but one the top chord dives from
      above the deck to below it, and a diagonal drawn from one end to the other
@@ -458,20 +508,21 @@ for (let j = 0; j < NH; j++) {
    chord is what the deck stands on - which is what the last two panels of the
    real bridge do, and if you stand the post on the lower chord there instead
    it goes straight through the top chord on its way up. */
-for (let j = 1; j <= NH; j++) {          // j = 0 is the crown, and md.crn has it
-  if (!up(j - 1)) continue;
-  const u = U(j), x = XJ(j);
+for (let m = 1; m <= NDK; m++) {         // the DECK's stations, not the arch's
+  const u = m / NDK;
+  if (u < US[JBUILT] - 1e-9) continue;   // that station is not under an arch yet
+  const x = -SPAN / 2 * u;
   /* Whichever chord is NEARER the roadway, which is the only rule that works
      the whole way along. Near the crown that is the bottom chord and the member
-     hangs; past the springing the bottom chord has dived and the top chord is
+     hangs; past the crossing the bottom chord has dived and the top chord is
      what the deck stands on. Choosing by a fixed height instead put a post at
-     the thirteenth node on the bottom chord and sent it up through the top one
-     on the way. Where the nearer chord is at deck level there is nothing to
+     the thirteenth station on the bottom chord and sent it up through the top
+     one on the way. Where the nearer chord is at deck level there is nothing to
      write - the deck bears on the truss directly - and A() drops it. */
   const onTop = Math.abs(zup(u) - ZDK) < Math.abs(zlo(u) - ZDK);
-  const z = onTop ? zup(u) : zlo(u), hang = z > ZDK;
-  const t = onTop ? faceUp(zup, half.uc, j, hang ? 450 : 700)
-                  : faceUp(zlo, half.lc, j, hang ? 450 : 700);
+  const zf = onTop ? zup : zlo, S = onTop ? half.uc : half.lc;
+  const z = zf(u), hang = z > ZDK;
+  const t = faceAt(zf, S, u, hang ? 450 : 700);
   [-BY, BY].forEach(y => A('md.brc', hang ? 'sc.hg' : 'sc.ps',
     [x, y, z], [x, y, hang ? CGT : CGZ - CGH / 2], t, 100));
 }
