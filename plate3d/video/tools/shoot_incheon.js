@@ -43,14 +43,23 @@ const P3T = path.resolve(SP, '../../tools');
 const BOOKS = path.resolve(SP, '../incheon');
 const P3 = path.resolve(SP, '../..');
 const CARDS = path.join(SP, 'cards_inc');
-const SRC = path.join(SP, 'inc_src');
+/* ONLY=tail skips the 66-second take and shoots the ending alone. The take
+   is twenty minutes and the ending is half of one; when the ending is what
+   is being worked on, shooting the take again is twenty minutes of the same
+   frames. It writes its own stills directory and its own shots file, and
+   the assembler is given neither. */
+const ONLY = process.env.ONLY || '';
+/* ONLY writes somewhere else, because the first thing this script does is
+   empty SRC - and "shoots the ending alone" is not what that does when the
+   ending and the take share a directory. It cost a take: the twenty minutes
+   ONLY=tail exists to save were spent shooting them again. */
+const SRC = path.join(SP, ONLY ? 'inc_src_' + ONLY : 'inc_src');
 
 const FPS = 30;
 const MO = 12;                     // stills per second of camera motion
 const VW = 2336, VH = 1294;        // -> 1920x1080 after the assembler's crop
 const BUILD = 66;                  // seconds of bridge going up
 const HOLD = 8;                    // and of it standing there, still turning
-const ONLY = process.env.ONLY || '';
 
 /* The bridge's own colour. Incheon is a white concrete pylon with white
    cables, and on a near-black viewport white is the most legible thing there

@@ -12465,7 +12465,20 @@
        legs. Between the two of them the four ASSY commands are all shown at a
        scale where getting them wrong would be obvious. */
     { f: 'PLATE3D_EIFFEL.xlsx', n: 'Eiffel Tower', s: '709 rows → 1528 members · 4,773 t · 9 drawings',
-      d: 'One pier, written once and turned four ways. 300 m tall.' }
+      d: 'One pier, written once and turned four ways. 300 m tall.' },
+    /* And the one that needs TAPER, which is the reason it is here. The other
+       big sheets are prismatic all through; this pylon is not - two legs
+       3,567 wide squeeze into one 6,004 box over twenty-five metres, and
+       written as stepped boxes that came out a staircase with a black gap
+       under it. One TAPER row is that twenty-five metres.
+
+       It is also the only bridge in this list with NO approximation in it.
+       The Golden Gate's main cable is a parabola and had to be sawn into 130
+       straight pieces; the Eiffel's leg is an exponential and was sampled at
+       every panel. A stay IS a straight line from a pylon anchorage to a deck
+       anchorage, so 208 cables are 208 rows and nothing is chorded. */
+    { f: 'PLATE3D_INCHEON.xlsx', n: 'Incheon Bridge', s: '513 rows → 566 members · 208 stays · 8 drawings',
+      d: 'One cable is one row - a stay is straight, so nothing is chorded. 800 m main span, and the outer surface only.' }
   ];
   var exOpen = false;
   /* The picker is a window rather than a dropdown, so each example has room for

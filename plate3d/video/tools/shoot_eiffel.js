@@ -32,18 +32,23 @@ const P3T = path.resolve(SP, '../../tools');
 const BOOKS = path.resolve(SP, '../eiffel');
 const P3 = path.resolve(SP, '../..');
 const CARDS = path.join(SP, 'cards_eif');
-const SRC = path.join(SP, 'eif_src');
+/* ONLY=tail skips the 70-second take and shoots the ending alone. The take is
+   twenty minutes and the ending is thirty seconds; when the ending is what is
+   being worked on, shooting the take again is twenty minutes of the same
+   frames. It writes its own stills directory and its own shots file, and the
+   assembler is given neither. */
+const ONLY = process.env.ONLY || '';
+/* ONLY writes somewhere else, because the first thing this script does is
+   empty SRC - and "shoots the ending alone" is not what that does when the
+   ending and the take share a directory. It cost a take: the twenty minutes
+   ONLY=tail exists to save were spent shooting them again. */
+const SRC = path.join(SP, ONLY ? 'eif_src_' + ONLY : 'eif_src');
 
 const FPS = 30;
 const MO = 12;                     // stills per second of camera motion
 const VW = 2336, VH = 1294;        // -> 1920x1080 after the assembler's crop
 const BUILD = 70;                  // seconds of tower going up
 const HOLD = 8;                    // and of it standing there, still turning
-/* ONLY=tail skips the 70-second take and shoots the ending alone. The take is
-   twenty minutes and the ending is thirty seconds; when the ending is what is
-   being worked on, shooting the take again is twenty minutes of the same
-   frames. It writes its own shots file, which the assembler is not given. */
-const ONLY = process.env.ONLY || '';
 
 /* The model's own grade, lifted for a near-black viewport - see the head of
    tools/make_eiffel.js. Lighter as it goes up, which is how the real tower is
