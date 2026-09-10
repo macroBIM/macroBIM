@@ -40,7 +40,27 @@
 
      LEVELLED to -15 LUFS. YouTube normalises to about -14, so a track mastered
      to -8 is turned down by the platform anyway - doing it here means hearing
-     what the viewer hears rather than what the file says.                    */
+     what the viewer hears rather than what the file says.
+
+   The levelling is TWO PASS. Pass one measures the finished chain - looped,
+   trimmed and faded, because loudness measured on the raw file is the loudness
+   of a different piece of audio - and pass two normalises to those numbers
+   with linear=true, which moves the whole track by ONE gain instead of riding
+   it. On this track that is 4.9 -> 5.2 LU of loudness range kept: not much,
+   and it is the difference between a track that breathes and one quietly
+   compressed by a normaliser doing its best in the dark.
+
+   It is NOT about the ceiling. One pass held -1.5 dBTP exactly, which is worth
+   writing down because the first reading here said it produced +1.5 and that
+   reading was wrong - see the note on measuring below.
+
+   MEASURING THE RESULT, a trap worth an hour: ebur128 over a whole encoded
+   mp4 reported +3.8 dBFS true peak on a chain whose own output measures
+   -3.2. It is two samples, at 121.079 s and 145.079 s, and seek-decoding
+   those exact moments gives -0.8 dB. A long linear decode of this AAC
+   produces them; the audio does not contain them. So measure the FILTER
+   OUTPUT when the question is whether the processing is right, and treat an
+   isolated sample in a whole-file decode as the decoder's, not the file's. */
 const cp = require('child_process');
 const fs = require('fs');
 const path = require('path');
@@ -53,6 +73,7 @@ const FADE_IN = +(process.env.FADE_IN || 2.5);
 const FADE_OUT = +(process.env.FADE_OUT || 4);
 const LUFS = +(process.env.LUFS || -15);
 const XF = +(process.env.XF || 3);
+const TP = +(process.env.TP || -1.5);   // true-peak ceiling, dBFS
 
 const probe = f => {
   let out = '';
@@ -97,17 +118,48 @@ const pre = short
     '[la][lb]acrossfade=d=' + XF + ':c1=tri:c2=tri[m];[m]'
   : '[1:a]';
 
-const af = [
+const shaped = [
   'atrim=0:' + VD.toFixed(3),
   'afade=t=in:st=0:d=' + FADE_IN,
-  'afade=t=out:st=' + (VD - FADE_OUT).toFixed(3) + ':d=' + FADE_OUT,
-  'loudnorm=I=' + LUFS + ':TP=-1.5:LRA=11',
+  'afade=t=out:st=' + (VD - FADE_OUT).toFixed(3) + ':d=' + FADE_OUT
+].join(',');
+const LN = 'loudnorm=I=' + LUFS + ':TP=' + TP + ':LRA=11';
+const src = () => short ? ['-i', MUS, '-i', MUS] : ['-i', MUS];
+/* The measure pass reads the chain as it will actually be heard - looped,
+   trimmed and faded - because loudness measured on the raw file is the
+   loudness of a different piece of audio. Input 0 is dropped here so the
+   picture is not decoded to measure the music. */
+const measurePre = pre.replace(/\[1:a\]/g, '[0:a]').replace(/\[2:a\]/g, '[1:a]');
+const m = cp.spawnSync(FF, ['-hide_banner', '-nostats', ...src(),
+  '-filter_complex', measurePre + shaped + ',' + LN + ':print_format=json[a]',
+  '-map', '[a]', '-f', 'null', '-'], { encoding: 'utf8' });
+let J = null;
+try { J = JSON.parse((m.stderr.match(/\{[^{}]*"input_i"[\s\S]*?\}/) || [])[0]); } catch (e) {}
+if (!J) { console.log(m.stderr.slice(-800)); throw new Error('loudnorm would not measure'); }
+console.log('  measured ' + (+J.input_i).toFixed(1) + ' LUFS, true peak ' +
+            (+J.input_tp).toFixed(1) + ' dBFS  ->  ' + LUFS + ' / ' + TP);
+
+const af = [shaped,
+  LN + ':measured_I=' + J.input_i + ':measured_TP=' + J.input_tp +
+       ':measured_LRA=' + J.input_lra + ':measured_thresh=' + J.input_thresh +
+       ':offset=' + J.target_offset + ':linear=true',
+  /* A backstop. linear=true already keeps the peak under the ceiling on
+     everything tried so far, so this normally passes the signal through
+     untouched; it is here for the track that turns up with a transient the
+     measure pass under-reads.
+
+     `level=0` is not optional. alimiter AUTO-LEVELS its output up to the
+     limit by default, so written as a ceiling it RAISES the signal into one:
+     -15 LUFS came out -13.5. A limiter that makes things louder is not a
+     limiter, and it is the default. */
+  'alimiter=limit=' + Math.pow(10, TP / 20).toFixed(4) +
+    ':level=0:attack=5:release=60',
   'aresample=48000'
 ].join(',');
 
 const tmp = VID.replace(/\.mp4$/, '.tmp.mp4');
 cp.execFileSync(FF, ['-hide_banner', '-loglevel', 'error', '-y',
-  '-i', mute, '-i', MUS, ...(short ? ['-i', MUS] : []),
+  '-i', mute, ...src(),
   '-filter_complex', pre + af + '[a]',
   '-map', '0:v', '-map', '[a]',
   '-c:v', 'copy', '-c:a', 'aac', '-b:a', '192k',
@@ -116,7 +168,7 @@ fs.renameSync(tmp, VID);
 const sz = fs.statSync(VID).size;
 console.log('\n' + VID);
 console.log((sz / 1048576).toFixed(1) + ' MB  ·  ' + VD.toFixed(1) + ' s  ·  music at ' +
-            LUFS + ' LUFS, ' + FADE_IN + ' s in, ' + FADE_OUT + ' s out' +
+            LUFS + ' LUFS / ' + TP + ' dBTP, ' + FADE_IN + ' s in, ' + FADE_OUT + ' s out' +
             (short ? '\n' + ' '.repeat(8) + 'looped: ' + LOOP_AT.toFixed(1) +
                      ' s -> ' + LOOP_TO.toFixed(1) + ' s over a ' + XF +
                      ' s crossfade, joining at ' + (LOOP_AT - XF).toFixed(1) +
