@@ -113,38 +113,84 @@ md.pl2=#ffe3bc  md.pl3=#ffe9cc  md.shf=#ffcb8c  md.top=#fffaf0
 | 항목 | 내용 |
 |---|---|
 | 제목 | `EIFFEL TOWER 3D BIM — Watch It Go Up \| PLATE3D` |
-| 대안 1 | `EIFFEL TOWER 3D BIM — Built From One Excel Sheet \| PLATE3D` |
+| 대안 1 | `EIFFEL TOWER 3D BIM — 1,528 Members From One Excel Sheet \| PLATE3D` |
+| 대안 2 | `EIFFEL TOWER 3D MODELING — One Pier, Turned Four Ways \| PLATE3D` |
 | 규격 | **1:43** · 1920×1080 · 30 fps · **음악 있음** · **자막 영어** |
 | 썸네일 | `PLATE3D_EIFFEL_thumb.jpg` — 1280×720. 풀블리드 ISO, 탑은 가로 3분의 2 지점, 글자는 왼쪽. `3D BIM MODELING` / `EIFFEL TOWER` / `by PLATE3D` (`node video/tools/mkthumb.js eiffel`) |
 | 공개 | **미정** |
 
-### 설명란
+**제목이 썸네일과 겹치지 않습니다.** 썸네일이 이미 `3D BIM MODELING` /
+`EIFFEL TOWER` 라고 말하므로 제목은 **그 다음 말**을 합니다 — 올라가는 걸
+봐라. 골든게이트와 같은 꼴입니다: 대문자 이름 — 주장 | PLATE3D.
+
+`Built From One Excel Sheet` 를 안 씁니다. 골든게이트가 그 자리에 쓴 말이고,
+두 편이 같은 주장을 하면 두 번째 편은 첫 번째 편의 재방송으로 보입니다. 이
+영상의 주장은 시트가 아니라 **원테이크로 올라가는 것**입니다.
+
+검색어는 제목 앞쪽에 다 있습니다: **eiffel tower · 3D · BIM**.
+
+### 설명란 전문
 
 ```
-3D BIM Modelling the Eiffel Tower in PLATE3D.
+3D BIM Modelling the Eiffel Tower in PLATE3D — simple, and fast.
 
-One camera, one take. The tower goes up the way it went up in 1887 —
-from the ground, one panel at a time — and the camera turns with it.
+One camera, one take. The tower goes up from the ground the way it went up
+in 1887, and the camera turns with it all the way to the top.
 
-Every frame is a real model built from a real sheet. Nothing is hidden
-by hand: the tower is only ever as tall as it has been built.
+  the four piers     up from the ground
+  the arches         in at 20 m
+  the first floor    57.63 m
+  the second floor   115.73 m - and the four legs become one shaft
+  the third floor    276.13 m
+  the top            300.65 m
+
+Every frame is a real model built from a real sheet. Nothing is hidden by
+hand - the tower is only ever as tall as it has been built.
 
 709 rows in one spreadsheet tab. 1,528 members. No clashes.
 Nine drawings come out as DXF at the press of a button.
 
-YOURS TO DOWNLOAD
-It is on the Example list in the app - the last shot of the film is
-somebody taking it. Open it in Excel, change a number, load it again.
+THE FILE IS YOURS
+The last twenty seconds are somebody taking it: PLATE3D -> Example ->
+Eiffel Tower. Open it in Excel, change a number, load it again.
 
 Runs in the browser. Nothing to install.
+macrobim.github.io
 
-0:00  Eiffel Tower
-0:04  It goes up
-1:14  Finished
+0:00  It goes up
+1:12  Finished
 1:22  Get it at macroBIM
-1:39  PLATE3D
+
+Music: Guitar House by josh pan (YouTube Audio Library)
 
 #EiffelTower #BIM #3DModeling #StructuralEngineering #PLATE3D
+```
+
+**챕터가 셋이고 시각이 컷과 2초 어긋납니다.** 유투브는 챕터 셋 이상, 구간
+10초 이상을 요구하는데 실제 컷은 0:00 / 0:04 / 1:14 / 1:22 / 1:39 이고
+0:04 구간(4초)과 1:39 구간(4초)이 그 밑입니다. 그래서 앞뒤를 접고, 남은
+경계 둘 중 **정확히 맞춰야 하는 쪽을 골랐습니다** — `1:22 Get it at macroBIM`
+이 실제 컷입니다(사람들이 누르는 챕터가 그것입니다). `1:12 Finished` 가 2초
+이르고, 눌러서 도착하면 마지막 부재 몇 개가 붙는 중입니다. 늦게 도착해서
+다 지어진 걸 보는 것보다 낫습니다.
+
+**층고 넷은 공표값입니다**(57.63 / 115.73 / 276.13 / 300.65). 그 외에 제가
+정한 수치 — 교각 폭, 패널 개수, 단면 치수 — 는 설명란에 쓰지 않습니다.
+§8 을 보십시오. 4,773 t 도 안 씁니다. 이 모델의 값이지 실물의 값이 아닙니다.
+
+**음악 크레딧은 넣어 두었습니다.** 유투브 오디오 보관함 곡 중 일부만
+설명란 표시를 요구하는데 이 곡이 어느 쪽인지 저는 확인할 수 없습니다
+(§6-1). **필요 없는 곡이면 한 줄 지우면 되고, 필요한 곡인데 빠져 있으면
+문제가 됩니다** — 그래서 넣는 쪽이 기본값입니다.
+
+### 태그
+
+```
+eiffel tower, eiffel tower 3d model, eiffel tower bim, tour eiffel,
+lattice tower, steel tower, tower 3d model, tower erection, construction
+sequence, BIM, 3D modeling, structural engineering, steel structure,
+steel detailing, spreadsheet, excel, parametric model, DXF, shop drawings,
+wrought iron, 1889, PLATE3D, macroBIM
 ```
 
 ## 6-1. 음악 — `Guitar House` / josh pan
