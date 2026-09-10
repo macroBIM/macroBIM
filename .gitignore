@@ -19,6 +19,7 @@ plate3d/tools/chk/
 # 다시 나오고, 저장소가 들고 있으면 모델을 고칠 때마다 52장이 같이 낡는다.
 plate3d/video/ggb/
 plate3d/video/eiffel/
+plate3d/video/incheon/
 
 # 골든게이트 영상이 만드는 것들. prep → mkcards → rendercards → shoot →
 # assemble 다섯 줄이면 다시 나오고, 저장소가 들고 있으면 모델을 고칠 때마다
@@ -26,12 +27,16 @@ plate3d/video/eiffel/
 plate3d/video/tools/node_modules
 plate3d/video/tools/cards_ggb/
 plate3d/video/tools/cards_eif/
+plate3d/video/tools/cards_inc/
 plate3d/video/tools/ggb_src/
 plate3d/video/tools/eif_src/
+plate3d/video/tools/inc_src/
 plate3d/video/tools/ggb_norm/
 plate3d/video/tools/eif_norm/
+plate3d/video/tools/inc_norm/
 plate3d/video/tools/ggb_seq/
 plate3d/video/tools/eif_seq/
+plate3d/video/tools/inc_seq/
 plate3d/video/tools/chk/
 plate3d/video/tools/ggb.dxf
 plate3d/video/tools/ggb.svg
@@ -41,8 +46,11 @@ plate3d/video/tools/ggb_sheet.html
 plate3d/video/tools/shots_ggb.json
 plate3d/video/tools/shots_eif.json
 plate3d/video/tools/shots_eif_*.json
+plate3d/video/tools/shots_inc.json
+plate3d/video/tools/shots_inc_*.json
 plate3d/video/tools/site/
 plate3d/video/tools/filter_ggb.txt
 plate3d/video/tools/filter_eif.txt
+plate3d/video/tools/filter_inc.txt
 plate3d/video/*.mp4
 plate3d/tools/draw/

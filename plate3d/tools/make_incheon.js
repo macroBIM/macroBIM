@@ -165,6 +165,34 @@ const TP = [['tp.lg1', 'sc.la', 'sc.lb', ZF, ZK, L1],
            part: part };
 });
 
+/* STAGES=1 prints the film's frames and stops: one line a stage,
+
+       <pylon top>  <x of the far end>  <x of the near end>
+
+   - how high the pylon has reached, and the extent of what the WEST pylon has
+   built. The last line is the whole bridge, because at closure that is what
+   the subject is.
+
+   The shoot tool asks for these rather than keeping its own copy. The Eiffel
+   film learned that the hard way: a camera with the panel heights typed into
+   it is a camera that goes wrong the day the model is re-panelled, and it does
+   not go wrong loudly. */
+if (process.env.STAGES) {
+  const MX = mainX(), SX = sideX();
+  for (let g = 0; g <= CLOSE; g++) {
+    const zt = g < PYL1 ? ZF
+             : g >= TBL ? ZPY : ZF + (ZPY - ZF) * (g - PYL1 + 1) / PYLN;
+    let lo = -XP, hi = -XP;
+    if (g >= TBL) {
+      const k = Math.min(NC - 1, Math.floor((g - TBL) / 2));
+      lo = -XP - SX[k]; hi = -XP + MX[k];
+    }
+    if (g >= CLOSE) { lo = -XW3; hi = XW3; }
+    console.log(r1(zt) + ' ' + r1(lo) + ' ' + r1(hi));
+  }
+  process.exit(0);
+}
+
 const R = [];
 const push = (...r) => R.push(r);
 const blank = () => R.push([]);
