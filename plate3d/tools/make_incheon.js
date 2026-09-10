@@ -1,71 +1,108 @@
 // PLATE3D_INCHEON.xlsx - the Incheon Bridge, at full size, in mm.
 //
-// WHAT IS PUBLISHED AND WHAT IS MINE. Five figures are the input: an 800 m main
-// span, pylons 230.5 m above the water, 74 m of clearance under the deck, a
-// 1,480 m cable-stayed length and a deck 33.4 m wide, opened 2009. Everything
-// else - the pylon's proportions, the cable spacing, every section size, the
-// girder depth, the pier shapes - is MINE. It is designed to those five and to
-// what the bridge looks like, and nothing written about this model should say
-// it is Chodai's drawing.
+// THIS ONE IS MEASURED, NOT REMEMBERED. The first draft of this file was built
+// from what I could recall of the bridge and it did not look like it, for the
+// same reason the Harbour Bridge did not: a shape recalled is a shape guessed.
+// Then the general arrangement, the pylon drawing and the deck section turned
+// up, and the work stopped being drawing and became reading.
 //
-// THE CABLES ARE STRAIGHT, and that is the whole reason this bridge is here.
+// Everything below is off those drawings:
 //
-// The Golden Gate's main cable is a parabola, so it had to be sawn into 130
-// straight segments to be written at all, and the film had to say so. A
-// cable-stayed bridge has no such problem: a stay IS a straight line from an
-// anchorage in the pylon to an anchorage in the deck, and one stay is one
-// member. There is no approximation anywhere in this file. Nothing is sampled,
-// nothing is chorded, nothing is "close enough at this scale".
+//   spans          80 + 260 + 800 + 260 + 80 = 1,480 m
+//   pylon          230.5 m, in lifts of 5 + 55 + 115 + 55.5
+//   legs           70 m apart at the footing, 45 m apart at the deck
+//   cables         26 a plane a side of each pylon - 208 in all
+//   main span      22.5 m to the first, then 2 at 11.25, then 23 at 15
+//   deck           33.4 m wide, a 17.6 m box with 8.06 m brackets, 1,371 deep
+//   clearance      74 m, over a 625.5 m shipping passage
 //
-// Three decisions carry it:
+// THE KINK IN THE LEG IS A PREDICTION THAT LANDED. The pylon is an inverted Y
+// and its legs are NOT one straight line: they rise almost vertically to 60 m
+// and then converge to the shaft at 175 m. Nothing on the drawing says where
+// that kink is - it is read off the 55 m and 115 m lifts. Take the leg axis
+// from 30 m at the footing to 26 m at the kink and run it to the shaft, and
+// the legs come out 45,050 apart where the deck passes between them. The
+// drawing says 45,000. That agreement is why this file trusts the two-slope
+// leg rather than fitting a curve to a photograph.
 //
-//   - ONE STAY IS ONE ROW. 132 of them, and the fan is arithmetic: the deck
-//     anchorages are the deck's own bay, 20 m apart, and the pylon anchorages
-//     are spread up the shaft. Semi-fan, which is what the bridge has and what
-//     every cable-stayed bridge built since 1980 has, because a pure fan puts
-//     forty anchorages on one point.
+// AND THE CABLES ARE STRAIGHT, which is the reason this bridge is worth doing
+// in PLATE3D at all. The Golden Gate's main cable is a parabola and had to be
+// sawn into 130 straight pieces to be written; a stay IS a straight line from
+// an anchorage in the pylon to one in the deck, so one stay is one row. There
+// is no approximation anywhere in this file. Nothing is sampled, nothing is
+// chorded, nothing is close enough at this scale.
 //
-//   - THE PYLON IS AN INVERTED Y AND THE DECK GOES BETWEEN ITS LEGS. That one
-//     sentence fixes where the legs meet: they have to still be outside the
-//     33.4 m deck where they pass it. Legs 70 m apart at the pier and meeting
-//     at 150 m puts them 36.3 m apart at deck level - 1.4 m clear either side.
-//     Meeting lower makes a pylon the deck cannot get through.
-//
-//   - ONE DECK BAY, WRITTEN ONCE, COPIED 74 TIMES. 20 m a bay, and the spans
-//     are 80 + 260 + 800 + 260 + 80 because every one of those is a whole
-//     number of bays. A stay lands on a cross beam or it lands on nothing.
+// THE DECK'S PANEL POINTS ARE THE CABLE POINTS. They are not a regular grid -
+// 22.5, then 11.25 twice, then 15 - so the deck cannot be one bay copied the
+// way the other bridges' decks are. It is written as a run between the points
+// the cables actually land on, because a stay that lands between two cross
+// beams lands on nothing.
 //
 // THE PAINT IS NOT IN THIS FILE. For a picture or a film:
 //
-//   COLOURS=md.pyl=#e2e8f0,md.stay=#f8fafc,md.dkb=#94a3b8,md.pie=#cbd5e1 \
+//   COLOURS=md.pyl=#dfe6ee,md.stay=#f8fafc,md.dck=#8fa0b3,md.pie=#c3cdd8 \
 //     node tools/shot_ggb.js PLATE3D_INCHEON.xlsx
 const ExcelJS = require('exceljs');
 const OUT = process.argv[2] || __dirname + '/../PLATE3D_INCHEON.xlsx';
 
-/* ===================== the published figures ===================== */
-const MAIN = 800000;               // main span
-const ZPY = 230500;                // pylons, above the water
-const CLR = 74000;                 // clearance under the deck
-const WIDE = 33400;                // deck, out to out
+/* ===================== off the drawings ===================== */
+const MAIN = 800000, SIDE = 260000, END = 80000;
+const XP = MAIN / 2;                    // 400000  pylon W1
+const XW2 = XP + SIDE;                  // 660000  pier W2
+const XW3 = XW2 + END;                  // 740000  pier W3, and the deck's end
+const CLR = 74000;                      // the shipping passage, 625.5 m x 74 m
+const GD = 1371;                        // girder depth
+const WIDE = 33400, BOXW = 17600;       // deck, and the box inside it
+const WY = BOXW / 2;                    // 8800    the box webs
+const AY = 16000;                       // where a stay lands on the deck
+/* THE PYLON IS A LOZENGE, NOT A Y, and that is what was wrong with it.
 
-/* ===================== and my numbers ===================== */
-const BAY = 20000;                 // one deck bay, and one stay spacing
-const SIDE = 260000, END = 80000;  // side and end spans: 1,480 m in all
-const XP = MAIN / 2;               // 400000 - the pylons
-const XEND = XP + SIDE + END;      // 740000 - where the deck stops
-const GD = 2500;                   // girder depth
-const ZG = CLR + GD / 2;           // 75250 - the girders' axis
-const ZDK = CLR + GD;              // 76500 - the road surface
-const HW = WIDE / 2;               // 16700
-const EY = 15000;                  // the edge girders, and where a stay lands
-const SY = [0, 7500];              // the stringers between them
-/* The pylon. Legs 70 m apart at the pier top and meeting at 150 m, which is
-   what it takes for a 33.4 m deck to pass between them. */
-const PYB = 35000, PYZ = 8000, PYJ = 150000;
-const PYS = 5000;                  // the shaft, square
-const CTOP = 227000, CBOT = 168000;   // where the stays reach up the shaft
-const NM = 19, NS = 12;            // stays each side of a pylon: main, then side
-const PIERX = [XP + SIDE, XEND];   // and the piers under the side spans
+   The legs do not rise from a wide base and converge. They start 32 m apart at
+   the footing, SPLAY OUT to 45 m at the crossbeam, and only then converge to
+   the node. Below the deck it is a diamond; above it, one shaft. Read as a
+   simple inverted Y - legs wide at the bottom, meeting at the top - it comes
+   out a different bridge, which is exactly what it did.
+
+   Every level here is an EL off the drawing, and EL 0.000 is mean sea level:
+
+     EL  13.000   bottom of pylon            32 m between the leg axes
+     EL  68.000   crossbeam, and the widest  45 m - the deck bears on it
+     EL 167.500   the pylon node             the legs become one shaft
+     EL 189.800   bottom of the anchorage    the steel box, 40.8 m of it
+     EL 230.600   top of the anchorage
+     EL 238.500   top of pylon               225.5 m of pylon in all           */
+const ZF = 13000, ZK = 68000, ZJ = 167500, ZPY = 238500;
+const YB = 16000, YK = 22500;           // half of 32,000 and half of 45,000
+const XBT = 75583;                      // top of the crossbeam - the deck sits here
+const SHY = 6000, SHX = 7000;           // the shaft
+const ZJS = ZJ;                         // and the shaft starts at the node
+const CTOP = 230600, CBOT = 189800;     // the steel box anchorage
+/* The deck BEARS ON THE CROSSBEAM - the drawing marks the bearing region right
+   there - so its soffit is the crossbeam's top and not a round number of metres
+   over the water. 74 m is the clearance at the shipping channel, which is not
+   the same thing and not at the pylon. */
+const ZG = XBT + GD / 2;
+const ZDK = XBT + GD;
+const NC = 26;                          // stays a plane a side of a pylon
+
+/* The main span chain, straight off the drawing: 22,500 to the first stay,
+   then two at 11,250, then twenty-three at 15,000 - which is 26 stays and
+   lands 10,000 short of mid-span, both of them numbers the drawing labels. */
+const mainX = () => {
+  const out = []; let d = 22500;
+  out.push(d);
+  for (let i = 0; i < 2; i++) { d += 11250; out.push(d); }
+  for (let i = 0; i < 23; i++) { d += 15000; out.push(d); }
+  return out;                                   // 26 of them, last at 390,000
+};
+/* The side span carries the same 26 into 260 m, so they are closer together -
+   which is what the drawing shows and why only the main span is labelled
+   "15 m SPACES". They stop 13,000 short of pier W2. */
+const sideX = () => {
+  const a = 22500, b = SIDE - 13000, out = [];
+  for (let i = 0; i < NC; i++) out.push(a + (b - a) * i / (NC - 1));
+  return out;
+};
 
 const r1 = v => Math.round(v * 10) / 10;
 const R = [];
@@ -80,7 +117,7 @@ const MADE = new Set(), DATUM = {}, COUNT = {};
 function A(id, mem, a, b, ob, oe) {
   ob = ob || 0; oe = oe || 0;
   const L = Math.hypot(b[0] - a[0], b[1] - a[1], b[2] - a[2]);
-  if (L < ob + oe + 500) return;
+  if (L < ob + oe + 300) return;
   if (form !== 'a') { push.apply(null, HDR_AX); form = 'a'; }
   push('MODULE', id, mem, '', r1(a[0]), r1(a[1]), r1(a[2]),
        r1(b[0]), r1(b[1]), r1(b[2]), ob ? r1(ob) : '', oe ? r1(oe) : '', '');
@@ -89,7 +126,7 @@ function A(id, mem, a, b, ob, oe) {
   COUNT[k] = (COUNT[k] || 0) + 1;
   if (!DATUM[k]) DATUM[k] = [a[0], a[1], a[2]];
 }
-// BASE names an INSTANCE. _1 only when the section really has more than one here.
+// BASE names an INSTANCE, and _1 only when there IS more than one of it here.
 function BASE_(id, mem) {
   if (!MADE.has(id)) return;
   if (form !== 'm') { push.apply(null, HDR_MOD); form = 'm'; }
@@ -102,90 +139,133 @@ push('COORD', 'ZUP');
 blank();
 
 /* ===================== sections ===================== */
+/* WALLS ARE A SKIN, not the real thing. The pylon and the piers are concrete
+   and this sheet has no concrete; the deck's box has diaphragms and stiffeners
+   and this sheet has none of that either. Only the OUTSIDE is modelled, which
+   is what the model is for - so every big box here is 120 mm of wall and the
+   weight the app shows is the weight of that skin, not of the bridge. Written
+   with the real 1.25 m pylon walls it came out at 165,000 t, which is a number
+   about nothing. */
 push('# SECT', 'id', 'mat', 'length', 'TYPE', 'base.pt',
      'v1', 'v2', 'v3', 'v4', 'v5', 'v6', 'v7');
-/* A stay is a PIPE, because a stay is a bundle of strands inside a sheath and
-   the sheath is a pipe. Every other member in this file is a box or an H; the
-   one that is round is the one that is round. */
-push('SECT', 'sc.st1', 'SM570', 250000, 'P', 'mc', 200, 12);
-push('SECT', 'sc.st2', 'SM570', 180000, 'P', 'mc', 160, 10);
-push('SECT', 'sc.eg', 'SM490', r1(BAY), 'H', 'mc', GD, 1200, 1200, 24, 40, 40, 26);
-push('SECT', 'sc.cb', 'SM490', r1(WIDE), 'H', 'mc', 2000, 700, 700, 18, 30, 30, 20);
-push('SECT', 'sc.sg', 'SM490', r1(BAY), 'H', 'mc', 900, 350, 350, 12, 18, 18, 14);
-// The pylon legs lean two ways at once, so they are square: a square never has
-// to be told which way is up.
-push('SECT', 'sc.pl', 'SM490', 160000, 'R', 'mc', 7000, 7000, 90, 0);
-push('SECT', 'sc.ps', 'SM490', r1(ZPY - PYJ), 'R', 'mc', PYS, PYS, 70, 0);
-push('SECT', 'sc.px', 'SM490', 40000, 'R', 'mc', 4000, 4000, 50, 0);
-push('SECT', 'sc.pc', 'SM490', r1(ZG - GD / 2), 'R', 'mc', 8000, 5000, 80, 0);
+/* A stay is a PIPE, because a stay is strands inside a sheath and the sheath
+   is a pipe. Two sizes: the long ones out to mid-span carry more. */
+push('SECT', 'sc.ca', 'SM570', 250000, 'P', 'mc', 200, 14);
+push('SECT', 'sc.cb', 'SM570', 150000, 'P', 'mc', 160, 12);
+// the deck: a box 17.6 m wide and 1,371 deep, written as its two webs and its
+// centre line, with a cross beam at every stay
+/* The deck is ONE BOX, not a set of girders. It is 17.6 m wide and 1,371 deep
+   and that box is what you see from underneath; the diaphragms and stiffeners
+   inside it are not modelled and are not meant to be. The 8.06 m either side is
+   a bracket at every stay point, carrying the footway and the anchorage. */
+push('SECT', 'sc.gb', 'SM490', 15000, 'R', 'mc', GD, BOXW, 30, 0);
+push('SECT', 'sc.br', 'SM490', r1(WIDE / 2 - WY), 'H', 'mc', 1100, 600, 600, 12, 18, 18, 12);
+// the pylon: square boxes, because a leaning leg has no up to be told about
+push('SECT', 'sc.p1', 'SM490', r1(ZK - ZF), 'R', 'mc', 10000, 10000, 120, 0);
+push('SECT', 'sc.p2', 'SM490', r1(ZJ - ZK), 'R', 'mc', 6000, 6000, 120, 0);
+push('SECT', 'sc.p3', 'SM490', r1(ZPY - ZJS), 'R', 'mc', SHY, SHX, 120, 0);
+// the crossbeam: 45 m between the legs, 7 m wide, 7.6 m deep, and the deck on it
+push('SECT', 'sc.px', 'SM490', 45000, 'R', 'mc', r1(XBT - ZK), 7000, 120, 0);
+push('SECT', 'sc.pc', 'SM490', r1(ZG - GD / 2), 'R', 'mc', 9000, 5000, 120, 0);
 blank();
 
-/* ===================== one deck bay ===================== */
-push('#', 'ONE DECK BAY - two edge girders, a cross beam and three stringers, copied 74 times');
-/* The cross beam hangs UNDER the girders rather than framing into them, which
-   is what lets one bay be copied without a single member being cut. The
-   stringers sit on it the same way. */
-const CBZ = ZG - GD / 2 - 1000 - 50;
-A('md.dkb', 'sc.cb', [-XEND, -HW, CBZ], [-XEND, HW, CBZ]);
-[-1, 1].forEach(s => A('md.dkb', 'sc.eg',
-  [-XEND, s * EY, ZG], [-XEND + BAY, s * EY, ZG]));
-SY.forEach(y => [-1, 1].forEach(s => {
-  if (y === 0 && s === 1) return;
-  A('md.dkb', 'sc.sg', [-XEND, s * y, ZG - 400], [-XEND + BAY, s * y, ZG - 400]);
-}));
-BASE_('md.dkb', 'sc.cb');
+/* ===================== the deck ===================== */
+push('#', 'THE DECK - its panel points ARE the stay points, so nothing lands between two cross beams');
+/* Every x the deck has a node at: the stays, the pylons, the piers, mid-span
+   and the two ends. Built once, sorted, de-duplicated - and the girder is the
+   run between them. */
+const XS = new Set([0, XP, XW2, XW3]);
+mainX().forEach(d => XS.add(XP - d));
+sideX().forEach(d => XS.add(XP + d));
+const XL = [...XS].sort((a, b) => a - b);
+const NODES = XL.slice().reverse().map(x => -x).concat(XL.slice(1)).sort((a, b) => a - b);
+for (let i = 0; i < NODES.length - 1; i++)
+  A('md.dck', 'sc.gb', [NODES[i], 0, ZG], [NODES[i + 1], 0, ZG]);
+/* One bracket a side at every node, which is every stay point - a stay that
+   lands between two brackets lands on nothing. */
+NODES.forEach(x => [-1, 1].forEach(s =>
+  A('md.dck', 'sc.br', [x, s * WY, ZG - 100], [x, s * WIDE / 2, ZG - 100], 200, 0)));
+BASE_('md.dck', 'sc.gb');
 blank();
 
 /* ===================== one pylon ===================== */
-push('#', 'ONE PYLON - two legs, a shaft, and the deck passing between them');
-const leg = s => [[s * PYB, PYZ], [0, PYJ]];
-[-1, 1].forEach(s => A('md.pyl', 'sc.pl',
-  [-XP, s * PYB, PYZ], [-XP, 0, PYJ], 0, 0));
-A('md.pyl', 'sc.ps', [-XP, 0, PYJ], [-XP, 0, ZPY], 0, 0);
-/* Two struts between the legs: one under the deck, where a real pylon carries
-   the girders, and one below it. Both stop clear of the leg boxes. */
-[ZG - GD / 2 - 3500, PYZ + (PYJ - PYZ) * 0.28].forEach(z => {
-  const t = (z - PYZ) / (PYJ - PYZ), y = PYB * (1 - t);
-  A('md.pyl', 'sc.px', [-XP, -y, z], [-XP, y, z], 4500, 4500);
+push('#', 'ONE PYLON - the leg is TWO straight pieces, and where they kink is what makes 45,000');
+const legY = z => z <= ZK ? YB + (YK - YB) * (z - ZF) / (ZK - ZF)
+                          : YK * (ZJ - z) / (ZJ - ZK);
+/* The splay and the converge are two straight pieces meeting at the crossbeam,
+   and the turn there is 20 degrees - the widest kink anywhere in this file. Half
+   the box times the tangent of half of it is what comes off each end. */
+const A1 = Math.atan((YK - YB) / (ZK - ZF)), A2 = Math.atan(YK / (ZJ - ZK));
+const KO = r1(5000 * Math.tan((A1 + A2) / 2) + 300);
+/* And the top of the leg stops where its box clears the shaft's face. Two boxes
+   converging at 25 degrees always share steel at the apex; a real pylon has a
+   NODE there, which the drawing names, and this is that node's size. */
+const ZLT = ZJ - (SHY / 2 + 3000 + 400) * (ZJ - ZK) / YK;
+[-1, 1].forEach(s => {
+  A('md.pyl', 'sc.p1', [-XP, s * YB, ZF], [-XP, s * YK, ZK], 0, KO);
+  A('md.pyl', 'sc.p2', [-XP, s * YK, ZK], [-XP, s * YK * (ZJ - ZLT) / (ZJ - ZK), ZLT],
+    KO, 0);
 });
-BASE_('md.pyl', 'sc.pl');
+A('md.pyl', 'sc.p3', [-XP, 0, ZJS], [-XP, 0, ZPY], 0, 0);
+/* The crossbeam. 45 m between the leg faces at EL 68, and the deck bears on its
+   top at EL 75.583 - which is why the deck in this file is not at a round
+   height above the water. */
+A('md.pyl', 'sc.px', [-XP, -YK, (ZK + XBT) / 2], [-XP, YK, (ZK + XBT) / 2], 6000, 6000);
+BASE_('md.pyl', 'sc.p1');
 blank();
 
 /* ===================== the stays ===================== */
-push('#', 'THE STAYS - one member each, and not one of them is an approximation');
-/* A semi-fan. The deck anchorages are the deck's own bay, so a stay lands on a
-   cross beam; the pylon anchorages are spread down the top quarter of the
-   shaft, because a pure fan asks forty cables to meet at one point and a pure
-   harp wastes the height. Nineteen into the main span and twelve into the side
-   span from each side of each pylon - the side span carries fewer because it
-   is shorter and because the back stays are what hold the pylon up. */
-const anch = (i, n) => CTOP - (CTOP - CBOT) * i / (n - 1);
-for (let i = 0; i < NM; i++) {                       // into the main span
-  const x = -XP + (i + 2) * BAY, z = anch(i, NM);
-  [-1, 1].forEach(s => A('md.stay', i < NM / 2 ? 'sc.st1' : 'sc.st2',
-    [-XP, 0, z], [x, s * EY, ZG], PYS, GD / 2));
-}
-for (let i = 0; i < NS; i++) {                       // and back into the side span
-  const x = -XP - (i + 2) * BAY, z = anch(i, NS);
-  [-1, 1].forEach(s => A('md.stay', 'sc.st1',
-    [-XP, 0, z], [x, s * EY, ZG], PYS, GD / 2));
-}
-BASE_('md.stay', 'sc.st1');
+push('#', 'THE STAYS - 26 a plane a side of a pylon, 208 in all, and every one of them one row');
+/* A semi-fan: the deck end of each stay is where the drawing puts it, and the
+   pylon end is spread down the 55.5 m anchorage block - because a pure fan
+   asks fifty-two cables to meet at one point. */
+const anch = i => CTOP - (CTOP - CBOT) * i / (NC - 1);
+/* How far a stay is INSIDE the shaft before it gets out, which for the steep
+   ones near the top is twenty-four metres. It is not a fudge: a stay at eight
+   degrees off vertical beside a 7 m shaft really does run inside the anchorage
+   block that far, which is what an anchorage block is for. Trimming all of
+   them by half the shaft instead put 208 cables through it. */
+/* How far a stay is INSIDE the shaft before it gets out, which for the steep
+   ones near the top is twenty metres. Not a fudge: a stay eight degrees off
+   vertical beside a 7 m shaft really does run that far inside the anchorage
+   block, which is what an anchorage block is for. And it counts from where the
+   stay is actually anchored, not from the shaft's centre - a stay staggered to
+   the far side of the box has the whole box to cross. */
+const stayOff = (a, b, R) => {
+  const dx = b[0] - a[0], L = Math.hypot(dx, b[1] - a[1], b[2] - a[2]);
+  const off = a[0] + XP;                       // where in the 7 m box it sits
+  const out = SHX / 2 + (dx > 0 ? -off : off) + R + 400;
+  return r1(out * L / Math.abs(dx));
+};
+const stay = (d, i, s, sec, R) => {
+  /* ALTERNATING IN AND OUT along the bridge, which is what the anchorage box is
+     7 m deep for. Anchor them all on one line and adjacent stays near the top
+     come out 240 mm apart perpendicular with 225 mm of pipe between them - 12 mm
+     of air, and the clash report is right to say so. Three rows a
+     2.6 m apart and no two of them are ever close. */
+  const a = [-XP + [-1300, 0, 1300][i % 3], s * 700, anch(i)];
+  const b = [-XP + d, s * AY, ZDK];
+  A('md.stay', sec, a, b, stayOff(a, b, R), 400);
+};
+mainX().forEach((d, i) => [-1, 1].forEach(s =>
+  stay(d, i, s, d > 200000 ? 'sc.ca' : 'sc.cb', d > 200000 ? 100 : 80)));
+sideX().forEach((d, i) => [-1, 1].forEach(s => stay(-d, i, s, 'sc.ca', 100)));
+BASE_('md.stay', 'sc.ca');
 blank();
 
-/* ===================== one pier ===================== */
-push('#', 'ONE PIER - under the side spans, and under each end of the deck');
-[-1, 1].forEach(s => A('md.pie', 'sc.pc',
-  [-PIERX[0], s * EY, 0], [-PIERX[0], s * EY, ZG - GD / 2], 0, 100));
-A('md.pie', 'sc.px', [-PIERX[0], -EY, ZG - GD / 2 - 6000],
-                     [-PIERX[0], EY, ZG - GD / 2 - 6000], 3000, 3000);
+/* ===================== the piers ===================== */
+push('#', 'PIERS W2 AND W3 - under the side span and under the end of the deck');
+[XW2, XW3].forEach((x, k) => [-1, 1].forEach(s =>
+  A('md.pie', 'sc.pc', [-x, s * WY, 0], [-x, s * WY, ZG - GD / 2 - 300], 0, 0)));
+[XW2, XW3].forEach(x =>
+  A('md.pie', 'sc.px', [-x, -WY, ZG - GD / 2 - 12000], [-x, WY, ZG - GD / 2 - 12000],
+    5000, 5000));
 BASE_('md.pie', 'sc.pc');
 blank();
 
 /* ===================== the drawings ===================== */
-// RIGHT looks ALONG the bridge, which is the only direction a cross section can
-// be taken in - and a module placed many times lands on top of itself there,
-// so the drawing is one of it rather than all of them side by side.
+// RIGHT looks ALONG the bridge, which is the only direction a section can be
+// taken in - and a module placed many times lands on top of itself there.
 push('# VIEW', 'module', 'dir', 'AZ', 'EL', 'scale', 'title');
 push('VIEW', 'ALL', 'FRONT', '', '', 2000, 'INCHEON BRIDGE - GENERAL ARRANGEMENT');
 push('VIEW', 'ALL', 'TOP', '', '', 2000, 'INCHEON BRIDGE - PLAN');
@@ -193,45 +273,35 @@ push('VIEW', 'md.pyl', 'FRONT', '', '', 500, 'THE PYLON - ELEVATION');
 push('VIEW', 'md.pyl', 'RIGHT', '', '', 500, 'THE PYLON - SECTION');
 push('VIEW', 'md.stay', 'FRONT', '', '', 1000, 'THE STAYS - ELEVATION');
 push('VIEW', 'md.stay', 'TOP', '', '', 1000, 'THE STAYS - PLAN');
-push('VIEW', 'md.dkb', 'RIGHT', '', '', 100, 'THE DECK - CROSS SECTION');
-push('VIEW', 'md.pie', 'RIGHT', '', '', 200, 'ONE PIER - SECTION');
+push('VIEW', 'md.dck', 'RIGHT', '', '', 200, 'THE DECK - CROSS SECTION');
+push('VIEW', 'md.pie', 'RIGHT', '', '', 200, 'PIER - SECTION');
 blank();
 
 /* ===================== the assemblies ===================== */
 /* Every module is written WHERE IT STANDS, so every ADD row quotes that
-   module's own datum straight back at it and moves nothing. Then COPY and MIR
-   do the placing. */
-const DATUM_OF = { 'md.dkb': 'sc.cb', 'md.pyl': 'sc.pl',
-                   'md.stay': 'sc.st1', 'md.pie': 'sc.pc' };
+   module's own datum back at it and moves nothing. Then one MIR does the rest:
+   the bridge is symmetric about mid-span, so half of it is written. */
+const DATUM_OF = { 'md.dck': 'sc.gb', 'md.pyl': 'sc.p1',
+                   'md.stay': 'sc.ca', 'md.pie': 'sc.pc' };
 const put = (as, md) => { const d = AT(md, DATUM_OF[md]);
   push('ASSY', as, md, 'ADD', r1(d[0]), r1(d[1]), r1(d[2])); };
 
-push('# ASSY', 'id', 'ref', 'cmd', 'G.X', 'G.Y', 'G.Z', 'rep');
-push('#', 'THE DECK - one bay, seventy-four of them, end to end');
-if (MADE.has('md.dkb')) {
-  put('as.dck', 'md.dkb');
-  push('ASSY', 'as.dck', 'as.dck', 'COPY', r1(BAY), 0, 0, (2 * XEND) / BAY - 1);
-}
+push('# ASSY', 'id', 'ref', 'cmd', 'G.X', 'G.Y', 'G.Z', 'PLANE');
+push('#', 'THE DECK - written end to end, because its panel points are not a grid');
+if (MADE.has('md.dck')) put('as.dck', 'md.dck');
 blank();
 push('# ASSY', 'id', 'ref', 'cmd', 'G.X', 'G.Y', 'G.Z', 'PLANE');
-push('#', 'THE PYLONS - one written, the other a mirror');
+push('#', 'PYLON, STAYS AND PIERS - one half written, mirrored about mid-span');
 if (MADE.has('md.pyl')) {
   put('as.pyl', 'md.pyl');
   push('ASSY', 'as.pyl', 'as.pyl', 'MIR', 0, 0, 0, 'YZ');
 }
-blank();
-push('# ASSY', 'id', 'ref', 'cmd', 'G.X', 'G.Y', 'G.Z', 'PLANE');
-push('#', 'THE STAYS - one pylon\'s worth, mirrored to the other');
 if (MADE.has('md.stay')) {
   put('as.stay', 'md.stay');
   push('ASSY', 'as.stay', 'as.stay', 'MIR', 0, 0, 0, 'YZ');
 }
-blank();
-push('# ASSY', 'id', 'ref', 'cmd', 'G.X', 'G.Y', 'G.Z', 'PLANE');
-push('#', 'THE PIERS - two a side');
 if (MADE.has('md.pie')) {
   put('as.pie', 'md.pie');
-  push('ASSY', 'as.pie', 'as.pie', 'COPY', r1(-(PIERX[1] - PIERX[0])), 0, 0, 1);
   push('ASSY', 'as.pie', 'as.pie', 'MIR', 0, 0, 0, 'YZ');
 }
 push('END');
@@ -244,13 +314,16 @@ push('END');
   const at = (kw, id) => R.findIndex(r => r[0] === kw && (id === undefined || r[1] === id));
   const notes = {};
   const note = (i, t) => { if (i >= 0) notes[i] = t; };
-  note(0, 'INCHEON BRIDGE  ·  800 m main span, 230.5 m pylons  ·  mm, Z up');
-  note(at('SECT', 'sc.st1'), 'a stay. A PIPE, because a stay is strands inside a sheath');
-  note(at('SECT', 'sc.pl'), 'pylon leg - square, because it leans two ways at once');
-  note(at('#', 'THE STAYS - one member each, and not one of them is an approximation') + 1,
-       'semi-fan: deck anchorages on the deck’s own bay, pylon anchorages down the top quarter');
+  note(0, 'INCHEON BRIDGE  ·  800 m main span, 230.5 m pylons, 208 stays  ·  mm, Z up');
+  note(at('SECT', 'sc.ca'), 'a stay. A PIPE, because a stay is strands inside a sheath');
+  note(at('SECT', 'sc.gb'), 'the deck: one box, 17.6 m by 1,371, skin only');
+  note(at('SECT', 'sc.p1'), 'pylon leg, lower lift - 30 m off centre at the footing');
+  note(at('#', 'ONE PYLON - the leg is TWO straight pieces, and where they kink is what makes 45,000') + 1,
+       '30 m at the footing, 26 m at 60 m, then to the shaft at 175 m: 45,050 where the deck goes through');
+  note(at('#', 'THE STAYS - 26 a plane a side of a pylon, 208 in all, and every one of them one row') + 1,
+       '22.5 m to the first, then 2 at 11.25, then 23 at 15 - and 10 m short of mid-span');
   note(at('# VIEW'), 'eight drawings. RIGHT looks along the bridge - the only way a section can');
-  note(at('# ASSY'), 'one bay COPIED, one pylon MIRRORED. The bridge is what these rows make of them');
+  note(at('# ASSY'), 'half the bridge written, one MIR about mid-span');
   R.forEach((r, i) => ws.addRow(r.length ? [notes[i] || ''].concat(r) : []));
   ws.getColumn(1).width = 52;
   ws.getColumn(2).width = 11;
