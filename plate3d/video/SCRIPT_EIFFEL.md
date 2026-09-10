@@ -115,7 +115,7 @@ md.pl2=#ffe3bc  md.pl3=#ffe9cc  md.shf=#ffcb8c  md.top=#fffaf0
 | 제목 | `EIFFEL TOWER 3D BIM — Watch It Go Up \| PLATE3D` |
 | 대안 1 | `EIFFEL TOWER 3D BIM — Built From One Excel Sheet \| PLATE3D` |
 | 규격 | **1:43** · 1920×1080 · 30 fps · **음악 있음** · **자막 영어** |
-| 썸네일 | `PLATE3D_EIFFEL_thumb.jpg` — 풀블리드 ISO, `3D BIM MODELING` / `EIFFEL TOWER` / `by PLATE3D` |
+| 썸네일 | `PLATE3D_EIFFEL_thumb.jpg` — 1280×720. 풀블리드 ISO, 탑은 가로 3분의 2 지점, 글자는 왼쪽. `3D BIM MODELING` / `EIFFEL TOWER` / `by PLATE3D` (`node video/tools/mkthumb.js eiffel`) |
 | 공개 | **미정** |
 
 ### 설명란
@@ -256,7 +256,7 @@ Music: Guitar House by josh pan (YouTube Audio Library)
 
 남은 것:
 
-- 썸네일 · 공개 여부
+- 공개 여부
 - 오디오 보관함이 이 곡에 크레딧을 요구하는지 (§6-1)
 - ~~2 번 컷 70초가 맞는 길이인지~~ — 찍었습니다. 31장을 초당 12스틸로
   보간해서 840 프레임, 장당 2.26초입니다. 부재가 붙는 순간이 보이면서
@@ -279,7 +279,7 @@ video/tools/assemble_eiffel.js         조립. CRF= 로 크기 조절 (기본 25
 video/tools/score.js                   음악. 그림은 스트림 복사, 곡만 다시 씀
 video/tools/video_page.html            촬영 하네스 — __aim / __grab / __reveal
 video/tools/site_page.html             macroBIM 화면용 껍데기 (layout_body.js 를 감쌈)
-video/tools/mkthumb.js                 썸네일 (bleed 판) — 에펠 항목은 아직 없음
+video/tools/mkthumb.js                 썸네일. `eiffel` 항목 — bleed + side
 ```
 
 새로 판단한 것은 두 개였습니다: **카메라가 높이를 따라가는 식**(§3), 그리고

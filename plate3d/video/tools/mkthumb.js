@@ -134,6 +134,68 @@ const FILMS = [
     l1: '3D BIM MODELING', l2: 'GOLDEN GATE<br>BRIDGE',
     l3: 'by PLATE3D' },
 
+  /* The tower, and the one thing a bridge did not teach: a TALL subject.
+     Everything about the Golden Gate thumbnail came from the bridge being 2.3 km
+     of horizontal in a horizontal frame, so it went corner to corner and the
+     type took the corner the diagonal left. A 300 m tower in a 16:9 frame is the
+     opposite problem - the tower fills the HEIGHT and everything either side of
+     it is black. Centre it and the type has nowhere to go but on top of it.
+
+     So the tower is put TWO-THIRDS ACROSS, and THE CAMERA does it - not a crop.
+     The aim's target is slid 108 m along screen-LEFT, so the camera looks left
+     of the tower and the tower sits right of centre in the render. Screen-left
+     at azimuth a is world (sin a, -cos a), which at az -40 is (-0.64, -0.77);
+     the first cut had that sign the other way round and put the tower at 34%,
+     under the type.
+
+     No crop at all here (`crop: false`). The saturation crop is right for a
+     compact object on a grid and wrong for this: the tower's upper half
+     antialiases down to something the test cannot separate from the ground,
+     while the grid in the far corner stays saturated enough to keep, so it
+     returned 99% of the canvas and called it the tower. The render is already
+     16:9, so there is nothing for a crop to do that the aim cannot do better.
+
+     el 12, low, for the reason the film keeps it low: raise the camera and you
+     look down on the tower and 300 m stops reading as 300 m. Low enough to be
+     tall, high enough to still be an ISO and not an elevation - this is a
+     thumbnail that says 3D BIM.
+
+     The livery is the film's, taken up about a stop: a still read at 320 px has
+     to carry on colour what a moving picture carries on movement, and the
+     tower is a lattice of thin members that antialias towards the ground.
+
+     The platform modules go the OTHER way, down to a deep amber, and that is
+     the one thing this thumbnail had to be told twice. The platform decks came
+     back pure WHITE - the brightest thing in the picture after the type, three
+     bars across an orange tower. The first guess was that a deck is a plate and
+     plates are their own colour scope, so `setColor('plate', ...)` was tried:
+     no change at all, because a plate inside a module takes the MODULE's colour
+     (the engine checks moduleId first and never reaches the plate override).
+     They were the module's colour all along and blowing out, because a deck is
+     a flat face pointed straight up at the light. Painted three stops down they
+     blow out to warm instead of to paper.
+
+     The film has the same white decks. It is left alone: at 1080p and moving
+     they read as the two platform floors, which is what they are, and
+     re-shooting seventy seconds of build to warm three slabs is not a trade
+     worth making. */
+  { id: 'eiffel',
+    out: 'PLATE3D_EIFFEL_thumb.jpg',
+    book: P3 + '/PLATE3D_EIFFEL.xlsx',
+    bleed: true, side: true,
+    hero: { kind: 'model', crop: false,
+            aim: { tx: -86000, ty: -102000, tz: 138000,
+                   dist: 520000, az: -40, el: 10 } },
+    livery: { 'MD.LEG': '#f59a34', 'MD.ARC': '#ffb055', 'MD.PL1': '#b5701f',
+              'MD.PL2': '#b5701f', 'MD.PL3': '#c07d29', 'MD.SHF': '#ffd79b',
+              'MD.TOP': '#ffe9c6' },
+    /* The same first line as the bridge, on purpose: the two are a set and the
+       words are the ones people type. The name is the second line and it is
+       short enough to be bigger than GOLDEN GATE BRIDGE was. */
+    s1: 46, sz: 104,
+    l1: '3D BIM MODELING', l2: 'EIFFEL<br>TOWER',
+    l3: 'by PLATE3D' },
+
   { id: 'simpleconn',
     out: 'PLATE3D_SIMPLECONN_thumb.jpg',
     book: P3 + '/PLATE3D_COLUMN.xlsx',
@@ -196,8 +258,16 @@ async function grabHero(page, f) {
       return window.__pbCanvas.toDataURL('image/png');
     });
     fs.writeFileSync(dst, Buffer.from(d.split(',')[1], 'base64'));
-    await tightCrop(page, dst, f.hero.pad == null ? 0.05 : f.hero.pad,
-                    f.hero.aspect, f.hero.fill);
+    /* `crop: false` means the framing is entirely the camera's. The crop finds
+       the steel by saturation, and that works on a compact object standing on a
+       grid; on a 300 m lattice it does not, because the tower's own upper half
+       antialiases down to a colour the test cannot tell from the ground while
+       the grid at the far corner reads saturated enough to keep. It took 99% of
+       the canvas and called it the tower. Aiming the camera is the honest fix
+       and it is the one the rest of this file already argues for. */
+    if (f.hero.crop !== false)
+      await tightCrop(page, dst, f.hero.pad == null ? 0.05 : f.hero.pad,
+                      f.hero.aspect, f.hero.fill, f.hero.bias);
   }
   return dst;
 }
@@ -213,7 +283,7 @@ async function grabHero(page, f) {
    pixels: green, blue, yellow, orange, brown against a neutral grey grid and a
    near-black ground. That separates them cleanly, and the crop keeps a margin
    so the joint is not shaved. */
-async function tightCrop(page, file, pad, aspect, fill) {
+async function tightCrop(page, file, pad, aspect, fill, bias) {
   const b64 = fs.readFileSync(file).toString('base64');
   const out = await page.evaluate(a => new Promise(ok => {
     const im = new Image();
@@ -248,9 +318,24 @@ async function tightCrop(page, file, pad, aspect, fill) {
         if (bw / bh > a.aspect) {
           const add = (bw / a.aspect - bh) / 2;
           y0 = Math.max(0, Math.floor(y0 - add)); y1 = Math.min(h, Math.ceil(y1 + add));
-        } else if (a.fill) {                     // and the other way, for a bleed
-          const add = (bh * a.aspect - bw) / 2;
-          x0 = Math.max(0, Math.floor(x0 - add)); x1 = Math.min(w, Math.ceil(x1 + add));
+        } else if (a.fill) {
+          /* And the other way, for a bleed. A BRIDGE is centred here because a
+             bridge fills the frame; a TOWER is not, because a tower is a
+             vertical thing in a horizontal frame and everything either side of
+             it is empty. `bias` says where the steel's centre lands across the
+             finished box - 0.5 is centred, 0.68 puts the tower two-thirds over
+             and leaves the left of the picture for the type.
+
+             Then: what falls off the canvas is TAKEN FROM THE OTHER SIDE rather
+             than shortening the box. Clamping alone gave a box narrower than
+             16:9, which `background-size:cover` then blew up to fit and cropped
+             the top off the tower - the crop undoing the framing. */
+          const want = bh * a.aspect, cx = (x0 + x1) / 2;
+          const bias = a.bias == null ? 0.5 : a.bias;
+          let nx0 = cx - want * bias, nx1 = nx0 + want;
+          if (nx0 < 0) { nx1 = Math.min(w, nx1 - nx0); nx0 = 0; }
+          if (nx1 > w) { nx0 = Math.max(0, nx0 - (nx1 - w)); nx1 = w; }
+          x0 = Math.floor(nx0); x1 = Math.ceil(nx1);
         }
       }
       const d = document.createElement('canvas');
@@ -259,7 +344,7 @@ async function tightCrop(page, file, pad, aspect, fill) {
       ok({ url: d.toDataURL('image/png'), w: d.width, h: d.height, was: w + 'x' + h });
     };
     im.src = 'data:image/png;base64,' + a.b64;
-  }), { b64: b64, pad: pad, aspect: aspect || 0, fill: !!fill });
+  }), { b64: b64, pad: pad, aspect: aspect || 0, fill: !!fill, bias: bias });
   if (!out) return;
   fs.writeFileSync(file, Buffer.from(out.url.split(',')[1], 'base64'));
   console.log('    hero cropped to the steel: ' + out.was + ' -> ' + out.w + 'x' + out.h);
@@ -273,12 +358,27 @@ const PAGE = (f, hero) => `<meta charset="utf-8"><style>${FONTCSS}</style><style
 ${f.bleed ? `
  .bleed{position:absolute;inset:0;background-size:cover;background-position:center;
         background-image:url(data:image/png;base64,${fs.readFileSync(hero).toString('base64')})}
+${f.side ? `
+ /* A TOWER, so the empty half is a side rather than a corner. The wash runs off
+    the left edge and the type sits in the middle of it - dropped to the bottom
+    corner it would be under the widest part of the tower, which is its base. */
+ .veil{position:absolute;inset:0;background:
+       radial-gradient(78% 130% at 2% 50%,
+       rgba(11,18,32,.97) 0%,rgba(11,18,32,.92) 40%,
+       rgba(11,18,32,.4) 66%,rgba(11,18,32,0) 84%),
+       /* and a hand on the bottom edge, because the app's ground grid runs off
+          the frame there and a grid line reaching the corner of a thumbnail is
+          the one thing in the picture that is not the tower. It sinks the far
+          grid without taking the feet, which are the widest and most
+          recognisable part of the whole silhouette. */
+       linear-gradient(to top, rgba(11,18,32,.72) 0%, rgba(11,18,32,0) 20%)}
+ .txt{position:absolute;left:62px;top:50%;transform:translateY(-50%);z-index:2}` : `
  /* A radial wash in the corner the diagonal leaves empty, not a straight-edged
     veil: an edge across a full-bleed picture reads as a band laid over it. */
  .veil{position:absolute;inset:0;background:radial-gradient(120% 95% at 6% 96%,
        rgba(11,18,32,.97) 0%,rgba(11,18,32,.9) 34%,
        rgba(11,18,32,.35) 60%,rgba(11,18,32,0) 78%)}
- .txt{position:absolute;left:62px;bottom:56px;z-index:2}` : `
+ .txt{position:absolute;left:62px;bottom:56px;z-index:2}`}` : `
  .hero{position:absolute;right:-56px;top:50%;transform:translateY(-50%) rotate(-6deg);
        width:640px;background:#fff;border-radius:18px;padding:16px;
        box-shadow:0 46px 90px rgba(0,0,0,.62)}
