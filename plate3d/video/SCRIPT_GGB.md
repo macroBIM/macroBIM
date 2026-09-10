@@ -44,7 +44,7 @@ PLATE3D 로 만드는 골든게이트 브릿지
 | 제목 | `GOLDEN GATE BRIDGE 3D BIM — Built From One Excel Sheet \| PLATE3D` |
 | 대안 1 | `GOLDEN GATE BRIDGE 3D BIM — Three Sections, and It Stands \| PLATE3D` |
 | 대안 2 | `GOLDEN GATE BRIDGE 3D MODELING — 414 Rows, 2,219 Members \| PLATE3D` |
-| 규격 | 2:43 · 1920×1080 · 30 fps · 무음 · **자막 영어** |
+| 규격 | 2:43 · 1920×1080 · 30 fps · **음악 있음** · **자막 영어** |
 | 썸네일 | `PLATE3D_GGB_thumb.jpg` — 전체 ISO 풀블리드, `3D BIM MODELING` / `GOLDEN GATE BRIDGE` / `by PLATE3D` |
 | 공개 | **미정** |
 
@@ -101,6 +101,44 @@ macrobim.github.io
 챕터 아홉 개는 그대로입니다. `0:18 Three sections` 는 설명란에서 그 문단이
 빠져도 남습니다 — 그 시각 화면의 자막이 **Three sections.** 이므로 챕터 이름이
 화면을 가리킵니다.
+
+### 음악 — `Survival Mode` / Blue Deer Studio
+
+```
+LOOP_AT=105 LOOP_TO=46.5 XF=3 \
+  node video/tools/score.js PLATE3D_GGB.mp4 <track.mp3>
+```
+
+128.6 초 · 320 kb/s · 44.1 kHz · 94 BPM · 피크 0.0 dB(풀스케일까지 물린
+마스터라 −15 LUFS 로 내리면 많이 내려갑니다). 무음 마스터는
+`PLATE3D_GGB_mute.mp4` 로 남습니다.
+
+**곡이 필름보다 34.8 초 짧습니다.** 그대로 얹으면 2:08 부터 끝까지 —
+입력 시트, 초대, 받는 장면, 로고 — 가 무음입니다. 그래서 잇습니다.
+
+| | 값 | 왜 |
+|---|---|---|
+| `LOOP_AT` | 105.0 | 곡이 119초부터 스스로 페이드하므로 그 앞에서 떠난다 |
+| `LOOP_TO` | 46.5 | 46-47초가 골이고 48초부터 섹션이 다시 들어온다 |
+| `XF` | 3 | 크로스페이드가 **102.0 에서 끝난다** = 도면 컷 |
+
+이음매가 그림의 컷 위에 있습니다. 음악이 도면 컷 직전 3초 동안 꺼졌다가
+컷과 함께 들어옵니다.
+
+붙이고 나서 출력을 다시 재 봤습니다: **0 인 초 없음**(구멍 없음). 곡의
+브레이크다운(원본 75-91초)이 필름 130-147초, 즉 **입력 시트를 훑는 구간**에
+앉고, 148초에 다시 꽉 차면서 초대 문구와 받는 장면을 밀어 올립니다.
+
+| | 값 |
+|---|---|
+| 무음 마스터 | 21.8 MB |
+| 음악 포함 | **25.9 MB** · AAC 192 kb/s 48 kHz |
+
+설명란에 크레딧 한 줄이 필요한지는 받은 곳의 표시를 봐야 합니다. 필요하면:
+
+```
+Music: Survival Mode by Blue Deer Studio
+```
 
 ### 태그
 
