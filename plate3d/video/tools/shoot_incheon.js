@@ -117,8 +117,16 @@ const cam = (st, u) => {
        lying down. Before the deck starts the span is zero and the pylon
        decides; from the first ring on, the cantilever does. Both constants put
        their subject across about four fifths of the frame, which is what makes
-       the hand-over between them invisible. */
-    dist: Math.max(330000, st.ztop * 1.5, span * face),
+       the hand-over between them invisible.
+
+       THE 1.2 IS MEASURED, NOT GUESSED. Guessed twice and wrong twice - once
+       too far, once near enough that the near end of the bridge went off the
+       bottom corner, because a perspective camera makes the near half of a
+       1,480 m object much larger than the far half and no amount of arithmetic
+       about angles catches that. probe_inc_frame.js loads the finished bridge
+       and takes one frame per candidate at the bearing the take ends on, which
+       is a minute against the twenty a shoot costs. */
+    dist: Math.max(330000, st.ztop * 1.5, span * face * 1.2),
     /* Linear in TIME, not in what is built: the turn has to be even whether or
        not the structure is. Exactly 360 degrees, so the last frame of the take
        is the same face as the first. */
@@ -267,9 +275,29 @@ const card = (id, dur) => put(fs.readFileSync(path.join(CARDS, 't_' + id + '.jpg
   await site.waitForTimeout(400);
   await shot(1.8);                                   // PLATE3D, under the pointer
   await site.click(LEG);
-  const fr = await site.waitForSelector('iframe[title="PLATE3D"]')
-    .then(h => h.contentFrame());
-  await fr.waitForSelector('#pb-app', { timeout: 120000 });
+  /* THE FRAME IS RE-FOUND EACH ROUND, not held. Taken once and waited on, this
+     timed out after two minutes on a selector its own log said had "resolved to
+     visible" - the handle was for the frame as it was before the embed
+     navigated, so the element was found in an execution context that no longer
+     paints. Looking the frame up again each time costs a round trip and cannot
+     go stale. */
+  const fr = await (async () => {
+    const t0 = Date.now();
+    for (;;) {
+      const f = site.frames().find(x => /embed\.html/.test(x.url()));
+      if (f) {
+        try {
+          await f.waitForFunction(() => {
+            const e = document.getElementById('pb-app');
+            return !!e && e.getBoundingClientRect().width > 0;
+          }, null, { timeout: 5000 });
+          return f;
+        } catch (e) { /* it moved under us - look again */ }
+      }
+      if (Date.now() - t0 > 180000) throw new Error('the PLATE3D frame never came up');
+      await site.waitForTimeout(500);
+    }
+  })();
   await site.waitForTimeout(2200);
   await shot(3.0);                                   // the app, in the page
 
