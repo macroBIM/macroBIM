@@ -185,6 +185,12 @@
     '  border:1px solid var(--hair);border-radius:5px;color:var(--ink);background:#fff;}' +
     '.op-row input:disabled{background:#f8fafc;color:#cbd5e1;}' +
     '.op-sub{font-size:10.5px;color:#94a3b8;margin:9px 0 3px;letter-spacing:.06em;text-transform:uppercase;font-weight:700;}' +
+    // 격벽면 전용 뷰 — 입력칸 오른쪽 빈자리. 자리가 모자라면(2 Cell) 아랫줄로 내려간다.
+    '.op-view{flex:1 1 470px;min-width:470px;border:1px solid var(--hair);border-radius:8px;overflow:hidden;background:#fff;}' +
+    '.op-view > h4{margin:0;padding:7px 12px;background:#f1f5f9;border-bottom:1px solid var(--hair);' +
+    '  font-size:11.5px;font-weight:700;letter-spacing:.07em;text-transform:uppercase;color:#475569;}' +
+    '.op-view > div{padding:0;}' +
+    '.op-view svg{display:block;width:100%;height:auto;}' +          // 칸 폭이 바뀌어도 비율대로
     '.op-prev{flex:none;width:172px;}' +
     '.op-prev svg{display:block;width:172px;height:172px;border:1px solid var(--hair);border-radius:6px;background:#fbfdff;}' +
     '.op-prev svg text{font-family:inherit;font-weight:500;}' +
@@ -1708,6 +1714,135 @@
         '</svg><div>' + Math.round(o.B) + ' &times; ' + Math.round(o.H) + '</div>';
     },
 
+    // 셀(격벽면) 폴리곤. 1 Cell 은 하나, 2 Cell 은 중앙복부로 갈린 둘.
+    //  단면 외곽이 아니라 "격벽이 채워지는 자리"다 — 해치를 칠 범위이자 개구부가 뚫릴 면.
+    _cellPolys: function (P, two) {
+      var pick = function (names) {
+        var out = [];
+        for (var i = 0; i < names.length; i++) { var p = P[names[i]]; if (p) out.push([p.x, p.y]); }
+        return (out.length >= 3) ? out : null;
+      };
+      if (!two) {
+        return [pick(['PTSC', 'PTHR3', 'PTHR2', 'PTHR1', 'PBHR1', 'PBHR2', 'PBHR3',
+                      'PBSC', 'PBHL3', 'PBHL2', 'PBHL1', 'PTHL1', 'PTHL2', 'PTHL3'])].filter(Boolean);
+      }
+      return [
+        pick(['PTHL3', 'PTHCL3', 'PTHCL2', 'PTHCL1', 'PBHCL1', 'PBHCL2', 'PBHCL3',
+              'PBHL3', 'PBHL2', 'PBHL1', 'PTHL1', 'PTHL2']),
+        pick(['PTHCR3', 'PTHR3', 'PTHR2', 'PTHR1', 'PBHR1', 'PBHR2', 'PBHR3',
+              'PBHCR3', 'PBHCR2', 'PBHCR1', 'PTHCR1', 'PTHCR2'])
+      ].filter(Boolean);
+    },
+
+    // 45° 해치선 y = x + c 가 폴리곤을 지나는 x 구간. 짝수 개로 나오므로 둘씩 묶어 쓴다.
+    _hatchCuts: function (poly, c) {
+      var out = [];
+      for (var i = 0; i < poly.length; i++) {
+        var a = poly[i], b = poly[(i + 1) % poly.length];
+        var fa = a[1] - a[0] - c, fb = b[1] - b[0] - c;
+        if ((fa > 0) === (fb > 0)) continue;
+        var t = fa / (fa - fb);
+        out.push(a[0] + (b[0] - a[0]) * t);
+      }
+      return out.sort(function (p, q) { return p - q; });
+    },
+
+    // 격벽면 뷰 — 단면 외곽 + 셀 해치(개구부는 뚫림) + 개구부 외곽 + B·H·X·Y.
+    //  치수는 입력칸 넷과 1:1 이다. X 는 도면 관례대로 길이로 적는다 — 좌우는 그림이 말한다.
+    _drawDiaView: function (ap, geo) {
+      var box = document.getElementById('opView');
+      if (!box) return;
+      if (typeof window.RWSVG === 'undefined') {           // 가이드가 코어를 받아오는 중
+        var self = this;
+        if ((this._diaWait = (this._diaWait || 0) + 1) < 20) setTimeout(function () { self._drawDiaView(ap, geo); }, 200);
+        return;
+      }
+      this._diaWait = 0;
+      var P = {};
+      (geo.points || []).forEach(function (p) { P[p.name] = p[p.name]; });
+      if (!P.PTL || !P.PBC) return;
+      var two = Number(ap.NCELL) === 2;
+      var S = Math.max(P.PTR.x - P.PTL.x, P.PTC.y - P.PBC.y);
+
+      var rec = new window.RWSVG.MockViewer();
+      rec.addLayer('c', 'cyan', 'solid', 1);
+      rec.addLayer('f', 'cyan', 'faint', 1);
+      rec.addLayer('o', 'red', 'solid', 1);
+      rec.addLayer('h', 'gray', 'hidden', 1);
+      geo.lines.forEach(function (l) { rec.addLine(0, l.x1, l.y1, l.x2, l.y2, 'c'); });
+      geo.arcs.forEach(function (a) { rec.addArc(0, a.x, a.y, a.r, a.angb, a.ange, 'c'); });
+
+      var ops = this._openings || [];
+      var self2 = this;
+
+      // 해치 — 셀 안이면서 개구부 밖인 구간만 긋는다
+      this._cellPolys(P, two).forEach(function (poly) {
+        var cs = poly.map(function (p) { return p[1] - p[0]; });
+        var cmin = Math.min.apply(null, cs) - 1, cmax = Math.max.apply(null, cs) + 1;
+        for (var c = cmin; c <= cmax; c += S * 0.030) {
+          var inn = self2._hatchCuts(poly, c);
+          for (var i = 0; i + 1 < inn.length; i += 2) {
+            var spans = [[inn[i], inn[i + 1]]];
+            ops.forEach(function (op) {
+              var cut = self2._hatchCuts(op.pts, c), next = [];
+              for (var k = 0; k + 1 < cut.length; k += 2) {
+                next = [];
+                spans.forEach(function (sp) {
+                  if (cut[k + 1] <= sp[0] || cut[k] >= sp[1]) { next.push(sp); return; }
+                  if (cut[k] > sp[0]) next.push([sp[0], cut[k]]);
+                  if (cut[k + 1] < sp[1]) next.push([cut[k + 1], sp[1]]);
+                });
+                spans = next;
+              }
+            });
+            spans.forEach(function (sp) {
+              if (sp[1] - sp[0] > S * 0.004) rec.addLine(0, sp[0], sp[0] + c, sp[1], sp[1] + c, 'f');
+            });
+          }
+        }
+      });
+
+      // 개구부 외곽 + 치수
+      ops.forEach(function (op, i) {
+        var pts = op.pts;
+        for (var k = 0; k < pts.length; k++) {
+          var a = pts[k], b = pts[(k + 1) % pts.length];
+          rec.addLine(0, a[0], a[1], b[0], b[1], 'o');
+        }
+        var xs = pts.map(function (p) { return p[0]; }), ys = pts.map(function (p) { return p[1]; });
+        var xmin = Math.min.apply(null, xs), xmax = Math.max.apply(null, xs);
+        var ymax = Math.max.apply(null, ys), ymin = Math.min.apply(null, ys);
+        // 개구부 중심선 x 에서의 상·하면 (경사 때문에 최고·최저점과 다르다)
+        var faceAt = function (x, top) {
+          var best = null;
+          for (var k2 = 0; k2 < pts.length; k2++) {
+            var a2 = pts[k2], b2 = pts[(k2 + 1) % pts.length];
+            if ((a2[0] - x) * (b2[0] - x) <= 0 && Math.abs(b2[0] - a2[0]) > 1e-9) {
+              var y = a2[1] + (b2[1] - a2[1]) * (x - a2[0]) / (b2[0] - a2[0]);
+              best = (best === null) ? y : (top ? Math.max(best, y) : Math.min(best, y));
+            }
+          }
+          return best;
+        };
+        var cx = op.x0, yT = faceAt(cx, true), yB = faceAt(cx, false);
+        var slabTop = -Number(ap.TH) + Number(ap.TBS) + cx * (Number(ap.SLB) || 0) / 100;
+        var xlev = ymax + S * (0.14 + i * 0.05);            // B 치수보다 위, 개구부마다 한 칸씩 더 위로
+        rec.addLine(0, 0, xlev + S * 0.02, 0, ymin - S * 0.10, 'h');             // 단면 중심선
+        if (Math.abs(cx) > 1) rec.addLine(0, cx, xlev + S * 0.02, cx, ymin - S * 0.10, 'h');
+        rec.addDimLinear(0, xmin, yT, xmax, yT, S * 0.055, 'B');
+        rec.addDimLinear(0, cx, yB, cx, yT, -S * 0.075, 'H');
+        rec.addDimLinear(0, 0, xlev, cx, xlev, 0, 'X');                          // X=0 이면 길이 0 → 안 그려진다
+        rec.addDimLinear(0, cx, slabTop, cx, yB, S * 0.075, 'Y');
+      });
+
+      // 높이는 입력칸 패널에 맞춘다 — 카드가 한 줄로 가지런해진다 (16:9 보다 크지 않게)
+      var W = Math.round(box.getBoundingClientRect().width) || 470;
+      var c1 = document.getElementById('opCell1');
+      var Hc = c1 ? c1.offsetHeight - 34 : 0;
+      var H = Math.max(Hc > 0 ? Hc : 300, Math.min(Math.round(W * 9 / 16), 560));
+      box.innerHTML = window.RWSVG.renderSVG(rec, W, H);
+    },
+
     // 입력값 → 형상·미리보기·활성 상태 갱신. redraw 가 부른다.
     _syncOpenings: function (ap, geo) {
       var self = this, list = [];
@@ -1749,6 +1884,7 @@
           console.warn('[PSCDIA] 개구부 둘이 겹칩니다 — X 는 단면 중앙 기준이므로 셀마다 다른 값을 주세요 ' +
                        '(현재 ' + Math.round(this._openings[0].x0) + ' / ' + Math.round(this._openings[1].x0) + ')');
       }
+      this._drawDiaView(ap, geo);        // 입력칸 오른쪽 격벽면 뷰
       return this._openings;
     },
 
@@ -1784,6 +1920,7 @@
         '<span class="draw-card-desc">Diaphragm opening &mdash; one per cell. Rectangle / Hexagon / Octagon by how far the corners are cut; the top and bottom cuts are given separately. X is measured from the section centre, Y from the top of the bottom slab. Top and bottom faces run parallel to the bottom slab slope.</span></div></div>' +
         '    <div class="draw-card-body"><div class="op-wrap">' +
         cell(1, 'Cell 1') + cell(2, 'Cell 2') +
+        '      <div class="op-view"><h4>Diaphragm face</h4><div id="opView"></div></div>' +
         '    </div></div>' +
         '  </div>';
     },
