@@ -52,5 +52,10 @@ plate3d/video/tools/site/
 plate3d/video/tools/filter_ggb.txt
 plate3d/video/tools/filter_eif.txt
 plate3d/video/tools/filter_inc.txt
+# the take's own manifest, so ONLY=tail can resume - written by the shoot
+plate3d/video/tools/inc_take.json
+# framing probes. probe_inc_frame.js takes them in a minute; the answer is
+# the constant in shoot_incheon.js, not the pictures that found it
+plate3d/video/tools/probe_*.jpg
 plate3d/video/*.mp4
 plate3d/tools/draw/
