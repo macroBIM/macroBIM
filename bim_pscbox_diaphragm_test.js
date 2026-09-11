@@ -1276,6 +1276,8 @@
             self._loadTypeFromExcel(data);       // ② 'type' 블록 → Section Type (1c/2c)
             var nd = self._loadDimsFromExcel(data);       // ③ 'dim' 블록 → Dimension 표 (대칭/비대칭 자동)
             self._loadCoverFromExcel(data);      // ③-1 'cover' 블록 → 피복 3칸 (deck/exterior/interior)
+            var ns = self._loadSegFromExcel(data);        // ③-2 'seg' 블록 → 세그먼트 길이
+            var no = self._loadOpenFromExcel(data);       // ③-3 'open' 블록 → 격벽 개구부 (셀당 한 줄)
             self._renderRebarTables();           // ④ 'trebar/lrebar' 블록 → REBAR 표
             self._rebarData = self._parseRebar(data);
             console.log('[PSCDIA] 철근 파싱:', self._rebarData);
@@ -1291,6 +1293,8 @@
               'Section   : ' + (oncell ? oncell.value : '?') + ' cell',
               'Dims      : ' + (nd || 0),
               'Cover     : deck ' + cd('cover_deck_s') + ' / exterior ' + cd('cover_ext_s') + ' / interior ' + cd('cover_int_s'),
+              'Segment   : ' + cd('segLen_s') + (ns ? '' : '  (default — no seg row)'),
+              'Opening   : ' + no + ' cell' + (no === 1 ? '' : 's') + (no ? '' : '  (defaults — no open row)'),
               'Rebar     : ' + nre + '  (trebar ' + ntre + ', lrebar ' + nlre + ')'
             ] };
             // 최종 결과 토스트 — 철근 id 중복이면 오류 상태로 (성공 토스트가 덮지 않게)
@@ -1303,7 +1307,7 @@
               self._loadLog.lines.push('ERROR     : duplicate rebar id ' + self._dupIds.join(', ') + ' \u2014 rebar loading skipped');
               self._toast('Duplicate rebar id: ' + self._dupIds.join(', ') + ' \u2014 rebar loading skipped (dims loaded)', 'err');
             } else {
-              self._toast('Excel loaded \u2014 dims ' + (nd || 0) + ', rebar ' + nre, 'ok');
+              self._toast('Excel loaded \u2014 dims ' + (nd || 0) + ', openings ' + no + ', rebar ' + nre, 'ok');
             }
           }).catch(function (e) {
             self._loadLog = { time: new Date().toLocaleString(), ok: false, lines: [
@@ -1354,6 +1358,75 @@
       Object.keys(covDef).forEach(function (cid) {
         var el = document.getElementById(cid); if (el) el.value = covDef[cid];
       });
+      var sl = document.getElementById('segLen_s');
+      if (sl) sl.value = String(SEG_DEF);
+      for (var i = 1; i <= 2; i++) {
+        var nn = document.getElementById('op' + i + '_none');
+        if (nn) nn.checked = false;
+        Object.keys(OPEN_DEF).forEach(function (k) {
+          var el = document.getElementById('op' + i + '_' + (k === 'shape' ? 'shape' : k));
+          if (el) el.value = String(OPEN_DEF[k]);
+        });
+      }
+    },
+
+    // 'seg' 블록 : seg | 길이 → Segment Length 칸
+    _loadSegFromExcel: function (fullData) {
+      if (!Array.isArray(fullData)) return 0;
+      for (var r = 0; r < fullData.length; r++) {
+        var row = fullData[r];
+        if (this._rowIsEnd(row)) break;
+        if (this._rowIsComment(row)) continue;
+        for (var c = 0; c < (row ? row.length : 0); c++) {
+          if (String(row[c] == null ? '' : row[c]).trim().toLowerCase() !== 'seg') continue;
+          var raw = String(row[c + 1] == null ? '' : row[c + 1]).trim();
+          var v = Number(raw);
+          if (!isFinite(v) || v <= 0) { console.warn('[PSCDIA] seg 값을 해석할 수 없음: ' + raw); return 0; }
+          var el = document.getElementById('segLen_s');
+          if (el) el.value = raw;
+          console.log('[PSCDIA] seg 로드: ' + raw);
+          return 1;
+        }
+      }
+      return 0;
+    },
+
+    // 'open' 블록 : open | 셀 | 형상 | B | H | Cttx | Ctty | Ctbx | Ctby | X | Y → 개구부 칸.
+    //   형상은 RECT/HEX/OCT (rectangle/hexagon/octagon 도 받는다), none 이면 그 셀의 개구부를 끈다.
+    //   한 줄이 셀 하나다 — 2 Cell 이면 두 줄.
+    _loadOpenFromExcel: function (fullData) {
+      if (!Array.isArray(fullData)) return 0;
+      var shapeOf = { rect: 'RECT', rectangle: 'RECT', hex: 'HEX', hexagon: 'HEX', oct: 'OCT', octagon: 'OCT' };
+      var cols = ['B', 'H', 'CTTX', 'CTTY', 'CTBX', 'CTBY', 'X', 'Y'];
+      var n = 0;
+      for (var r = 0; r < fullData.length; r++) {
+        var row = fullData[r];
+        if (this._rowIsEnd(row)) break;
+        if (this._rowIsComment(row)) continue;
+        var hc = -1;
+        for (var c = 0; c < (row ? row.length : 0); c++) { if (String(row[c] == null ? '' : row[c]).trim().toLowerCase() === 'open') { hc = c; break; } }
+        if (hc < 0) continue;
+        var cell = Number(row[hc + 1]);
+        if (cell !== 1 && cell !== 2) { console.warn('[PSCDIA] open 셀 번호가 1/2 가 아님: ' + row[hc + 1]); continue; }
+        var sv = String(row[hc + 2] == null ? '' : row[hc + 2]).trim().toLowerCase();
+        var none = document.getElementById('op' + cell + '_none');
+        if (sv === 'none' || sv === '-') { if (none) none.checked = true; n++; continue; }
+        var shape = shapeOf[sv];
+        if (!shape) { console.warn('[PSCDIA] open 형상을 해석할 수 없음: ' + sv); continue; }
+        if (none) none.checked = false;
+        var sel = document.getElementById('op' + cell + '_shape');
+        if (sel) sel.value = shape;
+        for (var k = 0; k < cols.length; k++) {
+          var raw = row[hc + 3 + k];
+          raw = (raw == null) ? '' : String(raw).trim();
+          if (raw === '' || raw === '-') continue;        // 빈 칸은 기본값을 그대로 둔다
+          var el = document.getElementById('op' + cell + '_' + cols[k]);
+          if (el) el.value = raw;
+        }
+        n++;
+      }
+      if (n) console.log('[PSCDIA] open 로드: ' + n + '개');
+      return n;
     },
 
     // 'type' 블록 : type | 1c/2c → Section Type 라디오
