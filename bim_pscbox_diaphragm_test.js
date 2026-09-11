@@ -1287,7 +1287,11 @@
             self._renderRebarTables();           // ④ 'trebar/lrebar' 블록 → REBAR 표
             self._rebarData = self._parseRebar(data);
             console.log('[PSCDIA] 철근 파싱:', self._rebarData);
+            // 'open' 줄이 없는 2 Cell 파일은 개구부 둘이 단면 중앙에 겹친다 — 셀 중앙으로 벌려 준다
+            self._quietOverlap = !no;
             self.redraw();              // 재작도 (physics 포함)
+            self._quietOverlap = false;
+            if (!no && self._seedOpeningX()) self.redraw();
             var nre = self._rebarData ? self._rebarData.length : 0;
             var ntre = 0, nlre = 0;
             (self._rebarData || []).forEach(function (rd) { if (String(rd.type).toLowerCase() === 'lrebar') nlre++; else ntre++; });
@@ -1714,6 +1718,43 @@
         '</svg><div>' + Math.round(o.B) + ' &times; ' + Math.round(o.H) + '</div>';
     },
 
+    // 개구부 X 를 셀 한가운데로 옮긴다. 2 Cell 은 좌·우 셀에 하나씩, 1 Cell 은 단면 중앙.
+    //  X 기준선이 단면 중앙 하나뿐이라 2 Cell 기본값(둘 다 0)은 같은 자리에 겹친다 —
+    //  Section Type 을 바꾸는 순간 제자리를 잡아 준다. 셀 중앙 = 그 셀 양쪽 복부면의 가운데.
+    _seedOpeningX: function () {
+      var ap = this._lastAp;
+      if (!ap) return false;
+      var set = function (i, v) {
+        var el = document.getElementById('op' + i + '_X');
+        if (!el) return false;
+        var s = String(Math.round(v));
+        if (el.value === s) return false;
+        el.value = s;
+        return true;
+      };
+      if (Number(ap.NCELL) !== 2) return set(1, 0);
+      var P = {};
+      try { geo_box12cell(ap).points.forEach(function (p) { P[p.name] = p[p.name]; }); }
+      catch (e) { return false; }
+      var mid = function (names) {
+        var xs = names.map(function (n) { return P[n]; }).filter(Boolean).map(function (p) { return p.x; });
+        return xs.length ? xs.reduce(function (s, x) { return s + x; }, 0) / xs.length : null;
+      };
+      var L = mid(['PTHL1', 'PBHL1', 'PTHCL1', 'PBHCL1']);      // 좌측 셀 : 좌측복부 내면 ~ 중앙복부 좌면
+      var R = mid(['PTHR1', 'PBHR1', 'PTHCR1', 'PBHCR1']);      // 우측 셀 : 중앙복부 우면 ~ 우측복부 내면
+      if (L === null || R === null) return false;
+      var ch = set(1, L);
+      return set(2, R) || ch;
+    },
+
+    // Section Type 라디오 — 셀 수가 바뀌면 형상을 먼저 잡고, 개구부를 새 셀 중앙으로 옮긴다
+    onCellType: function () {
+      this._quietOverlap = true;        // 자리를 잡기 전 한 번은 겹치는 게 당연하다 — 경고하지 않는다
+      this.redraw();
+      this._quietOverlap = false;
+      if (this._seedOpeningX()) this.redraw();
+    },
+
     // 셀(격벽면) 폴리곤. 1 Cell 은 하나, 2 Cell 은 중앙복부로 갈린 둘.
     //  단면 외곽이 아니라 "격벽이 채워지는 자리"다 — 해치를 칠 범위이자 개구부가 뚫릴 면.
     _cellPolys: function (P, two) {
@@ -1880,7 +1921,8 @@
           return { x1: Math.min.apply(null, xs), x2: Math.max.apply(null, xs),
                    y1: Math.min.apply(null, ys), y2: Math.max.apply(null, ys) };
         });
-        if (bx[0].x1 < bx[1].x2 && bx[1].x1 < bx[0].x2 && bx[0].y1 < bx[1].y2 && bx[1].y1 < bx[0].y2)
+        if (!this._quietOverlap &&
+            bx[0].x1 < bx[1].x2 && bx[1].x1 < bx[0].x2 && bx[0].y1 < bx[1].y2 && bx[1].y1 < bx[0].y2)
           console.warn('[PSCDIA] 개구부 둘이 겹칩니다 — X 는 단면 중앙 기준이므로 셀마다 다른 값을 주세요 ' +
                        '(현재 ' + Math.round(this._openings[0].x0) + ' / ' + Math.round(this._openings[1].x0) + ')');
       }
@@ -2016,8 +2058,8 @@
         '    <div class="draw-card-body">' +
         '      <div class="px-radio px-optrow">' +
         '        <div class="px-opthalf px-optsec"><b>Section Type :</b>' +
-        '          <label><input type="radio" name="box12cell_ncell" value="1" checked onchange="PXDIA.redraw()"> 1 Cell</label>' +
-        '          <label><input type="radio" name="box12cell_ncell" value="2" onchange="PXDIA.redraw()"> 2 Cell</label>' +
+        '          <label><input type="radio" name="box12cell_ncell" value="1" checked onchange="PXDIA.onCellType()"> 1 Cell</label>' +
+        '          <label><input type="radio" name="box12cell_ncell" value="2" onchange="PXDIA.onCellType()"> 2 Cell</label>' +
         '        </div>' +
         '        <div class="px-opthalf px-optseg"><b>Segment Length (mm) :</b>' +
         '          <label><input type="text" spellcheck="false" class="form-input px-seg" id="segLen_s" value="' + SEG_DEF + '" onchange="PXDIA.redraw()" title="Length of the segment this diaphragm belongs to, along the girder axis"></label>' +
