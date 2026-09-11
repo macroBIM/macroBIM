@@ -13,12 +13,14 @@
    them and the deck hangs off it; the subject is the pair and the curve. The
    Golden Gate film was framed that way and it was right.
 
-   A CABLE-STAYED BRIDGE HAS NOTHING TO HANG FROM. Each pylon holds up whatever
-   it has already built, so the deck grows out of ONE pylon in both directions
-   at once and the ring of stays that carries a new segment goes on before the
-   next one starts. One side alone and the pylon goes over. So this camera sits
-   on one pylon and stays there: what is in frame is that pylon and what that
-   pylon has built, and nothing else.
+   A CABLE-STAYED BRIDGE IS ONE PYLON'S STORY, and at Incheon it is told in two
+   halves. The side span goes up first in big blocks on falsework, its stays
+   are strung, the bents come out - and from then on that span is the anchor
+   holding the pylon down, so the main span can go out on its own, one segment
+   and one ring of stays at a time, with nothing balancing it on the other
+   side. Two different operations, which is why the camera can stay on one
+   pylon for a minute without repeating itself: what is in frame is that pylon
+   and what that pylon has built, and nothing else.
 
    AND THEN IT LETS GO. Over the last tenth of the take the frame opens to the
    whole 1,480 m, and the second pylon - off-screen for a minute, doing the
@@ -69,7 +71,7 @@ const RESUME = ONLY === 'tail';
 const FPS = 30;
 const MO = 12;                     // stills per second of camera motion
 const VW = 2336, VH = 1294;        // -> 1920x1080 after the assembler's crop
-const BUILD = 66;                  // seconds of bridge going up
+const BUILD = 76;                  // seconds of bridge going up
 const HOLD = 8;                    // and of it standing there, still turning
 
 /* The bridge's own colour. Incheon is a white concrete pylon with white
@@ -224,10 +226,16 @@ const card = (id, dur) => put(fs.readFileSync(path.join(CARDS, 't_' + id + '.jpg
   if (!ONLY) {
   const K = Math.round(BUILD * MO);          // stills in the build
   const per = K / books.length;              // and how many each book holds
-  caption('pyl', T + 2, 7);
-  caption('both', T + 16, 6);
-  caption('rows', T + 32, 7);
-  caption('exact', T + 46, 6);
+  /* Timed against the stages, not spaced by eye. 79 stages over BUILD is a
+     shade under a second each, so: the pylon runs to about 12 s, the side
+     span's blocks to 17, its cables to 30 - and the bents come out right
+     there, which is where `fan` sits. The main span has the rest. */
+  caption('pyl', T + 2, 6);
+  caption('side', T + 9, 5);
+  caption('fan', T + 20, 7);
+  caption('seg', T + 29, 6);
+  caption('rows', T + 42, 7);
+  caption('exact', T + 54, 6);
   /* On the reveal, not before it. RELEASE is when the camera starts to open
      out; the line lands a beat after that, when the second pylon is actually
      in frame. */

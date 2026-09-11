@@ -70,15 +70,19 @@ const CARDS = {
   open:   { kind: 'full', html: full('INCHEON BRIDGE', '800 m across.', 'BY PLATE3D') },
   end:    { kind: 'full', html: full('PLATE3D', 'by macroBIM') },
 
-  /* The five over the take, and they are the erection sequence in words. A
-     cable-stayed bridge grows out of ONE pylon in both directions at once,
-     and the film is shot from that pylon - so the first two lines say what is
-     happening before the shape of it is obvious. */
+  /* The six over the take, and they are the erection sequence in words. The
+     sequence is not the obvious one - a cable-stayed bridge does not simply
+     cantilever out both ways - so the first three lines say what is happening
+     while it is happening, and then the film can stop talking. */
   pyl:    { kind: 'over', html: over('', 'one pylon, EL 13 to EL 238.5') },
-  both:   { kind: 'over', html: over('', 'then out both ways at once') },
+  side:   { kind: 'over', html: over('', 'the side span first &mdash; on falsework') },
+  /* On the handover: the side span's stays go on and the bents come out. This
+     is the line that explains what a stay cable is, without saying so. */
+  fan:    { kind: 'over', html: over('its cables take the load', 'and the falsework comes out') },
+  seg:    { kind: 'over', html: over('', 'now the main span goes out on its own') },
   /* The claim. The Golden Gate's main cable is a parabola sawn into 130
      straight pieces and that film said so; a stay IS a straight line, so this
-     one gets to say the opposite. Two lines, sixteen seconds apart, because
+     one gets to say the opposite. Two lines, twelve seconds apart, because
      the second is the one people will not believe on its own. */
   rows:   { kind: 'over', html: over('208 cables.', '208 rows.') },
   exact:  { kind: 'over', html: over('', 'nothing here is an approximation') },

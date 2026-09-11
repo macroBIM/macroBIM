@@ -111,41 +111,58 @@ const r1 = v => Math.round(v * 10) / 10;
 /* ============== THE ERECTION SEQUENCE ==============
    STAGE=<n> writes the bridge as it stood at step n. Unset writes the bridge.
 
-   A CABLE-STAYED BRIDGE IS NOT BUILT THE WAY A SUSPENSION BRIDGE IS. On the
-   Golden Gate the two towers go up, the cable is spun between them, and the
-   deck hangs off it inwards from both towers at once - two towers, one take.
-   Here there is no cable to hang from: each pylon has to hold up whatever it
-   has already built. So the deck grows OUT OF ONE PYLON IN BOTH DIRECTIONS AT
-   THE SAME TIME - main span and side span, one segment each way, then the two
-   stays that carry them, then the next pair - and the pylon stays balanced the
-   whole way out. Incheon has two pylons, so that happens twice at once, and
-   the two cantilevers close on each other at mid-span.
+   THIS IS OFF THE ERECTION DRAWINGS, and the first version of it was wrong in
+   the way a plausible guess is wrong. A cable-stayed bridge cannot hang its
+   deck off a cable the way the Golden Gate does - each pylon holds up whatever
+   it has already built - so the obvious reading is balanced cantilever: one
+   segment out each way at once, stays on, repeat, and the pylon never leans.
+   That is how this file was written and it is not how Incheon was built.
 
-   That is why the stages alternate. A segment and its stays are two beats, not
-   one, because on site they are two operations and on film you cannot see the
-   second one if it arrives with the first.
+   WHAT THE DRAWINGS SHOW IS THE SIDE SPAN FIRST, AND NOT CANTILEVERED. It goes
+   up in big blocks on temporary bents, sitting on falsework the whole way, and
+   only then are its cables strung and stressed and the bents taken out. After
+   that the side span IS the anchor - it is what holds the pylon down - and the
+   main span can go out on its own, one segment at a time, with no need for
+   anything on the other side to balance it.
 
-     0            piers W2 and W3, and the 80 m end span standing on them
+   Which is a better film than the guess, because it is two different
+   operations rather than one repeated fifty times: a span lifted onto
+   falsework, and then a span built out of thin air.
+
+     0            piers W2 and W3, the 80 m end span, and the temporary bents
      1 .. 8       the pylon, EL 13 to EL 238.5 in eight lifts
-     9            the pier table - the first deck either side of the pylon
-     10           stay ring 1, four cables, symmetric
-     11, 12       segment 2 both ways, then its stays
-     ...          twenty-six rings of that, working out to mid-span
-     61           closure: the last 20 m at mid-span, and onto pier W2         */
+     9 .. 13      the side span, five big blocks, W2 inwards to the pylon
+     14 .. 26     its 26 stays, two rings a stage, pylon outwards
+     27           the bents come out - the cables have it now
+     27 .. 77     the main span: ring, then segment, then ring, out to mid-span
+     78           closure
+
+   A segment and its stays are two beats, not one, because on site they are two
+   operations and on film you cannot see the second one if it arrives with the
+   first.                                                                     */
 const SG = process.env.STAGE === undefined || process.env.STAGE === ''
   ? null : Math.round(+process.env.STAGE);
 const on = s => SG === null || SG >= s;
 const PIER = 0, PYL1 = 1, PYLN = 8;        // the pylon rises over eight stages
-const TBL = PYL1 + PYLN;                   // 9  the pier table
-const segStage = k => TBL + 2 * k;         // segment k out from the pylon
-const stayStage = k => TBL + 1 + 2 * k;    // and the ring of stays that holds it
-const CLOSE = stayStage(NC - 1) + 1;       // 61
+const SBLK = PYL1 + PYLN, NSB = 5;         // 9..13   the side span, in blocks
+const SCAB = SBLK + NSB, NSC = 13;         // 14..26  its stays, two rings a stage
+const MSPN = SCAB + NSC;                   // 27      and the main span starts
+/* Ring 0 lands on deck the side span already built, so it comes first and the
+   pairing after it is segment-then-ring. */
+const mainRing = k => k === 0 ? MSPN : MSPN + 2 * k;
+const mainSeg = k => MSPN + 2 * k - 1;     // k >= 1
+const sideCab = i => SCAB + Math.floor(i / 2);
+const CLOSE = mainRing(NC - 1) + 1;        // 78
+/* The falsework is out once the side span's own cables are all stressed. It is
+   the one thing in this file that is written to DISAPPEAR, and it is the beat
+   that says what the cables are for. */
+const BENTS = SG !== null && SG >= PIER && SG < MSPN;
 
 /* The pylon is clipped by an elevation, not by whole members, so that it
    RISES rather than steps. A part-built taper is a real taper of its own -
    the two end sections interpolated at the height the clip falls at - which
    is a thing TAPER can be asked for directly. */
-const PTOP = (SG === null || SG >= TBL) ? ZPY
+const PTOP = (SG === null || SG >= SBLK) ? ZPY
            : (SG < PYL1 ? -1 : ZF + (ZPY - ZF) * (SG - PYL1 + 1) / PYLN);
 const lift = (z0, z1) => PTOP >= z1 ? 1 : (PTOP <= z0 ? 0 : (PTOP - z0) / (z1 - z0));
 const upto = (a, b, f) => [a[0] + (b[0] - a[0]) * f,
@@ -178,14 +195,17 @@ const TP = [['tp.lg1', 'sc.la', 'sc.lb', ZF, ZK, L1],
    it is a camera that goes wrong the day the model is re-panelled, and it does
    not go wrong loudly. */
 if (process.env.STAGES) {
-  const MX = mainX(), SX = sideX();
+  const MX = mainX();
   for (let g = 0; g <= CLOSE; g++) {
     const zt = g < PYL1 ? ZF
-             : g >= TBL ? ZPY : ZF + (ZPY - ZF) * (g - PYL1 + 1) / PYLN;
+             : g >= SBLK ? ZPY : ZF + (ZPY - ZF) * (g - PYL1 + 1) / PYLN;
     let lo = -XP, hi = -XP;
-    if (g >= TBL) {
-      const k = Math.min(NC - 1, Math.floor((g - TBL) / 2));
-      lo = -XP - SX[k]; hi = -XP + MX[k];
+    // the side span is in frame from the moment the first block lands
+    if (g >= SBLK) { lo = -XW2; }
+    // and the main span carries the near edge out towards mid-span
+    if (g >= MSPN) {
+      const k = Math.max(0, Math.min(NC - 1, Math.floor((g - MSPN + 1) / 2)));
+      hi = -XP + MX[k];
     }
     if (g >= CLOSE) { lo = -XW3; hi = XW3; }
     console.log(r1(zt) + ' ' + r1(lo) + ' ' + r1(hi));
@@ -268,6 +288,9 @@ push('SECT', 'sc.nb', 'SM490', 1000, 'R', 'mc', 6004, 7000, 120, 0);
 push('SECT', 'sc.p3', 'SM490', r1(ZPY - ZA), 'R', 'mc', 6004, 7000, 120, 0);
 push('SECT', 'sc.px', 'SM490', 45000, 'R', 'mc', r1(XBT - ZK), 7000, 120, 0);
 push('SECT', 'sc.pc', 'SM490', r1(ZG - GD / 2), 'R', 'mc', 9000, 5000, 120, 0);
+// a temporary bent: a slimmer thing than a pier, because it carries one span
+// for a few weeks and then goes away
+if (BENTS) push('SECT', 'sc.tb', 'SM490', r1(ZG - GD / 2), 'R', 'mc', 3000, 3000, 60, 0);
 /* A pylon caught half way up one of its tapers ends on a section that is not
    in the drawing: the two ends of that taper, interpolated at the height the
    lift reached. It is written out like any other section, because that is
@@ -293,19 +316,35 @@ mainX().forEach(d => XS.add(XP - d));
 sideX().forEach(d => XS.add(XP + d));
 const XL = [...XS].sort((a, b) => a - b);
 const NODES = XL.slice().reverse().map(x => -x).concat(XL.slice(1)).sort((a, b) => a - b);
-/* WHEN EACH NODE ARRIVES. Node k out from a pylon arrives with segment k, on
-   both sides of that pylon at once and at both pylons at once - that is what
-   balanced cantilever means. Mid-span arrives last, at closure. The piers and
-   the 80 m end span standing on them are there from the first frame, because
-   that span is built on falsework and not cantilevered out of anything. */
+/* WHEN EACH NODE ARRIVES, and it is not symmetric about the pylon any more.
+
+   Out from the pylon towards the abutment the deck goes up in five big blocks
+   on falsework, working INWARDS from pier W2 - so the far end of the side span
+   is the first deck on the bridge and the node beside the pylon is the last of
+   the five. Out from the pylon towards mid-span it goes one segment at a time,
+   outwards, each held by the ring of stays that follows it.
+
+   The piers and the 80 m end span standing on them are there from the first
+   frame: that span is built on falsework over land and is not cantilevered out
+   of anything. Mid-span arrives last, at closure. */
 const NST = new Map();
 const nk = x => String(r1(x));
 const setN = (x, st) => { NST.set(nk(x), st); NST.set(nk(-x), st); };
-setN(-XP, TBL);
-mainX().forEach((d, k) => setN(-XP + d, segStage(k)));
-sideX().forEach((d, k) => setN(-XP - d, segStage(k)));
-setN(0, CLOSE);
+const MX0 = mainX();
+/* The side span's own range: from pier W2 in to the FIRST main-span stay
+   point, because the deck over the pylon goes up with these blocks and not
+   with the cantilever. Blocks are laid from W2 inwards, so the stage runs
+   backwards along t. */
+const SIN = XP - MX0[0], SOUT = XW2;
+const blockOf = a => {
+  const t = (a - SIN) / (SOUT - SIN);     // 0 at the pylon side, 1 at W2
+  return SBLK + Math.max(0, Math.min(NSB - 1, Math.floor((1 - t) * NSB)));
+};
 setN(-XW2, PIER); setN(-XW3, PIER);
+setN(-XP, blockOf(XP));
+MX0.forEach((d, k) => setN(-XP + d, k === 0 ? SBLK + NSB - 1 : mainSeg(k)));
+sideX().forEach(d => setN(-XP - d, blockOf(XP + d)));
+setN(0, CLOSE);
 const nst = x => { const v = NST.get(nk(x)); return v === undefined ? CLOSE : v; };
 // a run needs BOTH its ends built, which is what puts the last 20 m at closure
 for (let i = 0; i < NODES.length - 1; i++)
@@ -387,16 +426,36 @@ const stay = (d, i, s, sec, R) => {
   const b = [-XP + d, s * AY, ZDK];
   A('md.stay', sec, a, b, 0, 400);
 };
-/* THE RING IS FOUR CABLES, and they go on together. Main span and side span,
-   left plane and right plane - the pylon is only balanced if the ring is
-   complete, so a stage that put on one of them would be a stage of a bridge
-   that would fall over. */
-mainX().forEach((d, i) => { if (!on(stayStage(i))) return; [-1, 1].forEach(s =>
+/* A RING IS THE TWO PLANES, and they go on together - a stage that strung one
+   side of the bridge and not the other would be a stage of a bridge that does
+   not stand up.
+
+   The side span's rings go on in pairs and all before the main span starts:
+   its girder is already sitting on falsework, so stringing them is handing the
+   load over rather than holding up something new. The main span's go on one
+   ring per segment, because there each ring IS what holds the segment up. */
+mainX().forEach((d, i) => { if (!on(mainRing(i))) return; [-1, 1].forEach(s =>
   stay(d, i, s, d > 200000 ? 'sc.ca' : 'sc.cb', d > 200000 ? 100 : 80)); });
-sideX().forEach((d, i) => { if (!on(stayStage(i))) return;
+sideX().forEach((d, i) => { if (!on(sideCab(i))) return;
   [-1, 1].forEach(s => stay(-d, i, s, 'sc.ca', 100)); });
 BASE_('md.stay');
 blank();
+
+/* ===================== the falsework ===================== */
+/* FOUR TEMPORARY BENTS UNDER THE SIDE SPAN, and they are in this file only
+   while the film needs them. They carry the five big blocks until the side
+   span's own cables are stressed, and then they come out - which is the beat
+   that says what a stay cable is for. STAGE unset writes the finished bridge
+   and the finished bridge has no falsework in it. */
+if (BENTS) {
+  for (let j = 1; j <= 4; j++) {
+    const x = XP + SIDE * j / 5;
+    [-1, 1].forEach(s =>
+      A('md.tmp', 'sc.tb', [-x, s * WY, 0], [-x, s * WY, ZG - GD / 2 - 400], 0, 0));
+  }
+  BASE_('md.tmp');
+  blank();
+}
 
 /* ===================== the piers ===================== */
 push('#', 'PIERS W2 AND W3 - under the side span and under the end of the deck');
@@ -424,6 +483,7 @@ V('md.stay', 'FRONT', 1000, 'THE STAYS - ELEVATION');
 V('md.stay', 'TOP', 1000, 'THE STAYS - PLAN');
 V('md.dck', 'RIGHT', 200, 'THE DECK - CROSS SECTION');
 V('md.pie', 'RIGHT', 200, 'PIER - SECTION');
+V('md.tmp', 'RIGHT', 200, 'TEMPORARY BENT - SECTION');
 blank();
 
 /* ===================== the assemblies ===================== */
@@ -450,6 +510,10 @@ if (MADE.has('md.stay')) {
 if (MADE.has('md.pie')) {
   put('as.pie', 'md.pie');
   push('ASSY', 'as.pie', 'as.pie', 'MIR', 0, 0, 0, 'YZ');
+}
+if (MADE.has('md.tmp')) {
+  put('as.tmp', 'md.tmp');
+  push('ASSY', 'as.tmp', 'as.tmp', 'MIR', 0, 0, 0, 'YZ');
 }
 push('END');
 
