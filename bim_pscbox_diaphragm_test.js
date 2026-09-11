@@ -1847,14 +1847,10 @@
 
       var ops = this._openings || [];
       var self2 = this;
-      // X 지시선은 개구부마다가 아니라 하나의 높이에 모은다 — 좌·우가 같은 선 위에 놓인다.
-      //  둘이 중심선 양쪽으로 갈라져 나가므로 같은 높이라도 겹치지 않는다.
-      var xlev = 0;
-      ops.forEach(function (op) {
-        var ys = op.pts.map(function (p) { return p[1]; });
-        var lv = Math.max.apply(null, ys) + Math.max(1, op.o.H) * 0.55;
-        if (!xlev || lv > xlev) xlev = lv;
-      });
+      // X 지시선은 단면 위 빈자리로 빼낸다 — 셀 안은 해치와 다른 치수로 좁아 읽히지 않는다.
+      //  좌·우가 한 높이를 같이 쓰고, 중심선이 그 선까지 올라가 어디서 재는지 보인다.
+      var Sy = Math.max(1, P.PTC.y - P.PBC.y);
+      var xlev = Math.max(P.PTL.y, P.PTC.y, P.PTR.y) + Sy * 0.12;
 
       // 해치 — 셀 안이면서 개구부 밖인 구간만 긋는다
       this._cellPolys(P, two).forEach(function (poly) {
@@ -1910,8 +1906,8 @@
         // 치수 간격은 단면이 아니라 개구부 크기에 맞춘다 — 단면 비율에 상관없이 같은 모양이 되고,
         // 치수가 단면 밖으로 멀리 나가 그림을 작게 만들지 않는다.
         var Bo = Math.max(1, op.o.B), Ho = Math.max(1, op.o.H);
-        rec.addLine(0, 0, xlev + Ho * 0.15, 0, ymin - Ho * 0.5, 'h');            // 단면 중심선
-        if (Math.abs(cx) > 1) rec.addLine(0, cx, xlev + Ho * 0.15, cx, ymin - Ho * 0.5, 'h');
+        rec.addLine(0, 0, xlev + Sy * 0.03, 0, ymin - Ho * 0.5, 'h');            // 단면 중심선
+        if (Math.abs(cx) > 1) rec.addLine(0, cx, xlev + Sy * 0.03, cx, ymin - Ho * 0.5, 'h');
         rec.addDimLinear(0, xmin, yT, xmax, yT, Ho * 0.30, 'B');
         rec.addDimLinear(0, cx, yB, cx, yT, -Bo * 0.75, 'H');
         // 항상 왼→오른쪽으로 긋는다. 방향이 반대면 렌더러가 라벨을 선 반대쪽에 놓아
