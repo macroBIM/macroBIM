@@ -49,11 +49,22 @@ const CARDS = path.join(SP, 'cards_inc');
    frames. It writes its own stills directory and its own shots file, and
    the assembler is given neither. */
 const ONLY = process.env.ONLY || '';
-/* ONLY writes somewhere else, because the first thing this script does is
-   empty SRC - and "shoots the ending alone" is not what that does when the
-   ending and the take share a directory. It cost a take: the twenty minutes
-   ONLY=tail exists to save were spent shooting them again. */
-const SRC = path.join(SP, ONLY ? 'inc_src_' + ONLY : 'inc_src');
+const SRC = path.join(SP, 'inc_src');
+/* ONLY=tail RESUMES: it keeps the stills the take already wrote, picks the
+   numbering up where they stop, and shoots the ending onto the end of them.
+
+   The first version of this emptied SRC before doing anything, which is not
+   what "shoot the ending alone" means when the ending and the take share a
+   directory - it deleted 792 stills to save twenty minutes and then cost
+   twenty minutes. The second version wrote somewhere else, which kept the
+   take safe and left the two halves in different folders with no film in
+   either. This one is the useful shape: the take writes a manifest of itself
+   when it finishes, and the ending reads it back.
+
+   Which matters because the ending is what keeps needing work. It is the only
+   part of the film with a browser, a site, an iframe and a button in it. */
+const TAKE = path.join(SP, 'inc_take.json');
+const RESUME = ONLY === 'tail';
 
 const FPS = 30;
 const MO = 12;                     // stills per second of camera motion
@@ -156,8 +167,20 @@ const caption = (id, start, dur) => caps.push({ png: 'cards_inc/t_' + id + '.png
 const card = (id, dur) => put(fs.readFileSync(path.join(CARDS, 't_' + id + '.jpg')), dur);
 
 (async () => {
-  fs.rmSync(SRC, { recursive: true, force: true });
-  fs.mkdirSync(SRC, { recursive: true });
+  if (RESUME) {
+    if (!fs.existsSync(TAKE))
+      throw new Error('no take to resume - run the shoot without ONLY first');
+    const t = JSON.parse(fs.readFileSync(TAKE, 'utf8'));
+    t.shots.forEach(x => shots.push(x));
+    t.caps.forEach(x => caps.push(x));
+    n = t.n; T = t.T;
+    const have = fs.readdirSync(SRC).filter(f => /^s\d+\.jpg$/.test(f)).length;
+    if (have !== n) throw new Error(have + ' stills on disk for a take of ' + n);
+    console.log('  resuming after ' + n + ' stills · ' + T.toFixed(1) + ' s');
+  } else {
+    fs.rmSync(SRC, { recursive: true, force: true });
+    fs.mkdirSync(SRC, { recursive: true });
+  }
 
   const books = fs.readdirSync(BOOKS).filter(f => /\.xlsx$/.test(f)).sort();
   if (!books.length) throw new Error('no workbooks - run make_incheon_stages.js');
@@ -229,6 +252,10 @@ const card = (id, dur) => put(fs.readFileSync(path.join(CARDS, 't_' + id + '.jpg
     put(await grab(), HOLD / H);
   }
   console.log('  3 finished');
+  /* The take's own manifest, so ONLY=tail can pick it up. Written here rather
+     than at the end because what comes after it is the part that keeps
+     failing, and a manifest written after the failure is no manifest. */
+  fs.writeFileSync(TAKE, JSON.stringify({ shots: shots, caps: caps, n: n, T: T }));
   }
 
   /* 4 - where to get it, WALKED INTO rather than spelled out. The macroBIM
@@ -318,7 +345,13 @@ const card = (id, dur) => put(fs.readFileSync(path.join(CARDS, 't_' + id + '.jpg
     const b = r.querySelector('.exb');
     if (b) { b.style.background = '#047857'; b.style.color = '#fff'; b.style.borderColor = '#047857'; }
   }, ri);
-  await site.waitForTimeout(400);
+  /* The same two-frame settle the saved shot gets. Without it this beat was a
+     picture of the list BEFORE the row was scrolled to and lit - the frame is
+     on another origin and its paint arrives after the parent's screenshot. Two
+     seconds of the film pointing at nothing. */
+  await fr.evaluate(() => new Promise(r =>
+    requestAnimationFrame(() => requestAnimationFrame(r))));
+  await site.waitForTimeout(700);
   await shot(2.2);                                   // the row
   /* The engine clears the `saved` badge 2.6 s after it sets it - long enough
      for a person reading the list, shorter than a screenshot of this page. So
@@ -350,7 +383,7 @@ const card = (id, dur) => put(fs.readFileSync(path.join(CARDS, 't_' + id + '.jpg
   /* 5 */
   card('end', 4);
 
-  fs.writeFileSync(path.join(SP, ONLY ? 'shots_inc_' + ONLY + '.json' : 'shots_inc.json'),
+  fs.writeFileSync(path.join(SP, 'shots_inc.json'),
     JSON.stringify({ fps: FPS, src: 'inc_src', out: 'PLATE3D_INCHEON.mp4',
                      shots: shots, caps: caps }, null, 1));
   await browser.close();
