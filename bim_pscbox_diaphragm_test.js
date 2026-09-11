@@ -1323,6 +1323,8 @@
             self._rebarData = self._parseRebar(data);
             console.log('[PSCDIA] 철근 파싱:', self._rebarData);
             self.redraw();              // 재작도 (physics 포함)
+            // 'open' 줄이 없는 2 Cell 파일은 X 가 0 이라 둘이 중앙복부에 겹친다 — 셀 중앙으로 맞춘다
+            if (!no && self._seedOpeningX()) self.redraw();
             var nre = self._rebarData ? self._rebarData.length : 0;
             var ntre = 0, nlre = 0;
             (self._rebarData || []).forEach(function (rd) { if (String(rd.type).toLowerCase() === 'lrebar') nlre++; else ntre++; });
@@ -1692,14 +1694,20 @@
     // 단면 좌표계에 앉힌 개구부.
     //  X 는 단면 중앙 기준 — 1 Cell 이든 2 Cell 이든 같은 기준선을 쓴다.
     //  Y 는 하부슬래브 상면에서 개구부 하단까지.
+    //  치수는 한 벌이고 자리만 셀 수를 따른다 — 1 Cell 은 X 하나, 2 Cell 은 좌·우
+    //  셀에 하나씩 ∓|X| 로 대칭. 같은 개구부가 셀마다 있는 실제 격벽과 같다.
     _openingAt: function (ap, geo, i) {
-      var o = this._readOpening(i);
-      if (!o.on || !(o.B > 0) || !(o.H > 0)) return null;
-      var x0 = o.X, slb = Number(ap.SLB) || 0;
-      var slabTop = -Number(ap.TH) + Number(ap.TBS) + x0 * slb / 100;
-      var y0 = slabTop + o.Y;
-      return { o: o, x0: x0, y0: y0, slope: slb,
-               pts: this._openingPoly(o, slb).map(function (p) { return [p[0] + x0, p[1] + y0]; }) };
+      var o = this._readOpening(1);
+      if (!o.on || !(o.B > 0) || !(o.H > 0)) return [];
+      var two = Number(ap.NCELL) === 2;
+      var xs = two ? [-Math.abs(o.X), Math.abs(o.X)] : [o.X];
+      var slb = Number(ap.SLB) || 0, self = this;
+      return xs.map(function (x0) {
+        var slabTop = -Number(ap.TH) + Number(ap.TBS) + x0 * slb / 100;
+        var y0 = slabTop + o.Y;
+        return { o: o, x0: x0, y0: y0, slope: slb,
+                 pts: self._openingPoly(o, slb).map(function (p) { return [p[0] + x0, p[1] + y0]; }) };
+      });
     },
 
     // 카드 안 미리보기 — 개구부 하나를 제 비율대로 그린다 (형상 확인용).
@@ -1749,6 +1757,34 @@
         '<polygon points="' + d + '" fill="#eff6ff" stroke="#2563eb" stroke-width="' + sw.toFixed(1) +
           '" stroke-linejoin="round"/>' +
         '</svg><div>' + Math.round(o.B) + ' &times; ' + Math.round(o.H) + '</div>';
+    },
+
+    // X 를 셀 한가운데로 맞춘다. 2 Cell 은 우측 셀 중앙(그 값의 ∓ 로 둘이 선다),
+    //  1 Cell 은 단면 중앙(0). 2 Cell 에서 X 가 0 이면 둘이 중앙복부 위에 겹치므로
+    //  Section Type 을 바꾸는 순간 제자리를 잡아 준다. 셀 중앙 = 그 셀 양쪽 복부면의 가운데.
+    _seedOpeningX: function () {
+      var ap = this._lastAp, el = document.getElementById('op1_X');
+      if (!ap || !el) return false;
+      var set = function (v) {
+        var s = String(Math.round(v));
+        if (el.value === s) return false;
+        el.value = s;
+        return true;
+      };
+      if (Number(ap.NCELL) !== 2) return set(0);
+      var P = {};
+      try { geo_box12cell(ap).points.forEach(function (p) { P[p.name] = p[p.name]; }); }
+      catch (e) { return false; }
+      var xs = ['PTHR1', 'PBHR1', 'PTHCR1', 'PBHCR1']
+        .map(function (n) { return P[n]; }).filter(Boolean).map(function (p) { return p.x; });
+      if (!xs.length) return false;
+      return set(xs.reduce(function (s, x) { return s + x; }, 0) / xs.length);   // 우측 셀 중앙
+    },
+
+    // Section Type 라디오 — 셀 수로 형상을 먼저 잡고, 그 형상에서 셀 중앙을 구해 X 를 맞춘다
+    onCellType: function () {
+      this.redraw();
+      if (this._seedOpeningX()) this.redraw();
     },
 
     // 셀(격벽면) 폴리곤. 1 Cell 은 하나, 2 Cell 은 중앙복부로 갈린 둘.
@@ -1878,7 +1914,12 @@
         if (Math.abs(cx) > 1) rec.addLine(0, cx, xlev + Ho * 0.15, cx, ymin - Ho * 0.5, 'h');
         rec.addDimLinear(0, xmin, yT, xmax, yT, Ho * 0.30, 'B');
         rec.addDimLinear(0, cx, yB, cx, yT, -Bo * 0.75, 'H');
-        rec.addDimLinear(0, 0, xlev, cx, xlev, 0, 'X');                          // X=0 이면 길이 0 → 안 그려진다
+        // 항상 왼→오른쪽으로 긋는다. 방향이 반대면 렌더러가 라벨을 선 반대쪽에 놓아
+        // 좌·우 X 치수의 글자 높이가 달라진다. X=0 이면 길이 0 → 안 그려진다.
+        // 라벨은 중심선에서 바깥으로 조금 밀어 둔다 — 2 Cell 의 좌·우 X 가 중심선
+        // 부근에서 서로 맞닿기 때문이다 (la 는 치수선 방향 픽셀 오프셋).
+        rec.addDimLinear(0, Math.min(0, cx), xlev, Math.max(0, cx), xlev, 0, 'X',
+                         { la: (cx < 0 ? -1 : 1) * 18 });
         rec.addDimLinear(0, cx, slabTop, cx, yB, Bo * 0.75, 'Y');
       });
 
@@ -1917,11 +1958,12 @@
           if (el) el.disabled = !o.on;
         });
         if (card) card.classList.toggle('off', !o.on);
-        var placed = this._openingAt(ap, geo, i);
-        this._drawOpeningPreview(i, placed);
-        list.push(placed);
+        var hint = document.getElementById('opXhint');   // 2 Cell 은 이 값의 ∓ 로 둘이 선다
+        if (hint) hint.textContent = (Number(ap.NCELL) === 2) ? '± from centre' : 'from centre';
+        list = this._openingAt(ap, geo, i);       // 1 Cell 이면 하나, 2 Cell 이면 좌·우 둘
+        this._drawOpeningPreview(i, list[0] || null);
       }
-      this._openings = list.filter(function (v) { return v; });
+      this._openings = list;
       this._reportOpeningIssues(ap, geo, list);
       this._drawDiaView(ap, geo);        // 입력칸 오른쪽 격벽면 뷰
       return this._openings;
@@ -1990,13 +2032,13 @@
           row(i, 'CTBX', 'Ctbx', '', OPEN_DEF.CTBX) +
           row(i, 'CTBY', 'Ctby', '', OPEN_DEF.CTBY) +
           '<div class="op-sub">Position</div>' +
-          row(i, 'X', 'X', 'from centre', OPEN_DEF.X) +
+          row(i, 'X', 'X', '<span id="opXhint">from centre</span>', OPEN_DEF.X) +
           row(i, 'Y', 'Y', 'from slab top', OPEN_DEF.Y) +
           '</div><div class="op-prev" id="op' + i + '_prev"></div></div></div>';
       };
       return '  <div class="draw-card">' +
         '    <div class="draw-card-header"><div><span class="draw-card-title">OPENING</span> ' +
-        '<span class="draw-card-desc">One diaphragm opening, 1 Cell or 2 Cell alike. Rectangle / Hexagon / Octagon by how far the corners are cut; the top and bottom cuts are given separately. X is measured from the section centre, Y from the top of the bottom slab. Top and bottom faces run parallel to the bottom slab slope.</span></div></div>' +
+        '<span class="draw-card-desc">One opening per cell, all of them the same size &mdash; 2 Cell puts it in both, at &#8723;X from the section centre. Rectangle / Hexagon / Octagon by how far the corners are cut; the top and bottom cuts are given separately. Y is measured from the top of the bottom slab, and the top and bottom faces run parallel to the bottom slab slope.</span></div></div>' +
         '    <div class="draw-card-body"><div class="op-wrap">' +
         cell(1, 'Opening') +
         '      <div class="op-view"><h4>Diaphragm face</h4><div id="opView"></div></div>' +
@@ -2095,8 +2137,8 @@
         '    <div class="draw-card-body">' +
         '      <div class="px-radio px-optrow">' +
         '        <div class="px-opthalf px-optsec"><b>Section Type :</b>' +
-        '          <label><input type="radio" name="box12cell_ncell" value="1" checked onchange="PXDIA.redraw()"> 1 Cell</label>' +
-        '          <label><input type="radio" name="box12cell_ncell" value="2" onchange="PXDIA.redraw()"> 2 Cell</label>' +
+        '          <label><input type="radio" name="box12cell_ncell" value="1" checked onchange="PXDIA.onCellType()"> 1 Cell</label>' +
+        '          <label><input type="radio" name="box12cell_ncell" value="2" onchange="PXDIA.onCellType()"> 2 Cell</label>' +
         '        </div>' +
         '        <div class="px-opthalf px-optseg"><b>Segment Length (mm) :</b>' +
         '          <label><input type="text" spellcheck="false" class="form-input px-seg" id="segLen_s" value="' + SEG_DEF + '" onchange="PXDIA.redraw()" title="Length of the segment this diaphragm belongs to, along the girder axis"></label>' +
