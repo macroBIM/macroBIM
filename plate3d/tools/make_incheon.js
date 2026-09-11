@@ -132,31 +132,55 @@ const r1 = v => Math.round(v * 10) / 10;
      0            piers W2 and W3, the 80 m end span, and the temporary bents
      1 .. 8       the pylon, EL 13 to EL 238.5 in eight lifts
      9 .. 13      the side span, five big blocks, W2 inwards to the pylon
-     14 .. 26     its 26 stays, two rings a stage, pylon outwards
-     27           the bents come out - the cables have it now
-     27 .. 77     the main span: ring, then segment, then ring, out to mid-span
-     78           closure
+     14           ring 0 - the first main stay AND its back stay
+     15, 16       main segment 1, then ring 1 - again both sides at once
+     ...          twenty-five more of those, out to mid-span
+     65           closure
 
-   A segment and its stays are two beats, not one, because on site they are two
+   A RING IS A PAIR, MAIN AND BACK. The cables are not strung on the side span
+   in advance: each main-span stay goes on WITH the side-span stay that answers
+   it, because what a stay does to a pylon is bend it, and the only thing that
+   keeps the pylon straight is the one pulling the other way. The side span's
+   girder is up first so that there is something for the back stays to pull
+   against; the cables themselves come later, in pairs, with the segments.
+
+   Which also means the falsework does not come out in one go. Each bent is
+   relieved when the stays above it are stressed, so the four of them go one
+   at a time as the fan grows outwards - and that retreat says what a stay
+   cable is for better than any caption could.
+
+   A segment and its ring are two beats, not one, because on site they are two
    operations and on film you cannot see the second one if it arrives with the
    first.                                                                     */
 const SG = process.env.STAGE === undefined || process.env.STAGE === ''
   ? null : Math.round(+process.env.STAGE);
 const on = s => SG === null || SG >= s;
 const PIER = 0, PYL1 = 1, PYLN = 8;        // the pylon rises over eight stages
-const SBLK = PYL1 + PYLN, NSB = 5;         // 9..13   the side span, in blocks
-const SCAB = SBLK + NSB, NSC = 13;         // 14..26  its stays, two rings a stage
-const MSPN = SCAB + NSC;                   // 27      and the main span starts
+const SBLK = PYL1 + PYLN, NSB = 5;         // 9..13  the side span, in blocks
+const RING0 = SBLK + NSB;                  // 14     and the first pair of stays
 /* Ring 0 lands on deck the side span already built, so it comes first and the
    pairing after it is segment-then-ring. */
-const mainRing = k => k === 0 ? MSPN : MSPN + 2 * k;
-const mainSeg = k => MSPN + 2 * k - 1;     // k >= 1
-const sideCab = i => SCAB + Math.floor(i / 2);
-const CLOSE = mainRing(NC - 1) + 1;        // 78
-/* The falsework is out once the side span's own cables are all stressed. It is
-   the one thing in this file that is written to DISAPPEAR, and it is the beat
-   that says what the cables are for. */
-const BENTS = SG !== null && SG >= PIER && SG < MSPN;
+const ring = k => RING0 + 2 * k;
+const mainSeg = k => RING0 + 2 * k - 1;    // k >= 1
+const CLOSE = ring(NC - 1) + 1;            // 65
+/* How far the rings have got at a given stage, and how far the deck has. The
+   deck is one node ahead of the rings through a segment stage. */
+const ringDone = g => g >= CLOSE ? NC - 1
+  : g < RING0 ? -1 : Math.min(NC - 1, Math.floor((g - RING0) / 2));
+const deckDone = g => g >= CLOSE ? NC - 1
+  : g < RING0 ? 0 : Math.min(NC - 1, Math.floor((g - RING0 + 1) / 2));
+/* THE FALSEWORK RETREATS. Four bents under the side span at 52 m centres, and
+   each is let go once the back stay that lands over it has been stressed -
+   which is one ring later than the stay nearest it. They are the only thing in
+   this file written to disappear, and STAGE unset has none of them: a finished
+   bridge has no falsework in it. */
+const SXA = sideX();
+const BENT = [1, 2, 3, 4].map(j => {
+  const x = SIDE * j / 5;
+  let i = 0; while (i < NC - 1 && SXA[i] < x) i++;
+  return { j: j, x: XP + x, out: Math.min(NC - 1, i + 1) };
+});
+const bentUp = b => SG !== null && ringDone(SG) < b.out;
 
 /* The pylon is clipped by an elevation, not by whole members, so that it
    RISES rather than steps. A part-built taper is a real taper of its own -
@@ -201,12 +225,9 @@ if (process.env.STAGES) {
              : g >= SBLK ? ZPY : ZF + (ZPY - ZF) * (g - PYL1 + 1) / PYLN;
     let lo = -XP, hi = -XP;
     // the side span is in frame from the moment the first block lands
-    if (g >= SBLK) { lo = -XW2; }
+    if (g >= SBLK) lo = -XW2;
     // and the main span carries the near edge out towards mid-span
-    if (g >= MSPN) {
-      const k = Math.max(0, Math.min(NC - 1, Math.floor((g - MSPN + 1) / 2)));
-      hi = -XP + MX[k];
-    }
+    if (g >= RING0) hi = -XP + MX[deckDone(g)];
     if (g >= CLOSE) { lo = -XW3; hi = XW3; }
     console.log(r1(zt) + ' ' + r1(lo) + ' ' + r1(hi));
   }
@@ -290,7 +311,7 @@ push('SECT', 'sc.px', 'SM490', 45000, 'R', 'mc', r1(XBT - ZK), 7000, 120, 0);
 push('SECT', 'sc.pc', 'SM490', r1(ZG - GD / 2), 'R', 'mc', 9000, 5000, 120, 0);
 // a temporary bent: a slimmer thing than a pier, because it carries one span
 // for a few weeks and then goes away
-if (BENTS) push('SECT', 'sc.tb', 'SM490', r1(ZG - GD / 2), 'R', 'mc', 3000, 3000, 60, 0);
+if (SG !== null && BENT.some(bentUp)) push('SECT', 'sc.tb', 'SM490', r1(ZG - GD / 2), 'R', 'mc', 3000, 3000, 60, 0);
 /* A pylon caught half way up one of its tapers ends on a section that is not
    in the drawing: the two ends of that taper, interpolated at the height the
    lift reached. It is written out like any other section, because that is
@@ -343,6 +364,8 @@ const blockOf = a => {
 setN(-XW2, PIER); setN(-XW3, PIER);
 setN(-XP, blockOf(XP));
 MX0.forEach((d, k) => setN(-XP + d, k === 0 ? SBLK + NSB - 1 : mainSeg(k)));
+/* Ring 0's deck node is the last thing the side span's blocks reach, which is
+   why ring 0 is a ring on its own and the pairing only starts after it. */
 sideX().forEach(d => setN(-XP - d, blockOf(XP + d)));
 setN(0, CLOSE);
 const nst = x => { const v = NST.get(nk(x)); return v === undefined ? CLOSE : v; };
@@ -426,33 +449,34 @@ const stay = (d, i, s, sec, R) => {
   const b = [-XP + d, s * AY, ZDK];
   A('md.stay', sec, a, b, 0, 400);
 };
-/* A RING IS THE TWO PLANES, and they go on together - a stage that strung one
-   side of the bridge and not the other would be a stage of a bridge that does
-   not stand up.
+/* A RING IS FOUR CABLES AT EACH PYLON: the main-span stay, the back stay that
+   answers it, and both of those in both planes. They go on together because a
+   stay does not just hold a segment up, it bends the pylon - and the only
+   thing that keeps the pylon straight is the one pulling the other way. A
+   stage that strung the main span and not the back span would be a stage of a
+   bridge leaning over its own work.
 
-   The side span's rings go on in pairs and all before the main span starts:
-   its girder is already sitting on falsework, so stringing them is handing the
-   load over rather than holding up something new. The main span's go on one
-   ring per segment, because there each ring IS what holds the segment up. */
-mainX().forEach((d, i) => { if (!on(mainRing(i))) return; [-1, 1].forEach(s =>
+   Which is why the side span's girder goes up first and its cables do not:
+   the girder is there so the back stays have something to pull against, and
+   the cables themselves arrive later, in pairs, with the segments. */
+mainX().forEach((d, i) => { if (!on(ring(i))) return; [-1, 1].forEach(s =>
   stay(d, i, s, d > 200000 ? 'sc.ca' : 'sc.cb', d > 200000 ? 100 : 80)); });
-sideX().forEach((d, i) => { if (!on(sideCab(i))) return;
+sideX().forEach((d, i) => { if (!on(ring(i))) return;
   [-1, 1].forEach(s => stay(-d, i, s, 'sc.ca', 100)); });
 BASE_('md.stay');
 blank();
 
 /* ===================== the falsework ===================== */
-/* FOUR TEMPORARY BENTS UNDER THE SIDE SPAN, and they are in this file only
-   while the film needs them. They carry the five big blocks until the side
-   span's own cables are stressed, and then they come out - which is the beat
-   that says what a stay cable is for. STAGE unset writes the finished bridge
-   and the finished bridge has no falsework in it. */
-if (BENTS) {
-  for (let j = 1; j <= 4; j++) {
-    const x = XP + SIDE * j / 5;
-    [-1, 1].forEach(s =>
-      A('md.tmp', 'sc.tb', [-x, s * WY, 0], [-x, s * WY, ZG - GD / 2 - 400], 0, 0));
-  }
+/* FOUR TEMPORARY BENTS UNDER THE SIDE SPAN, and they leave one at a time.
+   Each carries the big blocks until the back stay that lands over it has been
+   stressed, so they are let go from the pylon outwards as the fan grows -
+   which is the thing that says what a stay cable is for, and says it four
+   times without a word. STAGE unset writes the finished bridge, and a
+   finished bridge has no falsework in it. */
+const UP = BENT.filter(bentUp);
+if (UP.length) {
+  UP.forEach(b => [-1, 1].forEach(s =>
+    A('md.tmp', 'sc.tb', [-b.x, s * WY, 0], [-b.x, s * WY, ZG - GD / 2 - 400], 0, 0)));
   BASE_('md.tmp');
   blank();
 }

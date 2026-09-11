@@ -75,11 +75,11 @@ const CARDS = {
      cantilever out both ways - so the first three lines say what is happening
      while it is happening, and then the film can stop talking. */
   pyl:    { kind: 'over', html: over('', 'one pylon, EL 13 to EL 238.5') },
-  side:   { kind: 'over', html: over('', 'the side span first &mdash; on falsework') },
-  /* On the handover: the side span's stays go on and the bents come out. This
-     is the line that explains what a stay cable is, without saying so. */
-  fan:    { kind: 'over', html: over('its cables take the load', 'and the falsework comes out') },
-  seg:    { kind: 'over', html: over('', 'now the main span goes out on its own') },
+  side:   { kind: 'over', html: over('', 'the side span first &mdash; on falsework, no cables') },
+  seg:    { kind: 'over', html: over('every segment, a pair of cables', 'one forward, one back') },
+  /* On the first bent being let go. A caption on the thing, not a report of
+     it - it lands a beat before the falsework starts to go. */
+  fan:    { kind: 'over', html: over('', 'and the falsework starts to leave') },
   /* The claim. The Golden Gate's main cable is a parabola sawn into 130
      straight pieces and that film said so; a stay IS a straight line, so this
      one gets to say the opposite. Two lines, twelve seconds apart, because
