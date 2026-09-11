@@ -169,8 +169,8 @@
     // 라디오와 길이는 제 폭만 쓰고, 남는 자리는 칸이 셋인 Cover Depth 가 갖는다 (줄바꿈 방지)
     '.px-optseg,.px-optsec{flex:0 0 auto;}' +
     '.op-wrap{display:flex;gap:18px;align-items:flex-start;flex-wrap:wrap;}' +
-    // 칸은 늘어나지 않는다 — 내용 폭에 맞춰 서고 남는 자리는 여백으로 둔다.
-    '.op-cell{flex:0 0 auto;border:1px solid var(--hair);border-radius:8px;overflow:hidden;background:#fff;}' +
+    // 입력칸과 그림은 각각 전체 폭의 1/3 — 오른쪽 1/3 은 빈 채로 둔다 (gap 18 × 2)
+    '.op-cell{flex:0 0 calc((100% - 36px) / 3);min-width:0;border:1px solid var(--hair);border-radius:8px;overflow:hidden;background:#fff;}' +
     '.op-cell > h4{margin:0;padding:7px 12px;background:#f1f5f9;border-bottom:1px solid var(--hair);' +
     '  font-size:11.5px;font-weight:700;letter-spacing:.07em;text-transform:uppercase;color:#475569;' +
     '  display:flex;justify-content:space-between;align-items:center;gap:8px;}' +
@@ -185,17 +185,21 @@
     '  border:1px solid var(--hair);border-radius:5px;color:var(--ink);background:#fff;}' +
     '.op-row input:disabled{background:#f8fafc;color:#cbd5e1;}' +
     '.op-sub{font-size:10.5px;color:#94a3b8;margin:9px 0 3px;letter-spacing:.06em;text-transform:uppercase;font-weight:700;}' +
-    // 격벽면 전용 뷰 — 입력칸 오른쪽 빈자리. 자리가 모자라면(2 Cell) 아랫줄로 내려간다.
-    '.op-view{flex:1 1 470px;min-width:470px;border:1px solid var(--hair);border-radius:8px;overflow:hidden;background:#fff;}' +
+    // 격벽면 뷰 — 입력칸 바로 오른쪽, 같은 1/3 폭
+    '.op-view{flex:0 0 calc((100% - 36px) / 3);min-width:0;border:1px solid var(--hair);border-radius:8px;overflow:hidden;background:#fff;}' +
     '.op-view > h4{margin:0;padding:7px 12px;background:#f1f5f9;border-bottom:1px solid var(--hair);' +
     '  font-size:11.5px;font-weight:700;letter-spacing:.07em;text-transform:uppercase;color:#475569;}' +
     '.op-view > div{padding:0;}' +
     '.op-view svg{display:block;width:100%;height:auto;}' +          // 칸 폭이 바뀌어도 비율대로
-    '.op-prev{flex:none;width:172px;}' +
-    '.op-prev svg{display:block;width:172px;height:172px;border:1px solid var(--hair);border-radius:6px;background:#fbfdff;}' +
+    // 미리보기는 1/3 폭에 맞춰 남는 자리를 차지한다 (칸이 좁아져도 넘치지 않게)
+    '.op-prev{flex:1 1 0;min-width:0;max-width:172px;}' +
+    '.op-prev svg{display:block;width:100%;aspect-ratio:1;height:auto;border:1px solid var(--hair);border-radius:6px;background:#fbfdff;}' +
     '.op-prev svg text{font-family:inherit;font-weight:500;}' +
     '.op-prev div{font-size:10.5px;color:#94a3b8;text-align:center;margin-top:3px;font-variant-numeric:tabular-nums;}' +
     '.op-cell.off .op-body{opacity:.38;pointer-events:none;}' +
+    '.op-warn{margin-top:12px;padding:9px 12px;border:1px solid #fecaca;background:#fef2f2;border-radius:8px;' +
+    '  font-size:12px;line-height:1.45;color:#b91c1c;}' +
+    '.op-warn div + div{margin-top:3px;}' +
     '.px-menubar{display:flex;align-items:center;justify-content:flex-start;gap:8px;background:#fff;border:1px solid #e2e8f0;border-radius:10px;padding:8px 12px;margin-bottom:14px;}' +
     '.px-mb-label{font-size:12.5px;font-weight:600;color:#475569;white-space:nowrap;}' +
     '.px-btn-lite{background:#fff;color:#334155;border-color:#cbd5e1;}.px-btn-lite:hover{background:#f1f5f9;border-color:#cbd5e1;box-shadow:0 2px 6px rgba(15,23,42,.12);}.px-btn-lite.active{background:#2563eb;border-color:#2563eb;color:#fff;}' +
@@ -1318,11 +1322,7 @@
             self._renderRebarTables();           // ④ 'trebar/lrebar' 블록 → REBAR 표
             self._rebarData = self._parseRebar(data);
             console.log('[PSCDIA] 철근 파싱:', self._rebarData);
-            // 'open' 줄이 없는 2 Cell 파일은 개구부 둘이 단면 중앙에 겹친다 — 셀 중앙으로 벌려 준다
-            self._quietOverlap = !no;
             self.redraw();              // 재작도 (physics 포함)
-            self._quietOverlap = false;
-            if (!no && self._seedOpeningX()) self.redraw();
             var nre = self._rebarData ? self._rebarData.length : 0;
             var ntre = 0, nlre = 0;
             (self._rebarData || []).forEach(function (rd) { if (String(rd.type).toLowerCase() === 'lrebar') nlre++; else ntre++; });
@@ -1335,7 +1335,7 @@
               'Dims      : ' + (nd || 0),
               'Cover     : deck ' + cd('cover_deck_s') + ' / exterior ' + cd('cover_ext_s') + ' / interior ' + cd('cover_int_s'),
               'Segment   : ' + cd('segLen_s') + (ns ? '' : '  (default — no seg row)'),
-              'Opening   : ' + no + ' cell' + (no === 1 ? '' : 's') + (no ? '' : '  (defaults — no open row)'),
+              'Opening   : ' + (no ? 'from file' : 'defaults — no open row'),
               'Rebar     : ' + nre + '  (trebar ' + ntre + ', lrebar ' + nlre + ')'
             ] };
             // 최종 결과 토스트 — 철근 id 중복이면 오류 상태로 (성공 토스트가 덮지 않게)
@@ -1348,7 +1348,7 @@
               self._loadLog.lines.push('ERROR     : duplicate rebar id ' + self._dupIds.join(', ') + ' \u2014 rebar loading skipped');
               self._toast('Duplicate rebar id: ' + self._dupIds.join(', ') + ' \u2014 rebar loading skipped (dims loaded)', 'err');
             } else {
-              self._toast('Excel loaded \u2014 dims ' + (nd || 0) + ', openings ' + no + ', rebar ' + nre, 'ok');
+              self._toast('Excel loaded \u2014 dims ' + (nd || 0) + ', rebar ' + nre, 'ok');
             }
           }).catch(function (e) {
             self._loadLog = { time: new Date().toLocaleString(), ok: false, lines: [
@@ -1432,9 +1432,10 @@
       return 0;
     },
 
-    // 'open' 블록 : open | 셀 | 형상 | B | H | Cttx | Ctty | Ctbx | Ctby | X | Y → 개구부 칸.
-    //   형상은 RECT/HEX/OCT (rectangle/hexagon/octagon 도 받는다), none 이면 그 셀의 개구부를 끈다.
-    //   한 줄이 셀 하나다 — 2 Cell 이면 두 줄.
+    // 'open' 블록 : open | 형상 | B | H | Cttx | Ctty | Ctbx | Ctby | X | Y → 개구부 칸.
+    //   형상은 RECT/HEX/OCT (rectangle/hexagon/octagon 도 받는다), none 이면 개구부를 끈다.
+    //   개구부는 하나뿐이라 한 줄이면 된다. 형상 자리에 셀 번호(1/2)가 있는 옛 줄은 건너뛰고
+    //   읽는다 — 숫자를 형상으로 잘못 읽어 조용히 기본값이 되는 일이 없게.
     _loadOpenFromExcel: function (fullData) {
       if (!Array.isArray(fullData)) return 0;
       var shapeOf = { rect: 'RECT', rectangle: 'RECT', hex: 'HEX', hexagon: 'HEX', oct: 'OCT', octagon: 'OCT' };
@@ -1447,21 +1448,22 @@
         var hc = -1;
         for (var c = 0; c < (row ? row.length : 0); c++) { if (String(row[c] == null ? '' : row[c]).trim().toLowerCase() === 'open') { hc = c; break; } }
         if (hc < 0) continue;
-        var cell = Number(row[hc + 1]);
-        if (cell !== 1 && cell !== 2) { console.warn('[PSCDIA] open 셀 번호가 1/2 가 아님: ' + row[hc + 1]); continue; }
-        var sv = String(row[hc + 2] == null ? '' : row[hc + 2]).trim().toLowerCase();
-        var none = document.getElementById('op' + cell + '_none');
+        if (n) { console.warn('[PSCDIA] open 줄이 여럿입니다 — 개구부는 하나뿐이라 첫 줄만 씁니다.'); break; }
+        var at = hc + 1;
+        if (isFinite(Number(row[at])) && String(row[at]).trim() !== '') at++;   // 옛 형식의 셀 번호
+        var sv = String(row[at] == null ? '' : row[at]).trim().toLowerCase();
+        var none = document.getElementById('op1_none');
         if (sv === 'none' || sv === '-') { if (none) none.checked = true; n++; continue; }
         var shape = shapeOf[sv];
         if (!shape) { console.warn('[PSCDIA] open 형상을 해석할 수 없음: ' + sv); continue; }
         if (none) none.checked = false;
-        var sel = document.getElementById('op' + cell + '_shape');
+        var sel = document.getElementById('op1_shape');
         if (sel) sel.value = shape;
         for (var k = 0; k < cols.length; k++) {
-          var raw = row[hc + 3 + k];
+          var raw = row[at + 1 + k];
           raw = (raw == null) ? '' : String(raw).trim();
           if (raw === '' || raw === '-') continue;        // 빈 칸은 기본값을 그대로 둔다
-          var el = document.getElementById('op' + cell + '_' + cols[k]);
+          var el = document.getElementById('op1_' + cols[k]);
           if (el) el.value = raw;
         }
         n++;
@@ -1749,43 +1751,6 @@
         '</svg><div>' + Math.round(o.B) + ' &times; ' + Math.round(o.H) + '</div>';
     },
 
-    // 개구부 X 를 셀 한가운데로 옮긴다. 2 Cell 은 좌·우 셀에 하나씩, 1 Cell 은 단면 중앙.
-    //  X 기준선이 단면 중앙 하나뿐이라 2 Cell 기본값(둘 다 0)은 같은 자리에 겹친다 —
-    //  Section Type 을 바꾸는 순간 제자리를 잡아 준다. 셀 중앙 = 그 셀 양쪽 복부면의 가운데.
-    _seedOpeningX: function () {
-      var ap = this._lastAp;
-      if (!ap) return false;
-      var set = function (i, v) {
-        var el = document.getElementById('op' + i + '_X');
-        if (!el) return false;
-        var s = String(Math.round(v));
-        if (el.value === s) return false;
-        el.value = s;
-        return true;
-      };
-      if (Number(ap.NCELL) !== 2) return set(1, 0);
-      var P = {};
-      try { geo_box12cell(ap).points.forEach(function (p) { P[p.name] = p[p.name]; }); }
-      catch (e) { return false; }
-      var mid = function (names) {
-        var xs = names.map(function (n) { return P[n]; }).filter(Boolean).map(function (p) { return p.x; });
-        return xs.length ? xs.reduce(function (s, x) { return s + x; }, 0) / xs.length : null;
-      };
-      var L = mid(['PTHL1', 'PBHL1', 'PTHCL1', 'PBHCL1']);      // 좌측 셀 : 좌측복부 내면 ~ 중앙복부 좌면
-      var R = mid(['PTHR1', 'PBHR1', 'PTHCR1', 'PBHCR1']);      // 우측 셀 : 중앙복부 우면 ~ 우측복부 내면
-      if (L === null || R === null) return false;
-      var ch = set(1, L);
-      return set(2, R) || ch;
-    },
-
-    // Section Type 라디오 — 셀 수가 바뀌면 형상을 먼저 잡고, 개구부를 새 셀 중앙으로 옮긴다
-    onCellType: function () {
-      this._quietOverlap = true;        // 자리를 잡기 전 한 번은 겹치는 게 당연하다 — 경고하지 않는다
-      this.redraw();
-      this._quietOverlap = false;
-      if (this._seedOpeningX()) this.redraw();
-    },
-
     // 셀(격벽면) 폴리곤. 1 Cell 은 하나, 2 Cell 은 중앙복부로 갈린 둘.
     //  단면 외곽이 아니라 "격벽이 채워지는 자리"다 — 해치를 칠 범위이자 개구부가 뚫릴 면.
     _cellPolys: function (P, two) {
@@ -1934,13 +1899,9 @@
 
     // 입력값 → 형상·미리보기·활성 상태 갱신. redraw 가 부른다.
     _syncOpenings: function (ap, geo) {
-      var self = this, list = [];
-      var n = (Number(ap.NCELL) === 2) ? 2 : 1;
-      var c2 = document.getElementById('opCell2');
-      if (c2) c2.style.display = (n === 2) ? '' : 'none';
-      for (var i = 1; i <= 2; i++) {
+      var list = [];
+      for (var i = 1; i <= 1; i++) {                 // 개구부는 하나다 — 셀 수와 무관
         var card = document.getElementById('opCell' + i);
-        if (i > n) { list.push(null); continue; }
         var o = this._readOpening(i);
         // 접지 않는 모서리의 칸은 잠근다 — RECT 는 넷 다, HEX 는 아래 둘
         ['CTTX', 'CTTY'].forEach(function (k) {
@@ -1961,21 +1922,49 @@
         list.push(placed);
       }
       this._openings = list.filter(function (v) { return v; });
-      // 기준선이 단면 중앙 하나이므로 2 Cell 기본값(둘 다 X=0)은 같은 자리에 겹친다.
-      // 조용히 겹친 채로 두면 도면이 하나처럼 보이므로 알려 준다.
-      if (this._openings.length === 2) {
-        var bx = this._openings.map(function (p) {
-          var xs = p.pts.map(function (q) { return q[0]; }), ys = p.pts.map(function (q) { return q[1]; });
-          return { x1: Math.min.apply(null, xs), x2: Math.max.apply(null, xs),
-                   y1: Math.min.apply(null, ys), y2: Math.max.apply(null, ys) };
-        });
-        if (!this._quietOverlap &&
-            bx[0].x1 < bx[1].x2 && bx[1].x1 < bx[0].x2 && bx[0].y1 < bx[1].y2 && bx[1].y1 < bx[0].y2)
-          console.warn('[PSCDIA] 개구부 둘이 겹칩니다 — X 는 단면 중앙 기준이므로 셀마다 다른 값을 주세요 ' +
-                       '(현재 ' + Math.round(this._openings[0].x0) + ' / ' + Math.round(this._openings[1].x0) + ')');
-      }
+      this._reportOpeningIssues(ap, geo, list);
       this._drawDiaView(ap, geo);        // 입력칸 오른쪽 격벽면 뷰
       return this._openings;
+    },
+
+    // 개구부가 성립하는지 살펴 카드 아래에 알린다.
+    //  이 두 가지는 나중에 인력장을 붙일 때 조용히 망가지는 종류다 —
+    //  격벽 밖으로 나간 면은 콘크리트가 없는 자리로 철근을 끌고, 겹친 둘은 벽이 교차한다.
+    _reportOpeningIssues: function (ap, geo, list) {
+      var box = document.getElementById('opWarn');
+      var msg = [];
+      var P = {};
+      (geo.points || []).forEach(function (p) { P[p.name] = p[p.name]; });
+      var polys = this._cellPolys(P, Number(ap.NCELL) === 2);
+      var inPoly = function (poly, x, y) {
+        var c = false;
+        for (var i = 0, j = poly.length - 1; i < poly.length; j = i++) {
+          var xi = poly[i][0], yi = poly[i][1], xj = poly[j][0], yj = poly[j][1];
+          if (((yi > y) !== (yj > y)) && (x < (xj - xi) * (y - yi) / ((yj - yi) || 1e-9) + xi)) c = !c;
+        }
+        return c;
+      };
+      // 격벽면 밖으로 나갔는가 — 꼭짓점과 변 중점이 모두 어느 한 셀 안에 들어야 한다.
+      //  2 Cell 이면 어느 쪽 셀이든 상관없다. 셀을 걸치거나 복부를 물면 밖이다.
+      list.forEach(function (op) {
+        if (!op || !polys.length) return;
+        var pts = op.pts;
+        var fits = polys.some(function (poly) {
+          for (var k = 0; k < pts.length; k++) {
+            var a = pts[k], b = pts[(k + 1) % pts.length];
+            if (!inPoly(poly, a[0], a[1])) return false;
+            if (!inPoly(poly, (a[0] + b[0]) / 2, (a[1] + b[1]) / 2)) return false;
+          }
+          return true;
+        });
+        if (!fits) msg.push('The opening runs outside the diaphragm face — check X / Y / B / H.');
+      });
+      if (box) {
+        box.innerHTML = msg.map(function (m) { return '<div>' + m + '</div>'; }).join('');
+        box.style.display = msg.length ? '' : 'none';
+      }
+      msg.forEach(function (m) { console.warn('[PSCDIA] ' + m); });
+      return msg;
     },
 
     // 개구부 카드 HTML (mount 에서 한 번)
@@ -1989,7 +1978,7 @@
         var opts = self._opShapes.map(function (o) {
           return '<option value="' + o[0] + '"' + (o[0] === OPEN_DEF.shape ? ' selected' : '') + '>' + o[1] + '</option>';
         }).join('');
-        return '<div class="op-cell" id="opCell' + i + '"' + (i === 2 ? ' style="display:none;"' : '') + '>' +
+        return '<div class="op-cell" id="opCell' + i + '">' +
           '<h4>' + title + '<label><input type="checkbox" id="op' + i + '_none" onchange="PXDIA.redraw()"> none</label></h4>' +
           '<div class="op-body"><div class="op-fields">' +
           '<div class="op-row"><span>Shape</span><select id="op' + i + '_shape" onchange="PXDIA.redraw()">' + opts + '</select></div>' +
@@ -2007,11 +1996,11 @@
       };
       return '  <div class="draw-card">' +
         '    <div class="draw-card-header"><div><span class="draw-card-title">OPENING</span> ' +
-        '<span class="draw-card-desc">Diaphragm opening &mdash; one per cell. Rectangle / Hexagon / Octagon by how far the corners are cut; the top and bottom cuts are given separately. X is measured from the section centre, Y from the top of the bottom slab. Top and bottom faces run parallel to the bottom slab slope.</span></div></div>' +
+        '<span class="draw-card-desc">One diaphragm opening, 1 Cell or 2 Cell alike. Rectangle / Hexagon / Octagon by how far the corners are cut; the top and bottom cuts are given separately. X is measured from the section centre, Y from the top of the bottom slab. Top and bottom faces run parallel to the bottom slab slope.</span></div></div>' +
         '    <div class="draw-card-body"><div class="op-wrap">' +
-        cell(1, 'Cell 1') + cell(2, 'Cell 2') +
+        cell(1, 'Opening') +
         '      <div class="op-view"><h4>Diaphragm face</h4><div id="opView"></div></div>' +
-        '    </div></div>' +
+        '    </div><div class="op-warn" id="opWarn" style="display:none;"></div></div>' +
         '  </div>';
     },
 
@@ -2106,8 +2095,8 @@
         '    <div class="draw-card-body">' +
         '      <div class="px-radio px-optrow">' +
         '        <div class="px-opthalf px-optsec"><b>Section Type :</b>' +
-        '          <label><input type="radio" name="box12cell_ncell" value="1" checked onchange="PXDIA.onCellType()"> 1 Cell</label>' +
-        '          <label><input type="radio" name="box12cell_ncell" value="2" onchange="PXDIA.onCellType()"> 2 Cell</label>' +
+        '          <label><input type="radio" name="box12cell_ncell" value="1" checked onchange="PXDIA.redraw()"> 1 Cell</label>' +
+        '          <label><input type="radio" name="box12cell_ncell" value="2" onchange="PXDIA.redraw()"> 2 Cell</label>' +
         '        </div>' +
         '        <div class="px-opthalf px-optseg"><b>Segment Length (mm) :</b>' +
         '          <label><input type="text" spellcheck="false" class="form-input px-seg" id="segLen_s" value="' + SEG_DEF + '" onchange="PXDIA.redraw()" title="Length of the segment this diaphragm belongs to, along the girder axis"></label>' +
