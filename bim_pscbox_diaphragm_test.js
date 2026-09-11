@@ -70,8 +70,8 @@
   // 격벽 개구부 기본값 — 셀당 하나. 사진의 맨홀을 기준으로 잡았다.
   //  모서리 접기(corner trim)는 위·아래가 다른 경우가 있어 각각 받는다 —
   //  Cttx/Ctty 가 위, Ctbx/Ctby 가 아래. 이름이 자리를 말하므로 칸에 설명을 달지 않는다.
-  var OPEN_DEF = { shape: 'HEX', B: 1400, H: 1800,
-                   CTTX: 300, CTTY: 400, CTBX: 300, CTBY: 300, X: 0, Y: 500 };
+  var OPEN_DEF = { shape: 'HEX', B: 800, H: 1000,
+                   CTTX: 150, CTTY: 200, CTBX: 150, CTBY: 150, X: 0, Y: 500 };
 
   // 격벽이 놓이는 세그먼트의 길이 (mm) — 교축 방향. 단면 하나짜리 화면이라
   //  begin/end 간격이 아니라 이 격벽이 속한 세그먼트의 길이다. PSC 와 같은 칸·같은 id 를 쓴다.
