@@ -67,35 +67,48 @@ const over = (lead, sub) => page(
   (sub ? `<div class="sub">${sub}</div>` : '') + `</div></div>`);
 
 const CARDS = {
-  open:   { kind: 'full', html: full('INCHEON BRIDGE', '800 m across.', 'BY PLATE3D') },
+  /* THE HOOK IS THE SPREADSHEET, and it has to be in the first four seconds.
+     A 1,480 m bridge is impressive and everyone has seen one; a 1,480 m bridge
+     that came out of a spreadsheet is the thing that makes somebody stop
+     scrolling. The span can wait - it arrives at 0:38, by which time they are
+     watching anyway. */
+  open:   { kind: 'full', html: full('INCHEON BRIDGE', 'Drawn in a spreadsheet.', 'BY PLATE3D') },
   end:    { kind: 'full', html: full('PLATE3D', 'by macroBIM') },
 
-  /* The six over the take, and they are the erection sequence in words. The
-     sequence is not the obvious one - a cable-stayed bridge does not simply
-     cantilever out both ways - so the first three lines say what is happening
-     while it is happening, and then the film can stop talking. */
-  pyl:    { kind: 'over', html: over('', 'one pylon, EL 13 to EL 238.5') },
-  side:   { kind: 'over', html: over('', 'the side span first &mdash; on falsework, no cables') },
-  seg:    { kind: 'over', html: over('every segment, a pair of cables', 'one forward, one back') },
-  /* On the first bent being let go. A caption on the thing, not a report of
-     it - it lands a beat before the falsework starts to go. */
-  fan:    { kind: 'over', html: over('', 'and the falsework starts to leave') },
-  /* The claim. The Golden Gate's main cable is a parabola sawn into 130
-     straight pieces and that film said so; a stay IS a straight line, so this
-     one gets to say the opposite. Two lines, twelve seconds apart, because
-     the second is the one people will not believe on its own. */
-  rows:   { kind: 'over', html: over('208 cables.', '208 rows.') },
-  exact:  { kind: 'over', html: over('', 'nothing here is an approximation') },
-  /* On the pull-out, when the pylon that was off-screen the whole time comes
-     into frame already grown. The dash is doing work: it makes the line a
-     reply to the picture rather than a label on it. */
-  other:  { kind: 'over', html: over('', '&mdash; and the other pylon did the same') },
+  /* THESE ARE FOR SOMEBODY WHO DOES NOT BUILD BRIDGES. The first draft of them
+     was written for someone who does - "EL 13 to EL 238.5", "one segment and
+     its ring", "nothing here is an approximation" - and every one of those is
+     a sentence you have to already know the answer to. An elevation is not a
+     height to most people, a row is a spreadsheet row only if you have been
+     told, and "approximation" is a word about a thing the film never showed.
 
-  /* The ending's two lines. The first is over the site, where there is room;
-     the second is over the list, where there is not. */
-  nav:    { kind: 'over', html: over('It is on macroBIM.', 'PLATE3D &rarr; Example') },
-  dl:     { kind: 'over', html: over('', 'download it and try it') }
+     So: short, concrete, and each one says what is happening on screen at that
+     second. The surprising part of a cable-stayed bridge is that the middle is
+     built out of nothing, held by wire - say that. */
+  pyl:    { kind: 'over', html: over('First the tower.', '238 metres above the sea.') },
+  side:   { kind: 'over', html: over('', 'The side span goes up on temporary supports.') },
+  seg:    { kind: 'over', html: over('Then it builds into thin air.', 'One piece, two cables, over and over.') },
+  fan:    { kind: 'over', html: over('The supports come away.', 'The cables have it now.') },
+  /* The scale, once, where the fan is big enough on screen to count. */
+  rows:   { kind: 'over', html: over('800 metres between the towers.', '208 cables hold it up.') },
+  /* AND THE CLAIM, IN A FORM THAT IS BOTH TRUE AND INTERESTING. The old line
+     said "nothing here is an approximation", which is a specialist's boast and
+     also an overstatement - the walls of this model are a skin and its deck
+     has no diaphragms in it. What IS exactly true is the cables: a stay is a
+     straight line between two anchorages, so each of the 208 is one row of a
+     spreadsheet and not one of them is chorded or sampled. Saying it that way
+     is checkable, it lands the hook a second time, and nobody has to know what
+     an approximation is. */
+  exact:  { kind: 'over', html: over('', 'Every cable is one row in Excel.') },
+  other:  { kind: 'over', html: over('', 'And the far tower did the same.') },
+
+  /* The ending. "Download it and try it" is what you say when you have run out
+     of things to say; "Open it in Excel" is a thing the viewer can picture
+     themselves doing, which is the whole point of the shot. */
+  nav:    { kind: 'over', html: over("It's on macroBIM.", 'PLATE3D &rarr; Example') },
+  dl:     { kind: 'over', html: over('', 'Download it. Open it in Excel.') }
 };
+
 
 fs.rmSync(OUT, { recursive: true, force: true });
 fs.mkdirSync(OUT, { recursive: true });
