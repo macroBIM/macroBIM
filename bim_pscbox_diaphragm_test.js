@@ -1867,20 +1867,30 @@
         };
         var cx = op.x0, yT = faceAt(cx, true), yB = faceAt(cx, false);
         var slabTop = -Number(ap.TH) + Number(ap.TBS) + cx * (Number(ap.SLB) || 0) / 100;
-        var xlev = ymax + S * (0.14 + i * 0.05);            // B 치수보다 위, 개구부마다 한 칸씩 더 위로
-        rec.addLine(0, 0, xlev + S * 0.02, 0, ymin - S * 0.10, 'h');             // 단면 중심선
-        if (Math.abs(cx) > 1) rec.addLine(0, cx, xlev + S * 0.02, cx, ymin - S * 0.10, 'h');
-        rec.addDimLinear(0, xmin, yT, xmax, yT, S * 0.055, 'B');
-        rec.addDimLinear(0, cx, yB, cx, yT, -S * 0.075, 'H');
+        // 치수 간격은 단면이 아니라 개구부 크기에 맞춘다 — 단면 비율에 상관없이 같은 모양이 되고,
+        // 치수가 단면 밖으로 멀리 나가 그림을 작게 만들지 않는다.
+        var Bo = Math.max(1, op.o.B), Ho = Math.max(1, op.o.H);
+        var xlev = ymax + Ho * (0.55 + i * 0.35);           // B 치수보다 위, 개구부마다 한 칸씩 더 위로
+        rec.addLine(0, 0, xlev + Ho * 0.15, 0, ymin - Ho * 0.5, 'h');            // 단면 중심선
+        if (Math.abs(cx) > 1) rec.addLine(0, cx, xlev + Ho * 0.15, cx, ymin - Ho * 0.5, 'h');
+        rec.addDimLinear(0, xmin, yT, xmax, yT, Ho * 0.30, 'B');
+        rec.addDimLinear(0, cx, yB, cx, yT, -Bo * 0.75, 'H');
         rec.addDimLinear(0, 0, xlev, cx, xlev, 0, 'X');                          // X=0 이면 길이 0 → 안 그려진다
-        rec.addDimLinear(0, cx, slabTop, cx, yB, S * 0.075, 'Y');
+        rec.addDimLinear(0, cx, slabTop, cx, yB, Bo * 0.75, 'Y');
       });
 
-      // 높이는 입력칸 패널에 맞춘다 — 카드가 한 줄로 가지런해진다 (16:9 보다 크지 않게)
+      // 높이 : 입력칸 옆에 나란히 섰으면 그 패널과 똑같이 (남는 폭은 좌우 여백으로 둔다).
+      //        자리가 모자라 아랫줄로 내려갔으면(2 Cell) 그때만 16:9 로 키운다.
       var W = Math.round(box.getBoundingClientRect().width) || 470;
       var c1 = document.getElementById('opCell1');
-      var Hc = c1 ? c1.offsetHeight - 34 : 0;
-      var H = Math.max(Hc > 0 ? Hc : 300, Math.min(Math.round(W * 9 / 16), 560));
+      var vw = box.parentNode;                         // .op-view (머리글 포함)
+      var Hc = c1 ? c1.offsetHeight - (vw ? vw.offsetHeight - box.offsetHeight : 34) : 0;
+      var side = c1 && vw &&
+        (vw.getBoundingClientRect().top - c1.getBoundingClientRect().top) < 4;
+      var bw = Math.max(1, P.PTR.x - P.PTL.x), bh = Math.max(1, P.PTC.y - P.PBC.y);
+      var Hfit = Math.round(bh / bw * (W - 76) + 60);   // 단면 비율에 딱 맞는 높이 (renderSVG 의 여백만큼 더해)
+      var H = (side && Hc > 60) ? Hc
+                                : Math.max(Hc > 0 ? Hc : 300, Math.min(Hfit, 560));
       box.innerHTML = window.RWSVG.renderSVG(rec, W, H);
     },
 
