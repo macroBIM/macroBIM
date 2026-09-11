@@ -69,7 +69,13 @@ const HOLD = 8;                    // and of it standing there, still turning
    goes a step down and the deck two steps, so the fan reads as the brightest
    thing in every frame without anything else being dimmed to make it so. */
 const LIVERY = { 'MD.STAY': '#ffffff', 'MD.PYL': '#e8edf3',
-                 'MD.DCK': '#8b98a6', 'MD.PIE': '#c8d2dc' };
+                 'MD.DCK': '#6f7c8b', 'MD.PIE': '#aab6c2' };
+/* THE DECK CAME BACK BRIGHTER THAN THE CABLES, which is the Eiffel's platforms
+   again: the deck is a flat top face and it catches all the light there is, so
+   a value two steps below the pylon renders above it. It is down two more
+   steps here and it is still the line that makes the bridge readable at
+   1,480 m - it is just no longer the first thing the eye lands on. The fan is
+   the subject and the fan is what is white. */
 
 const F = JSON.parse(fs.readFileSync(path.join(BOOKS, 'frames.json'), 'utf8'));
 const LAST = F[F.length - 1];
@@ -86,6 +92,21 @@ const cam = (st, u) => {
           : Math.pow((u - RELEASE) / (1 - RELEASE), 0.75);
   const lo = mix(st.xlo, LAST.xlo, w), hi = mix(st.xhi, LAST.xhi, w);
   const span = hi - lo;
+  const az = -35 + 360 * u;
+  /* HOW MUCH OF THE LENGTH THE CAMERA CAN ACTUALLY SEE. The bridge runs along
+     x, so square-on it is 1,480 m wide in frame and end-on it is nothing -
+     and the take turns through both. Framed on the span alone the bridge
+     breathed between filling the frame and filling half of it, and the
+     closure, which is the shot the whole take is going towards, came out at
+     half: a long thin thing in the middle of a lot of grid.
+
+     cos of the azimuth is exactly the foreshortening, so multiplying by it
+     holds the framing constant all the way round instead of at one bearing.
+     The floor is not a framing number - it is the camera staying OUTSIDE the
+     bridge. End-on, cos goes to zero and the distance with it, and 0.7 of the
+     span is the nearest a camera can be to the middle of something 740 m long
+     in each direction and still be looking at it. */
+  const face = Math.max(0.7, Math.abs(Math.cos(az * Math.PI / 180)));
   return {
     tx: (lo + hi) / 2, ty: 0,
     /* Just over half the pylon. Aimed at the deck the bridge is a strip across
@@ -94,12 +115,14 @@ const cam = (st, u) => {
     tz: Math.max(60000, st.ztop * 0.52),
     /* Whichever is harder to fit - the pylon standing up or the cantilever
        lying down. Before the deck starts the span is zero and the pylon
-       decides; from the first ring on, the cantilever does. */
-    dist: Math.max(330000, st.ztop * 1.5, span * 1.15),
+       decides; from the first ring on, the cantilever does. Both constants put
+       their subject across about four fifths of the frame, which is what makes
+       the hand-over between them invisible. */
+    dist: Math.max(330000, st.ztop * 1.5, span * face),
     /* Linear in TIME, not in what is built: the turn has to be even whether or
        not the structure is. Exactly 360 degrees, so the last frame of the take
        is the same face as the first. */
-    az: -35 + 360 * u,
+    az: az,
     el: 8 + 8 * u
   };
 };
