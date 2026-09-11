@@ -1079,6 +1079,37 @@
           });
           displayPaths.push(pts);
         });
+        // ── 격벽 개구부 : 콘크리트 면을 닫힌 고리로 잇는다 ─────────────────────
+        //  인력장은 벽 고리를 피복만큼 통째로 오프셋해서 만든다(Physics.buildShiftedWall /
+        //  splitWallLoops). 그 고리 판별이 "배열에서 이어지는 순서 + 마지막 끝점이 첫
+        //  시작점과 만남" 이므로, 개구부는 한 덩어리로 연달아 넣고 마지막이 첫 점으로
+        //  돌아와야 한다. 법선은 구멍 바깥(= 콘크리트 쪽) 한 방향으로 모은다.
+        //  inside() 는 건드리지 않는다 — 단면 루프들의 법선 판정에 영향을 주면 안 된다.
+        (this._openings || []).forEach(function (op, oi) {
+          var pts = (op && op.pts) || [];
+          if (pts.length < 3) return;
+          var area = 0;                                   // 부호 면적으로 감김 방향 확인
+          for (var i = 0; i < pts.length; i++) {
+            var a = pts[i], b = pts[(i + 1) % pts.length];
+            area += a[0] * b[1] - b[0] * a[1];
+          }
+          var seq = (area < 0) ? pts.slice().reverse() : pts;   // 반시계로 통일
+          var path = [], made = 0;
+          for (var k = 0; k < seq.length; k++) {
+            var p = seq[k], q = seq[(k + 1) % seq.length];
+            var dx = q[0] - p[0], dy = q[1] - p[1], len = Math.hypot(dx, dy);
+            path.push({ x: p[0], y: p[1] });
+            if (len < 0.5) continue;                      // 겹친 점은 벽을 만들지 않는다
+            eid++;
+            walls.push({ id: 'E' + eid, tag: 'inner',
+                         nx: dy / len, ny: -dx / len,     // 반시계 → 구멍 바깥쪽 법선
+                         x1: p[0], y1: p[1], x2: q[0], y2: q[1], src: 'open' + (oi + 1) });
+            made++;
+          }
+          path.push({ x: seq[0][0], y: seq[0][1] });
+          if (made) displayPaths.push(path);
+        });
+
         function cval(id, def) { var el = document.getElementById(id); var n = el ? Number(el.value) : NaN; return isFinite(n) && n > 0 ? n : def; }
         return { walls: walls, displayPaths: displayPaths,
                  covers: { top: cval('cover_deck_s', 50), outer: cval('cover_ext_s', 40), inner: cval('cover_int_s', 30) } };
@@ -1815,6 +1846,14 @@
 
       var ops = this._openings || [];
       var self2 = this;
+      // X 지시선은 개구부마다가 아니라 하나의 높이에 모은다 — 좌·우가 같은 선 위에 놓인다.
+      //  둘이 중심선 양쪽으로 갈라져 나가므로 같은 높이라도 겹치지 않는다.
+      var xlev = 0;
+      ops.forEach(function (op) {
+        var ys = op.pts.map(function (p) { return p[1]; });
+        var lv = Math.max.apply(null, ys) + Math.max(1, op.o.H) * 0.55;
+        if (!xlev || lv > xlev) xlev = lv;
+      });
 
       // 해치 — 셀 안이면서 개구부 밖인 구간만 긋는다
       this._cellPolys(P, two).forEach(function (poly) {
@@ -1870,7 +1909,6 @@
         // 치수 간격은 단면이 아니라 개구부 크기에 맞춘다 — 단면 비율에 상관없이 같은 모양이 되고,
         // 치수가 단면 밖으로 멀리 나가 그림을 작게 만들지 않는다.
         var Bo = Math.max(1, op.o.B), Ho = Math.max(1, op.o.H);
-        var xlev = ymax + Ho * (0.55 + i * 0.35);           // B 치수보다 위, 개구부마다 한 칸씩 더 위로
         rec.addLine(0, 0, xlev + Ho * 0.15, 0, ymin - Ho * 0.5, 'h');            // 단면 중심선
         if (Math.abs(cx) > 1) rec.addLine(0, cx, xlev + Ho * 0.15, cx, ymin - Ho * 0.5, 'h');
         rec.addDimLinear(0, xmin, yT, xmax, yT, Ho * 0.30, 'B');
