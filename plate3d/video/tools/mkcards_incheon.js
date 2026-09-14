@@ -67,12 +67,23 @@ const over = (lead, sub) => page(
   (sub ? `<div class="sub">${sub}</div>` : '') + `</div></div>`);
 
 const CARDS = {
-  /* THE HOOK IS THE SPREADSHEET, and it has to be in the first four seconds.
-     A 1,480 m bridge is impressive and everyone has seen one; a 1,480 m bridge
-     that came out of a spreadsheet is the thing that makes somebody stop
-     scrolling. The span can wait - it arrives at 0:38, by which time they are
-     watching anyway. */
-  open:   { kind: 'full', html: full('INCHEON BRIDGE', 'Drawn in a spreadsheet.', 'BY PLATE3D') },
+  /* HOW TO BUILD, because that is what the film does. "INCHEON BRIDGE" names a
+     thing and this film is not about a thing, it is about an order of
+     operations - the tower, then the side span on props, then the middle built
+     out of nothing. A title that promises a process is a title the film keeps.
+
+     AND THE HOOK IS THE SPREADSHEET, in the first four seconds. A 1,480 m
+     bridge is impressive and everyone has seen one; a 1,480 m bridge that came
+     out of a spreadsheet is what makes somebody stop scrolling. The span can
+     wait - it arrives at 0:38, by which time they are watching anyway.
+
+     The line above the title earns its place twice over. It credits the tool,
+     and - because a film called HOW TO BUILD that opens on a 3D bridge could
+     be mistaken for footage of the real thing - it says this is a model before
+     anyone has to wonder. It does not repeat the line below it: one names the
+     tool, the other says what the tool is. */
+  open:   { kind: 'full', html: full('HOW TO BUILD<br>THE INCHEON BRIDGE',
+                                     'Drawn in a spreadsheet.', 'MODELLED IN PLATE3D') },
   end:    { kind: 'full', html: full('PLATE3D', 'by macroBIM') },
 
   /* THESE ARE FOR SOMEBODY WHO DOES NOT BUILD BRIDGES. The first draft of them
