@@ -92,9 +92,9 @@ git status --short     # 비어 있어야 한다
 
 | | |
 |---|---|
-| 엔진 | `plate3d/plate_builder.js` · **`?v=93`** |
-| 승격한 커밋 | `ada0605` (2026-09-10) |
-| 짝이 되는 design 커밋 | `7b748e9` — `layout_body.js` 의 `embed.html?v=93` |
+| 엔진 | `plate3d/plate_builder.js` · **`?v=94`** |
+| 승격한 커밋 | `09638bb` (2026-09-14) — 예제 워크북 + Example 문구 |
+| 짝이 되는 design 커밋 | `?` — `layout_body.js` 의 `embed.html?v=94` |
 | 테스트 엔진과의 차이 | **없음** — 승격 직후라 두 파일이 같다 |
 
 `?v=` 는 **두 군데**다. `plate3d/embed.html` 의 `plate_builder.js?v=` 와
@@ -131,7 +131,6 @@ git status --short     # 비어 있어야 한다
 | | 어디에 적혀 있나 |
 |---|---|
 | **테스트 페이지가 `main` 이 아닌 브랜치를 보게 하기** — 검증하려고 올리는 것이 검증 전에 공개된다 | `plate3d/README.md` 「테스트본 / 운영본 분리」 |
-| **`PLATE3D_TEMPLATE.xlsx` 에 `NOTCH` · `PLOT` · `POS` · `TAPER` 채우기** — 예제는 두 엔진이 같은 파일을 받아가므로 테스트만 고칠 수가 없다. 넷을 한꺼번에 | `plate3d/README.md` |
 | **철근 절곡 · 곡선 경로 sweep** — 직선 변단면으로 구조물을 먼저 만들어 보고 정한다 | `plate3d/DATA_SCHEMA.md` TAPER |
 | **재질별 비중** — `RHO` 가 강재로 고정이라 슬래브·방호벽도 강재로 잰다 | — |
 | **격벽 철근을 올릴 때 셀 내면을 인력 경계에서 뺄지** — 격벽 평면에서는 셀이 콘크리트로 차 있으므로 「외곽 + 개구부」만 남는 것이 맞다. 지금은 박스 단면의 `inner` 벽이 그대로 들어 있다 | 이 파일 · 2026-09-11 `c69d3aa` |
@@ -141,6 +140,27 @@ git status --short     # 비어 있어야 한다
 ## 기록
 
 **맨 위가 최신.** 한 줄에 하나: 날짜 · 커밋 · 무엇이 · 어디까지(테스트/운영).
+
+### 2026-09-14
+
+- `09638bb` **예제 워크북에 TAPER — `?v=94`** · **운영**
+  가이드(§6.6)는 승격 때 같이 갔는데 **예제 15권 어디에도 TAPER 가 없었다.**
+  - `PLATE3D_BASIC.xlsx` — 시트 제목이 "every keyword, one small model" 인데
+    빠져 있었다. 있는 형상은 안 건드리고 **더했다**: 기둥 바깥면에 매다는
+    변단면 브래킷(끝 H110 → 기둥 쪽 H200, `tc tc` 로 윗면 평평). `md.col` 에
+    넣어 MIR·COPY 를 타고 여섯이 된다 — 변단면이 대칭·복사를 지나가는 것까지
+    한 번에 보인다. 처음엔 클리트 판과 10 mm 겹쳐서 판 바깥면(x −610)에서
+    멈추게 물렸다. 90 부재 1.70 t → **96 부재 1.81 t**, 겹침 0
+  - `PLATE3D_TEMPLATE.xlsx` — "모든 키워드와 형식"이라면서 `TAPER`·`NOTCH`·
+    `PLOT` 이 없었다. 셋을 채웠다. **`POS` 는 안 넣는다** — 가이드에 한 번도
+    안 나오는 옛 형식이라 템플릿이 가르칠 것이 아니다. `VIEW` 줄이 실제
+    문법과 달랐던 것(scale 칸 누락, 방향 목록 부족)도 같이 고쳤다.
+    여전히 0 부재 0 오류
+  - Example 목록 문구를 실제 값으로: Basic `82 rows → 96 members · 1.81 t`,
+    Template `179 rows`
+  포맷 잠금 **변화 없음** — BASIC 의 BOQ 모양이 그대로다.
+  회귀 아홉 종 전부 통과 (samples 15권 · taper 34 · notch 34 · by 20 ·
+  view3d_dxf 33 · clash 15 · tutorial 62 · column ✓ · simpleconn 11)
 
 ### 2026-09-11
 

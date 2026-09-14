@@ -12422,9 +12422,9 @@
        grammar, commented out, with room to type between the lines. Basic keeps
        its "Start here": the two say different things - write your own, or watch
        one work. */
-    { f: 'PLATE3D_TEMPLATE.xlsx', n: 'Template', s: '151 rows → 0 members, by design',
+    { f: 'PLATE3D_TEMPLATE.xlsx', n: 'Template', s: '179 rows → 0 members, by design',
       d: 'Every keyword and form, commented out. Write your own.' },
-    { f: 'PLATE3D_BASIC.xlsx', n: 'Basic', s: '76 rows → 90 members · 1.70 t',
+    { f: 'PLATE3D_BASIC.xlsx', n: 'Basic', s: '82 rows → 96 members · 1.81 t',
       d: 'Every keyword once, in one real model. Start here.' },
     { f: 'PLATE3D_SAMPLE.xlsx', n: 'Sample', s: '38 rows → 48 members · 803 kg',
       d: 'ADD / MIR / COPY / ROT, one command per assembly.' },
