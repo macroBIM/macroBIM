@@ -24,7 +24,97 @@
 
 이게 이 영상이 앞의 둘과 다른 이유이고, 컷 2 의 자막 한 줄이 그것입니다.
 
-## 3. 컷 리스트 — 약 1:41
+## 3. 메타
+
+| 항목 | 내용 |
+|---|---|
+| 제목 | `INCHEON BRIDGE 3D BIM — How an 800 m Span Is Built | PLATE3D` |
+| 대안 1 | `HOW TO BUILD THE INCHEON BRIDGE — 800 m, in a Spreadsheet | PLATE3D` |
+| 대안 2 | `INCHEON BRIDGE 3D BIM — 208 Cables, 208 Rows | PLATE3D` |
+| 규격 | 1:41 · 1920×1080 · 30 fps · **음악 미정** · **자막 영어** |
+| 썸네일 | `PLATE3D_INCHEON_thumb.jpg` — 전체 ISO 풀블리드, `3D BIM MODELING` / `INCHEON BRIDGE` / `by PLATE3D` |
+| 공개 | **미정** |
+
+**제목이 썸네일·오프닝 카드와 겹치지 않습니다.** 썸네일이 이미
+`3D BIM MODELING / INCHEON BRIDGE` 라고 말하고 카드가
+`HOW TO BUILD THE INCHEON BRIDGE / Drawn in a spreadsheet.` 라고 말하므로,
+제목은 **그 다음 말**을 합니다 — 800 m 짜리 경간이 어떻게 서는가.
+
+`Excel` 을 제목에 또 쓰지 않은 이유가 그것입니다. 골든게이트 제목이
+`Built From One Excel Sheet` 였고, 이 편의 카드가 `Drawn in a spreadsheet.`
+입니다. 세 번째로 같은 말을 제목에 박으면 **같은 영상을 세 번 올린 것처럼**
+보입니다. 스프레드시트는 카드와 0:50 자막이 이미 두 번 칩니다.
+
+검색어는 제목 앞쪽에 다 있습니다: **incheon bridge · 3D · BIM · 800 m span**.
+
+### 설명란 전문
+
+```
+3D BIM Modelling the Incheon Bridge in PLATE3D — simple, and fast.
+
+One camera, one take, and the order is the real one:
+
+  the tower        EL 13 up to EL 238.5
+  the side span    lifted onto temporary supports, no cables on it yet
+  then the middle  one segment at a time, out over open water
+  every segment    gets two cables — one forward, one back
+  the supports     come away as the cables take the load
+  closure          400 m out from each tower
+
+A cable-stayed bridge cannot hang its deck off a cable the way a suspension
+bridge does. The side span goes up first so the back stays have something to
+pull against; after that the main span builds into thin air, and the only
+thing holding it up is wire.
+
+208 cables, and every one of them is one row in a spreadsheet — a stay is a
+straight line between two anchorages, so nothing here is chorded or sampled.
+
+513 rows in one tab. 566 members. No clashes.
+Eight drawings come out as DXF at the press of a button.
+
+THE FILE IS YOURS
+The last twenty seconds are somebody taking it: PLATE3D -> Example ->
+Incheon Bridge. Open it in Excel, change a number, load it again.
+
+Runs in the browser. Nothing to install.
+macrobim.github.io
+
+0:00  The tower
+0:19  Out into thin air
+1:05  The whole bridge
+1:20  Get it at macroBIM
+
+#IncheonBridge #CableStayedBridge #BIM #3DModeling #StructuralEngineering #PLATE3D
+```
+
+**챕터 넷, 전부 10초를 넘습니다.** 실제 컷은 0:00 / 0:04 / 1:12 / 1:20 / 1:37
+인데 4초·8초·4초짜리가 셋이라 그대로는 유투브의 최소 10초를 못 넘깁니다.
+그래서 컷이 아니라 **테이크 안의 실제 사건**에 붙였습니다:
+
+| 챕터 | 무슨 일이 일어나는 시각인가 | 길이 |
+|---|---|---|
+| `0:00 The tower` | 카드 + 주탑이 오르는 구간 | 19s |
+| `0:19 Out into thin air` | 링 0 — 중앙경간이 시작하는 바로 그 프레임 | 46s |
+| `1:05 The whole bridge` | 카메라가 놓아주는 프레임 (RELEASE 0.90) | 15s |
+| `1:20 Get it at macroBIM` | 사이트로 넘어가는 실제 컷 | 21s |
+
+**두 번째와 네 번째가 프레임까지 정확합니다.** 사람들이 눌러서 가는 곳은
+이 둘입니다 — 하나는 영상의 주장이 시작되는 데고, 하나는 파일을 받는 데니까요.
+
+### 태그
+
+```
+incheon bridge, incheon bridge 3d model, cable stayed bridge,
+cable stayed bridge construction, bridge erection sequence, bridge bim,
+bridge 3d model, bridge engineering, cantilever erection, stay cable, pylon,
+BIM, 3D modeling, structural engineering, steel structure, spreadsheet, excel,
+parametric model, DXF, 인천대교, 사장교, PLATE3D, macroBIM
+```
+
+**중량은 어디에도 안 씁니다.** 껍데기 모델이라 앱이 보여주는 55,003 t 은
+다리의 강중량이 아닙니다 (§7).
+
+## 4. 컷 리스트 — 약 1:41
 
 | # | 시각 | 길이 | 화면 | 자막 |
 |---|---|---|---|---|
@@ -41,7 +131,7 @@
 가설순서가 균형 캔틸레버가 아니라는 것은 화면만으로는 안 읽히므로 말로 해
 줘야 하고, 그 다음에는 다리가 알아서 합니다.
 
-## 4. 컷 2 — 실제 가설순서
+## 5. 컷 2 — 실제 가설순서
 
 **처음에 쓴 순서는 그럴듯한 추측이었고 틀렸습니다.**
 
@@ -126,7 +216,7 @@ STAGE=<n> node tools/make_incheon.js OUT.xlsx     # 비우면 다리 전체
 출하 워크북과 행이 완전히 같습니다 (513행, 차이 0).
 
 
-## 5. 카메라 — 붙어 있다가, 마지막에 빠진다
+## 6. 카메라 — 붙어 있다가, 마지막에 빠진다
 
 처음 판단은 "다리가 옆으로 자라니 카메라도 계속 뒤로 물러난다"였는데
 **틀렸습니다.** 그러면 66 초 내내 1,480 m 를 보게 되고, 한 마디가 나가고
@@ -158,7 +248,7 @@ STAGE=<n> node tools/make_incheon.js OUT.xlsx     # 비우면 다리 전체
   다리가 반쯤 지은 다리보다 화면에서 작아집니다. B 구간 안에서만 적용하고,
   C 구간은 따로 이징합니다.
 
-## 6. 도장
+## 7. 도장
 
 이 편은 **다리 자신의 색이 그대로 먹습니다.** 인천대교는 흰 콘크리트 주탑에
 흰 케이블입니다. 검은 뷰포트에서 흰색은 가장 잘 보이는 색이라, 에펠처럼
@@ -171,7 +261,7 @@ md.pyl=#e8edf3   md.stay=#ffffff   md.dck=#8b98a6   md.pie=#c8d2dc
 **케이블을 순백으로 두는 것이 이 편의 도장 판단 전부입니다.** 208 가닥이
 주인공이니 그것만 제일 밝습니다.
 
-## 7. 실측값
+## 8. 실측값
 
 | | 값 |
 |---|---|
@@ -186,64 +276,61 @@ md.pyl=#e8edf3   md.stay=#ffffff   md.dck=#8b98a6   md.pie=#c8d2dc
 **중량은 인용하지 않습니다.** "겉면만" 모델이라 벽두께가 껍데기이고, 이
 숫자는 다리의 강중량이 아니라 껍데기의 무게입니다. 설명란에도 안 씁니다.
 
-## 8. 지금 막혀 있는 것 — **컷 4**
+## 9. 컷 4 — 풀렸습니다
 
-**이 워크북은 운영 엔진에서 안 열립니다.** TAPER 가 `plate_builder_test.js`
-에만 있고 `plate_builder.js` 에는 없습니다. 그래서:
+**TAPER 가 운영 엔진으로 올라갔습니다** (`?v=94`). 그래서 Example 목록에
+인천대교 줄이 있고, 컷 4 에서 그 줄을 실제로 눌러 받는 장면을 찍었습니다 —
+촬영 스크립트가 버튼이 `saved` 가 되는 것과 실제로 다운로드가 일어났는지를
+둘 다 확인하고, 안 되면 촬영을 멈춥니다.
 
-- Example 목록에 넣을 수 없습니다. 방문자가 받는 것은 운영 엔진입니다.
-- **컷 4 에서 인천대교 줄을 누를 수가 없습니다.** 골든게이트와 에펠에서는
-  버튼이 진짜로 `saved` 가 되는 것을 찍었고, 그게 그 컷이 존재하는 이유였습니다.
+받을 수 없는 파일을 받으라고 하는 영상은 첫 편에서 정한 규칙을 깹니다. 그
+규칙을 지켰습니다.
 
-**TAPER 가 운영으로 올라가기 전에는 컷 4 를 찍을 수 없습니다.** 대안 둘:
-
-1. **기다린다.** TAPER 를 운영으로 올리고 그 다음에 찍는다. 이게 맞습니다 —
-   받을 수 없는 파일을 받으라고 하는 영상은 첫 편에서 정한 규칙을 깹니다.
-2. 컷 4 를 다른 샘플로 찍는다. **안 됩니다.** 인천대교 영상에서 에펠탑을
-   받는 장면은 거짓말입니다.
-
-## 9. 정해진 것 / 남은 것
+## 10. 정해진 것 / 남은 것
 
 정해진 것:
 
-- 원테이크 · 균형 캔틸레버 · 중앙 폐합
-- **주탑 하나에 붙어 있다가 폐합 직전에 빠진다** (§5) — 사장교는
-  주탑 하나가 중심이지 두 탑 사이가 아니다
-- **마디와 케이블은 두 박자** — 62 단계 (§4)
-- `STAGE` 스위치 ✔ 들어감
-- 자막 여덟 줄, 3 번 컷 무자막
-- **주장은 "케이블 하나가 행 하나"** — 0:38 과 0:52
+- 원테이크 · **실제 가설순서**(§5) · 중앙 폐합
+- **주탑 하나에 붙어 있다가 폐합 직전에 빠진다**(§6) — 사장교는 주탑 하나가
+  중심이지 두 탑 사이가 아니다
+- **마디와 케이블은 두 박자**, 한 링은 앞뒤 한 쌍 — 66 단계 (§5)
+- 동바리는 한 번에 안 빠지고 주탑 쪽부터 하나씩 (§5)
+- **자막은 다리를 안 짓는 사람한테 하는 말** — 카드가 훅, 0:50 이 그것을 한 번 더
 - 도장은 케이블만 순백
-- 끝은 실제 받는 장면 (단, §8)
+- 제목 `HOW TO BUILD / THE INCHEON BRIDGE`, 위에 `MODELLED IN PLATE3D`
+- 끝은 실제 받는 장면 ✔ 찍었음 (§9)
+- 썸네일 ✔ — 글자 작게 · 그림 크게 · 카메라 20°
 
 남은 것:
 
-- **TAPER 운영 승격** ← 컷 4 가 여기 걸려 있다
-- 촬영 도구 네 개 (§10)
-- 썸네일 · 음악 · 공개 여부
+- **음악** — 무음 마스터 18.5 MB, 30 MB 한도까지 11.5 MB 여유
+- 공개 여부
 
-## 10. 파일
-
-있는 것:
+## 11. 파일
 
 ```
-plate3d/PLATE3D_INCHEON.xlsx          513행 · 566부재 · 겹침 0
-plate3d/tools/make_incheon.js         생성기 · STAGE=<0..61>
-plate3d/video/tools/video_page.html   촬영 하네스
-plate3d/video/tools/site_page.html    macroBIM 화면
-plate3d/video/tools/score.js          음악
-plate3d/video/tools/mkthumb.js        썸네일
-plate3d/tools/draw_shot.js            도면을 눈으로 확인
+plate3d/PLATE3D_INCHEON.xlsx             513행 · 566부재 · 겹침 0
+plate3d/tools/make_incheon.js            생성기 · STAGE=<0..65> · STAGES=1
+plate3d/video/tools/make_incheon_stages.js   워크북 66장 + frames.json
+plate3d/video/tools/mkcards_incheon.js       카드 (full 2 · over 9)
+plate3d/video/tools/rendercards_incheon.js   카드 -> JPG/PNG
+plate3d/video/tools/shoot_incheon.js         촬영 · ONLY=tail 로 엔딩만
+plate3d/video/tools/assemble_incheon.js      조립
+plate3d/video/tools/probe_inc_frame.js       화각 상수를 재는 도구
+plate3d/video/tools/mkthumb.js               썸네일 (incheon 항목)
+plate3d/video/tools/score.js                 음악
 ```
 
-만들 것:
+**다시 만들려면 다섯 줄입니다:**
 
 ```
-video/tools/make_incheon_stages.js    62장
-video/tools/mkcards_incheon.js        카드 (full 2 · over 5)
-video/tools/shoot_incheon.js          촬영 — 컷 5개
-video/tools/assemble_incheon.js       조립
+node video/tools/make_incheon_stages.js
+node video/tools/mkcards_incheon.js
+node video/tools/rendercards_incheon.js
+node video/tools/shoot_incheon.js          # 20분
+node video/tools/assemble_incheon.js
 ```
 
-앞의 두 편에서 만든 것을 거의 그대로 씁니다. 새로 판단할 것은 **카메라를
-언제 놓아주느냐**(§5) 하나입니다.
+자막 문구만 고칠 때는 **촬영을 건너뜁니다** — 카드는 조립할 때 얹히므로
+`mkcards` → `rendercards` → 오프닝 스틸 한 장 교체 → `assemble` 로 2분입니다.
+엔딩(컷 4)만 다시 찍을 때는 `ONLY=tail` 이 테이크를 그대로 두고 이어 찍습니다.
