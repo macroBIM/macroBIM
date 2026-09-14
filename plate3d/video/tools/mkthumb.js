@@ -196,6 +196,48 @@ const FILMS = [
     l1: '3D BIM MODELING', l2: 'EIFFEL<br>TOWER',
     l3: 'by PLATE3D' },
 
+  /* The third of the set, and the first one asked for SMALLER TYPE AND A BIGGER
+     PICTURE. Which is the right way round for this subject: the Golden Gate
+     thumbnail has to carry a name people already know, and this one has to
+     carry a shape most people have never looked at. So the name comes down from
+     82 to 66, the kicker from 46 to 38, and the wash comes in with them - the
+     dark corner is sized for the words that sit in it, and words this size in
+     the old wash would be a hole in the picture with a little writing in it.
+
+     THE COLOUR IS THE ODD ONE OUT ON PURPOSE. The other two are orange and
+     amber, and three warm thumbnails in a row read as one video posted three
+     times. Incheon is white cable on pale concrete and on this navy ground
+     white is the strongest thing there is - so the set comes out warm, warm,
+     cold, and the third one is visibly a different bridge at 320 px.
+
+     The cables are the picture. They are also 225 mm pipes at 1,480 m, which
+     is a hair's width in a thumbnail, so they are left pure white while the
+     deck goes up a stop into a cool steel: the fan has to survive the
+     downscale, and it only survives if nothing near it is as bright. */
+  { id: 'incheon',
+    out: 'PLATE3D_INCHEON_thumb.jpg',
+    book: P3 + '/PLATE3D_INCHEON.xlsx',
+    bleed: true,
+    /* el 20, not the Golden Gate's 34. That bridge is a curve and looking down
+       on it is what makes the curve read; this one is a pair of fans, and from
+       34 degrees up the pylons foreshorten into stubs and the fans flatten
+       into grey smears with a lot of empty grid around them. Dropped to 20 the
+       pylons stand up, the fans open out, and both ends of the 1,480 m still
+       fit in the frame. */
+    hero: { kind: 'model', aim: { tx: 0, ty: 0, tz: 110000,
+                                  dist: 1250000, az: -45, el: 20 },
+            /* pad 0.06, not the bridge's usual 0.02. The Golden Gate's deck is
+               the top of its silhouette and can run to the edge; here the top
+               of the silhouette is a PYLON, and a pylon whose head is clipped
+               by the frame looks like a mistake rather than a crop. */
+            pad: 0.06, aspect: 16 / 9, fill: true },
+    livery: { 'MD.STAY': '#ffffff', 'MD.PYL': '#e8f0fa',
+              'MD.DCK': '#5d7997', 'MD.PIE': '#93a8bf' },
+    wash: [96, 76],
+    s1: 38, sz: 66,
+    l1: '3D BIM MODELING', l2: 'INCHEON<br>BRIDGE',
+    l3: 'by PLATE3D' },
+
   { id: 'simpleconn',
     out: 'PLATE3D_SIMPLECONN_thumb.jpg',
     book: P3 + '/PLATE3D_COLUMN.xlsx',
@@ -374,8 +416,14 @@ ${f.side ? `
        linear-gradient(to top, rgba(11,18,32,.72) 0%, rgba(11,18,32,0) 20%)}
  .txt{position:absolute;left:62px;top:50%;transform:translateY(-50%);z-index:2}` : `
  /* A radial wash in the corner the diagonal leaves empty, not a straight-edged
-    veil: an edge across a full-bleed picture reads as a band laid over it. */
- .veil{position:absolute;inset:0;background:radial-gradient(120% 95% at 6% 96%,
+    veil: an edge across a full-bleed picture reads as a band laid over it.
+
+    ITS SIZE FOLLOWS THE TYPE. The default 120x95 was cut for 82 px of name over
+    a 46 px kicker; set the name smaller and the same wash is a hole in the
+    picture with a little writing in it. wash: [w, h] takes it in - and no
+    backticks in this comment, because it lives inside a template literal and
+    one of those ends the string. */
+ .veil{position:absolute;inset:0;background:radial-gradient(${(f.wash || [120, 95])[0]}% ${(f.wash || [120, 95])[1]}% at 6% 96%,
        rgba(11,18,32,.97) 0%,rgba(11,18,32,.9) 34%,
        rgba(11,18,32,.35) 60%,rgba(11,18,32,0) 78%)}
  .txt{position:absolute;left:62px;bottom:56px;z-index:2}`}` : `
