@@ -74,6 +74,22 @@ const FADE_OUT = +(process.env.FADE_OUT || 4);
 const LUFS = +(process.env.LUFS || -15);
 const XF = +(process.env.XF || 3);
 const TP = +(process.env.TP || -1.5);   // true-peak ceiling, dBFS
+/* START= drops the first N seconds of the track, which is how a lift is put
+   somewhere the picture wants one.
+
+   A track has its own landmarks and so does a film, and left alone they land
+   where they land. Horizons steps up at 0:20, 0:47 and 1:26; the Incheon film
+   opens out at 1:05 and has nothing else to hit. From the top, the track's
+   biggest lift arrives at 1:26 - over a screenshot of a web page - and the one
+   moment the film is built towards gets no help at all. Dropped 21 seconds,
+   the two lifts land at 0:26 and 1:05: the segment that starts the main span,
+   and the reveal.
+
+   It costs the track's first 20 seconds, which is only worth spending when
+   what it costs is small. Here it is 1.3 dB: the intro and the section after
+   it are nearly the same level, so the film still opens quiet. On a track that
+   really does begin from nothing, don't. */
+const START = +(process.env.START || 0);
 
 const probe = f => {
   let out = '';
@@ -82,8 +98,10 @@ const probe = f => {
   const m = out.match(/Duration: (\d+):(\d+):([\d.]+)/);
   return m ? (+m[1]) * 3600 + (+m[2]) * 60 + (+m[3]) : 0;
 };
-const VD = probe(VID), MD = probe(MUS);
-console.log('picture ' + VD.toFixed(1) + ' s   ·   track ' + MD.toFixed(1) + ' s');
+const VD = probe(VID), MD0 = probe(MUS);
+const MD = MD0 - (+(process.env.START || 0));
+console.log('picture ' + VD.toFixed(1) + ' s   ·   track ' + MD0.toFixed(1) + ' s' +
+            (process.env.START ? '   ·   from ' + (+process.env.START).toFixed(1) + ' s' : ''));
 
 /* Where to cut the track and where to come back. Given, or worked out: leave
    at the end and come back at the top, which is the loop that always works and
@@ -112,11 +130,13 @@ if (short && joined < VD - 0.5)
   console.log('  even joined it is ' + (VD - joined).toFixed(1) +
               ' s short - the end of the film will be quiet');
 
+const head = START > 0 ? 'atrim=' + START.toFixed(3) + ',asetpts=N/SR/TB,' : '';
 const pre = short
-  ? '[1:a]atrim=0:' + LOOP_AT.toFixed(3) + ',asetpts=N/SR/TB[la];' +
-    '[2:a]atrim=' + LOOP_TO.toFixed(3) + ',asetpts=N/SR/TB[lb];' +
+  ? '[1:a]atrim=' + START.toFixed(3) + ':' + (START + LOOP_AT).toFixed(3) +
+    ',asetpts=N/SR/TB[la];' +
+    '[2:a]atrim=' + (START + LOOP_TO).toFixed(3) + ',asetpts=N/SR/TB[lb];' +
     '[la][lb]acrossfade=d=' + XF + ':c1=tri:c2=tri[m];[m]'
-  : '[1:a]';
+  : '[1:a]' + head;
 
 const shaped = [
   'atrim=0:' + VD.toFixed(3),
