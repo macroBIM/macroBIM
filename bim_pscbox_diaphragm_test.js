@@ -85,7 +85,7 @@
   //  3D 모듈은 이 페이지와 따로 받아 온다. 주소가 같으면 브라우저가 옛 파일을
   //  그대로 쓴다 — 고쳐 올려도 화면이 안 바뀌고, 새 함수(setProjection 같은)를
   //  못 찾아 버튼이 먹통이 된다. 3D 파일을 고칠 때마다 이 번호를 올린다.
-  var V3D = 5;
+  var V3D = 6;
 
   // const/class 로 선언된 전역도 감지 (window 프로퍼티가 아니므로 bare typeof 필요)
   function hasGlobal(name) { try { return (0, eval)('typeof ' + name) !== 'undefined'; } catch (e) { return false; } }
@@ -902,6 +902,8 @@
       _finalizeArcs: function () {
         if (typeof UI === 'undefined') return;
         this._rebarSettled = true;
+        //  본 단면이 끝난 뒤에 폐합철근을 그 평면에서 따로 안착시킨다 (Domain 을 잠시 빌린다)
+        try { this._settleHoops(); } catch (e) { console.error('[PSCDIA] 폐합철근:', e); }
         var self3d = this;
         setTimeout(function () { self3d.refresh3D(); }, 0);   // 안착이 끝난 좌표로만 3D 를 편다
         try { if (typeof UI.updateVisuals === 'function') UI.updateVisuals(); } catch (e) {}  // 최종 프레임 반영
@@ -1369,6 +1371,7 @@
             var no = self._loadOpenFromExcel(data);       // ③-3 'open' 블록 → 격벽 개구부 (셀당 한 줄)
             self._renderRebarTables();           // ④ 'trebar/lrebar' 블록 → REBAR 표
             self._rebarData = self._parseRebar(data);
+            self._loadCrebarFromExcel(data);      // ④-1 'crebar' 블록 → 교축방향 폐합철근
             console.log('[PSCDIA] 철근 파싱:', self._rebarData);
             self.redraw();              // 재작도 (physics 포함)
             // 'open' 줄이 없는 2 Cell 파일은 X 가 0 이라 둘이 중앙복부에 겹친다 — 셀 중앙으로 맞춘다
@@ -1480,6 +1483,127 @@
         }
       }
       return 0;
+    },
+
+    /* ── 'crebar' 블록 : 교축방향 폐합철근 (⑩ ⑩-1 ⑩-2) ──────────────────
+         crebar | id | dia | plane | at | set | lap
+
+       다른 철근(trebar)은 단면 평면에 눕는다. 이 철근은 그 평면과 90° 다르다 —
+       격벽의 두께(교축 z)를 감아 도는 닫힌 고리다.
+
+       놓는 방법은 새로 만들지 않는다. 물리는 **2D 평면 하나**만 알 뿐 그것이
+       단면인지 수평면인지 모른다. 높이 `at` 에서 격벽을 수평으로 자르면 또
+       하나의 평면이 나오고, 그 평면의 콘크리트는 「그 높이의 단면 폭 × 격벽
+       두께」인 직사각형이다. 네 면을 벽으로 주면 지금 인력장이 그대로 돈다.
+       가로는 x, 세로는 교축 z 로 뜻만 바뀐다.
+       그래서 폭을 입력받지 않는다 — 높이만 주면 폭은 콘크리트가 정한다.      */
+    _loadCrebarFromExcel: function (fullData) {
+      if (!Array.isArray(fullData)) return 0;
+      var out = [];
+      for (var r = 0; r < fullData.length; r++) {
+        var row = fullData[r];
+        if (this._rowIsEnd(row)) break;
+        if (this._rowIsComment(row)) continue;
+        var hc = -1;
+        for (var c = 0; c < (row ? row.length : 0); c++) {
+          if (String(row[c] == null ? '' : row[c]).trim().toLowerCase() === 'crebar') { hc = c; break; }
+        }
+        if (hc < 0) continue;
+        var g = row.slice(hc);
+        var at = this._rbNum(g[4]);
+        if (!isFinite(at)) { console.warn('[PSCDIA] crebar ' + this._rbStr(g[1]) + ' : at(높이)을 읽을 수 없음'); continue; }
+        out.push({ id: this._rbStr(g[1]), dia: this._rbNum(g[2]) || 25,
+                   plane: (this._rbStr(g[3]) || 'xz').toLowerCase(),
+                   at: at, set: (this._rbStr(g[5]) || 'all').toLowerCase(),
+                   lap: this._rbHas(g[6]) ? this._rbNum(g[6]) : 0 });
+      }
+      this._crebarData = out;
+      if (out.length) console.log('[PSCDIA] crebar 로드: ' + out.length + '개 (' +
+        out.map(function (o) { return o.id + '@' + o.at; }).join(', ') + ')');
+      return out.length;
+    },
+
+    //  높이 y 에서 단면이 가로로 얼마나 넓은가 — 바깥 윤곽과 만나는 두 점 사이
+    _widthAtY: function (y) {
+      var outer = (this._sectPoly && this._sectPoly.outer) || [];
+      if (outer.length < 3) return null;
+      var xs = [];
+      for (var i = 0; i < outer.length; i++) {
+        var a = outer[i], b = outer[(i + 1) % outer.length];
+        if ((a[1] > y) === (b[1] > y)) continue;
+        xs.push(a[0] + (b[0] - a[0]) * (y - a[1]) / (b[1] - a[1]));
+      }
+      if (xs.length < 2) return null;
+      xs.sort(function (p, q) { return p - q; });
+      return { x0: xs[0], x1: xs[xs.length - 1] };
+    },
+
+    //  평면 직사각형을 벽 네 장으로. 법선은 안쪽(중심)을 향한다.
+    _planWalls: function (x0, x1, t) {
+      var cx = (x0 + x1) / 2, cor = [[x0, -t / 2], [x1, -t / 2], [x1, t / 2], [x0, t / 2]], w = [];
+      for (var i = 0; i < 4; i++) {
+        var p = cor[i], q = cor[(i + 1) % 4];
+        var dx = q[0] - p[0], dy = q[1] - p[1], L = Math.hypot(dx, dy) || 1;
+        var nx = -dy / L, ny = dx / L;
+        var mx = (p[0] + q[0]) / 2, my = (p[1] + q[1]) / 2;
+        if ((cx - mx) * nx + (0 - my) * ny < 0) { nx = -nx; ny = -ny; }
+        w.push({ id: 'P' + (i + 1), tag: 'outer', nx: nx, ny: ny,
+                 x1: p[0], y1: p[1], x2: q[0], y2: q[1] });
+      }
+      return w;
+    },
+
+    /*  폐합철근을 그 평면에 안착시킨다. 엔진에 닫힌 형상이 없으므로 U자(code 21)
+        로 세 면을 물린 뒤 마지막 한 변을 이어 닫는다 — 시험에서 U자가 앞뒤 두
+        면과 옆면을 피복만큼 띄우고 정확히 무는 것을 확인했다(code 41 은 안착하지
+        않는다). 본 단면의 물리가 끝난 뒤에 돌리고, Domain 은 원래대로 돌려 놓는다. */
+    _settleHoops: function () {
+      this._hoops = [];
+      var rows = this._crebarData || [];
+      if (!rows.length || typeof Domain === 'undefined') return;
+      var t = this._diaThk(), self = this;
+      var keep = { sec: Domain.currentSection, list: Domain.trebarList, q: Domain.queue,
+                   idx: Domain.activeQueueIndex, stack: Domain.wallStack, data: Domain.USER_REBAR_DATA };
+      rows.forEach(function (h) {
+        var w = self._widthAtY(h.at);
+        if (!w) { console.warn('[PSCDIA] crebar ' + h.id + ' : 높이 ' + h.at + ' 에 단면이 없습니다'); return; }
+        var walls = self._planWalls(w.x0, w.x1, t), W = w.x1 - w.x0;
+        var cv = self._diaCover();
+        Domain.currentSection = { walls: walls, displayPaths: [],
+                                  covers: { top: cv, outer: cv, inner: cv } };
+        Domain.trebarList = []; Domain.queue = []; Domain.activeQueueIndex = 0;
+        Domain.isPaused = false; Domain.wallStack = {};
+        //  치수는 대충 준다 — 어차피 벽을 찾아간다. 벽보다 크지만 않으면 된다.
+        var row = { type: 'trebar', id: h.id, code: 21, dia: h.dia,
+                    segs: { a: { len: t * 0.95 }, b: { len: W * 0.9, set: 'P1' }, c: { len: t * 0.95 } } };
+        Domain.USER_REBAR_DATA = [row];
+        var rb = null;
+        try { rb = Domain._createTrebarFromData(row); } catch (e) { console.error('[PSCDIA] crebar ' + h.id, e); }
+        if (rb) {
+          Domain.trebarList.push(rb); Domain.queue.push({ kind: 'trebar', obj: rb });
+          for (var i = 0; i < 40000 && Domain.activeQueueIndex < Domain.queue.length; i++) Domain.stepPhysics();
+          var pts = [[rb.segments[0].p1.x, rb.segments[0].p1.y]];
+          rb.segments.forEach(function (sg) { pts.push([sg.p2.x, sg.p2.y]); });
+          pts.push([pts[0][0], pts[0][1]]);          // 마지막 한 변 — 여기서 닫는다
+          var xs = pts.map(function (p) { return p[0]; });
+          self._hoops.push({ id: h.id, dia: h.dia, at: h.at, state: rb.state, pts: pts,
+                             gotW: Math.max.apply(null, xs) - Math.min.apply(null, xs) });
+        }
+      });
+      Domain.currentSection = keep.sec; Domain.trebarList = keep.list; Domain.queue = keep.q;
+      Domain.activeQueueIndex = keep.idx; Domain.wallStack = keep.stack; Domain.USER_REBAR_DATA = keep.data;
+      if (this._hoops.length) {
+        console.log('[PSCDIA] 폐합철근 안착: ' + this._hoops.map(function (o) {
+          return o.id + ' ' + o.state + ' 폭 ' + Math.round(o.gotW);
+        }).join(' · '));
+      }
+    },
+
+    //  격벽면 피복 — 따로 칸을 두지 않았다. 외부면과 같게 본다.
+    _diaCover: function () {
+      var el = document.getElementById('cover_ext_s');
+      var v = el ? Number(el.value) : NaN;
+      return isFinite(v) && v > 0 ? v : 40;
     },
 
     // 'open' 블록 : open | 형상 | B | H | Cttx | Ctty | Ctbx | Ctby | X | Y → 개구부 칸.
@@ -2138,6 +2262,10 @@
       return { outer: outer, cells: cells, openings: openings,
                segLen: ap.SEGL || SEG_DEF, diaT: ap.DIAT || DIA_DEF,
                trebar: tre, lrebar: lre, treCtc: 150,
+               //  폐합철근 — 단면 평면이 아니라 높이 at 의 수평면(x·z)에 눕는다
+               hoops: (this._hoops || []).map(function (h) {
+                 return { id: h.id, dia: h.dia, at: h.at, pts: h.pts };
+               }),
                view: this._view3D || null, proj: this._proj3D || null };
     },
 

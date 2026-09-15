@@ -117,3 +117,11 @@ function runCase(id, patch) {
            legY: legSeg ? [legSeg.p1.y, legSeg.p2.y] : null };
 }
 module.exports = { runCase, sec, outer, inPoly, P, Domain };
+
+//  ── crebar : 페이지의 새 경로를 그대로 태워 본다 ────────────────────
+module.exports.runHoops = function () {
+  P._loadCrebarFromExcel(sheet0);
+  mkEl('diaThk_s').value = '2000';
+  P._settleHoops();
+  return P._hoops || [];
+};

@@ -171,6 +171,19 @@ function render_pscboxdia_3d(hostId, cfg) {
             }), rb.dia || 13, matT, 0xfb923c));
         });
     });
+    /*  폐합철근 (⑩ ⑩-1 ⑩-2) — 다른 철근과 90° 다른 평면에 눕는다.
+        높이 at 에서 격벽을 수평으로 자른 평면(가로 x · 교축 z)에서 안착한
+        좌표가 [x, z] 로 온다. 높이만 얹어 세우면 된다.                      */
+    var gH = new THREE.Group();
+    var matH = new THREE.MeshStandardMaterial({ color: 0xa855f7, roughness: 0.45, metalness: 0.25 });
+    (cfg.hoops || []).forEach(function (h) {
+        if (!h.pts || h.pts.length < 3) return;
+        gH.add(pscboxdia3d_bar(h.pts.map(function (p) {
+            return new THREE.Vector3(p[0] * MM, h.at * MM, p[1] * MM);   // p = [x, z]
+        }), h.dia || 25, matH, 0xc084fc));
+    });
+    world.add(gH);
+
     (cfg.lrebar || []).forEach(function (rb) {
         gL.add(pscboxdia3d_bar([
             new THREE.Vector3(rb.x * MM, rb.y * MM, -diaT / 2 * MM),
