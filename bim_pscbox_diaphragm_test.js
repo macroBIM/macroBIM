@@ -260,15 +260,18 @@
         var body = document.getElementById('rebarBody');
         if (!body) return;
 
-        // 2줄 표제목 = trebar / lrebar 입력체계
+        // 3줄 표제목 = trebar / lrebar / crebar 입력체계
         var SCHEMA = [
           ['trebar', 'id', 'code', 'dia', 'init (x, y, rot)', 'set', 'segs (len)', 'angs', 'nors', 'barStart', 'barEnd', 'radius', 'z'],
-          ['lrebar', 'id', 'dia', 'num', 'init', 'nors', 'range', 'path', 'ctc', 'ctcmax', 'ctcmin', '', 'z']
+          ['lrebar', 'id', 'dia', 'num', 'init', 'nors', 'range', 'path', 'ctc', 'ctcmax', 'ctcmin', '', 'z'],
+          //  교축방향 폐합철근 — 높이 at 에서 수평으로 자른 평면에 눕는다. 폭은 콘크리트가 정한다.
+          ['crebar', 'id', 'dia', 'plane', 'at (높이 y)', 'set', 'lap', '', '', '', '', '', '']
         ];
         var ncol = SCHEMA[0].length;
 
-        // 엑셀 데이터 행 추출: 첫 셀이 trebar/lrebar 인 행(= 데이터). #trebar/#lrebar(헤더)·빈 행 무시
-        var dataRows = this._excelData ? this._extractRebarDataRows(this._excelData) : [];
+        // 엑셀 데이터 행 추출: 첫 셀이 trebar/lrebar/crebar 인 행(= 데이터). 주석·빈 행 무시
+        var dataRows = this._excelData
+          ? this._extractRebarDataRows(this._excelData, ['trebar', 'lrebar', 'crebar']) : [];
 
         function esc(v) { return String(v == null ? '' : v).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;'); }
 
@@ -332,8 +335,11 @@
 
       _rowIsComment: function (row) { var f = this._rowFirstToken(row); var ch = f.charAt(0); return ch === '#' || ch === '!'; },
 
-      _extractRebarDataRows: function (fullData) {
+      //  types 를 주면 그 종류만 — 기본은 물리에 들어가는 둘.
+      //  표는 crebar 까지 함께 보여 주려고 세 가지를 달라고 한다.
+      _extractRebarDataRows: function (fullData, types) {
         if (!Array.isArray(fullData)) return [];
+        var want = types || ['trebar', 'lrebar'];
         var out = [];
         for (var r = 0; r < fullData.length; r++) {
           var row = fullData[r];
@@ -342,7 +348,7 @@
           var hc = -1;
           for (var c = 0; c < (row ? row.length : 0); c++) {
             var t = String(row[c] == null ? '' : row[c]).trim().toLowerCase();
-            if (t === 'trebar' || t === 'lrebar') { hc = c; break; }
+            if (want.indexOf(t) >= 0) { hc = c; break; }
           }
           if (hc >= 0) out.push(row.slice(hc));    // [type, id, code, ...] (빈 행은 자연히 스킵)
         }
@@ -1192,26 +1198,25 @@
         UI.trebarGroup.destroyChildren();
         UI.lrebarGroup.destroyChildren();
         UI.debugGroup.destroyChildren();
-        // 표시용 외곽선 — 물리 벽(walls)은 직선 분할을 유지하되, 그래픽은 캡처된
-        // bim 원시도형(직선+아크+원)을 그대로 그린다 → 필렛이 폴리라인이 아닌 실제 아크로 렌더링
-        var _ln = this._lines || [], _ar = this._arcs || [], _ci = this._circs || [];
-        if (_ln.length || _ar.length || _ci.length) {
-          _ln.forEach(function (s) {
-            UI.sectionGroup.add(new Konva.Line({ points: [s[0], s[1], s[2], s[3]], stroke: '#ffffff', strokeWidth: 2, lineCap: 'round', strokeScaleEnabled: false }));
-          });
-          _ar.forEach(function (c) {
-            var a0 = c[3], a1 = c[4]; if (a1 <= a0) a1 += 360;
-            UI.sectionGroup.add(new Konva.Shape({
-              sceneFunc: function (ctx, shape) {
-                ctx.beginPath();
-                ctx.arc(c[0], c[1], c[2], a0 * Math.PI / 180, a1 * Math.PI / 180, false);
-                ctx.fillStrokeShape(shape);
-              },
-              stroke: '#ffffff', strokeWidth: 2, strokeScaleEnabled: false
-            }));
-          });
-          _ci.forEach(function (c) {
-            UI.sectionGroup.add(new Konva.Circle({ x: c[0], y: c[1], radius: c[2], stroke: '#ffffff', strokeWidth: 2, strokeScaleEnabled: false }));
+        /*  표시용 외곽선.
+            이 화면은 격벽이다. 격벽에서는 셀이 콘크리트로 차 있으므로 **안쪽 박스선은
+            그리지 않는다** — 대신 가운데 개구부 외곽선을 그린다. 그동안은 반대였다:
+            bim 원시도형(_lines/_arcs)을 그대로 그려서 셀 선은 나오고 개구부는 없었다
+            (개구부는 원시도형이 아니라 _openings 에서 만들어지기 때문).
+            그래서 여기서는 체이닝이 끝난 고리를 쓴다 — 바깥 고리 + 개구부.
+            필렛은 이미 10° 로 잘게 쪼개져 있어 눈으로는 아크와 같다.               */
+        var _sp = this._sectPoly || {};
+        if (_sp.outer && _sp.outer.length > 2) {
+          var flatOuter = [];
+          _sp.outer.forEach(function (p) { flatOuter.push(p[0], p[1]); });
+          UI.sectionGroup.add(new Konva.Line({ points: flatOuter, stroke: '#ffffff', strokeWidth: 2,
+            closed: true, lineJoin: 'round', strokeScaleEnabled: false }));
+          (this._openings || []).forEach(function (op) {
+            if (!op || !op.pts || op.pts.length < 3) return;
+            var flatOp = [];
+            op.pts.forEach(function (p) { flatOp.push(p[0], p[1]); });
+            UI.sectionGroup.add(new Konva.Line({ points: flatOp, stroke: '#ffffff', strokeWidth: 2,
+              closed: true, lineJoin: 'round', strokeScaleEnabled: false }));
           });
         } else {
           sec.displayPaths.forEach(function (path) {   // 캡처 데이터가 없을 때의 예비 경로
