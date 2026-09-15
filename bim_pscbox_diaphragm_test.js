@@ -162,8 +162,15 @@
     '@media(max-width:1000px){.px-split{flex-direction:column;}.px-tblwrap{max-height:320px;width:100%;height:auto !important;}}' +
     '.var-tblwrap{height:224px;overflow-y:auto;border:1px solid #e2e8f0;border-radius:8px;background:#fff;}.var-tbl .var-c-name{width:12%;}.var-tbl .var-c-val{width:8%;white-space:nowrap;}.var-tbl th.var-c-del,.var-tbl td.var-c-del{width:30px;padding-left:2px;padding-right:6px;}.var-del{padding:2px 6px;cursor:pointer;border-radius:5px;transition:background .12s,color .12s,transform .06s;}.var-del:hover{background:#fee2e2;color:#dc2626;}.var-del:active{transform:scale(.92);}.var-name{font-weight:600;}.var-expr{font-family:inherit;}.var-val{font-size:12.5px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}.var-val.ok{color:#059669;}.var-val.err{color:#dc2626;font-weight:500;}.rebar-table-wrap{overflow-x:auto;}.rebar-table{width:100%;border-collapse:collapse;font-size:12px;margin:2px 0;}.rebar-table th{background:#1e293b;color:#fff;font-weight:600;padding:6px 9px;text-align:left;white-space:nowrap;border:1px solid #334155;}.rebar-table th.rs-type{color:#FFC107;background:#0f172a;text-align:center;font-weight:700;}.rebar-table td{padding:5px 9px;border:1px solid #e2e8f0;color:#334155;white-space:nowrap;}.rebar-table td:first-child,.rebar-table th:first-child{text-align:center;}.rebar-table tbody tr:nth-child(even) td{background:#f8fafc;}.rebar-table tbody tr:hover td{background:#eff6ff;}.engine-btn{display:inline-flex;align-items:center;gap:6px;padding:5px 12px;border:1px solid #2563eb;border-radius:6px;background:#2563eb;color:#fff;font-weight:700;font-size:10.5px;letter-spacing:.06em;text-transform:uppercase;font-family:inherit;cursor:pointer;transition:background .12s,border-color .12s,box-shadow .12s,transform .06s;}.engine-btn:hover{background:#1d4ed8;box-shadow:0 2px 8px rgba(37,99,235,.35);}.engine-btn:active{transform:translateY(1px) scale(.97);box-shadow:none;}.engine-ctrls{display:flex;align-items:center;gap:8px;}.var-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:8px 20px;}@media(max-width:1500px){.var-grid{grid-template-columns:repeat(3,1fr);}}@media(max-width:1100px){.var-grid{grid-template-columns:repeat(2,1fr);}}@media(max-width:680px){.var-grid{grid-template-columns:1fr;}}' +
     '.engine-btn-lite{background:#fff;border-color:#cbd5e1;color:#334155;}.engine-btn-lite:hover{background:#f1f5f9;box-shadow:0 2px 6px rgba(15,23,42,.12);}.engine-btn-lite.active{background:#2563eb;border-color:#2563eb;color:#fff;}' +
-    '.phys-split{display:flex;align-items:flex-start;}' +
-    '.phys-tblwrap{flex:1 1 0;min-width:0;height:480px;overflow:auto;background:#fff;border-left:1px solid var(--hair);border-radius:0 0 10px 0;}' +
+    // 2D 와 3D 를 같은 줄에 반씩, 철근 표는 그 아래 전폭
+    '.phys-split{display:flex;align-items:stretch;gap:1px;background:var(--hair);}' +
+    '.phys-pane{flex:1 1 0;min-width:0;position:relative;}' +
+    //  3D 를 끄면 2D 가 한 줄을 다 쓴다 — 16:9 그대로면 카드가 두 배로 길어지므로 높이를 묶는다
+    '.phys-pane > div{max-height:460px;}' +
+    '.phys-pane > .phys-cap{position:absolute;left:10px;top:8px;z-index:2;pointer-events:none;' +
+    '  font-size:10.5px;font-weight:700;letter-spacing:.08em;color:#e0ecff;opacity:.85;}' +
+    '.phys-tblwrap{width:100%;height:320px;overflow:auto;background:#fff;' +
+    '  border-top:1px solid var(--hair);border-radius:0 0 10px 10px;}' +
     '.phys-tbl{font-size:11.5px;}.phys-tbl th,.phys-tbl td{white-space:nowrap;padding:4px 8px;}' +
     '.px-tbl.var-tbl th{background:#1e293b;color:#fff;font-weight:600;text-align:center;border-bottom:1px solid #334155;border-right:1px solid #334155;}.px-tbl.var-tbl th:last-child{border-right:none;}' +
     '.px-tbl.dim-tbl th{background:#1e293b;color:#fff;font-weight:600;text-align:center;border-bottom:1px solid #334155;border-right:1px solid #334155;}.px-tbl.dim-tbl th:last-child{border-right:none;}' +
@@ -214,7 +221,7 @@
     '.phys-tbl td{text-align:right;color:#334155;}.phys-tbl td:first-child{text-align:left;font-weight:700;color:#0f172a;}' +
     '.phys-tbl td.phys-na{color:#cbd5e1;text-align:center;}' +
     '.phys-rsp{padding:2px 8px;font-size:9.5px;}' +
-    '@media(max-width:1100px){.phys-split{flex-direction:column;}.phys-tblwrap{border-left:none;border-top:1px solid var(--hair);height:300px;border-radius:0 0 10px 10px;}}' +
+    '@media(max-width:1100px){.phys-split{flex-direction:column;}}' +
     '.shape-grid{display:flex;flex-wrap:wrap;gap:12px;padding:4px 0 14px;margin-bottom:12px;border-bottom:1px dashed var(--hair);}' +
     '.shape-tile{border:1px solid var(--hair);border-radius:8px;background:#f8fafc;padding:8px 10px 6px;text-align:center;}' +
     '.shape-tile svg{display:block;background:#fff;border:1px solid #eef2f7;border-radius:6px;}' +
@@ -231,6 +238,8 @@
     _uiInited: false, _settleTimer: null, _rebarSettled: false, _lastAp: null, _lastStuckMsg: null,
     _showEngNormals: false, _showEngNodes: false, _engNormGroup: null, _engNodeGroup: null,
     _loadLog: null,
+    //  2D 와 3D 가 나란히 서므로 3D 는 켠 채로 시작한다 (버튼은 끄고 켜는 스위치)
+    _is3D: true,
 
       _renderRebarTables: function () {
         var body = document.getElementById('rebarBody');
@@ -466,14 +475,18 @@
               '<button type="button" class="engine-btn" onclick="PXDIA.exportDXF()"><i class="bi bi-download"></i> Export DXF</button>' +
               '<button type="button" class="engine-btn engine-btn-lite" id="btnToggleNormals" onclick="PXDIA.toggleNormals()"><i class="bi bi-arrows-angle-expand"></i> Toggle Normals</button>' +
               '<button type="button" class="engine-btn engine-btn-lite" id="btnToggleNodes" onclick="PXDIA.toggleNodes()"><i class="bi bi-123"></i> Toggle Nodes (#)</button>' +
-              '<button type="button" class="engine-btn engine-btn-lite" id="btnView3D" onclick="PXDIA.toggle3D()"><i class="bi bi-box"></i> 3D</button>' +
+              '<button type="button" class="engine-btn engine-btn-lite active" id="btnView3D" onclick="PXDIA.toggle3D()"><i class="bi bi-box"></i> 3D</button>' +
             '</div>' +
             '<div class="draw-card-desc" id="stat-grid"></div>' +
           '</div>' +
           '<div class="draw-card-body" style="padding:0;">' +
             '<div class="phys-split">' +
-              '<div id="renderContainer" style="flex:1 1 0;min-width:0;aspect-ratio:16/9;height:auto;background:#41699b;border-radius:0 0 0 10px;overflow:hidden;cursor:grab;"></div>' +
-              '<div id="render3dContainer" style="display:none;flex:1 1 0;min-width:0;aspect-ratio:16/9;height:auto;background:#41699b;border-radius:0 0 0 10px;overflow:hidden;cursor:grab;"></div>' +
+              '<div class="phys-pane"><span class="phys-cap">2D &mdash; 단면</span>' +
+                '<div id="renderContainer" style="width:100%;aspect-ratio:16/9;background:#41699b;overflow:hidden;cursor:grab;"></div></div>' +
+              '<div class="phys-pane" id="pane3d"><span class="phys-cap">3D &mdash; 격벽</span>' +
+                '<div id="render3dContainer" style="width:100%;aspect-ratio:16/9;background:#41699b;overflow:hidden;cursor:grab;"></div></div>' +
+            '</div>' +
+            '<div class="phys-split" style="background:none;">' +
               '<div class="phys-tblwrap">' +
                 '<table class="px-tbl phys-tbl"><thead><tr>' +
                   '<th>ID</th><th>Code</th><th>Total</th><th>Dia</th>' +
@@ -503,8 +516,6 @@
         if (!rc) return;
         var w = rc.clientWidth || 800, h = rc.clientHeight || Math.round((rc.clientWidth || 800) * 9 / 16);
         UI.stage.width(w); UI.stage.height(h);
-        var tw = document.querySelector('.phys-tblwrap');
-        if (tw) tw.style.height = h + 'px';                 // 우측 표 높이를 16:9 뷰와 동기화
 
         var minx = 1e18, miny = 1e18, maxx = -1e18, maxy = -1e18;
         var paths = (typeof Domain !== 'undefined' && Domain.currentSection && Domain.currentSection.displayPaths) || [];
@@ -537,9 +548,6 @@
       _renderPhysicsTable: function () {
         var body = document.getElementById('physTblBody');
         if (!body || typeof Domain === 'undefined') return;
-        var rcv = document.getElementById('renderContainer');
-        var twp = document.querySelector('.phys-tblwrap');
-        if (rcv && twp && rcv.clientHeight) twp.style.height = rcv.clientHeight + 'px';
         var self = this, h = '';
         var codeById = {};
         (this._rebarData || []).forEach(function (rd) { if (rd && rd.id != null && rd.code != null) codeById[String(rd.id)] = rd.code; });
@@ -1990,16 +1998,15 @@
     //  교축(z)으로 펴는 것이 3D 다 — 격벽이 평면 구조물이라 그걸로 충분하다.
     //  three.js 는 집의 다른 3D 와 같은 경로(render3d)로 받아 온다.
     toggle3D: function () {
-      var c2 = document.getElementById('renderContainer');
-      var c3 = document.getElementById('render3dContainer');
+      var pane = document.getElementById('pane3d');
       var btn = document.getElementById('btnView3D');
-      if (!c2 || !c3) return;
-      var on = c3.style.display === 'none';
-      c2.style.display = on ? 'none' : '';
-      c3.style.display = on ? '' : 'none';
-      if (btn) { btn.classList.toggle('active', on); btn.innerHTML = on ? '<i class="bi bi-square"></i> 2D' : '<i class="bi bi-box"></i> 3D'; }
+      if (!pane) return;
+      var on = pane.style.display === 'none';
+      pane.style.display = on ? '' : 'none';
+      if (btn) btn.classList.toggle('active', on);
       this._is3D = on;
       if (on) this.refresh3D();
+      this._fitEngineStage();
     },
 
     //  엔진 객체가 아니라 평범한 배열로 넘긴다 — 3D 파일이 엔진을 모르게 둔다

@@ -62,7 +62,7 @@ function render_pscboxdia_3d(hostId, cfg) {
     var W = host.clientWidth || 800;
     var H = host.clientHeight || Math.round(W * 9 / 16);
     var MM = PSCBOXDIA3D_MM;
-    var segLen = cfg.segLen || 18000;
+    var segLen = cfg.segLen || 18000;   // 지금은 안 쓴다 — 격벽 한 장만 그린다
     var diaT = cfg.diaT || 600;
 
     var scene = new THREE.Scene();
@@ -80,44 +80,37 @@ function render_pscboxdia_3d(hostId, cfg) {
     var world = new THREE.Group();
     scene.add(world);
 
-    /* ── 콘크리트 : 외곽에서 셀을 뚫고 세그먼트 길이만큼 밀어낸다 ───────── */
+    /* ── 콘크리트 : 격벽 한 장 ────────────────────────────────────────
+       이 화면은 격벽이다. 격벽에서는 셀이 콘크리트로 차 있으므로 셀을 뚫지
+       않는다 — 외곽을 통째로 격벽 두께만큼 밀고 개구부만 구멍으로 남긴다.
+       (처음엔 셀을 뚫고 세그먼트 길이 18,000 으로 밀어 일반구간까지 나왔다.
+        입력한 것은 격벽 두께인데 일반구간이 같이 나오는 게 맞지 않았다.)      */
     var conMat = new THREE.MeshStandardMaterial({
-        color: 0xdbeafe, transparent: true, opacity: 0.18, roughness: 0.9,
+        color: 0xdbeafe, transparent: true, opacity: 0.22, roughness: 0.9,
         side: THREE.DoubleSide, depthWrite: false
     });
-    var box = new THREE.Mesh(
-        new THREE.ExtrudeGeometry(pscboxdia3d_shape(cfg.outer, cfg.cells || []),
-            { depth: segLen * MM, bevelEnabled: false }), conMat);
-    box.position.z = -segLen * MM / 2;
-    world.add(box);
+    var slab = new THREE.Mesh(
+        new THREE.ExtrudeGeometry(pscboxdia3d_shape(cfg.outer, cfg.openings || []),
+            { depth: diaT * MM, bevelEnabled: false }), conMat);
+    slab.position.z = -diaT * MM / 2;
+    world.add(slab);
     world.add((function () {
-        var e = new THREE.LineSegments(new THREE.EdgesGeometry(box.geometry, 20),
-            new THREE.LineBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.45 }));
-        e.position.copy(box.position);
+        var e = new THREE.LineSegments(new THREE.EdgesGeometry(slab.geometry, 20),
+            new THREE.LineBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.5 }));
+        e.position.copy(slab.position);
         return e;
     })());
 
-    /* ── 격벽 : 셀을 채우고 개구부를 뚫는다 ──────────────────────────── */
-    var diaMat = new THREE.MeshStandardMaterial({
-        color: 0x93c5fd, transparent: true, opacity: 0.30, roughness: 0.9,
-        side: THREE.DoubleSide, depthWrite: false
-    });
+    /* 셀(박스의 중공) 자리를 앞뒤 면에 얇은 선으로만 남긴다 — 격벽이 어디를
+       채우고 있는지 보이게. 콘크리트를 뚫지는 않는다. */
+    var cellLineMat = new THREE.LineBasicMaterial({ color: 0x93c5fd, transparent: true, opacity: 0.55 });
     (cfg.cells || []).forEach(function (cell) {
-        //  이 셀 안에 들어가는 개구부만 그 셀의 구멍으로 준다
-        var holes = (cfg.openings || []).filter(function (op) {
-            var cx = op.reduce(function (s, p) { return s + p[0]; }, 0) / op.length;
-            var xs = cell.map(function (p) { return p[0]; });
-            return cx > Math.min.apply(null, xs) && cx < Math.max.apply(null, xs);
+        [-diaT / 2, diaT / 2].forEach(function (z) {
+            var v = cell.concat([cell[0]]).map(function (p) {
+                return new THREE.Vector3(p[0] * MM, p[1] * MM, z * MM);
+            });
+            world.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints(v), cellLineMat));
         });
-        var d = new THREE.Mesh(
-            new THREE.ExtrudeGeometry(pscboxdia3d_shape(cell, holes),
-                { depth: diaT * MM, bevelEnabled: false }), diaMat);
-        d.position.z = -diaT * MM / 2;
-        world.add(d);
-        var de = new THREE.LineSegments(new THREE.EdgesGeometry(d.geometry, 20),
-            new THREE.LineBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.5 }));
-        de.position.copy(d.position);
-        world.add(de);
     });
 
     /* ── 철근 ────────────────────────────────────────────────────────
@@ -127,10 +120,11 @@ function render_pscboxdia_3d(hostId, cfg) {
     var matL = new THREE.MeshStandardMaterial({ color: 0x22c55e, roughness: 0.45, metalness: 0.25 });
     var gT = new THREE.Group(), gL = new THREE.Group();
 
+    //  철근도 격벽 두께 안에서만 선다 — 이 화면이 보여 주는 것이 격벽 한 장이다
     var ctc = cfg.treCtc || 150;
-    var n = Math.max(1, Math.floor(segLen / ctc));
+    var n = Math.max(1, Math.round(diaT / ctc));
     var zs = [];
-    for (var i = 0; i < n; i++) zs.push(-segLen / 2 + ctc / 2 + i * ctc);
+    for (var i = 0; i < n; i++) zs.push(-diaT / 2 + (diaT - (n - 1) * ctc) / 2 + i * ctc);
 
     (cfg.trebar || []).forEach(function (rb) {
         if (!rb.pts || rb.pts.length < 2) return;
@@ -142,8 +136,8 @@ function render_pscboxdia_3d(hostId, cfg) {
     });
     (cfg.lrebar || []).forEach(function (rb) {
         gL.add(pscboxdia3d_bar([
-            new THREE.Vector3(rb.x * MM, rb.y * MM, -segLen / 2 * MM),
-            new THREE.Vector3(rb.x * MM, rb.y * MM, segLen / 2 * MM)
+            new THREE.Vector3(rb.x * MM, rb.y * MM, -diaT / 2 * MM),
+            new THREE.Vector3(rb.x * MM, rb.y * MM, diaT / 2 * MM)
         ], rb.dia || 13, matL, 0x4ade80));
     });
     world.add(gT, gL);
