@@ -15,8 +15,7 @@
       2. Lower body — baseH IS the straight body below the shoulders, all of it.
          A long lug is simply a bigger baseH; there is no separate extension.
       3. Base plate (bpOn) — a plate under the lug that welds to the shell.
-         Its in-plane length can be drawn to a finite size (bpW / bpL) or shown
-         as effectively infinite with a zig-zag break line (bpMode).
+         Drawn to the size typed: bpW across the front, bpL across the side.
 
     Self-contained: this module reads its OWN params (readLugTestParams) and
     computes its OWN geometry (geoLugTest) so nothing in the production module
@@ -43,7 +42,7 @@
     function chk(id, def) { var e = document.getElementById(id); return e ? !!e.checked : def; }
     var aparam = {};
     NUMKEYS.forEach(function (k) { aparam[k] = num(k); });
-    var opt = { bpOn: chk('bpOn', true) ? 'plate' : 'none', bpMode: sel('bpMode', 'infinite'),
+    var opt = { bpOn: chk('bpOn', true) ? 'plate' : 'none',
                 padOn: chk('padOn', true), spOn: chk('spOn', false), eccOn: chk('eccOn', false),
                 spOnL: chk('spOnL', true), spOnR: chk('spOnR', true) };
     return { aparam: aparam, opt: opt, combText: NUMKEYS.map(function (k) { return aparam[k]; }).join(',') };
@@ -111,18 +110,6 @@
   }
 
   // ── drawing helpers ─────────────────────────────────────────────────────────
-  // zig-zag break line from (x1,y1)→(x2,y2) with `kinks` alternating offsets.
-  function zigzag(rec, v, x1, y1, x2, y2, kinks, amp, layer) {
-    var dx = x2 - x1, dy = y2 - y1, len = Math.hypot(dx, dy) || 1, px = -dy / len, py = dx / len;
-    var pts = [[x1, y1]];
-    for (var i = 1; i <= kinks; i++) {
-      var t = i / (kinks + 1), bx = x1 + dx * t, by = y1 + dy * t, sgn = (i % 2 === 0) ? 1 : -1;
-      pts.push([bx + px * amp * sgn, by + py * amp * sgn]);
-    }
-    pts.push([x2, y2]);
-    for (var j = 0; j < pts.length - 1; j++) rec.addLine(v, pts[j][0], pts[j][1], pts[j + 1][0], pts[j + 1][1], layer);
-  }
-
   // ── per-view drawing ──────────────────────────────────────────────────────
   function drawLug(viewName, rec, geo, aparam, opt) {
     layers(rec);
@@ -133,7 +120,6 @@
         arc_angb = geo.arc_angb, arc_ange = geo.arc_ange, sideH = geo.sideH;
     var g = Math.max(15, Math.max(lugW, lugH) * 0.05);
     var bpOn = opt && opt.bpOn === 'plate';
-    var bpInf = opt && opt.bpMode === 'infinite';
     var pads = !opt || opt.padOn !== false;           // padeye ring / cheek plates
     var spOn = opt && opt.spOn === true;              // independent left / right side plates
     // per-side params (bot/top = full end-view widths, h height, w front width, inset from lug edge)
@@ -185,7 +171,7 @@
       }
 
       // base plate
-      if (bpOn) drawBasePlateFront(rec, viewName, A, lugW, bpW, bpT, g, bpInf);
+      if (bpOn) drawBasePlateFront(rec, viewName, A, lugW, bpW, bpT, g);
 
       // ── dimensions: verticals stacked on L/R, horizontals stacked at bottom ──
       var dg = g * 1.7;                                     // spacing between stacked dim lines
@@ -206,7 +192,7 @@
       if (spLon) rec.addDimLinear(viewName, spL.out, 0, spL.in, 0, yBot - dg, 'spW');
       rec.addDimLinear(viewName, -lugW / 2, 0, lugW / 2, 0, yBot - dg, 'W');
       if (spRon) rec.addDimLinear(viewName, spR.in, 0, spR.out, 0, yBot - dg, 'spW');
-      if (bpOn) rec.addDimLinear(viewName, -bpW / 2, -bpT, bpW / 2, -bpT, -dg * 2.3, bpInf ? 'B(∞)' : 'B');
+      if (bpOn) rec.addDimLinear(viewName, -bpW / 2, -bpT, bpW / 2, -bpT, -dg * 2.3, 'B');
       // eccentricity at the top
       if (Math.abs(aparam.ecc) > 1e-6) rec.addDimLinear(viewName, 0, lugH, Rcx, lugH, dg, 'off');
 
@@ -272,7 +258,7 @@
         }
       }
 
-      if (bpOn) drawBasePlateSide(rec, viewName, A, padeyeT, bpL, bpT, g, bpInf);
+      if (bpOn) drawBasePlateSide(rec, viewName, A, padeyeT, bpL, bpT, g);
 
       rec.addDimLinear(viewName, -half, 0, -half, lugH, g * 2, 'H');
       rec.addDimLinear(viewName, half, 0, half, sideH, -g * 2, 'sH');
@@ -280,14 +266,14 @@
       rec.addDimLinear(viewName, half, Rcy - innerR, half, Rcy + innerR, -g);
       rec.addDimLinear(viewName, -lugT / 2, lugH, lugT / 2, lugH, g * 1.2, 't');
       if (pads) rec.addDimLinear(viewName, -padeyeT / 2, Rcy + padeyeR, padeyeT / 2, Rcy + padeyeR, g * 1.6, 'tp');
-      if (bpOn) rec.addDimLinear(viewName, -bpL / 2, -bpT, bpL / 2, -bpT, -g * 1.6, bpInf ? 'C(∞)' : 'C');
+      if (bpOn) rec.addDimLinear(viewName, -bpL / 2, -bpT, bpL / 2, -bpT, -g * 1.6, 'C');
 
     } else if (viewName === 'top' || viewName === 'bottom') {
       // plan looking down (top, solid) or up (bottom, occluded structure dashed)
       var hidden = (viewName === 'bottom');
       var Ll = hidden ? A.hlug : A.lug, Lp = hidden ? A.hpeye : A.peye;
       // supporting (base) plate footprint — drawn first, underneath
-      if (bpOn) drawBasePlatePlan(rec, viewName, A, bpW, bpL, g, bpInf);
+      if (bpOn) drawBasePlatePlan(rec, viewName, A, bpW, bpL, g);
       // centre lug plate (lugW × lugT)
       rec.addLine(viewName, -lugW / 2, -lugT / 2, lugW / 2, -lugT / 2, Ll);
       rec.addLine(viewName, -lugW / 2, lugT / 2, lugW / 2, lugT / 2, Ll);
@@ -337,55 +323,37 @@
       rec.addDimLinear(viewName, Rcx - innerR, half, Rcx + innerR, half, g, 'd');
       if (pads) rec.addDimLinear(viewName, -lugW / 2, -padeyeT / 2, -lugW / 2, padeyeT / 2, g, 'tp');
       rec.addDimLinear(viewName, lugW / 2, -lugT / 2, lugW / 2, lugT / 2, -g, 't');
-      if (bpOn) rec.addDimLinear(viewName, -bpW / 2, bpL / 2, bpW / 2, bpL / 2, g * 1.8, bpInf ? 'B(∞)' : 'B');
-      if (bpOn) rec.addDimLinear(viewName, bpW / 2, -bpL / 2, bpW / 2, bpL / 2, -g * 1.4, bpInf ? 'C(∞)' : 'C');
+      if (bpOn) rec.addDimLinear(viewName, -bpW / 2, bpL / 2, bpW / 2, bpL / 2, g * 1.8, 'B');
+      if (bpOn) rec.addDimLinear(viewName, bpW / 2, -bpL / 2, bpW / 2, bpL / 2, -g * 1.4, 'C');
       if (Math.abs(aparam.ecc) > 1e-6) rec.addDimLinear(viewName, 0, half, Rcx, half, g * 1.8, 'off');
     }
   }
 
   // base plate — FRONT view (rectangle under the lug, y in [-bpT,0])
-  function drawBasePlateFront(rec, v, A, lugW, bpW, bpT, g, inf) {
+  function drawBasePlateFront(rec, v, A, lugW, bpW, bpT, g) {
     var hx = bpW / 2;
     rec.addLine(v, -hx, 0, hx, 0, A.base);
     rec.addLine(v, -hx, -bpT, hx, -bpT, A.base);
-    if (inf) {
-      zigzag(rec, v, -hx, 0, -hx, -bpT, 3, bpT * 0.28, A.base);
-      zigzag(rec, v, hx, 0, hx, -bpT, 3, bpT * 0.28, A.base);
-    } else {
-      rec.addLine(v, -hx, 0, -hx, -bpT, A.base);
-      rec.addLine(v, hx, 0, hx, -bpT, A.base);
-    }
+    rec.addLine(v, -hx, 0, -hx, -bpT, A.base);
+    rec.addLine(v, hx, 0, hx, -bpT, A.base);
   }
 
   // base plate — SIDE view (rectangle under the lug, depth = bpL)
-  function drawBasePlateSide(rec, v, A, padeyeT, bpL, bpT, g, inf) {
+  function drawBasePlateSide(rec, v, A, padeyeT, bpL, bpT, g) {
     var hx = bpL / 2;
     rec.addLine(v, -hx, 0, hx, 0, A.base);
     rec.addLine(v, -hx, -bpT, hx, -bpT, A.base);
-    if (inf) {
-      zigzag(rec, v, -hx, 0, -hx, -bpT, 3, bpT * 0.28, A.base);
-      zigzag(rec, v, hx, 0, hx, -bpT, 3, bpT * 0.28, A.base);
-    } else {
-      rec.addLine(v, -hx, 0, -hx, -bpT, A.base);
-      rec.addLine(v, hx, 0, hx, -bpT, A.base);
-    }
+    rec.addLine(v, -hx, 0, -hx, -bpT, A.base);
+    rec.addLine(v, hx, 0, hx, -bpT, A.base);
   }
 
-  // base plate — PLAN view (bpW along lugW × bpL along thickness); infinite
-  // supporting plate shown as a broken-out region (zig-zag on all four edges).
-  function drawBasePlatePlan(rec, v, A, bpW, bpL, g, inf) {
-    var hx = bpW / 2, hy = bpL / 2, amp = Math.min(bpW, bpL) * 0.03, k = 5;
-    if (inf) {
-      zigzag(rec, v, -hx, -hy, hx, -hy, k, amp, A.base);
-      zigzag(rec, v, hx, -hy, hx, hy, k, amp, A.base);
-      zigzag(rec, v, hx, hy, -hx, hy, k, amp, A.base);
-      zigzag(rec, v, -hx, hy, -hx, -hy, k, amp, A.base);
-    } else {
-      rec.addLine(v, -hx, -hy, hx, -hy, A.base);
-      rec.addLine(v, hx, -hy, hx, hy, A.base);
-      rec.addLine(v, hx, hy, -hx, hy, A.base);
-      rec.addLine(v, -hx, hy, -hx, -hy, A.base);
-    }
+  // base plate — PLAN view (bpW along lugW × bpL along thickness)
+  function drawBasePlatePlan(rec, v, A, bpW, bpL, g) {
+    var hx = bpW / 2, hy = bpL / 2;
+    rec.addLine(v, -hx, -hy, hx, -hy, A.base);
+    rec.addLine(v, hx, -hy, hx, hy, A.base);
+    rec.addLine(v, hx, hy, -hx, hy, A.base);
+    rec.addLine(v, -hx, hy, -hx, -hy, A.base);
   }
 
   // ── render / entry points ────────────────────────────────────────────────
@@ -423,7 +391,7 @@
     setSide(['spBotL', 'spTopL', 'spHL', 'spWL', 'spInsetL'], u.opt.spOnL);
     setSide(['spBotR', 'spTopR', 'spHR', 'spWR', 'spInsetR'], u.opt.spOnR);
     toggleRows(['row_ecc'], u.opt.eccOn);
-    toggleRows(['row_bpMode', 'row_bpW', 'row_bpT', 'row_bpL'], u.opt.bpOn === 'plate');
+    toggleRows(['row_bpW', 'row_bpT', 'row_bpL'], u.opt.bpOn === 'plate');
     // eccentricity / extension only apply when their section is enabled
     if (!u.opt.eccOn) { aparam.ecc = 0; }
 

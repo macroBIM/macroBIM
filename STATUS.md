@@ -153,6 +153,17 @@ git status --short     # 비어 있어야 한다
 
 ### 2026-09-15
 
+- **Lifting lug — `bpMode`(Plate length mode) 를 뺐다** · 테스트 — 베이스판 길이를
+  「유한 / 무한(파단선)」 중에 고르게 하던 칸이다. **고르게 할 일이 아니라 적으면 되는
+  값**이라 없앤다. 이제 `bpW`(정면) · `bpL`(측면) 에 적은 대로 그린다.
+  딸려 나간 것 : `zigzag()`(파단선 그리기), 세 그리기 함수(정면·측면·평면)의 무한
+  분기, 치수 라벨의 `B(∞)` `C(∞)` 표기, `opt.bpMode`, 토글 목록의 `row_bpMode`.
+  `bim_liftinglug_test.js` 459 → **431 줄**. CSV 는 안 바뀐다 — `bpMode` 는 숫자가
+  아니라 select 라 처음부터 CSV 에 없었다.
+  확인 : bpW/bpL 220/90 · 400/160 을 적은 그대로 받음 · `opt.bpMode` 없음 ·
+  남은 입력칸 점검(`bodyExt` `bpMode` 용접 3종) 전부 없음 · 페이지 오류 없음
+
+
 - **Lifting lug — `baseH` 와 `bodyExt` 를 하나로** · 테스트 — 형상은 처음부터
   **합만** 보고 있었다 (`sideH = baseH + bodyExt`). 한 치수를 두 칸에 적어 둔 것이라
   합친다. 이제 **`baseH` 가 하부 직선부 전체**이고 긴 러그는 그냥 큰 `baseH` 다.
