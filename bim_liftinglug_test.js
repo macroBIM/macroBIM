@@ -8,7 +8,7 @@
     driven from layout_body_test.js only — the production bim_liftinglug.js and
     layout_body.js are untouched):
 
-      1. Eccentricity (ecc / "off")  — the pad-eye/hole centre is offset
+      1. Eccentricity (ecc)  — the pad-eye/hole centre is offset
          horizontally from the lug-base centreline, so the plate outline
          becomes an asymmetric (skewed) trapezoid.  Geometry generalised via
          tangent-from-point so ecc = 0 reduces to the symmetric production shape.
@@ -194,7 +194,7 @@
       if (spRon) rec.addDimLinear(viewName, spR.in, 0, spR.out, 0, yBot - dg, 'spW');
       if (bpOn) rec.addDimLinear(viewName, -bpW / 2, -bpT, bpW / 2, -bpT, -dg * 2.3, 'B');
       // eccentricity at the top
-      if (Math.abs(aparam.ecc) > 1e-6) rec.addDimLinear(viewName, 0, lugH, Rcx, lugH, dg, 'off');
+      if (Math.abs(aparam.ecc) > 1e-6) rec.addDimLinear(viewName, 0, lugH, Rcx, lugH, dg, 'ecc');
 
     } else if (viewName === 'left' || viewName === 'center' || viewName === 'right') {
       // side elevation (edge-on): centre lug plate + optional side pad plates
@@ -325,7 +325,7 @@
       rec.addDimLinear(viewName, lugW / 2, -lugT / 2, lugW / 2, lugT / 2, -g, 't');
       if (bpOn) rec.addDimLinear(viewName, -bpW / 2, bpL / 2, bpW / 2, bpL / 2, g * 1.8, 'B');
       if (bpOn) rec.addDimLinear(viewName, bpW / 2, -bpL / 2, bpW / 2, bpL / 2, -g * 1.4, 'C');
-      if (Math.abs(aparam.ecc) > 1e-6) rec.addDimLinear(viewName, 0, half, Rcx, half, g * 1.8, 'off');
+      if (Math.abs(aparam.ecc) > 1e-6) rec.addDimLinear(viewName, 0, half, Rcx, half, g * 1.8, 'ecc');
     }
   }
 
