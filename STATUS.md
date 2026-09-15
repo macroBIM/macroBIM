@@ -153,6 +153,21 @@ git status --short     # 비어 있어야 한다
 
 ### 2026-09-15
 
+- **Lifting lug — 용접을 다 뺐다** · 테스트 — macroPLATE 로 옮기기 전에 현재
+  상태를 비웠다. 용접은 **테스트 빌드 두 파일에만** 있었다 (운영 `bim_liftinglug.js`
+  와 3D 에는 애초에 없다).
+  · `bim_liftinglug_test.js` −65 줄 — `weldSymbol()` 통째로, `weld` 레이어,
+    호출 여섯 군데(정면·측면 각 세 조인트), `weld` 객체·매개변수·`_lug_drawData`
+    필드, 머리말 4번 항목
+  · `design/layout_body_test.js` −4 줄 — Welds 카드(체크박스 3 · 타입 select 3 ·
+    크기 3)와 그 표제
+  **일괄입력 CSV 가 26 → 23 칸이 되었다.** `weldLugSize,weldPadSize,weldBaseSize`
+  가 14~16번째였으므로 **예전에 저장해 둔 26칸 문자열은 더 못 쓴다** — 뒤의
+  `sp*` 값이 세 칸씩 밀려 들어간다. 표제와 값 둘 다 23 으로 맞는 것을 화면에서 확인.
+  화면 확인 : 용접 입력칸 0개 · 폼 글자에 weld 없음 · 도면에 빨간 기호 없음 ·
+  페이지 오류 없음
+
+
 - **REBAR 표의 `crebar` 표제목을 칸에 맞춘다** · 테스트 — `at` 에 `cell` 을 넣어도
   표에서는 「at (높이 y)」 아래에 얹히고 `ctc` 는 이름 없는 칸에 떨어졌다.
   칸을 늘리며 표제목을 안 고쳤기 때문이다. 이제

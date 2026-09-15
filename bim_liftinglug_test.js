@@ -17,9 +17,6 @@
       3. Base plate (bpOn) — a plate under the lug that welds to the shell.
          Its in-plane length can be drawn to a finite size (bpW / bpL) or shown
          as effectively infinite with a zig-zag break line (bpMode).
-      4. Welds — three joints (pad→lug, lug→base, base→shell), each annotated
-         with an AWS-style weld symbol whose type (fillet / PJP / CJP) and size
-         are chosen per joint.
 
     Self-contained: this module reads its OWN params (readLugTestParams) and
     computes its OWN geometry (geoLugTest) so nothing in the production module
@@ -35,7 +32,7 @@
 
   // numeric input ids, in batch-CSV order
   var NUMKEYS = ['lugW', 'lugH', 'baseH', 'outerR', 'innerR', 'padeyeR', 'lugT', 'padeyeT',
-                 'ecc', 'bodyExt', 'bpW', 'bpT', 'bpL', 'weldLugSize', 'weldPadSize', 'weldBaseSize',
+                 'ecc', 'bodyExt', 'bpW', 'bpT', 'bpL',
                  'spBotL', 'spTopL', 'spHL', 'spWL', 'spInsetL',
                  'spBotR', 'spTopR', 'spHR', 'spWR', 'spInsetR'];
 
@@ -46,16 +43,10 @@
     function chk(id, def) { var e = document.getElementById(id); return e ? !!e.checked : def; }
     var aparam = {};
     NUMKEYS.forEach(function (k) { aparam[k] = num(k); });
-    // each joint: weld only reflected when its checkbox is ticked (type='none' skips it)
-    var weld = {
-      pad:  { type: chk('weldPadOn',  true) ? sel('weldPadType',  'fillet') : 'none', size: aparam.weldPadSize },
-      lug:  { type: chk('weldLugOn',  true) ? sel('weldLugType',  'fillet') : 'none', size: aparam.weldLugSize },
-      base: { type: chk('weldBaseOn', true) ? sel('weldBaseType', 'fillet') : 'none', size: aparam.weldBaseSize }
-    };
     var opt = { bpOn: chk('bpOn', true) ? 'plate' : 'none', bpMode: sel('bpMode', 'infinite'),
                 padOn: chk('padOn', true), spOn: chk('spOn', false), eccOn: chk('eccOn', false),
                 spOnL: chk('spOnL', true), spOnR: chk('spOnR', true) };
-    return { aparam: aparam, weld: weld, opt: opt, combText: NUMKEYS.map(function (k) { return aparam[k]; }).join(',') };
+    return { aparam: aparam, opt: opt, combText: NUMKEYS.map(function (k) { return aparam[k]; }).join(',') };
   }
 
   // CSV textarea → numeric inputs → redraw (test replacement for putParams_liftinglug)
@@ -111,7 +102,6 @@
     rec.addLayer('hpeye', '#00ff00', 'hidden');
     rec.addLayer('cent', 'red', 'solid');
     rec.addLayer('base', '#f59e0b', 'solid');   // base plate (amber)
-    rec.addLayer('weld', '#dc2626', 'solid');   // weld symbols (red-orange)
     rec.addLayer('sp', '#a855f7', 'solid');     // side plates (purple)
     rec.addLayer('hsp', '#a855f7', 'hidden');
   }
@@ -129,48 +119,10 @@
     for (var j = 0; j < pts.length - 1; j++) rec.addLine(v, pts[j][0], pts[j][1], pts[j + 1][0], pts[j + 1][1], layer);
   }
 
-  // AWS-style weld symbol. Joint at (jx,jy); leader elbow at (ex,ey); reference
-  // line runs horizontally toward `refDir` (+1 right / -1 left). `type` is
-  // 'fillet' | 'pjp' | 'cjp'; `size` in model units. Symbol + label sit on the
-  // arrow side (below the reference line).
-  function weldSymbol(rec, v, jx, jy, ex, ey, refDir, type, size, g, layer) {
-    if (!type || type === 'none') return;
-    var refLen = g * 2.6, leg = g * 0.9;
-    var rx0 = ex, rx1 = ex + refDir * refLen;
-    // leader + reference line
-    rec.addLine(v, jx, jy, ex, ey, layer);
-    rec.addLine(v, rx0, ey, rx1, ey, layer);
-    // arrowhead at the joint
-    var adx = ex - jx, ady = ey - jy, al = Math.hypot(adx, ady) || 1, ux = adx / al, uy = ady / al;
-    var ah = g * 0.5, ppx = -uy, ppy = ux;
-    rec.addLine(v, jx, jy, jx + ux * ah + ppx * ah * 0.4, jy + uy * ah + ppy * ah * 0.4, layer);
-    rec.addLine(v, jx, jy, jx + ux * ah - ppx * ah * 0.4, jy + uy * ah - ppy * ah * 0.4, layer);
-    // symbol at mid reference line (below = arrow side, i.e. toward -y here)
-    var sx = ex + refDir * refLen * 0.45, sy = ey;
-    var t = (type || '').toLowerCase();
-    if (t === 'fillet') {
-      // right triangle sitting under the reference line
-      rec.addLine(v, sx, sy, sx, sy - leg, layer);
-      rec.addLine(v, sx, sy - leg, sx + leg, sy, layer);
-      rec.addLine(v, sx, sy, sx + leg, sy, layer);
-    } else {
-      // groove V under the reference line (CJP full / PJP partial depth)
-      var depth = (t === 'pjp') ? leg * 0.65 : leg;
-      rec.addLine(v, sx - leg * 0.55, sy, sx, sy - depth, layer);
-      rec.addLine(v, sx + leg * 0.55, sy, sx, sy - depth, layer);
-    }
-    // label: "<size> <TYPE>"  (fillet shows size△; groove shows CJP / (size)PJP)
-    var lbl;
-    if (t === 'fillet') lbl = (size ? size + '' : '') + '△';
-    else if (t === 'cjp') lbl = 'CJP';
-    else lbl = '(' + (size || 0) + ')PJP';
-    rec.addText(v, ex + refDir * refLen + refDir * g * 1.4, ey, lbl, 0);
-  }
-
   // ── per-view drawing ──────────────────────────────────────────────────────
-  function drawLug(viewName, rec, geo, aparam, weld, opt) {
+  function drawLug(viewName, rec, geo, aparam, opt) {
     layers(rec);
-    var A = { lug: 'lug', hlug: 'hlug', peye: 'peye', hpeye: 'hpeye', cent: 'cent', base: 'base', weld: 'weld', sp: 'sp', hsp: 'hsp' };
+    var A = { lug: 'lug', hlug: 'hlug', peye: 'peye', hpeye: 'hpeye', cent: 'cent', base: 'base', sp: 'sp', hsp: 'hsp' };
     var lugW = aparam.lugW, lugH = aparam.lugH, baseH = aparam.baseH, outerR = aparam.outerR,
         innerR = aparam.innerR, padeyeR = aparam.padeyeR, lugT = aparam.lugT, padeyeT = aparam.padeyeT;
     var Rcx = geo.Rcx, Rcy = geo.Rcy, Tlx = geo.Tlx, Tly = geo.Tly, Trx = geo.Trx, Try = geo.Try,
@@ -201,7 +153,6 @@
     var spHalf = spOn ? Math.max(spL.on ? Math.max(spL.bot, spL.top) : 0, spR.on ? Math.max(spR.bot, spR.top) : 0) / 2 : 0;
     var half = Math.max(pads ? padeyeT / 2 : lugT / 2, spHalf);   // outer half-thickness for side/top
     var bpW = aparam.bpW || lugW * 1.6, bpT = aparam.bpT || 20, bpL = aparam.bpL || padeyeT * 2.2;
-    weld = weld || { pad: {}, lug: {}, base: {} };
 
     if (viewName === 'front' || viewName === 'back') {
       // lug plate outline (eccentric-capable)
@@ -254,14 +205,6 @@
       if (bpOn) rec.addDimLinear(viewName, -bpW / 2, -bpT, bpW / 2, -bpT, -dg * 2.3, bpInf ? 'B(∞)' : 'B');
       // eccentricity at the top
       if (Math.abs(aparam.ecc) > 1e-6) rec.addDimLinear(viewName, 0, lugH, Rcx, lugH, dg, 'off');
-
-      // welds — pad→lug (at pad-eye edge), lug→base (bottom corner), base→shell
-      if (pads) weldSymbol(rec, viewName, Rcx + padeyeR * 0.7, Rcy + padeyeR * 0.7, Rcx + outerR + g * 1.5, Rcy + outerR, +1,
-                 weld.pad.type, weld.pad.size, g, A.weld);
-      weldSymbol(rec, viewName, -lugW / 2, 0, -lugW / 2 - g * 2.2, -g * 1.4, -1,
-                 weld.lug.type, weld.lug.size, g, A.weld);
-      if (bpOn) weldSymbol(rec, viewName, bpW / 2 * 0.5, -bpT, bpW / 2 + g * 1.2, -bpT - g * 1.6, +1,
-                           weld.base.type, weld.base.size, g, A.weld);
 
     } else if (viewName === 'left' || viewName === 'center' || viewName === 'right') {
       // side elevation (edge-on): centre lug plate + optional side pad plates
@@ -334,14 +277,6 @@
       rec.addDimLinear(viewName, -lugT / 2, lugH, lugT / 2, lugH, g * 1.2, 't');
       if (pads) rec.addDimLinear(viewName, -padeyeT / 2, Rcy + padeyeR, padeyeT / 2, Rcy + padeyeR, g * 1.6, 'tp');
       if (bpOn) rec.addDimLinear(viewName, -bpL / 2, -bpT, bpL / 2, -bpT, -g * 1.6, bpInf ? 'C(∞)' : 'C');
-
-      // welds — pad→lug (only with pads), lug→base, base→shell
-      if (pads) weldSymbol(rec, viewName, lugT / 2, Rcy + padeyeR, half + g * 1.4, Rcy + padeyeR + g, +1,
-                 weld.pad.type, weld.pad.size, g, A.weld);
-      weldSymbol(rec, viewName, lugT / 2, 0, half + g * 1.6, -g * 1.2, +1,
-                 weld.lug.type, weld.lug.size, g, A.weld);
-      if (bpOn) weldSymbol(rec, viewName, bpL / 2 * 0.5, -bpT, bpL / 2 + g * 1.2, -bpT - g * 1.6, +1,
-                           weld.base.type, weld.base.size, g, A.weld);
 
     } else if (viewName === 'top' || viewName === 'bottom') {
       // plan looking down (top, solid) or up (bottom, occluded structure dashed)
@@ -459,7 +394,7 @@
       mod3d: 'https://macrobim.github.io/macroBIM/bim_liftinglug_3d.js?v=1',
       aspect: 16 / 9,
       get3dArgs: function () { return [dd.geo]; },
-      drawView: function (view, rec) { drawLug(view, rec, dd.geo, dd.aparam, dd.weld, dd.opt); }
+      drawView: function (view, rec) { drawLug(view, rec, dd.geo, dd.aparam, dd.opt); }
     });
   }
 
@@ -488,7 +423,7 @@
     // eccentricity / extension only apply when their section is enabled
     if (!u.opt.eccOn) { aparam.ecc = 0; aparam.bodyExt = 0; }
 
-    // sanity — core dims must be positive (weld/plate/ecc/ext may be 0)
+    // sanity — core dims must be positive (plate/ecc/ext may be 0)
     var core = ['lugW', 'lugH', 'baseH', 'outerR', 'innerR', 'padeyeR', 'lugT', 'padeyeT'];
     if (core.some(function (k) { return aparam[k] <= 0; })) return;
 
@@ -513,7 +448,7 @@
       if (typeof _emit_dxf_liftinglug === 'function') { try { _emit_dxf_liftinglug(geo); } catch (e) {} }
     }
 
-    window._lug_drawData = { geo: geo, aparam: aparam, weld: u.weld, opt: u.opt };
+    window._lug_drawData = { geo: geo, aparam: aparam, opt: u.opt };
     renderView();
   };
 
