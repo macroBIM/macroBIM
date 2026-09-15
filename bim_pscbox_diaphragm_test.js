@@ -85,7 +85,7 @@
   //  3D 모듈은 이 페이지와 따로 받아 온다. 주소가 같으면 브라우저가 옛 파일을
   //  그대로 쓴다 — 고쳐 올려도 화면이 안 바뀌고, 새 함수(setProjection 같은)를
   //  못 찾아 버튼이 먹통이 된다. 3D 파일을 고칠 때마다 이 번호를 올린다.
-  var V3D = 7;
+  var V3D = 8;
 
   // const/class 로 선언된 전역도 감지 (window 프로퍼티가 아니므로 bare typeof 필요)
   function hasGlobal(name) { try { return (0, eval)('typeof ' + name) !== 'undefined'; } catch (e) { return false; } }
@@ -644,9 +644,14 @@
           var inter = [], k;
           for (k = 0; k < 6; k++) inter.push(segs[k] != null ? segs[k] : null);
           for (k = 0; k < 5; k++) inter.push(null);
+          //  Total 은 겹이음까지 더한 값이다 — 발주할 때 쓰는 길이다.
+          //  겹이음은 형상(네 변)에는 안 들어간다. 조각 칸 합과 Total 이 다른 이유.
+          var lap = o.lap || 0;
           h += '<tr class="' + (String(self._focusId) === String(o.id) ? 'phys-focus' : '') + '">' +
                idCell(o.id, o.state === 'FORMED') +
-               '<td>폐합</td><td><b>' + fmt(total) + '</b></td><td>' + fmt(o.dia) + '</td>' +
+               '<td>폐합</td><td><b title="네 변 ' + fmt(total) +
+               (lap ? ' + 겹이음 ' + fmt(lap) : '') + '">' + fmt(total + lap) + '</b></td>' +
+               '<td>' + fmt(o.dia) + '</td>' +
                cells(inter, 11) + '<td class="phys-na">&mdash;</td></tr>';
         });
         if (!h) h = '<tr><td colspan="16" style="text-align:center;color:#94a3b8;padding:14px;">No rebar loaded.</td></tr>';
@@ -1691,9 +1696,16 @@
                                   covers: { top: cv, outer: cv, inner: cv } };
         Domain.trebarList = []; Domain.queue = []; Domain.activeQueueIndex = 0;
         Domain.isPaused = false; Domain.wallStack = {};
-        //  치수는 대충 준다 — 어차피 벽을 찾아간다. 벽보다 크지만 않으면 된다.
+        /*  U자(21)로 세 면을 물리고 네 번째 변은 아래에서 이어 닫는다.
+            b(긴 변)는 P1 에 붙으니 벽이 자리를 정해 준다 — 길이를 대충 줘도 된다.
+            그런데 a·c(두께를 건너는 두 변)는 붙는 벽이 없고 **준 길이 그대로 자란다.**
+            전에 t*0.95 = 1,900 을 줬더니 반대쪽 면에서 47.5 로 끝나 5 mm 어긋났다
+            (앞면 52.5 · 뒷면 47.5). 두 면 사이에 실제로 들어갈 길이를 준다 :
+              두께 − 2 × (피복 + 지름/2) = 2,000 − 2 × 52.5 = 1,895                */
+        var inset = cv + (h.dia || 25) / 2;
+        var span = Math.max(10, t - 2 * inset);
         var row = { type: 'trebar', id: h.id, code: 21, dia: h.dia,
-                    segs: { a: { len: t * 0.95 }, b: { len: W * 0.9, set: 'P1' }, c: { len: t * 0.95 } } };
+                    segs: { a: { len: span }, b: { len: W * 0.9, set: 'P1' }, c: { len: span } } };
         Domain.USER_REBAR_DATA = [row];
         var rb = null;
         try { rb = Domain._createTrebarFromData(row); } catch (e) { console.error('[PSCDIA] crebar ' + h.id, e); }
@@ -1705,6 +1717,7 @@
           pts.push([pts[0][0], pts[0][1]]);          // 마지막 한 변 — 여기서 닫는다
           var xs = pts.map(function (p) { return p[0]; });
           self._hoops.push({ id: h.id, dia: h.dia, at: h.at, plane: h.plane, state: rb.state, pts: pts,
+                             lap: h.lap || 0,          // 겹이음 — 형상에는 없고 길이에만 더한다
                              gotW: Math.max.apply(null, xs) - Math.min.apply(null, xs) });
         }
       });
