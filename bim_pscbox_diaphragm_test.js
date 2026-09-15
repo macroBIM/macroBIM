@@ -930,10 +930,14 @@
       _finalizeArcs: function () {
         if (typeof UI === 'undefined') return;
         this._rebarSettled = true;
-        //  본 단면이 끝난 뒤에 폐합철근을 그 평면에서 따로 안착시킨다 (Domain 을 잠시 빌린다)
-        try { this._settleHoops(); } catch (e) { console.error('[PSCDIA] 폐합철근:', e); }
+        /*  본 철근이 끝나면 폐합철근이 이어서 떨어진다. 한 번에 다 돌리지 않고
+            프레임마다 걷게 해서 다른 철근처럼 과정이 보이게 한다.
+            3D 는 그 애니메이션이 끝날 때 _startHoopSettle 이 갱신한다.        */
         var self3d = this;
-        setTimeout(function () { self3d.refresh3D(); }, 0);   // 안착이 끝난 좌표로만 3D 를 편다
+        setTimeout(function () {
+          try { self3d._startHoopSettle(); }
+          catch (e) { console.error('[PSCDIA] 폐합철근:', e); self3d.refresh3D(); }
+        }, 0);
         try { if (typeof UI.updateVisuals === 'function') UI.updateVisuals(); } catch (e) {}  // 최종 프레임 반영
         if (UI.anim && UI.anim.stop) UI.anim.stop();      // 정지 → 굴짐 아크가 직선으로 덮이지 않음
         if (!UI.trebarGroup) return;
@@ -956,9 +960,16 @@
           선 하나가 된다. 앞뒤 두 변이 겹쳐 보이는 것이라 선은 하나면 된다.
             yz (세로로 자른 것) → 위치 at 의 **세로선**
             xz (수평으로 자른 것) → 높이 at 의 가로선                          */
-      _drawHoops2D: function () {
+      _drawHoops2D: function (redraw) {
+        /*  고리는 제 그룹에 그린다 — 떨어지는 동안 프레임마다 이것만 지우고
+            다시 그리면 되고, 이미 앉은 다른 철근은 건드리지 않는다.          */
+        if (typeof UI === 'undefined' || !UI.mainLayer) return;
+        if (this._hoopGroup) { this._hoopGroup.destroy(); this._hoopGroup = null; }
         var hoops = this._hoops || [];
-        if (!hoops.length || typeof UI === 'undefined' || !UI.trebarGroup) return;
+        if (!hoops.length) { if (redraw) UI.mainLayer.draw(); return; }
+        var grp = new Konva.Group({ name: 'hoops' });
+        UI.mainLayer.add(grp);
+        this._hoopGroup = grp;
         var scale = (UI.stage && UI.stage.scaleX && UI.stage.scaleX()) || 1;
         var self = this;
         hoops.forEach(function (o) {
@@ -970,18 +981,22 @@
           //  다른 철근(trebar)의 기본색이 이미 보라(#8A2BE2)라 청록으로 가른다.
           //  굵기는 다른 철근과 같은 규칙 — 실제 지름을 그대로 쓴다.
           var on = String(self._focusId) === String(o.id);
-          UI.trebarGroup.add(new Konva.Line({
+          //  아직 떨어지는 중이면 흐리게 — 다른 철근의 미안착 표시와 같은 뜻
+          var moving = (o.state !== 'FORMED');
+          grp.add(new Konva.Line({
             points: seg,
-            stroke: on ? '#FF3D00' : '#00BFA5',
+            stroke: on ? '#FF3D00' : (moving ? '#7dd3c0' : '#00BFA5'),
             strokeWidth: (o.dia > 0 ? o.dia : 25), lineCap: 'round',
-            opacity: (self._focusId && !on) ? 0.4 : 1, strokeScaleEnabled: true
+            opacity: (self._focusId && !on) ? 0.4 : (moving ? 0.55 : 1), strokeScaleEnabled: true
           }));
           var fs = 13 / scale;
           var lbl = new Konva.Text({ x: tipX + fs * 0.4, y: tipY + fs * 0.4, text: String(o.id),
-            fontSize: fs, fontStyle: 'bold', fontFamily: 'Arial', fill: '#00BFA5', scaleY: -1 });
+            fontSize: fs, fontStyle: 'bold', fontFamily: 'Arial',
+            fill: moving ? '#7dd3c0' : '#00BFA5', scaleY: -1 });
           lbl.offsetY(-fs * 0.4);
-          UI.trebarGroup.add(lbl);
+          grp.add(lbl);
         });
+        if (redraw) UI.mainLayer.draw();
       },
 
       _relaxRebar: function () {
@@ -1768,17 +1783,18 @@
       var t = this._diaThk(), self = this;
       var keep = { sec: Domain.currentSection, list: Domain.trebarList, q: Domain.queue,
                    idx: Domain.activeQueueIndex, stack: Domain.wallStack, data: Domain.USER_REBAR_DATA };
-      var cv = this._diaCover();
+      var cv = this._diaCover(), jobs = [];
 
-      /*  한 자리에 고리 하나를 세운다. lo~hi 가 그 자리의 콘크리트 구간이다. */
-      function settleOne(h, ax, at, lo, hi, idSuffix) {
+      /*  한 자리에 고리 하나를 **세울 준비만** 한다 — 돌리지는 않는다.
+          예전에는 여기서 40,000 걸음을 한 번에 돌려 버려서, 다른 철근은 떨어지는
+          과정이 보이는데 폐합철근만 이미 앉은 채로 나타났다. 이제 작업만 만들어
+          두고 _stepHoopJobs() 가 프레임마다 조금씩 걷는다.                     */
+      function buildOne(h, ax, at, lo, hi, idSuffix) {
         var W = hi - lo;
         if (W < 100) return null;
         var walls = self._planWalls(lo, hi, t);
-        Domain.currentSection = { walls: walls, displayPaths: [],
-                                  covers: { top: cv, outer: cv, inner: cv } };
-        Domain.trebarList = []; Domain.queue = []; Domain.activeQueueIndex = 0;
-        Domain.isPaused = false; Domain.wallStack = {};
+        var sec = { walls: walls, displayPaths: [],
+                    covers: { top: cv, outer: cv, inner: cv } };
         /*  U자(21)로 세 면을 물리고 네 번째 변은 아래에서 이어 닫는다.
             b(긴 변)는 P1 에 붙으니 벽이 자리를 정해 준다 — 길이를 대충 줘도 된다.
             그런데 a·c(두께를 건너는 두 변)는 붙는 벽이 없고 준 길이 그대로 자란다.
@@ -1787,19 +1803,15 @@
         var span = Math.max(10, t - 2 * (cv + (h.dia || 25) / 2));
         var row = { type: 'trebar', id: h.id, code: 21, dia: h.dia,
                     segs: { a: { len: span }, b: { len: W * 0.9, set: 'P1' }, c: { len: span } } };
-        Domain.USER_REBAR_DATA = [row];
         var rb = null;
+        var save = Domain.currentSection;
+        Domain.currentSection = sec;                 // 만드는 동안만 잠깐
+        Domain.USER_REBAR_DATA = [row];
         try { rb = Domain._createTrebarFromData(row); } catch (e) { console.error('[PSCDIA] crebar ' + h.id, e); }
+        Domain.currentSection = save;
         if (!rb) return null;
-        Domain.trebarList.push(rb); Domain.queue.push({ kind: 'trebar', obj: rb });
-        for (var i = 0; i < 40000 && Domain.activeQueueIndex < Domain.queue.length; i++) Domain.stepPhysics();
-        var pts = [[rb.segments[0].p1.x, rb.segments[0].p1.y]];
-        rb.segments.forEach(function (sg) { pts.push([sg.p2.x, sg.p2.y]); });
-        pts.push([pts[0][0], pts[0][1]]);          // 마지막 한 변 — 여기서 닫는다
-        var xs = pts.map(function (p) { return p[0]; });
         return { id: h.id + idSuffix, mark: h.id, dia: h.dia, at: at, plane: h.plane,
-                 state: rb.state, pts: pts, lap: h.lap || 0,
-                 gotW: Math.max.apply(null, xs) - Math.min.apply(null, xs) };
+                 lap: h.lap || 0, sec: sec, rb: rb, done: false, started: false };
       }
 
       rows.forEach(function (h) {
@@ -1840,18 +1852,84 @@
           });
           cut.forEach(function (s, k) {
             var sfx = (cut.length > 1) ? ('-' + (k + 1)) : '';
-            var o = settleOne(h, ax, at, s[0], s[1], sfx);
-            if (o) self._hoops.push(o);
+            var o = buildOne(h, ax, at, s[0], s[1], sfx);
+            if (o) jobs.push(o);
           });
         });
       });
       Domain.currentSection = keep.sec; Domain.trebarList = keep.list; Domain.queue = keep.q;
       Domain.activeQueueIndex = keep.idx; Domain.wallStack = keep.stack; Domain.USER_REBAR_DATA = keep.data;
-      if (this._hoops.length) {
-        console.log('[PSCDIA] 폐합철근 안착: ' + this._hoops.map(function (o) {
-          return o.id + ' ' + o.state + ' 폭 ' + Math.round(o.gotW);
-        }).join(' · '));
-      }
+      /*  한꺼번에 앉히면 눈에 안 보인다 — 60 걸음이면 끝나서 0.2 초 만에 사라진다.
+          출발을 두 프레임씩 어긋내 **한 쪽에서 반대쪽으로 차례로** 앉게 한다.
+          본 철근이 큐에서 하나씩 앉는 모습과 결이 같아진다.                   */
+      jobs.forEach(function (j, k) { j.start = k * 2; });
+      this._hoopJobs = jobs;
+      this._syncHoops();
+      return jobs.length;
+    },
+
+    //  지금 이 순간의 고리 좌표를 _hoops 로 옮긴다 (떨어지는 중이어도 그대로 그린다)
+    _syncHoops: function () {
+      var self = this;
+      this._hoops = (this._hoopJobs || []).map(function (j) {
+        if (!j.started) return null;                 // 아직 차례가 안 왔다 — 안 보인다
+        var segs = (j.rb && j.rb.segments) || [];
+        if (!segs.length) return null;
+        var pts = [[segs[0].p1.x, segs[0].p1.y]];
+        segs.forEach(function (sg) { pts.push([sg.p2.x, sg.p2.y]); });
+        if (j.rb.state === 'FORMED') pts.push([pts[0][0], pts[0][1]]);   // 안착해야 닫는다
+        var xs = pts.map(function (p) { return p[0]; });
+        return { id: j.id, mark: j.mark, dia: j.dia, at: j.at, plane: j.plane,
+                 state: j.rb.state, pts: pts, lap: j.lap,
+                 gotW: Math.max.apply(null, xs) - Math.min.apply(null, xs) };
+      }).filter(Boolean);
+      return this._hoops;
+    },
+
+    /*  프레임마다 조금씩 걷는다. 고리마다 제 평면(벽)이 달라서 Domain 을 잠깐
+        갈아 끼우고 그 고리만 한 걸음 보낸 뒤 되돌린다 — 다른 철근은 이미 끝나
+        있으므로 서로 건드리지 않는다.                                        */
+    _stepHoopJobs: function (steps, tick) {
+      var jobs = this._hoopJobs || [], left = 0;
+      if (!jobs.length || typeof Domain === 'undefined' || typeof Physics === 'undefined') return 0;
+      var keepSec = Domain.currentSection, keepStack = Domain.wallStack;
+      var now = (tick == null) ? 1e9 : tick;
+      jobs.forEach(function (j) {
+        if (j.done) return;
+        if (now < (j.start || 0)) { left++; return; }   // 아직 차례가 아니다
+        j.started = true;
+        Domain.currentSection = j.sec;
+        Domain.wallStack = j.stack || (j.stack = {});
+        for (var i = 0; i < steps && j.rb.state !== 'FORMED'; i++) {
+          try { Physics.updatePhysics(j.rb, j.sec.walls, Domain.wallStack); }
+          catch (e) { console.error('[PSCDIA] crebar step', j.id, e); j.done = true; break; }
+        }
+        if (j.rb.state === 'FORMED') j.done = true; else left++;
+      });
+      Domain.currentSection = keepSec; Domain.wallStack = keepStack;
+      return left;
+    },
+
+    //  폐합철근도 떨어지는 과정이 보이게 — 본 철근이 끝난 뒤 이어서 돈다
+    _startHoopSettle: function () {
+      if (this._hoopTimer) { clearInterval(this._hoopTimer); this._hoopTimer = null; }
+      var n = this._settleHoops();
+      var self = this;
+      if (!n) { this._renderPhysicsTable(); this.refresh3D(); return; }
+      var ticks = 0;
+      this._hoopTimer = setInterval(function () {
+        var left = self._stepHoopJobs(6, ticks);   // 한 프레임에 여섯 걸음 · 차례대로
+        self._syncHoops();
+        self._drawHoops2D(true);
+        if (++ticks % 10 === 0) self._renderPhysicsTable();
+        if (left === 0 || ticks > 2000) {
+          clearInterval(self._hoopTimer); self._hoopTimer = null;
+          self._syncHoops(); self._drawHoops2D(true);
+          self._renderPhysicsTable(); self.refresh3D();
+          console.log('[PSCDIA] 폐합철근 안착 끝: ' + self._hoops.length + ' 가닥 · ' +
+            self._hoops.filter(function (o) { return o.state === 'FORMED'; }).length + ' FORMED');
+        }
+      }, 16);
     },
 
     //  격벽면 피복 — 따로 칸을 두지 않았다. 외부면과 같게 본다.
@@ -2651,6 +2729,10 @@
       }
       this._rebarSettled = false;
       if (this._settleTimer) { clearInterval(this._settleTimer); this._settleTimer = null; }
+      //  다시 스폰하면 폐합철근 애니메이션도 멈추고 지운다 (옛 고리가 남지 않게)
+      if (this._hoopTimer) { clearInterval(this._hoopTimer); this._hoopTimer = null; }
+      this._hoopJobs = []; this._hoops = [];
+      if (this._hoopGroup) { this._hoopGroup.destroy(); this._hoopGroup = null; }
       if (UI.anim && UI.anim.start) UI.anim.start();
       this._renderPhysicsTable();          // 스폰 직후 표 갱신 (안착 전 — 길이는 settle 후 확정)
       try {
