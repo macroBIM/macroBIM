@@ -64,7 +64,8 @@ function render_pscboxdia_3d(hostId, cfg) {
         if (host._pscdia3d.animId) cancelAnimationFrame(host._pscdia3d.animId);
         var oc = host._pscdia3d.camera, ot = host._pscdia3d.target;
         if (oc) keep = { p: oc.position.clone(), t: ot ? ot.clone() : new THREE.Vector3(),
-                         up: oc.up ? oc.up.clone() : null };
+                         up: oc.up ? oc.up.clone() : null,
+                         zoom: oc.zoom, proj: host._pscdia3d.proj, view: host._pscdia3d.view };
     }
     while (host.firstChild) host.removeChild(host.firstChild);
 
@@ -77,7 +78,8 @@ function render_pscboxdia_3d(hostId, cfg) {
     var scene = new THREE.Scene();
     scene.background = new THREE.Color(0x41699b);       // 카드의 기존 2D 배경색과 같게
 
-    var camera = new THREE.PerspectiveCamera(42, W / H, 0.1, 500);
+    var FOV = 42, ASP = W / H;
+    var camera = null;                       // setProjection() 이 정한다 (투시 / 정사)
     var renderer = new THREE.WebGLRenderer({ antialias: true });
     renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
     renderer.setSize(W, H);
@@ -158,57 +160,160 @@ function render_pscboxdia_3d(hostId, cfg) {
     world.position.sub(ctr);                             // 원점으로 끌어온다
     var span = Math.max(size.x, size.y, size.z);
 
+    /* 시점 : 방향만 정하고 거리는 구조물이 화면에 꽉 차도록 계산한다.
+       x 는 교축 직각(단면 폭), y 는 위, z 는 교축이다. 그래서 FRONT 가
+       격벽면(단면)을 정면으로 보는 시점이고, TOP 은 상판을 내려다본다. */
+    var VIEWS = {
+        iso:    { d: [0.55, 0.42, 0.85], up: [0, 1, 0] },
+        front:  { d: [0, 0, 1],  up: [0, 1, 0]  },
+        back:   { d: [0, 0, -1], up: [0, 1, 0]  },
+        top:    { d: [0, 1, 0],  up: [0, 0, -1] },
+        bottom: { d: [0, -1, 0], up: [0, 0, 1]  },
+        left:   { d: [-1, 0, 0], up: [0, 1, 0]  },
+        right:  { d: [1, 0, 0],  up: [0, 1, 0]  }
+    };
+
+    /* 화면축 : 보는 방향 dir, 화면 오른쪽 right, 화면 위 up. */
+    function frame(dirA, upA) {
+        var dir = new THREE.Vector3(dirA[0], dirA[1], dirA[2]).normalize();
+        var up0 = new THREE.Vector3(upA[0], upA[1], upA[2]);
+        var right = new THREE.Vector3().crossVectors(dir, up0).normalize();
+        var upv = new THREE.Vector3().crossVectors(right, dir).normalize();
+        return { dir: dir, right: right, up: upv };
+    }
+
+    //  바운딩 박스의 여덟 꼭짓점 (원점 기준)
+    var CORNERS = (function () {
+        var hx = size.x / 2, hy = size.y / 2, hz = size.z / 2, out = [];
+        [-1, 1].forEach(function (sx) { [-1, 1].forEach(function (sy) { [-1, 1].forEach(function (sz) {
+            out.push(new THREE.Vector3(sx * hx, sy * hy, sz * hz));
+        }); }); });
+        return out;
+    })();
+
+    var PAD = 1.03;                  // 가장자리 여백 3 % — 거의 꽉 채운다
+
+    /* 투시에서 카메라를 얼마나 물려야 여덟 꼭짓점이 모두 화면에 들어오는가.
+       꼭짓점 p 가 화면에 들어올 조건은 |p·up| <= (D - p·dir)·t 이고 가로도 같다.
+       이것을 D 로 풀어 꼭짓점마다 최댓값을 취하면 정확한 최소 거리다.
+
+       예전에는 "가장 큰 반높이 / t + 가장 큰 반두께" 로 어림했다. 두 최댓값이
+       서로 다른 꼭짓점에서 나오는데 그걸 같은 점인 양 더해서 카메라가 필요
+       이상으로 물러났고 — ISO 에서 특히 심했다 — 구조물이 작게 보였다. */
+    function fitPersp(f) {
+        var t = Math.tan(FOV * Math.PI / 360), D = 0;
+        CORNERS.forEach(function (p) {
+            var pd = p.dot(f.dir), pu = Math.abs(p.dot(f.up)) * PAD, pr = Math.abs(p.dot(f.right)) * PAD;
+            D = Math.max(D, pd + pu / t, pd + pr / (t * ASP));
+        });
+        return D;
+    }
+    //  정사는 거리와 크기가 무관하다 — 틀의 반높이만 구하면 된다
+    function fitOrtho(f) {
+        var hw = 0, hh = 0;
+        CORNERS.forEach(function (p) {
+            hw = Math.max(hw, Math.abs(p.dot(f.right)));
+            hh = Math.max(hh, Math.abs(p.dot(f.up)));
+        });
+        return Math.max(hh, hw / ASP) * PAD;
+    }
+    //  이 방향으로 가장 먼 꼭짓점까지 — 근·원거리 평면을 정하는 데 쓴다
+    function depth(f) {
+        var d = 0;
+        CORNERS.forEach(function (p) { d = Math.max(d, Math.abs(p.dot(f.dir))); });
+        return d;
+    }
+    //  keep 이 있으면 그것이 이긴다 — 다시 그린 것뿐이므로 보던 상태를 잇는다.
+    //  버튼은 장면이 서 있으면 setView/setProjection 으로 직접 가므로 여기로 오지 않는다.
+    var proj = (keep && keep.proj) || cfg.proj || 'persp';   // 'persp' 투시 · 'ortho' 정사
+    var view = (keep && keep.view) || cfg.view || 'iso';
     var controls = null;
-    if (typeof THREE.OrbitControls === 'function') {
+
+    function makeControls() {
+        if (typeof THREE.OrbitControls !== 'function') return;
+        if (controls && controls.dispose) controls.dispose();
         controls = new THREE.OrbitControls(camera, renderer.domElement);
         controls.enableDamping = true;
         controls.dampingFactor = 0.08;
     }
 
-    /* 시점 : 방향만 정하고 거리는 단면이 화면에 꽉 차도록 계산한다.
-       x 는 교축 직각(단면 폭), y 는 위, z 는 교축이다. 그래서 FRONT 가
-       격벽면(단면)을 정면으로 보는 시점이고, TOP 은 상판을 내려다본다. */
-    //  d 보는 방향 · up 화면의 위 · w/h 그 시점에서 화면 가로·세로에 놓이는 치수
-    var VIEWS = {
-        iso:    { d: [0.55, 0.42, 0.85], up: [0, 1, 0], w: span,   h: span },
-        front:  { d: [0, 0, 1],  up: [0, 1, 0],  w: size.x, h: size.y },
-        back:   { d: [0, 0, -1], up: [0, 1, 0],  w: size.x, h: size.y },
-        top:    { d: [0, 1, 0],  up: [0, 0, -1], w: size.x, h: size.z },
-        bottom: { d: [0, -1, 0], up: [0, 0, 1],  w: size.x, h: size.z },
-        left:   { d: [-1, 0, 0], up: [0, 1, 0],  w: size.z, h: size.y },
-        right:  { d: [1, 0, 0],  up: [0, 1, 0],  w: size.z, h: size.y }
-    };
+    /* 투영법을 바꾼다. 정사(ortho)는 거리에 따라 작아지지 않으므로 정면도에서
+       앞뒤 면이 같은 크기로 겹친다 — 도면과 같은 그림이 된다. 투시(persp)는
+       눈으로 보는 그림이라 뒷면이 작다.
+       카메라 객체 자체가 바뀌므로 OrbitControls 도 다시 만든다. */
+    function setProjection(kind, keepAngle) {
+        var v = VIEWS[view] || VIEWS.iso, f = frame(v.d, v.up), old = camera;
+        var far = span * 8 + depth(f) * 4;
+        proj = (kind === 'ortho') ? 'ortho' : 'persp';
+        if (proj === 'ortho') {
+            var hh = fitOrtho(f);
+            camera = new THREE.OrthographicCamera(-hh * ASP, hh * ASP, hh, -hh, 0.01, far);
+        } else {
+            camera = new THREE.PerspectiveCamera(FOV, ASP, 0.05, far);
+        }
+        if (keepAngle && old) {                  // 보던 각도는 그대로 두고 투영만 바꾼다
+            camera.position.copy(old.position);
+            camera.up.copy(old.up);
+            var tg = controls ? controls.target.clone() : new THREE.Vector3();
+            camera.lookAt(tg);
+            makeControls();
+            if (controls) { controls.target.copy(tg); controls.update(); }
+        } else {
+            makeControls();
+            setView(view);
+        }
+    }
+
     function setView(name) {
-        var v = VIEWS[name] || VIEWS.iso;
-        //  화각에 맞춰 거리를 정한다 — 가로·세로 중 빠듯한 쪽이 이긴다 (여유 12 %).
-        //  마지막 항은 두께의 절반 — 가까운 면이 근거리 평면에 잘리지 않게.
-        var t = Math.tan(camera.fov * Math.PI / 360);
-        var dist = Math.max(v.h / 2 / t, v.w / 2 / (t * Math.max(camera.aspect, 0.2))) * 1.12
-                 + span * 0.25;
+        if (VIEWS[name]) view = name;
+        var v = VIEWS[view] || VIEWS.iso, f = frame(v.d, v.up);
         camera.up.set(v.up[0], v.up[1], v.up[2]);
-        camera.position.copy(new THREE.Vector3(v.d[0], v.d[1], v.d[2]).normalize().multiplyScalar(dist));
+        if (camera.isOrthographicCamera) {
+            var hh = fitOrtho(f);
+            camera.top = hh; camera.bottom = -hh;
+            camera.left = -hh * ASP; camera.right = hh * ASP;
+            camera.zoom = 1;
+            camera.position.copy(f.dir.clone().multiplyScalar(depth(f) + span * 1.5));
+        } else {
+            camera.position.copy(f.dir.clone().multiplyScalar(fitPersp(f)));
+        }
+        camera.updateProjectionMatrix();
         camera.lookAt(0, 0, 0);
         if (controls) { controls.target.set(0, 0, 0); controls.update(); }
     }
 
-    if (keep && !cfg.view) {                     // 다시 그린 것뿐 — 보던 각도를 그대로
+    setProjection(proj, false);
+
+    if (keep) {                                  // 다시 그린 것뿐 — 보던 각도를 그대로
         camera.position.copy(keep.p);
         if (keep.up) camera.up.copy(keep.up);
+        if (keep.zoom) { camera.zoom = keep.zoom; camera.updateProjectionMatrix(); }
         camera.lookAt(keep.t);
         if (controls) { controls.target.copy(keep.t); controls.update(); }
-    } else {
-        setView(cfg.view || 'iso');
     }
 
     function onResize() {
         var w = host.clientWidth || W, h = host.clientHeight || H;
-        camera.aspect = w / h; camera.updateProjectionMatrix(); renderer.setSize(w, h);
+        ASP = w / h;
+        if (camera.isOrthographicCamera) {
+            var hh = (camera.top - camera.bottom) / 2;
+            camera.left = -hh * ASP; camera.right = hh * ASP;
+        } else camera.aspect = ASP;
+        camera.updateProjectionMatrix(); renderer.setSize(w, h);
     }
     window.addEventListener('resize', onResize);
 
-    var state = { animId: 0, scene: scene, world: world, gT: gT, gL: gL, camera: camera,
-                  target: controls ? controls.target : new THREE.Vector3(),
-                  setView: setView };       // 페이지의 시점 버튼이 부른다 (다시 세우지 않고 카메라만)
+    /* camera 와 controls 는 투영법을 바꿀 때 새로 만들어진다 — 바깥에서 붙잡고
+       있으면 옛 것을 보게 되므로 읽을 때마다 지금 것을 돌려 준다. */
+    var state = {
+        animId: 0, scene: scene, world: world, gT: gT, gL: gL,
+        setView: setView,                       // 페이지의 시점 버튼 (다시 세우지 않고 카메라만)
+        setProjection: function (k) { setProjection(k, true); },
+        get camera() { return camera; },
+        get target() { return controls ? controls.target : new THREE.Vector3(); },
+        get view() { return view; },
+        get proj() { return proj; }
+    };
     host._pscdia3d = state;
     (function loop() {
         state.animId = requestAnimationFrame(loop);

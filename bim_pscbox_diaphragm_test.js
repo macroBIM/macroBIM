@@ -180,6 +180,7 @@
     '  transition:background .12s,color .12s;}' +
     '.view3d-bar button:hover{background:rgba(15,23,42,.72);color:#fff;}' +
     '.view3d-bar button.active{background:#2563eb;border-color:#2563eb;color:#fff;}' +
+    '.view3d-sep{width:1px;align-self:stretch;margin:0 3px;background:rgba(255,255,255,.3);}' +
     '.phys-tbl{font-size:11.5px;}.phys-tbl th,.phys-tbl td{white-space:nowrap;padding:4px 8px;}' +
     '.px-tbl.var-tbl th{background:#1e293b;color:#fff;font-weight:600;text-align:center;border-bottom:1px solid #334155;border-right:1px solid #334155;}.px-tbl.var-tbl th:last-child{border-right:none;}' +
     '.px-tbl.dim-tbl th{background:#1e293b;color:#fff;font-weight:600;text-align:center;border-bottom:1px solid #334155;border-right:1px solid #334155;}.px-tbl.dim-tbl th:last-child{border-right:none;}' +
@@ -498,6 +499,11 @@
                     return '<button type="button" data-v="' + v + '" onclick="PXDIA.view3D(\'' + v + '\')">' +
                            v.toUpperCase() + '</button>';
                   }).join('') +
+                  '<span class="view3d-sep"></span>' +
+                  [['persp', 'PERSP'], ['ortho', 'ORTHO']].map(function (p) {
+                    return '<button type="button" data-p="' + p[0] + '" onclick="PXDIA.proj3D(\'' + p[0] + '\')">' +
+                           p[1] + '</button>';
+                  }).join('') +
                 '</div>' +
                 '<div id="render3dContainer" style="width:100%;aspect-ratio:16/9;background:#41699b;overflow:hidden;cursor:grab;"></div></div>' +
             '</div>' +
@@ -522,6 +528,7 @@
         var wrap = document.createElement('div');
         wrap.innerHTML = this._rebarHostHTML;
         parent.appendChild(wrap.firstChild);
+        this._mark3DBar();                       // 시점·투영 버튼의 첫 활성 표시 (ISO · PERSP)
         return document.getElementById('renderContainer');
       },
 
@@ -2036,14 +2043,35 @@
     //  세운 뒤 그 시점으로 시작한다.
     view3D: function (name) {
       this._view3D = name;
-      var bar = document.getElementById('view3dBar');
-      if (bar) Array.prototype.forEach.call(bar.querySelectorAll('button'), function (b) {
-        b.classList.toggle('active', b.getAttribute('data-v') === name);
-      });
-      var host = document.getElementById('render3dContainer');
-      var st = host && host._pscdia3d;
+      this._mark3DBar();
+      var st = this._st3D();
       if (st && typeof st.setView === 'function') { st.setView(name); return; }
       if (!this._is3D) this.toggle3D(); else this.refresh3D();
+    },
+
+    //  투영법 : persp 투시(눈으로 보는 그림, 뒷면이 작다) · ortho 정사(도면과 같다).
+    //  보던 각도는 그대로 두고 투영만 바꾼다.
+    proj3D: function (kind) {
+      this._proj3D = (kind === 'ortho') ? 'ortho' : 'persp';
+      this._mark3DBar();
+      var st = this._st3D();
+      if (st && typeof st.setProjection === 'function') { st.setProjection(this._proj3D); return; }
+      if (!this._is3D) this.toggle3D(); else this.refresh3D();
+    },
+
+    _st3D: function () {
+      var host = document.getElementById('render3dContainer');
+      return (host && host._pscdia3d) || null;
+    },
+
+    _mark3DBar: function () {
+      var bar = document.getElementById('view3dBar');
+      if (!bar) return;
+      var v = this._view3D || 'iso', p = this._proj3D || 'persp';
+      Array.prototype.forEach.call(bar.querySelectorAll('button'), function (b) {
+        var dv = b.getAttribute('data-v'), dp = b.getAttribute('data-p');
+        b.classList.toggle('active', dv ? dv === v : dp === p);
+      });
     },
 
     //  엔진 객체가 아니라 평범한 배열로 넘긴다 — 3D 파일이 엔진을 모르게 둔다
@@ -2084,7 +2112,8 @@
       }
       return { outer: outer, cells: cells, openings: openings,
                segLen: ap.SEGL || SEG_DEF, diaT: ap.DIAT || DIA_DEF,
-               trebar: tre, lrebar: lre, treCtc: 150, view: this._view3D || null };
+               trebar: tre, lrebar: lre, treCtc: 150,
+               view: this._view3D || null, proj: this._proj3D || null };
     },
 
     //  redraw() 마다 부른다. 입력칸을 두드릴 때마다 장면을 새로 세우면 무거우므로
