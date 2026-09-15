@@ -62,8 +62,15 @@ console.log('단면 : NCELL', ap.NCELL, '· TH', ap.TH, '· WL', ap.WL,
 const g = geo_box12cell(ap);
 P._lines = g.lines.map(l => [l.x1, l.y1, l.x2, l.y2]);
 P._arcs  = g.arcs.map(a => [a.x, a.y, a.r, a.angb, a.ange]);
-P._circs = []; P._openings = [];
+P._circs = [];
+//  개구부도 화면과 같은 길로 만든다 — op1_* 입력칸을 채우고 페이지 함수를 부른다
+['shape','B','H','CTTX','CTTY','CTBX','CTBY','X','Y'].forEach(k => mkEl('op1_' + k));
+P._loadOpenFromExcel(sheet0);
+P._openings = P._openingAt(ap, g, 1).map(o => ({ o: o.o, pts: o.pts }));
 const sec = P._buildSectionFromBim();
+console.log('개구부 ' + P._openings.length + '개 · y ' +
+  (P._openings[0] ? Math.min(...P._openings[0].pts.map(p=>p[1])).toFixed(0) + '~' +
+                    Math.max(...P._openings[0].pts.map(p=>p[1])).toFixed(0) : '-'));
 console.log('벽', sec.walls.length, '개 · 피복', JSON.stringify(sec.covers));
 
 

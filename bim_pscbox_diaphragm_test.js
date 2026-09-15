@@ -1592,13 +1592,40 @@
                    plane: (this._rbStr(g[3]) || 'yz').toLowerCase(),
                    at: at, set: (this._rbStr(g[5]) || 'all').toLowerCase(),
                    lap: this._rbHas(g[6]) ? this._rbNum(g[6]) : 0,
-                   from: this._rbHas(g[7]) ? this._rbNum(g[7]) : NaN,   // 긴 축을 여기서 여기까지만
-                   to:   this._rbHas(g[8]) ? this._rbNum(g[8]) : NaN });
+                   //  긴 축을 여기서 여기까지만. 숫자 대신 `open` 을 쓰면 개구부를 따라간다 —
+                   //  from:open = 개구부 위쪽 끝부터 · to:open = 개구부 아래쪽 끝까지.
+                   //  개구부를 옮기면 철근도 같이 따라가므로 숫자를 다시 짚을 일이 없다.
+                   from: this._rbEdge(g[7]), to: this._rbEdge(g[8]) });
       }
       this._crebarData = out;
       if (out.length) console.log('[PSCDIA] crebar 로드: ' + out.length + '개 (' +
         out.map(function (o) { return o.id + '@' + o.at; }).join(', ') + ')');
       return out.length;
+    },
+
+    //  from/to 칸 : 숫자면 그 값, 'open' 이면 개구부를 따라간다는 표시
+    _rbEdge: function (cell) {
+      if (!this._rbHas(cell)) return NaN;
+      var s = this._rbStr(cell).toLowerCase();
+      if (s === 'open') return 'open';
+      return this._rbNum(cell);
+    },
+
+    //  개구부의 위·아래 끝 (자른 위치 at 에서 가장 가까운 개구부로)
+    _openEdgeAt: function (at, ax) {
+      var best = null, bd = 1e18;
+      (this._openings || []).forEach(function (op) {
+        if (!op || !op.pts || !op.pts.length) return;
+        var lo = 1e18, hi = -1e18, clo = 1e18, chi = -1e18;
+        op.pts.forEach(function (p) {
+          lo = Math.min(lo, p[ax]); hi = Math.max(hi, p[ax]);
+          clo = Math.min(clo, p[ax ? 0 : 1]); chi = Math.max(chi, p[ax ? 0 : 1]);
+        });
+        //  자른 선이 개구부를 지나는지 — 지나면 0, 아니면 떨어진 거리
+        var d = (at < clo) ? clo - at : (at > chi ? at - chi : 0);
+        if (d < bd) { bd = d; best = { lo: lo, hi: hi }; }
+      });
+      return best;
     },
 
     /*  자른 평면에서 콘크리트가 어디부터 어디까지인가.
@@ -1650,9 +1677,13 @@
         var ax = (h.plane === 'yz') ? 1 : 0;          // yz = 세로로 자른 평면 (긴 축이 y)
         var w = self._spanAt(h.at, ax);
         if (!w) { console.warn('[PSCDIA] crebar ' + h.id + ' : ' + (ax ? 'x=' : 'y=') + h.at + ' 에 단면이 없습니다'); return; }
-        //  from/to 를 주면 그만큼만 감는다 (개구부 아래만 감는 ⑩-1 ⑩-2 처럼)
-        var lo = isFinite(h.from) ? Math.max(w.lo, h.from) : w.lo;
-        var hi = isFinite(h.to) ? Math.min(w.hi, h.to) : w.hi;
+        //  from/to 를 주면 그만큼만 감는다 (개구부 아래만 감는 ⑩-1 ⑩-2 처럼).
+        //  'open' 이면 개구부 끝을 찾아 쓴다 — 개구부를 옮겨도 따라간다.
+        var oe = (h.from === 'open' || h.to === 'open') ? self._openEdgeAt(h.at, ax) : null;
+        var fv = (h.from === 'open') ? (oe ? oe.hi : NaN) : h.from;   // 개구부 위쪽 끝부터
+        var tv = (h.to === 'open') ? (oe ? oe.lo : NaN) : h.to;       // 개구부 아래쪽 끝까지
+        var lo = isFinite(fv) ? Math.max(w.lo, fv) : w.lo;
+        var hi = isFinite(tv) ? Math.min(w.hi, tv) : w.hi;
         if (hi - lo < 100) { console.warn('[PSCDIA] crebar ' + h.id + ' : 감을 구간이 없습니다'); return; }
         var walls = self._planWalls(lo, hi, t), W = hi - lo;
         var cv = self._diaCover();
