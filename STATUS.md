@@ -153,6 +153,20 @@ git status --short     # 비어 있어야 한다
 
 ### 2026-09-15
 
+- **Lifting lug — `baseH` 와 `bodyExt` 를 하나로** · 테스트 — 형상은 처음부터
+  **합만** 보고 있었다 (`sideH = baseH + bodyExt`). 한 치수를 두 칸에 적어 둔 것이라
+  합친다. 이제 **`baseH` 가 하부 직선부 전체**이고 긴 러그는 그냥 큰 `baseH` 다.
+  **갈라 둔 탓에 실제로 어긋나 있었다** : 3D 는 `geo.sideH || baseH` 로 합을 받는데
+  **DXF 은 `aparam.baseH` 만 읽어** `bodyExt` 를 준 만큼 짧게 그리고 있었다.
+  합치니 그 어긋남이 같이 사라진다.
+  또 `bodyExt` 는 「Eccentricity & extension」 체크박스에 묶여 있어 편심을 끄면
+  **0 으로 눌렸다** — 하부 길이가 편심 스위치에 딸려 있을 이유가 없다. 이제
+  `baseH` 는 코어 값이라 늘 살아 있고, 그 카드는 **「Eccentricity」** 하나만 남는다.
+  폼 라벨도 도면 치수와 맞췄다 : `Base straight height` → **`Straight body height (sH)`**.
+  **CSV 23 → 22 칸** (`bodyExt` 는 10번째였다). 확인 : baseH 30/120/300 →
+  sideH 30/120/300, 어깨 접점 Tly 93.3/168.1/348.1 로 따라 움직임. 표제·값 22/22.
+
+
 - **Lifting lug — 용접을 다 뺐다** · 테스트 — macroPLATE 로 옮기기 전에 현재
   상태를 비웠다. 용접은 **테스트 빌드 두 파일에만** 있었다 (운영 `bim_liftinglug.js`
   와 3D 에는 애초에 없다).

@@ -12,8 +12,8 @@
          horizontally from the lug-base centreline, so the plate outline
          becomes an asymmetric (skewed) trapezoid.  Geometry generalised via
          tangent-from-point so ecc = 0 reduces to the symmetric production shape.
-      2. Lower-body extension (bodyExt) — the straight body below the shoulders
-         is lengthened (a long lug), matching the "L3 / tangent-line" case.
+      2. Lower body — baseH IS the straight body below the shoulders, all of it.
+         A long lug is simply a bigger baseH; there is no separate extension.
       3. Base plate (bpOn) — a plate under the lug that welds to the shell.
          Its in-plane length can be drawn to a finite size (bpW / bpL) or shown
          as effectively infinite with a zig-zag break line (bpMode).
@@ -32,7 +32,7 @@
 
   // numeric input ids, in batch-CSV order
   var NUMKEYS = ['lugW', 'lugH', 'baseH', 'outerR', 'innerR', 'padeyeR', 'lugT', 'padeyeT',
-                 'ecc', 'bodyExt', 'bpW', 'bpT', 'bpL',
+                 'ecc', 'bpW', 'bpT', 'bpL',
                  'spBotL', 'spTopL', 'spHL', 'spWL', 'spInsetL',
                  'spBotR', 'spTopR', 'spHR', 'spWR', 'spInsetR'];
 
@@ -72,8 +72,12 @@
   // (Rcx, Rcy, Tlx/Tly, Trx/Try, arc_angb, arc_ange, aparam) plus sideH.
   function geoLugTest(aparam) {
     var lugW = aparam.lugW, lugH = aparam.lugH, baseH = aparam.baseH, outerR = aparam.outerR,
-        ecc = aparam.ecc || 0, bodyExt = aparam.bodyExt || 0;
-    var sideH = baseH + bodyExt;                 // straight-side height (lower body)
+        ecc = aparam.ecc || 0;
+    /* 하부 직선부는 baseH 하나다. 예전에는 baseH + bodyExt 였는데 형상은 늘 그 합만
+       보았고, 둘로 갈라 둔 값이 조용히 어긋나 있었다 — 3D 는 geo.sideH 를 받아
+       합을 썼지만 DXF 는 aparam.baseH 만 읽어 bodyExt 를 준 만큼 짧게 그렸다.
+       한 치수를 두 칸에 적으면 언젠가 그렇게 된다. */
+    var sideH = baseH;                           // straight-side height (lower body)
     var Rcx = ecc, Rcy = lugH - outerR;          // arc / hole / pad-eye centre
 
     var PL = { x: -lugW / 2, y: sideH }, PR = { x: lugW / 2, y: sideH };
@@ -418,10 +422,10 @@
     }
     setSide(['spBotL', 'spTopL', 'spHL', 'spWL', 'spInsetL'], u.opt.spOnL);
     setSide(['spBotR', 'spTopR', 'spHR', 'spWR', 'spInsetR'], u.opt.spOnR);
-    toggleRows(['row_ecc', 'row_bodyExt'], u.opt.eccOn);
+    toggleRows(['row_ecc'], u.opt.eccOn);
     toggleRows(['row_bpMode', 'row_bpW', 'row_bpT', 'row_bpL'], u.opt.bpOn === 'plate');
     // eccentricity / extension only apply when their section is enabled
-    if (!u.opt.eccOn) { aparam.ecc = 0; aparam.bodyExt = 0; }
+    if (!u.opt.eccOn) { aparam.ecc = 0; }
 
     // sanity — core dims must be positive (plate/ecc/ext may be 0)
     var core = ['lugW', 'lugH', 'baseH', 'outerR', 'innerR', 'padeyeR', 'lugT', 'padeyeT'];
@@ -432,7 +436,7 @@
       aparam.lugW = (aparam.outerR + Math.abs(aparam.ecc)) * 2;
       var e1 = document.getElementById('lugW'); if (e1) e1.value = aparam.lugW;
     }
-    var minH = aparam.outerR + aparam.padeyeR + aparam.baseH + (aparam.bodyExt || 0);
+    var minH = aparam.outerR + aparam.padeyeR + aparam.baseH;
     if (aparam.lugH < minH) { aparam.lugH = minH; var e2 = document.getElementById('lugH'); if (e2) e2.value = aparam.lugH; }
 
     var geo = geoLugTest(aparam);
