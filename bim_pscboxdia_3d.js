@@ -43,7 +43,15 @@ function pscboxdia3d_shape(outer, holes) {
    튜브와 함께 가는 선을 하나 더 그어 어느 거리에서도 보이게 한다. */
 function pscboxdia3d_bar(pts3, dia, matTube, colLine) {
     var g = new THREE.Group();
-    var curve = new THREE.CatmullRomCurve3(pts3, false, 'catmullrom', 0);
+    /*  철근은 직선 구간이 꺾인 것이지 매끄러운 곡선이 아니다. CatmullRom 을 쓰면
+        꺾임에서 스플라인이 부풀어 실제 형상과 다른 자리를 지난다 — 선(Line)은
+        원래 점을 잇고 튜브만 어긋나 보인다. 선분을 그대로 이어 붙인다.       */
+    var curve = new THREE.CurvePath();
+    for (var i = 0; i + 1 < pts3.length; i++) {
+        if (pts3[i].distanceTo(pts3[i + 1]) < 1e-9) continue;   // 겹친 점은 프레임이 NaN 이 된다
+        curve.add(new THREE.LineCurve3(pts3[i], pts3[i + 1]));
+    }
+    if (!curve.curves.length) return g;
     g.add(new THREE.Mesh(
         new THREE.TubeGeometry(curve, Math.max(6, pts3.length * 4), dia / 2 * PSCBOXDIA3D_MM, 6, false),
         matTube));

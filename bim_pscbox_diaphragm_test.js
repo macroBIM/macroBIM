@@ -85,7 +85,7 @@
   //  3D 모듈은 이 페이지와 따로 받아 온다. 주소가 같으면 브라우저가 옛 파일을
   //  그대로 쓴다 — 고쳐 올려도 화면이 안 바뀌고, 새 함수(setProjection 같은)를
   //  못 찾아 버튼이 먹통이 된다. 3D 파일을 고칠 때마다 이 번호를 올린다.
-  var V3D = 2;
+  var V3D = 3;
 
   // const/class 로 선언된 전역도 감지 (window 프로퍼티가 아니므로 bare typeof 필요)
   function hasGlobal(name) { try { return (0, eval)('typeof ' + name) !== 'undefined'; } catch (e) { return false; } }
@@ -2100,15 +2100,36 @@
       }
       var openings = (this._openings || []).map(function (o) { return o.pts; });
 
-      //  안착이 끝난 철근만 가져온다 (아직 떨어지는 중인 것을 3D 로 펴면 거짓이다)
-      var tre = [], lre = [];
+      /*  안착이 끝난 철근만 가져온다 — 떨어지는 중인 것을 3D 로 펴면 거짓이다.
+          여기서 두 가지를 걸러 낸다. 2D 는 한 단면이라 이상한 철근이 한 가닥
+          보이고 말지만, 3D 는 그것을 두께만큼 겹쳐 놓아 화면이 못 쓰게 된다.
+
+          ① 안착하지 않은 것(FORMED 아님) — 2D 는 사라지지 않게 직선으로 남기지만
+             3D 로 펴면 허공에 뜬 막대가 된다.
+          ② 세그먼트가 끊긴 것 — 벽 id(E1,E2…)는 단면이 바뀌면 다시 매겨진다.
+             입력 파일의 id 가 지금 단면과 안 맞으면 다리 하나가 반대편 벽에
+             붙어, 이으면 단면을 가로지르는 십여 미터짜리 유령 철근이 된다.
+             (기본 단면에 S15 철근을 얹었더니 길이 1,590 인 철근이 13,516 으로
+              나왔다 — 세그먼트 사이가 12,126 mm 벌어져 있었다.)          */
+      var tre = [], lre = [], skipped = [];
       if (typeof Domain !== 'undefined') {
         (Domain.trebarList || []).forEach(function (t) {
           if (!t.segments || !t.segments.length) return;
+          if (t.state !== 'FORMED') { skipped.push(t.id + '(미안착)'); return; }
+          var gap = 0;
+          for (var i = 0; i + 1 < t.segments.length; i++) {
+            gap = Math.max(gap, Math.hypot(t.segments[i + 1].p1.x - t.segments[i].p2.x,
+                                           t.segments[i + 1].p1.y - t.segments[i].p2.y));
+          }
+          if (gap > 1) { skipped.push(t.id + '(끊김 ' + Math.round(gap) + 'mm)'); return; }
           var pts = [[t.segments[0].p1.x, t.segments[0].p1.y]];
           t.segments.forEach(function (sg) { pts.push([sg.p2.x, sg.p2.y]); });
           tre.push({ id: t.id, dia: t.dia || 13, pts: pts });
         });
+        if (skipped.length) {
+          console.warn('[PSCDIA] 3D 에서 뺀 철근: ' + skipped.join(', ') +
+                       ' — 2D 에는 그대로 있습니다. 벽 id 가 지금 단면과 맞는지 보세요.');
+        }
         (Domain.lrebarList || []).forEach(function (g) {
           (g.particles || []).forEach(function (pt) {
             lre.push({ id: g.id, dia: g.dia || 13, x: pt.x, y: pt.y });
