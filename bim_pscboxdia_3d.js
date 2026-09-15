@@ -63,7 +63,8 @@ function render_pscboxdia_3d(hostId, cfg) {
     if (host._pscdia3d) {
         if (host._pscdia3d.animId) cancelAnimationFrame(host._pscdia3d.animId);
         var oc = host._pscdia3d.camera, ot = host._pscdia3d.target;
-        if (oc) keep = { p: oc.position.clone(), t: ot ? ot.clone() : new THREE.Vector3() };
+        if (oc) keep = { p: oc.position.clone(), t: ot ? ot.clone() : new THREE.Vector3(),
+                         up: oc.up ? oc.up.clone() : null };
     }
     while (host.firstChild) host.removeChild(host.firstChild);
 
@@ -156,16 +157,47 @@ function render_pscboxdia_3d(hostId, cfg) {
     var size = bb.getSize(new THREE.Vector3());
     world.position.sub(ctr);                             // 원점으로 끌어온다
     var span = Math.max(size.x, size.y, size.z);
-    if (keep) camera.position.copy(keep.p);                  // 보던 각도를 그대로
-    else camera.position.set(span * 0.55, span * 0.42, span * 0.85);
-    camera.lookAt(keep ? keep.t : new THREE.Vector3(0, 0, 0));
 
     var controls = null;
     if (typeof THREE.OrbitControls === 'function') {
         controls = new THREE.OrbitControls(camera, renderer.domElement);
         controls.enableDamping = true;
         controls.dampingFactor = 0.08;
-        if (keep) { controls.target.copy(keep.t); controls.update(); }
+    }
+
+    /* 시점 : 방향만 정하고 거리는 단면이 화면에 꽉 차도록 계산한다.
+       x 는 교축 직각(단면 폭), y 는 위, z 는 교축이다. 그래서 FRONT 가
+       격벽면(단면)을 정면으로 보는 시점이고, TOP 은 상판을 내려다본다. */
+    //  d 보는 방향 · up 화면의 위 · w/h 그 시점에서 화면 가로·세로에 놓이는 치수
+    var VIEWS = {
+        iso:    { d: [0.55, 0.42, 0.85], up: [0, 1, 0], w: span,   h: span },
+        front:  { d: [0, 0, 1],  up: [0, 1, 0],  w: size.x, h: size.y },
+        back:   { d: [0, 0, -1], up: [0, 1, 0],  w: size.x, h: size.y },
+        top:    { d: [0, 1, 0],  up: [0, 0, -1], w: size.x, h: size.z },
+        bottom: { d: [0, -1, 0], up: [0, 0, 1],  w: size.x, h: size.z },
+        left:   { d: [-1, 0, 0], up: [0, 1, 0],  w: size.z, h: size.y },
+        right:  { d: [1, 0, 0],  up: [0, 1, 0],  w: size.z, h: size.y }
+    };
+    function setView(name) {
+        var v = VIEWS[name] || VIEWS.iso;
+        //  화각에 맞춰 거리를 정한다 — 가로·세로 중 빠듯한 쪽이 이긴다 (여유 12 %).
+        //  마지막 항은 두께의 절반 — 가까운 면이 근거리 평면에 잘리지 않게.
+        var t = Math.tan(camera.fov * Math.PI / 360);
+        var dist = Math.max(v.h / 2 / t, v.w / 2 / (t * Math.max(camera.aspect, 0.2))) * 1.12
+                 + span * 0.25;
+        camera.up.set(v.up[0], v.up[1], v.up[2]);
+        camera.position.copy(new THREE.Vector3(v.d[0], v.d[1], v.d[2]).normalize().multiplyScalar(dist));
+        camera.lookAt(0, 0, 0);
+        if (controls) { controls.target.set(0, 0, 0); controls.update(); }
+    }
+
+    if (keep && !cfg.view) {                     // 다시 그린 것뿐 — 보던 각도를 그대로
+        camera.position.copy(keep.p);
+        if (keep.up) camera.up.copy(keep.up);
+        camera.lookAt(keep.t);
+        if (controls) { controls.target.copy(keep.t); controls.update(); }
+    } else {
+        setView(cfg.view || 'iso');
     }
 
     function onResize() {
@@ -175,7 +207,8 @@ function render_pscboxdia_3d(hostId, cfg) {
     window.addEventListener('resize', onResize);
 
     var state = { animId: 0, scene: scene, world: world, gT: gT, gL: gL, camera: camera,
-                  target: controls ? controls.target : new THREE.Vector3() };
+                  target: controls ? controls.target : new THREE.Vector3(),
+                  setView: setView };       // 페이지의 시점 버튼이 부른다 (다시 세우지 않고 카메라만)
     host._pscdia3d = state;
     (function loop() {
         state.animId = requestAnimationFrame(loop);

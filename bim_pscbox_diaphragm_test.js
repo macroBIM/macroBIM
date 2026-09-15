@@ -171,6 +171,15 @@
     '  font-size:10.5px;font-weight:700;letter-spacing:.08em;color:#e0ecff;opacity:.85;}' +
     '.phys-tblwrap{width:100%;height:320px;overflow:auto;background:#fff;' +
     '  border-top:1px solid var(--hair);border-radius:0 0 10px 10px;}' +
+    //  3D 칸 오른쪽 위 시점 버튼 — 화면 위에 얹는다 (뷰 넓이를 뺏지 않게)
+    '.view3d-bar{position:absolute;right:8px;top:6px;z-index:3;display:flex;flex-wrap:wrap;' +
+    '  justify-content:flex-end;gap:3px;max-width:70%;}' +
+    '.view3d-bar button{font-family:inherit;font-size:9.5px;font-weight:700;letter-spacing:.06em;' +
+    '  padding:3px 7px;border-radius:5px;cursor:pointer;color:#e2e8f0;' +
+    '  border:1px solid rgba(255,255,255,.28);background:rgba(15,23,42,.42);' +
+    '  transition:background .12s,color .12s;}' +
+    '.view3d-bar button:hover{background:rgba(15,23,42,.72);color:#fff;}' +
+    '.view3d-bar button.active{background:#2563eb;border-color:#2563eb;color:#fff;}' +
     '.phys-tbl{font-size:11.5px;}.phys-tbl th,.phys-tbl td{white-space:nowrap;padding:4px 8px;}' +
     '.px-tbl.var-tbl th{background:#1e293b;color:#fff;font-weight:600;text-align:center;border-bottom:1px solid #334155;border-right:1px solid #334155;}.px-tbl.var-tbl th:last-child{border-right:none;}' +
     '.px-tbl.dim-tbl th{background:#1e293b;color:#fff;font-weight:600;text-align:center;border-bottom:1px solid #334155;border-right:1px solid #334155;}.px-tbl.dim-tbl th:last-child{border-right:none;}' +
@@ -484,6 +493,12 @@
               '<div class="phys-pane"><span class="phys-cap">2D &mdash; 단면</span>' +
                 '<div id="renderContainer" style="width:100%;aspect-ratio:16/9;background:#41699b;overflow:hidden;cursor:grab;"></div></div>' +
               '<div class="phys-pane" id="pane3d"><span class="phys-cap">3D &mdash; 격벽</span>' +
+                '<div class="view3d-bar" id="view3dBar">' +
+                  ['iso', 'front', 'back', 'top', 'bottom', 'left', 'right'].map(function (v) {
+                    return '<button type="button" data-v="' + v + '" onclick="PXDIA.view3D(\'' + v + '\')">' +
+                           v.toUpperCase() + '</button>';
+                  }).join('') +
+                '</div>' +
                 '<div id="render3dContainer" style="width:100%;aspect-ratio:16/9;background:#41699b;overflow:hidden;cursor:grab;"></div></div>' +
             '</div>' +
             '<div class="phys-split" style="background:none;">' +
@@ -1070,6 +1085,9 @@
         });
 
         var walls = [], displayPaths = [], eid = 0;
+        //  3D 가 쓸 진짜 외곽·셀 윤곽. 점 이름을 손으로 나열하면 데크 크라운(PTC)
+        //  처럼 빠지는 점이 생겨 슬로프가 사라진다 — 2D 가 쓰는 그 고리를 그대로 준다.
+        var sectOuter = null, sectCells = [];
         // 외곽 루프(가장 큰 bbox) 판별 — 외곽 상면은 top(데크), 나머지 외곽은 outer, 내부 셀 루프는 inner
         var outerIdx = -1, outerArea = -1;
         loops.forEach(function (lp, li) {
@@ -1097,7 +1115,10 @@
             pts.push({ x: seg.x2, y: seg.y2 });
           });
           displayPaths.push(pts);
+          var poly = pts.map(function (p) { return [p.x, p.y]; });
+          if (li === outerIdx) sectOuter = poly; else sectCells.push(poly);
         });
+        this._sectPoly = { outer: sectOuter, cells: sectCells };
         // ── 격벽 개구부 : 콘크리트 면을 닫힌 고리로 잇는다 ─────────────────────
         //  인력장은 벽 고리를 피복만큼 통째로 오프셋해서 만든다(Physics.buildShiftedWall /
         //  splitWallLoops). 그 고리 판별이 "배열에서 이어지는 순서 + 마지막 끝점이 첫
@@ -2010,6 +2031,21 @@
       this._fitEngineStage();
     },
 
+    //  시점 버튼 : iso / front / back / top / bottom / left / right.
+    //  장면이 이미 서 있으면 카메라만 옮기고(다시 세우지 않는다), 아직 없으면
+    //  세운 뒤 그 시점으로 시작한다.
+    view3D: function (name) {
+      this._view3D = name;
+      var bar = document.getElementById('view3dBar');
+      if (bar) Array.prototype.forEach.call(bar.querySelectorAll('button'), function (b) {
+        b.classList.toggle('active', b.getAttribute('data-v') === name);
+      });
+      var host = document.getElementById('render3dContainer');
+      var st = host && host._pscdia3d;
+      if (st && typeof st.setView === 'function') { st.setView(name); return; }
+      if (!this._is3D) this.toggle3D(); else this.refresh3D();
+    },
+
     //  엔진 객체가 아니라 평범한 배열로 넘긴다 — 3D 파일이 엔진을 모르게 둔다
     _collect3D: function () {
       var ap = this._lastAp;
@@ -2017,9 +2053,18 @@
       var geo = geo_box12cell(ap), P = {};
       (geo.points || []).forEach(function (p) { P[p.name] = p[p.name]; });
       var two = Number(ap.NCELL) === 2;
-      var outer = ['PTL', 'PTR', 'PTCR', 'PTCR2', 'PTCR1', 'PBER', 'PBR', 'PBL', 'PBEL', 'PTCL1', 'PTCL2', 'PTCL']
-        .map(function (n) { return P[n]; }).filter(Boolean).map(function (p) { return [p.x, p.y]; });
-      var cells = this._cellPolys(P, two);
+
+      //  외곽은 2D 물리가 쓰는 고리를 그대로 쓴다. 예전에는 점 이름을 손으로
+      //  나열했는데(PTL → PTR), 그러면 데크 크라운 PTC 가 빠져 좌우 슬로프가
+      //  직선 하나로 눌리고 3D 상면이 평평해졌다. 헌치·캔틸레버 끝도 같은 이유로
+      //  빠져 있었다. _buildSectionFromBim 이 만든 고리에는 전부 들어 있다.
+      var sp = this._sectPoly || {};
+      var outer = sp.outer, cells = sp.cells;
+      if (!outer || outer.length < 3) {          // 아직 단면을 세우기 전 — 예비 경로
+        outer = ['PTL', 'PTC', 'PTR', 'PTCR', 'PTCR2', 'PTCR1', 'PBER', 'PBR', 'PBL', 'PBEL', 'PTCL1', 'PTCL2', 'PTCL']
+          .map(function (n) { return P[n]; }).filter(Boolean).map(function (p) { return [p.x, p.y]; });
+        cells = this._cellPolys(P, two);
+      }
       var openings = (this._openings || []).map(function (o) { return o.pts; });
 
       //  안착이 끝난 철근만 가져온다 (아직 떨어지는 중인 것을 3D 로 펴면 거짓이다)
@@ -2038,8 +2083,8 @@
         });
       }
       return { outer: outer, cells: cells, openings: openings,
-               segLen: ap.SEGL || 20000, diaT: ap.DIAT || 600,
-               trebar: tre, lrebar: lre, treCtc: 150 };
+               segLen: ap.SEGL || SEG_DEF, diaT: ap.DIAT || DIA_DEF,
+               trebar: tre, lrebar: lre, treCtc: 150, view: this._view3D || null };
     },
 
     //  redraw() 마다 부른다. 입력칸을 두드릴 때마다 장면을 새로 세우면 무거우므로
