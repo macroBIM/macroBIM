@@ -1211,9 +1211,14 @@
             path.push({ x: p[0], y: p[1] });
             if (len < 0.5) continue;                      // 겹친 점은 벽을 만들지 않는다
             eid++;
+            //  src 는 면마다 다르게 준다. Toggle Normals/Nodes 는 **연달아 있고 src 가
+            //  같은** 벽을 한 덩어리로 묶어 화살표 하나만 그린다 — 아크를 잘게 쪼갠
+            //  구간을 위한 규칙이다. 개구부 여덟 면에 같은 src 를 주었더니 그 규칙에
+            //  걸려 화살표가 하나만 나왔다(물리에는 여덟 장 다 있었다).
             walls.push({ id: 'E' + eid, tag: 'inner',
                          nx: dy / len, ny: -dx / len,     // 반시계 → 구멍 바깥쪽 법선
-                         x1: p[0], y1: p[1], x2: q[0], y2: q[1], src: 'open' + (oi + 1) });
+                         x1: p[0], y1: p[1], x2: q[0], y2: q[1],
+                         src: 'open' + (oi + 1) + '.' + k });
             made++;
           }
           path.push({ x: seq[0][0], y: seq[0][1] });
