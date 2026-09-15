@@ -141,6 +141,22 @@ git status --short     # 비어 있어야 한다
 
 **맨 위가 최신.** 한 줄에 하나: 날짜 · 커밋 · 무엇이 · 어디까지(테스트/운영).
 
+### 2026-09-15
+
+- **격벽 세그먼트 3D 뷰** · 테스트 — `bim_pscboxdia_3d.js` (새 파일) + 격벽 페이지
+  Rebar Physics 카드에 **2D / 3D 토글**. 집의 다른 3D 와 같은 경로다 —
+  `RWSVG.render3d()` 가 three.js(cdnjs r128)와 OrbitControls 를 받아 전역
+  `render_pscboxdia_3d(hostId, cfg)` 를 부른다 (`bim_box1cell_3d.js` 와 같은 자리).
+  **물리는 2D 그대로다.** 격벽이 평면 구조물이라 인력장은 단면 하나에서 돌고,
+  3D 는 그 결과 좌표를 교축(z)으로 펼 뿐이다 — 철근을 3D 로 다시 풀지 않는다.
+  3D 파일은 엔진을 모른다. 페이지가 평범한 배열(outer/cells/openings/trebar/
+  lrebar)로 넘긴다. 안착이 끝난 뒤(`_finalizeArcs`)에만 갱신한다.
+  **격벽 두께 입력칸을 새로 만들었다** (`diaThk_s`, 기본 600) — 도면에 치수가
+  없어 그동안 가정으로만 쓰던 값이다. 세그먼트 길이 옆에 둔다.
+  검증 : 토글·호스트·입력칸 존재, `_collect3D()` 가 1 Cell [셀 14점 · 개구부 8점],
+  2 Cell [셀 12+12 · 개구부 8+8], segLen 18,000 · diaT 600 을 넘긴다.
+  **화면은 확인 못 했다** — 이 환경은 cdnjs·unpkg 가 막혀 three.js 를 못 받는다.
+
 ### 2026-09-14
 
 - `b7635e1` **예제 워크북에 TAPER — `?v=94`** · **운영**

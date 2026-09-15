@@ -77,6 +77,9 @@
   //  begin/end 간격이 아니라 이 격벽이 속한 세그먼트의 길이다. PSC 와 같은 칸·같은 id 를 쓴다.
   var SEG_DEF = 20000;
 
+  // 격벽 두께 (mm) — 교축 방향. 도면에 치수가 없어 기본값을 두고 입력으로 받는다.
+  var DIA_DEF = 600;
+
   var PAGES = 'https://macrobim.github.io/macroBIM/';
 
   // const/class 로 선언된 전역도 감지 (window 프로퍼티가 아니므로 bare typeof 필요)
@@ -463,12 +466,14 @@
               '<button type="button" class="engine-btn" onclick="PXDIA.exportDXF()"><i class="bi bi-download"></i> Export DXF</button>' +
               '<button type="button" class="engine-btn engine-btn-lite" id="btnToggleNormals" onclick="PXDIA.toggleNormals()"><i class="bi bi-arrows-angle-expand"></i> Toggle Normals</button>' +
               '<button type="button" class="engine-btn engine-btn-lite" id="btnToggleNodes" onclick="PXDIA.toggleNodes()"><i class="bi bi-123"></i> Toggle Nodes (#)</button>' +
+              '<button type="button" class="engine-btn engine-btn-lite" id="btnView3D" onclick="PXDIA.toggle3D()"><i class="bi bi-box"></i> 3D</button>' +
             '</div>' +
             '<div class="draw-card-desc" id="stat-grid"></div>' +
           '</div>' +
           '<div class="draw-card-body" style="padding:0;">' +
             '<div class="phys-split">' +
               '<div id="renderContainer" style="flex:1 1 0;min-width:0;aspect-ratio:16/9;height:auto;background:#41699b;border-radius:0 0 0 10px;overflow:hidden;cursor:grab;"></div>' +
+              '<div id="render3dContainer" style="display:none;flex:1 1 0;min-width:0;aspect-ratio:16/9;height:auto;background:#41699b;border-radius:0 0 0 10px;overflow:hidden;cursor:grab;"></div>' +
               '<div class="phys-tblwrap">' +
                 '<table class="px-tbl phys-tbl"><thead><tr>' +
                   '<th>ID</th><th>Code</th><th>Total</th><th>Dia</th>' +
@@ -862,6 +867,8 @@
       _finalizeArcs: function () {
         if (typeof UI === 'undefined') return;
         this._rebarSettled = true;
+        var self3d = this;
+        setTimeout(function () { self3d.refresh3D(); }, 0);   // 안착이 끝난 좌표로만 3D 를 편다
         try { if (typeof UI.updateVisuals === 'function') UI.updateVisuals(); } catch (e) {}  // 최종 프레임 반영
         if (UI.anim && UI.anim.stop) UI.anim.stop();      // 정지 → 굴짐 아크가 직선으로 덮이지 않음
         if (!UI.trebarGroup) return;
@@ -1594,6 +1601,7 @@
       var oncell = document.querySelector('input[name="box12cell_ncell"]:checked');
       ap.NCELL = oncell ? (Number(oncell.value) || 2) : 2;
       ap.SEGL = this._segLen();
+      ap.DIAT = this._diaThk();
       this._lastAp = ap;
       if (typeof toggleCenterVars_box12cell === 'function') toggleCenterVars_box12cell(ap.NCELL);
       var ghdr = document.querySelector('#box12cell_vartable .px-2cell-hdr');
@@ -1619,6 +1627,18 @@
     //    Cttx/Ctty 위 모서리 · Ctbx/Ctby 아래 모서리. 잘려 나간 삼각형의 두 직각변이다.
 
     _opShapes: [['RECT', 'Rectangle'], ['HEX', 'Hexagon'], ['OCT', 'Octagon']],
+
+    // 격벽 두께 (mm)
+    _diaThk: function () {
+      var el = document.getElementById('diaThk_s');
+      var raw = el ? el.value : String(DIA_DEF);
+      var v = (typeof Calc !== 'undefined') ? Calc.num(raw, {}, Number(raw)) : Number(raw);
+      if (!isFinite(v) || v <= 0) {
+        console.error('[PSCDIA] Diaphragm thickness 를 숫자로 읽을 수 없음: "' + raw + '" — 기본값 ' + DIA_DEF + ' 사용');
+        return DIA_DEF;
+      }
+      return v;
+    },
 
     // 세그먼트 길이 (mm). 산술식도 받는다. 못 읽으면 기본값으로 물러난다.
     _segLen: function () {
@@ -1965,6 +1985,70 @@
       return this._openings;
     },
 
+    // ── 3D 뷰 ──────────────────────────────────────────────────────────
+    //  물리는 2D 그대로다. 인력장이 단면 하나에서 자리를 정하면, 그 결과를
+    //  교축(z)으로 펴는 것이 3D 다 — 격벽이 평면 구조물이라 그걸로 충분하다.
+    //  three.js 는 집의 다른 3D 와 같은 경로(render3d)로 받아 온다.
+    toggle3D: function () {
+      var c2 = document.getElementById('renderContainer');
+      var c3 = document.getElementById('render3dContainer');
+      var btn = document.getElementById('btnView3D');
+      if (!c2 || !c3) return;
+      var on = c3.style.display === 'none';
+      c2.style.display = on ? 'none' : '';
+      c3.style.display = on ? '' : 'none';
+      if (btn) { btn.classList.toggle('active', on); btn.innerHTML = on ? '<i class="bi bi-square"></i> 2D' : '<i class="bi bi-box"></i> 3D'; }
+      this._is3D = on;
+      if (on) this.refresh3D();
+    },
+
+    //  엔진 객체가 아니라 평범한 배열로 넘긴다 — 3D 파일이 엔진을 모르게 둔다
+    _collect3D: function () {
+      var ap = this._lastAp;
+      if (!ap) return null;
+      var geo = geo_box12cell(ap), P = {};
+      (geo.points || []).forEach(function (p) { P[p.name] = p[p.name]; });
+      var two = Number(ap.NCELL) === 2;
+      var outer = ['PTL', 'PTR', 'PTCR', 'PTCR2', 'PTCR1', 'PBER', 'PBR', 'PBL', 'PBEL', 'PTCL1', 'PTCL2', 'PTCL']
+        .map(function (n) { return P[n]; }).filter(Boolean).map(function (p) { return [p.x, p.y]; });
+      var cells = this._cellPolys(P, two);
+      var openings = (this._openings || []).map(function (o) { return o.pts; });
+
+      //  안착이 끝난 철근만 가져온다 (아직 떨어지는 중인 것을 3D 로 펴면 거짓이다)
+      var tre = [], lre = [];
+      if (typeof Domain !== 'undefined') {
+        (Domain.trebarList || []).forEach(function (t) {
+          if (!t.segments || !t.segments.length) return;
+          var pts = [[t.segments[0].p1.x, t.segments[0].p1.y]];
+          t.segments.forEach(function (sg) { pts.push([sg.p2.x, sg.p2.y]); });
+          tre.push({ id: t.id, dia: t.dia || 13, pts: pts });
+        });
+        (Domain.lrebarList || []).forEach(function (g) {
+          (g.particles || []).forEach(function (pt) {
+            lre.push({ id: g.id, dia: g.dia || 13, x: pt.x, y: pt.y });
+          });
+        });
+      }
+      return { outer: outer, cells: cells, openings: openings,
+               segLen: ap.SEGL || 20000, diaT: ap.DIAT || 600,
+               trebar: tre, lrebar: lre, treCtc: 150 };
+    },
+
+    refresh3D: function () {
+      if (!this._is3D) return;
+      var cfg = this._collect3D();
+      if (!cfg) return;
+      window._pscdia3dCfg = cfg;                 // render3d 가 인자를 배열로 넘기므로 잠시 전역에 둔다
+      if (typeof window.RWSVG !== 'undefined' && window.RWSVG.render3d) {
+        window.RWSVG.render3d('render3dContainer', 'render_pscboxdia_3d',
+          PAGES + 'bim_pscboxdia_3d.js', [cfg]);
+      } else if (typeof render_pscboxdia_3d === 'function') {
+        render_pscboxdia_3d('render3dContainer', cfg);
+      } else {
+        console.warn('[PSCDIA] 3D 로더를 찾지 못했습니다 (RWSVG.render3d).');
+      }
+    },
+
     // 개구부가 성립하는지 살펴 카드 아래에 알린다.
     //  이 두 가지는 나중에 인력장을 붙일 때 조용히 망가지는 종류다 —
     //  격벽 밖으로 나간 면은 콘크리트가 없는 자리로 철근을 끌고, 겹친 둘은 벽이 교차한다.
@@ -2138,6 +2222,9 @@
         '        </div>' +
         '        <div class="px-opthalf px-optseg"><b>Segment Length (mm) :</b>' +
         '          <label><input type="text" spellcheck="false" class="form-input px-seg" id="segLen_s" value="' + SEG_DEF + '" onchange="PXDIA.redraw()" title="Length of the segment this diaphragm belongs to, along the girder axis"></label>' +
+        '        </div>' +
+        '        <div class="px-opthalf px-optseg"><b>Diaphragm (mm) :</b>' +
+        '          <label><input type="text" spellcheck="false" class="form-input px-seg" id="diaThk_s" value="' + DIA_DEF + '" onchange="PXDIA.redraw()" title="Diaphragm thickness along the girder axis"></label>' +
         '        </div>' +
         '        <div class="px-opthalf"><b>Cover Depth (mm) :</b>' +
         '          <label>Deck <input type="text" spellcheck="false" class="form-input px-cover" id="cover_deck_s" value="50" onchange="PXDIA.redraw()" title="Top slab (deck) cover"></label>' +
