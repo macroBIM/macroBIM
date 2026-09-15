@@ -77,8 +77,8 @@
   //  begin/end 간격이 아니라 이 격벽이 속한 세그먼트의 길이다. PSC 와 같은 칸·같은 id 를 쓴다.
   var SEG_DEF = 20000;
 
-  // 격벽 두께 (mm) — 교축 방향. 도면에 치수가 없어 기본값을 두고 입력으로 받는다.
-  var DIA_DEF = 600;
+  // 격벽구간 길이 (mm) — 교축 방향 두께. 도면에 치수가 없어 기본값을 두고 입력으로 받는다.
+  var DIA_DEF = 2000;
 
   var PAGES = 'https://macrobim.github.io/macroBIM/';
 
@@ -1624,6 +1624,7 @@
         this._circs = [];
         this._syncOpenings(ap, g);          // 격벽 개구부 — 입력칸 → 형상·미리보기
         this._drawRebar();
+        this._refresh3DSoon();              // 콘크리트는 지금 바로 — 철근은 안착 뒤 다시 갱신된다
       } catch (e) { console.error('[PSCDIA] section:', e); }
     },
 
@@ -2041,8 +2042,22 @@
                trebar: tre, lrebar: lre, treCtc: 150 };
     },
 
+    //  redraw() 마다 부른다. 입력칸을 두드릴 때마다 장면을 새로 세우면 무거우므로
+    //  잠깐 모았다가 한 번만 세운다.
+    _refresh3DSoon: function () { this._refresh3DIn(150); },
+    _refresh3DLater: function () { this._refresh3DIn(500); },
+    _refresh3DIn: function (ms) {
+      var self = this;
+      if (this._t3d) clearTimeout(this._t3d);
+      this._t3d = setTimeout(function () { self._t3d = null; self.refresh3D(); }, ms);
+    },
+
     refresh3D: function () {
       if (!this._is3D) return;
+      //  three.js 를 아직 받는 중이면 겹쳐 부르지 않는다 (스크립트가 두 번 붙는다).
+      //  대신 조금 뒤에 다시 부른다 — 받는 동안 바뀐 입력이 묻히지 않게.
+      if (this._load3D && typeof THREE === 'undefined') { this._refresh3DLater(); return; }
+      this._load3D = true;
       var cfg = this._collect3D();
       if (!cfg) return;
       window._pscdia3dCfg = cfg;                 // render3d 가 인자를 배열로 넘기므로 잠시 전역에 둔다
@@ -2230,7 +2245,7 @@
         '        <div class="px-opthalf px-optseg"><b>Segment Length (mm) :</b>' +
         '          <label><input type="text" spellcheck="false" class="form-input px-seg" id="segLen_s" value="' + SEG_DEF + '" onchange="PXDIA.redraw()" title="Length of the segment this diaphragm belongs to, along the girder axis"></label>' +
         '        </div>' +
-        '        <div class="px-opthalf px-optseg"><b>Diaphragm (mm) :</b>' +
+        '        <div class="px-opthalf px-optseg"><b>Diaphragm Length (mm) :</b>' +
         '          <label><input type="text" spellcheck="false" class="form-input px-seg" id="diaThk_s" value="' + DIA_DEF + '" onchange="PXDIA.redraw()" title="Diaphragm thickness along the girder axis"></label>' +
         '        </div>' +
         '        <div class="px-opthalf"><b>Cover Depth (mm) :</b>' +

@@ -56,7 +56,15 @@ function render_pscboxdia_3d(hostId, cfg) {
     var host = document.getElementById(hostId);
     if (!host || typeof THREE === 'undefined') return;
 
-    if (host._pscdia3d && host._pscdia3d.animId) cancelAnimationFrame(host._pscdia3d.animId);
+    /* 입력을 고칠 때마다 이 함수가 다시 불린다. 그때 카메라가 처음 자리로
+       돌아가 버리면 돌려 보던 사람이 매번 다시 돌려야 한다 — 보던 각도를
+       기억했다가 되돌려 준다. */
+    var keep = null;
+    if (host._pscdia3d) {
+        if (host._pscdia3d.animId) cancelAnimationFrame(host._pscdia3d.animId);
+        var oc = host._pscdia3d.camera, ot = host._pscdia3d.target;
+        if (oc) keep = { p: oc.position.clone(), t: ot ? ot.clone() : new THREE.Vector3() };
+    }
     while (host.firstChild) host.removeChild(host.firstChild);
 
     var W = host.clientWidth || 800;
@@ -148,14 +156,16 @@ function render_pscboxdia_3d(hostId, cfg) {
     var size = bb.getSize(new THREE.Vector3());
     world.position.sub(ctr);                             // 원점으로 끌어온다
     var span = Math.max(size.x, size.y, size.z);
-    camera.position.set(span * 0.55, span * 0.42, span * 0.85);
-    camera.lookAt(0, 0, 0);
+    if (keep) camera.position.copy(keep.p);                  // 보던 각도를 그대로
+    else camera.position.set(span * 0.55, span * 0.42, span * 0.85);
+    camera.lookAt(keep ? keep.t : new THREE.Vector3(0, 0, 0));
 
     var controls = null;
     if (typeof THREE.OrbitControls === 'function') {
         controls = new THREE.OrbitControls(camera, renderer.domElement);
         controls.enableDamping = true;
         controls.dampingFactor = 0.08;
+        if (keep) { controls.target.copy(keep.t); controls.update(); }
     }
 
     function onResize() {
@@ -164,7 +174,8 @@ function render_pscboxdia_3d(hostId, cfg) {
     }
     window.addEventListener('resize', onResize);
 
-    var state = { animId: 0, scene: scene, world: world, gT: gT, gL: gL, camera: camera };
+    var state = { animId: 0, scene: scene, world: world, gT: gT, gL: gL, camera: camera,
+                  target: controls ? controls.target : new THREE.Vector3() };
     host._pscdia3d = state;
     (function loop() {
         state.animId = requestAnimationFrame(loop);
