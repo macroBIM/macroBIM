@@ -266,7 +266,7 @@
           ['lrebar', 'id', 'dia', 'num', 'init', 'nors', 'range', 'path', 'ctc', 'ctcmax', 'ctcmin', '', 'z'],
           //  교축방향 폐합철근 — 격벽을 한 번 더 자른 평면에 눕는다. 크기는 콘크리트가 정한다.
           //  at : cell(복부 사이) · all(단면 전체) · -6000~6000(범위) · -1100(한 자리)
-          ['crebar', 'id', 'dia', 'plane', 'at (cell/all/범위)', 'set', 'lap', 'from', 'to', 'ctc', '', '', '']
+          ['crebar', 'id', 'dia', 'plane', 'at (cell/all/range)', 'set', 'lap', 'from', 'to', 'ctc', '', '', '']
         ];
         var ncol = SCHEMA[0].length;
 
@@ -503,9 +503,9 @@
           '</div>' +
           '<div class="draw-card-body" style="padding:0;">' +
             '<div class="phys-split">' +
-              '<div class="phys-pane"><span class="phys-cap">2D &mdash; 단면</span>' +
+              '<div class="phys-pane"><span class="phys-cap">2D &mdash; SECTION</span>' +
                 '<div id="renderContainer" style="width:100%;aspect-ratio:16/9;background:#41699b;overflow:hidden;cursor:grab;"></div></div>' +
-              '<div class="phys-pane" id="pane3d"><span class="phys-cap">3D &mdash; 격벽</span>' +
+              '<div class="phys-pane" id="pane3d"><span class="phys-cap">3D &mdash; DIAPHRAGM</span>' +
                 '<div class="view3d-bar" id="view3dBar">' +
                   ['iso', 'front', 'back', 'top', 'bottom', 'left', 'right'].map(function (v) {
                     return '<button type="button" data-v="' + v + '" onclick="PXDIA.view3D(\'' + v + '\')">' +
@@ -597,7 +597,7 @@
         }
         function idCell(id, settled) {
           var cls = 'phys-id' + (settled ? '' : ' phys-moving');
-          return '<td class="' + cls + '" title="클릭하면 이 철근만 강조 (다시 클릭 시 해제)" onclick="PXDIA.focusRebar(&quot;' + self._esc(String(id)) + '&quot;)">' + self._esc(String(id)) + '</td>';
+          return '<td class="' + cls + '" title="Click to highlight only this bar (click again to clear)" onclick="PXDIA.focusRebar(&quot;' + self._esc(String(id)) + '&quot;)">' + self._esc(String(id)) + '</td>';
         }
         function rspBtn(id) {
           return '<td><button type="button" class="px-btn phys-rsp" title="Respawn this rebar" onclick="PXDIA.respawnOne(&quot;' + self._esc(String(id)) + '&quot;)">&#8635;</button></td>';
@@ -650,8 +650,8 @@
           var lap = o.lap || 0;
           h += '<tr class="' + (String(self._focusId) === String(o.id) ? 'phys-focus' : '') + '">' +
                idCell(o.id, o.state === 'FORMED') +
-               '<td>폐합</td><td><b title="네 변 ' + fmt(total) +
-               (lap ? ' + 겹이음 ' + fmt(lap) : '') + '">' + fmt(total + lap) + '</b></td>' +
+               '<td>closed</td><td><b title="4 sides ' + fmt(total) +
+               (lap ? ' + lap ' + fmt(lap) : '') + '">' + fmt(total + lap) + '</b></td>' +
                '<td>' + fmt(o.dia) + '</td>' +
                cells(inter, 11) + '<td class="phys-na">&mdash;</td></tr>';
         });
@@ -918,9 +918,9 @@
             clearInterval(self._settleTimer); self._settleTimer = null;
             self._finalizeArcs();     // FORMED 된 것만 아크, 미안착은 직선 유지
             if (stuck.length) {
-              self._toast('안착 실패로 건너뜀: ' + stuck.join(', ') + ' — 콘솔(F12)에 세그먼트별 원인', 'err');
-              var msg = '철근 ' + stuck.length + '개가 안착 실패로 건너뛰어졌습니다: ' + stuck.join(', ') +
-                '\n\n확인: 해당 행의 num(개수)이 비었거나 0인지, init/range 값이 올바른지, path 벽 id 가 단면에 있는지(Toggle Nodes). 콘솔(F12)에 상세 로그가 있습니다.';
+              self._toast('Skipped (failed to settle): ' + stuck.join(', ') + ' — see console (F12) for the reason per segment', 'err');
+              var msg = stuck.length + ' bar(s) were skipped because they did not settle: ' + stuck.join(', ') +
+                '\n\nCheck: is num empty or 0 on that row, are init / range right, and does the path wall id exist in this section (Toggle Nodes)? The console (F12) has the details.';
               if (self._lastStuckMsg !== msg) { self._lastStuckMsg = msg; try { alert(msg); } catch (e) {} }
             }
           }
@@ -1091,8 +1091,8 @@
       },
 
       exportDXF: function () {
-        if (typeof dxf_generator !== 'function') { alert('DXF 생성기가 로드되지 않았습니다.'); return; }
-        if (typeof Domain === 'undefined' || !Domain.currentSection) { alert('먼저 단면을 렌더링하세요.'); return; }
+        if (typeof dxf_generator !== 'function') { alert('The DXF generator is not loaded.'); return; }
+        if (typeof Domain === 'undefined' || !Domain.currentSection) { alert('Render the section first.'); return; }
         var dxf = dxf_generator();
         dxf.init();
         dxf.layer('SECTION', 7, 'CONTINUOUS');   // white
@@ -1433,8 +1433,8 @@
         });
         h += '</div>';
         h += '<div style="font-size:12px;color:#64748b;margin:-6px 0 12px;line-height:1.6;">' +
-          '<span style="color:#d97706;font-weight:700;">주황 화살표</span> = 각 조각의 <b>nor 방향 (+1, 미입력 기본값)</b> — 물리가 이 방향의 벽을 찾아 안착합니다. ' +
-          '반대방향으로 붙이려면 해당 조각에 <b>-1</b> 을 입력하세요 (예: nors b=-1). rot 입력 시 화살표도 형상과 함께 회전합니다. 조각 <b>기본 길이는 400</b> (code 41 의 b·d 는 1000, segs 미입력 시)입니다.</div>';
+          '<span style="color:#d97706;font-weight:700;">Amber arrow</span> = each segment\'s <b>nor direction (+1, the default)</b> — the physics looks for a wall that way and settles on it. ' +
+          'To attach it the other way, put <b>-1</b> on that segment (e.g. nors b=-1). With rot, the arrow turns with the shape. Default segment length is <b>400</b> (code 41 b·d are 1000, when segs is blank).</div>';
         return h;
       },
 
@@ -1496,7 +1496,7 @@
             if (self._evalErrs && self._evalErrs.length) {
               self._loadLog.ok = false;
               self._loadLog.lines.push('ERROR     : bad number ' + self._evalErrs.join(' / ') + ' — rebar loading skipped');
-              self._toast('철근 수치 오류 — 숫자로 읽을 수 없음: ' + self._evalErrs.join(' / ') + ' — 철근 로딩 중단', 'err');
+              self._toast('Rebar value error — not a number: ' + self._evalErrs.join(' / ') + ' — rebar loading stopped', 'err');
             } else if (self._dupIds && self._dupIds.length) {
               self._loadLog.ok = false;
               self._loadLog.lines.push('ERROR     : duplicate rebar id ' + self._dupIds.join(', ') + ' \u2014 rebar loading skipped');
