@@ -43,18 +43,36 @@ function pscboxdia3d_shape(outer, holes) {
    튜브와 함께 가는 선을 하나 더 그어 어느 거리에서도 보이게 한다. */
 function pscboxdia3d_bar(pts3, dia, matTube, colLine) {
     var g = new THREE.Group();
-    /*  철근은 직선 구간이 꺾인 것이지 매끄러운 곡선이 아니다. CatmullRom 을 쓰면
-        꺾임에서 스플라인이 부풀어 실제 형상과 다른 자리를 지난다 — 선(Line)은
-        원래 점을 잇고 튜브만 어긋나 보인다. 선분을 그대로 이어 붙인다.       */
-    var curve = new THREE.CurvePath();
+    var r = dia / 2 * PSCBOXDIA3D_MM;
+
+    /*  꺾임을 하나의 곡선으로 훑지 않는다. 철근은 직선 구간이 꺾인 것인데,
+        TubeGeometry 는 곡선을 따라가며 단면 방향(Frenet frame)을 이어 붙인다.
+        90° 가까운 꺾임에서는 그 방향이 홱 뒤집히면서 튜브가 꼬여, 갈고리
+        끝이 갈고리가 아니라 폐합 삼각형처럼 보인다 — 캔틸레버 선단의 ㄴ자
+        다리에서 그렇게 나왔다. CatmullRom 을 선분으로 바꿔도 마찬가지다.
+        꺾임 자체가 원인이기 때문이다.
+
+        그래서 구간마다 따로 원기둥을 세우고 꺾이는 자리에는 구를 하나 둔다.
+        프레임이 구간을 넘어 이어지지 않으니 꼬일 일이 없고, 구가 이음매를
+        메워 각진 자리도 끊겨 보이지 않는다.                                  */
+    var up = new THREE.Vector3(0, 1, 0), dir = new THREE.Vector3(), mid = new THREE.Vector3();
     for (var i = 0; i + 1 < pts3.length; i++) {
-        if (pts3[i].distanceTo(pts3[i + 1]) < 1e-9) continue;   // 겹친 점은 프레임이 NaN 이 된다
-        curve.add(new THREE.LineCurve3(pts3[i], pts3[i + 1]));
+        var a = pts3[i], b = pts3[i + 1];
+        var len = a.distanceTo(b);
+        if (len < 1e-9) continue;                       // 겹친 점 — 세울 것이 없다
+        var cyl = new THREE.Mesh(new THREE.CylinderGeometry(r, r, len, 8, 1, false), matTube);
+        cyl.position.copy(mid.addVectors(a, b).multiplyScalar(0.5));
+        cyl.quaternion.setFromUnitVectors(up, dir.subVectors(b, a).normalize());
+        g.add(cyl);
     }
-    if (!curve.curves.length) return g;
-    g.add(new THREE.Mesh(
-        new THREE.TubeGeometry(curve, Math.max(6, pts3.length * 4), dia / 2 * PSCBOXDIA3D_MM, 6, false),
-        matTube));
+    for (var k = 1; k + 1 < pts3.length; k++) {         // 꺾이는 자리
+        var j = new THREE.Mesh(new THREE.SphereGeometry(r, 8, 6), matTube);
+        j.position.copy(pts3[k]);
+        g.add(j);
+    }
+
+    /*  지름이 실제 값이라 멀리서는 화소보다 얇다 — 가는 선을 하나 더 그어
+        어느 거리에서도 보이게 한다. 이 선은 원래 점을 그대로 잇는다.        */
     g.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints(pts3),
         new THREE.LineBasicMaterial({ color: colLine })));
     return g;
