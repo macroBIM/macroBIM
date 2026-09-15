@@ -82,6 +82,11 @@
 
   var PAGES = 'https://macrobim.github.io/macroBIM/';
 
+  //  3D 모듈은 이 페이지와 따로 받아 온다. 주소가 같으면 브라우저가 옛 파일을
+  //  그대로 쓴다 — 고쳐 올려도 화면이 안 바뀌고, 새 함수(setProjection 같은)를
+  //  못 찾아 버튼이 먹통이 된다. 3D 파일을 고칠 때마다 이 번호를 올린다.
+  var V3D = 2;
+
   // const/class 로 선언된 전역도 감지 (window 프로퍼티가 아니므로 bare typeof 필요)
   function hasGlobal(name) { try { return (0, eval)('typeof ' + name) !== 'undefined'; } catch (e) { return false; } }
 
@@ -2137,7 +2142,7 @@
       window._pscdia3dCfg = cfg;                 // render3d 가 인자를 배열로 넘기므로 잠시 전역에 둔다
       if (typeof window.RWSVG !== 'undefined' && window.RWSVG.render3d) {
         window.RWSVG.render3d('render3dContainer', 'render_pscboxdia_3d',
-          PAGES + 'bim_pscboxdia_3d.js', [cfg]);
+          PAGES + 'bim_pscboxdia_3d.js?v=' + V3D, [cfg]);
       } else if (typeof render_pscboxdia_3d === 'function') {
         render_pscboxdia_3d('render3dContainer', cfg);
       } else {
