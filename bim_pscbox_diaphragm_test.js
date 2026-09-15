@@ -959,7 +959,9 @@
           이 철근은 단면과 90° 다른 평면에 눕는다 — 단면(x-y)에서는 **옆으로 보여**
           선 하나가 된다. 앞뒤 두 변이 겹쳐 보이는 것이라 선은 하나면 된다.
             yz (세로로 자른 것) → 위치 at 의 **세로선**
-            xz (수평으로 자른 것) → 높이 at 의 가로선                          */
+            xz (수평으로 자른 것) → 높이 at 의 가로선
+          부호는 적지 않는다 — 가닥이 50 개라 글자가 겹쳐 그림을 덮는다.
+          어느 가닥인지는 아래 Physics 표에서 id 를 눌러 보면 된다.           */
       _drawHoops2D: function (redraw) {
         /*  고리는 제 그룹에 그린다 — 떨어지는 동안 프레임마다 이것만 지우고
             다시 그리면 되고, 이미 앉은 다른 철근은 건드리지 않는다.          */
@@ -970,14 +972,12 @@
         var grp = new Konva.Group({ name: 'hoops' });
         UI.mainLayer.add(grp);
         this._hoopGroup = grp;
-        var scale = (UI.stage && UI.stage.scaleX && UI.stage.scaleX()) || 1;
         var self = this;
         hoops.forEach(function (o) {
           var us = o.pts.map(function (p) { return p[0]; });      // 평면의 긴 축
           var u0 = Math.min.apply(null, us), u1 = Math.max.apply(null, us);
           var vert = (o.plane === 'yz');
           var seg = vert ? [o.at, u0, o.at, u1] : [u0, o.at, u1, o.at];
-          var tipX = vert ? o.at : u1, tipY = vert ? u1 : o.at;
           //  다른 철근(trebar)의 기본색이 이미 보라(#8A2BE2)라 청록으로 가른다.
           //  굵기는 다른 철근과 같은 규칙 — 실제 지름을 그대로 쓴다.
           var on = String(self._focusId) === String(o.id);
@@ -989,12 +989,6 @@
             strokeWidth: (o.dia > 0 ? o.dia : 25), lineCap: 'round',
             opacity: (self._focusId && !on) ? 0.4 : (moving ? 0.55 : 1), strokeScaleEnabled: true
           }));
-          var fs = 13 / scale;
-          var lbl = new Konva.Text({ x: tipX + fs * 0.4, y: tipY + fs * 0.4, text: String(o.id),
-            fontSize: fs, fontStyle: 'bold', fontFamily: 'Arial',
-            fill: moving ? '#7dd3c0' : '#00BFA5', scaleY: -1 });
-          lbl.offsetY(-fs * 0.4);
-          grp.add(lbl);
         });
         if (redraw) UI.mainLayer.draw();
       },
