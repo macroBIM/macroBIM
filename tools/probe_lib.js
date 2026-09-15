@@ -129,6 +129,7 @@ module.exports = { EL, mkEl, runCase, sec, outer, inPoly, P, Domain };
 module.exports.runHoops = function () {
   P._loadCrebarFromExcel(sheet0);
   mkEl('diaThk_s').value = '2000';
-  P._settleHoops();
-  return P._hoops || [];
+  P._settleHoops();                  // 이제 '만들기'만 한다 — 걷기는 따로
+  for (var t = 0; t < 4000; t++) { if (P._stepHoopJobs(6, t) === 0) break; }
+  return P._syncHoops();
 };

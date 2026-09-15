@@ -978,14 +978,21 @@
           var u0 = Math.min.apply(null, us), u1 = Math.max.apply(null, us);
           var vert = (o.plane === 'yz');
           var seg = vert ? [o.at, u0, o.at, u1] : [u0, o.at, u1, o.at];
-          //  다른 철근(trebar)의 기본색이 이미 보라(#8A2BE2)라 청록으로 가른다.
-          //  굵기는 다른 철근과 같은 규칙 — 실제 지름을 그대로 쓴다.
+          /*  색으로 세 가지를 가른다.
+                청록  ⑩ — 통짜로 선 것 (개구부를 안 지난다)
+                호박  ⑩-1 ⑩-2 — **개구부에 잘린 조각** (id 에 -1 -2 가 붙은 것)
+                주황  지금 고른 것 (표에서 id 를 누른 철근)
+              다른 철근(trebar)의 기본색이 보라(#8A2BE2)라 겹치지 않는다.
+              떨어지는 중이면 흐리게 — 다른 철근의 미안착 표시와 같은 뜻이다.
+              굵기는 다른 철근과 같은 규칙으로 실제 지름을 쓴다.               */
           var on = String(self._focusId) === String(o.id);
-          //  아직 떨어지는 중이면 흐리게 — 다른 철근의 미안착 표시와 같은 뜻
           var moving = (o.state !== 'FORMED');
+          var cut = (String(o.id) !== String(o.mark));      // 개구부에 잘린 조각인가
+          var col = cut ? (moving ? '#ffd37a' : '#FFB300')
+                        : (moving ? '#7dd3c0' : '#00BFA5');
           grp.add(new Konva.Line({
             points: seg,
-            stroke: on ? '#FF3D00' : (moving ? '#7dd3c0' : '#00BFA5'),
+            stroke: on ? '#FF3D00' : col,
             strokeWidth: (o.dia > 0 ? o.dia : 25), lineCap: 'round',
             opacity: (self._focusId && !on) ? 0.4 : (moving ? 0.55 : 1), strokeScaleEnabled: true
           }));
