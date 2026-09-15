@@ -85,7 +85,7 @@
   //  3D 모듈은 이 페이지와 따로 받아 온다. 주소가 같으면 브라우저가 옛 파일을
   //  그대로 쓴다 — 고쳐 올려도 화면이 안 바뀌고, 새 함수(setProjection 같은)를
   //  못 찾아 버튼이 먹통이 된다. 3D 파일을 고칠 때마다 이 번호를 올린다.
-  var V3D = 6;
+  var V3D = 7;
 
   // const/class 로 선언된 전역도 감지 (window 프로퍼티가 아니므로 bare typeof 필요)
   function hasGlobal(name) { try { return (0, eval)('typeof ' + name) !== 'undefined'; } catch (e) { return false; } }
@@ -946,28 +946,32 @@
       },
 
       /*  폐합철근을 2D 단면에 그린다.
-          이 철근은 높이 at 의 수평면에 눕는다 — 단면(x-y)에서는 **옆으로 보여**
-          높이 at 의 가로선 하나가 된다. 앞뒤 두 변이 겹쳐 보이는 것이라 선은
-          하나면 된다. 3D 와 같은 보라색으로, 끝에 id 를 적는다.               */
+          이 철근은 단면과 90° 다른 평면에 눕는다 — 단면(x-y)에서는 **옆으로 보여**
+          선 하나가 된다. 앞뒤 두 변이 겹쳐 보이는 것이라 선은 하나면 된다.
+            yz (세로로 자른 것) → 위치 at 의 **세로선**
+            xz (수평으로 자른 것) → 높이 at 의 가로선                          */
       _drawHoops2D: function () {
         var hoops = this._hoops || [];
         if (!hoops.length || typeof UI === 'undefined' || !UI.trebarGroup) return;
         var scale = (UI.stage && UI.stage.scaleX && UI.stage.scaleX()) || 1;
         var self = this;
         hoops.forEach(function (o) {
-          var xs = o.pts.map(function (p) { return p[0]; });
-          var x0 = Math.min.apply(null, xs), x1 = Math.max.apply(null, xs);
+          var us = o.pts.map(function (p) { return p[0]; });      // 평면의 긴 축
+          var u0 = Math.min.apply(null, us), u1 = Math.max.apply(null, us);
+          var vert = (o.plane === 'yz');
+          var seg = vert ? [o.at, u0, o.at, u1] : [u0, o.at, u1, o.at];
+          var tipX = vert ? o.at : u1, tipY = vert ? u1 : o.at;
           //  다른 철근(trebar)의 기본색이 이미 보라(#8A2BE2)라 청록으로 가른다.
           //  굵기는 다른 철근과 같은 규칙 — 실제 지름을 그대로 쓴다.
           var on = String(self._focusId) === String(o.id);
           UI.trebarGroup.add(new Konva.Line({
-            points: [x0, o.at, x1, o.at],
+            points: seg,
             stroke: on ? '#FF3D00' : '#00BFA5',
             strokeWidth: (o.dia > 0 ? o.dia : 25), lineCap: 'round',
             opacity: (self._focusId && !on) ? 0.4 : 1, strokeScaleEnabled: true
           }));
           var fs = 13 / scale;
-          var lbl = new Konva.Text({ x: x1 + fs * 0.5, y: o.at, text: String(o.id),
+          var lbl = new Konva.Text({ x: tipX + fs * 0.4, y: tipY + fs * 0.4, text: String(o.id),
             fontSize: fs, fontStyle: 'bold', fontFamily: 'Arial', fill: '#00BFA5', scaleY: -1 });
           lbl.offsetY(-fs * 0.4);
           UI.trebarGroup.add(lbl);
@@ -1537,17 +1541,23 @@
     },
 
     /* ── 'crebar' 블록 : 교축방향 폐합철근 (⑩ ⑩-1 ⑩-2) ──────────────────
-         crebar | id | dia | plane | at | set | lap
+         crebar | id | dia | plane | at | set | lap | from | to
 
        다른 철근(trebar)은 단면 평면에 눕는다. 이 철근은 그 평면과 90° 다르다 —
        격벽의 두께(교축 z)를 감아 도는 닫힌 고리다.
 
        놓는 방법은 새로 만들지 않는다. 물리는 **2D 평면 하나**만 알 뿐 그것이
-       단면인지 수평면인지 모른다. 높이 `at` 에서 격벽을 수평으로 자르면 또
-       하나의 평면이 나오고, 그 평면의 콘크리트는 「그 높이의 단면 폭 × 격벽
-       두께」인 직사각형이다. 네 면을 벽으로 주면 지금 인력장이 그대로 돈다.
-       가로는 x, 세로는 교축 z 로 뜻만 바뀐다.
-       그래서 폭을 입력받지 않는다 — 높이만 주면 폭은 콘크리트가 정한다.      */
+       단면인지 아닌지 모른다. 격벽을 한 번 더 자르면 또 하나의 평면이 나오고,
+       그 평면의 콘크리트는 「자른 길이 × 격벽 두께」인 직사각형이다. 네 면을
+       벽으로 주면 지금 인력장이 그대로 돈다.
+       그래서 크기를 입력받지 않는다 — 어디서 자를지만 주면 콘크리트가 정한다.
+
+       plane 이 자르는 방향이다 :
+         yz  위치 x=at 에서 **세로로** 자른다 → 고리의 긴 축이 **수직**이다.
+             ⑩ (개구부 좌우에서 단면 전체를 수직으로 감는 것)과
+             ⑩-1 ⑩-2 (개구부 아래 수직) 가 이것이다. 기본값.
+         xz  높이 y=at 에서 **수평으로** 자른다 → 긴 축이 가로다.
+       from/to 로 긴 축을 잘라 쓸 수 있다 — ⑩-1 ⑩-2 는 개구부 아래만 감는다.  */
     _loadCrebarFromExcel: function (fullData) {
       if (!Array.isArray(fullData)) return 0;
       var out = [];
@@ -1564,9 +1574,11 @@
         var at = this._rbNum(g[4]);
         if (!isFinite(at)) { console.warn('[PSCDIA] crebar ' + this._rbStr(g[1]) + ' : at(높이)을 읽을 수 없음'); continue; }
         out.push({ id: this._rbStr(g[1]), dia: this._rbNum(g[2]) || 25,
-                   plane: (this._rbStr(g[3]) || 'xz').toLowerCase(),
+                   plane: (this._rbStr(g[3]) || 'yz').toLowerCase(),
                    at: at, set: (this._rbStr(g[5]) || 'all').toLowerCase(),
-                   lap: this._rbHas(g[6]) ? this._rbNum(g[6]) : 0 });
+                   lap: this._rbHas(g[6]) ? this._rbNum(g[6]) : 0,
+                   from: this._rbHas(g[7]) ? this._rbNum(g[7]) : NaN,   // 긴 축을 여기서 여기까지만
+                   to:   this._rbHas(g[8]) ? this._rbNum(g[8]) : NaN });
       }
       this._crebarData = out;
       if (out.length) console.log('[PSCDIA] crebar 로드: ' + out.length + '개 (' +
@@ -1574,22 +1586,26 @@
       return out.length;
     },
 
-    //  높이 y 에서 단면이 가로로 얼마나 넓은가 — 바깥 윤곽과 만나는 두 점 사이
-    _widthAtY: function (y) {
+    /*  자른 평면에서 콘크리트가 어디부터 어디까지인가.
+        ax=0 : 높이 y=v 에서 가로(x)로 — 수평으로 자른 평면
+        ax=1 : 위치 x=v 에서 세로(y)로 — 세로로 자른 평면
+        격벽은 셀이 차 있으므로 바깥 윤곽만 보면 된다.                       */
+    _spanAt: function (v, ax) {
       var outer = (this._sectPoly && this._sectPoly.outer) || [];
       if (outer.length < 3) return null;
-      var xs = [];
+      var other = ax ? 0 : 1, hit = [];
       for (var i = 0; i < outer.length; i++) {
         var a = outer[i], b = outer[(i + 1) % outer.length];
-        if ((a[1] > y) === (b[1] > y)) continue;
-        xs.push(a[0] + (b[0] - a[0]) * (y - a[1]) / (b[1] - a[1]));
+        if ((a[other] > v) === (b[other] > v)) continue;
+        hit.push(a[ax] + (b[ax] - a[ax]) * (v - a[other]) / (b[other] - a[other]));
       }
-      if (xs.length < 2) return null;
-      xs.sort(function (p, q) { return p - q; });
-      return { x0: xs[0], x1: xs[xs.length - 1] };
+      if (hit.length < 2) return null;
+      hit.sort(function (p, q) { return p - q; });
+      return { lo: hit[0], hi: hit[hit.length - 1] };
     },
 
     //  평면 직사각형을 벽 네 장으로. 법선은 안쪽(중심)을 향한다.
+    //  첫 좌표는 자른 평면의 긴 축(수평이면 x, 세로면 y), 둘째 좌표는 교축 z 다.
     _planWalls: function (x0, x1, t) {
       var cx = (x0 + x1) / 2, cor = [[x0, -t / 2], [x1, -t / 2], [x1, t / 2], [x0, t / 2]], w = [];
       for (var i = 0; i < 4; i++) {
@@ -1616,9 +1632,14 @@
       var keep = { sec: Domain.currentSection, list: Domain.trebarList, q: Domain.queue,
                    idx: Domain.activeQueueIndex, stack: Domain.wallStack, data: Domain.USER_REBAR_DATA };
       rows.forEach(function (h) {
-        var w = self._widthAtY(h.at);
-        if (!w) { console.warn('[PSCDIA] crebar ' + h.id + ' : 높이 ' + h.at + ' 에 단면이 없습니다'); return; }
-        var walls = self._planWalls(w.x0, w.x1, t), W = w.x1 - w.x0;
+        var ax = (h.plane === 'yz') ? 1 : 0;          // yz = 세로로 자른 평면 (긴 축이 y)
+        var w = self._spanAt(h.at, ax);
+        if (!w) { console.warn('[PSCDIA] crebar ' + h.id + ' : ' + (ax ? 'x=' : 'y=') + h.at + ' 에 단면이 없습니다'); return; }
+        //  from/to 를 주면 그만큼만 감는다 (개구부 아래만 감는 ⑩-1 ⑩-2 처럼)
+        var lo = isFinite(h.from) ? Math.max(w.lo, h.from) : w.lo;
+        var hi = isFinite(h.to) ? Math.min(w.hi, h.to) : w.hi;
+        if (hi - lo < 100) { console.warn('[PSCDIA] crebar ' + h.id + ' : 감을 구간이 없습니다'); return; }
+        var walls = self._planWalls(lo, hi, t), W = hi - lo;
         var cv = self._diaCover();
         Domain.currentSection = { walls: walls, displayPaths: [],
                                   covers: { top: cv, outer: cv, inner: cv } };
@@ -1637,7 +1658,7 @@
           rb.segments.forEach(function (sg) { pts.push([sg.p2.x, sg.p2.y]); });
           pts.push([pts[0][0], pts[0][1]]);          // 마지막 한 변 — 여기서 닫는다
           var xs = pts.map(function (p) { return p[0]; });
-          self._hoops.push({ id: h.id, dia: h.dia, at: h.at, state: rb.state, pts: pts,
+          self._hoops.push({ id: h.id, dia: h.dia, at: h.at, plane: h.plane, state: rb.state, pts: pts,
                              gotW: Math.max.apply(null, xs) - Math.min.apply(null, xs) });
         }
       });
@@ -2315,7 +2336,7 @@
                trebar: tre, lrebar: lre, treCtc: 150,
                //  폐합철근 — 단면 평면이 아니라 높이 at 의 수평면(x·z)에 눕는다
                hoops: (this._hoops || []).map(function (h) {
-                 return { id: h.id, dia: h.dia, at: h.at, pts: h.pts };
+                 return { id: h.id, dia: h.dia, at: h.at, plane: h.plane, pts: h.pts };
                }),
                view: this._view3D || null, proj: this._proj3D || null };
     },
