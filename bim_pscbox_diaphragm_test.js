@@ -1712,9 +1712,22 @@
       var outer = (this._sectPoly && this._sectPoly.outer) || [];
       if (outer.length < 3) return [];
       var spans = this._polySpans(outer, v, ax);
+      var other = ax ? 0 : 1;
       (this._openings || []).forEach(function (op) {
         if (!op || !op.pts || op.pts.length < 3) return;
-        var holes = PXDIA._polySpans(op.pts, v, ax);
+
+        /*  자르는 선이 개구부의 **세로 면과 정확히 겹칠 때** 판정이 한쪽으로만
+            기운다. 교차 판정이 `a > v` 와 `b > v` 를 견주는데, 꼭짓점이 딱 v 에
+            있으면 왼쪽 면에서는 이웃 빗변이 교차로 잡히고 오른쪽 면에서는 안
+            잡힌다 — 그래서 x=−600 은 잘리고 x=+600 은 안 잘렸다.
+            선을 개구부 안쪽으로 아주 조금만 밀어 재면 양쪽이 같아진다.
+            **가장자리에 걸친 철근은 잘리는 쪽**으로 판정한다.                 */
+        var bmin = 1e18, bmax = -1e18;
+        op.pts.forEach(function (p) { bmin = Math.min(bmin, p[other]); bmax = Math.max(bmax, p[other]); });
+        var EPS = 0.05;
+        if (v < bmin - EPS || v > bmax + EPS) return;             // 개구부를 아예 안 지난다
+        var vv = Math.min(Math.max(v, bmin + EPS), bmax - EPS);   // 가장자리면 안쪽으로 살짝
+        var holes = PXDIA._polySpans(op.pts, vv, ax);
         holes.forEach(function (h) {
           var next = [];
           spans.forEach(function (s) {
