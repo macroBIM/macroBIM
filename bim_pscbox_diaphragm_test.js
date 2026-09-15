@@ -264,8 +264,9 @@
         var SCHEMA = [
           ['trebar', 'id', 'code', 'dia', 'init (x, y, rot)', 'set', 'segs (len)', 'angs', 'nors', 'barStart', 'barEnd', 'radius', 'z'],
           ['lrebar', 'id', 'dia', 'num', 'init', 'nors', 'range', 'path', 'ctc', 'ctcmax', 'ctcmin', '', 'z'],
-          //  교축방향 폐합철근 — 높이 at 에서 수평으로 자른 평면에 눕는다. 폭은 콘크리트가 정한다.
-          ['crebar', 'id', 'dia', 'plane', 'at (높이 y)', 'set', 'lap', '', '', '', '', '', '']
+          //  교축방향 폐합철근 — 격벽을 한 번 더 자른 평면에 눕는다. 크기는 콘크리트가 정한다.
+          //  at : cell(복부 사이) · all(단면 전체) · -6000~6000(범위) · -1100(한 자리)
+          ['crebar', 'id', 'dia', 'plane', 'at (cell/all/범위)', 'set', 'lap', 'from', 'to', 'ctc', '', '', '']
         ];
         var ncol = SCHEMA[0].length;
 
