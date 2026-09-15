@@ -116,7 +116,7 @@ function runCase(id, patch) {
            legX: legSeg ? legSeg.p1.x : NaN,
            legY: legSeg ? [legSeg.p1.y, legSeg.p2.y] : null };
 }
-module.exports = { runCase, sec, outer, inPoly, P, Domain };
+module.exports = { EL, mkEl, runCase, sec, outer, inPoly, P, Domain };
 
 //  ── crebar : 페이지의 새 경로를 그대로 태워 본다 ────────────────────
 module.exports.runHoops = function () {

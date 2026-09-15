@@ -633,6 +633,22 @@
                idCell(g.id, g.state === 'SETTLED') + codeCell(g.id) +
                '<td class="phys-na">&mdash;</td><td>' + fmt(g.dia) + '</td>' + cells([], 11) + rspBtn(g.id) + '</tr>';
         });
+        /*  폐합철근(crebar) — 단면 평면이 아니라 높이 at 의 수평면에서 안착한다.
+            조각은 네 변이고, a·c 가 격벽 두께를 감는 변, b·d 가 폭을 지르는 변이다.  */
+        (this._hoops || []).forEach(function (o) {
+          var segs = [], total = 0;
+          for (var i = 0; i + 1 < o.pts.length; i++) {
+            var L = Math.hypot(o.pts[i + 1][0] - o.pts[i][0], o.pts[i + 1][1] - o.pts[i][1]);
+            segs.push(L); total += L;
+          }
+          var inter = [], k;
+          for (k = 0; k < 6; k++) inter.push(segs[k] != null ? segs[k] : null);
+          for (k = 0; k < 5; k++) inter.push(null);
+          h += '<tr class="' + (String(self._focusId) === String(o.id) ? 'phys-focus' : '') + '">' +
+               idCell(o.id, o.state === 'FORMED') +
+               '<td>폐합</td><td><b>' + fmt(total) + '</b></td><td>' + fmt(o.dia) + '</td>' +
+               cells(inter, 11) + '<td class="phys-na">&mdash;</td></tr>';
+        });
         if (!h) h = '<tr><td colspan="16" style="text-align:center;color:#94a3b8;padding:14px;">No rebar loaded.</td></tr>';
         body.innerHTML = h;
       },
@@ -923,9 +939,39 @@
           else self._drawStraightTrebar(t, UI.trebarGroup);   // 미안착 바는 직선으로 남겨 사라지지 않게
         });
         this._drawLrebarTrue();                                                    // lrebar 실제 반경으로 재작도
+        this._drawHoops2D();                                                       // 폐합철근 — 단면에서는 옆으로 보인다
         if (UI.mainLayer) UI.mainLayer.draw();
         this._renderPhysicsTable();                                                // 결과 표 갱신 (안착 후 길이 확정)
         console.log('[SeoulPhD] 굴짐 아크 적용 — FORMED ' + formed + '/' + Domain.trebarList.length);
+      },
+
+      /*  폐합철근을 2D 단면에 그린다.
+          이 철근은 높이 at 의 수평면에 눕는다 — 단면(x-y)에서는 **옆으로 보여**
+          높이 at 의 가로선 하나가 된다. 앞뒤 두 변이 겹쳐 보이는 것이라 선은
+          하나면 된다. 3D 와 같은 보라색으로, 끝에 id 를 적는다.               */
+      _drawHoops2D: function () {
+        var hoops = this._hoops || [];
+        if (!hoops.length || typeof UI === 'undefined' || !UI.trebarGroup) return;
+        var scale = (UI.stage && UI.stage.scaleX && UI.stage.scaleX()) || 1;
+        var self = this;
+        hoops.forEach(function (o) {
+          var xs = o.pts.map(function (p) { return p[0]; });
+          var x0 = Math.min.apply(null, xs), x1 = Math.max.apply(null, xs);
+          //  다른 철근(trebar)의 기본색이 이미 보라(#8A2BE2)라 청록으로 가른다.
+          //  굵기는 다른 철근과 같은 규칙 — 실제 지름을 그대로 쓴다.
+          var on = String(self._focusId) === String(o.id);
+          UI.trebarGroup.add(new Konva.Line({
+            points: [x0, o.at, x1, o.at],
+            stroke: on ? '#FF3D00' : '#00BFA5',
+            strokeWidth: (o.dia > 0 ? o.dia : 25), lineCap: 'round',
+            opacity: (self._focusId && !on) ? 0.4 : 1, strokeScaleEnabled: true
+          }));
+          var fs = 13 / scale;
+          var lbl = new Konva.Text({ x: x1 + fs * 0.5, y: o.at, text: String(o.id),
+            fontSize: fs, fontStyle: 'bold', fontFamily: 'Arial', fill: '#00BFA5', scaleY: -1 });
+          lbl.offsetY(-fs * 0.4);
+          UI.trebarGroup.add(lbl);
+        });
       },
 
       _relaxRebar: function () {
