@@ -1166,9 +1166,20 @@
           var a = (mxx - mnx) * (mxy - mny);
           if (a > outerArea) { outerArea = a; outerIdx = li; }
         });
+        /*  이 페이지는 격벽이다. 격벽에서는 **셀이 콘크리트로 차 있다** — 그러니
+            셀 내면은 인력 경계가 아니다. 벽으로 두면 철근이 있지도 않은 빈 공간의
+            면으로 끌려간다. 그래서 바깥 고리만 벽으로 만든다.
+            셀 윤곽은 3D 의 옅은 선(참고용)으로만 남기므로 좌표는 계속 모은다.
+            벽 번호(E1,E2…)는 바깥 고리가 먼저라 그대로다 — 기존 철근 행이 안 깨진다.
+            (개구부만 예외로 아래에서 따로 벽이 된다. 거기는 진짜 빈 공간이다.)   */
         loops.forEach(function (loop, li) {
           if (!loop.length) return;
           var pts = [{ x: loop[0].x1, y: loop[0].y1 }];
+          if (li !== outerIdx) {                       // 셀 — 좌표만 모으고 벽은 만들지 않는다
+            loop.forEach(function (seg) { pts.push({ x: seg.x2, y: seg.y2 }); });
+            sectCells.push(pts.map(function (p) { return [p.x, p.y]; }));
+            return;
+          }
           loop.forEach(function (seg) {
             // 길이 0 세그먼트(입력 안 함/0 입력 치수) → 벽 생성 생략 (경로 점만 유지)
             if (Math.hypot(seg.x2 - seg.x1, seg.y2 - seg.y1) < 0.5) { pts.push({ x: seg.x2, y: seg.y2 }); return; }
@@ -1185,8 +1196,7 @@
             pts.push({ x: seg.x2, y: seg.y2 });
           });
           displayPaths.push(pts);
-          var poly = pts.map(function (p) { return [p.x, p.y]; });
-          if (li === outerIdx) sectOuter = poly; else sectCells.push(poly);
+          sectOuter = pts.map(function (p) { return [p.x, p.y]; });
         });
         this._sectPoly = { outer: sectOuter, cells: sectCells };
         // ── 격벽 개구부 : 콘크리트 면을 닫힌 고리로 잇는다 ─────────────────────
