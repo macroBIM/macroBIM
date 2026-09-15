@@ -1591,11 +1591,16 @@
         }
         if (hc < 0) continue;
         var g = row.slice(hc);
-        var at = this._rbNum(g[4]);
-        if (!isFinite(at)) { console.warn('[PSCDIA] crebar ' + this._rbStr(g[1]) + ' : at(높이)을 읽을 수 없음'); continue; }
+        /*  at 은 한 자리(-1100)일 수도, 쭉 깔 범위(-6000~6000)일 수도 있다.
+            범위면 ctc 간격으로 그 사이를 채운다 — 도면의 ⑩ 이 이것이다.      */
+        var atRaw = this._rbStr(g[4]), m = atRaw.split(/[~:]/);
+        var at = this._rbNum(m[0]), at2 = (m.length > 1) ? this._rbNum(m[1]) : NaN;
+        if (!isFinite(at)) { console.warn('[PSCDIA] crebar ' + this._rbStr(g[1]) + ' : at 을 읽을 수 없음'); continue; }
         out.push({ id: this._rbStr(g[1]), dia: this._rbNum(g[2]) || 25,
                    plane: (this._rbStr(g[3]) || 'yz').toLowerCase(),
-                   at: at, set: (this._rbStr(g[5]) || 'all').toLowerCase(),
+                   at: at, at2: at2,
+                   ctc: this._rbHas(g[9]) ? this._rbNum(g[9]) : 150,
+                   set: (this._rbStr(g[5]) || 'all').toLowerCase(),
                    lap: this._rbHas(g[6]) ? this._rbNum(g[6]) : 0,
                    //  긴 축을 여기서 여기까지만. 숫자 대신 `open` 을 쓰면 개구부를 따라간다 —
                    //  from:open = 개구부 위쪽 끝부터 · to:open = 개구부 아래쪽 끝까지.
@@ -1637,18 +1642,49 @@
         ax=0 : 높이 y=v 에서 가로(x)로 — 수평으로 자른 평면
         ax=1 : 위치 x=v 에서 세로(y)로 — 세로로 자른 평면
         격벽은 셀이 차 있으므로 바깥 윤곽만 보면 된다.                       */
-    _spanAt: function (v, ax) {
-      var outer = (this._sectPoly && this._sectPoly.outer) || [];
-      if (outer.length < 3) return null;
+    //  폴리곤을 v 에서 자른 선이 안을 지나는 구간들 (짝수 개 교점 → 쌍으로 묶는다)
+    _polySpans: function (poly, v, ax) {
       var other = ax ? 0 : 1, hit = [];
-      for (var i = 0; i < outer.length; i++) {
-        var a = outer[i], b = outer[(i + 1) % outer.length];
+      for (var i = 0; i < poly.length; i++) {
+        var a = poly[i], b = poly[(i + 1) % poly.length];
         if ((a[other] > v) === (b[other] > v)) continue;
         hit.push(a[ax] + (b[ax] - a[ax]) * (v - a[other]) / (b[other] - a[other]));
       }
-      if (hit.length < 2) return null;
       hit.sort(function (p, q) { return p - q; });
-      return { lo: hit[0], hi: hit[hit.length - 1] };
+      var out = [];
+      for (var k = 0; k + 1 < hit.length; k += 2) out.push([hit[k], hit[k + 1]]);
+      return out;
+    },
+
+    _spanAt: function (v, ax) {
+      var sp = this._spansAt(v, ax);
+      if (!sp.length) return null;
+      return { lo: sp[0][0], hi: sp[sp.length - 1][1] };    // 개구부를 무시한 전체 구간
+    },
+
+    /*  자른 선 위에서 **콘크리트가 실제로 있는 구간들**.
+        바깥 윤곽이 준 구간에서 개구부를 빼면, 개구부를 지나는 자리에서는
+        구간이 **둘로 갈린다.** 이것이 도면의 ⑩ 이 개구부에서 ⑩-1 ⑩-2 로
+        나뉘는 그 일이다 — 철근을 두 번 입력하는 것이 아니라, 한 줄을 쭉 깔고
+        개구부가 알아서 자르는 것이다.                                        */
+    _spansAt: function (v, ax) {
+      var outer = (this._sectPoly && this._sectPoly.outer) || [];
+      if (outer.length < 3) return [];
+      var spans = this._polySpans(outer, v, ax);
+      (this._openings || []).forEach(function (op) {
+        if (!op || !op.pts || op.pts.length < 3) return;
+        var holes = PXDIA._polySpans(op.pts, v, ax);
+        holes.forEach(function (h) {
+          var next = [];
+          spans.forEach(function (s) {
+            if (h[1] <= s[0] || h[0] >= s[1]) { next.push(s); return; }   // 안 겹친다
+            if (h[0] > s[0]) next.push([s[0], h[0]]);                     // 개구부 아래쪽
+            if (h[1] < s[1]) next.push([h[1], s[1]]);                     // 개구부 위쪽
+          });
+          spans = next;
+        });
+      });
+      return spans;
     },
 
     //  평면 직사각형을 벽 네 장으로. 법선은 안쪽(중심)을 향한다.
@@ -1678,48 +1714,72 @@
       var t = this._diaThk(), self = this;
       var keep = { sec: Domain.currentSection, list: Domain.trebarList, q: Domain.queue,
                    idx: Domain.activeQueueIndex, stack: Domain.wallStack, data: Domain.USER_REBAR_DATA };
-      rows.forEach(function (h) {
-        var ax = (h.plane === 'yz') ? 1 : 0;          // yz = 세로로 자른 평면 (긴 축이 y)
-        var w = self._spanAt(h.at, ax);
-        if (!w) { console.warn('[PSCDIA] crebar ' + h.id + ' : ' + (ax ? 'x=' : 'y=') + h.at + ' 에 단면이 없습니다'); return; }
-        //  from/to 를 주면 그만큼만 감는다 (개구부 아래만 감는 ⑩-1 ⑩-2 처럼).
-        //  'open' 이면 개구부 끝을 찾아 쓴다 — 개구부를 옮겨도 따라간다.
-        var oe = (h.from === 'open' || h.to === 'open') ? self._openEdgeAt(h.at, ax) : null;
-        var fv = (h.from === 'open') ? (oe ? oe.hi : NaN) : h.from;   // 개구부 위쪽 끝부터
-        var tv = (h.to === 'open') ? (oe ? oe.lo : NaN) : h.to;       // 개구부 아래쪽 끝까지
-        var lo = isFinite(fv) ? Math.max(w.lo, fv) : w.lo;
-        var hi = isFinite(tv) ? Math.min(w.hi, tv) : w.hi;
-        if (hi - lo < 100) { console.warn('[PSCDIA] crebar ' + h.id + ' : 감을 구간이 없습니다'); return; }
-        var walls = self._planWalls(lo, hi, t), W = hi - lo;
-        var cv = self._diaCover();
+      var cv = this._diaCover();
+
+      /*  한 자리에 고리 하나를 세운다. lo~hi 가 그 자리의 콘크리트 구간이다. */
+      function settleOne(h, ax, at, lo, hi, idSuffix) {
+        var W = hi - lo;
+        if (W < 100) return null;
+        var walls = self._planWalls(lo, hi, t);
         Domain.currentSection = { walls: walls, displayPaths: [],
                                   covers: { top: cv, outer: cv, inner: cv } };
         Domain.trebarList = []; Domain.queue = []; Domain.activeQueueIndex = 0;
         Domain.isPaused = false; Domain.wallStack = {};
         /*  U자(21)로 세 면을 물리고 네 번째 변은 아래에서 이어 닫는다.
             b(긴 변)는 P1 에 붙으니 벽이 자리를 정해 준다 — 길이를 대충 줘도 된다.
-            그런데 a·c(두께를 건너는 두 변)는 붙는 벽이 없고 **준 길이 그대로 자란다.**
-            전에 t*0.95 = 1,900 을 줬더니 반대쪽 면에서 47.5 로 끝나 5 mm 어긋났다
-            (앞면 52.5 · 뒷면 47.5). 두 면 사이에 실제로 들어갈 길이를 준다 :
-              두께 − 2 × (피복 + 지름/2) = 2,000 − 2 × 52.5 = 1,895                */
-        var inset = cv + (h.dia || 25) / 2;
-        var span = Math.max(10, t - 2 * inset);
+            그런데 a·c(두께를 건너는 두 변)는 붙는 벽이 없고 준 길이 그대로 자란다.
+            두 면 사이에 실제로 들어갈 길이를 준다 :
+              두께 − 2 × (피복 + 지름/2)                                        */
+        var span = Math.max(10, t - 2 * (cv + (h.dia || 25) / 2));
         var row = { type: 'trebar', id: h.id, code: 21, dia: h.dia,
                     segs: { a: { len: span }, b: { len: W * 0.9, set: 'P1' }, c: { len: span } } };
         Domain.USER_REBAR_DATA = [row];
         var rb = null;
         try { rb = Domain._createTrebarFromData(row); } catch (e) { console.error('[PSCDIA] crebar ' + h.id, e); }
-        if (rb) {
-          Domain.trebarList.push(rb); Domain.queue.push({ kind: 'trebar', obj: rb });
-          for (var i = 0; i < 40000 && Domain.activeQueueIndex < Domain.queue.length; i++) Domain.stepPhysics();
-          var pts = [[rb.segments[0].p1.x, rb.segments[0].p1.y]];
-          rb.segments.forEach(function (sg) { pts.push([sg.p2.x, sg.p2.y]); });
-          pts.push([pts[0][0], pts[0][1]]);          // 마지막 한 변 — 여기서 닫는다
-          var xs = pts.map(function (p) { return p[0]; });
-          self._hoops.push({ id: h.id, dia: h.dia, at: h.at, plane: h.plane, state: rb.state, pts: pts,
-                             lap: h.lap || 0,          // 겹이음 — 형상에는 없고 길이에만 더한다
-                             gotW: Math.max.apply(null, xs) - Math.min.apply(null, xs) });
-        }
+        if (!rb) return null;
+        Domain.trebarList.push(rb); Domain.queue.push({ kind: 'trebar', obj: rb });
+        for (var i = 0; i < 40000 && Domain.activeQueueIndex < Domain.queue.length; i++) Domain.stepPhysics();
+        var pts = [[rb.segments[0].p1.x, rb.segments[0].p1.y]];
+        rb.segments.forEach(function (sg) { pts.push([sg.p2.x, sg.p2.y]); });
+        pts.push([pts[0][0], pts[0][1]]);          // 마지막 한 변 — 여기서 닫는다
+        var xs = pts.map(function (p) { return p[0]; });
+        return { id: h.id + idSuffix, mark: h.id, dia: h.dia, at: at, plane: h.plane,
+                 state: rb.state, pts: pts, lap: h.lap || 0,
+                 gotW: Math.max.apply(null, xs) - Math.min.apply(null, xs) };
+      }
+
+      rows.forEach(function (h) {
+        var ax = (h.plane === 'yz') ? 1 : 0;          // yz = 세로로 자른 평면 (긴 축이 y)
+
+        /*  at 이 범위면 ctc 간격으로 쭉 깐다. 도면의 ⑩ 이 그렇다 — 한 줄을
+            단면 전체에 깔아 두면, **개구부를 지나는 자리에서 저절로 둘로 갈린다.**
+            갈린 조각에 -1 · -2 를 붙인다. 그것이 도면의 ⑩-1 ⑩-2 다.           */
+        var stations = [];
+        if (isFinite(h.at2)) {
+          var a0 = Math.min(h.at, h.at2), a1 = Math.max(h.at, h.at2);
+          var ctc = (h.ctc > 0) ? h.ctc : 150;
+          for (var v = a0; v <= a1 + 1e-6; v += ctc) stations.push(v);
+        } else stations.push(h.at);
+
+        stations.forEach(function (at) {
+          var spans = self._spansAt(at, ax);          // 개구부를 뺀 콘크리트 구간들
+          if (!spans.length) return;
+          //  from/to 로 더 잘라 쓸 수도 있다 (숫자 또는 'open')
+          var oe = (h.from === 'open' || h.to === 'open') ? self._openEdgeAt(at, ax) : null;
+          var fv = (h.from === 'open') ? (oe ? oe.hi : NaN) : h.from;
+          var tv = (h.to === 'open') ? (oe ? oe.lo : NaN) : h.to;
+          var cut = [];
+          spans.forEach(function (s) {
+            var lo = isFinite(fv) ? Math.max(s[0], fv) : s[0];
+            var hi = isFinite(tv) ? Math.min(s[1], tv) : s[1];
+            if (hi - lo >= 100) cut.push([lo, hi]);
+          });
+          cut.forEach(function (s, k) {
+            var sfx = (cut.length > 1) ? ('-' + (k + 1)) : '';
+            var o = settleOne(h, ax, at, s[0], s[1], sfx);
+            if (o) self._hoops.push(o);
+          });
+        });
       });
       Domain.currentSection = keep.sec; Domain.trebarList = keep.list; Domain.queue = keep.q;
       Domain.activeQueueIndex = keep.idx; Domain.wallStack = keep.stack; Domain.USER_REBAR_DATA = keep.data;
