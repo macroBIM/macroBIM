@@ -1182,7 +1182,16 @@
           var pts = [{ x: loop[0].x1, y: loop[0].y1 }];
           if (li !== outerIdx) {                       // 셀 — 좌표만 모으고 벽은 만들지 않는다
             loop.forEach(function (seg) { pts.push({ x: seg.x2, y: seg.y2 }); });
-            sectCells.push(pts.map(function (p) { return [p.x, p.y]; }));
+            /*  길이 0 세그먼트가 만든 부스러기 고리(점 두 개짜리)가 캔틸레버 끝에
+                생긴다. 그대로 두면 3D 에 점이 찍히고, 「복부 사이」범위를 잴 때
+                그 점이 끼어 셀이 단면 폭만 해진다. 여기서 거른다.              */
+            var cw = 0, ch = 0, mnx = 1e18, mxx = -1e18, mny = 1e18, mxy = -1e18;
+            pts.forEach(function (p) {
+              mnx = Math.min(mnx, p.x); mxx = Math.max(mxx, p.x);
+              mny = Math.min(mny, p.y); mxy = Math.max(mxy, p.y);
+            });
+            cw = mxx - mnx; ch = mxy - mny;
+            if (pts.length >= 4 && cw > 1 && ch > 1) sectCells.push(pts.map(function (p) { return [p.x, p.y]; }));
             return;
           }
           loop.forEach(function (seg) {
@@ -1591,11 +1600,22 @@
         }
         if (hc < 0) continue;
         var g = row.slice(hc);
-        /*  at 은 한 자리(-1100)일 수도, 쭉 깔 범위(-6000~6000)일 수도 있다.
-            범위면 ctc 간격으로 그 사이를 채운다 — 도면의 ⑩ 이 이것이다.      */
-        var atRaw = this._rbStr(g[4]), m = atRaw.split(/[~:]/);
-        var at = this._rbNum(m[0]), at2 = (m.length > 1) ? this._rbNum(m[1]) : NaN;
-        if (!isFinite(at)) { console.warn('[PSCDIA] crebar ' + this._rbStr(g[1]) + ' : at 을 읽을 수 없음'); continue; }
+        /*  at 은 세 가지로 준다 :
+              all          단면 폭 전체 (비워 두어도 같다) — 도면의 ⑩ 이 이것이다
+              -6000~6000   그 범위만
+              -1100        한 자리에 하나만
+            범위·전체면 ctc 간격으로 **균등하게** 깐다 (양 끝 여백이 같다).     */
+        var atRaw = this._rbStr(g[4]).toLowerCase();
+        var at, at2;
+        if (atRaw === '' || atRaw === 'all' || atRaw === 'cell') {
+          at = (atRaw === 'all') ? 'all' : 'cell';      // 비워 두면 복부 사이가 기본
+          at2 = NaN;
+        }
+        else {
+          var m = atRaw.split(/[~:]/);
+          at = this._rbNum(m[0]); at2 = (m.length > 1) ? this._rbNum(m[1]) : NaN;
+          if (!isFinite(at)) { console.warn('[PSCDIA] crebar ' + this._rbStr(g[1]) + ' : at 을 읽을 수 없음'); continue; }
+        }
         out.push({ id: this._rbStr(g[1]), dia: this._rbNum(g[2]) || 25,
                    plane: (this._rbStr(g[3]) || 'yz').toLowerCase(),
                    at: at, at2: at2,
@@ -1642,6 +1662,26 @@
         ax=0 : 높이 y=v 에서 가로(x)로 — 수평으로 자른 평면
         ax=1 : 위치 x=v 에서 세로(y)로 — 세로로 자른 평면
         격벽은 셀이 차 있으므로 바깥 윤곽만 보면 된다.                       */
+    /*  철근을 쭉 깔 범위를 이름으로 받는다.
+          all   단면 바깥 윤곽 끝에서 끝까지
+          cell  **복부 사이** — 격벽이 실제로 채우고 있는 자리다. 격벽 철근은
+                여기에만 깐다. 캔틸레버 쪽까지 깔면 단면이 캔틸레버 두께(280)
+                뿐이라 폭 200 도 안 되는 고리가 생긴다.
+        셀 윤곽은 벽에서는 뺐지만 좌표는 `_sectPoly.cells` 에 그대로 있다.      */
+    _rangeBBox: function (which) {
+      var polys = (which === 'cell')
+        ? ((this._sectPoly && this._sectPoly.cells) || [])
+        : [(this._sectPoly && this._sectPoly.outer) || []];
+      var x0 = 1e18, x1 = -1e18, y0 = 1e18, y1 = -1e18, n = 0;
+      polys.forEach(function (poly) {
+        (poly || []).forEach(function (p) {
+          x0 = Math.min(x0, p[0]); x1 = Math.max(x1, p[0]);
+          y0 = Math.min(y0, p[1]); y1 = Math.max(y1, p[1]); n++;
+        });
+      });
+      return n >= 3 ? { x0: x0, x1: x1, y0: y0, y1: y1 } : null;
+    },
+
     //  폴리곤을 v 에서 자른 선이 안을 지나는 구간들 (짝수 개 교점 → 쌍으로 묶는다)
     _polySpans: function (poly, v, ax) {
       var other = ax ? 0 : 1, hit = [];
@@ -1754,11 +1794,21 @@
         /*  at 이 범위면 ctc 간격으로 쭉 깐다. 도면의 ⑩ 이 그렇다 — 한 줄을
             단면 전체에 깔아 두면, **개구부를 지나는 자리에서 저절로 둘로 갈린다.**
             갈린 조각에 -1 · -2 를 붙인다. 그것이 도면의 ⑩-1 ⑩-2 다.           */
-        var stations = [];
-        if (isFinite(h.at2)) {
-          var a0 = Math.min(h.at, h.at2), a1 = Math.max(h.at, h.at2);
+        var stations = [], a0, a1;
+        if (h.at === 'all' || h.at === 'cell') {    // 이름으로 준 범위
+          var bb = self._rangeBBox(h.at);
+          if (!bb) { console.warn('[PSCDIA] crebar ' + h.id + ' : ' + h.at + ' 범위를 못 찾음'); return; }
+          //  자르는 축은 긴 축의 **반대**다 : yz(긴 축 y)면 x 를 따라 깐다
+          a0 = ax ? bb.x0 : bb.y0; a1 = ax ? bb.x1 : bb.y1;
+        } else if (isFinite(h.at2)) {
+          a0 = Math.min(h.at, h.at2); a1 = Math.max(h.at, h.at2);
+        }
+        if (a0 != null) {
+          //  균등하게 : 들어갈 만큼 넣고 남는 여백을 양 끝에 반씩 나눈다
           var ctc = (h.ctc > 0) ? h.ctc : 150;
-          for (var v = a0; v <= a1 + 1e-6; v += ctc) stations.push(v);
+          var n = Math.max(1, Math.floor((a1 - a0) / ctc) + 1);
+          var pad = ((a1 - a0) - (n - 1) * ctc) / 2;
+          for (var k2 = 0; k2 < n; k2++) stations.push(a0 + pad + k2 * ctc);
         } else stations.push(h.at);
 
         stations.forEach(function (at) {
