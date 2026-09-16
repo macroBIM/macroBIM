@@ -101,7 +101,7 @@ git status --short     # 비어 있어야 한다
 | | |
 |---|---|
 | 엔진 | `plate3d/plate_builder.js` · **`?v=95`** |
-| 승격한 커밋 | (2026-09-16) — Example 에 에펠탑·인천대교 |
+| 승격한 커밋 | `e8d39dc` (2026-09-16) — Example 에 에펠탑·인천대교 |
 | 짝이 되는 design 커밋 | `?` — `layout_body.js` 의 `embed.html?v=94` |
 | 테스트 엔진과의 차이 | **없음** — 승격 직후라 두 파일이 같다 |
 
