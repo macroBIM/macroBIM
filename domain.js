@@ -279,7 +279,7 @@ const Domain = {
                     const w = s.fitWall || s.anchorWall || s.contactWall;
                     return s.label + '=' + ((w && w.id) || '?');
                 }).join(', ');
-                Domain._accumulateStack(trebar.dia || 0, spanMap);
+                Domain._accumulateStack(trebar.dia || 0, spanMap, trebar.id);
                 const stackInfo = Object.keys(spanMap).map(id =>
                     id + '[' + spanMap[id].spans.map(sp => Math.round(sp[0]) + '~' + Math.round(sp[1])).join(',') + ']'
                 ).join(', ');
@@ -291,7 +291,7 @@ const Domain = {
             const coverWalls = Physics.buildCoverWalls(Domain.currentSection.walls);
             LRebarEngine.step(group, coverWalls, Domain.wallStack);
             if (group.state === "SETTLED") {
-                Domain._accumulateStack(group.dia || 0, Domain._collectLrebarWalls(group));
+                Domain._accumulateStack(group.dia || 0, Domain._collectLrebarWalls(group), group.id);
                 Domain.activeQueueIndex++;
             }
         }
@@ -337,8 +337,14 @@ const Domain = {
         return map;
     },
 
-    _accumulateStack: (inc, spanMap) => {
+    /*  벽 위에 깔린 두께를 쌓는다.
+        by(주인)·seq(놓인 차례)를 같이 남긴다 — 이게 없으면 "이 철근이 무엇에
+        기댔나"를 물어볼 수가 없다. 철근은 순차로 놓이고 나중 것이 먼저 것 위에
+        얹히므로, 지지 관계가 곧 조립의 기록이다.
+        stackAt() 은 th 만 더하므로 읽는 쪽은 바뀌지 않는다.                   */
+    _accumulateStack: (inc, spanMap, byId) => {
         if (!inc || !spanMap) return;
+        const seq = Domain._stackSeq = (Domain._stackSeq || 0) + 1;
         Object.keys(spanMap).forEach(id => {
             // 같은 철근이 한 벽에 여러 구간을 등록하면 겹침 병합 후 1회만 적층 (이중 적층 방지)
             const spans = spanMap[id].spans.slice().sort((a, b) => a[0] - b[0]);
@@ -349,7 +355,10 @@ const Domain = {
                 else merged.push([sp[0], sp[1]]);
             });
             if (!Domain.wallStack[id]) Domain.wallStack[id] = [];
-            merged.forEach(sp => Domain.wallStack[id].push({ lo: sp[0], hi: sp[1], th: inc }));
+            merged.forEach(sp => Domain.wallStack[id].push({
+                lo: sp[0], hi: sp[1], th: inc,
+                by: (byId == null ? null : String(byId)), seq: seq
+            }));
         });
     }
 };

@@ -1000,6 +1000,45 @@
         if (redraw) UI.mainLayer.draw();
       },
 
+      /*  각 철근이 **무엇에 기대어** 섰는지 — 콘크리트 면인가, 먼저 놓인 철근인가.
+          철근은 순차로 놓이고 나중 것이 먼저 것 위에 얹히므로, 이 관계가 곧
+          조립의 기록이다. `wallStack` 이 주인(by)과 차례(seq)를 남기게 한 뒤에야
+          물어볼 수 있게 됐다.
+          한 철근이 벽 w 에 앉을 때, 그 벽의 같은 구간에 **더 먼저(seq 가 작은)**
+          깔린 철근이 있으면 그 위에 얹힌 것이고, 없으면 콘크리트에 직접 닿은 것이다. */
+      supportOf: function (id) {
+        if (typeof Domain === 'undefined') return null;
+        var t = (Domain.trebarList || []).filter(function (x) { return String(x.id) === String(id); })[0];
+        if (!t || !t.segments) return null;
+        var stack = Domain.wallStack || {}, mine = 1e18, out = [];
+        //  내 차례를 찾는다 (내가 남긴 기록 중 가장 이른 것)
+        Object.keys(stack).forEach(function (w) {
+          stack[w].forEach(function (iv) { if (String(iv.by) === String(id)) mine = Math.min(mine, iv.seq); });
+        });
+        t.segments.forEach(function (sg) {
+          var w = sg.fitWall || sg.anchorWall || sg.contactWall;
+          if (!w || !w.id) { out.push({ seg: sg.label, on: null }); return; }
+          var mx = (sg.p1.x + sg.p2.x) / 2, my = (sg.p1.y + sg.p2.y) / 2;
+          var dx = w.x2 - w.x1, dy = w.y2 - w.y1, L = Math.hypot(dx, dy) || 1;
+          var t0 = ((mx - w.x1) * dx + (my - w.y1) * dy) / L;
+          var under = [];
+          (stack[w.id] || []).forEach(function (iv) {
+            if (iv.seq >= mine) return;                       // 나보다 나중 = 아직 없던 것
+            if (t0 < iv.lo - 1 || t0 > iv.hi + 1) return;     // 그 구간이 아니다
+            if (under.indexOf(iv.by) < 0) under.push(iv.by);
+          });
+          out.push({ seg: sg.label, on: w.id, tag: w.tag, over: under });
+        });
+        return { id: String(id), seq: mine, segs: out };
+      },
+
+      //  전부에 대해 한 번에 — 조립 순서가 말이 되는지 보는 용도
+      supportTable: function () {
+        var self = this;
+        return (Domain.trebarList || []).map(function (t) { return self.supportOf(t.id); })
+          .filter(Boolean).sort(function (a, b) { return a.seq - b.seq; });
+      },
+
       _relaxRebar: function () {
         if (typeof Domain === 'undefined') return;
         var GSTEP = 2.0, ITERS = 320, MAXMOVE = 250;   // GSTEP: 벽방향 인력 스텝(mm/iter), MAXMOVE: 안전 이동 상한
