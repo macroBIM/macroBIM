@@ -12458,7 +12458,11 @@
        one cable plane comes out on both sides of the bridge from one row each.
        It is also the sheet that asks for VIEW ALL. */
     { f: 'PLATE3D_GGB.xlsx', n: 'Golden Gate Bridge', s: '414 rows → 2219 members · 81,624 t · 9 drawings',
-      d: 'Five modules, one per part, at full size: 1280 m between the towers.' }
+      d: 'Five modules, one per part, at full size: 1280 m between the towers.' },
+    { f: 'PLATE3D_EIFFEL.xlsx', n: 'Eiffel Tower', s: '709 rows → 1528 members · 4,773 t · 9 drawings',
+      d: 'One pier, written once and turned four ways. 300 m tall.' },
+    { f: 'PLATE3D_INCHEON.xlsx', n: 'Incheon Bridge', s: '513 rows → 566 members · 208 stays · 8 drawings',
+      d: 'One cable is one row - a stay is straight, so nothing is chorded. 800 m main span, and the outer surface only.' }
   ];
   var exOpen = false;
   /* The picker is a window rather than a dropdown, so each example has room for
