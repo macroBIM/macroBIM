@@ -1373,9 +1373,17 @@
             UI.sectionGroup.add(new Konva.Line({ points: flatOp, stroke: '#ffffff', strokeWidth: 2,
               closed: true, lineJoin: 'round', strokeScaleEnabled: false }));
           });
-          //  덕트는 콘크리트와 구별되게 다른 색으로 — 개구부와 헷갈리면 안 된다
+          //  덕트는 콘크리트와 구별되게 다른 색으로 — 개구부와 헷갈리면 안 된다.
+          //  원은 **원 그대로** 그린다. 24 각형은 벽(선분+법선)으로 판별하기 위한 것이지
+          //  덕트가 각진 구멍이라는 뜻이 아니다 — 외곽선을 아크로 그리는 것과 같은 규칙이다.
           (this._ducts || []).forEach(function (dk) {
-            if (!dk || !dk.pts || dk.pts.length < 3) return;
+            if (!dk) return;
+            if (dk.shape === 'circ' && isFinite(dk.D) && dk.D > 0) {
+              UI.sectionGroup.add(new Konva.Circle({ x: dk.x, y: dk.y, radius: dk.D / 2,
+                stroke: '#FF61E6', strokeWidth: 1.5, strokeScaleEnabled: false }));
+              return;
+            }
+            if (!dk.pts || dk.pts.length < 3) return;
             var flatD = [];
             dk.pts.forEach(function (p) { flatD.push(p[0], p[1]); });
             UI.sectionGroup.add(new Konva.Line({ points: flatD, stroke: '#FF61E6', strokeWidth: 1.5,

@@ -1102,9 +1102,17 @@
         UI.debugGroup.destroyChildren();
         // 표시용 외곽선 — 물리 벽(walls)은 직선 분할을 유지하되, 그래픽은 캡처된
         // bim 원시도형(직선+아크+원)을 그대로 그린다 → 필렛이 폴리라인이 아닌 실제 아크로 렌더링
-        //  덕트 — 콘크리트와 구별되게 다른 색으로
+        //  덕트 — 콘크리트와 구별되게 다른 색으로.
+        //  원은 **원 그대로** 그린다. 24 각형은 벽(선분+법선)으로 판별하기 위한 것이지
+        //  덕트가 각진 구멍이라는 뜻이 아니다 — 외곽선을 아크로 그리는 것과 같은 규칙이다.
         (this._ducts || []).forEach(function (dk) {
-          if (!dk || !dk.pts || dk.pts.length < 3) return;
+          if (!dk) return;
+          if (dk.shape === 'circ' && isFinite(dk.D) && dk.D > 0) {
+            UI.sectionGroup.add(new Konva.Circle({ x: dk.x, y: dk.y, radius: dk.D / 2,
+              stroke: '#FF61E6', strokeWidth: 1.5, strokeScaleEnabled: false }));
+            return;
+          }
+          if (!dk.pts || dk.pts.length < 3) return;
           var flatD = [];
           dk.pts.forEach(function (p) { flatD.push(p[0], p[1]); });
           UI.sectionGroup.add(new Konva.Line({ points: flatD, stroke: '#FF61E6', strokeWidth: 1.5,
