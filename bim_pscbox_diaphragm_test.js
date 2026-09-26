@@ -249,7 +249,7 @@
   var PXDIA = {
     _mountId: 'mount-draw-pscboxdia',
     _excelData: null, _rebarData: null, _focusId: null,
-    _lines: [], _arcs: [], _circs: [], _openings: [],
+    _lines: [], _arcs: [], _circs: [], _openings: [], _ducts: [],
     _uiInited: false, _settleTimer: null, _rebarSettled: false, _lastAp: null, _lastStuckMsg: null,
     _showEngNormals: false, _showEngNodes: false, _engNormGroup: null, _engNodeGroup: null,
     _loadLog: null,
@@ -266,7 +266,10 @@
           ['lrebar', 'id', 'dia', 'num', 'init', 'nors', 'range', 'path', 'ctc', 'ctcmax', 'ctcmin', '', 'z'],
           //  교축방향 폐합철근 — 격벽을 한 번 더 자른 평면에 눕는다. 크기는 콘크리트가 정한다.
           //  at : cell(복부 사이) · all(단면 전체) · -6000~6000(범위) · -1100(한 자리)
-          ['crebar', 'id', 'dia', 'plane', 'at (cell/all/range)', 'set', 'lap', 'from', 'to', 'ctc', '', '', '']
+          ['crebar', 'id', 'dia', 'plane', 'at (cell/all/range)', 'set', 'lap', 'from', 'to', 'ctc', '', '', ''],
+          //  매입물 — 철근이 아니라 콘크리트에 뚫린 구멍이다. 개구부와 같은 길로 벽이 된다.
+          //  ref : deck(상면에서 아래로 · 기본) · soffit(밑면에서 위로) · abs(절대 y)
+          ['duct', 'id', 'shape (circ/rect)', 'D', 'H', 'x', 'y', 'ref', 'clr', '', '', '', '']
         ];
         var ncol = SCHEMA[0].length;
 
@@ -1305,6 +1308,39 @@
           if (made) displayPaths.push(path);
         });
 
+        /*  덕트 — 개구부와 똑같이 **콘크리트에 뚫린 구멍**이다. 그래서 벽을 만드는
+            방법도 같다 : 반시계 고리 + 구멍 바깥(콘크리트 쪽) 법선. 다른 것은 개수뿐이라
+            (개구부는 한 개, 덕트는 수십 개) 같은 루프를 한 번 더 돈다.
+            덕트마다 요구 이격이 다를 수 있어 clr 를 벽에 실어 둔다 — 지금 물리는
+            벽의 covers 만 보지만, 하드 제약을 넣을 때 여기서 꺼내 쓴다.              */
+        this._buildDucts();        // 사양 → 폴리곤. _sectPoly 가 있어야 상면/밑면을 잰다
+        (this._ducts || []).forEach(function (dk, di) {
+          var pts = (dk && dk.pts) || [];
+          if (pts.length < 3) return;
+          var area = 0;
+          for (var i = 0; i < pts.length; i++) {
+            var a = pts[i], b = pts[(i + 1) % pts.length];
+            area += a[0] * b[1] - b[0] * a[1];
+          }
+          var seq = (area < 0) ? pts.slice().reverse() : pts;
+          var path = [], made = 0;
+          for (var k = 0; k < seq.length; k++) {
+            var p = seq[k], q = seq[(k + 1) % seq.length];
+            var dx = q[0] - p[0], dy = q[1] - p[1], len = Math.hypot(dx, dy);
+            path.push({ x: p[0], y: p[1] });
+            if (len < 0.5) continue;
+            eid++;
+            walls.push({ id: 'E' + eid, tag: 'inner',
+                         nx: dy / len, ny: -dx / len,
+                         x1: p[0], y1: p[1], x2: q[0], y2: q[1],
+                         duct: dk.id, clr: dk.clr,
+                         src: 'duct' + (dk.id || (di + 1)) + '.' + k });
+            made++;
+          }
+          path.push({ x: seq[0][0], y: seq[0][1] });
+          if (made) displayPaths.push(path);
+        });
+
         function cval(id, def) { var el = document.getElementById(id); var n = el ? Number(el.value) : NaN; return isFinite(n) && n > 0 ? n : def; }
         return { walls: walls, displayPaths: displayPaths,
                  covers: { top: cval('cover_deck_s', 50), outer: cval('cover_ext_s', 40), inner: cval('cover_int_s', 30) } };
@@ -1351,6 +1387,14 @@
             var flatOp = [];
             op.pts.forEach(function (p) { flatOp.push(p[0], p[1]); });
             UI.sectionGroup.add(new Konva.Line({ points: flatOp, stroke: '#ffffff', strokeWidth: 2,
+              closed: true, lineJoin: 'round', strokeScaleEnabled: false }));
+          });
+          //  덕트는 콘크리트와 구별되게 다른 색으로 — 개구부와 헷갈리면 안 된다
+          (this._ducts || []).forEach(function (dk) {
+            if (!dk || !dk.pts || dk.pts.length < 3) return;
+            var flatD = [];
+            dk.pts.forEach(function (p) { flatD.push(p[0], p[1]); });
+            UI.sectionGroup.add(new Konva.Line({ points: flatD, stroke: '#FF61E6', strokeWidth: 1.5,
               closed: true, lineJoin: 'round', strokeScaleEnabled: false }));
           });
         } else {
@@ -1509,6 +1553,7 @@
             self._loadCoverFromExcel(data);      // ③-1 'cover' 블록 → 피복 3칸 (deck/exterior/interior)
             var ns = self._loadSegFromExcel(data);        // ③-2 'seg' 블록 → 세그먼트 길이
             var no = self._loadOpenFromExcel(data);       // ③-3 'open' 블록 → 격벽 개구부 (셀당 한 줄)
+            var nd = self._loadDuctFromExcel(data);       // ③-4 'duct' 블록 → 매입물 (줄마다 하나)
             self._renderRebarTables();           // ④ 'trebar/lrebar' 블록 → REBAR 표
             self._rebarData = self._parseRebar(data);
             self._loadCrebarFromExcel(data);      // ④-1 'crebar' 블록 → 교축방향 폐합철근
@@ -1529,6 +1574,7 @@
               'Cover     : deck ' + cd('cover_deck_s') + ' / exterior ' + cd('cover_ext_s') + ' / interior ' + cd('cover_int_s'),
               'Segment   : ' + cd('segLen_s') + (ns ? '' : '  (default — no seg row)'),
               'Opening   : ' + (no ? 'from file' : 'defaults — no open row'),
+              'Duct      : ' + (nd ? nd + ' from file' : 'none'),
               'Rebar     : ' + nre + '  (trebar ' + ntre + ', lrebar ' + nlre + ')'
             ] };
             // 최종 결과 토스트 — 철근 id 중복이면 오류 상태로 (성공 토스트가 덮지 않게)
@@ -1768,8 +1814,12 @@
       if (outer.length < 3) return [];
       var spans = this._polySpans(outer, v, ax);
       var other = ax ? 0 : 1;
-      (this._openings || []).forEach(function (op) {
-        if (!op || !op.pts || op.pts.length < 3) return;
+      //  구멍은 개구부만이 아니다 — 덕트도 콘크리트를 비운다. 둘을 같이 뺀다.
+      var holePolys = [];
+      (this._openings || []).forEach(function (op) { if (op && op.pts) holePolys.push(op.pts); });
+      (this._ducts || []).forEach(function (dk) { if (dk && dk.pts) holePolys.push(dk.pts); });
+      holePolys.forEach(function (hp) {
+        if (!hp || hp.length < 3) return;
 
         /*  자르는 선이 개구부의 **세로 면과 정확히 겹칠 때** 판정이 한쪽으로만
             기운다. 교차 판정이 `a > v` 와 `b > v` 를 견주는데, 꼭짓점이 딱 v 에
@@ -1778,11 +1828,11 @@
             선을 개구부 안쪽으로 아주 조금만 밀어 재면 양쪽이 같아진다.
             **가장자리에 걸친 철근은 잘리는 쪽**으로 판정한다.                 */
         var bmin = 1e18, bmax = -1e18;
-        op.pts.forEach(function (p) { bmin = Math.min(bmin, p[other]); bmax = Math.max(bmax, p[other]); });
+        hp.forEach(function (p) { bmin = Math.min(bmin, p[other]); bmax = Math.max(bmax, p[other]); });
         var EPS = 0.05;
-        if (v < bmin - EPS || v > bmax + EPS) return;             // 개구부를 아예 안 지난다
+        if (v < bmin - EPS || v > bmax + EPS) return;             // 구멍을 아예 안 지난다
         var vv = Math.min(Math.max(v, bmin + EPS), bmax - EPS);   // 가장자리면 안쪽으로 살짝
-        var holes = PXDIA._polySpans(op.pts, vv, ax);
+        var holes = PXDIA._polySpans(hp, vv, ax);
         holes.forEach(function (h) {
           var next = [];
           spans.forEach(function (s) {
@@ -2017,6 +2067,102 @@
       }
       if (n) console.log('[PSCDIA] open 로드: ' + n + '개');
       return n;
+    },
+
+    /*  'duct' 블록 : 매입물(덕트·시스관)을 단면에 뚫는다.
+     *
+     *    duct | id | shape | D | H | x | y | ref | clr
+     *
+     *      shape  circ  원형 — D 가 **외경**. H 는 비운다
+     *             rect  직사각 — D 가 폭 B, H 가 높이
+     *      x      단면 좌표. 중심선 기준, 오른쪽이 +
+     *      y      ref 에서 잰 깊이
+     *      ref    deck    데크 상면에서 **아래로** (기본).  상면이 경사져 있으므로
+     *                     같은 y 라도 x 에 따라 절대 높이가 달라진다 — 도면이
+     *                     덕트를 상면에서 재는 그 방식 그대로다.
+     *             soffit  바닥 밑면에서 위로
+     *             abs     절대 y (단면 좌표 그대로)
+     *      clr    철근과의 최소 순간격. 비우면 내측 피복을 쓴다
+     *
+     *    개구부(open)는 한 줄뿐이지만 덕트는 줄마다 하나씩, 얼마든지 쓸 수 있다.
+     *    벽을 만드는 길은 개구부와 완전히 같다(_buildSectionFromBim).            */
+    _loadDuctFromExcel: function (fullData) {
+      if (!Array.isArray(fullData)) return 0;
+      var list = [], n = 0;
+      for (var r = 0; r < fullData.length; r++) {
+        var row = fullData[r];
+        if (this._rowIsEnd(row)) break;
+        if (this._rowIsComment(row)) continue;
+        var hc = -1;
+        for (var c = 0; c < (row ? row.length : 0); c++) {
+          if (String(row[c] == null ? '' : row[c]).trim().toLowerCase() === 'duct') { hc = c; break; }
+        }
+        if (hc < 0) continue;
+        var g = function (k) { var v = row[hc + k]; return (v == null) ? '' : String(v).trim(); };
+        var num = function (k) { var v = Number(g(k)); return isFinite(v) ? v : NaN; };
+        var id = g(1);
+        var shape = g(2).toLowerCase() || 'circ';
+        if (shape === 'circle' || shape === 'c' || shape === 'o') shape = 'circ';
+        if (shape === 'rectangle' || shape === 'r') shape = 'rect';
+        var D = num(3), H = num(4), x = num(5), y = num(6);
+        var ref = (g(7) || 'deck').toLowerCase();
+        var clr = num(8);
+        if (!isFinite(D) || D <= 0 || !isFinite(x) || !isFinite(y)) {
+          console.warn('[PSCDIA] duct ' + id + ' : D · x · y 가 숫자가 아니다 — 건너뛴다');
+          continue;
+        }
+        if (shape === 'rect' && !(isFinite(H) && H > 0)) H = D;
+        list.push({ id: id || String(list.length + 1), shape: shape, D: D,
+                    H: (shape === 'rect' ? H : D), x: x, y: y, ref: ref,
+                    clr: (isFinite(clr) && clr > 0) ? clr : null });
+        n++;
+      }
+      this._ductSpec = list;
+      if (n) console.log('[PSCDIA] duct 로드: ' + n + '개');
+      return n;
+    },
+
+    /*  단면 바깥 윤곽에서 x 위치의 **상면 / 밑면** 높이.
+        ref:deck / ref:soffit 이 경사면을 따라가게 하려고 쓴다.                 */
+    _surfaceAt: function (x, which) {
+      var outer = (this._sectPoly && this._sectPoly.outer) || [];
+      if (outer.length < 3) return NaN;
+      var hit = [];
+      for (var i = 0; i < outer.length; i++) {
+        var a = outer[i], b = outer[(i + 1) % outer.length];
+        if ((a[0] > x) === (b[0] > x)) continue;
+        hit.push(a[1] + (b[1] - a[1]) * (x - a[0]) / (b[0] - a[0]));
+      }
+      if (!hit.length) return NaN;
+      return (which === 'soffit') ? Math.min.apply(null, hit) : Math.max.apply(null, hit);
+    },
+
+    //  덕트 사양 → 실제 폴리곤. 단면이 만들어진 뒤에 불러야 한다(_surfaceAt 가 필요).
+    _buildDucts: function () {
+      var self = this, SEG = 24;                       // 원은 24각형으로 — 피복 오차 0.2% 이내
+      this._ducts = (this._ductSpec || []).map(function (d) {
+        var cy;
+        if (d.ref === 'abs') cy = d.y;
+        else if (d.ref === 'soffit') cy = self._surfaceAt(d.x, 'soffit') + d.y;
+        else cy = self._surfaceAt(d.x, 'deck') - d.y;
+        if (!isFinite(cy)) { console.warn('[PSCDIA] duct ' + d.id + ' : x=' + d.x + ' 에 단면이 없다'); return null; }
+        var pts = [];
+        if (d.shape === 'rect') {
+          var b = d.D / 2, h = d.H / 2;
+          pts = [[d.x - b, cy - h], [d.x + b, cy - h], [d.x + b, cy + h], [d.x - b, cy + h]];
+        } else {
+          /*  **외접** 다각형으로 만든다. 내접이면 변의 가운데가 원보다 안쪽으로
+              들어와 구멍이 실제보다 작아지고, 철근이 덕트에 더 붙을 수 있게 된다.
+              구멍은 크게 잡는 쪽이 안전하다 — 24각형에서 여유는 반지름의 0.9% 다.  */
+          var R = (d.D / 2) / Math.cos(Math.PI / SEG);
+          for (var k = 0; k < SEG; k++) {
+            var t = 2 * Math.PI * (k + 0.5) / SEG;
+            pts.push([d.x + R * Math.cos(t), cy + R * Math.sin(t)]);
+          }
+        }
+        return { id: d.id, shape: d.shape, D: d.D, H: d.H, x: d.x, y: cy, clr: d.clr, pts: pts };
+      }).filter(function (v) { return v; });
+      return this._ducts;
     },
 
     // 'type' 블록 : type | 1c/2c → Section Type 라디오

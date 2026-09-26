@@ -93,6 +93,11 @@ function run(sheet, patch = {}, budget = 40000) {
     P._syncOpenings(ap, g);
   } catch (e) { /* open 줄이 없으면 개구부 없이 간다 */ }
 
+  //  ③-2 덕트 — 'duct' 블록. 폴리곤은 _buildSectionFromBim 안에서 만들어진다
+  //      (상면/밑면을 재야 해서 _sectPoly 가 있어야 한다)
+  P._ducts = []; P._ductSpec = [];
+  try { P._loadDuctFromExcel(sheet); } catch (e) { /* duct 줄이 없으면 없이 간다 */ }
+
   const sec = P._buildSectionFromBim();
 
   //  ④ 철근
@@ -146,6 +151,7 @@ function run(sheet, patch = {}, budget = 40000) {
     covers: sec.covers,
     outer: (P._sectPoly && P._sectPoly.outer) || [],
     openings: (P._openings || []).map(o => o.pts),
+    ducts: (P._ducts || []).map(d => ({ id: d.id, x: d.x, y: d.y, D: d.D, clr: d.clr, pts: d.pts })),
     walls: sec.walls.map(w => ({ id: w.id, x1: w.x1, y1: w.y1, x2: w.x2, y2: w.y2, nx: w.nx, ny: w.ny, tag: w.tag, src: w.src })),
     bars
   };
