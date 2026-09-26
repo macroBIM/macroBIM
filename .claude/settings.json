@@ -1,6 +1,12 @@
 {
   "permissions": {
     "allow": [
+      "Read",
+      "Edit",
+      "Write",
+      "Glob",
+      "Grep",
+      "Bash",
       "mcp__Google_Drive__search_files",
       "mcp__Google_Drive__list_recent_files",
       "mcp__Google_Drive__get_file_metadata",
@@ -10,6 +16,11 @@
       "mcp__Google_Drive__update_file",
       "mcp__Google_Drive__copy_file",
       "mcp__Google_Drive__trash_file"
+    ],
+    "deny": [
+      "Bash(rm -rf /*)",
+      "Bash(git push --force*)",
+      "Bash(git reset --hard*)"
     ]
   }
 }
