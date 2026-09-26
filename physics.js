@@ -345,9 +345,6 @@ const Physics = {
             if (!built && trebar.finalize) trebar.finalize();
             if (!built) Physics.keepInsideConcrete(trebar, walls);
             Physics.applyTrebarEnds(trebar, walls, wallStack);
-            //  다리 방향은 고르는 것이 아니라 정해져 있다 — 콘크리트 안쪽이다.
-            //  적층 보정(restack) 앞에 두어, 되돌린 다리도 적층을 다시 받게 한다.
-            Physics.keepEndsInsideConcrete(trebar, walls);
             Physics.restackFormedShape(trebar, walls, wallStack);
             Physics.checkFormed(trebar);
             trebar.state = "FORMED";
@@ -453,45 +450,6 @@ const Physics = {
         last.normal = { x: -last.normal.x, y: -last.normal.y };
         console.log(`[SHAPE] ${trebar.id || '?'} 의 '${last.label}' 가 단면 밖으로 향해 안쪽 방향으로 되돌림 ` +
                     `(형상 각 조건보다 콘크리트 내부 배치를 우선)`);
-    },
-
-    /*  끝 다리가 콘크리트 밖으로 향하면 그 자리에서 뒤집는다.
-     *
-     *  keepInsideConcrete 는 14/15(꺾임각 규정 형상)의 **마지막** 조각만 본다.
-     *  그런데 ㄱ자(11)의 다리는 **첫** 조각인 경우가 많고, 그 경우 검사가 전혀 없었다 —
-     *  도면의 190 다리가 데크 상면 위로 133 mm 솟아 있던 것이 이것이다.
-     *
-     *  꺾임각의 부호로 다리 방향을 지정하게 두면 그 부호가 입력에 남는다. 그런데 방향은
-     *  고를 것이 아니라 **정해져 있다 — 다리는 콘크리트 안으로 간다.** 그래서 부호가
-     *  틀렸으면 여기서 되돌린다. 입력에서 각도 부호가 사라진다.
-     *
-     *  가운데 조각은 양 끝이 모두 코너라 뒤집으면 사슬이 끊어진다. 그래서 **첫·끝 조각만**
-     *  본다. 다리는 정의상 끝에 있다.
-     */
-    keepEndsInsideConcrete: (trebar, walls) => {
-        const segs = (trebar && trebar.segments) || [];
-        if (segs.length < 2) return false;
-        const mid = (a, b) => ({ x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 });
-        let flipped = false;
-
-        //  [조각, 자유단이 p1 인가] — 첫 조각은 p1 이 자유단, 끝 조각은 p2 가 자유단
-        [[segs[0], true], [segs[segs.length - 1], false]].forEach(([sg, freeIsP1]) => {
-            if (!sg || sg.__flipped) return;
-            const free = freeIsP1 ? sg.p1 : sg.p2;
-            const pin = freeIsP1 ? sg.p2 : sg.p1;          // 코너 쪽 — 여기를 축으로 돈다
-            if (Physics.insideConcrete(walls, mid(free, pin).x, mid(free, pin).y)) return;
-
-            const alt = { x: 2 * pin.x - free.x, y: 2 * pin.y - free.y };
-            if (!Physics.insideConcrete(walls, mid(alt, pin).x, mid(alt, pin).y)) return;  // 반대도 밖이면 둔다
-
-            if (freeIsP1) sg.p1 = alt; else sg.p2 = alt;
-            if (sg.uDir) sg.uDir = { x: -sg.uDir.x, y: -sg.uDir.y };
-            if (sg.normal) sg.normal = { x: -sg.normal.x, y: -sg.normal.y };
-            sg.__flipped = true;
-            flipped = true;
-            console.log(`[SHAPE] ${trebar.id || '?'} 의 '${sg.label}' 다리가 콘크리트 밖으로 향해 안쪽으로 되돌림`);
-        });
-        return flipped;
     },
 
     // 14/15 처럼 꺾임각이 규정된 2다리 형상의 최종 배치.
