@@ -11,14 +11,20 @@
 const fs = require('fs'), path = require('path'), vm = require('vm');
 
 const ROOT = path.join(__dirname, '..');
-const SRC = ['geomath.js', 'equation.js', 'bim_box12cell.js', 'trebar.js', 'physics.js', 'domain.js'];
-const PAGE = 'bim_pscbox_diaphragm_test.js';
+const SRC = ['geomath.js', 'equation.js', 'bim_box12cell.js', 'bim_duct.js', 'trebar.js', 'physics.js', 'domain.js'];
+//  페이지는 둘이다 — 격벽(PXDIA)과 일반 박스(PXBOX). S14 처럼 격벽이 아닌 단면은 PXBOX 가 읽는다.
+const PAGES = {
+  dia: { file: 'bim_pscbox_diaphragm_test.js', global: 'PXDIA' },
+  box: { file: 'bim_pscbox_test.js', global: 'PXBOX' }
+};
 
 //  소스는 한 번만 읽어 둔다 (컨텍스트만 새로 만든다)
 const CODE = {};
-[...SRC, PAGE].forEach(f => { CODE[f] = fs.readFileSync(path.join(ROOT, f), 'utf8'); });
+[...SRC, ...Object.values(PAGES).map(p => p.file)]
+  .forEach(f => { CODE[f] = fs.readFileSync(path.join(ROOT, f), 'utf8'); });
 
-function makeContext() {
+function makeContext(pageKey = 'dia') {
+  const PAGE = PAGES[pageKey].file;
   const EL = {};
   const mk = id => (EL[id] = {
     id, value: '', checked: false, disabled: false, textContent: '',
@@ -54,9 +60,9 @@ function makeContext() {
  *    budget  : 물리 스텝 예산
  *  돌려주는 것은 전부 순수 데이터다. 엔진 객체를 내보내지 않는다.
  */
-function run(sheet, patch = {}, budget = 40000) {
-  const { ctx, EL, mk } = makeContext();
-  const P = ctx.PXDIA;
+function run(sheet, patch = {}, budget = 40000, pageKey = 'dia') {
+  const { ctx, EL, mk } = makeContext(pageKey);
+  const P = ctx[PAGES[pageKey].global];
   const adefs = vm.runInContext('adefs_box12cell', ctx);
   const geo_box12cell = vm.runInContext('geo_box12cell', ctx);
   const Domain = vm.runInContext('Domain', ctx);
@@ -88,10 +94,12 @@ function run(sheet, patch = {}, budget = 40000) {
 
   //  ③ 개구부 — 'open' 블록 → op1_* 칸 → _syncOpenings
   P._openings = [];
-  try {
-    P._loadOpenFromExcel(sheet);
-    P._syncOpenings(ap, g);
-  } catch (e) { /* open 줄이 없으면 개구부 없이 간다 */ }
+  if (typeof P._loadOpenFromExcel === 'function') {
+    try {
+      P._loadOpenFromExcel(sheet);
+      P._syncOpenings(ap, g);
+    } catch (e) { /* open 줄이 없으면 개구부 없이 간다 */ }
+  }
 
   //  ③-2 덕트 — 'duct' 블록. 폴리곤은 _buildSectionFromBim 안에서 만들어진다
   //      (상면/밑면을 재야 해서 _sectPoly 가 있어야 한다)
@@ -149,7 +157,7 @@ function run(sheet, patch = {}, budget = 40000) {
     queued: Domain.queue.length, done: Domain.activeQueueIndex,
     ap,
     covers: sec.covers,
-    outer: (P._sectPoly && P._sectPoly.outer) || [],
+    outer: (P._sectPoly && P._sectPoly.outer) || P._sectOuter || [],
     openings: (P._openings || []).map(o => o.pts),
     ducts: (P._ducts || []).map(d => ({ id: d.id, x: d.x, y: d.y, D: d.D, clr: d.clr, pts: d.pts })),
     walls: sec.walls.map(w => ({ id: w.id, x1: w.x1, y1: w.y1, x2: w.x2, y2: w.y2, nx: w.nx, ny: w.ny, tag: w.tag, src: w.src })),

@@ -74,6 +74,7 @@
     if (typeof window.ExcelJS === 'undefined') need.push('https://cdnjs.cloudflare.com/ajax/libs/exceljs/4.3.0/exceljs.min.js');
     if (typeof window.loadSheetData === 'undefined') need.push(PAGES + 'excel_reader.js');
     if (!hasGlobal('EquationParser')) need.push(PAGES + 'equation.js');
+    if (!hasGlobal('DuctBlock')) need.push(PAGES + 'bim_duct.js');
     if (!hasGlobal('TrebarFactory')) need.push(PAGES + 'trebar.js');
     if (!hasGlobal('LRebarEngine')) need.push(PAGES + 'lrebar.js');
     if (!hasGlobal('Physics')) need.push(PAGES + 'physics.js');
@@ -171,7 +172,7 @@
   var PXBOX = {
     _mountId: 'mount-draw-pscbox',
     _excelData: null, _rebarData: null, _focusId: null,
-    _lines: [], _arcs: [], _circs: [],
+    _lines: [], _arcs: [], _circs: [], _ducts: [], _ductSpec: [], _sectOuter: [],
     _uiInited: false, _settleTimer: null, _rebarSettled: false, _lastAp: null, _lastStuckMsg: null,
     _showEngNormals: false, _showEngNodes: false, _engNormGroup: null, _engNodeGroup: null,
     _loadLog: null,
@@ -180,10 +181,13 @@
         var body = document.getElementById('rebarBody');
         if (!body) return;
 
-        // 2줄 표제목 = trebar / lrebar 입력체계
+        // 표제목 = trebar / lrebar 입력체계 + duct(매입물)
         var SCHEMA = [
           ['trebar', 'id', 'code', 'dia', 'init (x, y, rot)', 'set', 'segs (len)', 'angs', 'nors', 'barStart', 'barEnd', 'radius', 'z'],
-          ['lrebar', 'id', 'dia', 'num', 'init', 'nors', 'range', 'path', 'ctc', 'ctcmax', 'ctcmin', '', 'z']
+          ['lrebar', 'id', 'dia', 'num', 'init', 'nors', 'range', 'path', 'ctc', 'ctcmax', 'ctcmin', '', 'z'],
+          //  매입물 — 철근이 아니라 콘크리트에 뚫린 구멍이다. 문법은 bim_duct.js 에 있다.
+          //  ref : deck(상면에서 아래 · 기본) · soffit(밑면에서 위로) · abs(절대 y)
+          DuctBlock.SCHEMA_ROW
         ];
         var ncol = SCHEMA[0].length;
 
@@ -1030,9 +1034,42 @@
           });
           displayPaths.push(pts);
         });
+        /*  덕트 — 콘크리트에 뚫린 구멍이라 개구부와 같은 길로 벽이 된다.
+            ref:deck 이 경사면을 따라가려면 바깥 윤곽이 필요해서, 여기서 한 번 남겨 둔다.
+            (위 loops 는 세그먼트 배열이라 점 배열로 바꿔 둔다)                        */
+        var ol = loops[outerIdx] || [];
+        this._sectOuter = ol.length ? [[ol[0].x1, ol[0].y1]].concat(ol.map(function (sg) { return [sg.x2, sg.y2]; })) : [];
+        this._buildDucts();
+        var dw = DuctBlock.walls(this._ducts, eid);
+        dw.walls.forEach(function (w) { walls.push(w); });
+        dw.paths.forEach(function (p) { displayPaths.push(p); });
+        eid = dw.eid;
+
         function cval(id, def) { var el = document.getElementById(id); var n = el ? Number(el.value) : NaN; return isFinite(n) && n > 0 ? n : def; }
         return { walls: walls, displayPaths: displayPaths,
                  covers: { top: cval('cover_deck_s', 50), outer: cval('cover_ext_s', 40), inner: cval('cover_int_s', 30) } };
+      },
+
+      /*  'duct' 블록 — 문법과 구현은 bim_duct.js 에 있다 (격벽 페이지와 공용).      */
+      _loadDuctFromExcel: function (fullData) {
+        var self = this;
+        this._ductSpec = DuctBlock.parse(fullData,
+          function (r) { return self._rowIsEnd(r); },
+          function (r) { return self._rowIsComment(r); });
+        var n = this._ductSpec.length;
+        if (n) console.log('[PSCBOX] duct 로드: ' + n + '개');
+        return n;
+      },
+
+      _surfaceAt: function (x, which) {
+        return DuctBlock.surfaceOf(this._sectOuter || [])(x, which);
+      },
+
+      _buildDucts: function () {
+        var self = this;
+        this._ducts = DuctBlock.build(this._ductSpec || [],
+          function (x, w) { return self._surfaceAt(x, w); });
+        return this._ducts;
       },
 
       _applyGenericSection: function (sec) {
@@ -1060,6 +1097,14 @@
         UI.debugGroup.destroyChildren();
         // 표시용 외곽선 — 물리 벽(walls)은 직선 분할을 유지하되, 그래픽은 캡처된
         // bim 원시도형(직선+아크+원)을 그대로 그린다 → 필렛이 폴리라인이 아닌 실제 아크로 렌더링
+        //  덕트 — 콘크리트와 구별되게 다른 색으로
+        (this._ducts || []).forEach(function (dk) {
+          if (!dk || !dk.pts || dk.pts.length < 3) return;
+          var flatD = [];
+          dk.pts.forEach(function (p) { flatD.push(p[0], p[1]); });
+          UI.sectionGroup.add(new Konva.Line({ points: flatD, stroke: '#FF61E6', strokeWidth: 1.5,
+            closed: true, lineJoin: 'round', strokeScaleEnabled: false }));
+        });
         var _ln = this._lines || [], _ar = this._arcs || [], _ci = this._circs || [];
         if (_ln.length || _ar.length || _ci.length) {
           _ln.forEach(function (s) {
@@ -1234,6 +1279,7 @@
             var nd = self._loadDimsFromExcel(data);       // ③ 'dim' 블록 → Dimension 표 (대칭/비대칭 자동)
             self._loadCoverFromExcel(data);      // ③-1 'cover' 블록 → 피복 3칸 (deck/exterior/interior)
             self._renderRebarTables();           // ④ 'trebar/lrebar' 블록 → REBAR 표
+            var ndu = self._loadDuctFromExcel(data);    // 'duct' 블록 → 매입물 (줄마다 하나)
             self._rebarData = self._parseRebar(data);
             console.log('[PSCBOX] 철근 파싱:', self._rebarData);
             self.redraw();              // 재작도 (physics 포함)
@@ -1248,6 +1294,7 @@
               'Section   : ' + (oncell ? oncell.value : '?') + ' cell',
               'Dims      : ' + (nd || 0),
               'Cover     : deck ' + cd('cover_deck_s') + ' / exterior ' + cd('cover_ext_s') + ' / interior ' + cd('cover_int_s'),
+              'Duct      : ' + (ndu ? ndu + ' from file' : 'none'),
               'Rebar     : ' + nre + '  (trebar ' + ntre + ', lrebar ' + nlre + ')'
             ] };
             // 최종 결과 토스트 — 철근 id 중복이면 오류 상태로 (성공 토스트가 덮지 않게)

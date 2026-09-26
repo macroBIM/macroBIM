@@ -153,6 +153,19 @@ git status --short     # 비어 있어야 한다
 
 ### 2026-09-26
 
+- **`duct` 를 공용 모듈로 빼고 일반 박스 페이지에도 넣었다** · **테스트**
+  **S14 는 격벽이 아니다 — 일반 박스 단면이라 `bim_pscbox_test.js` 가 읽어야 한다.**
+  두 페이지가 같은 문법을 쓰는데 두 벌로 두면 반드시 갈라지므로 **`bim_duct.js`** 로 뺐다
+  (`parse` / `build` / `walls` / `surfaceOf` / `SCHEMA_ROW`). 페이지는 자기가 아는 것
+  (블록 판정 함수, 바깥 윤곽)만 넘겨 준다. 격벽 페이지도 이 모듈을 쓰도록 바꿨다.
+  · `bim_pscbox_test.js` 에 추가 : `_ducts`/`_ductSpec`/`_sectOuter` · `_loadDuctFromExcel`
+    · `_surfaceAt` · `_buildDucts` · 벽 잇기 · 2D 그리기 · REBAR 표 문법 줄 · 로더 로그
+  · 두 페이지 모두 `ensureDeps` 에 `bim_duct.js` 를 넣었다
+  · `PSCBOX_S14.xlsx` 에서 격벽 전용 블록(`dia` · `open`)을 뺐다. 생성기를
+    **`tools/make_s14.py`** 로 남겼다 — 덕트 좌표의 출처를 다시 따라갈 수 있게.
+  · `bench/engine.js` 가 두 페이지를 다 돌린다 : `run(sheet, patch, budget, 'box'|'dia')`
+  · 확인 : S14 on PXBOX → 중심선 TH 6,853 · 덕트 30 · duct 벽 720 · 철근 4,990/8,000/1,590
+    S15 on PXDIA 회귀 이상 없음
 - **`duct` 키워드 — 매입물을 단면에 뚫는다** · **테스트** (`bim_pscbox_diaphragm_test.js`)
   `duct | id | shape | D | H | x | y | ref | clr`. 개구부(`open`)와 **같은 길**로 벽이 된다 —
   반시계 고리 + 구멍 바깥 법선. 다른 것은 개수뿐이라(개구부 한 줄, 덕트 여러 줄) 같은
