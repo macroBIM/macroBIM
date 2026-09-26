@@ -8,7 +8,8 @@
       "mcp__Google_Drive__download_file_content",
       "mcp__Google_Drive__create_file",
       "mcp__Google_Drive__update_file",
-      "mcp__Google_Drive__copy_file"
+      "mcp__Google_Drive__copy_file",
+      "mcp__Google_Drive__trash_file"
     ]
   }
 }
