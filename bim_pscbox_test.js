@@ -1248,6 +1248,7 @@
         });
         h += '</div>';
         h += '<div style="font-size:12px;color:#64748b;margin:-6px 0 12px;line-height:1.6;">' +
+          '<b>rot</b> 은 <b>반시계(CCW)가 +</b> 입니다 — 화면에서도 반시계로 돕니다. 코드 11 은 rot 0 에서 <b>다리 위 · 몸통 오른쪽</b>이고, 회전만으로는 거울상(다리 아래 · 몸통 오른쪽)을 만들 수 없습니다. 다리가 콘크리트 밖을 향하면 엔진이 안쪽으로 되돌립니다(<code>Physics.keepEndsInsideConcrete</code>). ' +
           '<span style="color:#d97706;font-weight:700;">주황 화살표</span> = 각 조각의 <b>nor 방향 (+1, 미입력 기본값)</b> — 물리가 이 방향의 벽을 찾아 안착합니다. ' +
           '반대방향으로 붙이려면 해당 조각에 <b>-1</b> 을 입력하세요 (예: nors b=-1). rot 입력 시 화살표도 형상과 함께 회전합니다. 조각 <b>기본 길이는 400</b> (code 41 의 b·d 는 1000, segs 미입력 시)입니다.</div>';
         return h;
