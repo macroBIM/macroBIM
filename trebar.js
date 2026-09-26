@@ -284,6 +284,27 @@ class Shape21 extends TrebarBase {
     }
 }
 
+// 23: Z(크랭크). BS 8666 의 A + B + (C).
+//     21 과 조각 수는 같지만 **A 와 C 가 B 의 반대쪽에 선다** — 21 은 같은 쪽(ㄷ)이다.
+//     A 가 -90 으로 내려와 +90 턴 → B 수평, 다시 -90 턴 → C 가 내려간다.
+//     법선도 A 와 C 가 서로 반대다. 크랭크는 **마주보는 두 면을 하나가 건너 무는** 철근이라,
+//     21 처럼 세 법선을 같은 쪽으로 두면 C 가 제 벽을 영영 못 찾는다.
+class Shape23 extends TrebarBase {
+    generate() {
+        let A = this.dims.A || 400;
+        let B = this.dims.B || 400;
+        let C = this.dims.C || 400;
+
+        return this.buildSequential(
+            [A, B, C],
+            -90,
+            [90, -90],
+            [-1, -1, 1],
+            (pts) => ({ x: pts[1].x + B / 2, y: pts[1].y })
+        );
+    }
+}
+
 class Shape41 extends TrebarBase {
     generate() {
         let A = this.dims.A || 400;
@@ -351,6 +372,7 @@ class TrebarFactory {
         else if (code === 14) r = new Shape14(center, dims, rotation, angs, nors, barEnds);
         else if (code === 15) r = new Shape15(center, dims, rotation, angs, nors, barEnds);
         else if (code === 21) r = new Shape21(center, dims, rotation, angs, nors, barEnds);
+        else if (code === 23) r = new Shape23(center, dims, rotation, angs, nors, barEnds);
         else if (code === 41) r = new Shape41(center, dims, rotation, angs, nors, barEnds);
 
         return r ? r.generate() : null;

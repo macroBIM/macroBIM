@@ -1441,7 +1441,8 @@
         if (typeof TrebarFactory === 'undefined') return '<p style="color:#94a3b8;">Rebar engine not loaded yet.</p>';
         var CODES = [
           { c: 1,  lbl: 'Code 1'  }, { c: 11, lbl: 'Code 11' }, { c: 14, lbl: 'Code 14' },
-          { c: 15, lbl: 'Code 15' }, { c: 21, lbl: 'Code 21' }, { c: 41, lbl: 'Code 41' }
+          { c: 15, lbl: 'Code 15' }, { c: 21, lbl: 'Code 21' }, { c: 23, lbl: 'Code 23' },
+          { c: 41, lbl: 'Code 41' }
         ];
         var h = '<div class="shape-grid">';
         CODES.forEach(function (cd) {

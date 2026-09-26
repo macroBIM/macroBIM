@@ -20,7 +20,7 @@ const dirName = (dx, dy) => {
                                      : (dy > 0 ? '위' : '아래');
 };
 
-const CODES = [1, 11, 14, 15, 21];
+const CODES = [1, 11, 14, 15, 21, 23];
 
 CODES.forEach(code => {
   console.log('');
