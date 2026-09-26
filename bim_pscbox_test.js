@@ -303,7 +303,7 @@
       _parseTrebarRow: function (row) {
         var o = { type: 'trebar', id: this._rbStr(row[1]) };
         this._rbCurId = o.id;
-        if (this._rbHas(row[2])) o.code = Number(row[2]);
+        if (this._rbHas(row[2])) o.code = TrebarFactory.normCode(row[2]);   // '23-1' → 23.1
         if (this._rbHas(row[3])) o.dia = this._rbNum(row[3]);
         var init = this._rbInit(row[4], ['x', 'y', 'rot']); if (init) o.init = init;
         var segs = this._rbSegs(row[6], row[5]); if (segs) o.segs = segs;
@@ -1189,7 +1189,7 @@
         if (typeof TrebarFactory === 'undefined') return '<p style="color:#94a3b8;">Rebar engine not loaded yet.</p>';
         var CODES = [
           { c: 1,  lbl: 'Code 1'  }, { c: 11, lbl: 'Code 11' }, { c: 14, lbl: 'Code 14' },
-          { c: 15, lbl: 'Code 15' }, { c: 21, lbl: 'Code 21' }, { c: 23, lbl: 'Code 23' },
+          { c: 15, lbl: 'Code 15' }, { c: 21, lbl: 'Code 21' }, { c: 23, lbl: 'Code 23' }, { c: 23.1, lbl: 'Code 23-1' },
           { c: 41, lbl: 'Code 41' }
         ];
         var h = '<div class="shape-grid">';

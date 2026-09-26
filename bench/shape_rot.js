@@ -20,11 +20,11 @@ const dirName = (dx, dy) => {
                                      : (dy > 0 ? '위' : '아래');
 };
 
-const CODES = [1, 11, 14, 15, 21, 23];
+const CODES = [1, 11, 14, 15, 21, 23, 23.1];
 
 CODES.forEach(code => {
   console.log('');
-  console.log('코드 ' + code + '  (rot 은 반시계가 +)');
+  console.log('코드 ' + (code === 23.1 ? '23-1' : code) + '  (rot 은 반시계가 +)');
   console.log('   rot    첫조각 위치    끝조각 방향');
   [0, 90, 180, -90].forEach(rot => {
     let t = null;

@@ -305,6 +305,27 @@ class Shape23 extends TrebarBase {
     }
 }
 
+// 23-1 : 23 의 거울상. 23 은 시작·끝 조각이 (위 · 아래) 인데 이것은 (아래 · 위) 다.
+//     **회전만으로는 이 꼴이 안 나온다** — 코드 23 의 네 rot 이 주는 짝은
+//     (위·아래)(왼·오)(아래·위)... 처럼 보이지만, 돌리면 몸통 방향까지 같이 돌아간다.
+//     몸통을 수평으로 둔 채 두 다리만 뒤집으려면 형상 자체가 하나 더 있어야 한다.
+//     A 가 +90 으로 올라가고 -90 턴 → B 수평, 다시 +90 턴 → C 가 올라간다.
+class Shape23M extends TrebarBase {
+    generate() {
+        let A = this.dims.A || 400;
+        let B = this.dims.B || 400;
+        let C = this.dims.C || 400;
+
+        return this.buildSequential(
+            [A, B, C],
+            90,
+            [-90, 90],
+            [-1, -1, 1],
+            (pts) => ({ x: pts[1].x + B / 2, y: pts[1].y })
+        );
+    }
+}
+
 class Shape41 extends TrebarBase {
     generate() {
         let A = this.dims.A || 400;
@@ -364,8 +385,17 @@ class TrebarFactory {
         return Object.keys(parsed).length > 0 ? parsed : null;
     }
 
+    //  「23-1」 처럼 가지번호가 붙은 코드를 숫자 하나로 바꾼다 : '23-1' → 23.1
+    //  엑셀에는 도면 그대로 23-1 로 적고, 엔진 안에서는 숫자로 다룬다.
+    static normCode(v) {
+        const s = String(v == null ? '' : v).trim();
+        const m = s.match(/^(\d+)\s*-\s*(\d+)$/);
+        return m ? Number(m[1]) + Number(m[2]) / 10 : Number(s);
+    }
+
     static create(code, center, dims, rotation = 0, angs = null, nors = null, barEnds = null) {
         let r = null;
+        code = TrebarFactory.normCode(code);
 
         if (code === 1) r = new Shape01(center, dims, rotation, angs, nors, barEnds);
         else if (code === 11) r = new Shape11(center, dims, rotation, angs, nors, barEnds);
@@ -373,6 +403,7 @@ class TrebarFactory {
         else if (code === 15) r = new Shape15(center, dims, rotation, angs, nors, barEnds);
         else if (code === 21) r = new Shape21(center, dims, rotation, angs, nors, barEnds);
         else if (code === 23) r = new Shape23(center, dims, rotation, angs, nors, barEnds);
+        else if (code === 23.1) r = new Shape23M(center, dims, rotation, angs, nors, barEnds);
         else if (code === 41) r = new Shape41(center, dims, rotation, angs, nors, barEnds);
 
         return r ? r.generate() : null;
