@@ -1040,13 +1040,18 @@
         var ol = loops[outerIdx] || [];
         this._sectOuter = ol.length ? [[ol[0].x1, ol[0].y1]].concat(ol.map(function (sg) { return [sg.x2, sg.y2]; })) : [];
         this._buildDucts();
+        /*  덕트 벽은 walls 에 **넣지 않는다.**
+            물리는 walls 를 인력장의 후보로 쓴다. 덕트를 거기 섞으면 철근이 피복을 찾기도
+            전에 덕트에 끌려간다 — 순서가 뒤집힌다.
+              1단계  콘크리트 피복을 찾아 앉는다        (walls = 콘크리트만)
+              2단계  그 자리가 덕트와 겹치면 비켜난다   (ductWalls — 척력, 아직 미구현)
+            덕트는 구멍이지 목표가 아니다. 지금은 그리기와 판정에만 쓴다.              */
         var dw = DuctBlock.walls(this._ducts, eid);
-        dw.walls.forEach(function (w) { walls.push(w); });
         dw.paths.forEach(function (p) { displayPaths.push(p); });
         eid = dw.eid;
 
         function cval(id, def) { var el = document.getElementById(id); var n = el ? Number(el.value) : NaN; return isFinite(n) && n > 0 ? n : def; }
-        return { walls: walls, displayPaths: displayPaths,
+        return { walls: walls, displayPaths: displayPaths, ductWalls: dw.walls, ducts: this._ducts || [],
                  covers: { top: cval('cover_deck_s', 50), outer: cval('cover_ext_s', 40), inner: cval('cover_int_s', 30) } };
       },
 
