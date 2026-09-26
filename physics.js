@@ -200,7 +200,33 @@ const Physics = {
         //    전방(법선 방향) 우선. 실패 시 후방 폴백:
         //    노드가 피복선을 지나쳐(벽보다 안쪽에) 스폰되면 전방 광선이 벽을 영영 못 잡아
         //    안착 불가 → barEnds(fit) 도 실행되지 않음. 뒤로 끌어올려 벽에 되붙인다.
-        const res = scan(segNormal) || scan({ x: -segNormal.x, y: -segNormal.y });
+        /*  ③ 광선이 아무 벽에도 안 맞는 경우 — 조각이 벽 **선분의 길이 밖**으로 비켜나 있다.
+               (허공에 스폰된 다리가 그렇다. 선단면은 y -94..186 인데 다리는 y 760 에 있어
+                -x 광선이 그 위로 지나가 버린다.)
+               벽은 이미 다 주어져 있으니 광선을 고집할 이유가 없다. **마주보는 벽 중에서
+               가장 가까운 것**으로 간다. 붙을 자리는 그 벽 위의 최근접점이다.
+               ①② 가 잡히면 여기까지 오지 않으므로 기존 동작은 그대로다.                  */
+        const nearestOpposing = () => {
+            let best = null, bd = Infinity;
+            coverWalls.forEach(w => {
+                if (w.nx * segNormal.x + w.ny * segNormal.y > OPPOSITE_THRESHOLD) return;
+                const ex = w.x2 - w.x1, ey = w.y2 - w.y1, L2 = ex * ex + ey * ey;
+                if (L2 < 0.25) return;
+                let t = ((px - w.x1) * ex + (py - w.y1) * ey) / L2;
+                t = t < 0 ? 0 : (t > 1 ? 1 : t);
+                const qx = w.x1 + ex * t, qy = w.y1 + ey * t;
+                const d = MathUtils.hypot(px - qx, py - qy);
+                if (d < bd) {
+                    bd = d;
+                    const ux = d > 1e-9 ? (qx - px) / d : segNormal.x;
+                    const uy = d > 1e-9 ? (qy - py) / d : segNormal.y;
+                    best = { x: qx, y: qy, dir: { x: ux, y: uy }, wall: w.origWall || w, coverWall: w };
+                }
+            });
+            return best;
+        };
+
+        const res = scan(segNormal) || scan({ x: -segNormal.x, y: -segNormal.y }) || nearestOpposing();
 
         // ② 그 벽으로 이동하다가, 앞서 놓인 철근이 있으면 그 반발만큼 못 미쳐 멈춘다.
         //    반발은 벽 법선 방향으로 st(적층 두께) 이지만, 정지점은 반드시 '이동 경로(광선) 위'
