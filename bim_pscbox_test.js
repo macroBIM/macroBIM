@@ -422,6 +422,7 @@
               '<button type="button" class="engine-btn" id="btnEngineSel" onclick="PXBOX.toggleEngine()"><i class="bi bi-cpu"></i> Solver: J-field</button>' +
               '<button type="button" class="engine-btn" onclick="PXBOX.exportDXF()"><i class="bi bi-download"></i> Export DXF</button>' +
               '<button type="button" class="engine-btn engine-btn-lite" id="btnToggleNormals" onclick="PXBOX.toggleNormals()"><i class="bi bi-arrows-angle-expand"></i> Toggle Normals</button>' +
+              '<button type="button" class="engine-btn engine-btn-lite active" id="btnToggleSpawn" onclick="PXBOX.toggleSpawn()"><i class="bi bi-crosshair"></i> Toggle Spawn</button>' +
               '<button type="button" class="engine-btn engine-btn-lite" id="btnToggleNodes" onclick="PXBOX.toggleNodes()"><i class="bi bi-123"></i> Toggle Nodes (#)</button>' +
             '</div>' +
             '<div class="draw-card-desc" id="stat-grid"></div>' +
@@ -902,6 +903,19 @@
         try { out = JField.solve(bars, sec.walls, sec, this._ducts || []); }
         catch (e) { console.error('[PSCBOX] J-field solve:', e); return false; }
 
+        /*  **스폰 형상을 먼저 잡아 둔다.** J 는 한 번에 풀어 버려서 애니메이션이
+            없다 — 그냥 두면 태어난 자리가 화면에 한 번도 안 나온다. init 을 고쳐
+            가며 맞추는 일이라 그 자리가 안 보이면 눈이 없는 것과 같다.
+            여기 담아 두고 _finalizeArcs 가 흐린 점선으로 같이 그린다.            */
+        this._spawn = Domain.trebarList.map(function (t) {
+          var pts = [];
+          (t.segments || []).forEach(function (sg, i) {
+            if (i === 0) pts.push({ x: sg.p1.x, y: sg.p1.y });
+            pts.push({ x: sg.p2.x, y: sg.p2.y });
+          });
+          return { id: String(t.id), dia: t.dia || 13, pts: pts };
+        });
+
         var self = this, byId = {};
         Domain.trebarList.forEach(function (t) { byId[String(t.id)] = t; });
         out.forEach(function (r) {
@@ -1050,6 +1064,19 @@
         if (b) b.classList.toggle('active', this._showEngNormals);
         this._drawEngineNormals();
       },
+      /*  태어난 자리(init 로 놓인 조각들)를 보여 줄지. 기본은 켬 —
+          J 는 한 번에 풀어서 그 자리가 지나가 버리기 때문이다.                  */
+      _showSpawn: true,
+      _spawn: null,
+      SPAWN_HOLD: 420,        // 태어난 자리를 이만큼(ms) 보여 주고 푼다
+
+      toggleSpawn: function () {
+        this._showSpawn = !this._showSpawn;
+        var b = document.getElementById('btnToggleSpawn');
+        if (b) b.classList.toggle('active', this._showSpawn);
+        if (this._rebarSettled) this._finalizeArcs();
+      },
+
       toggleNodes: function () {
         this._showEngNodes = !this._showEngNodes;
         var b = document.getElementById('btnToggleNodes');
@@ -1279,6 +1306,19 @@
             여기서 또 밀면 J 가 찾은 자리를 손으로 흐트러뜨리는 것이 된다.          */
         if (this._engine !== 'jfield') this._relaxRebar();                         // 통합 z-order 겹침 해소 (trebar 강체 + lrebar 점) — 그리기 전에
         var self = this, formed = 0;
+        //  태어난 자리 — 흐린 점선으로 밑에 깔아 둔다 (Toggle Spawn 으로 끈다)
+        if (this._engine === 'jfield' && this._showSpawn && this._spawn) {
+          this._spawn.forEach(function (sp) {
+            var st = self._focusStyle(sp.id), flat = [];
+            sp.pts.forEach(function (p) { flat.push(p.x, p.y); });
+            if (flat.length < 4) return;
+            UI.trebarGroup.add(new Konva.Line({
+              points: flat, stroke: '#94a3b8', strokeWidth: Math.max(sp.dia * 0.6, 4),
+              lineCap: 'round', lineJoin: 'round', strokeScaleEnabled: true,
+              dash: [60, 45], opacity: st.focused ? 0.95 : 0.35
+            }));
+          });
+        }
         Domain.trebarList.forEach(function (t) {                                   // 이동된 위치로 작도
           if (t.state === 'FORMED') { self._drawFilletedTrebar(t, UI.trebarGroup); formed++; }
           else self._drawStraightTrebar(t, UI.trebarGroup);   // 미안착 바는 직선으로 남겨 사라지지 않게
@@ -2008,10 +2048,19 @@
         var self = this;
         setTimeout(function () { self._fitEngineStage(); }, 80);   // 레이아웃 확정 후 재보정
         this._syncEngineBtn();
-        /*  J 엔진은 한 번에 푼다 — 기다릴 것이 없으니 바로 최종 작도로 간다.
+        /*  J 엔진은 한 번에 푼다. 그래도 **태어난 자리를 먼저 한 번 보여 준다** —
+            Respawn 을 누르는 이유가 대개 「init 을 어디에 놓았나」를 보려는 것이라,
+            곧장 답으로 건너뛰면 그 자리가 화면에 한 번도 안 나온다.
+            잠깐 스폰 상태를 그려 두고, 그 다음 프레임에 풀어서 최종 형상으로 바꾼다.
             예전 엔진은 프레임마다 조금씩 움직이므로 _watchSettle 이 지켜본다.     */
-        if (this._engine === 'jfield' && this._solveWithJField()) this._finalizeArcs();
-        else this._watchSettle();
+        if (this._engine === 'jfield') {
+          try { if (typeof UI.updateVisuals === 'function') UI.updateVisuals(); } catch (e) {}
+          if (UI.mainLayer) UI.mainLayer.draw();
+          var selfJ = this;
+          setTimeout(function () {
+            if (selfJ._solveWithJField()) selfJ._finalizeArcs();
+          }, selfJ.SPAWN_HOLD);
+        } else this._watchSettle();
       } catch (e) { console.error('[PSCBOX] rebar render:', e); }
     },
 
