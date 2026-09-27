@@ -78,6 +78,7 @@
     if (!hasGlobal('TrebarFactory')) need.push(PAGES + 'trebar.js');
     if (!hasGlobal('LRebarEngine')) need.push(PAGES + 'lrebar.js');
     if (!hasGlobal('Physics')) need.push(PAGES + 'physics.js');
+    if (!hasGlobal('JField')) need.push(PAGES + 'jfield.js');     // 두 번째 엔진 (J 최소화)
     if (!hasGlobal('SectionBase')) need.push(PAGES + 'section.js');
     if (!hasGlobal('Domain')) need.push(PAGES + 'domain.js');
     if (!hasGlobal('UI')) need.push(PAGES + 'ui.js');
@@ -411,6 +412,7 @@
             '<div class="engine-ctrls">' +
               '<button type="button" class="engine-btn" onclick="PXBOX.rebarRespawn()"><i class="bi bi-arrow-counterclockwise"></i> Respawn</button>' +
               '<button type="button" class="engine-btn" id="btnPause" onclick="PXBOX.rebarPause()"><i class="bi bi-pause-fill"></i> Pause</button>' +
+              '<button type="button" class="engine-btn" id="btnEngineSel" onclick="PXBOX.toggleEngine()"><i class="bi bi-cpu"></i> Solver: J-field</button>' +
               '<button type="button" class="engine-btn" onclick="PXBOX.exportDXF()"><i class="bi bi-download"></i> Export DXF</button>' +
               '<button type="button" class="engine-btn engine-btn-lite" id="btnToggleNormals" onclick="PXBOX.toggleNormals()"><i class="bi bi-arrows-angle-expand"></i> Toggle Normals</button>' +
               '<button type="button" class="engine-btn engine-btn-lite" id="btnToggleNodes" onclick="PXBOX.toggleNodes()"><i class="bi bi-123"></i> Toggle Nodes (#)</button>' +
@@ -479,6 +481,92 @@
         if (typeof Domain !== 'undefined' && typeof Domain.togglePause === 'function') Domain.togglePause();
       },
 
+      /*  ── 엔진 둘 ────────────────────────────────────────────────────────
+          'jfield'   jfield.js — 목적함수 J 를 최소화한다. 한 번에 푼다(애니메이션 없음).
+          'physics'  physics.js — 예전 것. 광선으로 벽을 고르고 용수철로 끌어다 붙인다.
+          기본값은 J 다. 예전 것은 비교용으로 남긴다 — 버튼으로 오간다.            */
+      _engine: 'jfield',
+
+      _syncEngineBtn: function () {
+        var b = document.getElementById('btnEngineSel');
+        if (!b) return;
+        b.innerHTML = '<i class="bi bi-cpu"></i> Solver: ' +
+          (this._engine === 'jfield' ? 'J-field' : 'Physics');
+      },
+
+      toggleEngine: function () {
+        this._engine = (this._engine === 'jfield') ? 'physics' : 'jfield';
+        this._syncEngineBtn();
+        this.rebarRespawn();
+      },
+
+      /*  J 엔진으로 한 번에 푼다.
+          스폰된 철근(Domain.trebarList)의 조각을 그대로 넘기고, 돌아온 폴리라인을
+          같은 객체에 써 넣는다 — 표·DXF·굴짐 아크는 전부 그대로 쓴다.
+          trebar 는 큐에서 뺀다(이미 풀렸다). lrebar 는 아직 예전 엔진이 맡는다.    */
+      _solveWithJField: function () {
+        if (typeof JField === 'undefined' || typeof Domain === 'undefined') return false;
+        var sec = Domain.currentSection;
+        if (!sec || !sec.walls || !sec.walls.length) return false;
+
+        var wallById = {};
+        sec.walls.forEach(function (w) { wallById[w.id] = w; });
+
+        var bars = Domain.trebarList.map(function (t) {
+          return {
+            id: String(t.id), dia: t.dia || 13,
+            segs: (t.segments || []).map(function (s) {
+              return { label: s.label,
+                       p1: { x: s.p1.x, y: s.p1.y }, p2: { x: s.p2.x, y: s.p2.y },
+                       normal: { x: s.normal.x, y: s.normal.y } };
+            })
+          };
+        });
+
+        var out;
+        try { out = JField.solve(bars, sec.walls, sec, this._ducts || []); }
+        catch (e) { console.error('[PSCBOX] J-field solve:', e); return false; }
+
+        var NP = (typeof CONFIG !== 'undefined' && CONFIG.PHYSICS && CONFIG.PHYSICS.NODE_POS) || [0.4, 0.6];
+        var byId = {};
+        Domain.trebarList.forEach(function (t) { byId[String(t.id)] = t; });
+
+        out.forEach(function (r) {
+          var t = byId[String(r.id)];
+          if (!t || !t.segments) return;
+          r.segs.forEach(function (rs, i) {
+            var seg = t.segments[i];
+            if (!seg) return;
+            var a = r.pts[i], b = r.pts[i + 1];
+            seg.p1 = { x: a.x, y: a.y };
+            seg.p2 = { x: b.x, y: b.y };
+            var dx = b.x - a.x, dy = b.y - a.y, L = Math.hypot(dx, dy) || 1;
+            seg.uDir = { x: dx / L, y: dy / L };
+            seg.nodes = NP.map(function (k) { return { x: a.x + dx * k, y: a.y + dy * k, vx: 0, vy: 0 }; });
+            //  어느 면에 앉았는지 — 표·적층 진단이 읽는 자리에 그대로 넣는다
+            seg.fitWall = wallById[(rs.rest && rs.rest[0]) || ''] || null;
+            seg.contactWall = seg.fitWall;
+            seg.state = rs.stopped === 'no-target' ? 'FITTING' : 'SETTLED';
+          });
+          t.state = r.segs.every(function (s) { return s.stopped !== 'no-target'; }) ? 'FORMED' : 'ASSEMBLING';
+          console.log('[JFIELD] ' + r.id + ' 길이 ' + Math.round(r.len) + '  세그[' +
+            r.segs.map(function (s) {
+              return s.label + '=' + ((s.rest && s.rest[0]) || '없음') + '(' + Math.round(s.len) + ')';
+            }).join(', ') + ']');
+        });
+
+        //  풀린 것은 큐에서 뺀다 — 예전 엔진이 다시 건드리지 않게
+        Domain.queue = Domain.queue.filter(function (q) { return q.kind !== 'trebar'; });
+        Domain.activeQueueIndex = 0;
+
+        var miss = Domain.trebarList.filter(function (t) { return t.state !== 'FORMED'; });
+        if (miss.length) {
+          this._toast('붙을 면을 못 찾은 철근: ' + miss.map(function (t) { return t.id; }).join(', ') +
+                      ' — init 이 콘크리트 안, 붙을 면 쪽에 있는지 보세요', 'err');
+        }
+        return true;
+      },
+
       // ── Rebar Physics 결과 표 : id / 총길이 / 직경 / 조각 a~f / 꺽임 ra~re ──
       _renderPhysicsTable: function () {
         var body = document.getElementById('physTblBody');
@@ -545,6 +633,9 @@
       // 개별 철근 재스폰 : 해당 id 만 초기 상태로 되돌려 안착 과정을 다시 관찰
       respawnOne: function (id) {
         if (typeof Domain === 'undefined' || typeof UI === 'undefined') return;
+        /*  J 엔진에서는 하나만 다시 놓는 것이 의미가 없다 — 나중 철근은 앞 철근을
+            척력으로 보고 자리를 잡으므로, 순서째로 다시 푸는 것이 맞다.           */
+        if (this._engine === 'jfield') { this.rebarRespawn(); return; }
         var rd = null, i;
         for (i = 0; i < (this._rebarData || []).length; i++) {
           if (String(this._rebarData[i].id) === String(id)) { rd = this._rebarData[i]; break; }
@@ -817,7 +908,9 @@
         if (UI.anim && UI.anim.stop) UI.anim.stop();      // 정지 → 굴짐 아크가 직선으로 덮이지 않음
         if (!UI.trebarGroup) return;
         UI.trebarGroup.destroyChildren();
-        this._relaxRebar();                                                        // 통합 z-order 겹침 해소 (trebar 강체 + lrebar 점) — 그리기 전에
+        /*  겹침 해소는 **예전 엔진에만** 건다. J 엔진은 순간격을 제약으로 이미 풀었고,
+            여기서 또 밀면 J 가 찾은 자리를 손으로 흐트러뜨리는 것이 된다.          */
+        if (this._engine !== 'jfield') this._relaxRebar();                         // 통합 z-order 겹침 해소 (trebar 강체 + lrebar 점) — 그리기 전에
         var self = this, formed = 0;
         Domain.trebarList.forEach(function (t) {                                   // 이동된 위치로 작도
           if (t.state === 'FORMED') { self._drawFilletedTrebar(t, UI.trebarGroup); formed++; }
@@ -1540,7 +1633,11 @@
         this._fitEngineStage();
         var self = this;
         setTimeout(function () { self._fitEngineStage(); }, 80);   // 레이아웃 확정 후 재보정
-        this._watchSettle();
+        this._syncEngineBtn();
+        /*  J 엔진은 한 번에 푼다 — 기다릴 것이 없으니 바로 최종 작도로 간다.
+            예전 엔진은 프레임마다 조금씩 움직이므로 _watchSettle 이 지켜본다.     */
+        if (this._engine === 'jfield' && this._solveWithJField()) this._finalizeArcs();
+        else this._watchSettle();
       } catch (e) { console.error('[PSCBOX] rebar render:', e); }
     },
 
