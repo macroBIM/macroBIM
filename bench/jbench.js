@@ -47,6 +47,19 @@ function stripSegs(sheet) {
   return s;
 }
 
+/*  오른쪽 복부 내측 철근 ⑥-2 를 **거울상 크랭크(23-1)** 로 바꾼다.
+    23 과 23-1 은 회전으로 서로를 못 만든다 — 몸통을 세워 둔 채 다리 둘만
+    뒤집는 꼴이라 형상이 따로 있어야 한다(trebar.js Shape23M 주석).
+    왼쪽 ⑥-3 은 거울 위치라 코드 23 + rot 90 이 제자리다 — 그대로 둔다.    */
+function mirrorCrank(sheet) {
+  const s = JSON.parse(JSON.stringify(sheet));
+  s.forEach(r => {
+    if (String(r[0] || '').trim().toLowerCase() !== 'trebar') return;
+    if (String(r[1]) === '6-2') { r[2] = '23-1'; r[4] = '3050,-3520,-90'; }
+  });
+  return s;
+}
+
 function solve(name, sheet) {
   const c = CASES[name];
   const D = prepare(sheet || fix(name), {}, c.page);
@@ -101,6 +114,9 @@ function report(name, tag, sheet, useTruth) {
     }
     //  단면 밖으로 나간 것은 도면표에 없어도 실패다
     if (os > 1) { fail = true; verdict += '  ✗ 단면 밖'; }
+    /*  붙을 면을 못 찾은 조각이 있으면 그 철근은 **끊어진다** — 그 조각만 태어난
+        자리에 토막으로 남는다. 도면 길이와 우연히 맞더라도 실패로 센다.        */
+    if (b.segs.some(s => s.stopped === 'no-target')) { fail = true; verdict += '  ✗ 붙을 면 없음'; }
     if (fail) bad++;
 
     console.log('  ' + String(b.id).padEnd(4) +
@@ -165,4 +181,7 @@ else {
   //  길이를 **하나도** 주지 않고 돌린다. 조각은 전부 기본값 400 으로 태어나고,
   //  몸통 길이는 이웃 두 직선의 교점이 정한다 — 길이가 출력이라는 것의 시험이다.
   report('s14', 'S14 · J 엔진 · segs 미입력 (전부 기본 400)', stripSegs(fix('s14')), false);
+  //  거울상 코드 23-1 (Shape23M). 띠의 축을 init 각으로 뽑던 시절 이 형상의 몸통이
+  //  후보를 하나도 못 찾아 철근이 끊어졌다 — 그 자리를 지키는 시험이다.
+  report('s14', 'S14 · J 엔진 · ⑥-2 를 코드 23-1 로 (거울상 크랭크)', mirrorCrank(fix('s14')), false);
 }

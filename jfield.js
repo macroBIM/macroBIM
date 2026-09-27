@@ -104,8 +104,15 @@
                  박스 단면은 볼록(convex)이 아니라서 게이트만으로는 안 걸러진다.     */
         targets: function (seg, walls, sec, dia) {
             const n = seg.n0, out = [];
-            const ux = Math.cos(seg.th0), uy = Math.sin(seg.th0);
-            const L = seg.len;
+            /*  띠의 축은 **조각의 두 끝점**에서 뽑는다. th0(= init 각)으로 뽑으면 안 된다 —
+                판을 거듭하면 조각을 폴리라인에서 다시 만드는데, 그때 p1·p2 는
+                **폴리라인 차례**로 들어오므로 init 때와 앞뒤가 뒤집힐 수 있다.
+                그러면 띠가 뒤로 깔려서 **모든 벽이 걸러진다.** 실제로 ⑥-2(코드 23-1)의
+                몸통이 후보를 하나도 못 찾아 태어난 자리에 400 mm 토막으로 남았고,
+                그림에서 철근이 끊어져 보였다.                                       */
+            const vx = seg.p2.x - seg.p1.x, vy = seg.p2.y - seg.p1.y;
+            const L = hyp(vx, vy) || 1;
+            const ux = vx / L, uy = vy / L;
             const pr = (x, y) => (x - seg.p1.x) * ux + (y - seg.p1.y) * uy;
             const side = (w, p) => (p.x - w.x1) * w.nx + (p.y - w.y1) * w.ny;
 
