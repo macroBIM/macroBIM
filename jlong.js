@@ -72,6 +72,7 @@
                       항들의 균형이 깨졌다.                                        */
             K_A: 0.02,         // 축 방향 (ctc 균등배치로 복귀)
             K_N: 1e-6,         // 법선 방향 (거의 자유)
+            NUDGE: 1.0,        // 2단계 시작 전 안쪽으로 밀어 대칭을 깨는 양 (mm)
             LAM0: 1e-3, ITER: 300, OUTER: 8, TOL: 1e-4
         },
 
@@ -112,8 +113,16 @@
         seatsAt: function (p, n0, walls, sec, dia) {
             const out = [];
             (walls || []).forEach(w => {
-                if (w.nx * n0.x + w.ny * n0.y > this.CONF.GATE) return;          // ① 마주보나
-                if ((p.x - w.x1) * w.nx + (p.y - w.y1) * w.ny <= 0) return;      // ② 콘크리트 쪽인가
+                if (w.nx * n0.x + w.ny * n0.y > this.CONF.GATE) return;          // ① 마주보나 — 이것뿐이다
+                /*  **「콘크리트 안에 있나」는 안 본다.**
+                    `jfield` 의 조각용 규칙(②)을 여기 베껴 놨다가 뺐다. 조각은 박스 단면이
+                    볼록이 아니라서 셀 건너편 면에 잡히는 일이 있어 그 시험이 있지만,
+                    점은 **법선이 마주보는 가장 가까운 면**이면 그만이다.
+                    베껴 둔 탓에 배치 직선이 콘크리트 밖에 있으면(데크가 -3% 라 수평선은
+                    한쪽 끝이 밖으로 나간다) 철근 50개 중 38개가 「붙을 면 없음」이 됐다.
+                    태어난 자리가 밖이어도 **마주보는 면으로 끌려 들어오면 될 일**이다.
+                    `STATUS.md` 「엔진을 고칠 때 지킬 것 ②·③」 : 콘크리트 안에 들어가느냐를
+                    엔진이 판단해서 안착을 막지 않는다. 입력한 대로 만든다.            */
                 const need = JF.coverOf(w, sec) + dia / 2;
                 /*  ③ 은 **없다.** 조각과 달리 점에는 띠를 걸지 않는다.
                     조각은 축 범위가 있어서 「옆으로 비켜난 면」을 띠로 걸러야 하지만,
@@ -418,7 +427,12 @@
                     막힐 때 **스물세 개가 다 선다** — 실제로 그랬다(목표에서 187 mm 앞에
                     주저앉았다). 막히는 것은 그 철근이지 무리가 아니다.               */
                 let Q = P.map((p, i) => ({ x: p.x + d[2 * i], y: p.y + d[2 * i + 1] }));
-                for (let i = 0; i < P.length; i++) {
+                /*  **1단계에는 안 건다.** 1단계는 덕트·철근을 없는 것으로 두고 피복면을
+                    찾아 앉는 단계다 — 거기까지 가는 길을 막으면 철근이 장애물 **바깥쪽**
+                    (거푸집 쪽)에 걸터앉아 버린다. 실제로 데크 상면 종방향 50개가
+                    피복선 밖 13 mm 에 멈췄다(J 가 훨씬 높은 자리다).
+                    막을 일은 2단계다 : 제 자리에 앉은 뒤 **비켜나는** 방향을 정할 때.   */
+                for (let i = 0; i < P.length && ctx.stage >= 2; i++) {
                     let f = 1;
                     for (let c = 0; c < 20 && this.hits(P[i], Q[i], g, ctx); c++) {
                         f *= 0.5;
@@ -435,6 +449,89 @@
                 } else { lam *= 8; if (lam > 1e12) break; }
             }
             return { P: P, J: last, iter: it };
+        },
+
+        /*  **철근 하나만** 내린다 (나머지는 고정). 잔차는 전체에서 뽑되 그 철근의
+            두 열만 모은다 — 건너편 주머니를 재 보는 데 쓴다(escape · pockets).     */
+        descendOne: function (P, i, g, ctx) {
+            const K = this.CONF;
+            let last = this.energy(P, g, ctx), lam = K.LAM0;
+            for (let it = 0; it < 60; it++) {
+                const rows = this.residuals(P, g, ctx);
+                const H = [[0, 0], [0, 0]], gr = [0, 0];
+                rows.forEach(w => {
+                    for (let a = 0; a < w.idx.length; a++) {
+                        const ca = w.idx[a] - 2 * i;
+                        if (ca !== 0 && ca !== 1) continue;
+                        gr[ca] += w.j[a] * w.r;
+                        for (let b = 0; b < w.idx.length; b++) {
+                            const cb = w.idx[b] - 2 * i;
+                            if (cb !== 0 && cb !== 1) continue;
+                            H[ca][cb] += w.j[a] * w.j[b];
+                        }
+                    }
+                });
+                const A = [[H[0][0] + lam * (H[0][0] > 1e-12 ? H[0][0] : 1), H[0][1]],
+                           [H[1][0], H[1][1] + lam * (H[1][1] > 1e-12 ? H[1][1] : 1)]];
+                const det = A[0][0] * A[1][1] - A[0][1] * A[1][0];
+                if (Math.abs(det) < 1e-12) { lam *= 8; if (lam > 1e12) break; continue; }
+                const dx = (-gr[0] * A[1][1] + gr[1] * A[0][1]) / det;
+                const dy = (-gr[1] * A[0][0] + gr[0] * A[1][0]) / det;
+                const Q = P.slice(); Q[i] = { x: P[i].x + dx, y: P[i].y + dy };
+                const Jn = this.energy(Q, g, ctx);
+                if (Jn <= last && !this.hits(P[i], Q[i], g, ctx)) {
+                    P = Q; last = Jn; lam = Math.max(lam * 0.3, 1e-12);
+                    if (hyp(dx, dy) < K.TOL) break;
+                } else { lam *= 8; if (lam > 1e12) break; }
+            }
+            return { P: P, J: last };
+        },
+
+        /*  ── 건너편 주머니가 더 낮으면 건너간다 ────────────────────────────
+            척력은 장애물을 감싼 **관(tube)** 이라, 그 양쪽이 각각 J 의 바닥이다.
+            하강은 관을 못 넘으므로 태어난 쪽 바닥에서 멈춘다 — 그런데 **건너편이 더
+            낮을 수 있다.** 실제로 소핏 종방향 철근이 ⑨-1 의 다리 **바깥쪽**(거푸집 쪽)에
+            멈췄는데(J 6,596), 다리 건너 안쪽이 J 4,890 이었다.
+            그래서 장애물에 걸린 철근마다 **건너편으로 되비춰 내려보고 J 를 견준다.**
+            낮으면 건너가고 아니면 제자리다 — **고르는 것은 J 하나**이고, 규칙이 아니다.
+            (1 mm 쯤 살짝 미는 것으로는 못 넘는다. 지름만큼 건너가야 한다.)          */
+        escape: function (P, g, ctx, rounds) {
+            let moved = true;
+            for (let r = 0; r < (rounds || 2) && moved; r++) {
+                moved = false;
+                for (let i = 0; i < P.length; i++) {
+                    //  지금 겹쳐 있는 장애물이 있나 (없으면 건너갈 이유가 없다)
+                    let near = null;
+                    (ctx.prims || []).forEach(pr => {
+                        const e = this.toPrim(P[i], pr);
+                        if (!e) return;
+                        const gg = e.d - (pr.dia + g.dia) / 2;
+                        if (gg < 0 && (!near || gg < near.g)) near = { e: e, g: gg, need: (pr.dia + g.dia) / 2 };
+                    });
+                    if (!near) continue;
+                    const J0 = this.energy(P, g, ctx);
+                    /*  후보는 둘이다. **어느 쪽인지는 J 가 고른다.**
+                      ㉠ 관 건너편 — 장애물을 넘어 반대쪽 바닥으로
+                      ㉡ 같은 쪽으로 **비켜서기** — 장애물에서 필요거리만큼 떨어진 자리.
+                         겹친 채로 멈춘 철근은 대개 이쪽이 답이다(먼저 놓인 철근 위로
+                         쌓이는 그 자리다). ㉠ 만 보던 판은 ⑨-1 의 다리에 0.1 mm 붙어
+                         멈춘 철근을 못 구했다 — 건너편은 거푸집 쪽이라 더 나빴다.      */
+                    const cand = [
+                        { x: P[i].x - near.e.ex * (2 * (near.e.d + near.need) + 1),
+                          y: P[i].y - near.e.ey * (2 * (near.e.d + near.need) + 1) },
+                        { x: P[i].x + near.e.ex * (near.need - near.e.d + 1),
+                          y: P[i].y + near.e.ey * (near.need - near.e.d + 1) }
+                    ];
+                    let best = null;
+                    cand.forEach(q => {
+                        const Q = P.slice(); Q[i] = q;
+                        const r2 = this.descendOne(Q, i, g, ctx);
+                        if (!best || r2.J < best.J) best = r2;
+                    });
+                    if (best && best.J < J0 - 1e-9) { P = best.P; moved = true; }
+                }
+            }
+            return P;
         },
 
         /*  한 무리를 푼다. `jfield.settle()` 과 같은 차례다 :
@@ -459,6 +556,19 @@
 
             let iter = 0, J = null;
             [1, 2].forEach(stage => {
+                /*  2단계에 들어가기 전에 **안쪽으로 살짝** 민다.
+                    1단계가 끝나면 철근이 피복선 위에 앉는데, 먼저 놓인 철근도 같은 선 위에
+                    있으면 거기가 척력의 **꼭대기**(대칭점)라 방향이 정해지지 않는다.
+                    밀 방향은 고를 것이 없다 — 바깥은 거푸집이고 안쪽이 콘크리트다.
+                    겹은 안쪽으로 쌓인다 (jfield.settle 의 NUDGE 와 같은 근거).        */
+                if (stage === 2) {
+                    P = P.map(p => {
+                        const s = seatsFor(p);
+                        const c = s.length ? this.nearestSeat(p, s) : null;
+                        if (!c) return p;
+                        return { x: p.x + c.w.nx * this.CONF.NUDGE, y: p.y + c.w.ny * this.CONF.NUDGE };
+                    });
+                }
                 let assign = assignOf(P), seen = {};
                 for (let o = 0; o < this.CONF.OUTER; o++) {
                     const key = assign.map(c => c ? c.w.id : '-').join(',');
@@ -470,6 +580,14 @@
                     const next = assignOf(P);
                     if (next.map(c => c ? c.w.id : '-').join(',') === key) break;
                     assign = next;
+                }
+                //  2단계가 끝나면 **건너편 주머니와 J 를 견준다** (escape 참조)
+                if (stage === 2) {
+                    const ctx = { assign: assignOf(P), home: home, ducts: ducts, prims: prims, stage: 2 };
+                    P = this.escape(P, g, ctx);
+                    const r = this.descend(P, g, { assign: assignOf(P), home: home,
+                                                   ducts: ducts, prims: prims, stage: 2 });
+                    P = r.P; J = r.J; iter += r.iter;
                 }
             });
 
