@@ -190,7 +190,25 @@
               { t:'arc',  p:[ox,oy,r,angb,ange] }        굴짐(절곡) — 각은 도(°)
             돌려주는 것 : { d, ex, ey } — 거리와 **상대에서 나를 향하는 단위벡터**.
             아크에서 ρ>R 이면 바깥, ρ<R 이면 안쪽이고 그 부호가 그대로 ex,ey 다.  */
-        toPrim: function (p, pr) {
+        toPrim: function (p, pr, reach) {
+            /*  **멀면 바로 버린다.** 장애물은 단면 전체에 52 조각쯤 있는데, 한 철근을
+                미는 것은 그중 제 옆에 있는 한둘뿐이다. 그런데 잔차를 한 번 뽑을 때마다
+                52 조각을 모두 재고 있었다(아크는 atan2·cos·sin 까지 돈다).
+                조각마다 **감싸는 네모**를 한 번 구해 두고, 그 밖으로 R 보다 멀면
+                계산 없이 넘긴다. R 은 부르는 쪽이 「이만큼 안이면 본다」로 준다.     */
+            if (reach != null) {
+                let b = pr._bb;
+                if (!b) {
+                    b = (pr.t === 'line')
+                        ? [Math.min(pr.p[0], pr.p[2]), Math.min(pr.p[1], pr.p[3]),
+                           Math.max(pr.p[0], pr.p[2]), Math.max(pr.p[1], pr.p[3])]
+                        : [pr.p[0] - pr.p[2], pr.p[1] - pr.p[2],
+                           pr.p[0] + pr.p[2], pr.p[1] + pr.p[2]];
+                    pr._bb = b;
+                }
+                if (p.x < b[0] - reach || p.x > b[2] + reach ||
+                    p.y < b[1] - reach || p.y > b[3] + reach) return null;
+            }
             if (pr.t === 'line') {
                 const a = { x: pr.p[0], y: pr.p[1] }, b = { x: pr.p[2], y: pr.p[3] };
                 const r = JF.closestOnSeg([a, b], p);
@@ -257,10 +275,11 @@
                     });
                     //  ③ 절곡철근 — 곧은 구간과 굴짐 아크를 같은 꼴로 본다
                     (ctx.prims || []).forEach(pr => {
-                        const e = this.toPrim(p, pr);
+                        const need = (pr.dia + dia) / 2;
+                        const e = this.toPrim(p, pr, need + dia);
                         if (!e) return;
                         barrier(pr.t === 'arc' ? 'bend' : 'tre', p, i, e.d, e.ex, e.ey,
-                                (pr.dia + dia) / 2, K.K_BAR, K.CLR_SOFT);
+                                need, K.K_BAR, K.CLR_SOFT);
                     });
                 });
                 //  ④ 종방향끼리 — **적층이 여기서 나온다**
@@ -377,8 +396,9 @@
                     out.push(dist - ((d.D / 2) + (d.clr != null ? d.clr : 30) + g.dia / 2));
                 });
                 (ctx.prims || []).forEach(pr => {
-                    const e = this.toPrim(p, pr);
-                    out.push(e ? e.d - (pr.dia + g.dia) / 2 : 1e9);
+                    const need = (pr.dia + g.dia) / 2;
+                    const e = this.toPrim(p, pr, need + g.dia);
+                    out.push(e ? e.d - need : 1e9);
                 });
             });
             for (let i = 0; i < P.length; i++) for (let j = i + 1; j < P.length; j++)
@@ -389,18 +409,20 @@
         /*  철근 **하나**가 장애물을 뚫고 지나가나 — 여유가 있던 것이 겹치게 되면 참.
             같은 무리끼리는 안 본다(간격항이 맡는다. 서로 밀며 같이 움직이는 것을
             「뚫었다」로 보면 무리가 통째로 선다).                                  */
+        gapsOf: function (p, g, ctx) {
+            const out = [];
+            (ctx.ducts || []).forEach(d => out.push(hyp(p.x - d.x, p.y - d.y) -
+                ((d.D / 2) + (d.clr != null ? d.clr : 30) + g.dia / 2)));
+            (ctx.prims || []).forEach(pr => {
+                const need = (pr.dia + g.dia) / 2;
+                const e = this.toPrim(p, pr, need + g.dia);
+                out.push(e ? e.d - need : 1e9);
+            });
+            return out;
+        },
+
         hits: function (a, b, g, ctx) {
-            const one = p => {
-                const out = [];
-                (ctx.ducts || []).forEach(d => out.push(hyp(p.x - d.x, p.y - d.y) -
-                    ((d.D / 2) + (d.clr != null ? d.clr : 30) + g.dia / 2)));
-                (ctx.prims || []).forEach(pr => {
-                    const e = this.toPrim(p, pr);
-                    out.push(e ? e.d - (pr.dia + g.dia) / 2 : 1e9);
-                });
-                return out;
-            };
-            return this.crosses(one(a), one(b));
+            return this.crosses(this.gapsOf(a, g, ctx), this.gapsOf(b, g, ctx));
         },
 
         crosses: function (before, after) {
@@ -443,13 +465,18 @@
                     (거푸집 쪽)에 걸터앉아 버린다. 실제로 데크 상면 종방향 50개가
                     피복선 밖 13 mm 에 멈췄다(J 가 훨씬 높은 자리다).
                     막을 일은 2단계다 : 제 자리에 앉은 뒤 **비켜나는** 방향을 정할 때.   */
+                /*  출발점의 여유는 **걸음마다 한 번만** 잰다 — 반토막을 칠 때마다 다시
+                    재고 있었다. 그 자리가 전체 시간의 **82%** 였다(50개 한 무리에
+                    58 초 중 `hits` 가 308,266 번 · `toPrim` 이 3,480 만 번).
+                    반토막도 6 번이면 1/64 이라 넉넉하다.                          */
                 for (let i = 0; i < P.length && ctx.stage >= 2; i++) {
+                    const g0 = this.gapsOf(P[i], g, ctx);
                     let f = 1;
-                    for (let c = 0; c < 20 && this.hits(P[i], Q[i], g, ctx); c++) {
+                    for (let c = 0; c < 6 && this.crosses(g0, this.gapsOf(Q[i], g, ctx)); c++) {
                         f *= 0.5;
                         Q[i] = { x: P[i].x + d[2 * i] * f, y: P[i].y + d[2 * i + 1] * f };
                     }
-                    if (this.hits(P[i], Q[i], g, ctx)) Q[i] = { x: P[i].x, y: P[i].y };
+                    if (this.crosses(g0, this.gapsOf(Q[i], g, ctx))) Q[i] = { x: P[i].x, y: P[i].y };
                 }
                 const Jn = this.energy(Q, g, ctx);
                 if (Jn <= last) {
@@ -462,24 +489,97 @@
             return { P: P, J: last, iter: it };
         },
 
-        /*  **철근 하나만** 내린다 (나머지는 고정). 잔차는 전체에서 뽑되 그 철근의
-            두 열만 모은다 — 건너편 주머니를 재 보는 데 쓴다(escape · pockets).     */
+        /*  ── 철근 **하나**에 걸리는 잔차만 뽑는다 ─────────────────────────
+            `residuals()` 는 무리 전체를 훑는다 — 철근 N 개 × 장애물 M 개 + 철근쌍 N²/2.
+            `escape` 는 철근마다 후보 둘을 내려보는데, 그 안에서 전체를 다시 훑으면
+            **N 배가 곱해진다.** 실제로 50개짜리 한 무리에 **58 초**가 걸렸다
+            (횡방향 16개 전체가 60 ms 다). 한 철근만 움직일 때 달라지는 항은
+            **그 철근에 걸린 것뿐**이므로 그것만 뽑는다 — 받아들일지 견주는 것도
+            그 부분합으로 하면 전체 J 의 증감과 똑같다.                          */
+        localRows: function (P, i, g, ctx) {
+            const K = this.CONF, rows = [], a = this.axes(g), dia = g.dia, p = P[i];
+            const push = (tag, r, idx, j) => rows.push({ tag: tag, r: r, idx: idx, j: j });
+
+            const c = ctx.assign[i];
+            if (c) {
+                const e = this.cover(p, c);
+                const w = Math.sqrt(e.g < 0 ? K.K_COV : 1);
+                push('cover', w * e.g, [0, 1], [w * e.ex, w * e.ey]);
+            }
+            const barrier = (tag, d, ex, ey, need, k, soft) => {
+                const gg = d - need;
+                if (gg >= 0) return;
+                const kk = Math.sqrt(k), tt = gg / soft, u = 1 + tt * tt;
+                push(tag, kk * gg / Math.sqrt(u), [0, 1],
+                     [kk / (u * Math.sqrt(u)) * ex, kk / (u * Math.sqrt(u)) * ey]);
+            };
+            if (ctx.stage >= 2) {
+                (ctx.ducts || []).forEach(d => {
+                    const dist = hyp(p.x - d.x, p.y - d.y);
+                    if (dist < 1e-9) return;
+                    barrier('duct', dist, (p.x - d.x) / dist, (p.y - d.y) / dist,
+                            (d.D / 2) + (d.clr != null ? d.clr : 30) + dia / 2, K.K_CLR, K.CLR_SOFT);
+                });
+                (ctx.prims || []).forEach(pr => {
+                    const need = (pr.dia + dia) / 2;
+                    const e = this.toPrim(p, pr, need + dia);
+                    if (e) barrier(pr.t === 'arc' ? 'bend' : 'tre', e.d, e.ex, e.ey,
+                                   need, K.K_BAR, K.CLR_SOFT);
+                });
+                for (let j = 0; j < P.length; j++) {
+                    if (j === i) continue;
+                    const dx = p.x - P[j].x, dy = p.y - P[j].y, d = hyp(dx, dy);
+                    if (d < 1e-9) continue;
+                    const gg = d - dia;
+                    if (gg >= 0) continue;
+                    const kk = Math.sqrt(K.K_BAR), tt = gg / K.CLR_SOFT, u = 1 + tt * tt;
+                    const sc = kk / (u * Math.sqrt(u));
+                    push('lre', kk * gg / Math.sqrt(u), [0, 1], [sc * dx / d, sc * dy / d]);
+                }
+            }
+            //  간격 — 앞뒤 이웃 둘만 (∂t/∂p = û)
+            const tOf = q => (q.x - a.O.x) * a.u.x + (q.y - a.O.y) * a.u.y;
+            [[i - 1, i, -1], [i, i + 1, 1]].forEach(([lo, hi, sgn]) => {
+                if (lo < 0 || hi >= P.length) return;
+                const sp = tOf(P[hi]) - tOf(P[lo]);
+                if (g.ctcmin != null && sp - g.ctcmin < 0) {
+                    const kk = Math.sqrt(K.K_CTCMIN);
+                    push('ctcmin', kk * (sp - g.ctcmin), [0, 1],
+                         [sgn * kk * a.u.x, sgn * kk * a.u.y]);
+                }
+                if (g.ctcmax != null && g.ctcmax - sp < 0) {
+                    const gg = g.ctcmax - sp, kk = Math.sqrt(K.K_CTCMAX);
+                    const tt = gg / K.CTCMAX_SOFT, u = 1 + tt * tt, sc = kk / (u * Math.sqrt(u));
+                    push('ctcmax', kk * gg / Math.sqrt(u), [0, 1],
+                         [-sgn * sc * a.u.x, -sgn * sc * a.u.y]);
+                }
+            });
+            const t = tOf(p), kr = Math.sqrt(K.K_RANGE);
+            if (t < g.range.min) push('range', kr * (t - g.range.min), [0, 1], [kr * a.u.x, kr * a.u.y]);
+            if (t > g.range.max) push('range', kr * (g.range.max - t), [0, 1], [-kr * a.u.x, -kr * a.u.y]);
+
+            const ka = Math.sqrt(K.K_A), kn = Math.sqrt(K.K_N);
+            const dx0 = p.x - ctx.home[i].x, dy0 = p.y - ctx.home[i].y;
+            push('home', ka * (dx0 * a.u.x + dy0 * a.u.y), [0, 1], [ka * a.u.x, ka * a.u.y]);
+            push('home', kn * (dx0 * a.n.x + dy0 * a.n.y), [0, 1], [kn * a.n.x, kn * a.n.y]);
+            return rows;
+        },
+
+        localEnergy: function (P, i, g, ctx) {
+            return this.localRows(P, i, g, ctx).reduce((s, w) => s + w.r * w.r, 0);
+        },
+
+        /*  **철근 하나만** 내린다 (나머지는 고정).                              */
         descendOne: function (P, i, g, ctx) {
             const K = this.CONF;
-            let last = this.energy(P, g, ctx), lam = K.LAM0;
+            let last = this.localEnergy(P, i, g, ctx), lam = K.LAM0;
             for (let it = 0; it < 60; it++) {
-                const rows = this.residuals(P, g, ctx);
+                const rows = this.localRows(P, i, g, ctx);
                 const H = [[0, 0], [0, 0]], gr = [0, 0];
                 rows.forEach(w => {
-                    for (let a = 0; a < w.idx.length; a++) {
-                        const ca = w.idx[a] - 2 * i;
-                        if (ca !== 0 && ca !== 1) continue;
-                        gr[ca] += w.j[a] * w.r;
-                        for (let b = 0; b < w.idx.length; b++) {
-                            const cb = w.idx[b] - 2 * i;
-                            if (cb !== 0 && cb !== 1) continue;
-                            H[ca][cb] += w.j[a] * w.j[b];
-                        }
+                    for (let a = 0; a < 2; a++) {
+                        gr[a] += w.j[a] * w.r;
+                        for (let b = 0; b < 2; b++) H[a][b] += w.j[a] * w.j[b];
                     }
                 });
                 const A = [[H[0][0] + lam * (H[0][0] > 1e-12 ? H[0][0] : 1), H[0][1]],
@@ -489,7 +589,7 @@
                 const dx = (-gr[0] * A[1][1] + gr[1] * A[0][1]) / det;
                 const dy = (-gr[1] * A[0][0] + gr[0] * A[1][0]) / det;
                 const Q = P.slice(); Q[i] = { x: P[i].x + dx, y: P[i].y + dy };
-                const Jn = this.energy(Q, g, ctx);
+                const Jn = this.localEnergy(Q, i, g, ctx);
                 if (Jn <= last && !this.hits(P[i], Q[i], g, ctx)) {
                     P = Q; last = Jn; lam = Math.max(lam * 0.3, 1e-12);
                     if (hyp(dx, dy) < K.TOL) break;
@@ -519,14 +619,14 @@
                         닿은 것도 후보다 — **어느 쪽인지는 J 가 고른다.**            */
                     let near = null;
                     (ctx.prims || []).forEach(pr => {
-                        const e = this.toPrim(P[i], pr);
+                        const need = (pr.dia + g.dia) / 2;
+                        const e = this.toPrim(P[i], pr, need + g.dia);
                         if (!e) return;
-                        const gg = e.d - (pr.dia + g.dia) / 2;
-                        if (gg < g.dia && (!near || gg < near.g))
-                            near = { e: e, g: gg, need: (pr.dia + g.dia) / 2 };
+                        const gg = e.d - need;
+                        if (gg < g.dia && (!near || gg < near.g)) near = { e: e, g: gg, need: need };
                     });
                     if (!near) continue;
-                    const J0 = this.energy(P, g, ctx);
+                    const J0 = this.localEnergy(P, i, g, ctx);
                     /*  후보는 둘이다. **어느 쪽인지는 J 가 고른다.**
                       ㉠ 관 건너편 — 장애물을 넘어 반대쪽 바닥으로
                       ㉡ 같은 쪽으로 **비켜서기** — 장애물에서 필요거리만큼 떨어진 자리.
