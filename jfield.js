@@ -55,11 +55,13 @@
             K_COV: 20.0,       // 피복 부족(slack < 0) 쪽 벌점
             K_CLR: 4.0,        // 순간격 위반 벌점
             THMAX: 30,         // init 자세에서 벗어날 수 있는 각의 한계 (도)
-            STEP: 0.05,        // 하강 스텝 (mm 단위로 쓴다)
-            ITER: 3000,        // 한 배정에서의 최대 반복
+            K_ANCHOR: 1e-6,    // init 자세로 아주 약하게 묶는 무게 (아무도 안 잡는 방향 전용)
+            LAM0: 1e-3,        // LM 감쇠의 시작값 (2차 근사를 얼마나 믿을지)
+            ITER: 200,         // 한 배정에서의 최대 반복 (가우스-뉴턴이라 몇 번이면 끝난다)
             OUTER: 12,         // 배정 다시 잡기 최대 횟수
-            TOL: 1e-3,         // 기울기 노름이 이보다 작으면 멈춘다 (mm)
-            H: 0.05,           // 수치미분 간격 (mm)
+            TOL: 1e-4,         // **걸음**이 이보다 작아지면 멈춘다 (mm)
+            H: 0.05,           // 수치미분 간격 (mm) — 야코비 검산에만 쓴다
+            BAND: 5.0,         // 피복선에 「닿아 있다」고 볼 폭 (mm) — 여과를 거는 구간
             TOUCH: 0.5,        // 이만큼 붙으면 접촉으로 본다 (mm)
             NUDGE: 1.0         // 2단계 시작 전 안쪽으로 밀어 대칭을 깨는 양 (mm)
         },
@@ -150,24 +152,24 @@
                 순간격 제약 하나가 그 일을 한다.                                  */
             (placed || []).forEach(q => {
                 const need = (q.dia + seg.dia) / 2;
-                const g = this.segToSeg(pts, q.p1, q.p2) - need;
-                if (g < 0) J += K.K_CLR * g * g;
+                this.clearPairs(pts, q.p1, q.p2).forEach(n => {
+                    const g = n.d - need;
+                    if (g < 0) J += K.K_CLR * g * g;
+                });
             });
+
+            //  ⓪ init 고정항 — residuals() 의 그것과 같은 항이다 (설명은 거기에)
+            const ah = pose.cx - seg.c0.x, av = pose.cy - seg.c0.y;
+            const at = (pose.th - seg.th0) * half;
+            J += K.K_ANCHOR * (ah * ah + av * av + at * at);
 
             return J;
         },
 
-        //  두 선분 사이의 최단거리
+        //  두 선분 사이의 최단거리. **clearPairs 와 같은 근거로 잰다** —
+        //  거리를 재는 방법이 둘이 되면 조용히 어긋난다.
         segToSeg: function (pts, q1, q2) {
-            const d = Math.min(
-                this.segToPoint(pts, q1), this.segToPoint(pts, q2),
-                this.segToPoint([q1, q2], pts[0]), this.segToPoint([q1, q2], pts[1]));
-            //  교차하면 0
-            const o = (a, b, c) => (b.x - a.x) * (c.y - a.y) - (b.y - a.y) * (c.x - a.x);
-            const s1 = o(pts[0], pts[1], q1), s2 = o(pts[0], pts[1], q2);
-            const s3 = o(q1, q2, pts[0]), s4 = o(q1, q2, pts[1]);
-            if (((s1 > 0) !== (s2 > 0)) && ((s3 > 0) !== (s4 > 0))) return 0;
-            return d;
+            return Math.min.apply(null, this.clearPairs(pts, q1, q2).map(n => n.d));
         },
 
         //  그 점에서 가장 가까운 면
@@ -195,18 +197,156 @@
             });
         },
 
-        //  선분(두 점)에서 한 점까지의 거리
-        segToPoint: function (pts, q) {
+        //  선분(두 점)에서 한 점까지 — 거리와 **가장 가까운 점**(야코비가 쓴다)
+        closestOnSeg: function (pts, q) {
             const ax = pts[0].x, ay = pts[0].y;
             const bx = pts[1].x - ax, by = pts[1].y - ay;
             const L2 = bx * bx + by * by;
             let t = L2 > 1e-9 ? ((q.x - ax) * bx + (q.y - ay) * by) / L2 : 0;
             t = Math.max(0, Math.min(1, t));
-            return hyp(q.x - (ax + bx * t), q.y - (ay + by * t));
+            const x = ax + bx * t, y = ay + by * t;
+            return { x: x, y: y, t: t, d: hyp(q.x - x, q.y - y) };
         },
 
-        //  수치 기울기. J 를 바꿔 가며 실험할 것이므로 해석 미분은 나중에.
-        //  각은 **끝점이 움직인 거리**로 환산해서 잰다 — 세 변수의 단위를 mm 로 맞춘다.
+        //  선분(두 점)에서 한 점까지의 거리
+        segToPoint: function (pts, q) {
+            return this.closestOnSeg(pts, q).d;
+        },
+
+        /*  순간격을 재는 **표본 쌍** — 내 끝점 둘, 상대 끝점 둘, 넷 다 쓴다.
+            최단점 하나만 보면 안 되는 이유가 있다. 두 선분이 나란히 겹치면 최단점이
+            한쪽 끝에 걸리는데, 그러면 모형은 「그 한 점만 피하면 된다」고 보고
+            **돌려서** 그 끝만 떼어 놓으려 한다 — 반대쪽 끝이 더 파묻히는 것은
+            모형에 없으니 모른다. 실제로 ⑥-2 가 ⑥-1 위에 1 mm 옆에 얹힌 채
+            꼼짝을 안 했다(거기 J 1,766, 18 mm 안쪽으로 가면 758).
+            넷을 다 보면 그 꼼수가 없어진다. 한 점에서만 닿는 경우(코너끼리)는
+            나머지 셋이 여유라 예전과 똑같이 동작한다.                            */
+        clearPairs: function (pts, q1, q2) {
+            const c = this.pairCands(pts, q1, q2);
+            return this.crossing(pts, q1, q2) ? [{ d: 0, t: 0.5, x: 0, y: 0, qx: 0, qy: 0 }] : c;
+        },
+
+        crossing: function (pts, q1, q2) {
+            const o = (a, b, c) => (b.x - a.x) * (c.y - a.y) - (b.y - a.y) * (c.x - a.x);
+            const s1 = o(pts[0], pts[1], q1), s2 = o(pts[0], pts[1], q2);
+            const s3 = o(q1, q2, pts[0]), s4 = o(q1, q2, pts[1]);
+            return ((s1 > 0) !== (s2 > 0)) && ((s3 > 0) !== (s4 > 0));
+        },
+
+        pairCands: function (pts, q1, q2) {
+            return [
+                (() => { const r = this.closestOnSeg(pts, q1); return { d: r.d, t: r.t, x: r.x, y: r.y, qx: q1.x, qy: q1.y }; })(),
+                (() => { const r = this.closestOnSeg(pts, q2); return { d: r.d, t: r.t, x: r.x, y: r.y, qx: q2.x, qy: q2.y }; })(),
+                (() => { const r = this.closestOnSeg([q1, q2], pts[0]); return { d: r.d, t: 0, x: pts[0].x, y: pts[0].y, qx: r.x, qy: r.y }; })(),
+                (() => { const r = this.closestOnSeg([q1, q2], pts[1]); return { d: r.d, t: 1, x: pts[1].x, y: pts[1].y, qx: r.x, qy: r.y }; })()
+            ];
+        },
+
+        /*  ── 잔차와 해석 야코비 ──────────────────────────────────────────
+            J 는 처음부터 **제곱합**이다 : J = Σ rₖ² . 그러면 야코비 ∂rₖ/∂x 만
+            있으면 가우스-뉴턴으로 한 번에 바닥 가까이 간다 — 기울기하강처럼
+            수천 번 기어가지 않아도 된다.
+
+            자세 변수는 (cx, cy, φ) 셋이고 **셋 다 mm 다.** φ = th·(길이/2) 는
+            끝점이 회전으로 움직인 호길이다. 라디안과 mm 를 섞으면 (JᵀJ + λI) 의
+            λ 가 무슨 단위인지 알 수 없게 된다 — 그래서 단위를 맞춰 둔다.
+
+              p₁ = c − (L/2)·u ,  p₂ = c + (L/2)·u ,  u = (cos th, sin th)
+              ∂pᵢ/∂c = I ,  ∂pᵢ/∂φ = sᵢ·u⊥      (s₁=−1, s₂=+1, u⊥ = (−sin th, cos th))
+
+            ① 피복   r = √w·g ,  g = (p−w₁)·n − need ,  w = (g<0 ? K_COV : 1)
+                      ∂g/∂c = n ,  ∂g/∂φ = sᵢ·(u⊥·n)
+            ② 덕트   r = √K_CLR·(d−need)  (d<need 일 때만)
+                      d 는 선분에서 덕트 중심까지. 가장 가까운 점 x(t) 를 쓰면
+                      ∂d/∂c = ê ,  ∂d/∂φ = (2t−1)·(u⊥·ê) ,  ê = (x−q)/d
+                      t 는 **고정해도 된다** — 최소점이라 ∂d/∂t = 0 이다(포락선 정리).
+            ③ 철근   ②와 같다. q 자리에 상대 선분의 가장 가까운 점을 넣는다.      */
+        residuals: function (pose, seg, cons, ducts, placed, assign) {
+            const K = this.CONF, half = seg.len / 2;
+            const cs = Math.cos(pose.th), sn = Math.sin(pose.th);
+            const ux = cs, uy = sn, px = -sn, py = cs;            // u, u⊥
+            const pts = [{ x: pose.cx - ux * half, y: pose.cy - uy * half },
+                         { x: pose.cx + ux * half, y: pose.cy + uy * half }];
+            const sg = [-1, 1], rows = [];
+
+            //  ① 피복
+            pts.forEach((p, i) => {
+                const c = cons[assign[i]];
+                if (!c) return;
+                const g = this.slack(p.x, p.y, c);
+                const w = Math.sqrt(g < 0 ? K.K_COV : 1);
+                rows.push({ r: w * g,
+                            j: [w * c.w.nx, w * c.w.ny, w * sg[i] * (px * c.w.nx + py * c.w.ny)] });
+            });
+
+            /*  ⓪ init 고정항 — **아주 약하게** 제자리에 묶는다.
+                조각이 제 면을 따라 미끄러지는 방향은 J 가 정해 주지 않는다. 앞 판
+                (되추적 기울기하강)에서는 걸음이 언제나 제약 법선 방향이라 그 방향으로
+                저절로 안 움직였는데, 그건 알고리즘의 우연이지 모형이 아니었다.
+                가우스-뉴턴은 그 우연이 없어서 조각이 면을 따라 흘렀다(③④ 가 370 mm
+                밖으로 나갔다). 그러니 모형에 적어 넣는다 — **그 방향은 init 이 정한다.**
+                무게가 1e-6 이라 제약이 있는 방향에서는 0.003 mm 수준이고(무시),
+                아무도 안 잡아 주는 방향에서만 유일하게 일하는 항이다.
+                덕트가 철근을 면을 따라 밀어내는 것(K_CLR=4)도 막지 않는다.           */
+            const ka = Math.sqrt(K.K_ANCHOR);
+            rows.push({ r: ka * (pose.cx - seg.c0.x), j: [ka, 0, 0] });
+            rows.push({ r: ka * (pose.cy - seg.c0.y), j: [0, ka, 0] });
+            rows.push({ r: ka * (pose.th - seg.th0) * half, j: [0, 0, ka] });
+
+            const kc = Math.sqrt(K.K_CLR);
+            const clearRow = (q, need, near) => {
+                const g = near.d - need;
+                if (g >= 0 || near.d < 1e-9) return;               // 여유가 있거나 방향이 없다
+                const ex = (near.x - q.x) / near.d, ey = (near.y - q.y) / near.d;
+                rows.push({ r: kc * g,
+                            j: [kc * ex, kc * ey, kc * (2 * near.t - 1) * (px * ex + py * ey)] });
+            };
+
+            //  ② 덕트
+            (ducts || []).forEach(d => {
+                const need = (d.D / 2) + (d.clr != null ? d.clr : 30) + seg.dia / 2;
+                clearRow(d, need, this.closestOnSeg(pts, d));
+            });
+
+            //  ③ 이미 놓인 철근 — energy() 와 **같은 표본 쌍**을 쓴다 (clearPairs)
+            (placed || []).forEach(q => {
+                const need = (q.dia + seg.dia) / 2;
+                this.clearPairs(pts, q.p1, q.p2).forEach(n => {
+                    clearRow({ x: n.qx, y: n.qy }, need, n);
+                });
+            });
+
+            return rows;
+        },
+
+        //  대칭 3×3 풀이 (가우스 소거 + 부분 피벗). 못 풀면 null.
+        solve3: function (A, b) {
+            const M = [[A[0][0], A[0][1], A[0][2], b[0]],
+                       [A[1][0], A[1][1], A[1][2], b[1]],
+                       [A[2][0], A[2][1], A[2][2], b[2]]];
+            for (let i = 0; i < 3; i++) {
+                let p = i;
+                for (let k = i + 1; k < 3; k++) if (Math.abs(M[k][i]) > Math.abs(M[p][i])) p = k;
+                if (Math.abs(M[p][i]) < 1e-12) return null;
+                const t = M[i]; M[i] = M[p]; M[p] = t;
+                for (let k = i + 1; k < 3; k++) {
+                    const f = M[k][i] / M[i][i];
+                    for (let c = i; c < 4; c++) M[k][c] -= f * M[i][c];
+                }
+            }
+            const x = [0, 0, 0];
+            for (let i = 2; i >= 0; i--) {
+                let s = M[i][3];
+                for (let c = i + 1; c < 3; c++) s -= M[i][c] * x[c];
+                x[i] = s / M[i][i];
+            }
+            return x;
+        },
+
+        /*  수치 기울기. **푸는 데는 안 쓴다** — 해석 야코비(residuals)가 맞는지
+            검산하는 자리로 남겨 둔다 (`bench/jjac.js`). J 의 항을 새로 더할 때
+            야코비를 같이 안 고치면 조용히 틀리므로, 그때 이것과 맞춰 보면 된다.
+            각은 **끝점이 움직인 거리**로 환산해서 잰다 — 세 변수의 단위를 mm 로 맞춘다. */
         grad: function (pose, seg, cons, ducts, placed, assign) {
             const h = this.CONF.H, half = Math.max(seg.len / 2, 1), g = {};
             [['cx', h], ['cy', h], ['th', h / half]].forEach(([k, hh]) => {
@@ -227,38 +367,96 @@
             안쪽으로 겹쳐 쌓이는 것이 옳다 — 안쪽은 콘크리트고 바깥쪽은 거푸집이다.
             (physics.js 의 wallStack 표가 하던 일을 제약 하나가 한다.)               */
         feasible: function (pose, seg, cons, assign) {
+            return this.slacks(pose, seg, cons, assign).every(g => g >= -1e-9);
+        },
+
+        /*  **언제** 그 여과를 거는가가 중요하다.
+            「한 번 지키면 영영 안 깬다」로 걸면 가우스-뉴턴이 아예 못 간다 —
+            한 걸음에 1,186 mm 를 가서 목표면을 18 mm 지나쳤다가 다음 걸음에
+            돌아오는 것이 정상인데, 그 첫 걸음이 거부되면 J 가 419,332 에서
+            꼼짝을 못 한다(실제로 ③④ 가 거기 갇혔다).
+            여과가 진짜로 할 일은 **어느 쪽에 앉을지**를 정하는 것이지 가는 길을
+            막는 것이 아니다. 그래서 **이미 피복선에 닿아 있을 때만** 건다.
+            깊숙이 안쪽에서 면을 향해 가는 큰 걸음은 그냥 보낸다.                 */
+        atRest: function (pose, seg, cons, assign) {
+            const gs = this.slacks(pose, seg, cons, assign);
+            return gs.length > 0 && Math.min.apply(null, gs.map(Math.abs)) < this.CONF.BAND;
+        },
+
+        slacks: function (pose, seg, cons, assign) {
             const half = seg.len / 2;
             const dx = Math.cos(pose.th) * half, dy = Math.sin(pose.th) * half;
             const pts = [{ x: pose.cx - dx, y: pose.cy - dy }, { x: pose.cx + dx, y: pose.cy + dy }];
-            return pts.every((p, i) => {
+            const out = [];
+            pts.forEach((p, i) => {
                 const c = cons[assign[i]];
-                return !c || this.slack(p.x, p.y, c) >= -1e-9;
+                if (c) out.push(this.slack(p.x, p.y, c));
             });
+            return out;
         },
 
+        /*  배정을 고정한 채 바닥까지 내려간다 — **가우스-뉴턴 + 감쇠(LM)**.
+
+            J = Σ rₖ² 이므로 야코비 A 를 쌓아 (AᵀA + λ·diag)Δ = −Aᵀr 을 풀면
+            2차 근사의 바닥으로 **한 번에** 간다. λ 는 그 근사를 얼마나 믿을지다 —
+            줄면 믿고 늘리고(λ↓), 늘면 안 믿고 기울기하강 쪽으로 물러선다(λ↑).
+
+            감쇠가 꼭 필요한 이유가 둘 있다.
+              ㉠ 잔차가 둘(끝점 둘)인데 변수는 셋이라 AᵀA 가 특이하다. 조각이
+                 면을 따라 미끄러지는 방향은 J 가 정해 주지 않는다 — 그 방향은
+                 init 이 정한다. λ 가 그 방향의 걸음을 0 으로 만들어 준다.
+              ㉡ 덕트·철근 항은 g=0 에서 꺾인다. 꺾인 곳에서는 2차 근사가 틀리므로
+                 λ 가 커지며 알아서 잔걸음으로 바뀐다.
+
+            앞 판(되추적 기울기하강)은 조각 하나에 최대 6,000 번을 돌았다. 그나마
+            600 번이면 바닥이었는데 **멈추질 못했다** — 정지 조건이 |기울기|<1e-3
+            인데, K_COV 로 우물을 한쪽만 무겁게 만든 탓에 g=0 에서 2계도함수가 튀고
+            중심차분이 거기서 ≈K·h/2 의 가짜 기울기를 냈다(5e-2 에서 바닥을 침).
+            여기서는 **걸음의 크기**로 멈춘다. 가짜 기울기가 끼어들 자리가 없다.     */
         descend: function (pose, seg, cons, ducts, placed, assign) {
             const K = this.CONF, half = Math.max(seg.len / 2, 1);
             const lim = K.THMAX * Math.PI / 180;
-            let step = K.STEP, last = this.energy(pose, seg, cons, ducts, placed, assign), i = 0;
-            let feas = this.feasible(pose, seg, cons, assign);
+            let last = this.energy(pose, seg, cons, ducts, placed, assign);
+            let lam = K.LAM0, i = 0;
+
             for (; i < K.ITER; i++) {
-                const g = this.grad(pose, seg, cons, ducts, placed, assign);
-                if (Math.sqrt(g.cx * g.cx + g.cy * g.cy + g.th * g.th) < K.TOL) break;
-                /*  각은 init 자세 주위 THMAX 안으로 묶는다 (투영 기울기하강).
+                const rows = this.residuals(pose, seg, cons, ducts, placed, assign);
+                if (!rows.length) break;
+
+                //  AᵀA 와 Aᵀr
+                const H = [[0, 0, 0], [0, 0, 0], [0, 0, 0]], g = [0, 0, 0];
+                rows.forEach(rw => {
+                    for (let a = 0; a < 3; a++) {
+                        g[a] += rw.j[a] * rw.r;
+                        for (let b = 0; b < 3; b++) H[a][b] += rw.j[a] * rw.j[b];
+                    }
+                });
+
+                //  λ 는 대각을 키운다 (Marquardt). 대각이 0 인 방향은 단위로 받친다.
+                const A = [H[0].slice(), H[1].slice(), H[2].slice()];
+                for (let a = 0; a < 3; a++) A[a][a] += lam * (H[a][a] > 1e-12 ? H[a][a] : 1);
+                const d = this.solve3(A, [-g[0], -g[1], -g[2]]);
+                if (!d) { lam *= 8; if (lam > 1e12) break; continue; }
+
+                /*  각은 init 자세 주위 THMAX 안으로 묶는다 (투영).
                     엔진이 할 일은 **면에 맞춰 다듬는 것**이다 — 데크가 -3% 기울어
                     있으니 그만큼은 돌아야 하지만, 통째로 뒤집혀 다른 면에 붙는 것은
                     설계 의도(init)를 버리는 것이다. 자세를 정하는 자리는 init 하나뿐. */
                 const nx = {
-                    cx: pose.cx - step * g.cx,
-                    cy: pose.cy - step * g.cy,
-                    th: Math.max(seg.th0 - lim,
-                        Math.min(seg.th0 + lim, pose.th - step * g.th / half))
+                    cx: pose.cx + d[0], cy: pose.cy + d[1],
+                    th: Math.max(seg.th0 - lim, Math.min(seg.th0 + lim, pose.th + d[2] / half))
                 };
                 const Jn = this.energy(nx, seg, cons, ducts, placed, assign);
-                const fn = this.feasible(nx, seg, cons, assign);
-                if (Jn <= last && !(feas && !fn)) {                       // 내려가고 피복을 안 깨면
-                    pose = nx; last = Jn; feas = fn; step *= 1.05;        //  조금 크게
-                } else { step *= 0.5; if (step < 1e-12) break; }          // 넘치면 물러선다
+                //  피복선에 닿아 있는데 밖으로 나가는 걸음이면 받지 않는다 (atRest 참조)
+                const bad = this.atRest(pose, seg, cons, assign) && !this.feasible(nx, seg, cons, assign);
+
+                if (Jn <= last && !bad) {                    // 내려가고 피복을 안 깨면 받는다
+                    const move = Math.sqrt(d[0] * d[0] + d[1] * d[1] + d[2] * d[2]);
+                    pose = nx; last = Jn; lam = Math.max(lam * 0.3, 1e-12);
+                    if (move < K.TOL) { i++; break; }        // 걸음이 이만큼 작아지면 끝
+                } else {
+                    lam *= 8; if (lam > 1e12) break;         // 근사를 못 믿겠으면 잔걸음으로
+                }
             }
             return { pose: pose, J: last, iter: i };
         },

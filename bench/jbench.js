@@ -111,6 +111,24 @@ function report(name, tag, sheet, useTruth) {
       seat + verdict);
   });
   console.log('  → ' + (bad ? bad + ' 개 어긋남' : '전부 도면과 일치 · 전부 단면 안'));
+
+  /*  철근끼리 순간격 — 논문 주장 ③ 이 지켜졌는지. 0 이 아니면 두 철근이 겹친다.
+      지금 남아 있는 것은 **엔진이 제 힘으로 못 보는** 겹침이다 : 순간격은 조각이
+      안착한 **강체 토막** 자리에서 재는데, 그려지는 것은 코너로 이어 늘린
+      폴리라인이라 끝 조각은 위치가 다르다. ⑥-1·⑥-2 의 아래 다리가 그렇다.    */
+  let worst = 0, who = null;
+  for (let i = 0; i < out.length; i++) for (let k = i + 1; k < out.length; k++) {
+    const need = (out[i].dia + out[k].dia) / 2;
+    for (let a = 0; a + 1 < out[i].pts.length; a++) for (let c = 0; c + 1 < out[k].pts.length; c++) {
+      const d = JField.segToSeg([out[i].pts[a], out[i].pts[a + 1]], out[k].pts[c], out[k].pts[c + 1]);
+      if (d - need < worst) { worst = d - need; who = out[i].id + '↔' + out[k].id; }
+    }
+  }
+  console.log('  철근끼리 최악 순간격 : ' + (worst < -0.5 ? worst.toFixed(1) + ' mm  (' + who + ')' : '여유'));
+
+  let it = 0, ns = 0;
+  out.forEach(b => b.segs.forEach(s => { it += s.iter; ns++; }));
+  console.log('  반복 : 조각 ' + ns + '개 · 합계 ' + it + ' · 평균 ' + (it / ns).toFixed(1));
   return bad;
 }
 

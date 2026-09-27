@@ -500,6 +500,75 @@
         this.rebarRespawn();
       },
 
+      /*  철근 하나만 다시 푼다 — 입력 행을 다시 읽어 그 자리에서 스폰하고,
+          나머지 철근은 **놓인 그대로** 척력으로 본다.
+          입력을 고친 뒤 그 철근만 확인할 때 쓴다.                                */
+      _resolveOneWithJField: function (id) {
+        if (typeof JField === 'undefined') return;
+        var sec = Domain.currentSection;
+        if (!sec || !sec.walls || !sec.walls.length) return;
+        var rd = null;
+        (this._rebarData || []).forEach(function (d) { if (String(d.id) === String(id)) rd = d; });
+        if (!rd || String(rd.type || 'trebar').toLowerCase() !== 'trebar') {
+          this._toast('J 엔진은 trebar 만 다시 풉니다: ' + id, 'err'); return;
+        }
+
+        var nb;
+        try { nb = Domain._createTrebarFromData(rd); }
+        catch (e) { console.error('[PSCBOX] respawn:', id, e); return; }
+        if (!nb) { this._toast('철근을 다시 만들지 못했습니다: ' + id, 'err'); return; }
+
+        //  나머지 철근을 척력으로 넘긴다 (이 철근은 뺀다)
+        var placed = [];
+        Domain.trebarList.forEach(function (t) {
+          if (String(t.id) === String(id)) return;
+          (t.segments || []).forEach(function (s) {
+            placed.push({ p1: { x: s.p1.x, y: s.p1.y }, p2: { x: s.p2.x, y: s.p2.y }, dia: t.dia || 13 });
+          });
+        });
+
+        var bar = { id: String(nb.id), dia: nb.dia || 13,
+          segs: (nb.segments || []).map(function (s) {
+            return { label: s.label, p1: { x: s.p1.x, y: s.p1.y }, p2: { x: s.p2.x, y: s.p2.y },
+                     normal: { x: s.normal.x, y: s.normal.y } };
+          }) };
+
+        var r;
+        try { r = JField.form(bar, sec.walls, sec, this._ducts || [], placed); }
+        catch (e) { console.error('[PSCBOX] J-field form:', e); return; }
+
+        this._writeBack(nb, r, sec);
+        for (var i = 0; i < Domain.trebarList.length; i++)
+          if (String(Domain.trebarList[i].id) === String(id)) { Domain.trebarList[i] = nb; break; }
+        this._finalizeArcs();
+        this._toast('다시 풀었습니다: ' + id + ' — 길이 ' + Math.round(r.len) + ' mm', 'ok');
+      },
+
+      //  J 결과를 trebar 객체에 써 넣는다 (표·DXF·굴짐 아크가 읽는 자리 그대로)
+      _writeBack: function (t, r, sec) {
+        var NP = (typeof CONFIG !== 'undefined' && CONFIG.PHYSICS && CONFIG.PHYSICS.NODE_POS) || [0.4, 0.6];
+        var wallById = {};
+        (sec.walls || []).forEach(function (w) { wallById[w.id] = w; });
+        r.segs.forEach(function (rs, i) {
+          var seg = t.segments[i];
+          if (!seg) return;
+          var a = r.pts[i], b = r.pts[i + 1];
+          seg.p1 = { x: a.x, y: a.y };
+          seg.p2 = { x: b.x, y: b.y };
+          var dx = b.x - a.x, dy = b.y - a.y, L = Math.hypot(dx, dy) || 1;
+          seg.uDir = { x: dx / L, y: dy / L };
+          seg.nodes = NP.map(function (k) { return { x: a.x + dx * k, y: a.y + dy * k, vx: 0, vy: 0 }; });
+          seg.fitWall = wallById[(rs.rest && rs.rest[0]) || ''] || null;
+          seg.contactWall = seg.fitWall;
+          seg.state = rs.stopped === 'no-target' ? 'FITTING' : 'SETTLED';
+        });
+        t.state = r.segs.every(function (s) { return s.stopped !== 'no-target'; }) ? 'FORMED' : 'ASSEMBLING';
+        console.log('[JFIELD] ' + r.id + ' 길이 ' + Math.round(r.len) + '  세그[' +
+          r.segs.map(function (s) {
+            return s.label + '=' + ((s.rest && s.rest[0]) || '없음') + '(' + Math.round(s.len) + ')';
+          }).join(', ') + ']');
+      },
+
       /*  J 엔진으로 한 번에 푼다.
           스폰된 철근(Domain.trebarList)의 조각을 그대로 넘기고, 돌아온 폴리라인을
           같은 객체에 써 넣는다 — 표·DXF·굴짐 아크는 전부 그대로 쓴다.
@@ -508,9 +577,6 @@
         if (typeof JField === 'undefined' || typeof Domain === 'undefined') return false;
         var sec = Domain.currentSection;
         if (!sec || !sec.walls || !sec.walls.length) return false;
-
-        var wallById = {};
-        sec.walls.forEach(function (w) { wallById[w.id] = w; });
 
         var bars = Domain.trebarList.map(function (t) {
           return {
@@ -527,32 +593,11 @@
         try { out = JField.solve(bars, sec.walls, sec, this._ducts || []); }
         catch (e) { console.error('[PSCBOX] J-field solve:', e); return false; }
 
-        var NP = (typeof CONFIG !== 'undefined' && CONFIG.PHYSICS && CONFIG.PHYSICS.NODE_POS) || [0.4, 0.6];
-        var byId = {};
+        var self = this, byId = {};
         Domain.trebarList.forEach(function (t) { byId[String(t.id)] = t; });
-
         out.forEach(function (r) {
           var t = byId[String(r.id)];
-          if (!t || !t.segments) return;
-          r.segs.forEach(function (rs, i) {
-            var seg = t.segments[i];
-            if (!seg) return;
-            var a = r.pts[i], b = r.pts[i + 1];
-            seg.p1 = { x: a.x, y: a.y };
-            seg.p2 = { x: b.x, y: b.y };
-            var dx = b.x - a.x, dy = b.y - a.y, L = Math.hypot(dx, dy) || 1;
-            seg.uDir = { x: dx / L, y: dy / L };
-            seg.nodes = NP.map(function (k) { return { x: a.x + dx * k, y: a.y + dy * k, vx: 0, vy: 0 }; });
-            //  어느 면에 앉았는지 — 표·적층 진단이 읽는 자리에 그대로 넣는다
-            seg.fitWall = wallById[(rs.rest && rs.rest[0]) || ''] || null;
-            seg.contactWall = seg.fitWall;
-            seg.state = rs.stopped === 'no-target' ? 'FITTING' : 'SETTLED';
-          });
-          t.state = r.segs.every(function (s) { return s.stopped !== 'no-target'; }) ? 'FORMED' : 'ASSEMBLING';
-          console.log('[JFIELD] ' + r.id + ' 길이 ' + Math.round(r.len) + '  세그[' +
-            r.segs.map(function (s) {
-              return s.label + '=' + ((s.rest && s.rest[0]) || '없음') + '(' + Math.round(s.len) + ')';
-            }).join(', ') + ']');
+          if (t && t.segments) self._writeBack(t, r, sec);
         });
 
         //  풀린 것은 큐에서 뺀다 — 예전 엔진이 다시 건드리지 않게
@@ -633,9 +678,13 @@
       // 개별 철근 재스폰 : 해당 id 만 초기 상태로 되돌려 안착 과정을 다시 관찰
       respawnOne: function (id) {
         if (typeof Domain === 'undefined' || typeof UI === 'undefined') return;
-        /*  J 엔진에서는 하나만 다시 놓는 것이 의미가 없다 — 나중 철근은 앞 철근을
-            척력으로 보고 자리를 잡으므로, 순서째로 다시 푸는 것이 맞다.           */
-        if (this._engine === 'jfield') { this.rebarRespawn(); return; }
+        /*  J 엔진에서는 **그 철근 하나만 다시 푼다.** 나머지는 놓인 자리에 그대로 두고
+            척력으로만 본다 — 「다른 것은 고정하고 하나를 다시 최소화한다」는 것이
+            J 로는 뜻이 분명한 연산이다.
+            전체를 다시 푸는 것(rebarRespawn)으로 두면 화면이 하나도 안 변한다.
+            J 는 결정적이라 같은 입력이면 같은 답이 나오기 때문이다 — 「눌러도
+            아무 일도 안 일어난다」로 보이던 것이 그것이었다.                      */
+        if (this._engine === 'jfield') { this._resolveOneWithJField(id); return; }
         var rd = null, i;
         for (i = 0; i < (this._rebarData || []).length; i++) {
           if (String(this._rebarData[i].id) === String(id)) { rd = this._rebarData[i]; break; }
