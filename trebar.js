@@ -244,6 +244,20 @@ class Shape11 extends TrebarBase {
     }
 }
 
+// 11a : 11 의 거울상. 11 은 세로 다리 a 가 **왼쪽**에 서고 b 가 오른쪽으로 가는데,
+//     이것은 a 가 **오른쪽**에 서고 b 가 왼쪽으로 간다.
+//     **회전으로는 이 꼴이 안 나온다** — 11 을 돌리면 (↓→)(→↑)(↑←)(←↓) 네 짝만
+//     나오고 (↓←) 는 그 안에 없다. 거울상은 회전이 아니다. 23 · 23a 와 같은 이유다.
+//     법선은 23a 와 같은 근거로 **바깥쪽**이어야 한다 : 세로축 대칭이므로 a 의 법선은
+//     왼쪽 → 오른쪽으로 뒤집히고, b 의 법선(아래)은 그대로다.
+class Shape11M extends TrebarBase {
+    generate() {
+        let A = this.dims.A || 400;
+        let B = this.dims.B || 400;
+        return this.buildSequential([A, B], -90, [-90], [1, 1], (pts) => pts[1]);
+    }
+}
+
 // 14: 사이각 45° 예각 V형 (좌우 대칭, 위로 벌어짐) — 각 다리가 수평과 67.5°
 //     A 가 -67.5° 로 내려와 꺾임점에서 +135° 턴 → +67.5° 로 상승. 수직축 대칭.
 class Shape14 extends TrebarBase {
@@ -391,12 +405,18 @@ class TrebarFactory {
         return Object.keys(parsed).length > 0 ? parsed : null;
     }
 
-    //  「23-1」 처럼 가지번호가 붙은 코드를 숫자 하나로 바꾼다 : '23-1' → 23.1
-    //  엑셀에는 도면 그대로 23-1 로 적고, 엔진 안에서는 숫자로 다룬다.
+    /*  「23a」 처럼 가지가 붙은 코드를 숫자 하나로 바꾼다 : '23a' → 23.1, '11a' → 11.1
+        엑셀에는 도면 그대로 적고, 엔진 안에서는 숫자로 다룬다. a→.1, b→.2 …
+        옛 표기 '23-1' 도 그대로 읽는다 — 이미 적어 둔 시트가 **조용히 죽지 않게**
+        해야 한다. 못 읽는 코드는 형상이 null 이 되어 철근 한 개가 그냥 사라진다
+        (예전에 '23-1' 이 표에서 22 로 계산돼 실제로 한 개가 사라졌다).           */
     static normCode(v) {
         const s = String(v == null ? '' : v).trim();
-        const m = s.match(/^(\d+)\s*-\s*(\d+)$/);
-        return m ? Number(m[1]) + Number(m[2]) / 10 : Number(s);
+        const m = s.match(/^(\d+)\s*([a-zA-Z])$/);
+        if (m) return Number(m[1]) + (m[2].toLowerCase().charCodeAt(0) - 96) / 10;
+        const old = s.match(/^(\d+)\s*-\s*(\d+)$/);          // 옛 표기
+        if (old) return Number(old[1]) + Number(old[2]) / 10;
+        return Number(s);
     }
 
     static create(code, center, dims, rotation = 0, angs = null, nors = null, barEnds = null) {
@@ -405,6 +425,7 @@ class TrebarFactory {
 
         if (code === 1) r = new Shape01(center, dims, rotation, angs, nors, barEnds);
         else if (code === 11) r = new Shape11(center, dims, rotation, angs, nors, barEnds);
+        else if (code === 11.1) r = new Shape11M(center, dims, rotation, angs, nors, barEnds);
         else if (code === 14) r = new Shape14(center, dims, rotation, angs, nors, barEnds);
         else if (code === 15) r = new Shape15(center, dims, rotation, angs, nors, barEnds);
         else if (code === 21) r = new Shape21(center, dims, rotation, angs, nors, barEnds);

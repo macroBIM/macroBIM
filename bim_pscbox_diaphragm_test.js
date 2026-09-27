@@ -312,9 +312,9 @@
             for (var i = 0; i < ncol; i++) {
               /*  평가에서 빼는 칸 —
                     0 type · 1 id  는 이름이다.
-                    2 는 trebar 의 **형상 code** 다. `23-1` 처럼 가지번호가 붙는데,
+                    2 는 trebar 의 **형상 code** 다. `23a` 처럼 가지가 붙는데,
                       수식으로 보면 23 − 1 = **22** 가 되어 버린다. 실제로 그렇게
-                      찍혔다 — 코드는 23-1 로 잘 들어가 있는데 표만 22 로 보였다.
+                      찍혔다 — 코드는 23a(옛 표기 23-1)로 잘 들어가 있는데 표만 22 로 보였다.
                       code 는 식이 아니라 이름이므로 계산하지 않는다.                */
               var isTre = String(r[0] == null ? '' : r[0]).trim().toLowerCase() === 'trebar';
               if (i < 2 || (i === 2 && isTre)) { h += '<td>' + esc(r[i]) + '</td>'; continue; }
@@ -397,7 +397,7 @@
       _parseTrebarRow: function (row) {
         var o = { type: 'trebar', id: this._rbStr(row[1]) };
         this._rbCurId = o.id;
-        if (this._rbHas(row[2])) o.code = TrebarFactory.normCode(row[2]);   // '23-1' → 23.1
+        if (this._rbHas(row[2])) o.code = TrebarFactory.normCode(row[2]);   // '23a' → 23.1
         if (this._rbHas(row[3])) o.dia = this._rbNum(row[3]);
         var init = this._rbInit(row[4], ['x', 'y', 'rot']); if (init) o.init = init;
         var segs = this._rbSegs(row[6], row[5]); if (segs) o.segs = segs;
@@ -597,14 +597,15 @@
         var codeById = {};
         (this._rebarData || []).forEach(function (rd) { if (rd && rd.id != null && rd.code != null) codeById[String(rd.id)] = rd.code; });
         function fmt(n) { return (n == null || !isFinite(n)) ? '' : String(Math.round(n)); }
-        /*  형상 code 는 엔진 안에서 숫자 하나다 ('23-1' → 23.1).
+        /*  형상 code 는 엔진 안에서 숫자 하나다 ('23a' → 23.1 · '11a' → 11.1).
             표에는 **도면대로 되돌려** 적는다 — fmt 는 반올림이라 23.1 을 23 으로
-            찍어서, 23 과 23-1 이 표에서 구별되지 않았다.                        */
+            찍어서, 23 과 23a 가 표에서 구별되지 않았다. 소수 첫째자리가 가지다 :
+            .1 → a, .2 → b …                                                    */
         function codeText(c) {
           var n = Number(c);
           if (!isFinite(n)) return String(c == null ? '' : c);
           var b = Math.floor(n + 1e-9), f = Math.round((n - b) * 10);
-          return f ? (b + '-' + f) : String(b);
+          return f ? (b + String.fromCharCode(96 + f)) : String(b);
         }
         function codeCell(id) {
           var c = codeById[String(id)];
@@ -1456,8 +1457,9 @@
       _buildShapeInfo: function () {
         if (typeof TrebarFactory === 'undefined') return '<p style="color:#94a3b8;">Rebar engine not loaded yet.</p>';
         var CODES = [
-          { c: 1,  lbl: 'Code 1'  }, { c: 11, lbl: 'Code 11' }, { c: 14, lbl: 'Code 14' },
-          { c: 15, lbl: 'Code 15' }, { c: 21, lbl: 'Code 21' }, { c: 23, lbl: 'Code 23' }, { c: 23.1, lbl: 'Code 23-1' },
+          { c: 1,  lbl: 'Code 1'  }, { c: 11, lbl: 'Code 11' }, { c: 11.1, lbl: 'Code 11a' },
+          { c: 14, lbl: 'Code 14' }, { c: 15, lbl: 'Code 15' }, { c: 21, lbl: 'Code 21' },
+          { c: 23, lbl: 'Code 23' }, { c: 23.1, lbl: 'Code 23a' },
           { c: 41, lbl: 'Code 41' }
         ];
         var h = '<div class="shape-grid">';
@@ -1486,7 +1488,7 @@
             var ux = s.p2.x - s.p1.x, uy = -(s.p2.y - s.p1.y), L = Math.hypot(ux, uy) || 1;
             // nor +1(기본) 방향 화살표 (주황) — -1 입력 시 반대방향
             var nx = s.normal.x, ny = -s.normal.y;   // 엔진 y-up → svg y-down
-            /*  크랭크(23 · 23-1)는 **글자를 법선 쪽에, 화살표를 그 너머에** 둔다.
+            /*  크랭크(23 · 23a)는 **글자를 법선 쪽에, 화살표를 그 너머에** 둔다.
                 기본 배치는 글자를 화살표 반대쪽에 두는데, 크랭크는 그 반대쪽이
                 바로 몸통과 코너가 있는 자리라 글자가 형상에 겹쳤다.
                 이렇게 두면 a 는 제 세그먼트의 왼쪽, c 는 오른쪽에 놓인다.        */
@@ -1498,7 +1500,7 @@
             svg += '<line x1="' + ax1 + '" y1="' + ay1 + '" x2="' + (ax1 - nx * px(6) - ny * px(3.5)) + '" y2="' + (ay1 - ny * px(6) + nx * px(3.5)) + '" stroke="#f59e0b" stroke-width="' + px(2) + '" stroke-linecap="round"/>';
             svg += '<line x1="' + ax1 + '" y1="' + ay1 + '" x2="' + (ax1 - nx * px(6) + ny * px(3.5)) + '" y2="' + (ay1 - ny * px(6) - nx * px(3.5)) + '" stroke="#f59e0b" stroke-width="' + px(2) + '" stroke-linecap="round"/>';
             svg += '<text x="' + (ax1 + nx * px(dT)) + '" y="' + (ay1 + ny * px(dT)) + '" font-size="' + px(9) + '" fill="#d97706" text-anchor="middle" dominant-baseline="middle" font-weight="700">+1</text>';
-            // 조각 라벨(기호만) — 기본: 화살표 반대쪽. 23·23-1: 법선 쪽(화살표 앞) / 14: 다리 상단 끝쪽 / 41: a·e 위, b 위쪽, d 아래쪽
+            // 조각 라벨(기호만) — 기본: 화살표 반대쪽. 23·23a: 법선 쪽(화살표 앞) / 14: 다리 상단 끝쪽 / 41: a·e 위, b 위쪽, d 아래쪽
             var lx = outLbl ? (mx + nx * px(9)) : (mx - nx * px(13));
             var ly = outLbl ? (my + ny * px(9)) : (my - ny * px(13));
             if (cd.c === 14) {

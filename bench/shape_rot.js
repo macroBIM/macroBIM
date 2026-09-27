@@ -20,11 +20,14 @@ const dirName = (dx, dy) => {
                                      : (dy > 0 ? '위' : '아래');
 };
 
-const CODES = [1, 11, 14, 15, 21, 23, 23.1];
+const CODES = [1, 11, 11.1, 14, 15, 21, 23, 23.1];
 
 CODES.forEach(code => {
   console.log('');
-  console.log('코드 ' + (code === 23.1 ? '23-1' : code) + '  (rot 은 반시계가 +)');
+  //  23.1 → '23a' 처럼 가지는 글자로 적는다 (엔진 안에서만 숫자다)
+  const name = (c => { const b = Math.floor(c), f = Math.round((c - b) * 10);
+                       return f ? b + String.fromCharCode(96 + f) : String(b); })(code);
+  console.log('코드 ' + name + '  (rot 은 반시계가 +)');
   console.log('   rot    첫조각 위치    끝조각 방향');
   [0, 90, 180, -90].forEach(rot => {
     let t = null;
