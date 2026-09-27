@@ -285,6 +285,22 @@ git status --short     # 비어 있어야 한다
 
 ### 2026-09-27
 
+- **`lrebar` 입력 칸 차례를 바꾼다 — init · range · nors 를 붙이고 path 는 맨 뒤로** ·
+  **테스트** · 세 페이지 모두
+  ```
+    전 : lrebar | id | dia | num | init | nors  | range | path | ctc | ctcmax | ctcmin |   | z
+    후 : lrebar | id | dia | num | init | range | nors  | ctc  | ctcmax | ctcmin |  | path | z
+                                    4       5       6      7      8        9     10   11    12
+  ```
+  · **배치 직선을 정하는 셋**(`init` 기준점·기울기 → `range` 한계 → `nors` 끌려갈 쪽)을
+    붙여 앞에 두고, **간격 셋**(`ctc`·`ctcmax`·`ctcmin`)을 그다음에, **쓰는 일이 드문
+    `path` 는 맨 뒤**에 둔다. 읽는 차례가 곧 배치의 차례가 된다.
+  · `bim_pscbox_test.js` · `bim_pscbox_diaphragm_test.js` · `seoul_phd_app.js` 셋 다
+    같은 표를 쓰므로 **세 곳을 같이** 고쳤다. `bench/jlpage.js` 의 시험 행도 맞췄다.
+  · **이미 적어 둔 시트가 있으면 칸을 옮겨야 한다** — 옛 차례로 읽으면 `nors` 자리에
+    `range` 가 들어와 조용히 엉뚱하게 선다. 옛 표기를 같이 읽어 주는 장치는 없다
+    (코드와 달리 칸 차례는 값만 봐서는 구별할 수 없다).
+
 - **단면 가운데에서 좌우가 대칭이 아니던 것 — `K_A` 가 너무 물렀다** · **테스트** ·
   `jlong.js`
   · **태어날 때는 대칭이다**(50개 짝수 → −125 / +125). 틀어지는 것은 **횡방향 철근이

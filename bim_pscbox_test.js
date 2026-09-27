@@ -186,7 +186,7 @@
         // 표제목 = trebar / lrebar 입력체계 + duct(매입물)
         var SCHEMA = [
           ['trebar', 'id', 'code', 'dia', 'init (x, y, rot)', 'set', 'segs (len)', 'angs', 'nors', 'barStart', 'barEnd', 'radius', 'z'],
-          ['lrebar', 'id', 'dia', 'num', 'init', 'nors', 'range', 'path', 'ctc', 'ctcmax', 'ctcmin', '', 'z'],
+          ['lrebar', 'id', 'dia', 'num', 'init (x, y, rot)', 'range (-, +)', 'nors', 'ctc', 'ctcmax', 'ctcmin', '', 'path', 'z'],
           //  매입물 — 철근이 아니라 콘크리트에 뚫린 구멍이다. 문법은 bim_duct.js 에 있다.
           //  ref : deck(상면에서 아래 · 기본) · soffit(밑면에서 위로) · abs(절대 y)
           DuctBlock.SCHEMA_ROW
@@ -331,14 +331,17 @@
         this._rbCurId = o.id;
         if (this._rbHas(row[2])) o.bar.dia = this._rbNum(row[2]);
         if (this._rbHas(row[3])) o.bar.num = this._rbNum(row[3]);
-        if (this._rbHas(row[8])) o.bar.ctc = this._rbNum(row[8]);
-        if (this._rbHas(row[9])) o.bar.max = this._rbNum(row[9]);
-        if (this._rbHas(row[10])) o.bar.min = this._rbNum(row[10]);
+        /*  칸 차례 :  4 init(x,y,rot) · 5 range(−,+) · 6 nors · 7 ctc · 8 ctcmax ·
+            9 ctcmin · 11 path · 12 z.  배치 직선을 정하는 것(init·range·nors)을 붙여
+            앞에 두고, 간격 셋을 그다음에, **쓰는 일이 드문 path 는 맨 뒤**에 둔다.    */
+        if (this._rbHas(row[7])) o.bar.ctc = this._rbNum(row[7]);
+        if (this._rbHas(row[8])) o.bar.max = this._rbNum(row[8]);
+        if (this._rbHas(row[9])) o.bar.min = this._rbNum(row[9]);
         var init = this._rbInit(row[4], ['x', 'y', 'rot']); if (init) o.init = init;   // init 은 x,y,rot 만 (grav 분리)
-        // nors(row[5]) = 종방향 철근 중력방향(-1/+1). init 에 섞지 않고 별도 칸에서 읽어 엔진이 쓰는 init.grav 로 전달
-        if (this._rbHas(row[5])) { if (!o.init) o.init = {}; o.init.grav = Number(row[5]); }
-        var range = this._rbRange(row[6]); if (range) o.range = range;
-        var path = this._rbList(row[7]).map(function (s) { return s.toUpperCase(); });
+        var range = this._rbRange(row[5]); if (range) o.range = range;
+        // nors(row[6]) = 종방향 철근이 끌려갈 쪽(-1/+1). init 에 섞지 않고 별도 칸에서 읽어 엔진이 쓰는 init.grav 로 전달
+        if (this._rbHas(row[6])) { if (!o.init) o.init = {}; o.init.grav = Number(row[6]); }
+        var path = this._rbList(row[11]).map(function (s) { return s.toUpperCase(); });
         if (path.length) o.path = path;
         o.z = this._rbHas(row[12]) ? Number(row[12]) : 0;       // z-order(층) — 미입력=0
         return o;

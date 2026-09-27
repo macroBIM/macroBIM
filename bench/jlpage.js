@@ -16,9 +16,9 @@ const { prepare } = require('./jengine');
 const ROOT = path.join(__dirname, '..');
 
 //  시트에 넣을 lrebar 한 줄 (화면 입력표의 칸 차례 그대로)
-//   0        1     2     3        4        5        6          7      8      9        10
-//  lrebar | id | dia | num | init(x,y,rot)| nors | range | path | ctc | ctcmax | ctcmin
-const ROW = ['lrebar', 'D1', 13, 50, '0,100,0', 1, '-6200,6200', '', 250, 300, 100, '', 0, ''];
+//   0        1     2     3        4            5         6      7      8       9      10   11    12
+//  lrebar | id | dia | num | init(x,y,rot)| range(−,+)| nors | ctc | ctcmax | ctcmin | — | path | z
+const ROW = ['lrebar', 'D1', 13, 50, '0,100,0', '-6200,6200', 1, 250, 300, 100, '', '', 0, ''];
 
 const sheet = JSON.parse(JSON.stringify(require('./fixture/s14.json')));
 const at = sheet.findIndex(r => String(r[0] || '').trim().toLowerCase() === 'end');
