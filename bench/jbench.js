@@ -154,11 +154,14 @@ function report(name, tag, sheet, useTruth) {
   D.walls.forEach(w => { W[w.id] = w; });
   let cv = 0, cvWho = null;
   out.forEach(b => b.segs.forEach((sg, i) => {
-    const id = sg.rest && sg.rest[0];
-    const w = id && W[id];
-    if (!w) return;
-    const need = (D.covers[String(w.tag).toLowerCase()] || 50) + b.dia / 2;
-    [b.pts[i], b.pts[i + 1]].forEach(p => {
+    /*  끝점마다 **제 벽**으로 잰다. rest 는 두 끝점의 배정이지 조각 하나의 벽이
+        아니다 — 하나로 뭉뚱그리면, 헌치를 걸친 철근을 평평한 쪽 벽의 **연장선**에
+        대고 재게 되어 있지도 않은 피복부족이 255 mm 씩 찍힌다.               */
+    [b.pts[i], b.pts[i + 1]].forEach((p, k) => {
+      const id = sg.rest && sg.rest[k];
+      const w = id && W[id];
+      if (!w) return;
+      const need = (D.covers[String(w.tag).toLowerCase()] || 50) + b.dia / 2;
       const g = (p.x - w.x1) * w.nx + (p.y - w.y1) * w.ny - need;
       if (g < cv) { cv = g; cvWho = b.id + '[' + sg.label + '] → ' + id; }
     });
