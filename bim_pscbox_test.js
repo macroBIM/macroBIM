@@ -552,6 +552,8 @@
         if (!r) return null;
 
         var ducts = this._ducts || [];
+        //  태어난 자리 판정 — `bar` 는 방금 입력에서 다시 만든 것이라 **스폰 상태**다
+        var diag = this._seatDiag(bar, sec);
         var out = { id: String(id), dia: dia, pts: r.pts, pass: r.pass, placed: placed, ducts: ducts, segs: [] };
         r.segs.forEach(function (rs, i) {
           var p = r.pts[i], q = r.pts[i + 1];
@@ -568,7 +570,7 @@
             init: { p1: ip.p1, p2: ip.p2, mid: { x: (ip.p1.x + ip.p2.x) / 2, y: (ip.p1.y + ip.p2.y) / 2 } },
             parts: cons.length ? JField.energyParts(pose, seg, cons, ducts, placed, assign) : null,
             contacts: rs.contacts || [], rest: rs.rest || [], len: rs.len, len0: rs.len0,
-            iter: rs.iter, stopped: rs.stopped || null,
+            iter: rs.iter, stopped: rs.stopped || null, diag: diag[i] || null,
             trace: trace.filter(function (t) { return t.seg === rs.label; })
           });
         });
@@ -656,6 +658,47 @@
           this._jFieldSvg(sd, d.ducts, d.placed) + '</div>' +
           '<div><div class="jcap">② 수렴 이력 — 세로는 log, 판이 바뀌는 자리는 세로 점선</div>' +
           this._jTraceSvg(sd.trace) + '</div></div>';
+
+        /*  ── 태어난 자리 ────────────────────────────────────────────────────
+            **입력을 고치는 자리**다. 결과 J 는 「어디에 앉았나」를 말하지만, 왜 그
+            면을 골랐는지는 태어난 자리에서 무엇이 보였는지에 달려 있다. 버린 면까지
+            거리와 이유를 같이 적는다 — 「띠 모자람」이 0 이 아니면 그 조각은 제 면
+            **위에 없다**(⑧-1 의 400 mm 다리가 50 mm 모자랐다).                  */
+        var dg = sd.diag;
+        if (dg) {
+          h += '<div class="jcap">③ 태어난 자리 — 입력이 놓은 자리와, 그 자리에서 마주보던 면들</div>';
+          h += '<table class="jt"><thead><tr><th>태어난 자리</th><th>p1</th><th>p2</th>' +
+               '<th>길이</th><th>법선</th><th>가장 가까운 후보</th></tr></thead><tbody><tr>' +
+               '<td>조각 ' + this._esc(dg.label) + '</td>' +
+               '<td>' + Math.round(dg.p1.x) + ', ' + Math.round(dg.p1.y) + '</td>' +
+               '<td>' + Math.round(dg.p2.x) + ', ' + Math.round(dg.p2.y) + '</td>' +
+               '<td>' + Math.round(dg.len) + '</td>' +
+               '<td>' + f2(dg.n.x) + ', ' + f2(dg.n.y) + '</td>' +
+               '<td>' + (dg.reach == null ? '<span style="color:#b45309;">없음</span>' : Math.round(dg.reach) + ' mm') + '</td>' +
+               '</tr></tbody></table>';
+          if (dg.none) {
+            h += '<div class="jnote" style="color:#b45309;">이 조각의 법선 방향에 <b>마주보는 콘크리트 면이 없습니다.</b> ' +
+                 '법선(nors)이나 태어난 자리를 보세요 — 엔진은 자리를 지어내지 않고 태어난 자리에 그대로 둡니다.</div>';
+          } else if (dg.off > 0) {
+            h += '<div class="jnote" style="color:#b45309;">이 조각은 <b>제 면 위에 없습니다</b> — 띠가 ' +
+                 Math.round(dg.off) + ' mm 모자랍니다. 조각의 축 범위가 그 면의 길이에 닿지 않습니다. ' +
+                 '입력 길이(segs)를 늘리거나 태어난 자리를 옮기세요.</div>';
+          }
+          h += '<table class="jt"><thead><tr><th>태어난 자리에서 마주보던 면</th><th>tag</th>' +
+               '<th>참거리 (mm)</th><th>조각이 면 위에</th><th>띠 모자람 (mm)</th><th>후보로 씀</th></tr></thead><tbody>';
+          if (!dg.seats.length) {
+            h += '<tr><td colspan="6" style="text-align:center;color:#b45309;">마주보는 면이 하나도 없습니다</td></tr>';
+          } else {
+            dg.seats.forEach(function (c) {
+              h += '<tr' + (c.used ? '' : ' style="opacity:.55;"') + '>' +
+                   '<td>' + self._esc(c.id) + '</td><td>' + self._esc(c.tag || '') + '</td>' +
+                   '<td>' + Math.round(c.d) + '</td><td>' + (c.band ? '●' : '') + '</td>' +
+                   '<td>' + (c.gap > 0 ? Math.round(c.gap) : '') + '</td>' +
+                   '<td>' + (c.used ? '●' : '<span style="color:#94a3b8;">버림</span>') + '</td></tr>';
+            });
+          }
+          h += '</tbody></table>';
+        }
 
         //  후보 면 표 — 「고른 것」이 아니라 「결과로 읽은 것」
         h += '<table class="jt"><thead><tr><th>후보 면</th><th>tag</th><th>요구 피복+D/2</th>' +
@@ -843,6 +886,10 @@
                      normal: { x: s.normal.x, y: s.normal.y } };
           }) };
 
+        //  태어난 자리 진단도 이 철근만 다시 잡는다 (표의 ⚠ 와 J 창이 읽는다)
+        this._diag = this._diag || {};
+        this._diag[String(bar.id)] = this._seatDiag(bar, sec);
+
         var r;
         try { r = JField.form(bar, sec.walls, sec, this._ducts || [], placed); }
         catch (e) { console.error('[PSCBOX] J-field form:', e); return; }
@@ -879,6 +926,57 @@
           }).join(', ') + ']');
       },
 
+      /*  ── 태어난 자리를 **읽을 수 있게** 만든다 ─────────────────────────────
+          J 는 한 번에 풀어 버린다. 그래서 화면에는 **결과만** 남고, 그 결과가
+          「입력이 이상해서 그렇게 된 것」인지 「엔진이 이상해서 그렇게 된 것」인지가
+          구별되지 않는다. 실제로 ⑧-1 의 다리가 캔틸레버 선단에 붙은 일이 있었는데,
+          원인은 **기본값 400 mm 다리가 복부 밑에서 끝나서 제 면(하부슬래브 상면) 위로
+          나오지 못한 것**이었다 — 띠가 50 mm 모자랐다. 그것을 보려면 태어난 자리에서
+          **무엇이 보였는지**를 봐야 한다. 그래서 여기서 그 판정을 그대로 꺼낸다.
+
+          `JField.seats()` 는 버린 면까지 다 돌려준다. 조각마다 :
+            seats  { id, tag, d(참거리), band(조각이 그 면 위에 있나), gap(띠가 모자란
+                     거리), used(후보로 살아남았나), need }
+            none   후보가 하나도 없다 — 이 조각은 안착하지 못한다
+            off    **살아남은 후보가 전부 조각의 축 범위를 벗어나 있다** (mm).
+                   0 이 아니면 「이 조각은 제 면 위에 없다」 — 입력 길이나 자리를
+                   고쳐야 하는 자리다. 이것이 ⑧-1 을 잡아내는 값이다.
+            reach  가장 가까운 후보까지의 참거리 (mm). **크다고 잘못된 것이 아니다** —
+                   ㄷ자 스터럽의 다리는 길이를 안 주면 3.2 m 를 가서 하면에 앉는다.  */
+      _seatDiag: function (bar, sec) {
+        if (typeof JField === 'undefined' || !bar || !sec || !sec.walls) return [];
+        var dia = bar.dia || 13;
+        return (bar.segs || []).map(function (s) {
+          var vx = s.p2.x - s.p1.x, vy = s.p2.y - s.p1.y;
+          var len = Math.hypot(vx, vy) || 1;
+          var mid = { x: (s.p1.x + s.p2.x) / 2, y: (s.p1.y + s.p2.y) / 2 };
+          var seg = { label: s.label, len: len, dia: dia, n0: s.normal,
+                      p1: s.p1, p2: s.p2, mid: mid, c0: mid, th0: Math.atan2(vy, vx) };
+          var st = JField.seats(seg, sec.walls, sec, dia).map(function (c) {
+            return { id: c.w.id, tag: c.w.tag, d: c.d, band: c.band, gap: c.gap,
+                     used: c.used, need: c.need };
+          }).sort(function (a, b) { return a.d - b.d; });
+          var use = st.filter(function (c) { return c.used; });
+          var off = use.length ? Math.min.apply(null, use.map(function (c) { return c.gap; })) : 0;
+          return { label: s.label, p1: s.p1, p2: s.p2, mid: mid, len: len, n: s.normal,
+                   seats: st, none: use.length === 0, off: off,
+                   reach: use.length ? use[0].d : null };
+        });
+      },
+
+      //  표에 띄울 한 줄 경고. 없으면 null — 있을 때만 ⚠ 를 붙인다.
+      _diagWarn: function (id) {
+        var ds = (this._diag || {})[String(id)];
+        if (!ds || !ds.length) return null;
+        var msg = [];
+        ds.forEach(function (d) {
+          if (d.none) msg.push('조각 ' + d.label + ' : 마주보는 면이 없다 — 법선 방향에 콘크리트 면이 없습니다');
+          else if (d.off > 0) msg.push('조각 ' + d.label + ' : 제 면 위에 없다 — 띠가 ' +
+                                       Math.round(d.off) + ' mm 모자랍니다 (길이나 자리를 고치세요)');
+        });
+        return msg.length ? msg.join('\n') : null;
+      },
+
       /*  J 엔진으로 한 번에 푼다.
           스폰된 철근(Domain.trebarList)의 조각을 그대로 넘기고, 돌아온 폴리라인을
           같은 객체에 써 넣는다 — 표·DXF·굴짐 아크는 전부 그대로 쓴다.
@@ -898,6 +996,11 @@
             })
           };
         });
+
+        /*  **태어난 자리를 먼저 진단해 둔다.** 푸는 것과 무관하다 — 결과가 왜
+            그렇게 나왔는지 표에서 바로 읽으려고 남긴다 (_seatDiag 참조).         */
+        var selfD = this; this._diag = {};
+        bars.forEach(function (b) { selfD._diag[String(b.id)] = selfD._seatDiag(b, sec); });
 
         var out;
         try { out = JField.solve(bars, sec.walls, sec, this._ducts || []); }
@@ -927,11 +1030,24 @@
         Domain.queue = Domain.queue.filter(function (q) { return q.kind !== 'trebar'; });
         Domain.activeQueueIndex = 0;
 
+        /*  경고는 **한 번에 한 줄**로 낸다 — 토스트가 하나라서 두 번 부르면 앞의 것이
+            지워진다. 태어난 자리가 제 면 위에 없는 조각을 같이 알린다 : 그것이
+            「입력을 고쳐야 하는 자리」다 (⑧-1 의 400 mm 다리가 그랬다).           */
+        var warn = [];
         var miss = Domain.trebarList.filter(function (t) { return t.state !== 'FORMED'; });
         if (miss.length) {
-          this._toast('붙을 면을 못 찾은 철근: ' + miss.map(function (t) { return t.id; }).join(', ') +
-                      ' — init 이 콘크리트 안, 붙을 면 쪽에 있는지 보세요', 'err');
+          warn.push('붙을 면을 못 찾은 철근 ' + miss.map(function (t) { return t.id; }).join(', ') +
+                    ' (init 이 콘크리트 안, 붙을 면 쪽에 있는지 보세요)');
         }
+        var offs = [];
+        Object.keys(this._diag).forEach(function (k) {
+          selfD._diag[k].forEach(function (d) {
+            if (d.off > 0) offs.push(k + '[' + d.label + '] ' + Math.round(d.off) + ' mm');
+          });
+        });
+        if (offs.length) warn.push('태어난 자리가 제 면 위에 없는 조각 ' + offs.join(', ') +
+                                   ' (입력 길이나 자리를 고치세요)');
+        if (warn.length) this._toast(warn.join(' · '), 'err');
         return true;
       },
 
@@ -964,9 +1080,17 @@
           for (var i = 0; i < n; i++) s += (vals[i] == null) ? '<td class="phys-na">&mdash;</td>' : '<td>' + fmt(vals[i]) + '</td>';
           return s;
         }
+        /*  태어난 자리가 수상한 철근에는 **⚠ 를 붙인다.** 결과만 보면 「엔진이
+            이상하다」로 보이는 것이 대개 여기서 갈린다 — 조각이 제 면 위에 없거나,
+            법선 방향에 면이 아예 없는 경우다 (_seatDiag · _diagWarn 참조).       */
         function idCell(id, settled) {
           var cls = 'phys-id' + (settled ? '' : ' phys-moving');
-          return '<td class="' + cls + '" title="클릭하면 이 철근의 J 를 봅니다 (지형 · 수렴 · 항별 분해)" onclick="PXBOX.openJ(&quot;' + self._esc(String(id)) + '&quot;)">' + self._esc(String(id)) + '</td>';
+          var wm = self._diagWarn(id);
+          var tip = wm ? ('태어난 자리 경고 —\n' + wm + '\n\n클릭하면 J 창에서 태어난 자리와 후보 면을 봅니다')
+                       : '클릭하면 이 철근의 J 를 봅니다 (지형 · 수렴 · 항별 분해)';
+          return '<td class="' + cls + '" title="' + self._esc(tip) + '" onclick="PXBOX.openJ(&quot;' + self._esc(String(id)) + '&quot;)">' +
+                 self._esc(String(id)) +
+                 (wm ? '<span style="color:#b45309;font-weight:700;margin-left:4px;">&#9888;</span>' : '') + '</td>';
         }
         function rspBtn(id) {
           return '<td><button type="button" class="px-btn phys-rsp" title="Respawn this rebar" onclick="PXBOX.respawnOne(&quot;' + self._esc(String(id)) + '&quot;)">&#8635;</button></td>';

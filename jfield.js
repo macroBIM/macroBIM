@@ -186,7 +186,21 @@
             거리는 **피복면(유한한 토막)까지의 참거리**로 잰다 — 무한직선까지의
             수직거리로 재면 옆으로 한참 비켜난 면이 「0 mm」로 보인다.              */
         targets: function (seg, walls, sec, dia) {
-            const n = seg.n0, cand = [];
+            return this.seats(seg, walls, sec, dia).filter(c => c.used);
+        },
+
+        /*  `targets()` 의 **판정 과정을 남긴 판**. 걸러낸 면까지 다 돌려준다 :
+              { w, need, d, band, gap, used }
+              d     피복면 토막까지의 참거리 (mm)
+              band  조각의 축 범위 안에 그 면이 있나 (조각이 그 면 **위에** 있나)
+              gap   띠가 모자란 거리 (mm). 0 이면 면 위에 있다
+              used  후보로 살아남았나
+            푸는 데는 `targets()` 만 쓴다. 이것은 **보여 주기 위한 것**이다 —
+            입력이 왜 이렇게 풀렸는지는 「무엇을 골랐나」가 아니라 「무엇이 있었고
+            무엇을 왜 버렸나」에 있다. 규칙을 두 군데 적지 않으려고 targets() 가
+            이것을 불러 쓴다 (거리를 재는 방법이 둘이 되면 조용히 어긋난다).       */
+        seats: function (seg, walls, sec, dia) {
+            const n = seg.n0, all = [];
             /*  띠의 축은 **조각의 두 끝점**에서 뽑는다. th0(= init 각)으로 뽑으면 안 된다 —
                 판을 거듭하면 조각을 폴리라인에서 다시 만드는데, 그때 p1·p2 는
                 **폴리라인 차례**로 들어오므로 init 때와 앞뒤가 뒤집힐 수 있다.
@@ -213,14 +227,17 @@
                 const q2 = { x: w.x2 + w.nx * need, y: w.y2 + w.ny * need };
                 const d = Math.min.apply(null, this.pairCands(body, q1, q2).map(c => c.d));
                 const a = pr(w.x1, w.y1), b = pr(w.x2, w.y2);
-                const band = Math.min(L, Math.max(a, b)) - Math.max(0, Math.min(a, b)) > 0;
-                if (!band && d > this.CONF.NEAR) return;
-                cand.push({ w: w, need: need, d: d });
+                const ov = Math.min(L, Math.max(a, b)) - Math.max(0, Math.min(a, b));
+                all.push({ w: w, need: need, d: d, band: ov > 0,
+                           gap: ov > 0 ? 0 : -ov, used: false });
             });
 
-            if (!cand.length) return [];
-            const best = Math.min.apply(null, cand.map(c => c.d));
-            return cand.filter(c => c.d <= best + this.CONF.SEAT);
+            const pool = all.filter(c => c.band || c.d <= this.CONF.NEAR);
+            if (pool.length) {
+                const best = Math.min.apply(null, pool.map(c => c.d));
+                pool.forEach(c => { if (c.d <= best + this.CONF.SEAT) c.used = true; });
+            }
+            return all;
         },
 
         //  점이 벽의 피복선보다 얼마나 안쪽인가. 0 이면 피복선 위, 음수면 넘어섰다.
