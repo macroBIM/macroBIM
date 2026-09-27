@@ -508,16 +508,22 @@
             (1 mm 쯤 살짝 미는 것으로는 못 넘는다. 지름만큼 건너가야 한다.)          */
         escape: function (P, g, ctx, rounds) {
             let moved = true;
-            for (let r = 0; r < (rounds || 2) && moved; r++) {
+            for (let r = 0; r < (rounds || 4) && moved; r++) {
                 moved = false;
                 for (let i = 0; i < P.length; i++) {
-                    //  지금 겹쳐 있는 장애물이 있나 (없으면 건너갈 이유가 없다)
+                    /*  장애물에 **닿아 있거나 가까운** 철근을 본다.
+                        「겹쳐 있을 때만」으로 두었더니, 상대에 **딱 붙어 선**(여유 0.0)
+                        철근이 걸러졌다 — 데크 중앙의 종방향 철근이 횡방향 철근의
+                        **거푸집 쪽**에 13.0 mm 로 딱 붙어 서 있었는데(피복 13 mm 부족),
+                        반대쪽으로 넘기면 J 가 3,380 → 169 인 자리였다.
+                        닿은 것도 후보다 — **어느 쪽인지는 J 가 고른다.**            */
                     let near = null;
                     (ctx.prims || []).forEach(pr => {
                         const e = this.toPrim(P[i], pr);
                         if (!e) return;
                         const gg = e.d - (pr.dia + g.dia) / 2;
-                        if (gg < 0 && (!near || gg < near.g)) near = { e: e, g: gg, need: (pr.dia + g.dia) / 2 };
+                        if (gg < g.dia && (!near || gg < near.g))
+                            near = { e: e, g: gg, need: (pr.dia + g.dia) / 2 };
                     });
                     if (!near) continue;
                     const J0 = this.energy(P, g, ctx);
