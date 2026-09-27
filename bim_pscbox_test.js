@@ -1376,14 +1376,21 @@
             var ux = s.p2.x - s.p1.x, uy = -(s.p2.y - s.p1.y), L = Math.hypot(ux, uy) || 1;
             // nor +1(기본) 방향 화살표 (주황) — -1 입력 시 반대방향
             var nx = s.normal.x, ny = -s.normal.y;   // 엔진 y-up → svg y-down
-            var ax0 = mx + nx * px(5), ay0 = my + ny * px(5);
-            var ax1 = mx + nx * px(22), ay1 = my + ny * px(22);
+            /*  크랭크(23 · 23-1)는 **글자를 법선 쪽에, 화살표를 그 너머에** 둔다.
+                기본 배치는 글자를 화살표 반대쪽에 두는데, 크랭크는 그 반대쪽이
+                바로 몸통과 코너가 있는 자리라 글자가 형상에 겹쳤다.
+                이렇게 두면 a 는 제 세그먼트의 왼쪽, c 는 오른쪽에 놓인다.        */
+            var outLbl = (cd.c === 23 || cd.c === 23.1);
+            var d0 = outLbl ? 18 : 5, d1 = outLbl ? 30 : 22, dT = outLbl ? 8 : 8;
+            var ax0 = mx + nx * px(d0), ay0 = my + ny * px(d0);
+            var ax1 = mx + nx * px(d1), ay1 = my + ny * px(d1);
             svg += '<line x1="' + ax0 + '" y1="' + ay0 + '" x2="' + ax1 + '" y2="' + ay1 + '" stroke="#f59e0b" stroke-width="' + px(2) + '" stroke-linecap="round"/>';
             svg += '<line x1="' + ax1 + '" y1="' + ay1 + '" x2="' + (ax1 - nx * px(6) - ny * px(3.5)) + '" y2="' + (ay1 - ny * px(6) + nx * px(3.5)) + '" stroke="#f59e0b" stroke-width="' + px(2) + '" stroke-linecap="round"/>';
             svg += '<line x1="' + ax1 + '" y1="' + ay1 + '" x2="' + (ax1 - nx * px(6) + ny * px(3.5)) + '" y2="' + (ay1 - ny * px(6) - nx * px(3.5)) + '" stroke="#f59e0b" stroke-width="' + px(2) + '" stroke-linecap="round"/>';
-            svg += '<text x="' + (ax1 + nx * px(8)) + '" y="' + (ay1 + ny * px(8)) + '" font-size="' + px(9) + '" fill="#d97706" text-anchor="middle" dominant-baseline="middle" font-weight="700">+1</text>';
-            // 조각 라벨(기호만) — 기본: 화살표 반대쪽. 14: 다리 상단 끝쪽 / 41: a·e 위, b 위쪽, d 아래쪽
-            var lx = mx - nx * px(13), ly = my - ny * px(13);
+            svg += '<text x="' + (ax1 + nx * px(dT)) + '" y="' + (ay1 + ny * px(dT)) + '" font-size="' + px(9) + '" fill="#d97706" text-anchor="middle" dominant-baseline="middle" font-weight="700">+1</text>';
+            // 조각 라벨(기호만) — 기본: 화살표 반대쪽. 23·23-1: 법선 쪽(화살표 앞) / 14: 다리 상단 끝쪽 / 41: a·e 위, b 위쪽, d 아래쪽
+            var lx = outLbl ? (mx + nx * px(9)) : (mx - nx * px(13));
+            var ly = outLbl ? (my + ny * px(9)) : (my - ny * px(13));
             if (cd.c === 14) {
               if (i === 0) { lx = s.p1.x - ux / L * px(10); ly = (-s.p1.y) - uy / L * px(10); }   // a: 자유단(상단) 너머
               else { lx = s.p2.x + ux / L * px(10); ly = (-s.p2.y) + uy / L * px(10); }           // b: 자유단(상단) 너머
