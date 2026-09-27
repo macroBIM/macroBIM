@@ -54,8 +54,19 @@
         CONF: {
             GATE: -0.6,        // 법선이 마주본다고 볼 내적 한계 (jfield 와 같은 값)
             K_COV: 20.0,       // 피복 부족(slack < 0) 쪽 벌점
-            K_CLR: 4.0,        // 순간격 위반 (작은 위반에서의 2차 계수)
-            CLR_SOFT: 30.0,    // 이보다 큰 위반은 힘이 되내려간다 (mm)
+            /*  순간격의 무게는 **상대를 가려야 한다.**
+                K_CLR/CLR_SOFT  **덕트** — 되내려간다. 복부철근이 TC 덕트(D440)를 어디로
+                                가도 못 피하는 것처럼, 못 지키는 위반이 있다. 그런 것이
+                                배근을 비틀면 안 된다 (jfield.clrRes 와 같은 근거).
+                K_BAR           **철근끼리** — 되내려가지 않는 2차, 그리고 무겁다.
+                                이쪽은 **언제나 지킬 수 있다** — 한 겹 안으로 들어가면
+                                된다. 되내려가는 손실(K_CLR 4)로 두었더니 피복 인력
+                                (무게 1)이 이겨서, 기존 철근에서 13 mm 떨어져야 할
+                                종방향 철근이 **10.3 mm 에 멈췄다**(2.7 mm 겹침).
+                                「기존 철근만큼 밀려난다」는 타협할 값이 아니다.       */
+            K_CLR: 4.0,        // 덕트 순간격 위반 (작은 위반에서의 2차 계수)
+            CLR_SOFT: 30.0,    // 이보다 큰 덕트 위반은 힘이 되내려간다 (mm)
+            K_BAR: 20.0,       // 철근끼리의 순간격 위반 — 딱딱한 2차 (K_COV 와 같은 급)
             /*  ctcmin 과 range 는 **딱딱하게**, ctcmax 는 **되내려가게** 둔다.
                 철근이 겹치는 것과 배치한계를 넘는 것은 타협할 수 없다.
                 최대간격은 개수가 불변이면 못 지킬 수가 있다 — 그때는 **보고**할
@@ -249,7 +260,7 @@
                         const e = this.toPrim(p, pr);
                         if (!e) return;
                         barrier(pr.t === 'arc' ? 'bend' : 'tre', p, i, e.d, e.ex, e.ey,
-                                (pr.dia + dia) / 2, K.K_CLR, K.CLR_SOFT);
+                                (pr.dia + dia) / 2, K.K_BAR, K.CLR_SOFT);
                     });
                 });
                 //  ④ 종방향끼리 — **적층이 여기서 나온다**
@@ -258,10 +269,10 @@
                     if (d < 1e-9) continue;
                     const gg = d - dia;                     // 중심거리 ≥ 지름
                     if (gg >= 0) continue;
-                    const kk = Math.sqrt(K.K_CLR), tt = gg / K.CLR_SOFT, u = 1 + tt * tt;
-                    const rr = kk * gg / Math.sqrt(u), s = kk / (u * Math.sqrt(u));
+                    const kk = Math.sqrt(K.K_BAR), tt = gg / K.CLR_SOFT, u = 1 + tt * tt;
+                    const rr = kk * gg / Math.sqrt(u), sc = kk / (u * Math.sqrt(u));
                     push('lre', rr, [2 * i, 2 * i + 1, 2 * j, 2 * j + 1],
-                         [s * dx / d, s * dy / d, -s * dx / d, -s * dy / d]);
+                         [sc * dx / d, sc * dy / d, -sc * dx / d, -sc * dy / d]);
                 }
             }
 
