@@ -84,6 +84,9 @@ function prepare(sheet, patch = {}, pageKey = 'dia') {
   });
 
   return {
+    //  ctx·P·rows·sec 은 **페이지 자체를 돌려 보려는 검사**를 위해 같이 내보낸다
+    //  (bench/jrespawn.js). 단면·철근 데이터만 쓰는 쪽은 그냥 무시하면 된다.
+    ctx, P, rows, sec,
     ap, badRows: bad,
     covers: sec.covers,
     outer: (P._sectPoly && P._sectPoly.outer) || P._sectOuter || [],

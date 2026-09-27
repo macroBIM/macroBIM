@@ -874,15 +874,6 @@
         catch (e) { console.error('[PSCBOX] respawn:', id, e); return; }
         if (!nb) { this._toast('철근을 다시 만들지 못했습니다: ' + id, 'err'); return; }
 
-        //  나머지 철근을 척력으로 넘긴다 (이 철근은 뺀다)
-        var placed = [];
-        Domain.trebarList.forEach(function (t) {
-          if (String(t.id) === String(id)) return;
-          (t.segments || []).forEach(function (s) {
-            placed.push({ p1: { x: s.p1.x, y: s.p1.y }, p2: { x: s.p2.x, y: s.p2.y }, dia: t.dia || 13 });
-          });
-        });
-
         var bar = { id: String(nb.id), dia: nb.dia || 13,
           segs: (nb.segments || []).map(function (s) {
             return { label: s.label, p1: { x: s.p1.x, y: s.p1.y }, p2: { x: s.p2.x, y: s.p2.y },
@@ -893,15 +884,59 @@
         this._diag = this._diag || {};
         this._diag[String(bar.id)] = this._seatDiag(bar, sec);
 
+        /*  ── 태어난 자리를 **먼저 보여 준다** ───────────────────────────────
+            Respawn 을 누르는 이유가 대개 「init 을 어디에 놓았나」를 보려는 것이다.
+            그런데 J 는 한 번에 풀어 버려서, 곧장 답으로 건너뛰면 그 자리가 화면에
+            한 번도 안 나온다. 전체 풀이(_drawRebar)는 이미 SPAWN_HOLD 만큼 스폰
+            상태를 그려 두는데, **철근 하나만 다시 풀 때는 그 대기가 없었다.**
+            그래서 여기서도 같은 차례로 한다 :
+              ㉠ 스폰 상태의 철근을 목록에 꽂고 그대로 한 번 그린다 (직선 토막들)
+              ㉡ 태어난 자리 유령(점선)도 이 철근 것만 새로 잡는다
+              ㉢ SPAWN_HOLD 뒤에 풀어서 최종 형상으로 바꾼다                     */
+        for (var i = 0; i < Domain.trebarList.length; i++)
+          if (String(Domain.trebarList[i].id) === String(id)) { Domain.trebarList[i] = nb; break; }
+        if (i >= Domain.trebarList.length) Domain.trebarList.push(nb);
+
+        var spts = [];
+        (nb.segments || []).forEach(function (sg, k) {
+          if (k === 0) spts.push({ x: sg.p1.x, y: sg.p1.y });
+          spts.push({ x: sg.p2.x, y: sg.p2.y });
+        });
+        this._spawn = (this._spawn || []).filter(function (sp) { return String(sp.id) !== String(id); });
+        this._spawn.push({ id: String(nb.id), dia: nb.dia || 13, pts: spts });
+
+        //  어느 것을 다시 푸는지 눈에 띄게 — 유령도 진해진다.
+        //  focusRebar() 는 **토글**이라 안 쓴다 (이미 고른 것을 누르면 풀려 버린다).
+        this._focusId = String(id);
+        this._finalizeArcs();         // ㉠㉡ 스폰 상태로 한 번 그린다
+        this._toast('태어난 자리: ' + id, 'ok');
+
+        var self = this;
+        setTimeout(function () { self._formOneWithJField(id, nb, bar, sec); }, this.SPAWN_HOLD);
+      },
+
+      /*  ㉢ 실제로 푸는 자리. _resolveOneWithJField 가 SPAWN_HOLD 뒤에 부른다.
+          `bar`(태어난 자리의 조각들)는 거기서 만든 것을 그대로 받는다 — 두 군데서
+          따로 만들면 언젠가 조용히 달라진다.                                    */
+      _formOneWithJField: function (id, nb, bar, sec) {
+        //  나머지 철근을 척력으로 넘긴다 (이 철근은 뺀다)
+        var placed = [];
+        Domain.trebarList.forEach(function (t) {
+          if (String(t.id) === String(id)) return;
+          (t.segments || []).forEach(function (s) {
+            placed.push({ p1: { x: s.p1.x, y: s.p1.y }, p2: { x: s.p2.x, y: s.p2.y }, dia: t.dia || 13 });
+          });
+        });
+
         var r;
         try { r = JField.form(bar, sec.walls, sec, this._ducts || [], placed); }
         catch (e) { console.error('[PSCBOX] J-field form:', e); return; }
 
         this._writeBack(nb, r, sec);
-        for (var i = 0; i < Domain.trebarList.length; i++)
-          if (String(Domain.trebarList[i].id) === String(id)) { Domain.trebarList[i] = nb; break; }
         this._finalizeArcs();
-        this._toast('다시 풀었습니다: ' + id + ' — 길이 ' + Math.round(r.len) + ' mm', 'ok');
+        var wm = this._diagWarn(id);
+        this._toast('다시 풀었습니다: ' + id + ' — 길이 ' + Math.round(r.len) + ' mm' +
+                    (wm ? ' · ⚠ ' + wm.split('\n')[0] : ''), wm ? 'err' : 'ok');
       },
 
       //  J 결과를 trebar 객체에 써 넣는다 (표·DXF·굴짐 아크가 읽는 자리 그대로)
