@@ -662,8 +662,9 @@
         /*  ── 태어난 자리 ────────────────────────────────────────────────────
             **입력을 고치는 자리**다. 결과 J 는 「어디에 앉았나」를 말하지만, 왜 그
             면을 골랐는지는 태어난 자리에서 무엇이 보였는지에 달려 있다. 버린 면까지
-            거리와 이유를 같이 적는다 — 「띠 모자람」이 0 이 아니면 그 조각은 제 면
-            **위에 없다**(⑧-1 의 400 mm 다리가 50 mm 모자랐다).                  */
+            거리와 이유를 같이 적는다 — **가장 가까운 면이 후보에 못 들어왔으면**
+            그 조각은 입력이 모자란 것이다(⑧-1 의 400 mm 다리 : E18 72 mm 가 50 mm
+            차이로 빠지고 5,781 mm 위의 E1 이 쓰였다).                            */
         var dg = sd.diag;
         if (dg) {
           h += '<div class="jcap">③ 태어난 자리 — 입력이 놓은 자리와, 그 자리에서 마주보던 면들</div>';
@@ -679,10 +680,12 @@
           if (dg.none) {
             h += '<div class="jnote" style="color:#b45309;">이 조각의 법선 방향에 <b>마주보는 콘크리트 면이 없습니다.</b> ' +
                  '법선(nors)이나 태어난 자리를 보세요 — 엔진은 자리를 지어내지 않고 태어난 자리에 그대로 둡니다.</div>';
-          } else if (dg.off > 0) {
-            h += '<div class="jnote" style="color:#b45309;">이 조각은 <b>제 면 위에 없습니다</b> — 띠가 ' +
-                 Math.round(dg.off) + ' mm 모자랍니다. 조각의 축 범위가 그 면의 길이에 닿지 않습니다. ' +
-                 '입력 길이(segs)를 늘리거나 태어난 자리를 옮기세요.</div>';
+          } else if (dg.miss) {
+            h += '<div class="jnote" style="color:#b45309;"><b>가장 가까운 면이 후보에 못 들어왔습니다.</b> ' +
+                 this._esc(dg.miss.near.id) + ' 가 ' + Math.round(dg.miss.near.d) + ' mm 로 가장 가깝지만 ' +
+                 '조각의 축 범위에서 ' + Math.round(dg.miss.near.gap) + ' mm 벗어나 있어 빠졌고, ' +
+                 this._esc(dg.miss.seat.id) + ' (' + Math.round(dg.miss.seat.d) + ' mm) 가 쓰였습니다. ' +
+                 '엔진은 규칙대로 움직입니다 — <b>입력 길이(segs)나 태어난 자리를 고쳐야 하는 자리입니다.</b></div>';
           }
           h += '<table class="jt"><thead><tr><th>태어난 자리에서 마주보던 면</th><th>tag</th>' +
                '<th>참거리 (mm)</th><th>조각이 면 위에</th><th>띠 모자람 (mm)</th><th>후보로 씀</th></tr></thead><tbody>';
@@ -938,11 +941,14 @@
             seats  { id, tag, d(참거리), band(조각이 그 면 위에 있나), gap(띠가 모자란
                      거리), used(후보로 살아남았나), need }
             none   후보가 하나도 없다 — 이 조각은 안착하지 못한다
-            off    **살아남은 후보가 전부 조각의 축 범위를 벗어나 있다** (mm).
-                   0 이 아니면 「이 조각은 제 면 위에 없다」 — 입력 길이나 자리를
-                   고쳐야 하는 자리다. 이것이 ⑧-1 을 잡아내는 값이다.
-            reach  가장 가까운 후보까지의 참거리 (mm). **크다고 잘못된 것이 아니다** —
-                   ㄷ자 스터럽의 다리는 길이를 안 주면 3.2 m 를 가서 하면에 앉는다.  */
+            miss   **가장 가까운 면이 후보에 못 들어왔다.** { near, seat } 로 둘을 같이
+                   준다 — 그 면이 왜 빠졌는지는 `gap`(띠가 모자란 거리)이 말한다.
+                   이것이 ⑧-1 을 잡아내는 값이다 : 기본값 400 mm 다리에서
+                   E18 이 72 mm 로 가장 가까운데 띠가 50 mm 모자라 빠지고,
+                   5,781 mm 위의 E1 이 쓰였다.
+            reach  쓰인 후보까지의 참거리 (mm). **크다고 잘못된 것이 아니다** —
+                   ㄷ자 스터럽의 다리는 길이를 안 주면 3.2 m 를 가서 하면에 앉는다.
+                   그래서 거리로 경고하지 않는다. 경고는 `none` 과 `miss` 뿐이다.    */
       _seatDiag: function (bar, sec) {
         if (typeof JField === 'undefined' || !bar || !sec || !sec.walls) return [];
         var dia = bar.dia || 13;
@@ -957,9 +963,11 @@
                      used: c.used, need: c.need };
           }).sort(function (a, b) { return a.d - b.d; });
           var use = st.filter(function (c) { return c.used; });
-          var off = use.length ? Math.min.apply(null, use.map(function (c) { return c.gap; })) : 0;
+          //  st 는 참거리 오름차순이므로 st[0] 가 가장 가까운 면, use[0] 가 쓰인 면
+          var miss = (use.length && st.length && st[0].id !== use[0].id) ?
+                     { near: st[0], seat: use[0] } : null;
           return { label: s.label, p1: s.p1, p2: s.p2, mid: mid, len: len, n: s.normal,
-                   seats: st, none: use.length === 0, off: off,
+                   seats: st, none: use.length === 0, miss: miss,
                    reach: use.length ? use[0].d : null };
         });
       },
@@ -971,8 +979,10 @@
         var msg = [];
         ds.forEach(function (d) {
           if (d.none) msg.push('조각 ' + d.label + ' : 마주보는 면이 없다 — 법선 방향에 콘크리트 면이 없습니다');
-          else if (d.off > 0) msg.push('조각 ' + d.label + ' : 제 면 위에 없다 — 띠가 ' +
-                                       Math.round(d.off) + ' mm 모자랍니다 (길이나 자리를 고치세요)');
+          else if (d.miss) msg.push('조각 ' + d.label + ' : 가장 가까운 ' + d.miss.near.id + ' (' +
+                                    Math.round(d.miss.near.d) + ' mm) 가 조각 밖이라 빠지고, ' +
+                                    d.miss.seat.id + ' (' + Math.round(d.miss.seat.d) + ' mm) 가 쓰였습니다 — ' +
+                                    '조각이 ' + Math.round(d.miss.near.gap) + ' mm 모자랍니다');
         });
         return msg.length ? msg.join('\n') : null;
       },
@@ -1031,7 +1041,7 @@
         Domain.activeQueueIndex = 0;
 
         /*  경고는 **한 번에 한 줄**로 낸다 — 토스트가 하나라서 두 번 부르면 앞의 것이
-            지워진다. 태어난 자리가 제 면 위에 없는 조각을 같이 알린다 : 그것이
+            지워진다. 가장 가까운 면이 후보에 못 들어온 조각을 같이 알린다 : 그것이
             「입력을 고쳐야 하는 자리」다 (⑧-1 의 400 mm 다리가 그랬다).           */
         var warn = [];
         var miss = Domain.trebarList.filter(function (t) { return t.state !== 'FORMED'; });
@@ -1042,10 +1052,12 @@
         var offs = [];
         Object.keys(this._diag).forEach(function (k) {
           selfD._diag[k].forEach(function (d) {
-            if (d.off > 0) offs.push(k + '[' + d.label + '] ' + Math.round(d.off) + ' mm');
+            if (d.miss) offs.push(k + '[' + d.label + '] ' + d.miss.near.id + ' ' +
+                                  Math.round(d.miss.near.d) + ' mm 대신 ' + d.miss.seat.id + ' ' +
+                                  Math.round(d.miss.seat.d) + ' mm');
           });
         });
-        if (offs.length) warn.push('태어난 자리가 제 면 위에 없는 조각 ' + offs.join(', ') +
+        if (offs.length) warn.push('가장 가까운 면이 후보에 못 들어온 조각 ' + offs.join(', ') +
                                    ' (입력 길이나 자리를 고치세요)');
         if (warn.length) this._toast(warn.join(' · '), 'err');
         return true;

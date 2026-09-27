@@ -14,8 +14,10 @@
  *    모자람   띠가 모자란 거리 (0 이면 면 위에 있다)
  *
  *  ── 무엇을 어긋남으로 보나 ─────────────────────────────────────────────
- *    ✗ 붙을 면 없음   법선 방향에 마주보는 면이 하나도 없다
- *    ✗ 제 면 위에 없음  **살아남은 후보가 전부** 조각의 축 범위를 벗어나 있다
+ *    ✗ 붙을 면 없음        법선 방향에 마주보는 면이 하나도 없다
+ *    ✗ 가장 가까운 면이 빠짐  참거리로 가장 가까운 면이 **조각의 축 범위 밖**이라
+ *                          후보가 못 되고, 더 먼 면이 쓰였다. 엔진은 규칙대로
+ *                          움직인 것이고 **입력이 모자란 것**이다 — 그 차이를 찍는다.
  *  참거리가 **크다고 어긋난 것이 아니다** — ㄷ자 스터럽의 다리는 길이를 안 주면
  *  3.2 m 를 가서 하면에 앉는다. 그것이 이 엔진의 기능이다(코너가 길이를 정한다).
  *
@@ -47,7 +49,9 @@ function diag(bar, walls, sec) {
         return {
             label: s.label, p1: s.p1, p2: s.p2, len: len, n: s.normal, seats: seats,
             none: use.length === 0,
-            off: use.length ? Math.min.apply(null, use.map(c => c.gap)) : 0,
+            //  가장 가까운 면(seats[0])이 후보(use[0])가 아니면 입력이 모자란 것이다
+            miss: (use.length && seats.length && seats[0].id !== use[0].id)
+                  ? { near: seats[0], seat: use[0] } : null,
             reach: use.length ? use[0].d : null
         };
     });
@@ -62,7 +66,9 @@ let bad = 0;
 D.bars.forEach(bar => {
     diag(bar, D.walls, sec).forEach(d => {
         const tag = d.none ? '  ✗ 붙을 면 없음'
-                  : (d.off > 0 ? `  ✗ 제 면 위에 없음 (띠 ${Math.round(d.off)} mm 모자람)` : '');
+                  : (d.miss ? `  ✗ 가장 가까운 ${d.miss.near.id} ${Math.round(d.miss.near.d)} mm 가 ` +
+                              `${Math.round(d.miss.near.gap)} mm 차이로 빠지고 ${d.miss.seat.id} ` +
+                              `${Math.round(d.miss.seat.d)} mm 가 쓰였다` : '');
         if (tag) bad++;
         console.log(
             `  ${(bar.id + '[' + d.label + ']').padEnd(8)} ` +
