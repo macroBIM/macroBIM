@@ -79,6 +79,7 @@
     if (!hasGlobal('LRebarEngine')) need.push(PAGES + 'lrebar.js');
     if (!hasGlobal('Physics')) need.push(PAGES + 'physics.js');
     if (!hasGlobal('JField')) need.push(PAGES + 'jfield.js');     // 두 번째 엔진 (J 최소화)
+    if (!hasGlobal('JLong')) need.push(PAGES + 'jlong.js');       // 그 점(點) 판 — 종방향 철근
     if (!hasGlobal('SectionBase')) need.push(PAGES + 'section.js');
     if (!hasGlobal('Domain')) need.push(PAGES + 'domain.js');
     if (!hasGlobal('UI')) need.push(PAGES + 'ui.js');
@@ -865,8 +866,16 @@
         if (!sec || !sec.walls || !sec.walls.length) return;
         var rd = null;
         (this._rebarData || []).forEach(function (d) { if (String(d.id) === String(id)) rd = d; });
-        if (!rd || String(rd.type || 'trebar').toLowerCase() !== 'trebar') {
-          this._toast('J 엔진은 trebar 만 다시 풉니다: ' + id, 'err'); return;
+        if (!rd) return;
+        /*  종방향 철근은 **무리**가 한 덩어리라 하나만 다시 풀 수 없다(간격이 이웃을
+            묶는다). 그래서 lrebar 를 누르면 종방향 전체를 다시 푼다 — 횡방향은 놓인
+            자리에 그대로 두고 그 장애물 위에서 다시 배치하는 것이라 뜻이 분명하다.  */
+        if (String(rd.type || 'trebar').toLowerCase() === 'lrebar') {
+          var lw = this._solveLrebarWithJ(sec);
+          this._finalizeArcs();
+          this._toast(lw.length ? lw.join(' · ') : ('다시 배치했습니다: ' + id),
+                      lw.length ? 'err' : 'ok');
+          return;
         }
 
         var nb;
@@ -1071,8 +1080,13 @@
           if (t && t.segments) self._writeBack(t, r, sec);
         });
 
+        //  ── 종방향 철근 (lrebar) 도 J 로 푼다 ────────────────────────────
+        var lwarn = this._solveLrebarWithJ(sec);
+
         //  풀린 것은 큐에서 뺀다 — 예전 엔진이 다시 건드리지 않게
-        Domain.queue = Domain.queue.filter(function (q) { return q.kind !== 'trebar'; });
+        Domain.queue = Domain.queue.filter(function (q) {
+          return q.kind !== 'trebar' && q.kind !== 'lrebar';
+        });
         Domain.activeQueueIndex = 0;
 
         /*  경고는 **한 번에 한 줄**로 낸다 — 토스트가 하나라서 두 번 부르면 앞의 것이
@@ -1094,8 +1108,87 @@
         });
         if (offs.length) warn.push('가장 가까운 면이 후보에 못 들어온 조각 ' + offs.join(', ') +
                                    ' (입력 길이나 자리를 고치세요)');
+        lwarn.forEach(function (w) { warn.push(w); });
         if (warn.length) this._toast(warn.join(' · '), 'err');
         return true;
+      },
+
+      /*  ── 종방향 철근을 J 로 배치한다 (`jlong.js`) ───────────────────────
+          横방향이 먼저 풀려 있어야 한다 — 그 **굴짐 아크까지 포함한 조각들**이
+          종방향 철근을 밀어내는 장애물이기 때문이다(`_trebarPrimitives`).
+          결과는 `group.particles` 에 써 넣는다 — 그림·표는 그대로 그것을 읽는다.
+          돌려주는 것은 **경고 줄**이다 (간격·배치한계·붙을 면).                 */
+      _solveLrebarWithJ: function (sec) {
+        var warn = [];
+        if (typeof JLong === 'undefined' || !Domain.lrebarList || !Domain.lrebarList.length) return warn;
+
+        //  절곡철근 — 선분과 굴짐 아크를 화면이 그리는 그대로 꺼낸다
+        var prims = [], self = this;
+        Domain.trebarList.forEach(function (t) {
+          (self._trebarPrimitives(t) || []).forEach(function (pr) {
+            prims.push({ t: pr.t, p: pr.p, dia: t.dia || 13 });
+          });
+        });
+
+        var rdById = {};
+        (this._rebarData || []).forEach(function (d) {
+          if (String(d.type || '').toLowerCase() === 'lrebar') rdById[String(d.id)] = d;
+        });
+
+        this._ldiag = {};
+        Domain.lrebarList.forEach(function (grp) {
+          var rd = rdById[String(grp.id)];
+          if (!rd) return;
+          /*  init·range·dia·num 은 **그룹**에서 읽는다 — 거기 값은 수식이 이미
+              계산된 것이다(`Domain._createLrebarFromData` 가 EquationParser 를 태운다).
+              ctc·ctcmax 는 그룹이 안 들고 있으므로(옛 엔진이 ctc 를 range/num 으로
+              계산해 버리고 ctcmax 는 아예 안 쓴다) 입력 행에서 그대로 읽는다.      */
+          var bar = rd.bar || {}, init = grp.initData || {};
+          var g = {
+            id: String(grp.id), dia: grp.dia || 13, num: grp.num || 0,
+            init: { x: init.x || 0, y: init.y || 0, rot: init.rot || 0 },
+            nors: (init.grav === -1) ? -1 : 1,
+            range: { min: (grp.rangeData && grp.rangeData.min) || 0,
+                     max: (grp.rangeData && grp.rangeData.max) || 0 },
+            ctc: bar.ctc, ctcmin: bar.min, ctcmax: bar.max, path: rd.path || []
+          };
+          if (!g.num || !g.ctc) {
+            warn.push(g.id + ' : num 과 ctc 가 있어야 배치합니다');
+            return;
+          }
+          var res;
+          try { res = JLong.solve(g, sec.walls, sec, self._ducts || [], prims); }
+          catch (e) { console.error('[PSCBOX] JLong:', g.id, e); warn.push(g.id + ' : 배치 실패'); return; }
+          self._ldiag[g.id] = { g: g, res: res };
+
+          //  particles 에 써 넣는다 (그림이 읽는 자리)
+          grp.particles = res.bars.map(function (b) {
+            return { x: b.x, y: b.y, vx: 0, vy: 0, t: b.t, target: null, state: 'SETTLED' };
+          });
+          grp.num = res.bars.length;
+          grp.state = 'SETTLED';
+
+          //  보고 — 고칠 수 있는 것은 입력뿐이니 숫자를 그대로 낸다
+          var cap = JLong.capacity(g), span = (g.num - 1) * g.ctc;
+          if (g.num > cap)
+            warn.push(g.id + ' : ' + g.num + '개 × ctc ' + g.ctc + ' = ' + span +
+                      ' mm 가 배치한계(' + (g.range.max - g.range.min) + ' mm · ' + cap + '개)보다 깁니다');
+          var noSeat = res.bars.filter(function (b) { return !b.rest; });
+          if (noSeat.length)
+            warn.push(g.id + ' : ' + noSeat.length + '개가 붙을 면을 못 찾았습니다 ' +
+                      '(법선 방향에 마주보는 면이 있는지, init 이 콘크리트 안인지 보세요)');
+          if (res.gaps.length) {
+            var lo = Math.min.apply(null, res.gaps), hi = Math.max.apply(null, res.gaps);
+            if (g.ctcmin != null && lo < g.ctcmin - 0.5)
+              warn.push(g.id + ' : 최소간격 ' + Math.round(lo) + ' mm (한계 ' + g.ctcmin + ')');
+            if (g.ctcmax != null && hi > g.ctcmax + 0.5)
+              warn.push(g.id + ' : 최대간격 ' + Math.round(hi) + ' mm (한계 ' + g.ctcmax + ')');
+          }
+          console.log('[JLONG] ' + g.id + ' ' + res.bars.length + '개 · J ' +
+                      (res.J == null ? '-' : Math.round(res.J)) + ' · 반복 ' + res.iter +
+                      ' · 간격 ' + res.gaps.map(function (x) { return Math.round(x); }).join(','));
+        });
+        return warn;
       },
 
       // ── Rebar Physics 결과 표 : id / 총길이 / 직경 / 조각 a~f / 꺽임 ra~re ──

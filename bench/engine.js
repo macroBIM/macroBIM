@@ -11,7 +11,10 @@
 const fs = require('fs'), path = require('path'), vm = require('vm');
 
 const ROOT = path.join(__dirname, '..');
-const SRC = ['geomath.js', 'equation.js', 'bim_box12cell.js', 'bim_duct.js', 'trebar.js', 'physics.js', 'domain.js'];
+//  페이지가 읽어 들이는 차례 그대로. `lrebar.js` 가 없으면 `Domain._createLrebarFromData`
+//  가 `LRebarEngine is not defined` 로 죽는다 (종방향 철근이 든 시트를 태울 때).
+const SRC = ['geomath.js', 'equation.js', 'bim_box12cell.js', 'bim_duct.js', 'trebar.js',
+             'lrebar.js', 'physics.js', 'domain.js'];
 //  페이지는 둘이다 — 격벽(PXDIA)과 일반 박스(PXBOX). S14 처럼 격벽이 아닌 단면은 PXBOX 가 읽는다.
 const PAGES = {
   dia: { file: 'bim_pscbox_diaphragm_test.js', global: 'PXDIA' },

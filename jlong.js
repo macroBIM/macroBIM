@@ -96,11 +96,12 @@
             return out;
         },
 
-        //  range 가 담을 수 있는 개수 (보고용 — 개수는 입력이라 엔진이 안 고친다)
+        /*  range 안에 ctc 로 담을 수 있는 개수 (보고용 — 개수는 입력이라 안 고친다).
+            **양쪽을 따로 세면 안 된다** — 짝수 개면 열차가 ctc/2 만큼 비켜서 놓이므로
+            한쪽씩 세는 것보다 하나 더 들어간다(50 개 × 250 = 12,250 이 ±6,200 =
+            12,400 에 들어가는데 한쪽씩 세면 49 개라고 나왔다).                     */
         capacity: function (g) {
-            const lo = Math.floor(Math.abs(g.range.min) / g.ctc);
-            const hi = Math.floor(Math.abs(g.range.max) / g.ctc);
-            return lo + hi + 1;
+            return Math.floor((g.range.max - g.range.min) / g.ctc) + 1;
         },
 
         /*  ── 점이 앉을 수 있는 면 ──────────────────────────────────────────
