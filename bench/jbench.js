@@ -146,6 +146,25 @@ function report(name, tag, sheet, useTruth) {
   }
   console.log('  철근끼리 최악 순간격 : ' + (worst < -0.5 ? worst.toFixed(1) + ' mm  (' + who + ')' : '여유'));
 
+  /*  **피복이 모자란 곳** — 안착한 면까지의 여유를 그려진 폴리라인에서 다시 잰다.
+      지금까지 벤치는 「단면 밖인가」만 봤다. 피복은 단면 안이라도 모자랄 수 있고,
+      그건 구조적으로 그냥 틀린 것이다. 각을 ±180° 근처에서 안 감던 시절
+      ①-1 의 다리가 22 mm 모자랐는데 표의 어느 칸에도 안 나왔다.               */
+  const W = {};
+  D.walls.forEach(w => { W[w.id] = w; });
+  let cv = 0, cvWho = null;
+  out.forEach(b => b.segs.forEach((sg, i) => {
+    const id = sg.rest && sg.rest[0];
+    const w = id && W[id];
+    if (!w) return;
+    const need = (D.covers[String(w.tag).toLowerCase()] || 50) + b.dia / 2;
+    [b.pts[i], b.pts[i + 1]].forEach(p => {
+      const g = (p.x - w.x1) * w.nx + (p.y - w.y1) * w.ny - need;
+      if (g < cv) { cv = g; cvWho = b.id + '[' + sg.label + '] → ' + id; }
+    });
+  }));
+  console.log('  피복이 모자란 곳     : ' + (cv < -0.5 ? cv.toFixed(1) + ' mm  (' + cvWho + ')' : '없음'));
+
   let it = 0, ns = 0;
   out.forEach(b => b.segs.forEach(s => { it += s.iter; ns++; }));
   console.log('  반복 : 조각 ' + ns + '개 · 합계 ' + it + ' · 평균 ' + (it / ns).toFixed(1));

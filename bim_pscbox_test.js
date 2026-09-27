@@ -507,6 +507,308 @@
         this.rebarRespawn();
       },
 
+      /*  ── J 들여다보기 ────────────────────────────────────────────────
+          표의 철근번호를 누르면 그 철근의 **J 가 어떻게 정해지고 어떻게 내려갔는지**
+          를 창으로 보여 준다. 논문 그림이 그대로 나오도록 만든 자리다.
+          푸는 것은 건드리지 않는다 — 그 철근만 다시 풀어(나머지는 놓인 그대로
+          척력으로만) 과정을 받아 적고, 화면의 형상은 그대로 둔다.               */
+      _jAnalyze: function (id) {
+        if (typeof JField === 'undefined' || typeof Domain === 'undefined') return null;
+        var sec = Domain.currentSection;
+        if (!sec || !sec.walls || !sec.walls.length) return null;
+        var rd = null;
+        (this._rebarData || []).forEach(function (d) { if (String(d.id) === String(id)) rd = d; });
+        if (!rd || String(rd.type || 'trebar').toLowerCase() !== 'trebar') return null;
+        var nb = null;
+        try { nb = Domain._createTrebarFromData(rd); } catch (e) { return null; }
+        if (!nb || !nb.segments || !nb.segments.length) return null;
+
+        /*  척력으로 넘길 철근은 **이 철근보다 먼저 놓인 것들만**이다.
+            「나머지 전부」를 넘기면 창에 뜨는 J 가 화면의 형상을 만든 J 와 **다른
+            문제**가 된다 — 뒤에 놓인 철근까지 밀고 있으니 최소점이 딴 데 생기고,
+            창의 숫자와 그림이 어긋난다(①-1 이 피복선에서 19 mm 밖인데 J 는 안쪽
+            10 mm 가 더 낮다고 나왔다). 엔진이 푼 순서를 그대로 되짚는다.        */
+        var placed = [], hit = false;
+        Domain.trebarList.forEach(function (t) {
+          if (String(t.id) === String(id)) { hit = true; return; }
+          if (hit) return;                       // 이 철근보다 뒤에 놓인 것은 안 본다
+          (t.segments || []).forEach(function (sg) {
+            placed.push({ p1: { x: sg.p1.x, y: sg.p1.y }, p2: { x: sg.p2.x, y: sg.p2.y }, dia: t.dia || 13 });
+          });
+        });
+
+        var dia = nb.dia || 13;
+        var bar = { id: String(nb.id), dia: dia, segs: nb.segments.map(function (sg) {
+          return { label: sg.label, p1: { x: sg.p1.x, y: sg.p1.y }, p2: { x: sg.p2.x, y: sg.p2.y },
+                   normal: { x: sg.normal.x, y: sg.normal.y } };
+        }) };
+
+        var r = null, trace = [];
+        JField.TRACE = [];
+        try { r = JField.form(bar, sec.walls, sec, this._ducts || [], placed); }
+        catch (e) { console.error('[PSCBOX] J 분석:', e); }
+        trace = JField.TRACE || []; JField.TRACE = null;
+        if (!r) return null;
+
+        var ducts = this._ducts || [];
+        var out = { id: String(id), dia: dia, pts: r.pts, pass: r.pass, placed: placed, ducts: ducts, segs: [] };
+        r.segs.forEach(function (rs, i) {
+          var p = r.pts[i], q = r.pts[i + 1];
+          var th = Math.atan2(q.y - p.y, q.x - p.x);
+          var mid = { x: (p.x + q.x) / 2, y: (p.y + q.y) / 2 };
+          var seg = { label: rs.label, len: Math.hypot(q.x - p.x, q.y - p.y) || 1, dia: dia,
+                      n0: bar.segs[i].normal, p1: p, p2: q, mid: mid, c0: mid, th0: th };
+          var cons = JField.targets(seg, sec.walls, sec, dia);
+          var pose = { cx: mid.x, cy: mid.y, th: th };
+          var assign = cons.length ? JField.assignOf(pose, seg, cons) : null;
+          var ip = bar.segs[i];
+          out.segs.push({
+            label: rs.label, seg: seg, cons: cons, pose: pose, assign: assign,
+            init: { p1: ip.p1, p2: ip.p2, mid: { x: (ip.p1.x + ip.p2.x) / 2, y: (ip.p1.y + ip.p2.y) / 2 } },
+            parts: cons.length ? JField.energyParts(pose, seg, cons, ducts, placed, assign) : null,
+            contacts: rs.contacts || [], rest: rs.rest || [], len: rs.len, len0: rs.len0,
+            iter: rs.iter, stopped: rs.stopped || null,
+            trace: trace.filter(function (t) { return t.seg === rs.label; })
+          });
+        });
+        return out;
+      },
+
+      //  ── J 창 ────────────────────────────────────────────────────────
+      _jSeg: 0,
+
+      openJ: function (id) {
+        this.focusRebar(id);                       // 형상도 같이 강조
+        this._jId = String(id); this._jSeg = 0;
+        this._jData = this._jAnalyze(id);
+        this._jRender();
+      },
+
+      closeJ: function () {
+        var m = document.getElementById('pxJModal');
+        if (m) m.style.display = 'none';
+      },
+
+      pickJSeg: function (i) { this._jSeg = Number(i) || 0; this._jRender(); },
+
+      _jHost: function () {
+        var m = document.getElementById('pxJModal');
+        if (m) return m;
+        m = document.createElement('div');
+        m.id = 'pxJModal';
+        m.style.cssText = 'position:fixed;inset:0;z-index:9999;display:none;' +
+          'background:rgba(15,23,42,.45);align-items:center;justify-content:center;padding:24px;';
+        m.addEventListener('click', function (e) { if (e.target === m) m.style.display = 'none'; });
+        var st = document.createElement('style');
+        st.textContent =
+          '#pxJModal .jbox{background:#fff;border-radius:12px;max-width:720px;width:100%;max-height:90vh;' +
+          'overflow:auto;box-shadow:0 20px 50px rgba(15,23,42,.35);}' +
+          '#pxJModal .jhd{display:flex;align-items:center;gap:10px;padding:12px 16px;border-bottom:1px solid #e2e8f0;' +
+          'position:sticky;top:0;background:#fff;border-radius:12px 12px 0 0;}' +
+          '#pxJModal .jttl{font-weight:800;font-size:15px;color:#0f172a;}' +
+          '#pxJModal .jtab{border:1px solid #cbd5e1;background:#f8fafc;border-radius:6px;padding:3px 10px;' +
+          'font-size:12px;font-weight:700;color:#475569;cursor:pointer;}' +
+          '#pxJModal .jtab.on{background:#1d4ed8;border-color:#1d4ed8;color:#fff;}' +
+          '#pxJModal .jx{margin-left:auto;border:0;background:#f1f5f9;border-radius:6px;padding:4px 10px;cursor:pointer;font-weight:700;color:#475569;}' +
+          '#pxJModal .jbody{padding:14px 16px 18px;}' +
+          '#pxJModal .jrow{display:flex;gap:14px;flex-wrap:wrap;}' +
+          '#pxJModal .jcap{font-size:11px;font-weight:700;color:#64748b;margin:0 0 4px;}' +
+          '#pxJModal .jsvg{border:1px solid #e2e8f0;border-radius:8px;background:#fff;display:block;}' +
+          '#pxJModal .jnote{font-size:12px;color:#b45309;padding:10px;background:#fffbeb;border-radius:8px;}' +
+          '#pxJModal table.jt{border-collapse:collapse;font-size:12px;margin-top:12px;width:100%;}' +
+          '#pxJModal table.jt th,#pxJModal table.jt td{border:1px solid #e2e8f0;padding:4px 8px;text-align:right;}' +
+          '#pxJModal table.jt th{background:#f8fafc;color:#475569;font-weight:700;}' +
+          '#pxJModal table.jt td:first-child,#pxJModal table.jt th:first-child{text-align:left;}' +
+          '#pxJModal .jsw{display:inline-block;width:10px;height:10px;border-radius:2px;margin-right:6px;vertical-align:-1px;}';
+        m.appendChild(st);
+        var box = document.createElement('div');
+        box.className = 'jbox'; box.id = 'pxJBox';
+        m.appendChild(box);
+        document.body.appendChild(m);
+        return m;
+      },
+
+      _jRender: function () {
+        var m = this._jHost(); if (!m) return;
+        var box = document.getElementById('pxJBox'); if (!box) return;
+        var d = this._jData, self = this;
+        m.style.display = 'flex';
+        if (!d) {
+          box.innerHTML = '<div class="jhd"><span class="jttl">J</span>' +
+            '<button class="jx" onclick="PXBOX.closeJ()">닫기</button></div>' +
+            '<div class="jbody"><div class="jnote">이 철근의 J 를 볼 수 없습니다. ' +
+            'Solver 가 J-field 인지, trebar 행인지 확인하세요.</div></div>';
+          return;
+        }
+        var i = Math.max(0, Math.min(this._jSeg, d.segs.length - 1));
+        var sd = d.segs[i], hue = this._J_HUE;
+        var f2 = function (v) { return (v == null || !isFinite(v)) ? '—' : (Math.round(v * 100) / 100).toString(); };
+
+        var h = '<div class="jhd"><span class="jttl">' + this._esc(d.id) + ' · D' + d.dia + '</span>';
+        d.segs.forEach(function (sg, k) {
+          h += '<button class="jtab' + (k === i ? ' on' : '') + '" onclick="PXBOX.pickJSeg(' + k + ')">조각 ' + self._esc(sg.label) + '</button>';
+        });
+        h += '<button class="jx" onclick="PXBOX.closeJ()">닫기</button></div><div class="jbody">';
+
+        h += '<div class="jrow">' +
+          '<div><div class="jcap">① J 의 지형 — 바탕색 = 그 자리에서 가장 가까운 면, 진할수록 J 가 낮다</div>' +
+          this._jFieldSvg(sd, d.ducts, d.placed) + '</div>' +
+          '<div><div class="jcap">② 수렴 이력 — 세로는 log, 판이 바뀌는 자리는 세로 점선</div>' +
+          this._jTraceSvg(sd.trace) + '</div></div>';
+
+        //  후보 면 표 — 「고른 것」이 아니라 「결과로 읽은 것」
+        h += '<table class="jt"><thead><tr><th>후보 면</th><th>tag</th><th>요구 피복+D/2</th>' +
+             '<th>여유 g (mm)</th><th>접촉</th><th>승수 λ</th></tr></thead><tbody>';
+        if (!sd.cons.length) {
+          h += '<tr><td colspan="6" style="text-align:center;color:#b45309;">붙을 면 없음 — 이 조각은 안착하지 못했습니다</td></tr>';
+        } else {
+          var half = sd.seg.len / 2;
+          var dx = Math.cos(sd.pose.th) * half, dy = Math.sin(sd.pose.th) * half;
+          var ep = [{ x: sd.pose.cx - dx, y: sd.pose.cy - dy }, { x: sd.pose.cx + dx, y: sd.pose.cy + dy }];
+          sd.cons.forEach(function (c, k) {
+            var g = Math.min(JField.slack(ep[0].x, ep[0].y, c), JField.slack(ep[1].x, ep[1].y, c));
+            var ct = (sd.contacts || []).filter(function (x) { return x.id === c.w.id; })[0];
+            h += '<tr><td><span class="jsw" style="background:hsl(' + hue[k % hue.length] + ',62%,55%)"></span>' +
+                 self._esc(c.w.id) + '</td><td>' + self._esc(c.w.tag || '') + '</td><td>' + f2(c.need) + '</td>' +
+                 '<td>' + f2(g) + '</td><td>' + (ct ? '●' : '') + '</td><td>' + (ct ? f2(ct.lam) : '') + '</td></tr>';
+          });
+        }
+        h += '</tbody></table>';
+
+        //  항별 분해
+        var p = sd.parts;
+        h += '<table class="jt"><thead><tr><th>J 의 항</th><th>피복</th><th>덕트</th><th>기존 철근</th>' +
+             '<th>제자리 고정</th><th>합</th></tr></thead><tbody><tr><td>최종 자세에서</td>' +
+             '<td>' + f2(p && p.cover) + '</td><td>' + f2(p && p.duct) + '</td><td>' + f2(p && p.bar) + '</td>' +
+             '<td>' + f2(p && p.anchor) + '</td><td><b>' + f2(p && p.total) + '</b></td></tr></tbody></table>';
+
+        h += '<table class="jt"><thead><tr><th>조각 ' + this._esc(sd.label) + '</th><th>입력 길이</th><th>출력 길이</th>' +
+             '<th>안착 면</th><th>반복</th><th>판</th></tr></thead><tbody><tr><td>결과</td>' +
+             '<td>' + f2(sd.len0) + '</td><td>' + f2(sd.len) + '</td><td>' + this._esc((sd.rest[0] || '없음')) + '</td>' +
+             '<td>' + sd.iter + '</td><td>' + d.pass + '</td></tr></tbody></table>';
+
+        h += '</div>';
+        box.innerHTML = h;
+      },
+
+      //  후보 면마다 색 하나 — 지형 그림과 범례가 같은 색을 쓴다
+      _J_HUE: [210, 28, 140, 275, 45, 320, 170, 0],
+
+      /*  ① J 의 지형 — 자세를 (cx, cy) 격자로 훑어 J 를 뜬다.
+          바탕색 = **그 자리에서 어느 면이 가장 가까운가**(min 이 고른 면).
+          진하기 = J 의 크기(log). 그래서 「마주보는 벽이 여럿인데 왜 이것인가」가
+          규칙 설명 없이 그림으로 끝난다. init 에서 최종까지 화살표도 같이 그린다. */
+      _jFieldSvg: function (sd, ducts, placed) {
+        if (!sd.cons.length) return '<div class="jnote">붙을 면을 찾지 못해 지형을 그릴 수 없습니다.</div>';
+        var S = sd.seg, cons = sd.cons, pose = sd.pose, hue = this._J_HUE;
+        var i0 = sd.init.mid;
+        var travel = Math.hypot(pose.cx - i0.x, pose.cy - i0.y);
+        var half = Math.max(240, travel * 0.72 + 200);
+        var cx0 = (pose.cx + i0.x) / 2, cy0 = (pose.cy + i0.y) / 2;
+        var W = 300, H = 230, NX = 40, NY = 31;
+        var ratio = H / W, hy = half * ratio;
+        var sx = function (x) { return (x - (cx0 - half)) / (2 * half) * W; };
+        var sy = function (y) { return H - (y - (cy0 - hy)) / (2 * hy) * H; };   // 엔진 y-up → svg y-down
+
+        //  격자 훑기
+        var cell = [], lo = 1e18, hi = -1e18;
+        for (var iy = 0; iy < NY; iy++) {
+          for (var ix = 0; ix < NX; ix++) {
+            var gx = cx0 - half + (2 * half) * (ix + 0.5) / NX;
+            var gy = cy0 - hy + (2 * hy) * (iy + 0.5) / NY;
+            var pp = { cx: gx, cy: gy, th: pose.th };
+            var as = JField.assignOf(pp, S, cons);
+            var Jv = JField.energy(pp, S, cons, ducts, placed, as);
+            var lg = Math.log10(1 + Math.max(0, Jv));
+            if (lg < lo) lo = lg; if (lg > hi) hi = lg;
+            cell.push({ ix: ix, iy: iy, w: as[0], J: lg });
+          }
+        }
+        var span = (hi - lo) || 1;
+        var g = '';
+        var cw = W / NX + 0.6, ch = H / NY + 0.6;
+        cell.forEach(function (c) {
+          var t = (c.J - lo) / span;                       // 0 = 바닥, 1 = 멀다
+          var h = hue[c.w % hue.length];
+          var L = 42 + 50 * t, Sa = 62 - 34 * t;
+          g += '<rect x="' + (c.ix * W / NX).toFixed(1) + '" y="' + (H - (c.iy + 1) * H / NY).toFixed(1) +
+               '" width="' + cw.toFixed(1) + '" height="' + ch.toFixed(1) +
+               '" fill="hsl(' + h + ',' + Sa.toFixed(0) + '%,' + L.toFixed(0) + '%)"/>';
+        });
+
+        //  후보 면의 피복선 (점선)
+        cons.forEach(function (c, i) {
+          var w = c.w, n = c.need;
+          var x1 = w.x1 + w.nx * n, y1 = w.y1 + w.ny * n, x2 = w.x2 + w.nx * n, y2 = w.y2 + w.ny * n;
+          g += '<line x1="' + sx(x1).toFixed(1) + '" y1="' + sy(y1).toFixed(1) +
+               '" x2="' + sx(x2).toFixed(1) + '" y2="' + sy(y2).toFixed(1) +
+               '" stroke="hsl(' + hue[i % hue.length] + ',80%,25%)" stroke-width="1.6" stroke-dasharray="5 3"/>';
+        });
+
+        //  init 조각(회색) → 최종 조각(파랑)
+        function segLine(a, b, col, wd, op) {
+          return '<line x1="' + sx(a.x).toFixed(1) + '" y1="' + sy(a.y).toFixed(1) +
+                 '" x2="' + sx(b.x).toFixed(1) + '" y2="' + sy(b.y).toFixed(1) +
+                 '" stroke="' + col + '" stroke-width="' + wd + '" stroke-linecap="round" opacity="' + op + '"/>';
+        }
+        g += segLine(sd.init.p1, sd.init.p2, '#e2e8f0', 3, 0.95);
+        g += segLine(S.p1, S.p2, '#0f172a', 3.4, 1);
+        g += '<circle cx="' + sx(i0.x).toFixed(1) + '" cy="' + sy(i0.y).toFixed(1) + '" r="3.6" fill="#e2e8f0" stroke="#475569" stroke-width="1"/>';
+        g += '<circle cx="' + sx(pose.cx).toFixed(1) + '" cy="' + sy(pose.cy).toFixed(1) + '" r="4.2" fill="#f8fafc" stroke="#0f172a" stroke-width="2"/>';
+        if (travel > 30) {
+          g += '<line x1="' + sx(i0.x).toFixed(1) + '" y1="' + sy(i0.y).toFixed(1) +
+               '" x2="' + sx(pose.cx).toFixed(1) + '" y2="' + sy(pose.cy).toFixed(1) +
+               '" stroke="#0f172a" stroke-width="1.2" stroke-dasharray="3 3" opacity="0.8"/>';
+        }
+        return '<svg class="jsvg" width="' + W + '" height="' + H + '" viewBox="0 0 ' + W + ' ' + H + '">' + g + '</svg>';
+      },
+
+      /*  ② 수렴 이력 — 반복마다의 J (세로는 log). 1단계(콘크리트만)와
+          2단계(덕트·철근까지)를 색으로 나눈다. 판이 바뀌는 자리는 세로선.      */
+      _jTraceSvg: function (tr) {
+        var pts = (tr || []).filter(function (r) { return r.ok; });
+        if (pts.length < 2) return '<div class="jnote">기록된 반복이 없습니다.</div>';
+        var W = 300, H = 230, PL = 34, PB = 20, PT = 10, PR = 8;
+        var lo = 1e18, hi = -1e18;
+        pts.forEach(function (r) { var v = Math.log10(1 + Math.max(0, r.J)); if (v < lo) lo = v; if (v > hi) hi = v; });
+        if (hi - lo < 1e-9) { hi = lo + 1; }
+        var n = pts.length;
+        var X = function (i) { return PL + (W - PL - PR) * (n < 2 ? 0 : i / (n - 1)); };
+        var Y = function (v) { return PT + (H - PT - PB) * (1 - (Math.log10(1 + Math.max(0, v)) - lo) / (hi - lo)); };
+        var g = '<rect x="0" y="0" width="' + W + '" height="' + H + '" fill="#fbfdff"/>';
+        //  가로 눈금 (10 의 거듭제곱)
+        for (var e = Math.ceil(lo); e <= Math.floor(hi); e++) {
+          var yy = PT + (H - PT - PB) * (1 - (e - lo) / (hi - lo));
+          g += '<line x1="' + PL + '" y1="' + yy.toFixed(1) + '" x2="' + (W - PR) + '" y2="' + yy.toFixed(1) + '" stroke="#e2e8f0" stroke-width="1"/>';
+          g += '<text x="' + (PL - 4) + '" y="' + (yy + 3).toFixed(1) + '" font-size="9" fill="#94a3b8" text-anchor="end">1e' + e + '</text>';
+        }
+        //  판이 바뀌는 자리
+        var prevPass = pts[0].pass;
+        pts.forEach(function (r, i) {
+          if (r.pass !== prevPass) {
+            g += '<line x1="' + X(i).toFixed(1) + '" y1="' + PT + '" x2="' + X(i).toFixed(1) + '" y2="' + (H - PB) + '" stroke="#cbd5e1" stroke-width="1" stroke-dasharray="2 3"/>';
+            prevPass = r.pass;
+          }
+        });
+        //  선 (단계별 색)
+        var seg1 = '', seg2 = '';
+        pts.forEach(function (r, i) {
+          var cmd = (i === 0 ? 'M' : 'L') + X(i).toFixed(1) + ' ' + Y(r.J).toFixed(1);
+          if (r.stage === 1) seg1 += cmd; else seg2 += cmd;
+        });
+        pts.forEach(function (r, i) {
+          if (i === 0) return;
+          var col = r.stage === 1 ? '#2563eb' : '#f59e0b';
+          g += '<line x1="' + X(i - 1).toFixed(1) + '" y1="' + Y(pts[i - 1].J).toFixed(1) +
+               '" x2="' + X(i).toFixed(1) + '" y2="' + Y(r.J).toFixed(1) +
+               '" stroke="' + col + '" stroke-width="1.8" stroke-linecap="round"/>';
+        });
+        g += '<text x="' + (W - PR) + '" y="' + (H - 6) + '" font-size="9" fill="#94a3b8" text-anchor="end">반복 ' + n + ' 회</text>';
+        g += '<text x="' + PL + '" y="' + (H - 6) + '" font-size="9" fill="#2563eb">■ 1단계(콘크리트)</text>';
+        g += '<text x="' + (PL + 96) + '" y="' + (H - 6) + '" font-size="9" fill="#d97706">■ 2단계(덕트·철근)</text>';
+        return '<svg class="jsvg" width="' + W + '" height="' + H + '" viewBox="0 0 ' + W + ' ' + H + '">' + g + '</svg>';
+      },
+
       /*  철근 하나만 다시 푼다 — 입력 행을 다시 읽어 그 자리에서 스폰하고,
           나머지 철근은 **놓인 그대로** 척력으로 본다.
           입력을 고친 뒤 그 철근만 확인할 때 쓴다.                                */
@@ -650,7 +952,7 @@
         }
         function idCell(id, settled) {
           var cls = 'phys-id' + (settled ? '' : ' phys-moving');
-          return '<td class="' + cls + '" title="클릭하면 이 철근만 강조 (다시 클릭 시 해제)" onclick="PXBOX.focusRebar(&quot;' + self._esc(String(id)) + '&quot;)">' + self._esc(String(id)) + '</td>';
+          return '<td class="' + cls + '" title="클릭하면 이 철근의 J 를 봅니다 (지형 · 수렴 · 항별 분해)" onclick="PXBOX.openJ(&quot;' + self._esc(String(id)) + '&quot;)">' + self._esc(String(id)) + '</td>';
         }
         function rspBtn(id) {
           return '<td><button type="button" class="px-btn phys-rsp" title="Respawn this rebar" onclick="PXBOX.respawnOne(&quot;' + self._esc(String(id)) + '&quot;)">&#8635;</button></td>';

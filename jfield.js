@@ -80,6 +80,56 @@
             NUDGE: 1.0         // 2단계 시작 전 안쪽으로 밀어 대칭을 깨는 양 (mm)
         },
 
+        /*  ── 과정을 남기는 자리 ───────────────────────────────────────────
+            논문에 실으려면 **답만이 아니라 과정**이 있어야 한다. 그런데 반복마다
+            무언가를 쌓으면 평소에도 값을 치른다. 그래서 **원할 때만 켠다** :
+              JField.TRACE = [];   … 풀고 나면 그 배열에 한 줄씩 쌓여 있다
+              JField.TRACE = null; … 끈다 (기본)
+            한 줄 = { pass, seg, stage, i, J, lam, move }.
+            stage 1 은 콘크리트만, 2 는 덕트·철근까지 켠 단계다.                 */
+        TRACE: null,
+        _pass: 0, _seg: '', _stage: 0,
+        _rec: function (row) {
+            if (!this.TRACE) return;
+            row.pass = this._pass; row.seg = this._seg; row.stage = this._stage;
+            this.TRACE.push(row);
+        },
+
+        /*  J 를 **항별로** 나눠 돌려준다. energy() 와 같은 식을 쓰되 합치지 않는다 —
+            덕트가 철근을 피복선에서 몇 mm 밀어냈는지가 여기서 수치로 나온다.     */
+        energyParts: function (pose, seg, cons, ducts, placed, assign) {
+            const K = this.CONF, half = seg.len / 2;
+            const dx = Math.cos(pose.th) * half, dy = Math.sin(pose.th) * half;
+            const pts = [{ x: pose.cx - dx, y: pose.cy - dy }, { x: pose.cx + dx, y: pose.cy + dy }];
+            const o = { cover: 0, duct: 0, bar: 0, anchor: 0 };
+
+            pts.forEach((p, i) => {
+                const c = (assign && cons[assign[i]]) || this.nearestCon(p, cons);
+                if (!c) return;
+                const g = this.slack(p.x, p.y, c);
+                o.cover += g * g * (g < 0 ? K.K_COV : 1);
+            });
+            (ducts || []).forEach(d => {
+                const need = (d.D / 2) + (d.clr != null ? d.clr : 30) + seg.dia / 2;
+                const g = this.segToPoint(pts, d) - need;
+                if (g < 0) { const e = this.clrRes(g); o.duct += e.r * e.r; }
+            });
+            (placed || []).forEach(q => {
+                const need = (q.dia + seg.dia) / 2;
+                this.clearPairs(pts, q.p1, q.p2).forEach(n => {
+                    const g = n.d - need;
+                    if (g < 0) { const e = this.clrRes(g); o.bar += e.r * e.r; }
+                });
+            });
+            const ux = Math.cos(pose.th), uy = Math.sin(pose.th);
+            const ax = (pose.cx - seg.c0.x) * ux + (pose.cy - seg.c0.y) * uy;
+            const pp = -(pose.cx - seg.c0.x) * uy + (pose.cy - seg.c0.y) * ux;
+            const at = (pose.th - seg.th0) * half;
+            o.anchor = K.K_AXIAL * ax * ax + K.K_ANCHOR * (pp * pp + at * at);
+            o.total = o.cover + o.duct + o.bar + o.anchor;
+            return o;
+        },
+
         /*  벽이 요구하는 피복. 벽의 tag(top/outer/inner)가 정한다 —
             physics.js 의 getWallCoverValue 와 같은 규칙이지만 Domain 을 안 쳐다본다.
             제약은 **원본 콘크리트 벽**에 건다. 피복벽(오프셋된 선)을 쓰지 않는 이유는
@@ -215,6 +265,16 @@
         //  거리를 재는 방법이 둘이 되면 조용히 어긋난다.
         segToSeg: function (pts, q1, q2) {
             return Math.min.apply(null, this.clearPairs(pts, q1, q2).map(n => n.d));
+        },
+
+        /*  각을 기준각 주위로 감는다.
+            `Math.atan2` 는 (−180°, 180°] 을 돌려준다. 그래서 ±180° 근처에서
+            **부호가 뒤집힌다** — 실제로는 1.7° 차이인데 숫자로는 358° 차이가 된다.
+            그 값을 그대로 각 제한(th0 ± 30°)에 넣으면 클램프가 조각을 30° 통째로
+            돌려 버린다. ①-1 의 4.8 m 다리가 그렇게 돌아가 피복이 22 mm 모자랐다.  */
+        wrapTo: function (th, ref) {
+            const TAU = Math.PI * 2;
+            return ref + (((th - ref + Math.PI) % TAU) + TAU) % TAU - Math.PI;
         },
 
         //  그 점에서 가장 가까운 면
@@ -501,8 +561,12 @@
                 if (Jn <= last && !bad) {                    // 내려가고 피복을 안 깨면 받는다
                     const move = Math.sqrt(d[0] * d[0] + d[1] * d[1] + d[2] * d[2]);
                     pose = nx; last = Jn; lam = Math.max(lam * 0.3, 1e-12);
+                    this._rec({ i: i, J: Jn, lam: lam, move: move, ok: 1,
+                                cx: pose.cx, cy: pose.cy, th: pose.th });
                     if (move < K.TOL) { i++; break; }        // 걸음이 이만큼 작아지면 끝
                 } else {
+                    this._rec({ i: i, J: last, lam: lam, move: 0, ok: 0,
+                                cx: pose.cx, cy: pose.cy, th: pose.th });
                     lam *= 8; if (lam > 1e12) break;         // 근사를 못 믿겠으면 잔걸음으로
                 }
             }
@@ -537,6 +601,8 @@
                   1단계  콘크리트 피복을 찾아 앉는다   (덕트는 없는 것으로)
                   2단계  그 자리가 덕트와 겹치면 비켜난다
                 덕트는 구멍이지 목표가 아니다.                                      */
+            this._seg = seg.label || '';
+            this._stage = 1;
             const r1 = this.alternate(pose0, seg, cons, [], []);
 
             /*  2단계에 들어가기 전에 **안쪽으로 살짝** 밀어 대칭을 깬다.
@@ -550,6 +616,7 @@
             const nl = hyp(nx, ny) || 1;
             const start = { cx: r1.pose.cx + nx / nl * nud, cy: r1.pose.cy + ny / nl * nud, th: r1.pose.th };
 
+            this._stage = 2;
             const r2 = this.alternate(start, seg, cons, ducts, placed);
 
             return {
@@ -634,6 +701,7 @@
 
             let res = null, pts = null, pass = 0, moved = Infinity;
             for (; pass < this.CONF.PASS; pass++) {
+                this._pass = pass + 1;
                 res = segs.map((sg, i) => {
                     const r = this.settle(sg, walls, sec, ducts, placed);
                     const half = sg.len / 2;
@@ -666,7 +734,8 @@
                     return Object.assign({}, sg, {
                         len: sg.len + a * (L - sg.len), c0: c, mid: c,
                         p1: p, p2: q,                       //  targets() 의 띠 판정에 쓰인다
-                        thS: Math.atan2(res[i].u.y, res[i].u.x)   //  더운 출발 (각은 th0 로 묶인 채)
+                        //  더운 출발. **th0 주위로 감아서** 넘긴다 (wrapTo 참조)
+                        thS: this.wrapTo(Math.atan2(res[i].u.y, res[i].u.x), base[i].th0)
                     });
                 });
             }
