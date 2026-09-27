@@ -152,9 +152,30 @@ const Physics = {
         return map.get(key) || null;
     },
 
-    getGravityTarget: (px, py, segNormal, walls, wallStack = {}, currentDia = 0) => {
+    getGravityTarget: (px, py, segNormal, walls, wallStack = {}, currentDia = 0, segSpan = null) => {
         const OPPOSITE_THRESHOLD = -0.6;
         let coverWalls = Physics.buildCoverWalls(walls, wallStack, currentDia);
+
+        /*  「조각 범위 안인가」 — 법선이 마주본다는 것만으로는 벽이 하나로 안 정해진다.
+            닫힌 단면에서는 같은 쪽을 보는 면이 열 개도 나온다(S14 에서 위를 향한 면이 10 개).
+            게이트는 **후보를 거르는** 조건이지 **고르는** 조건이 아니다.
+            조각의 축(법선에 수직) 위로 조각과 벽을 투영해, 조각이 지나는 띠 안에 실제로
+            들어오는 벽만 남긴다.
+            **반드시 원본 벽(origWall)으로 재야 한다.** 피복벽은 코너에서 서로 만나게 이으면서
+            끝이 밀려 나간다 — S14 에서 E23 은 x 3000 → 3061, E5 는 3500 → 3439 로 늘어나
+            복부 위(3000~3500)를 덮어 버린다. 거기엔 면이 없는데도 광선이 맞는다.         */
+        let spanOn = !!(segSpan && segSpan.p1 && segSpan.p2);
+        const inSpan = (w) => {
+            if (!spanOn) return true;
+            const o = w.origWall || w;
+            const ux = segSpan.p2.x - segSpan.p1.x, uy = segSpan.p2.y - segSpan.p1.y;
+            const L = MathUtils.hypot(ux, uy);
+            if (L < 1e-6) return true;
+            const ax = ux / L, ay = uy / L;
+            const pr = (x, y) => (x - segSpan.p1.x) * ax + (y - segSpan.p1.y) * ay;
+            const a = pr(o.x1, o.y1), b = pr(o.x2, o.y2);
+            return Math.min(L, Math.max(a, b)) - Math.max(0, Math.min(a, b)) > 0;
+        };
 
         // dir 방향 광선으로 대향 벽 탐색 (전방 우선, 없으면 후방 폴백에 재사용)
         const scan = (dir) => {
@@ -163,6 +184,7 @@ const Physics = {
             coverWalls.forEach(w => {
                 let dot = w.nx * segNormal.x + w.ny * segNormal.y;
                 if (dot > OPPOSITE_THRESHOLD) return;
+                if (!inSpan(w)) return;
 
                 let dx = w.x2 - w.x1;
                 let dy = w.y2 - w.y1;
@@ -226,7 +248,11 @@ const Physics = {
             return best;
         };
 
-        const res = scan(segNormal) || scan({ x: -segNormal.x, y: -segNormal.y }) || nearestOpposing();
+        let res = scan(segNormal) || scan({ x: -segNormal.x, y: -segNormal.y }) || nearestOpposing();
+        if (!res && spanOn) {                       // 띠 안에 벽이 하나도 없으면 조건을 풀고 다시 찾는다
+            spanOn = false;
+            res = scan(segNormal) || scan({ x: -segNormal.x, y: -segNormal.y }) || nearestOpposing();
+        }
 
         // ② 그 벽으로 이동하다가, 앞서 놓인 철근이 있으면 그 반발만큼 못 미쳐 멈춘다.
         //    반발은 벽 법선 방향으로 st(적층 두께) 이지만, 정지점은 반드시 '이동 경로(광선) 위'
@@ -304,7 +330,8 @@ const Physics = {
                 let hitInfos = [];
 
                 seg.nodes.forEach(node => {
-                    let target = Physics.getGravityTarget(node.x, node.y, seg.normal, walls, wallStack, dia);
+                    let target = Physics.getGravityTarget(node.x, node.y, seg.normal, walls, wallStack, dia,
+                        { p1: seg.nodes[0], p2: seg.nodes[seg.nodes.length - 1] });
 
                     if (target) {
                         let dx = target.x - node.x;
