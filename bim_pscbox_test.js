@@ -227,7 +227,14 @@
           dataRows.forEach(function (r) {
             h += '<tr>';
             for (var i = 0; i < ncol; i++) {
-              if (i < 2) { h += '<td>' + esc(r[i]) + '</td>'; continue; }        // type/id 는 평가 제외
+              /*  평가에서 빼는 칸 —
+                    0 type · 1 id  는 이름이다.
+                    2 는 trebar 의 **형상 code** 다. `23-1` 처럼 가지번호가 붙는데,
+                      수식으로 보면 23 − 1 = **22** 가 되어 버린다. 실제로 그렇게
+                      찍혔다 — 코드는 23-1 로 잘 들어가 있는데 표만 22 로 보였다.
+                      code 는 식이 아니라 이름이므로 계산하지 않는다.                */
+              var isTre = String(r[0] == null ? '' : r[0]).trim().toLowerCase() === 'trebar';
+              if (i < 2 || (i === 2 && isTre)) { h += '<td>' + esc(r[i]) + '</td>'; continue; }
               var ec = evalCell(r[i]);
               h += ec.changed
                 ? '<td title="' + esc(r[i]) + '">' + esc(ec.txt) + '</td>'      // 툴팁 = 원본 수식
@@ -623,9 +630,18 @@
         var codeById = {};
         (this._rebarData || []).forEach(function (rd) { if (rd && rd.id != null && rd.code != null) codeById[String(rd.id)] = rd.code; });
         function fmt(n) { return (n == null || !isFinite(n)) ? '' : String(Math.round(n)); }
+        /*  형상 code 는 엔진 안에서 숫자 하나다 ('23-1' → 23.1).
+            표에는 **도면대로 되돌려** 적는다 — fmt 는 반올림이라 23.1 을 23 으로
+            찍어서, 23 과 23-1 이 표에서 구별되지 않았다.                        */
+        function codeText(c) {
+          var n = Number(c);
+          if (!isFinite(n)) return String(c == null ? '' : c);
+          var b = Math.floor(n + 1e-9), f = Math.round((n - b) * 10);
+          return f ? (b + '-' + f) : String(b);
+        }
         function codeCell(id) {
           var c = codeById[String(id)];
-          return (c == null) ? '<td class="phys-na">&mdash;</td>' : '<td>' + fmt(Number(c)) + '</td>';
+          return (c == null) ? '<td class="phys-na">&mdash;</td>' : '<td>' + self._esc(codeText(c)) + '</td>';
         }
         function cells(vals, n) {
           var s = '';
