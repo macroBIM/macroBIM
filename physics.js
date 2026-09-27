@@ -300,25 +300,11 @@ const Physics = {
 
         trebar.segments.forEach((seg, idx) => {
             if (seg.state === "WAITING") {
+                /*  조각은 서로를 기다리지 않는다. 각자 제 법선이 마주보는 벽 —
+                    그중 제 띠 안에 있는 벽 — 으로 끌려가 앉고, 그 뒤에 코너 교점으로 잇는다.
+                    앞 조각 끝으로 끌어다 놓으면(전에 그랬다) 조각이 제 자리에서 못 찾는다.   */
                 allSegmentsSettled = false;
-                if (idx === 0 || trebar.segments[idx - 1].state === "SETTLED") {
-                    seg.state = "FITTING";
-                    /*  앞 조각은 안착하면서 크게 움직인다. 기다리던 조각은 스폰 자리에 그대로
-                        남아 있어 사슬이 끊어진다 — 좌측 캔틸레버의 1-1 은 몸통이 y=1,000 에서
-                        117 로 내려왔는데 다리는 1,000 에 남아, 콘크리트 한참 위에서 어느 쪽으로
-                        쏴도 벽이 없어 영영 안착하지 못했다. set 을 쓰면 철근 전체가 미리 벽으로
-                        옮겨져서 이 일이 안 보였다.
-                        깨어날 때 앞 조각의 끝점으로 **평행이동만** 한다. 방향도 길이도 그대로다.  */
-                    if (idx > 0) {
-                        const prev = trebar.segments[idx - 1];
-                        const dx = prev.p2.x - seg.p1.x, dy = prev.p2.y - seg.p1.y;
-                        if (MathUtils.hypot(dx, dy) > 1e-6) {
-                            seg.p1.x += dx; seg.p1.y += dy;
-                            seg.p2.x += dx; seg.p2.y += dy;
-                            seg.nodes.forEach(n => { n.x += dx; n.y += dy; n.vx = 0; n.vy = 0; });
-                        }
-                    }
-                }
+                seg.state = "FITTING";
             }
 
             if (seg.state === "FITTING") {
