@@ -26,7 +26,27 @@
  *     갈지는 **init 자세**가 고른다. 설계자의 의도가 들어가는 자리는 거기 하나뿐
  *     이다 — 코드 안의 if 가 아니다. 그래서 init 은 콘크리트 안, 붙을 면 쪽에 둔다.
  *
- *  ── 푸는 순서 ─────────────────────────────────────────────────────────
+ *  ── 철근 하나를 세우는 규칙 (이 엔진의 계약) ──────────────────────────
+ *  **딱 세 걸음이다. 되풀이하지 않는다.**
+ *
+ *    ㉠ 조각마다 제 면을 찾아 **한 번** 앉힌다                      (settle)
+ *    ㉡ 앉은 면이 그 조각의 **직선식**이 된다.
+ *       이웃한 두 직선의 **교점**이 코너다                     (joinCorners)
+ *    ㉢ 코너에서 **입력 길이**(없으면 기본값)만큼 되짚어 자유단을 놓는다
+ *
+ *  그래서 **입력 길이는 제약이 아니라 출발점**이다 — 「어디서 벽을 찾기 시작하나」를
+ *  정할 뿐이고, 앉고 나면 그 조각이 놓인 직선만 남는다. 가운데 조각은 **입력이
+ *  필요 없다**(코너끼리 이으면 되니까 길이는 출력이다). 입력 길이가 실제로 쓰이는
+ *  자리는 **양 끝 조각의 자유단** 하나뿐이다.
+ *
+ *  ㉠ 이 끝난 자리는 **고정이다.** 그려진 폴리라인으로 조각을 다시 만들어 또 푸는
+ *  고리를 한동안 뒀었는데(순간격을 토막이 아니라 그려진 몸에서 재려던 것), 그
+ *  되먹임이 앉은 자리를 흔들었다 : ⑧ 의 다리 둘이 판1 에 제 면(복부 외측 · 셀 바닥)
+ *  에 맞게 앉았는데, 판2 에서 코너가 다리를 552 mm 끌어 헌치 끝을 50 mm 벗어나게
+ *  만들었고, 그러자 남은 후보가 5.7 m 위의 데크뿐이라 철근이 거기로 올라갔다.
+ *  **처음 앉은 자리가 답이다.**
+ *
+ *  ── 한 조각을 앉히는 순서 (㉠ 의 속) ──────────────────────────────────
  *  1단계  덕트·철근을 없는 것으로 두고 피복면에 앉힌다
  *  2단계  그 자리에서 덕트·기존 철근을 켜고 다시 내린다 (비켜나기)
  *  각 단계 안에서는 「끝점을 면에 배정 → 배정을 고정하고 하강 → 다시 배정」을
@@ -35,7 +55,6 @@
  *
  *  ── 안 건드리는 것 ────────────────────────────────────────────────────
  *  `physics.js` · `domain.js` 는 그대로다. 이 파일은 옆에 선다.
- *  화면도 아직 이것을 안 쓴다. `bench/jbench.js` 로만 돌린다.
  */
 (function (root) {
     'use strict';
@@ -72,9 +91,6 @@
             OUTER: 12,         // 배정 다시 잡기 최대 횟수
             TOL: 1e-4,         // **걸음**이 이보다 작아지면 멈춘다 (mm)
             H: 0.05,           // 수치미분 간격 (mm) — 야코비 검산에만 쓴다
-            PASS: 8,           // 그려진 폴리라인으로 다시 푸는 바깥 판의 최대 횟수
-            PASSTOL: 0.2,      // 폴리라인이 이만큼도 안 움직이면 판을 멈춘다 (mm)
-            RELAX: 0.5,        // 그 되먹임을 늦추는 비율 (1 이면 그대로, 출렁인다)
             BAND: 5.0,         // 피복선에 「닿아 있다」고 볼 폭 (mm) — 여과를 거는 구간
             TOUCH: 0.5,        // 이만큼 붙으면 접촉으로 본다 (mm)
             NUDGE: 1.0         // 2단계 시작 전 안쪽으로 밀어 대칭을 깨는 양 (mm)
@@ -303,15 +319,10 @@
             return Math.min.apply(null, this.clearPairs(pts, q1, q2).map(n => n.d));
         },
 
-        /*  각을 기준각 주위로 감는다.
-            `Math.atan2` 는 (−180°, 180°] 을 돌려준다. 그래서 ±180° 근처에서
-            **부호가 뒤집힌다** — 실제로는 1.7° 차이인데 숫자로는 358° 차이가 된다.
-            그 값을 그대로 각 제한(th0 ± 30°)에 넣으면 클램프가 조각을 30° 통째로
-            돌려 버린다. ①-1 의 4.8 m 다리가 그렇게 돌아가 피복이 22 mm 모자랐다.  */
-        wrapTo: function (th, ref) {
-            const TAU = Math.PI * 2;
-            return ref + (((th - ref + Math.PI) % TAU) + TAU) % TAU - Math.PI;
-        },
+        /*  (wrapTo 는 지웠다. 판을 거듭하며 앞 판의 각을 다음 판의 출발각으로
+            넘길 때만 쓰던 것이다 — `Math.atan2` 가 ±180° 에서 부호를 뒤집는 탓에
+            각 제한(th0 ± 30°)이 조각을 통째로 돌려 버리는 일이 있었다.
+            판이 하나뿐이면 출발각은 언제나 th0 이라 감을 일이 없다.)             */
 
         //  그 점에서 가장 가까운 면
         nearestCon: function (p, cons) {
@@ -624,8 +635,7 @@
             배정이 되돌아오면(진동) 거기서 멈추고 그 사실을 보고한다.              */
         settle: function (seg, walls, sec, ducts, placed) {
             const cons = this.targets(seg, walls, sec, seg.dia);
-            const pose0 = { cx: seg.c0.x, cy: seg.c0.y,
-                            th: (seg.thS == null) ? seg.th0 : seg.thS };
+            const pose0 = { cx: seg.c0.x, cy: seg.c0.y, th: seg.th0 };
             if (!cons.length)
                 return { pose: pose0, cons: cons, iter: 0, stopped: 'no-target', contacts: [] };
 
@@ -701,87 +711,87 @@
             return out.sort((a, b) => Math.abs(a.g) - Math.abs(b.g));
         },
 
-        /*  철근 하나. 조각들을 **각자** 내린 뒤, 이웃한 두 직선의 교점으로 잇는다.
+        /*  철근 하나. **딱 세 걸음이다.**
 
-            ── 왜 판(pass)을 거듭하나 ────────────────────────────────────────
-            조각은 **입력 길이짜리 토막**으로 풀리는데, 그려지는 것은 교점으로 이어
-            늘린 폴리라인이다. 가운데 조각은 늘어나고 끝 조각은 제 직선 위를
-            미끄러진다 — 방향과 피복거리는 같지만 **축방향 자리가 다르다.**
-            그래서 한 판만 돌면 순간격을 엉뚱한 데서 재게 된다. ⑥-2 의 아래 다리가
-            그랬다 : 토막은 x 2555..2955 에 있는데 그려지는 다리는 3032..3431 이고,
-            ⑥-1 의 다리(3049..3449)와 같은 피복선에 겹친다. 엔진은 못 보고,
-            그림에서는 22 mm 파묻힌다.
+              ㉠ 조각마다 제 면을 찾아 한 번 앉힌다 (settle)
+              ㉡ 앉은 면의 피복선이 그 조각의 **직선식**이 된다.
+                 이웃한 두 직선의 **교점**이 코너다 (joinCorners)
+              ㉢ 코너에서 **입력 길이**(없으면 기본값)만큼 되짚어 자유단을 놓는다
 
-            그래서 **그려진 폴리라인으로 조각을 다시 만들어** 또 푼다.
-            토막의 위치·길이만 바꾸고, 회전의 기준점도 그려진 조각의 중점이 된다.
-              (한때 토막은 그대로 두고 「순간격 잴 몸」만 길게 준 적이 있는데,
-               그러면 회전이 **토막의 중점**을 축으로 일어나 팔 길이가 항끼리
-               열몇 배 어긋난다 — 몸통이 복부면에서 109 mm 기울어 버렸다.)
-            기준으로 남기는 것은 둘뿐이다 : 입력 길이(len0)와 init 각(th0).
-            앞의 것은 자유단을 되짚는 데, 뒤의 것은 각을 묶는 데 쓴다.            */
+            ── 입력 길이는 제약이 아니라 **출발점**이다 ─────────────────────────
+            조각의 길이는 「어디서 벽을 찾기 시작하나」를 정할 뿐이다. 앉고 나면
+            그 조각이 놓인 **직선**만 남는다 — 길이는 거기서 아무 일도 하지 않는다.
+            그래서 가운데 조각은 **입력이 필요 없다.** 코너와 코너를 잇기만 하면
+            되니까 길이는 출력이다 (ㄷ자 스터럽 몸통이 400 을 줘도 7.5 m 로 서는
+            이유). 입력 길이가 실제로 쓰이는 자리는 **양 끝 조각의 자유단** 하나다.
+
+            ── 한때 판(pass)을 거듭했다. 그게 ⑧ 을 망쳤다 ─────────────────────
+            앉힌 뒤 그려진 폴리라인으로 **조각을 다시 만들어 또 푸는** 고리가 있었다.
+            순간격을 토막이 아니라 그려진 몸에서 재려던 것인데, 그 되먹임이 앉은
+            자리를 흔든다 :
+              판1  ⑧ 의 a → 복부 외측면(E6) · b → 셀 바닥 헌치(E21)   둘 다 맞게 앉았다
+              판2  a 가 코너를 x=3452 로 끌어 b 를 552 mm 오른쪽으로 옮긴다 →
+                   헌치는 x=3000 에서 끝나므로 b 의 띠가 50 mm 모자라 E21 이 빠지고,
+                   남은 후보가 데크 상면(E2) 하나뿐이라 **b 가 5.7 m 위로 올라간다**
+              판3  a 는 복부면의 길이를 벗어나 후보가 0 개가 된다 (no-target)
+            **처음 앉은 자리가 답이다.** 다시 풀 이유가 없다.                     */
         form: function (bar, walls, sec, ducts, placed) {
-            const base = bar.segs.map(s => {
+            this._pass = 1;
+            const segs = bar.segs.map(s => {
                 const vx = s.p2.x - s.p1.x, vy = s.p2.y - s.p1.y;
                 const L = hyp(vx, vy) || 1;
                 const th = Math.atan2(vy, vx);
-                //  법선의 손잡이 — init 이 준 법선이 축의 어느 쪽인지 기억해 둔다
-                const side = (-Math.sin(th) * s.normal.x + Math.cos(th) * s.normal.y) >= 0 ? 1 : -1;
-                return { label: s.label, len0: L, dia: bar.dia, n0: s.normal, side: side, th0: th };
+                const mid = { x: (s.p1.x + s.p2.x) / 2, y: (s.p1.y + s.p2.y) / 2 };
+                return { label: s.label, len: L, len0: L, dia: bar.dia, n0: s.normal, th0: th,
+                         p1: s.p1, p2: s.p2, mid: mid, c0: mid };
             });
-            //  1판은 입력 그대로 — 토막 길이 · init 자리
-            let segs = bar.segs.map((s, i) => Object.assign({}, base[i], {
-                len: base[i].len0, p1: s.p1, p2: s.p2,
-                mid: { x: (s.p1.x + s.p2.x) / 2, y: (s.p1.y + s.p2.y) / 2 },
-                c0: { x: (s.p1.x + s.p2.x) / 2, y: (s.p1.y + s.p2.y) / 2 }
-            }));
 
-            let res = null, pts = null, pass = 0, moved = Infinity;
-            for (; pass < this.CONF.PASS; pass++) {
-                this._pass = pass + 1;
-                res = segs.map((sg, i) => {
-                    const r = this.settle(sg, walls, sec, ducts, placed);
-                    const half = sg.len / 2;
-                    const dx = Math.cos(r.pose.th) * half, dy = Math.sin(r.pose.th) * half;
-                    return {
-                        label: sg.label, iter: r.iter, J: r.J, Jcover: r.Jcover, len0: base[i].len0,
-                        cons: r.cons.map(c => c.w.id), contacts: r.contacts || [],
-                        rest: r.rest || [], stopped: r.stopped || null,
-                        u: { x: Math.cos(r.pose.th), y: Math.sin(r.pose.th) },
-                        p1: { x: r.pose.cx - dx, y: r.pose.cy - dy },
-                        p2: { x: r.pose.cx + dx, y: r.pose.cy + dy }
-                    };
-                });
+            const byId = {};
+            (walls || []).forEach(w => { byId[w.id] = w; });
 
-                const npts = this.joinCorners(res);
-                moved = pts ? Math.max.apply(null,
-                    npts.map((p, i) => hyp(p.x - pts[i].x, p.y - pts[i].y))) : Infinity;
-                pts = npts;
-                if (moved < this.CONF.PASSTOL) { pass++; break; }
+            //  ㉠ 각자 한 번 앉는다
+            const res = segs.map(sg => {
+                const r = this.settle(sg, walls, sec, ducts, placed);
+                const half = sg.len / 2;
+                let ux = Math.cos(r.pose.th), uy = Math.sin(r.pose.th);
 
-                /*  다음 판 : **그려진 조각**으로 다시 만든다.
-                    늦춰서 옮긴다(under-relaxation) — 다리가 코너를 정하고 코너가
-                    몸통을 정하는 되먹임이라, 그대로 넘기면 판마다 출렁인다.       */
-                const a = this.CONF.RELAX;
-                segs = segs.map((sg, i) => {
-                    const p = pts[i], q = pts[i + 1];
-                    const mx = (p.x + q.x) / 2, my = (p.y + q.y) / 2;
-                    const L = hyp(q.x - p.x, q.y - p.y) || 1;
-                    const c = { x: sg.c0.x + a * (mx - sg.c0.x), y: sg.c0.y + a * (my - sg.c0.y) };
-                    return Object.assign({}, sg, {
-                        len: sg.len + a * (L - sg.len), c0: c, mid: c,
-                        p1: p, p2: q,                       //  targets() 의 띠 판정에 쓰인다
-                        //  더운 출발. **th0 주위로 감아서** 넘긴다 (wrapTo 참조)
-                        thS: this.wrapTo(Math.atan2(res[i].u.y, res[i].u.x), base[i].th0)
-                    });
-                });
-            }
+                /*  **앉은 면이 그 조각의 직선식이다.** 방향을 벽에서 가져온다.
+                    토막은 덕트·이웃 철근에 밀려 벽과 몇 도 어긋난 채 멈출 수 있다
+                    (⑥-2 의 윗다리가 데크면과 1.6° 틀어졌다 — 덕트 581 · 철근 627 이
+                    피복 125 를 밀어낸 자리다). 그 토막을 코너에서 400 mm 늘리면
+                    어긋남이 그대로 커져서 자유단이 피복선 **밖으로** 16.6 mm 나갔다.
+                    벽에서 방향을 가져오면 그 일이 없어진다 — 늘려도 같은 선 위다.
+                    **중점은 안 건드린다** : 덕트에 밀려난 만큼(면에서 떨어진 거리)은
+                    J 가 찾은 값이고, 그건 살려 둬야 한다. 방향만 벽의 것으로 바꾼다.
+                    두 끝이 서로 다른 면에 앉았으면(헌치를 타고 넘는 조각) 벽이 하나로
+                    정해지지 않으므로 앉은 자세를 그대로 쓴다.                      */
+                const rw = (r.rest && r.rest.length === 2 && r.rest[0] === r.rest[1])
+                           ? byId[r.rest[0]] : null;
+                if (rw) {
+                    const wx = rw.x2 - rw.x1, wy = rw.y2 - rw.y1, wl = hyp(wx, wy) || 1;
+                    let vx = wx / wl, vy = wy / wl;
+                    if (vx * ux + vy * uy < 0) { vx = -vx; vy = -vy; }   // 진행 방향에 맞춘다
+                    ux = vx; uy = vy;
+                }
+                const dx = ux * half, dy = uy * half;
+                return {
+                    label: sg.label, iter: r.iter, J: r.J, Jcover: r.Jcover, len0: sg.len0,
+                    cons: r.cons.map(c => c.w.id), contacts: r.contacts || [],
+                    rest: r.rest || [], stopped: r.stopped || null,
+                    u: { x: ux, y: uy },
+                    p1: { x: r.pose.cx - dx, y: r.pose.cy - dy },
+                    p2: { x: r.pose.cx + dx, y: r.pose.cy + dy }
+                };
+            });
 
-            //  출력 길이 — 폴리라인에서 잰다
+            //  ㉡㉢ 교점으로 잇고, 자유단은 입력 길이만큼 되짚는다
+            const pts = this.joinCorners(res);
+
+            //  출력 길이 — 폴리라인에서 잰다 (가운데 조각은 여기서 정해진다)
             res.forEach((s, i) => { s.len = hyp(pts[i + 1].x - pts[i].x, pts[i + 1].y - pts[i].y); });
             const total = res.reduce((a, s) => a + s.len, 0);
 
-            return { id: bar.id, dia: bar.dia, segs: res, pts: pts, len: total,
-                     pass: pass, moved: moved };
+            return { id: bar.id, dia: bar.dia, segs: res, pts: pts, len: total, pass: 1, moved: 0 };
         },
 
         /*  코너 = 이웃한 두 직선의 교점. 평행이면 안착한 끝점을 그대로 둔다.
