@@ -16,9 +16,10 @@ const { prepare } = require('./jengine');
 const ROOT = path.join(__dirname, '..');
 
 //  시트에 넣을 lrebar 한 줄 (화면 입력표의 칸 차례 그대로)
-//   0        1     2     3        4            5         6      7      8       9      10   11    12
-//  lrebar | id | dia | num | init(x,y,rot)| range(−,+)| nors | ctc | ctcmax | ctcmin | — | path | z
-const ROW = ['lrebar', 'D1', 13, 50, '0,100,0', '-6200,6200', 1, 250, 300, 100, '', '', 0, ''];
+//   0        1     2     3        4            5         6      7      8       9      10    11    12
+//  lrebar | id | dia | num | init(x,y,rot)| range(−,+)| nors | ctc | ctcmax | ctcmin | gap | path | z
+//  gap 을 주면 한 줄이 상·하 두 줄이 된다 (정상 최대 509 mm · 복부 6,700 mm 이라 600 이면 갈린다)
+const ROW = ['lrebar', 'D1', 13, 50, '0,-100,0', '-6200,6200', 1, 250, 300, 100, 600, '', 0, ''];
 
 const sheet = JSON.parse(JSON.stringify(require('./fixture/s14.json')));
 const at = sheet.findIndex(r => String(r[0] || '').trim().toLowerCase() === 'end');
@@ -54,7 +55,8 @@ console.log(`_solveWithJField → ${ok}`);
 
 Domain.lrebarList.forEach(grp => {
     const d = (P._ldiag || {})[String(grp.id)];
-    console.log(`\n══ ${grp.id} ══  ${grp.particles ? grp.particles.length : 0} 개 · state ${grp.state}`);
+    console.log(`\n══ ${grp.id} ══  ${grp.particles ? grp.particles.length : 0} 개 · state ${grp.state}` +
+        (d && d.dropped ? `  (짝 ${d.dropped}개 버림)` : ''));
     if (!d) { console.log('  (J 로 안 풀렸다)'); return; }
     const g = d.g, res = d.res;
     console.log(`  D${g.dia} × ${g.num}  ctc ${g.ctc}  range ${g.range.min}..${g.range.max}  ` +
@@ -73,6 +75,21 @@ Domain.lrebarList.forEach(grp => {
             `(${String(Math.round(b.x)).padStart(6)},${String(Math.round(b.y)).padStart(6)})   ` +
             `${String(b.rest || '없음').padEnd(6)} ${b.slack == null ? '   -' : b.slack.toFixed(1).padStart(7)}`);
     });
+    if (d.pair) {
+        const seatB = {};
+        d.pair.bars.forEach((b, i) => {
+            const a = res.bars[i]; if (!a) return;
+            const sep = Math.hypot(b.x - a.x, b.y - a.y);
+            const k = (sep > g.gap) ? '버림' : (b.rest || '없음');
+            seatB[k] = (seatB[k] || 0) + 1;
+        });
+        console.log('  아래쪽 줄 : ' + Object.keys(seatB).map(k => `${k} ${seatB[k]}개`).join(' · '));
+        console.log('  버린 자리 : ' + d.pair.bars.map((b, i) => {
+            const a = res.bars[i]; if (!a) return null;
+            const sep = Math.hypot(b.x - a.x, b.y - a.y);
+            return sep > g.gap ? `x ${Math.round(b.x)} (간격 ${Math.round(sep)})` : null;
+        }).filter(Boolean).join('  ') || '없음');
+    }
     const lo = Math.min.apply(null, res.gaps), hi = Math.max.apply(null, res.gaps);
     console.log(`  간격 : 최소 ${Math.round(lo)} · 최대 ${Math.round(hi)}  (한계 ${g.ctcmin}..${g.ctcmax})`);
     console.log(`  J ${res.J == null ? '-' : Math.round(res.J)} · 반복 ${res.iter}`);

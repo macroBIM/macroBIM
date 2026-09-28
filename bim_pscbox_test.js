@@ -186,7 +186,7 @@
         // 표제목 = trebar / lrebar 입력체계 + duct(매입물)
         var SCHEMA = [
           ['trebar', 'id', 'code', 'dia', 'init (x, y, rot)', 'set', 'segs (len)', 'angs', 'nors', 'barStart', 'barEnd', 'radius', 'z'],
-          ['lrebar', 'id', 'dia', 'num', 'init (x, y, rot)', 'range (-, +)', 'nors', 'ctc', 'ctcmax', 'ctcmin', '', 'path', 'z'],
+          ['lrebar', 'id', 'dia', 'num', 'init (x, y, rot)', 'range (-, +)', 'nors', 'ctc', 'ctcmax', 'ctcmin', 'gap', 'path', 'z'],
           //  매입물 — 철근이 아니라 콘크리트에 뚫린 구멍이다. 문법은 bim_duct.js 에 있다.
           //  ref : deck(상면에서 아래 · 기본) · soffit(밑면에서 위로) · abs(절대 y)
           DuctBlock.SCHEMA_ROW
@@ -337,6 +337,12 @@
         if (this._rbHas(row[7])) o.bar.ctc = this._rbNum(row[7]);
         if (this._rbHas(row[8])) o.bar.max = this._rbNum(row[8]);
         if (this._rbHas(row[9])) o.bar.min = this._rbNum(row[9]);
+        /*  gap — 상·하 한 쌍으로 놓을 때 **둘 사이 간격**. 주면 한 줄이 철근 두 줄을
+            만든다(위쪽 nors, 아래쪽 −nors). 태어날 때 이만큼 벌려 놓고 각자 제 면으로
+            끌려가며, 다 풀고 나서 **간격이 이 값을 넘으면 그 짝은 버린다** — 그 자리엔
+            한쪽 면이 없다는 뜻이다(복부에서는 아래쪽 철근이 하부슬래브 하면까지
+            6.7 m 를 내려간다. 정상 구간은 최대 509 mm 다).                        */
+        if (this._rbHas(row[10])) o.bar.gap = this._rbNum(row[10]);
         var init = this._rbInit(row[4], ['x', 'y', 'rot']); if (init) o.init = init;   // init 은 x,y,rot 만 (grav 분리)
         var range = this._rbRange(row[5]); if (range) o.range = range;
         // nors(row[6]) = 종방향 철근이 끌려갈 쪽(-1/+1). init 에 섞지 않고 별도 칸에서 읽어 엔진이 쓰는 init.grav 로 전달
@@ -1153,19 +1159,58 @@
             nors: (init.grav === -1) ? -1 : 1,
             range: { min: (grp.rangeData && grp.rangeData.min) || 0,
                      max: (grp.rangeData && grp.rangeData.max) || 0 },
-            ctc: bar.ctc, ctcmin: bar.min, ctcmax: bar.max, path: rd.path || []
+            ctc: bar.ctc, ctcmin: bar.min, ctcmax: bar.max, gap: bar.gap, path: rd.path || []
           };
           if (!g.num || !g.ctc) {
             warn.push(g.id + ' : num 과 ctc 가 있어야 배치합니다');
             return;
           }
-          var res;
-          try { res = JLong.solve(g, sec.walls, sec, self._ducts || [], prims); }
+          /*  ── gap 을 주면 **한 줄이 상·하 두 줄**이 된다 ──────────────────
+              위쪽(nors)과 아래쪽(−nors)을 gap 만큼 벌려 놓고 각자 제 면으로 보낸다.
+              위쪽을 먼저 풀고 그 결과를 **점 장애물**로 넘겨 아래쪽이 피하게 한다
+              (같은 무리 안이 아니면 서로를 못 보므로).
+              다 풀고 나서 **짝의 간격이 gap 을 넘으면 그 짝을 버린다** — 그 자리엔
+              한쪽 면이 없다는 뜻이다. 버릴 쪽은 **init 에서 더 멀리 간 쪽**이다.
+              gap 이 없으면 예전대로 한 줄이다.                                  */
+          var res, pairRes = null, dropped = 0;
+          try {
+            if (g.gap > 0) {
+              var ax = JLong.axes(g), h = g.gap / 2;
+              var gT = Object.assign({}, g, { init: { x: g.init.x + ax.n.x * h,
+                                                      y: g.init.y + ax.n.y * h, rot: g.init.rot } });
+              var gB = Object.assign({}, g, { nors: -g.nors,
+                                              init: { x: g.init.x - ax.n.x * h,
+                                                      y: g.init.y - ax.n.y * h, rot: g.init.rot } });
+              res = JLong.solve(gT, sec.walls, sec, self._ducts || [], prims);
+              var prims2 = prims.concat(res.bars.map(function (b) {
+                return { t: 'line', p: [b.x, b.y, b.x, b.y], dia: g.dia };   // 점 장애물
+              }));
+              pairRes = JLong.solve(gB, sec.walls, sec, self._ducts || [], prims2);
+            } else {
+              res = JLong.solve(g, sec.walls, sec, self._ducts || [], prims);
+            }
+          }
           catch (e) { console.error('[PSCBOX] JLong:', g.id, e); warn.push(g.id + ' : 배치 실패'); return; }
-          self._ldiag[g.id] = { g: g, res: res };
+
+          var pts = res.bars.map(function (b) { return { x: b.x, y: b.y, t: b.t, rest: b.rest }; });
+          if (pairRes) {
+            pairRes.bars.forEach(function (b, i) {
+              var a = res.bars[i];
+              if (!a) return;
+              var sep = Math.hypot(b.x - a.x, b.y - a.y);
+              if (sep > g.gap) {                       // 그 자리엔 한쪽 면이 없다
+                dropped++;
+                return;                                //  아래쪽을 버린다 (더 멀리 간 쪽)
+              }
+              pts.push({ x: b.x, y: b.y, t: b.t, rest: b.rest });
+            });
+            if (dropped) warn.push(g.id + ' : 짝 ' + dropped + '개를 버렸습니다 ' +
+                                   '(간격이 gap ' + g.gap + ' mm 를 넘습니다 — 그 자리엔 한쪽 면이 없습니다)');
+          }
+          self._ldiag[g.id] = { g: g, res: res, pair: pairRes, dropped: dropped };
 
           //  particles 에 써 넣는다 (그림이 읽는 자리)
-          grp.particles = res.bars.map(function (b) {
+          grp.particles = pts.map(function (b) {
             return { x: b.x, y: b.y, vx: 0, vy: 0, t: b.t, target: null, state: 'SETTLED' };
           });
           grp.num = res.bars.length;

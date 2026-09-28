@@ -264,7 +264,7 @@
         // 3줄 표제목 = trebar / lrebar / crebar 입력체계
         var SCHEMA = [
           ['trebar', 'id', 'code', 'dia', 'init (x, y, rot)', 'set', 'segs (len)', 'angs', 'nors', 'barStart', 'barEnd', 'radius', 'z'],
-          ['lrebar', 'id', 'dia', 'num', 'init (x, y, rot)', 'range (-, +)', 'nors', 'ctc', 'ctcmax', 'ctcmin', '', 'path', 'z'],
+          ['lrebar', 'id', 'dia', 'num', 'init (x, y, rot)', 'range (-, +)', 'nors', 'ctc', 'ctcmax', 'ctcmin', 'gap', 'path', 'z'],
           //  교축방향 폐합철근 — 격벽을 한 번 더 자른 평면에 눕는다. 크기는 콘크리트가 정한다.
           //  at : cell(복부 사이) · all(단면 전체) · -6000~6000(범위) · -1100(한 자리)
           ['crebar', 'id', 'dia', 'plane', 'at (cell/all/range)', 'set', 'lap', 'from', 'to', 'ctc', '', '', ''],
@@ -422,6 +422,12 @@
         if (this._rbHas(row[7])) o.bar.ctc = this._rbNum(row[7]);
         if (this._rbHas(row[8])) o.bar.max = this._rbNum(row[8]);
         if (this._rbHas(row[9])) o.bar.min = this._rbNum(row[9]);
+        /*  gap — 상·하 한 쌍으로 놓을 때 **둘 사이 간격**. 주면 한 줄이 철근 두 줄을
+            만든다(위쪽 nors, 아래쪽 −nors). 태어날 때 이만큼 벌려 놓고 각자 제 면으로
+            끌려가며, 다 풀고 나서 **간격이 이 값을 넘으면 그 짝은 버린다** — 그 자리엔
+            한쪽 면이 없다는 뜻이다(복부에서는 아래쪽 철근이 하부슬래브 하면까지
+            6.7 m 를 내려간다. 정상 구간은 최대 509 mm 다).                        */
+        if (this._rbHas(row[10])) o.bar.gap = this._rbNum(row[10]);
         var init = this._rbInit(row[4], ['x', 'y', 'rot']); if (init) o.init = init;   // init 은 x,y,rot 만 (grav 분리)
         var range = this._rbRange(row[5]); if (range) o.range = range;
         // nors(row[6]) = 종방향 철근이 끌려갈 쪽(-1/+1). init 에 섞지 않고 별도 칸에서 읽어 엔진이 쓰는 init.grav 로 전달
