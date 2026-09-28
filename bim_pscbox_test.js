@@ -1169,6 +1169,8 @@
               위쪽(nors)과 아래쪽(−nors)을 gap 만큼 벌려 놓고 각자 제 면으로 보낸다.
               위쪽을 먼저 풀고 그 결과를 **점 장애물**로 넘겨 아래쪽이 피하게 한다
               (같은 무리 안이 아니면 서로를 못 보므로).
+              그리고 **아래쪽을 위쪽이 앉은 자리(t)에 묶는다** — 나중에 ㄷ자 갈고리
+              하나가 두 다리를 같이 붙잡으므로 같은 자리에 서야 한다 (JLong.K_TIE).
               다 풀고 나서 **짝의 간격이 gap 을 넘으면 그 짝을 버린다** — 그 자리엔
               한쪽 면이 없다는 뜻이다. 버릴 쪽은 **init 에서 더 멀리 간 쪽**이다.
               gap 이 없으면 예전대로 한 줄이다.                                  */
@@ -1185,7 +1187,8 @@
               var prims2 = prims.concat(res.bars.map(function (b) {
                 return { t: 'line', p: [b.x, b.y, b.x, b.y], dia: g.dia };   // 점 장애물
               }));
-              pairRes = JLong.solve(gB, sec.walls, sec, self._ducts || [], prims2);
+              var tie = res.bars.map(function (b) { return b.t; });
+              pairRes = JLong.solve(gB, sec.walls, sec, self._ducts || [], prims2, tie);
             } else {
               res = JLong.solve(g, sec.walls, sec, self._ducts || [], prims);
             }

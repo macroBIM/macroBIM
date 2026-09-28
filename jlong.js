@@ -108,6 +108,19 @@
                 장애물 옆에서 비켜서는 것은 그대로 한다 — 멀리 퍼지지 않을 뿐이다.    */
             K_A: 0.5,          // 축 방향 (ctc 균등배치로 복귀)
             K_N: 1e-6,         // 법선 방향 (거의 자유)
+            /*  ⑧ 짝 묶기. 상·하 한 쌍은 나중에 **ㄷ자 갈고리 하나**가 같이 붙잡는다 —
+                두 다리가 같은 자리(t)에 서야 갈고리가 걸린다. 그런데 두 줄은 각자
+                제 장애물을 피해 축 방향으로 비켜서므로, 묶지 않으면 어긋난다
+                (K_BAR 20 일 때 중앙값 8.1 · 최대 55 mm, 1000 으로 올리니 25.8 · 51).
+                **K_BAR 탓이 아니다** — 묶는 항이 없었을 뿐이고, 겹침을 더 세게
+                피하게 했더니 더 많이 비켜선 것이다.
+                크기는 K_BAR 과 같은 울타리로 정한다. 아랫줄을 옆으로 미는 것은 결국
+                겹침 항이고 그 잔차는 √K_BAR·δ 이므로, 묶음이 이기려면 K_TIE 가
+                K_BAR 급이어야 한다. **K_TIE 1000** 에서 재 보면 어긋남이
+                중앙값 0.1 · 최대 3.0 mm 다 (묶기 전 25.8 · 50.8).
+                묶으면 아랫줄은 옆으로 못 비킨다 — 대신 **겹 너머로** 들어가야 한다.
+                그 길을 `rescue()` 가 낸다. 둘은 같이 있어야 한다.                 */
+            K_TIE: 1000.0,     // 상·하 짝을 같은 t 에 묶는다 (축 방향만)
             NUDGE: 1.0,        // 2단계 시작 전 안쪽으로 밀어 대칭을 깨는 양 (mm)
             LAM0: 1e-3, ITER: 300, OUTER: 8, TOL: 1e-4
         },
@@ -384,6 +397,16 @@
                      [kn * a.n.x, kn * a.n.y]);
             });
 
+            //  ⑧ 짝 묶기 — 상·하 한 쌍은 **같은 자리(t)** 에 서야 한다 (K_TIE 주석)
+            if (ctx.tie) {
+                const kt = Math.sqrt(K.K_TIE);
+                P.forEach((p, i) => {
+                    if (ctx.tie[i] == null) return;
+                    push('tie', kt * (tOf(p) - ctx.tie[i]), [2 * i, 2 * i + 1],
+                         [kt * a.u.x, kt * a.u.y]);
+                });
+            }
+
             return rows;
         },
 
@@ -394,7 +417,7 @@
         //  항별로 나눠 본다 (논문 표 — 어느 항이 얼마나 밀었나). tag 로 그냥 더한다.
         parts: function (P, g, ctx) {
             const o = { cover: 0, duct: 0, tre: 0, bend: 0, lre: 0,
-                        ctcmin: 0, ctcmax: 0, range: 0, home: 0, total: 0 };
+                        ctcmin: 0, ctcmax: 0, range: 0, home: 0, tie: 0, total: 0 };
             this.residuals(P, g, ctx).forEach(w => {
                 const v = w.r * w.r;
                 if (o[w.tag] != null) o[w.tag] += v;
@@ -609,6 +632,10 @@
             const dx0 = p.x - ctx.home[i].x, dy0 = p.y - ctx.home[i].y;
             push('home', ka * (dx0 * a.u.x + dy0 * a.u.y), [0, 1], [ka * a.u.x, ka * a.u.y]);
             push('home', kn * (dx0 * a.n.x + dy0 * a.n.y), [0, 1], [kn * a.n.x, kn * a.n.y]);
+            if (ctx.tie && ctx.tie[i] != null) {
+                const kt = Math.sqrt(K.K_TIE);
+                push('tie', kt * (t - ctx.tie[i]), [0, 1], [kt * a.u.x, kt * a.u.y]);
+            }
             return rows;
         },
 
@@ -654,6 +681,7 @@
             낮으면 건너가고 아니면 제자리다 — **고르는 것은 J 하나**이고, 규칙이 아니다.
             (1 mm 쯤 살짝 미는 것으로는 못 넘는다. 지름만큼 건너가야 한다.)          */
         escape: function (P, g, ctx, rounds) {
+            const a = this.axes(g);
             let moved = true;
             for (let r = 0; r < (rounds || 4) && moved; r++) {
                 moved = false;
@@ -698,13 +726,72 @@
             return P;
         },
 
+
+        /*  ── 겹을 통째로 넘어간 자리로 구해 낸다 (마지막 손질) ─────────────
+            `escape` 의 ㉡ 는 **걸린 놈 하나**에서만 비켜선다. 두 겹이 나란히 누워
+            있으면 그 **사이**에 서는데, 들어갈 수 없는 틈일 수 있다. 데크 중앙의
+            아래쪽 종방향 철근이 ④ 와 ⑤ 사이(22 mm · 필요 26)에 끼려다 못 끼고
+            ④ 의 **거푸집 쪽**으로 밀려나 피복이 12.7 mm 모자랐다. 실제로는
+            49 mm 만 더 들어가면 ④·⑤ 를 **둘 다 넘긴** 빈자리가 있다.
+            그래서 **끝까지 위반이 남은 철근에게만** 그 자리를 후보로 준다.
+            (누구에게나 주면 멀쩡히 앉은 철근까지 한 겹 더 들어가 간격이 315 mm
+             까지 벌어졌다 — 한계 300. 이것은 구제이지 배치 규칙이 아니다.)
+            고르는 것은 여전히 J 다.                                          */
+        rescue: function (P, g, ctx) {
+            const a = this.axes(g);
+            for (let i = 0; i < P.length; i++) {
+                const seat = (ctx.assign || [])[i];
+                if (!seat) continue;
+                let worst = 0;
+                (ctx.prims || []).forEach(pr => {
+                    const need = (pr.dia + g.dia) / 2;
+                    const e = this.toPrim(P[i], pr, need + g.dia);
+                    if (e && need - e.d > worst) worst = need - e.d;
+                });
+                const sl = this.slack(P[i], seat);
+                if (worst <= 0.05 && sl >= -0.05) continue;      // 멀쩡하면 손대지 않는다
+                /*  들어가는 방향은 면의 법선에서 **축 성분을 뺀 것**이다. 면이 기울어
+                    있으면 법선을 그대로 타고 49 mm 들어갈 때 자리(t)가 7 mm 밀리는데,
+                    짝으로 묶인 철근은 그것이 묶음 항에 54,000 으로 잡혀 이 후보가 늘
+                    진다. 옆으로 밀 이유가 없다 — 곧장 안으로만 들어간다.            */
+                let dx = seat.w.nx, dy = seat.w.ny;
+                const ax = dx * a.u.x + dy * a.u.y;
+                dx -= ax * a.u.x; dy -= ax * a.u.y;
+                const dn = hyp(dx, dy);
+                if (dn > 1e-9) { dx /= dn; dy /= dn; } else { dx = a.n.x; dy = a.n.y; }
+                const step = g.dia / 4, lim = 10 * g.dia;
+                let q = null;
+                for (let t = step; t <= lim; t += step) {
+                    const c = { x: P[i].x + dx * t, y: P[i].y + dy * t };
+                    let clear = true;
+                    for (let k = 0; k < (ctx.prims || []).length; k++) {
+                        const pr = ctx.prims[k], need = (pr.dia + g.dia) / 2;
+                        const e = this.toPrim(c, pr, need + g.dia);
+                        if (e && e.d < need) { clear = false; break; }
+                    }
+                    if (clear) { q = c; break; }
+                }
+                if (!q) continue;
+                const J0 = this.localEnergy(P, i, g, ctx);
+                const Q = P.slice(); Q[i] = q;
+                const r = this.descendOne(Q, i, g, ctx);
+                if (r.J < J0 - 1e-9) P = r.P;
+            }
+            return P;
+        },
+
         /*  한 무리를 푼다. `jfield.settle()` 과 같은 차례다 :
             1단계 콘크리트만 → 2단계 덕트·철근을 켜고 다시 내린다.
             각 단계 안에서 「면 배정 → 고정하고 하강 → 다시 배정」을 번갈아 한다.  */
-        solve: function (g, walls, sec, ducts, prims) {
+        solve: function (g, walls, sec, ducts, prims, tie) {
+            const a = this.axes(g);
             const home = this.layout(g);
             let P = home.map(p => ({ x: p.x, y: p.y }));
-            const a = this.axes(g);
+            /*  짝으로 들어온 아랫줄은 **윗줄이 앉은 자리에서 태어난다.** 균등배치에서
+                출발해 놓고 묶으면 첫 걸음이 통째로 끌려가 헛돈다.                */
+            if (tie) P = P.map((p, i) => (tie[i] == null ? p
+                : { x: p.x + a.u.x * (tie[i] - home[i].t),
+                    y: p.y + a.u.y * (tie[i] - home[i].t) }));
             const pathSet = (g.path && g.path.length)
                             ? g.path.reduce((o, k) => (o[String(k).toUpperCase()] = 1, o), {}) : null;
 
@@ -738,7 +825,7 @@
                     const key = assign.map(c => c ? c.w.id : '-').join(',');
                     if (seen[key]) break;
                     seen[key] = 1;
-                    const ctx = { assign: assign, home: home, ducts: ducts, prims: prims, stage: stage };
+                    const ctx = { assign: assign, home: home, ducts: ducts, prims: prims, stage: stage, tie: tie };
                     const r = this.descend(P, g, ctx);
                     P = r.P; J = r.J; iter += r.iter;
                     const next = assignOf(P);
@@ -747,11 +834,20 @@
                 }
                 //  2단계가 끝나면 **건너편 주머니와 J 를 견준다** (escape 참조)
                 if (stage === 2) {
-                    const ctx = { assign: assignOf(P), home: home, ducts: ducts, prims: prims, stage: 2 };
+                    const ctx = { assign: assignOf(P), home: home, ducts: ducts, prims: prims, stage: 2, tie: tie };
                     P = this.escape(P, g, ctx);
-                    const r = this.descend(P, g, { assign: assignOf(P), home: home,
-                                                   ducts: ducts, prims: prims, stage: 2 });
+                    let r = this.descend(P, g, { assign: assignOf(P), home: home,
+                                                 ducts: ducts, prims: prims, stage: 2, tie: tie });
                     P = r.P; J = r.J; iter += r.iter;
+                    //  아직 위반이 남은 철근만 겹 너머로 구해 내고 한 번 더 내린다
+                    const P2 = this.rescue(P, g, { assign: assignOf(P), home: home,
+                                                   ducts: ducts, prims: prims, stage: 2, tie: tie });
+                    if (P2 !== P) {
+                        P = P2;
+                        r = this.descend(P, g, { assign: assignOf(P), home: home,
+                                                 ducts: ducts, prims: prims, stage: 2, tie: tie });
+                        P = r.P; J = r.J; iter += r.iter;
+                    }
                 }
             });
 
@@ -766,7 +862,7 @@
             for (let i = 0; i + 1 < bars.length; i++) gaps.push(bars[i + 1].t - bars[i].t);
 
             return { id: g.id, bars: bars, gaps: gaps, J: J, iter: iter,
-                     home: home, axes: a, capacity: this.capacity(g) };
+                     home: home, tie: tie || null, axes: a, capacity: this.capacity(g) };
         },
 
         /*  ── 논문용 : 절곡부의 **두 바닥** ────────────────────────────────
@@ -781,7 +877,7 @@
                 return s.length ? this.nearestSeat(p, s) : null;
             };
             const ctx0 = { assign: P.map(seatOf), home: res.home,
-                           ducts: ducts, prims: prims, stage: 2 };
+                           ducts: ducts, prims: prims, stage: 2, tie: res.tie || null };
             const here = this.energy(P, g, ctx0);
 
             //  **아크만** 본다 — 주머니가 둘로 갈리는 것은 굴짐(절곡)에서다
@@ -801,7 +897,7 @@
             const jump = 2 * (e.d + need) + 1;
             const Q = P.map((p, k) => k === i
                 ? { x: p.x - e.ex * jump, y: p.y - e.ey * jump } : { x: p.x, y: p.y });
-            const r = this.descend(Q, g, { assign: Q.map(seatOf), home: res.home,
+            const r = this.descend(Q, g, { assign: Q.map(seatOf), home: res.home, tie: res.tie || null,
                                            ducts: ducts, prims: prims, stage: 2 });
             return { here: here, other: r.J, side: side, d: e.d, need: need, moved: r.P[i] };
         }
