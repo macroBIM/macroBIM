@@ -1285,7 +1285,7 @@
         var ctxT = { assign: PT.map(seatT), home: res.home, ducts: ducts, prims: prims, stage: 2, tie: null };
         var ctxB = { assign: PB.map(seatB), home: pairRes.home, ducts: ducts, prims: primsB, stage: 2, tie: tie };
         var out;
-        try { out = JLong.slidePairs(PT, PB, gT, gB, ctxT, ctxB, tie, seatT, seatB); }
+        try { out = JLong.slidePairs(PT, PB, gT, gB, ctxT, ctxB, tie, seatT, seatB, pairRes.stuck); }
         catch (e) { console.error('[PSCBOX] slidePairs:', e); return null; }
         var moved = 0;
         out.tie.forEach(function (t, i) { if (Math.abs(t - tie[i]) > 0.5) moved++; });

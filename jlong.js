@@ -748,7 +748,63 @@
               지금 (아랫줄이 겹을 넘어감)   아래 1,157 + 위   183 = 1,340
               짝이 같이 25 mm 옆으로       아래   502 + 위   489 =   991  ← 낮다
             고르는 것은 여기서도 J 다. 옮길 자리가 없으면 제자리에 있는다.      */
-        slidePairs: function (PT, PB, gT, gB, ctxT, ctxB, tie, seatT, seatB, span, step) {
+        /*  ── 쐐기 — 두 켜 사이에 낀 자리를 잰다 ─────────────────────────
+            **규칙** (이 자리에서 위로 갈지 옆으로 갈지) :
+              ㉠ 나를 **마주보고** 누르는 두 조각 A·B 를 찾는다 (척력 방향의 내적 < 0).
+              ㉡ 두 중심선 사이의 너비  w = d_A + d_B
+                 들어가는 데 드는 값     need = need_A + need_B
+                 (D13 셋이면 need = 13 + 13 = 26 mm)
+              ㉢ w ≥ need 면 이미 들어가 있다 — 아무것도 안 한다.
+              ㉣ w < need 면 **합력**을 본다. 두 척력은 서로 지우려 들지만 두 켜가
+                 나란하지 않으면 남는 것이 있고, 그 축 성분이 **쐐기가 벌어지는
+                 쪽**을 가리킨다.  F = Σ(−gg_i)·n̂_i ,  벌어지는 쪽 = sign(F·û)
+                 (부호가 dw/dt 와 같은지 여기서 같이 확인한다.)
+              ㉤ 그쪽으로 s* = (need − w)/(dw/dt) 만큼 가면 틈이 생긴다.
+                 **닿는 데 있으면**(|s*| ≤ span) 옆으로 갈 자리를 내놓고,
+                 **없으면**(두 켜가 나란해 dw/dt ≈ 0 이거나 너무 멀면) 내놓지 않는다
+                 — 그것이 「빈틈이 없는 자리」이고, 그때는 위로 올라간다(`rescue`).
+            S14 캔틸레버 : ④ −12.02° · ②-1 −1.72° 라 dw/dt = 0.183 mm/mm,
+            x −5125 에서 w 21.3 · need 26 → s* = +25.7 mm. 재 본 값과 맞는다.     */
+        wedge: function (p, g, ctx, u, span) {
+            const list = [];
+            (ctx.prims || []).forEach(pr => {
+                const need = (pr.dia + g.dia) / 2;
+                const e = this.toPrim(p, pr, need + g.dia);
+                if (!e) return;
+                list.push({ pr: pr, need: need, d: e.d, ex: e.ex, ey: e.ey, gg: e.d - need });
+            });
+            if (list.length < 2) return null;
+            list.sort((q, r) => q.gg - r.gg);
+            const A = list[0];
+            let B = null;
+            for (let k = 1; k < list.length; k++)
+                if (list[k].ex * A.ex + list[k].ey * A.ey < -0.5) { B = list[k]; break; }
+            if (!B) return null;                               // 마주보고 누르는 짝이 없다
+            const w = A.d + B.d, need = A.need + B.need;
+            if (w >= need) return { w: w, need: need, fits: true, s: 0, A: A.pr._id, B: B.pr._id };
+            //  합력의 축 성분
+            const fx = (-A.gg) * A.ex + (-B.gg) * B.ex, fy = (-A.gg) * A.ey + (-B.gg) * B.ey;
+            const fa = fx * u.x + fy * u.y;
+            //  쐐기가 벌어지는 기울기 (수치로 — 아크도 같은 식으로 다룬다)
+            const D = Math.max(2, g.dia / 4);
+            const wAt = q => {
+                const ea = this.toPrim(q, A.pr, 1e9), eb = this.toPrim(q, B.pr, 1e9);
+                return (ea && eb) ? ea.d + eb.d : null;
+            };
+            const wp = wAt({ x: p.x + u.x * D, y: p.y + u.y * D });
+            const wm = wAt({ x: p.x - u.x * D, y: p.y - u.y * D });
+            if (wp == null || wm == null) return { w: w, need: need, fits: false, s: null };
+            const dw = (wp - wm) / (2 * D);
+            if (Math.abs(dw) < 1e-3) return { w: w, need: need, fits: false, s: null, dw: dw };
+            const s = (need - w) / dw;                          // 부호까지 그대로
+            const lim = span || 4 * g.dia;
+            return { w: w, need: need, fits: false, dw: dw, fa: fa,
+                     agree: (fa === 0 || (fa > 0) === (s > 0)),
+                     s: (Math.abs(s) <= lim) ? s : null,
+                     A: A.pr._id, B: B.pr._id };
+        },
+
+        slidePairs: function (PT, PB, gT, gB, ctxT, ctxB, tie, seatT, seatB, stuck, span, step) {
             span = span || 4 * gT.dia; step = step || Math.max(2, gT.dia / 4);
             const K = this.CONF, a = this.axes(gT), out = tie.slice();
             for (let i = 0; i < PB.length; i++) {
@@ -760,8 +816,16 @@
                 ctxT.assign[i] = seatT(PT[i]); ctxB.assign[i] = c0; ctxB.tie = out;
                 let best = { s: 0, J: this.localEnergy(PT, i, gT, ctxT) + this.localEnergy(PB, i, gB, ctxB),
                              pt: PT[i], pb: PB[i] };
-                for (let s = -span; s <= span; s += step) {
-                    if (!s) continue;
+                /*  **규칙이 자리를 고른다** — 눈감고 훑지 않는다 (wedge 주석).
+                    쐐기가 「여기서 벌어진다」고 하면 그 자리와 한 뼘 더 간 자리만
+                    내려본다. 아무것도 안 내놓으면 빈틈이 없는 것이고, 그때는
+                    위로 올라간 지금 자리가 답이다.                              */
+                const wd = this.wedge((stuck && stuck[i]) || PB[i], gB, ctxB, a.u, span);
+                if (!wd || wd.s == null) continue;
+                const cand = [wd.s, wd.s * 1.25, wd.s + Math.sign(wd.s) * gB.dia];
+                for (let ci = 0; ci < cand.length; ci++) {
+                    const s = cand[ci];
+                    if (!s || Math.abs(s) > span) continue;
                     const qT = { x: PT[i].x + a.u.x * s, y: PT[i].y + a.u.y * s };
                     const qB = { x: PB[i].x + a.u.x * s, y: PB[i].y + a.u.y * s };
                     const cT = seatT(qT), cB = seatB(qB);
@@ -869,7 +933,7 @@
                 return s.length ? this.nearestSeat(p, s) : null;
             });
 
-            let iter = 0, J = null;
+            let iter = 0, J = null, stuck = null;
             [1, 2].forEach(stage => {
                 /*  2단계에 들어가기 전에 **안쪽으로 살짝** 민다.
                     1단계가 끝나면 철근이 피복선 위에 앉는데, 먼저 놓인 철근도 같은 선 위에
@@ -898,6 +962,12 @@
                 }
                 //  2단계가 끝나면 **건너편 주머니와 J 를 견준다** (escape 참조)
                 if (stage === 2) {
+                    /*  **겹에 끼어 멈춘 자리**를 여기서 남겨 둔다 — `escape` 가 관을
+                        건너고 `rescue` 가 위로 올리고 나면, 그 철근은 더 이상 두 켜
+                        «사이»에 있지 않아 나중에 쐐기를 재려 해도 마주보고 누르는
+                        짝이 안 보인다. 옆으로 갈지 위로 갈지는 **낀 자리**에서
+                        판단해야 한다 (wedge 주석의 규칙).                        */
+                    stuck = P.map(p => ({ x: p.x, y: p.y }));
                     const ctx = { assign: assignOf(P), home: home, ducts: ducts, prims: prims, stage: 2, tie: tie };
                     P = this.escape(P, g, ctx);
                     let r = this.descend(P, g, { assign: assignOf(P), home: home,
@@ -926,7 +996,7 @@
             for (let i = 0; i + 1 < bars.length; i++) gaps.push(bars[i + 1].t - bars[i].t);
 
             return { id: g.id, bars: bars, gaps: gaps, J: J, iter: iter,
-                     home: home, tie: tie || null, axes: a, capacity: this.capacity(g) };
+                     home: home, tie: tie || null, stuck: stuck, axes: a, capacity: this.capacity(g) };
         },
 
         /*  ── 논문용 : 절곡부의 **두 바닥** ────────────────────────────────
