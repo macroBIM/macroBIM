@@ -734,6 +734,63 @@
         },
 
 
+        /*  ── 짝을 «같이» 옆으로 밀어 본다 ────────────────────────────────
+            두 켜 사이에 낀 철근은 위 켜가 아래로, 아래 켜가 위로 민다. 두 켜가
+            **나란하지 않으면** 그 두 힘이 안 지워지고, 합력이 쐐기가 **벌어지는
+            쪽**을 가리킨다 — 옆으로 빠지라는 뜻이다. S14 캔틸레버가 그렇다 :
+              ④ 기울기 −12.02° · ②-1 −1.72°  →  **10.3° 쐐기**
+              x −5125 에서 두 중심선 사이 21.3 mm (D13 이 들어가려면 26 필요)
+              x −5100 으로 **25 mm** 옆으로 가면 25.8 mm — 들어간다
+            그런데 아랫줄 혼자 옆으로 가면 묶음 항(K_TIE)이 1000×25² 로 막는다.
+            **짝이 같이 가야 한다** — 같이 가면 묶음 값은 그대로 0 이다.
+            그래서 **윗줄과 아랫줄을 한 몸으로 보고** 자리(t)를 옆으로 옮겨 보며
+            두 줄의 J 를 **더해서** 견준다. 재 보면 (묶음 뺀 국소 J) :
+              지금 (아랫줄이 겹을 넘어감)   아래 1,157 + 위   183 = 1,340
+              짝이 같이 25 mm 옆으로       아래   502 + 위   489 =   991  ← 낮다
+            고르는 것은 여기서도 J 다. 옮길 자리가 없으면 제자리에 있는다.      */
+        slidePairs: function (PT, PB, gT, gB, ctxT, ctxB, tie, seatT, seatB, span, step) {
+            span = span || 4 * gT.dia; step = step || Math.max(2, gT.dia / 4);
+            const K = this.CONF, a = this.axes(gT), out = tie.slice();
+            for (let i = 0; i < PB.length; i++) {
+                if (tie[i] == null) continue;
+                /*  **한 켜 뒤보다 깊이 들어간 짝에게만** 묻는다. 멀쩡히 앉은 철근까지
+                    옆으로 떠보면 배치가 통째로 흔들리고 느려진다.                */
+                const c0 = seatB(PB[i]);
+                if (!c0 || this.slack(PB[i], c0) < 2.2 * gT.dia) continue;
+                ctxT.assign[i] = seatT(PT[i]); ctxB.assign[i] = c0; ctxB.tie = out;
+                let best = { s: 0, J: this.localEnergy(PT, i, gT, ctxT) + this.localEnergy(PB, i, gB, ctxB),
+                             pt: PT[i], pb: PB[i] };
+                for (let s = -span; s <= span; s += step) {
+                    if (!s) continue;
+                    const qT = { x: PT[i].x + a.u.x * s, y: PT[i].y + a.u.y * s };
+                    const qB = { x: PB[i].x + a.u.x * s, y: PB[i].y + a.u.y * s };
+                    const cT = seatT(qT), cB = seatB(qB);
+                    if (!cT || !cB) continue;
+                    const QT = PT.slice(); QT[i] = qT;
+                    const t2 = out.slice(); t2[i] = tie[i] + s;
+                    const cxT = Object.assign({}, ctxT, { assign: ctxT.assign.slice() }); cxT.assign[i] = cT;
+                    const cxB = Object.assign({}, ctxB, { assign: ctxB.assign.slice(), tie: t2 }); cxB.assign[i] = cB;
+                    const rT = this.descendOne(QT, i, gT, cxT);
+                    /*  아랫줄은 **깊이도 두 가지**를 내려본다. 지금 자리를 옆으로만
+                        옮기면 이미 겹을 넘어선 자리라, 관에 막혀 쐐기로 못 내려온다 —
+                        그래서 그 자리의 **피복선 위**에서도 한 번 내려본다.        */
+                    const sl = this.slack(qB, cB);
+                    const cands = [qB, { x: qB.x - cB.w.nx * (sl - K.NUDGE),
+                                         y: qB.y - cB.w.ny * (sl - K.NUDGE) }];
+                    let rB = null;
+                    cands.forEach(q => {
+                        const QB = PB.slice(); QB[i] = q;
+                        const r = this.descendOne(QB, i, gB, cxB);
+                        if (!rB || r.J < rB.J) rB = r;
+                    });
+                    const J = rT.J + rB.J;
+                    if (J < best.J - 1e-9) best = { s: s, J: J, pt: rT.P[i], pb: rB.P[i] };
+                }
+                if (best.s) { PT[i] = best.pt; PB[i] = best.pb; out[i] = tie[i] + best.s; }
+            }
+            return { PT: PT, PB: PB, tie: out };
+        },
+
         /*  ── 겹을 통째로 넘어간 자리로 구해 낸다 (마지막 손질) ─────────────
             `escape` 의 ㉡ 는 **걸린 놈 하나**에서만 비켜선다. 두 겹이 나란히 누워
             있으면 그 **사이**에 서는데, 들어갈 수 없는 틈일 수 있다. 데크 중앙의

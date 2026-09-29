@@ -1193,6 +1193,12 @@
               }));
               var tie = res.bars.map(function (b) { return b.t; });
               pairRes = JLong.solve(gB, sec.walls, sec, self._ducts || [], prims2, tie);
+              /*  아랫줄이 **한 켜보다 깊이** 들어간 짝은 한 번 더 묻는다 :
+                  두 켜가 나란하지 않으면 두 척력의 합력이 **옆**을 가리킨다.
+                  아랫줄 혼자서는 묶음 항에 막히므로 **짝을 같이** 옮겨 본다.
+                  고르는 것은 J 다 (JLong.slidePairs 주석).                     */
+              var sl = self._slidePairs(g, gT, gB, sec, res, pairRes, prims, tie);
+              if (sl) { res = sl.res; pairRes = sl.pair; }
             } else {
               res = JLong.solve(g, sec.walls, sec, self._ducts || [], prims);
             }
@@ -1254,6 +1260,44 @@
                       ' · 간격 ' + res.gaps.map(function (x) { return Math.round(x); }).join(','));
         });
         return warn;
+      },
+
+      /*  ── 짝을 같이 옆으로 옮겨 본다 (JLong.slidePairs 를 태운다) ────────
+          아랫줄이 **한 켜보다 깊이** 들어간 짝만 묻는다. 옮길 자리가 있으면
+          그 자리(t)로 묶음을 고쳐 잡고 **두 줄을 다시 푼다** — 한 자리만 손으로
+          옮기면 이웃과의 간격 항이 안 맞춰지기 때문이다.
+          옮긴 것이 없으면 아무 일도 안 한다(그때는 값도 안 든다).            */
+      _slidePairs: function (g, gT, gB, sec, res, pairRes, prims, tie) {
+        if (!res || !pairRes || typeof JLong.slidePairs !== 'function') return null;
+        var ducts = this._ducts || [];
+        var seatOn = function (axn) {
+          return function (p) {
+            var st = JLong.seatsAt(p, axn, sec.walls, sec, g.dia).filter(function (c) { return c.used; });
+            return st.length ? JLong.nearestSeat(p, st) : null;
+          };
+        };
+        var seatT = seatOn(res.axes.n), seatB = seatOn(pairRes.axes.n);
+        var PT = res.bars.map(function (b) { return { x: b.x, y: b.y }; });
+        var PB = pairRes.bars.map(function (b) { return { x: b.x, y: b.y }; });
+        var primsB = prims.concat(res.bars.map(function (b) {
+          return { t: 'line', p: [b.x, b.y, b.x, b.y], dia: g.dia };
+        }));
+        var ctxT = { assign: PT.map(seatT), home: res.home, ducts: ducts, prims: prims, stage: 2, tie: null };
+        var ctxB = { assign: PB.map(seatB), home: pairRes.home, ducts: ducts, prims: primsB, stage: 2, tie: tie };
+        var out;
+        try { out = JLong.slidePairs(PT, PB, gT, gB, ctxT, ctxB, tie, seatT, seatB); }
+        catch (e) { console.error('[PSCBOX] slidePairs:', e); return null; }
+        var moved = 0;
+        out.tie.forEach(function (t, i) { if (Math.abs(t - tie[i]) > 0.5) moved++; });
+        if (!moved) return null;
+        console.log('[JLONG] ' + g.id + ' : 짝 ' + moved + '개를 같이 옆으로 옮겼습니다');
+        //  고친 자리로 **두 줄을 다시** 푼다 (윗줄도 이제 그 자리에 묶인다)
+        var r2 = JLong.solve(gT, sec.walls, sec, ducts, prims, out.tie);
+        var p2b = prims.concat(r2.bars.map(function (b) {
+          return { t: 'line', p: [b.x, b.y, b.x, b.y], dia: g.dia };
+        }));
+        var q2 = JLong.solve(gB, sec.walls, sec, ducts, p2b, out.tie);
+        return { res: r2, pair: q2, moved: moved };
       },
 
       // ── Rebar Physics 결과 표 : id / 총길이 / 직경 / 조각 a~f / 꺽임 ra~re ──
