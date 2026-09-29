@@ -432,7 +432,7 @@
               '<button type="button" class="engine-btn" id="btnEngineSel" onclick="PXBOX.toggleEngine()"><i class="bi bi-cpu"></i> Solver: J-field</button>' +
               '<button type="button" class="engine-btn" onclick="PXBOX.exportDXF()"><i class="bi bi-download"></i> Export DXF</button>' +
               '<button type="button" class="engine-btn engine-btn-lite" id="btnToggleNormals" onclick="PXBOX.toggleNormals()"><i class="bi bi-arrows-angle-expand"></i> Toggle Normals</button>' +
-              '<button type="button" class="engine-btn engine-btn-lite active" id="btnToggleSpawn" onclick="PXBOX.toggleSpawn()"><i class="bi bi-crosshair"></i> Toggle Spawn</button>' +
+              '<button type="button" class="engine-btn engine-btn-lite" id="btnToggleSpawn" onclick="PXBOX.toggleSpawn()"><i class="bi bi-crosshair"></i> Toggle Spawn</button>' +
               '<button type="button" class="engine-btn engine-btn-lite" id="btnToggleNodes" onclick="PXBOX.toggleNodes()"><i class="bi bi-123"></i> Toggle Nodes (#)</button>' +
             '</div>' +
             '<div class="draw-card-desc" id="stat-grid"></div>' +
@@ -881,6 +881,7 @@
             자리에 그대로 두고 그 장애물 위에서 다시 배치하는 것이라 뜻이 분명하다.  */
         if (String(rd.type || 'trebar').toLowerCase() === 'lrebar') {
           var lw = this._solveLrebarWithJ(sec);
+          this._spawnHold = false;
           this._finalizeArcs();
           this._toast(lw.length ? lw.join(' · ') : ('다시 배치했습니다: ' + id),
                       lw.length ? 'err' : 'ok');
@@ -926,6 +927,7 @@
         //  어느 것을 다시 푸는지 눈에 띄게 — 유령도 진해진다.
         //  focusRebar() 는 **토글**이라 안 쓴다 (이미 고른 것을 누르면 풀려 버린다).
         this._focusId = String(id);
+        this._spawnHold = true;       // 기다리는 동안만 유령을 보여 준다
         this._finalizeArcs();         // ㉠㉡ 스폰 상태로 한 번 그린다
         this._toast('태어난 자리: ' + id, 'ok');
 
@@ -937,6 +939,8 @@
           `bar`(태어난 자리의 조각들)는 거기서 만든 것을 그대로 받는다 — 두 군데서
           따로 만들면 언젠가 조용히 달라진다.                                    */
       _formOneWithJField: function (id, nb, bar, sec) {
+        //  대기가 끝났다 — 유령을 거둔다. **푸는 데 실패해도** 거둔다(아래 return).
+        this._spawnHold = false;
         //  나머지 철근을 척력으로 넘긴다 (이 철근은 뺀다)
         var placed = [];
         Domain.trebarList.forEach(function (t) {
@@ -1390,9 +1394,13 @@
         if (b) b.classList.toggle('active', this._showEngNormals);
         this._drawEngineNormals();
       },
-      /*  태어난 자리(init 로 놓인 조각들)를 보여 줄지. 기본은 켬 —
-          J 는 한 번에 풀어서 그 자리가 지나가 버리기 때문이다.                  */
-      _showSpawn: true,
+      /*  태어난 자리(init 로 놓인 조각들)를 보여 줄지.
+          **기본은 끔.** 다 푼 뒤에도 점선이 남아 있으면 도면이 지저분하다.
+          보고 싶은 때는 정해져 있다 — **Respawn 을 눌러 놓고 기다리는 동안**이다.
+          그 동안만 `_spawnHold` 가 켜지고, 풀리는 순간 꺼진다.
+          `Toggle Spawn` 단추는 그대로 남겨 둔다 — init 을 맞춰 가며 볼 때 쓴다.  */
+      _showSpawn: false,
+      _spawnHold: false,      // Respawn 대기 중에만 켜진다 (속내 깃발)
       _spawn: null,
       SPAWN_HOLD: 420,        // 태어난 자리를 이만큼(ms) 보여 주고 푼다
 
@@ -1633,7 +1641,7 @@
         if (this._engine !== 'jfield') this._relaxRebar();                         // 통합 z-order 겹침 해소 (trebar 강체 + lrebar 점) — 그리기 전에
         var self = this, formed = 0;
         //  태어난 자리 — 흐린 점선으로 밑에 깔아 둔다 (Toggle Spawn 으로 끈다)
-        if (this._engine === 'jfield' && this._showSpawn && this._spawn) {
+        if (this._engine === 'jfield' && (this._showSpawn || this._spawnHold) && this._spawn) {
           this._spawn.forEach(function (sp) {
             var st = self._focusStyle(sp.id), flat = [];
             sp.pts.forEach(function (p) { flat.push(p.x, p.y); });
