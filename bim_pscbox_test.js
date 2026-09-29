@@ -1174,7 +1174,7 @@
               다 풀고 나서 **짝의 간격이 gap 을 넘으면 그 짝을 버린다** — 그 자리엔
               한쪽 면이 없다는 뜻이다. 버릴 쪽은 **init 에서 더 멀리 간 쪽**이다.
               gap 이 없으면 예전대로 한 줄이다.                                  */
-          var res, pairRes = null, dropped = 0;
+          var res, pairRes = null, dropped = 0, noSeat = 0;
           try {
             if (g.gap > 0) {
               var ax = JLong.axes(g), h = g.gap / 2;
@@ -1201,14 +1201,24 @@
               var a = res.bars[i];
               if (!a) return;
               var sep = Math.hypot(b.x - a.x, b.y - a.y);
-              if (sep > g.gap) {                       // 그 자리엔 한쪽 면이 없다
+              /*  버리는 까닭이 둘이다 — **둘 다 「그 자리엔 면이 없다」는 말**이다.
+                  ㉠ 앉을 면을 못 찾았다 : 복부 한가운데가 그렇다. 밑에 마주보는 면이
+                     없으니(헌치는 복부 옆에서 끊기고 하부슬래브 하면은 수선의 발이
+                     복부 밖으로 나간다) 자리가 없다 → 철근도 없다.
+                  ㉡ 짝과의 간격이 gap 을 넘었다 : 한쪽이 훨씬 멀리 갔다는 뜻이다.   */
+              if (!b.rest || sep > g.gap) {
                 dropped++;
+                if (!b.rest) noSeat++;
                 return;                                //  아래쪽을 버린다 (더 멀리 간 쪽)
               }
               pts.push({ x: b.x, y: b.y, t: b.t, rest: b.rest });
             });
-            if (dropped) warn.push(g.id + ' : 짝 ' + dropped + '개를 버렸습니다 ' +
-                                   '(간격이 gap ' + g.gap + ' mm 를 넘습니다 — 그 자리엔 한쪽 면이 없습니다)');
+            if (dropped) warn.push(g.id + ' : 짝 ' + dropped + '개를 버렸습니다 (' +
+                                   (noSeat ? '앉을 면이 없는 자리 ' + noSeat + '개' +
+                                             (dropped > noSeat ? ' · ' : '') : '') +
+                                   (dropped > noSeat ? '간격이 gap ' + g.gap + ' mm 를 넘는 자리 ' +
+                                                       (dropped - noSeat) + '개' : '') +
+                                   ' — 그 자리엔 한쪽 면이 없습니다)');
           }
           self._ldiag[g.id] = { g: g, res: res, pair: pairRes, dropped: dropped };
 
