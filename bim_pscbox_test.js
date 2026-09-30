@@ -1161,8 +1161,15 @@
             id: String(grp.id), dia: grp.dia || 13, num: grp.num || 0,
             init: { x: init.x || 0, y: init.y || 0, rot: init.rot || 0 },
             nors: (init.grav === -1) ? -1 : 1,
-            range: { min: (grp.rangeData && grp.rangeData.min) || 0,
-                     max: (grp.rangeData && grp.rangeData.max) || 0 },
+            /*  **비우면 콘크리트가 준다** (JLong.spanOf). 0 으로 채워 넣던 것을
+                그만둔다 — 0..0 은 「폭 0 짜리 한계」라 뜻이 없다.                */
+            /*  **폭이 0 이면 «안 적은 것»이다.** 빈 칸을 0..0 으로 채워 넣던 탓에
+                「폭 0 짜리 한계」가 만들어져 철근이 한 점에 몰렸다. 비면 콘크리트가
+                준다 (JLong.spanOf).                                            */
+            range: (grp.rangeData && isFinite(grp.rangeData.min) && isFinite(grp.rangeData.max)
+                    && grp.rangeData.max > grp.rangeData.min)
+                   ? { min: grp.rangeData.min, max: grp.rangeData.max } : null,
+            align: bar.align || null,
             ctc: bar.ctc, ctcmin: bar.min, ctcmax: bar.max, gap: bar.gap, path: rd.path || []
           };
           if (!g.num || !g.ctc) {
@@ -1240,6 +1247,7 @@
           grp.state = 'SETTLED';
 
           //  보고 — 고칠 수 있는 것은 입력뿐이니 숫자를 그대로 낸다
+          if (res && res.range) g = Object.assign({}, g, { range: res.range });
           var cap = JLong.capacity(g), span = (g.num - 1) * g.ctc;
           if (g.num > cap)
             warn.push(g.id + ' : ' + g.num + '개 × ctc ' + g.ctc + ' = ' + span +

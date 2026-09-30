@@ -122,6 +122,7 @@
                 그 길을 `rescue()` 가 낸다. 둘은 같이 있어야 한다.                 */
             K_TIE: 1000.0,     // 상·하 짝을 같은 t 에 묶는다 (축 방향만)
             NUDGE: 1.0,        // 2단계 시작 전 안쪽으로 밀어 대칭을 깨는 양 (mm)
+            COS_END: 0.5,      // 배치 직선이 이보다 비스듬히 만나는 면은 «단부»가 아니다 (60°)
             LAM0: 1e-3, ITER: 300, OUTER: 8, TOL: 1e-4
         },
 
@@ -137,13 +138,62 @@
                      n: { x: -uy * s, y: ux * s } };      // 철근이 끌려갈 쪽
         },
 
+        /*  ── 태어나는 자리 : 열차를 **무엇에 맞출지**는 `align` 이 말한다 ───
+            규칙은 하나다 — **열차는 `align` 이 가리키는 것에 맞춘다.**
+              init   (기본)  init 이 열차의 한가운데다. 지금까지의 규칙 그대로고,
+                            `range` 는 init 기준 −/+ 의 **한계**일 뿐이다.
+                            (−/+ 를 따로 넣으므로 좌우가 대칭이 아닐 수 있다.
+                             그 비대칭을 열차 자리로 옮겨 읽으면 안 된다.)
+              center        `range` 의 한가운데. 복부처럼 「단면을 가로지르는 줄」이
+                            이쪽이다 — 이때는 init 을 **직선을 따라** 어디에 찍든
+                            같은 답이 나온다(직선이 안 변하므로).
+              min / max     한계의 한쪽 끝에 붙인다.
+            숨은 조건으로 갈리지 않는다. 안 적으면 init 이고, 예전과 같다.        */
         layout: function (g) {
             const a = this.axes(g), N = g.num, out = [];
+            const half = (N - 1) * g.ctc / 2, R = g.range;
+            const ok = R && isFinite(R.min) && isFinite(R.max);
+            const al = String(g.align || 'init').toLowerCase();
+            const c = (!ok || al === 'init') ? 0
+                    : (al === 'center') ? (R.min + R.max) / 2
+                    : (al === 'min') ? R.min + half
+                    : (al === 'max') ? R.max - half : 0;
             for (let i = 0; i < N; i++) {
-                const t = (i - (N - 1) / 2) * g.ctc;
+                const t = c + (i - (N - 1) / 2) * g.ctc;
                 out.push({ x: a.O.x + a.u.x * t, y: a.O.y + a.u.y * t, t: t });
             }
             return out;
+        },
+
+        /*  ── `range` 를 안 적으면 **콘크리트가 준다** ─────────────────────
+            배치 직선을 양쪽으로 쏘아 콘크리트를 벗어나는 두 면을 찾고, 면마다
+            `피복 + ½지름` 만큼 물러난 구간을 돌려준다. 복부처럼 「단면을 가로지르는
+            줄」은 사람이 끝을 계산할 이유가 없다 — 콘크리트가 이미 알고 있다.
+            지키는 것 둘 :
+              ㉠ **정면으로 만나는 면만** 끝이다 (|û·n̂| ≥ COS_END). 비스듬히 스치며
+                 빠져나가는 것은 단부가 아니다 — 데크 하면(−3 %)에 수평선을 쏘면
+                 x 3,333 에서 «나가기»는 하지만 그건 슬래브 끝이 아니다.
+              ㉡ 양쪽을 다 못 찾으면 **null** 을 돌려준다. 조용히 틀리지 않는다.
+            쏘는 자리는 부르는 쪽이 정한다(짝이면 면에서 물린 자리를 준다).        */
+        spanOf: function (p, g, walls, sec) {
+            const a = this.axes(g), u = a.u, K = this.CONF;
+            let lo = null, hi = null;
+            (walls || []).forEach(w => {
+                const ex = w.x2 - w.x1, ey = w.y2 - w.y1;
+                const den = u.x * ey - u.y * ex;
+                if (Math.abs(den) < 1e-9) return;                       // 나란하다
+                const t = ((w.x1 - p.x) * ey - (w.y1 - p.y) * ex) / den;
+                const q = ((w.x1 - p.x) * u.y - (w.y1 - p.y) * u.x) / den;
+                if (q < -1e-9 || q > 1 + 1e-9) return;                  // 벽 토막 밖
+                if (Math.abs(u.x * w.nx + u.y * w.ny) < K.COS_END) return;   // ㉠ 스치는 것
+                const back = (JF.coverOf(w, sec) + g.dia / 2) /
+                             Math.abs(u.x * w.nx + u.y * w.ny);
+                if (t <= 0 && (!lo || t > lo.t)) lo = { t: t, back: back, id: w.id };
+                if (t >= 0 && (!hi || t < hi.t)) hi = { t: t, back: back, id: w.id };
+            });
+            if (!lo || !hi) return null;                                // ㉡
+            const min = lo.t + lo.back, max = hi.t - hi.back;
+            return (max > min) ? { min: min, max: max, lo: lo.id, hi: hi.id } : null;
         },
 
         /*  range 안에 ctc 로 담을 수 있는 개수 (보고용 — 개수는 입력이라 안 고친다).
@@ -913,6 +963,23 @@
             각 단계 안에서 「면 배정 → 고정하고 하강 → 다시 배정」을 번갈아 한다.  */
         solve: function (g, walls, sec, ducts, prims, tie) {
             const a = this.axes(g);
+            /*  `range` 가 없으면 **콘크리트가 준다** (spanOf 주석). 못 찾으면
+                「한계 없음」으로 둔다 — 그때 열차 한가운데는 init 이다.
+                쏘는 자리는 배치 직선 위의 init 이 아니라 **면에서 물린 자리**다 :
+                짝(`gap`)으로 태어난 줄은 정확히 면 «위»에 서므로, 거기서 쏘면
+                이웃한 토막(셀)을 잡는다. 실제로 앉을 자리까지 한 번 당겨서 쏜다. */
+            if (!g.range || !isFinite(g.range.min) || !isFinite(g.range.max)) {
+                const st = this.seatsAt(a.O, a.n, walls, sec, g.dia).filter(c => c.used);
+                const c = st.length ? this.nearestSeat(a.O, st) : null;
+                const from = c ? { x: a.O.x + c.w.nx * c.need, y: a.O.y + c.w.ny * c.need } : a.O;
+                const sp = this.spanOf(from, g, walls, sec);
+                /*  콘크리트가 준 한계에는 **init 기준이라는 뜻이 없다** — 그 구간은
+                    단면이 정한 것이지 사람이 init 에서 잰 것이 아니다. 그러니 이때의
+                    기본 맞춤은 `center` 다. 사람이 `align` 을 적었으면 그것이 이긴다. */
+                g = Object.assign({}, g, { range: sp || { min: -Infinity, max: Infinity },
+                                           align: g.align || (sp ? 'center' : 'init'),
+                                           _autoRange: !!sp });
+            }
             const home = this.layout(g);
             let P = home.map(p => ({ x: p.x, y: p.y }));
             /*  짝으로 들어온 아랫줄은 **윗줄이 앉은 자리에서 태어난다.** 균등배치에서
@@ -995,7 +1062,7 @@
             const gaps = [];
             for (let i = 0; i + 1 < bars.length; i++) gaps.push(bars[i + 1].t - bars[i].t);
 
-            return { id: g.id, bars: bars, gaps: gaps, J: J, iter: iter,
+            return { id: g.id, bars: bars, gaps: gaps, J: J, iter: iter, range: g.range, auto: !!g._autoRange,
                      home: home, tie: tie || null, stuck: stuck, axes: a, capacity: this.capacity(g) };
         },
 
