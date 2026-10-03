@@ -977,14 +977,23 @@
                 쏘는 자리는 배치 직선 위의 init 이 아니라 **면에서 물린 자리**다 :
                 짝(`gap`)으로 태어난 줄은 정확히 면 «위»에 서므로, 거기서 쏘면
                 이웃한 토막(셀)을 잡는다. 실제로 앉을 자리까지 한 번 당겨서 쏜다. */
-            if (!g.range || !isFinite(g.range.min) || !isFinite(g.range.max)) {
+            /*  ── 실제 배치 구간 = **`range` ∩ 「앉을 데 있는 구간」** ──────────
+                `range` 는 사람이 `init` 에서 ± 로 잡은 **탐색 범위**다 — 「이 언저리를
+                보라」는 뜻이지 「여기까지 꽉 채우라」가 아니다. 그래서 넉넉히 적어도
+                되고, 엔진이 `seatSpan` 으로 **실제로 기댈 수 있는 구간**을 추려
+                **교집합**을 쓴다. 한때 `range` 를 적으면 추리는 일을 아예 건너뛰었다 —
+                그래서 복부에서 면 밖까지 철근이 태어났다.
+                열차는 그 교집합의 **한가운데**에 놓는다. 그래야 `init` 을 「대충
+                단면 절반쯤」으로 찍어도 답이 같다 — 어긋난 만큼은 `range` 의 여유가
+                삼킨다. (`align` 을 적으면 그것이 이긴다.)                        */
+            {
                 const sp = this.seatSpan(g, walls, sec);
-                /*  콘크리트가 준 한계에는 **init 기준이라는 뜻이 없다** — 그 구간은
-                    단면이 정한 것이지 사람이 init 에서 잰 것이 아니다. 그러니 이때의
-                    기본 맞춤은 `center` 다. 사람이 `align` 을 적었으면 그것이 이긴다. */
-                g = Object.assign({}, g, { range: sp || { min: -Infinity, max: Infinity },
-                                           align: g.align || (sp ? 'center' : 'init'),
-                                           _autoRange: !!sp });
+                const R = g.range || {};
+                const lo = Math.max(sp ? sp.min : -Infinity, isFinite(R.min) ? R.min : -Infinity);
+                const hi = Math.min(sp ? sp.max : Infinity, isFinite(R.max) ? R.max : Infinity);
+                g = Object.assign({}, g, {
+                    range: (hi > lo) ? { min: lo, max: hi } : { min: -Infinity, max: Infinity },
+                    align: g.align || 'center', _autoRange: !!sp });
             }
             const home = this.layout(g);
             let P = home.map(p => ({ x: p.x, y: p.y }));
