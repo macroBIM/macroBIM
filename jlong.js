@@ -123,7 +123,6 @@
                 그 길을 `rescue()` 가 낸다. 둘은 같이 있어야 한다.                 */
             K_TIE: 1000.0,     // 상·하 짝을 같은 t 에 묶는다 (축 방향만)
             NUDGE: 1.0,        // 2단계 시작 전 안쪽으로 밀어 대칭을 깨는 양 (mm)
-            COS_END: 0.5,      // 배치 직선이 이보다 비스듬히 만나는 면은 «단부»가 아니다 (60°)
             LAM0: 1e-3, ITER: 300, OUTER: 8, TOL: 1e-4
         },
 
@@ -166,35 +165,35 @@
             return out;
         },
 
-        /*  ── `range` 를 안 적으면 **콘크리트가 준다** ─────────────────────
-            배치 직선을 양쪽으로 쏘아 콘크리트를 벗어나는 두 면을 찾고, 면마다
-            `피복 + ½지름` 만큼 물러난 구간을 돌려준다. 복부처럼 「단면을 가로지르는
-            줄」은 사람이 끝을 계산할 이유가 없다 — 콘크리트가 이미 알고 있다.
-            지키는 것 둘 :
-              ㉠ **정면으로 만나는 면만** 끝이다 (|û·n̂| ≥ COS_END). 비스듬히 스치며
-                 빠져나가는 것은 단부가 아니다 — 데크 하면(−3 %)에 수평선을 쏘면
-                 x 3,333 에서 «나가기»는 하지만 그건 슬래브 끝이 아니다.
-              ㉡ 양쪽을 다 못 찾으면 **null** 을 돌려준다. 조용히 틀리지 않는다.
-            쏘는 자리는 부르는 쪽이 정한다(짝이면 면에서 물린 자리를 준다).        */
-        spanOf: function (p, g, walls, sec) {
-            const a = this.axes(g), u = a.u, K = this.CONF;
-            let lo = null, hi = null;
+        /*  ── `range` 를 안 적으면 **「앉을 데」가 준다** ────────────────────
+            한때 배치 직선을 쏘아 «콘크리트»가 어디서 어디까지인지를 범위로 삼았다.
+            복부에서 틀렸다 — 콘크리트는 데크 상면~소핏 6,750 인데 철근이 기댈
+            복부 면은 바깥 6,253(E10+E11) · 안 5,260(E17) 뿐이다. 그 차이만큼
+            철근이 면 밖에서 태어나 떠 버렸다.
+            물어볼 것은 콘크리트가 아니라 **장**이다 : 배치 직선을 따라 훑으며
+            `seatsAt` 이 **면을 돌려주는 구간**의 바깥 테두리가 곧 범위다.
+            («가운데 구멍»은 테두리가 아니라 탈락이 처리한다 — 상부슬래브 아랫줄이
+             복부 자리에서 비는 것이 그 경우고, 테두리는 끝만 정한다.)
+            훑는 폭은 단면을 축에 투영한 길이라 **고를 값이 없다.**              */
+        seatSpan: function (g, walls, sec) {
+            const a = this.axes(g);
+            let lo = Infinity, hi = -Infinity;
             (walls || []).forEach(w => {
-                const ex = w.x2 - w.x1, ey = w.y2 - w.y1;
-                const den = u.x * ey - u.y * ex;
-                if (Math.abs(den) < 1e-9) return;                       // 나란하다
-                const t = ((w.x1 - p.x) * ey - (w.y1 - p.y) * ex) / den;
-                const q = ((w.x1 - p.x) * u.y - (w.y1 - p.y) * u.x) / den;
-                if (q < -1e-9 || q > 1 + 1e-9) return;                  // 벽 토막 밖
-                if (Math.abs(u.x * w.nx + u.y * w.ny) < K.COS_END) return;   // ㉠ 스치는 것
-                const back = (JF.coverOf(w, sec) + g.dia / 2) /
-                             Math.abs(u.x * w.nx + u.y * w.ny);
-                if (t <= 0 && (!lo || t > lo.t)) lo = { t: t, back: back, id: w.id };
-                if (t >= 0 && (!hi || t < hi.t)) hi = { t: t, back: back, id: w.id };
+                [[w.x1, w.y1], [w.x2, w.y2]].forEach(([x, y]) => {
+                    const t = (x - a.O.x) * a.u.x + (y - a.O.y) * a.u.y;
+                    if (t < lo) lo = t; if (t > hi) hi = t;
+                });
             });
-            if (!lo || !hi) return null;                                // ㉡
-            const min = lo.t + lo.back, max = hi.t - hi.back;
-            return (max > min) ? { min: min, max: max, lo: lo.id, hi: hi.id } : null;
+            if (!isFinite(lo)) return null;
+            const step = Math.max(2, g.dia / 2);
+            let min = null, max = null;
+            for (let t = lo; t <= hi; t += step) {
+                const p = { x: a.O.x + a.u.x * t, y: a.O.y + a.u.y * t };
+                if (!this.seatsAt(p, a.n, walls, sec, g.dia).some(c => c.used)) continue;
+                if (min === null) min = t;
+                max = t;
+            }
+            return (min !== null && max > min) ? { min: min, max: max } : null;
         },
 
         /*  range 안에 ctc 로 담을 수 있는 개수 (보고용 — 개수는 입력이라 안 고친다).
@@ -971,10 +970,7 @@
                 짝(`gap`)으로 태어난 줄은 정확히 면 «위»에 서므로, 거기서 쏘면
                 이웃한 토막(셀)을 잡는다. 실제로 앉을 자리까지 한 번 당겨서 쏜다. */
             if (!g.range || !isFinite(g.range.min) || !isFinite(g.range.max)) {
-                const st = this.seatsAt(a.O, a.n, walls, sec, g.dia).filter(c => c.used);
-                const c = st.length ? this.nearestSeat(a.O, st) : null;
-                const from = c ? { x: a.O.x + c.w.nx * c.need, y: a.O.y + c.w.ny * c.need } : a.O;
-                const sp = this.spanOf(from, g, walls, sec);
+                const sp = this.seatSpan(g, walls, sec);
                 /*  콘크리트가 준 한계에는 **init 기준이라는 뜻이 없다** — 그 구간은
                     단면이 정한 것이지 사람이 init 에서 잰 것이 아니다. 그러니 이때의
                     기본 맞춤은 `center` 다. 사람이 `align` 을 적었으면 그것이 이긴다. */

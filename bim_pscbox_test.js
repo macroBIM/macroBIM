@@ -1247,11 +1247,20 @@
           grp.state = 'SETTLED';
 
           //  보고 — 고칠 수 있는 것은 입력뿐이니 숫자를 그대로 낸다
+          /*  **줄마다 따로 센다.** 짝이면 두 줄이 기대는 면의 길이가 다르다 —
+              복부가 그렇다(바깥 E10+E11 6,253 · 안 E17 5,260). 한 무리에 한 번만
+              세면 짧은 쪽이 몇 개 모자란지가 안 보인다.                        */
           if (res && res.range) g = Object.assign({}, g, { range: res.range });
-          var cap = JLong.capacity(g), span = (g.num - 1) * g.ctc;
-          if (g.num > cap)
-            warn.push(g.id + ' : ' + g.num + '개 × ctc ' + g.ctc + ' = ' + span +
-                      ' mm 가 배치한계(' + (g.range.max - g.range.min) + ' mm · ' + cap + '개)보다 깁니다');
+          var span = (g.num - 1) * g.ctc;
+          [[res, '윗줄'], [pairRes, '아래줄']].forEach(function (pr) {
+            var r = pr[0], nm = pr[1];
+            if (!r || !r.range || !isFinite(r.range.min)) return;
+            var len = r.range.max - r.range.min, cap = Math.floor(len / g.ctc) + 1;
+            if (g.num > cap)
+              warn.push(g.id + (pairRes ? ' ' + nm : '') + ' : 기댈 면이 ' + Math.round(len) +
+                        ' mm 라 ctc ' + g.ctc + ' 로는 **' + cap + '개**가 한계인데 ' +
+                        g.num + '개를 넣었습니다 (' + (g.num - cap) + '개가 못 앉습니다)');
+          });
           var noSeat = res.bars.filter(function (b) { return !b.rest; });
           if (noSeat.length)
             warn.push(g.id + ' : ' + noSeat.length + '개가 붙을 면을 못 찾았습니다 ' +
