@@ -649,8 +649,21 @@
                     th: Math.max(seg.th0 - lim, Math.min(seg.th0 + lim, pose.th + d[2] / half))
                 };
                 const Jn = this.energy(nx, seg, cons, ducts, placed, lpts, assign);
-                //  피복선에 닿아 있는데 밖으로 나가는 걸음이면 받지 않는다 (atRest 참조)
-                const bad = this.atRest(pose, seg, cons, assign) && !this.feasible(nx, seg, cons, assign);
+                /*  피복선에 닿아 있는데 밖으로 나가는 걸음이면 받지 않는다 (atRest 참조).
+                    **단, 지금 피복을 지키고 있을 때만이다.**
+                    `atRest` 는 `|g| < BAND` 라서 「피복선 안쪽 4 mm」뿐 아니라
+                    **「피복을 4 mm 침범한 자리」도 닿아 있다고 본다.** 그 자리에서
+                    면으로 가는 걸음은 아직 침범 중이라 `feasible(nx)` 가 거짓이고,
+                    그래서 **전부 거부된다 — 위반한 채로 갇힌다.**
+                    상부슬래브 ㄷ 를 상면에서 140 mm 아래에 두면 다리가 피복선을
+                    9.52 mm 침범한 채 32 반복을 돌고 멈췄다. 거부를 풀면 6 반복에
+                    정확히 0.00 으로 앉는다. 120 mm 아래에서 출발하면 멀쩡했다 —
+                    **init 에 따라 답이 달라지고 있었다.**
+                    여과가 할 일은 **지키고 있는 것을 깨지 않는 것**이지, 못 지키고
+                    있는 것이 지키러 가는 길을 막는 것이 아니다.                   */
+                const bad = this.feasible(pose, seg, cons, assign) &&
+                            this.atRest(pose, seg, cons, assign) &&
+                            !this.feasible(nx, seg, cons, assign);
 
                 if (Jn <= last && !bad) {                    // 내려가고 피복을 안 깨면 받는다
                     const move = Math.sqrt(d[0] * d[0] + d[1] * d[1] + d[2] * d[2]);

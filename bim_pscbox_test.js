@@ -979,7 +979,17 @@
           seg.contactWall = seg.fitWall;
           seg.state = rs.stopped === 'no-target' ? 'FITTING' : 'SETTLED';
         });
-        t.state = r.segs.every(function (s) { return s.stopped !== 'no-target'; }) ? 'FORMED' : 'ASSEMBLING';
+        /*  **자리가 없는 조각은 실패가 아니다.**
+            ㄷ자 스터럽의 몸통처럼 두 면에 **수직**인 조각은 마주보는 벽이 원래 없다.
+            그런 조각의 자리는 코너가 정한다 — `form` 주석의 「가운데 조각은 입력이
+            필요 없다. 코너와 코너를 잇기만 하면 되니까 길이는 출력이다」가 그 말이다.
+            예전에는 `every` 였다. 그래서 조각 하나만 자리를 못 찾아도 철근 전체가
+            ASSEMBLING 이 되어 굴짐 아크가 안 그려지고, 다음 철근의 장애물에서 빠지고,
+            「붙을 면을 못 찾은 철근」으로 경고가 떴다.
+            **철근이 선 것은 한 조각이라도 제 면에 앉았을 때다** — 그러면 콘크리트에
+            매였고 나머지는 코너가 잇는다. 하나도 못 앉았으면 그건 떠 있는 것이다.
+            자리를 못 찾은 **조각**은 여전히 `FITTING` 으로 남아 표에 보인다.        */
+        t.state = r.segs.some(function (s) { return s.stopped !== 'no-target'; }) ? 'FORMED' : 'ASSEMBLING';
         console.log('[JFIELD] ' + r.id + ' 길이 ' + Math.round(r.len) + '  세그[' +
           r.segs.map(function (s) {
             return s.label + '=' + ((s.rest && s.rest[0]) || '없음') + '(' + Math.round(s.len) + ')';
@@ -1116,6 +1126,18 @@
           warn.push('붙을 면을 못 찾은 철근 ' + miss.map(function (t) { return t.id; }).join(', ') +
                     ' (init 이 콘크리트 안, 붙을 면 쪽에 있는지 보세요)');
         }
+        /*  자리가 없는 **조각**은 경고가 아니라 **알림**이다 — ㄷ 몸통처럼 그것이
+            정상인 조각이 있다. 다만 ⑧-1 의 400 mm 다리처럼 「입력이 모자라서」
+            자리를 못 찾은 것도 같은 꼴로 보이므로, 어느 조각인지는 알려 준다.     */
+        var free = [];
+        Domain.trebarList.forEach(function (t) {
+          if (t.state !== 'FORMED') return;
+          (t.segments || []).forEach(function (s, i) {
+            if (s.state === 'FITTING') free.push(t.id + '[' + 'abcdef'[i] + ']');
+          });
+        });
+        if (free.length) warn.push('자리 없이 코너가 정한 조각 ' + free.join(', ') +
+                                   ' (ㄷ 몸통이면 정상입니다)');
         var offs = [];
         Object.keys(this._diag).forEach(function (k) {
           selfD._diag[k].forEach(function (d) {
