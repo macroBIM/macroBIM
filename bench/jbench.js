@@ -64,7 +64,7 @@ function solve(name, sheet) {
   const c = CASES[name];
   const D = prepare(sheet || fix(name), {}, c.page);
   const sec = { covers: D.covers };
-  return { D: D, out: JField.solve(D.bars, D.walls, sec, D.ducts) };
+  return { D: D, out: JField.solve(D.bars, D.walls, sec, D.ducts, []) };
 }
 
 /*  철근이 덕트 순간격을 못 지킨 만큼 (2단계가 남긴 것).

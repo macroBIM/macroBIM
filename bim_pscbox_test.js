@@ -578,7 +578,7 @@
           out.segs.push({
             label: rs.label, seg: seg, cons: cons, pose: pose, assign: assign,
             init: { p1: ip.p1, p2: ip.p2, mid: { x: (ip.p1.x + ip.p2.x) / 2, y: (ip.p1.y + ip.p2.y) / 2 } },
-            parts: cons.length ? JField.energyParts(pose, seg, cons, ducts, placed, assign) : null,
+            parts: cons.length ? JField.energyParts(pose, seg, cons, ducts, placed, [], assign) : null,
             contacts: rs.contacts || [], rest: rs.rest || [], len: rs.len, len0: rs.len0,
             iter: rs.iter, stopped: rs.stopped || null, diag: diag[i] || null,
             trace: trace.filter(function (t) { return t.seg === rs.label; })
@@ -775,7 +775,7 @@
             var gy = cy0 - hy + (2 * hy) * (iy + 0.5) / NY;
             var pp = { cx: gx, cy: gy, th: pose.th };
             var as = JField.assignOf(pp, S, cons);
-            var Jv = JField.energy(pp, S, cons, ducts, placed, as);
+            var Jv = JField.energy(pp, S, cons, ducts, placed, [], as);
             var lg = Math.log10(1 + Math.max(0, Jv));
             if (lg < lo) lo = lg; if (lg > hi) hi = lg;
             cell.push({ ix: ix, iy: iy, w: as[0], J: lg });
@@ -1070,7 +1070,12 @@
         bars.forEach(function (b) { selfD._diag[String(b.id)] = selfD._seatDiag(b, sec); });
 
         var out;
-        try { out = JField.solve(bars, sec.walls, sec, this._ducts || []); }
+        /*  마지막 인자가 **종방향 철근 점들**이다. 지금은 비어 있다 — 횡방향을
+            먼저 다 풀고 그다음에 종방향을 풀기 때문에, 이 시점에 놓인 종방향이
+            하나도 없다. 채널만 먼저 뚫어 둔다 (`jfield.js` ④ · `bench/jlre.js`).
+            갈고리(srebar)가 들어오면 그것은 종방향 **뒤에** 풀리므로 여기에
+            `_lrebarPoints()` 가 들어간다.                                      */
+        try { out = JField.solve(bars, sec.walls, sec, this._ducts || [], []); }
         catch (e) { console.error('[PSCBOX] J-field solve:', e); return false; }
 
         /*  **스폰 형상을 먼저 잡아 둔다.** J 는 한 번에 풀어 버려서 애니메이션이
@@ -1131,6 +1136,23 @@
           종방향 철근을 밀어내는 장애물이기 때문이다(`_trebarPrimitives`).
           결과는 `group.particles` 에 써 넣는다 — 그림·표는 그대로 그것을 읽는다.
           돌려주는 것은 **경고 줄**이다 (간격·배치한계·붙을 면).                 */
+      /*  ── 이미 놓인 종방향 철근을 **횡방향의 장애물**로 꺼낸다 ──────────────
+          `_trebarPrimitives` 의 거울이다. 그쪽은 횡방향을 종방향에게 넘기고,
+          이쪽은 종방향을 횡방향에게 넘긴다. 종방향은 단면에서 **점**이라
+          선분·아크로 펼 것이 없고 중심좌표와 지름이면 된다.
+          `clr` 은 안 준다(0) — 갈고리는 종방향에 **맞닿아** 걸리는 철근이다.
+          아직 부르는 데가 없다. 갈고리(srebar)가 들어올 자리다.                */
+      _lrebarPoints: function () {
+        var out = [];
+        (Domain.lrebarList || []).forEach(function (g) {
+          (g.particles || []).forEach(function (p) {
+            if (!p || !isFinite(p.x) || !isFinite(p.y)) return;
+            out.push({ x: p.x, y: p.y, dia: p.dia || g.dia || 13 });
+          });
+        });
+        return out;
+      },
+
       _solveLrebarWithJ: function (sec) {
         var warn = [];
         if (typeof JLong === 'undefined' || !Domain.lrebarList || !Domain.lrebarList.length) return warn;

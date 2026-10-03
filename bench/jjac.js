@@ -23,9 +23,14 @@ const JITTER = [[0, 0, 0], [37, -21, 0.03], [-64, 15, -0.05], [8, 44, 0.11]];
     피복항은 g<0 쪽 무게가 K_COV 라 g=0 에서 2계도함수가 튀고, 덕트·철근항은
     g=0 에서 켜지고 꺼진다. 그런 점을 h 폭으로 가로지르면 중심차분이 O(K·h) 의
     가짜 값을 낸다 — 해석 야코비가 맞아도 「틀렸다」고 나온다.
-    그래서 **어느 항도 꺾임에서 BAND 보다 가깝지 않은 자세**에서만 비교한다.    */
+    그래서 **어느 항도 꺾임에서 BAND 보다 가깝지 않은 자세**에서만 비교한다.
+
+    꺾임은 두 군데다. g=0 (항이 켜지고 꺼지는 자리)과 **d=0** (장애물이 조각
+    위에 정확히 선 자리) 이다. 후자에서는 |·| 가 미분 불가라 중심차분이 아예
+    없는 값을 낸다 — 해석 쪽은 거기서 **열거분(subgradient)** 으로 −n0 를 쓴다
+    (`jfield.js` clearRow). 둘 다 BAND 밖에서만 잰다.                        */
 const BAND = 1.0;
-function kinkDist(pose, seg, cons, ducts, placed, assign) {
+function kinkDist(pose, seg, cons, ducts, placed, lpts, assign) {
   const half = seg.len / 2;
   const dx = Math.cos(pose.th) * half, dy = Math.sin(pose.th) * half;
   const pts = [{ x: pose.cx - dx, y: pose.cy - dy }, { x: pose.cx + dx, y: pose.cy + dy }];
@@ -36,11 +41,16 @@ function kinkDist(pose, seg, cons, ducts, placed, assign) {
   });
   (ducts || []).forEach(d => {
     const need = d.D / 2 + (d.clr != null ? d.clr : 30) + seg.dia / 2;
-    m = Math.min(m, Math.abs(JField.segToPoint(pts, d) - need));
+    const dd = JField.segToPoint(pts, d);
+    m = Math.min(m, Math.abs(dd - need), dd);
   });
   (placed || []).forEach(q => {
     const need = (q.dia + seg.dia) / 2;
-    JField.clearPairs(pts, q.p1, q.p2).forEach(n => { m = Math.min(m, Math.abs(n.d - need)); });
+    JField.clearPairs(pts, q.p1, q.p2).forEach(n => { m = Math.min(m, Math.abs(n.d - need), n.d); });
+  });
+  (lpts || []).forEach(q => {
+    const dd = JField.segToPoint(pts, q);
+    m = Math.min(m, Math.abs(dd - JField.lreNeed(q, seg.dia)), dd);
   });
   return m;
 }
@@ -64,21 +74,29 @@ D.bars.forEach(bar => {
     const cons = JField.targets(sg, D.walls, sec, sg.dia);
     if (!cons.length) return;
     //  실제로 푼 자리 근처에서 본다
-    const r = JField.settle(sg, D.walls, sec, D.ducts, placed);
+    const r = JField.settle(sg, D.walls, sec, D.ducts, placed, []);
     const half = sg.len / 2;
+
+    /*  **종방향 철근 항(④)도 검산에 들어가게** 한 점을 일부러 겹쳐 놓는다.
+        앉은 자리에서 법선 쪽으로 need−8 만큼 떨어뜨리면 g = −8 이라 항이 켜지고,
+        꺾임(g=0)에서도 BAND 보다 멀다. 이 점은 **검산용**이지 배근이 아니다 —
+        자리는 위에서 종방향 없이(`[]`) 이미 잡았다.                            */
+    const lneed = JField.lreNeed({ dia: 13 }, sg.dia);
+    const lpts = [{ x: r.pose.cx + sg.n0.x * (lneed - 8),
+                    y: r.pose.cy + sg.n0.y * (lneed - 8), dia: 13 }];
 
     JITTER.forEach(j => {
       const pose = { cx: r.pose.cx + j[0], cy: r.pose.cy + j[1], th: r.pose.th + j[2] };
       const assign = JField.assignOf(pose, sg, cons);
-      if (kinkDist(pose, sg, cons, D.ducts, placed, assign) < BAND) { skipped++; return; }
+      if (kinkDist(pose, sg, cons, D.ducts, placed, lpts, assign) < BAND) { skipped++; return; }
 
       //  해석 : ∂J/∂x = 2·Aᵀr   (J = Σ rₖ²)
-      const rows = JField.residuals(pose, sg, cons, D.ducts, placed, assign);
+      const rows = JField.residuals(pose, sg, cons, D.ducts, placed, lpts, assign);
       const ga = [0, 0, 0];
       rows.forEach(rw => { for (let a = 0; a < 3; a++) ga[a] += 2 * rw.j[a] * rw.r; });
 
       //  수치 : 중심차분 (grad 는 ∂J/∂cx, ∂J/∂cy, ∂J/∂호길이 를 돌려준다)
-      const gn = JField.grad(pose, sg, cons, D.ducts, placed, assign);
+      const gn = JField.grad(pose, sg, cons, D.ducts, placed, lpts, assign);
       const num = [gn.cx, gn.cy, gn.th];
 
       for (let a = 0; a < 3; a++) {
@@ -91,7 +109,7 @@ D.bars.forEach(bar => {
   });
 
   //  다음 철근이 보도록 이 철근을 놓는다 (척력항도 검산에 들어가게)
-  const done = JField.form(bar, D.walls, sec, D.ducts, placed);
+  const done = JField.form(bar, D.walls, sec, D.ducts, placed, []);
   for (let i = 0; i + 1 < done.pts.length; i++)
     placed.push({ p1: done.pts[i], p2: done.pts[i + 1], dia: bar.dia });
 });

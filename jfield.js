@@ -73,6 +73,14 @@
                        세 무게는 논문에서 교정할 값이다 — 코드에 숨기지 않는다.          */
             K_COV: 20.0,       // 피복 부족(slack < 0) 쪽 벌점
             K_CLR: 4.0,        // 순간격 위반 벌점 (작은 위반에서의 2차 계수)
+            /*  K_LRE  **종방향 철근과의 접촉.** `JLong.CONF.K_BAR` 과 같은 값이다.
+                같은 두 철근이 닿는 일인데 **어느 쪽이 움직이느냐에 따라 뻣뻣함이
+                달라지면 안 된다** — 종방향이 움직일 때는 1000 으로 밀어내면서
+                횡방향이 움직일 때는 4 로 민다면 그것은 한 접촉이 아니라 두 접촉이다.
+                그래서 두 엔진이 같은 수를 쓴다. 바꿀 때는 **같이** 바꾼다.
+                (지금 `placed` 즉 횡방향끼리는 아직 K_CLR 4 를 쓴다 — 같은 논리로는
+                 이것도 올라가야 하지만 기존 결과가 바뀌므로 따로 잰 뒤에 고친다.) */
+            K_LRE: 1000.0,     // 종방향 철근과의 순간격 위반 (= JLong.CONF.K_BAR)
             CLR_SOFT: 30.0,    // 이 이상 벌어진 위반은 힘이 되내려간다 (mm) — clrRes 참조
             THMAX: 30,         // init 자세에서 벗어날 수 있는 각의 한계 (도)
             /*  ⓪ 제자리 고정. **방향마다 다르다.**
@@ -113,11 +121,11 @@
 
         /*  J 를 **항별로** 나눠 돌려준다. energy() 와 같은 식을 쓰되 합치지 않는다 —
             덕트가 철근을 피복선에서 몇 mm 밀어냈는지가 여기서 수치로 나온다.     */
-        energyParts: function (pose, seg, cons, ducts, placed, assign) {
+        energyParts: function (pose, seg, cons, ducts, placed, lpts, assign) {
             const K = this.CONF, half = seg.len / 2;
             const dx = Math.cos(pose.th) * half, dy = Math.sin(pose.th) * half;
             const pts = [{ x: pose.cx - dx, y: pose.cy - dy }, { x: pose.cx + dx, y: pose.cy + dy }];
-            const o = { cover: 0, duct: 0, bar: 0, anchor: 0 };
+            const o = { cover: 0, duct: 0, bar: 0, lre: 0, anchor: 0 };
 
             pts.forEach((p, i) => {
                 const c = (assign && cons[assign[i]]) || this.nearestCon(p, cons);
@@ -137,13 +145,25 @@
                     if (g < 0) { const e = this.clrRes(g); o.bar += e.r * e.r; }
                 });
             });
+            (lpts || []).forEach(q => {
+                const g = this.segToPoint(pts, q) - this.lreNeed(q, seg.dia);
+                if (g < 0) { const e = this.clrRes(g, K.K_LRE); o.lre += e.r * e.r; }
+            });
             const ux = Math.cos(pose.th), uy = Math.sin(pose.th);
             const ax = (pose.cx - seg.c0.x) * ux + (pose.cy - seg.c0.y) * uy;
             const pp = -(pose.cx - seg.c0.x) * uy + (pose.cy - seg.c0.y) * ux;
             const at = (pose.th - seg.th0) * half;
             o.anchor = K.K_AXIAL * ax * ax + K.K_ANCHOR * (pp * pp + at * at);
-            o.total = o.cover + o.duct + o.bar + o.anchor;
+            o.total = o.cover + o.duct + o.bar + o.lre + o.anchor;
             return o;
+        },
+
+        /*  횡방향 조각이 **종방향 철근**과 지켜야 할 중심거리.
+            종방향은 단면에서 점이라 덕트와 같은 수학이지만 need 가 다르다 —
+            덕트는 「외경/2 + 순간격」, 철근은 「지름 둘의 평균 + 순간격」이다.
+            `clr` 을 안 주면 0 : 갈고리는 종방향에 **맞닿아** 걸리는 철근이다.      */
+        lreNeed: function (q, dia) {
+            return ((q.dia || 13) + dia) / 2 + (q.clr != null ? q.clr : 0);
         },
 
         /*  벽이 요구하는 피복. 벽의 tag(top/outer/inner)가 정한다 —
@@ -243,7 +263,7 @@
             그 벽이 후보에서 빠지고 J 가 0 이 된다 — 아무 데도 안 붙고 J=0 인
             가짜 최소가 생긴다(실제로 철근이 38 도 돌아 단면 밖으로 날아갔다).
             수직거리는 자세와 무관하게 정의되므로 J=0 은 **정말로 면에 앉은 것**뿐이다. */
-        energy: function (pose, seg, cons, ducts, placed, assign) {
+        energy: function (pose, seg, cons, ducts, placed, lpts, assign) {
             const K = this.CONF;
             const half = seg.len / 2;
             const dx = Math.cos(pose.th) * half, dy = Math.sin(pose.th) * half;
@@ -281,6 +301,15 @@
                 });
             });
 
+            /*  ④ 이미 놓인 **종방향 철근** — 단면에서 점이라 ② 와 같은 수학이다.
+                이 항이 없으면 종방향은 횡방향을 피해 가는데(jlong 의 `tre` 배리어)
+                횡방향은 종방향을 못 본다 — **한 접촉이 한쪽에서만 작동**했다.
+                갈고리(ㄷ)가 종방향에 걸려 서려면 이쪽 방향이 있어야 한다.          */
+            (lpts || []).forEach(q => {
+                const g = this.segToPoint(pts, q) - this.lreNeed(q, seg.dia);
+                if (g < 0) { const e = this.clrRes(g, K.K_LRE); J += e.r * e.r; }
+            });
+
             //  ⓪ 제자리 고정항 — residuals() 의 그것과 같다 (설명은 거기에)
             const ux = Math.cos(pose.th), uy = Math.sin(pose.th);
             const dcx = pose.cx - seg.c0.x, dcy = pose.cy - seg.c0.y;
@@ -307,8 +336,11 @@
             **못 지키는 것은 보고할 일이지 배근을 비틀 일이 아니다.**
             잔차꼴로 두면 r = √K·g/√u (u = 1+(g/δ)²) 이고 미분이 딱 떨어진다 :
                 dr/dg = √K · u^(−3/2)                                             */
-        clrRes: function (g) {
-            const k = Math.sqrt(this.CONF.K_CLR), d = this.CONF.CLR_SOFT;
+        /*  `k` 를 주면 그 무게로 잰다 (안 주면 K_CLR). 종방향 철근과의 접촉만
+            K_LRE 로 들어온다 — 이유는 CONF.K_LRE 주석에.                        */
+        clrRes: function (g, k) {
+            k = Math.sqrt(k != null ? k : this.CONF.K_CLR);
+            const d = this.CONF.CLR_SOFT;
             const t = g / d, u = 1 + t * t;
             return { r: k * g / Math.sqrt(u), s: k / (u * Math.sqrt(u)) };
         },
@@ -413,7 +445,7 @@
                       ∂d/∂c = ê ,  ∂d/∂φ = (2t−1)·(u⊥·ê) ,  ê = (x−q)/d
                       t 는 **고정해도 된다** — 최소점이라 ∂d/∂t = 0 이다(포락선 정리).
             ③ 철근   ②와 같다. q 자리에 상대 선분의 가장 가까운 점을 넣는다.      */
-        residuals: function (pose, seg, cons, ducts, placed, assign) {
+        residuals: function (pose, seg, cons, ducts, placed, lpts, assign) {
             const K = this.CONF, half = seg.len / 2;
             const cs = Math.cos(pose.th), sn = Math.sin(pose.th);
             const ux = cs, uy = sn, px = -sn, py = cs;            // u, u⊥
@@ -448,11 +480,21 @@
             rows.push({ r: ka * pp, j: [-ka * uy, ka * ux, -ka * ax / half] });
             rows.push({ r: ka * (pose.th - seg.th0) * half, j: [0, 0, ka] });
 
-            const clearRow = (q, need, near) => {
+            /*  `near.d ≈ 0` — 장애물이 조각 **위에** 정확히 서 있는 자리.
+                밀 방향이 수학적으로 없다. 예전에는 여기서 줄을 안 만들고 넘어갔는데,
+                `energy()` 는 그 겹침을 그대로 세므로 **J 는 크고 기울기는 0** 인
+                자리가 생긴다 — 조각이 겹친 채 못 움직인다 (⑥-1[b] ⑥-4[b] 가
+                종방향을 제 위에 놓았을 때 0.0 mm 도 안 비켰다. 거기 J 228,000).
+                방향은 고를 것이 없다. 이 저장소가 이미 정해 둔 그것이다 —
+                **바깥은 거푸집이고 안쪽이 콘크리트다. 겹은 안쪽으로 쌓인다**
+                (settle 의 NUDGE 주석). n0 는 조각이 바라보는 벽 쪽이므로 −n0 다.    */
+            const clearRow = (q, need, near, k) => {
                 const g = near.d - need;
-                if (g >= 0 || near.d < 1e-9) return;               // 여유가 있거나 방향이 없다
-                const e = this.clrRes(g);                          // 되내려가는 손실 (clrRes 참조)
-                const ex = (near.x - q.x) / near.d, ey = (near.y - q.y) / near.d;
+                if (g >= 0) return;                                // 여유가 있다
+                const e = this.clrRes(g, k);                       // 되내려가는 손실 (clrRes 참조)
+                const deg = near.d < 1e-9;
+                const ex = deg ? -seg.n0.x : (near.x - q.x) / near.d;
+                const ey = deg ? -seg.n0.y : (near.y - q.y) / near.d;
                 rows.push({ r: e.r,
                             j: [e.s * ex, e.s * ey, e.s * (2 * near.t - 1) * (px * ex + py * ey)] });
             };
@@ -469,6 +511,11 @@
                 this.clearPairs(pts, q.p1, q.p2).forEach(n => {
                     clearRow({ x: n.qx, y: n.qy }, need, n);
                 });
+            });
+
+            //  ④ 종방향 철근 — 점이라 ② 와 같은 꼴. 무게만 K_LRE 다 (CONF 주석 참조)
+            (lpts || []).forEach(q => {
+                clearRow(q, this.lreNeed(q, seg.dia), this.closestOnSeg(pts, q), K.K_LRE);
             });
 
             return rows;
@@ -502,13 +549,13 @@
             검산하는 자리로 남겨 둔다 (`bench/jjac.js`). J 의 항을 새로 더할 때
             야코비를 같이 안 고치면 조용히 틀리므로, 그때 이것과 맞춰 보면 된다.
             각은 **끝점이 움직인 거리**로 환산해서 잰다 — 세 변수의 단위를 mm 로 맞춘다. */
-        grad: function (pose, seg, cons, ducts, placed, assign) {
+        grad: function (pose, seg, cons, ducts, placed, lpts, assign) {
             const h = this.CONF.H, half = Math.max(seg.len / 2, 1), g = {};
             [['cx', h], ['cy', h], ['th', h / half]].forEach(([k, hh]) => {
                 const a = Object.assign({}, pose); a[k] += hh;
                 const b = Object.assign({}, pose); b[k] -= hh;
-                g[k] = (this.energy(a, seg, cons, ducts, placed, assign) -
-                        this.energy(b, seg, cons, ducts, placed, assign)) / (2 * hh);
+                g[k] = (this.energy(a, seg, cons, ducts, placed, lpts, assign) -
+                        this.energy(b, seg, cons, ducts, placed, lpts, assign)) / (2 * hh);
             });
             g.th /= half;          //  ∂J/∂(끝점 호길이) → 같은 스텝으로 갱신할 수 있게
             return g;
@@ -568,14 +615,14 @@
             인데, K_COV 로 우물을 한쪽만 무겁게 만든 탓에 g=0 에서 2계도함수가 튀고
             중심차분이 거기서 ≈K·h/2 의 가짜 기울기를 냈다(5e-2 에서 바닥을 침).
             여기서는 **걸음의 크기**로 멈춘다. 가짜 기울기가 끼어들 자리가 없다.     */
-        descend: function (pose, seg, cons, ducts, placed, assign) {
+        descend: function (pose, seg, cons, ducts, placed, lpts, assign) {
             const K = this.CONF, half = Math.max(seg.len / 2, 1);
             const lim = K.THMAX * Math.PI / 180;
-            let last = this.energy(pose, seg, cons, ducts, placed, assign);
+            let last = this.energy(pose, seg, cons, ducts, placed, lpts, assign);
             let lam = K.LAM0, i = 0;
 
             for (; i < K.ITER; i++) {
-                const rows = this.residuals(pose, seg, cons, ducts, placed, assign);
+                const rows = this.residuals(pose, seg, cons, ducts, placed, lpts, assign);
                 if (!rows.length) break;
 
                 //  AᵀA 와 Aᵀr
@@ -601,7 +648,7 @@
                     cx: pose.cx + d[0], cy: pose.cy + d[1],
                     th: Math.max(seg.th0 - lim, Math.min(seg.th0 + lim, pose.th + d[2] / half))
                 };
-                const Jn = this.energy(nx, seg, cons, ducts, placed, assign);
+                const Jn = this.energy(nx, seg, cons, ducts, placed, lpts, assign);
                 //  피복선에 닿아 있는데 밖으로 나가는 걸음이면 받지 않는다 (atRest 참조)
                 const bad = this.atRest(pose, seg, cons, assign) && !this.feasible(nx, seg, cons, assign);
 
@@ -633,7 +680,7 @@
             스텝이 0 에 가까워져 **다른 끝점이 영영 못 따라온다**(3000 반복으로도
             250 mm 를 못 줄였다). 배정을 고정하면 두 문제가 같이 사라진다.
             배정이 되돌아오면(진동) 거기서 멈추고 그 사실을 보고한다.              */
-        settle: function (seg, walls, sec, ducts, placed) {
+        settle: function (seg, walls, sec, ducts, placed, lpts) {
             const cons = this.targets(seg, walls, sec, seg.dia);
             const pose0 = { cx: seg.c0.x, cy: seg.c0.y, th: seg.th0 };
             if (!cons.length)
@@ -649,7 +696,7 @@
                 덕트는 구멍이지 목표가 아니다.                                      */
             this._seg = seg.label || '';
             this._stage = 1;
-            const r1 = this.alternate(pose0, seg, cons, [], []);
+            const r1 = this.alternate(pose0, seg, cons, [], [], []);
 
             /*  2단계에 들어가기 전에 **안쪽으로 살짝** 밀어 대칭을 깬다.
                 두 철근이 같은 피복선에 정확히 겹쳐 앉으면 거기가 척력 벌점의
@@ -663,7 +710,7 @@
             const start = { cx: r1.pose.cx + nx / nl * nud, cy: r1.pose.cy + ny / nl * nud, th: r1.pose.th };
 
             this._stage = 2;
-            const r2 = this.alternate(start, seg, cons, ducts, placed);
+            const r2 = this.alternate(start, seg, cons, ducts, placed, lpts);
 
             return {
                 pose: r2.pose, cons: cons, iter: r1.iter + r2.iter,
@@ -675,7 +722,7 @@
         },
 
         //  배정 ↔ 하강 교대. 배정이 안 바뀌면 끝이다.
-        alternate: function (pose, seg, cons, ducts, placed) {
+        alternate: function (pose, seg, cons, ducts, placed, lpts) {
             const K = this.CONF, seen = {};
             let assign = this.assignOf(pose, seg, cons);
             let iter = 0, J = null, cycled = false, o = 0;
@@ -683,7 +730,7 @@
                 const key = assign.join(',');
                 if (seen[key]) { cycled = true; break; }
                 seen[key] = 1;
-                const r = this.descend(pose, seg, cons, ducts, placed, assign);
+                const r = this.descend(pose, seg, cons, ducts, placed, lpts, assign);
                 pose = r.pose; J = r.J; iter += r.iter;
                 const next = this.assignOf(pose, seg, cons);
                 if (next.join(',') === key) break;
@@ -735,7 +782,7 @@
                    남은 후보가 데크 상면(E2) 하나뿐이라 **b 가 5.7 m 위로 올라간다**
               판3  a 는 복부면의 길이를 벗어나 후보가 0 개가 된다 (no-target)
             **처음 앉은 자리가 답이다.** 다시 풀 이유가 없다.                     */
-        form: function (bar, walls, sec, ducts, placed) {
+        form: function (bar, walls, sec, ducts, placed, lpts) {
             this._pass = 1;
             const segs = bar.segs.map(s => {
                 const vx = s.p2.x - s.p1.x, vy = s.p2.y - s.p1.y;
@@ -751,7 +798,7 @@
 
             //  ㉠ 각자 한 번 앉는다
             const res = segs.map(sg => {
-                const r = this.settle(sg, walls, sec, ducts, placed);
+                const r = this.settle(sg, walls, sec, ducts, placed, lpts);
                 const half = sg.len / 2;
                 let ux = Math.cos(r.pose.th), uy = Math.sin(r.pose.th);
 
@@ -818,10 +865,10 @@
 
         /*  한 단면. 철근을 입력 순서대로 놓고, 놓인 것은 다음 철근의 척력이 된다.
             (지금 척력은 꼭짓점만 본다 — 논문 주장 3 은 선분끼리로 바꿔야 한다.)   */
-        solve: function (bars, walls, sec, ducts) {
+        solve: function (bars, walls, sec, ducts, lpts) {
             const placed = [], out = [];
             (bars || []).forEach(b => {
-                const r = this.form(b, walls, sec, ducts, placed);
+                const r = this.form(b, walls, sec, ducts, placed, lpts);
                 out.push(r);
                 for (let i = 0; i + 1 < r.pts.length; i++)
                     placed.push({ p1: r.pts[i], p2: r.pts[i + 1], dia: b.dia });
