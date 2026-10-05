@@ -203,6 +203,9 @@
             **코너의 자리는 두 직선의 교점이 정하고, 그 교점을 몸통 항이 잡는다.**
             (한때 다리에 축방향 항 K_AX·s² 를 줘 봤는데, `joinCorners` 가 코너를
              교점으로 다시 만들면서 그 항이 지워졌다. 축을 잡는 자리는 몸통이다.)
+            ※ 몸통의 이 **못박기는 뒤에 「선호」로 내려갔다.** 축방향은 점이 아니라
+              띠다 — 바로 아래 「축방향은 «꼭 접선점» 이 아니다」. 다리의 항(need)은
+              그대로 요구다.
 
             항의 꼴은 피복항과 같다 — 양쪽 우물에 가중치만 어긋나 있다 :
                 J = w (d − target)² ,   w = ( d < target ? K_BAR : 1 )
@@ -231,19 +234,131 @@
                      nu: nu, target: this.hookTarget(seg) };
         },
 
+        /*  ── 축방향은 «꼭 접선점» 이 아니다. **띠 안의 어디든** 이다 ──────────────
+            위의 유도는 「다리까지 need · 몸통까지 R」 두 수직거리로 자리를 **하나로**
+            못박는다. 그런데 실제로 철근을 넣을 때 보는 것은 그것이 아니다 :
+              ㉠ 양쪽 **끝이 피복 안**에 들어가나
+              ㉡ **덕트**를 비켜 가나
+              ㉢ 그러고 나서 거기 있는 **종방향에 결속**한다
+            이고, 결속점이 절곡이 끝나는 바로 그 점일 **이유가 없다.** 곧은 구간
+            어디서 묶어도 ㄷ 는 제 일을 한다.
+
+            그래서 몸통의 ⑤ 를 **못박기에서 띠로** 바꾼다. 몸통의 수직거리 h 가 곧
+            「코너에서 종방향까지의 축방향 거리」이므로(코너는 몸통의 선 위에 있다),
+            세 가지가 전부 **h 하나의 상·하한**으로 떨어진다 :
+
+                h ≥ R                절곡 아크 안은 자리가 아니다          (K_BAR)
+                h ≤ ℓ                종방향이 다리를 벗어나면 못 건다      (K_BAR)
+                h ≥ ℓ − t⁺ , h ≤ t⁻  양쪽 끝이 피복 안                     (K_COV)
+
+            `t⁺` 는 바에서 **자유단 쪽**으로, `t⁻` 는 **코너 쪽**으로 막아서는 면의
+            피복선까지 갈 수 있는 거리다 (`reachAhead`). S14 에서 재면 다리가 150 인데
+            막아서는 면은 730~11,500 mm 밖이라 **피복 한계는 걸리지 않는다** — 띠는
+            [R, ℓ] = [32.5, 150], 폭 118 mm 다. 「끝은 피복 안」이 이미 지켜져 있다는
+            뜻이고, 그래서 이 항은 **식에는 있고 S14 에서는 쉰다** (bench/jsre.js ⑦).
+
+            ── 띠 «안» 에서는 무엇이 고르나 ───────────────────────────────────────
+            폭 118 mm 가 평평하면 답이 **태어난 자리**로 정해진다 (K_ANCHOR 1e-6 은
+            아무것도 못 잡는다). 그건 최적이 아니다. 띠 안의 선호는 하나뿐이다 —
+            **정착은 길수록 좋다**, 곧 h 는 작을수록(R 에 가까울수록) 좋다. 도면이
+            접선점에 그려 둔 이유가 그것이다.
+
+            그런데 그 선호를 2차로 주면 **덕트를 이긴다.** 이 저장소가 이미 두 번
+            겪은 그 병이다 (K_CLR 주석 · K_COV 주석) : 덕트 배리어는 감쇠해서
+            √K_CLR·CLR_SOFT 에서 멈추는데 2차 선호는 끝없이 자란다.
+                접선점 선호(2차 · 무게 1)   h − R = 140 → 19,600
+                덕트 배리어(감쇠 · K_CLR)                →  3,450   ← 5.7 배로 진다
+            **지켜야 하는 것이 좋으면 좋은 것에 져서는 안 된다.** 그래서 선호도 같은
+            감쇠꼴로 둔다 — 무게는 인력과 같은 1, 무르기는 같은 CLR_SOFT 다 :
+                r = (h − R) / √(1 + ((h−R)/CLR_SOFT)²)        포화 r² = 900
+            덕트의 포화는 K_CLR·CLR_SOFT² = 3,600 이다. 비가 정확히 K_CLR = 4 —
+            **덕트가 넷, 접선점이 하나.** 새 상수를 만들지 않았고, 두 항의 서열이
+            CONF 의 두 수에서 그대로 나온다. 작은 어긋남(≲ CLR_SOFT)에서는 예전과
+            똑같이 2차라, **덕트가 없는 ㄷ 는 그대로 접선점에 앉는다.**
+
+            다리(자유단)는 안 건드린다 — 「종방향에 결속한다」는 ㉢ 이 그 항이고,
+            닿는 것은 띠가 아니라 요구다 (수직거리 = need, 양쪽 우물).             */
+        /*  바에서 d 방향으로 나아갈 때 **막아서는 면**의 피복선까지 (mm).
+            막는 면이 없으면 null. need = 피복 + 지름/2 로 원본 벽에서 재는 것이
+            ①(slack) 과 같다. 맞는 자리가 그 벽 **토막 안**이어야 한다 — 박스 단면은
+            볼록이 아니라 무한 직선으로 보면 건너편 면이 걸린다(seats ② 와 같은 이유).
+            (바에서 쏜다. 다리의 중심선은 바에서 need 만큼 옆으로 비켜 있지만,
+             막아서는 면은 다리와 거의 수직이라 그 비낌은 거리에 거의 안 든다.)    */
+        reachAhead: function (p, d, walls, sec, dia) {
+            let best = null;
+            (walls || []).forEach(w => {
+                const dn = d.x * w.nx + d.y * w.ny;
+                if (dn > -0.3) return;                           // 막아서지 않는 면
+                const s = (p.x - w.x1) * w.nx + (p.y - w.y1) * w.ny;
+                if (s <= 0) return;                              // 이미 그 면 바깥
+                const t = s / -dn;
+                const hx = p.x + d.x * t, hy = p.y + d.y * t;
+                const wx = w.x2 - w.x1, wy = w.y2 - w.y1, wl2 = wx * wx + wy * wy || 1;
+                const u = ((hx - w.x1) * wx + (hy - w.y1) * wy) / wl2;
+                if (u < -0.02 || u > 1.02) return;               // 그 면 토막을 벗어난다
+                const tm = (s - (this.coverOf(w, sec) + dia / 2)) / -dn;
+                if (best == null || tm < best) best = tm;
+            });
+            return best;
+        },
+
+        /*  몸통의 **띠**. `form` 이 재서 실어 보낸다 (hookBandOf). 안 실려 왔으면
+            아래 한쪽만 — 「절곡 아크 안은 안 된다」는 기하라 언제나 참이다.       */
+        hookBand: function (seg) {
+            const R = seg.bendR || 0;
+            return seg.band || { lo: R, hi: Infinity, wLo: this.CONF.K_BAR, wHi: 0, pref: R };
+        },
+
+        /*  띠를 잰다 — 다리 하나(자리를 고른 그 다리)와 벽으로 충분하다.
+            `q` 걸 종방향 · `dir` 다리가 뻗는 쪽(코너 → 자유단) · `len` 다리 길이.    */
+        hookBandOf: function (q, dir, len, R, walls, sec, dia) {
+            const K = this.CONF;
+            let lo = R, wLo = K.K_BAR, hi = len, wHi = K.K_BAR;
+            const tf = this.reachAhead(q, dir, walls, sec, dia);
+            const tc = this.reachAhead(q, { x: -dir.x, y: -dir.y }, walls, sec, dia);
+            if (tf != null && len - tf > lo) { lo = len - tf; wLo = K.K_COV; }   // 자유단이 밖으로
+            if (tc != null && tc < hi) { hi = tc; wHi = K.K_COV; }               // 코너가 밖으로
+            //  띠가 닫히면 «그 자리엔 넣을 수 없다» 가 맞는 말이다 — 아래끝에 못박고 알린다
+            const shut = hi < lo;
+            if (shut) hi = lo;
+            return { lo: lo, hi: hi, wLo: wLo, wHi: wHi,
+                     pref: Math.min(Math.max(R, lo), hi), shut: shut,
+                     tf: tf, tc: tc, len: len };
+        },
+
         /*  잔차와 야코비. 변수는 (cx, cy, φ = th·half) — 전부 mm.
-              h = (q − c)·n̂      ∂h/∂c = −n̂      ∂h/∂th = −ν·(q − c)·û = −ν·a      */
+              h = (q − c)·n̂      ∂h/∂c = −n̂      ∂h/∂th = −ν·(q − c)·û = −ν·a
+            잔차가 h 의 함수 f 면 ∂r/∂x = f′(h)·∂h/∂x 다 — 줄을 몇 개 쌓아도 같다.  */
         hookRows: function (pose, seg) {
             const K = this.CONF, g = this.hookGeom(pose, seg), half = Math.max(g.half, 1);
-            const gh = g.h - g.target;
-            const w = Math.sqrt(gh < 0 ? K.K_BAR : 1);
-            return [{ r: w * gh, j: [-w * g.nx, -w * g.ny, -w * g.nu * g.a / half] }];
+            const mk = (r, s) => ({ r: r, j: [-s * g.nx, -s * g.ny, -s * g.nu * g.a / half] });
+            if (!seg.link) {                       // 다리 — 종방향에 **닿는다** (요구)
+                const gh = g.h - g.target;
+                const w = Math.sqrt(gh < 0 ? K.K_BAR : 1);
+                return [mk(w * gh, w)];
+            }
+            const b = this.hookBand(seg), out = [];
+            if (g.h < b.lo) { const w = Math.sqrt(b.wLo); out.push(mk(w * (g.h - b.lo), w)); }
+            else if (g.h > b.hi && b.wHi > 0) {
+                const w = Math.sqrt(b.wHi); out.push(mk(w * (g.h - b.hi), w));
+            }
+            const e = this.clrRes(g.h - b.pref, 1);        // 접선점 선호 — 감쇠 · 무게 1
+            out.push(mk(e.r, e.s));
+            return out;
         },
 
         hookEnergy: function (pose, seg) {
             const K = this.CONF, g = this.hookGeom(pose, seg);
-            const gh = g.h - g.target;
-            return (gh < 0 ? K.K_BAR : 1) * gh * gh;
+            if (!seg.link) {
+                const gh = g.h - g.target;
+                return (gh < 0 ? K.K_BAR : 1) * gh * gh;
+            }
+            const b = this.hookBand(seg);
+            let J = 0;
+            if (g.h < b.lo) J += b.wLo * (g.h - b.lo) * (g.h - b.lo);
+            else if (g.h > b.hi && b.wHi > 0) J += b.wHi * (g.h - b.hi) * (g.h - b.hi);
+            const e = this.clrRes(g.h - b.pref, 1);
+            return J + e.r * e.r;
         },
 
         /*  ── ⑥ 갈고리 다리가 콘크리트 면과 «평행» 해지는 항 ────────────────────
@@ -1219,10 +1334,17 @@
             if (bar.hook && segs.length > 1) {
                 const ends = segs.filter(s => !s.link);
                 const e0 = ends[0];
-                //  ㉮ 첫째 다리가 «자리» 를 정한다 — **덕트를 피해서** (hookPick 주석)
+                /*  ㉮ 첫째 다리가 «자리» 를 정한다 — **덕트를 피해서** (hookPick 주석)
+                    고른 것은 `_inherit` 에 실어 둔다. `settle` 이 조각마다 **다시**
+                    `hookSetup` 을 부르므로, 여기서 `seg.hookQ` 만 박아 두면 거기서
+                    옛 규칙(코너 최근접)으로 **조용히 덮인다.** 실제로 그랬다 :
+                    T1#3 의 다리는 (−4877,−140) 을, 몸통은 고른 (−5099,−93) 을 물어
+                    둘이 **다른 철근**을 보고 있었고, 코너가 189 mm 어긋났다
+                    (hookSetup 주석의 그 병이 배정 쪽에서 되살아난 것이다).         */
                 if (e0) {
                     const pick = this.hookPick(segs, lpts, ducts);
-                    this.hookSetup(e0, lpts, pick ? { q: pick, use: true } : null);
+                    if (pick) e0._inherit = { q: pick, use: true };
+                    this.hookSetup(e0, lpts, e0._inherit);
                 }
                 if (e0 && e0.hookQ) {
                     //  다리가 뻗는 쪽 = 코너 → 자유단.  축 = 그 반대(코너 쪽)
@@ -1233,7 +1355,15 @@
                     const lead = { q: e0.hookQ, dir: dir, axis: dir };
                     //  ㉯ 나머지 다리는 **같은 자리**, ㉰ 몸통은 **그 철근 그대로**
                     ends.slice(1).forEach(s => { s._inherit = lead; });
-                    segs.forEach(s => { if (s.link) s._inherit = { q: lead.q, dir: dir, body: true }; });
+                    /*  ㉱ 몸통이 축방향을 정한다 — 못박지 않고 **띠**로 준다
+                        (hookRows 위 주석). 띠는 다리 하나와 벽에서 나온다.        */
+                    const band = this.hookBandOf(e0.hookQ, dir, e0.len0,
+                                                 e0.bendR || 0, walls, sec, bar.dia);
+                    segs.forEach(s => {
+                        if (!s.link) return;
+                        s._inherit = { q: lead.q, dir: dir, body: true };
+                        s.band = band;
+                    });
                 }
             }
 

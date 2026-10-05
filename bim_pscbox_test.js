@@ -1562,7 +1562,7 @@
             뜻이고, 고칠 수 있는 것은 입력(ㄷ 의 구간·간격)뿐이니 숫자를 그대로 낸다.
             덕트에 밀린 것과 가려 주지 않는다 — 가르는 일은 `bench/jsre.js` 가 한다
             (덕트를 빼고 한 번 더 풀어 봐야 갈라지는데, 화면에서 두 번 풀 수는 없다). */
-        var off = [], slip = [];
+        var off = [], slip = [], anc = [];
         out.forEach(function (r) {
           if (drop[String(r.id)]) return;
           [0, 2].forEach(function (i) {
@@ -1577,17 +1577,23 @@
                                             hookSide: sg.hookSide, bendR: 0, link: false });
             if (Math.abs(g.h - g.target) > 0.5)
               off.push(r.id + '[' + sg.label + '] ' + g.h.toFixed(0) + '/' + g.target.toFixed(0));
-            /*  축방향 — 종방향이 **절곡부**에 와야 갈고리가 «무는» 것이다. 재는 자는
-                절곡 반지름 자신이다 : |s| 가 R 을 넘으면 종방향이 곧은 구간 한가운데에
-                있다는 뜻이고, 그러면 무는 것이 아니라 그냥 닿는 것이다.
-                대개 **상·하 종방향의 짝이 그 자리에서 어긋난** 것이다.          */
+            /*  축방향 — 종방향은 다리의 **곧은 구간 안**에 있어야 한다. 점이 아니라
+                띠다 : s = 0 (절곡 접선점)에서 s = ℓ−R (자유단)까지. s = 0 은 정착이
+                가장 길어 **선호**이고, 덕트에 걸린 ㄷ 는 띠 안에서 비켜난다
+                (`jfield.js` hookRows 위 주석 · `bench/jband.js`).
+                띠를 **벗어난** 것만 말한다 — 대개 상·하 종방향의 짝이 그 자리에서
+                어긋난 것이다. 여유 2 mm 는 폴리라인 코너와 푼 자세의 차다.      */
             var R = JField.bendRadius(r.dia), half = L / 2;
             var sOff = ((i === 0) ? (half - g.a) : (g.a + half)) - R;
-            if (Math.abs(sOff) > R) slip.push(r.id + '[' + sg.label + '] ' + sOff.toFixed(0));
+            var top = (sg.len0 != null ? sg.len0 : L) - R;
+            if (sOff < -2 || sOff > top + 2)
+              slip.push(r.id + '[' + sg.label + '] ' + sOff.toFixed(0));
+            //  결속점 뒤로 남은 곧은 길이 = 정착. **띠가 열린 대가**가 이 수다
+            anc.push({ v: top - sOff, id: r.id + '[' + sg.label + ']' });
           });
         });
         if (slip.length)
-          warn.push('갈고리 다리 ' + slip.length + '개가 **절곡부에서 물지 못했습니다** (' +
+          warn.push('갈고리 다리 ' + slip.length + '개가 **다리의 곧은 구간을 벗어났습니다** (' +
                     slip.slice(0, 6).join(', ') + (slip.length > 6 ? ' …' : '') +
                     ' mm — 그 자리에서 상·하 종방향의 짝이 어긋나 있습니다)');
         if (off.length)
@@ -1603,6 +1609,14 @@
           console.log('[SREBAR] 몸통 길이(출력) ' + Math.round(Math.min.apply(null, body)) +
                       ' ~ ' + Math.round(Math.max.apply(null, body)) + ' mm · ' + body.length + '개');
         this._sbody = body;
+        /*  **정착은 띠의 대가다.** 결속점을 접선점에 못박으면 ℓ−R 로 한 수인데,
+            띠를 열면 덕트를 비킨 만큼 짧아진다. 숨길 수가 없는 수이므로 찍는다
+            (`mat|fck|fy` 가 들어오면 여기서 코드 값과 견줄 수 있다 — STATUS 참조). */
+        if (anc.length) {
+          anc.sort(function (a, b) { return a.v - b.v; });
+          console.log('[SREBAR] 결속점 뒤 곧은 길이(정착) ' + Math.round(anc[0].v) + ' ~ ' +
+                      Math.round(anc[anc.length - 1].v) + ' mm · 최소 ' + anc[0].id);
+        }
         //  마크 — 길이로 묶으면 도면의 T1-1/T1-2/T1-3 이 돌아온다 (_srebarMarks 주석)
         this._smarks = this._srebarMarks();
         this._smarks.forEach(function (m) {
