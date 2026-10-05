@@ -139,7 +139,7 @@
             const K = this.CONF, half = seg.len / 2;
             const dx = Math.cos(pose.th) * half, dy = Math.sin(pose.th) * half;
             const pts = [{ x: pose.cx - dx, y: pose.cy - dy }, { x: pose.cx + dx, y: pose.cy + dy }];
-            const o = { cover: 0, duct: 0, bar: 0, lre: 0, anchor: 0 };
+            const o = { cover: 0, duct: 0, bar: 0, lre: 0, hook: 0, anchor: 0 };
 
             pts.forEach((p, i) => {
                 const c = (assign && cons[assign[i]]) || this.nearestCon(p, cons);
@@ -167,9 +167,99 @@
             const ax = (pose.cx - seg.c0.x) * ux + (pose.cy - seg.c0.y) * uy;
             const pp = -(pose.cx - seg.c0.x) * uy + (pose.cy - seg.c0.y) * ux;
             const at = (pose.th - seg.th0) * half;
-            o.anchor = K.K_AXIAL * ax * ax + K.K_ANCHOR * (pp * pp + at * at);
-            o.total = o.cover + o.duct + o.bar + o.lre + o.anchor;
+            if (seg.hook && seg.hookQ) o.hook = this.hookEnergy(pose, seg);
+            o.anchor = (seg.hook ? 0 : K.K_AXIAL * ax * ax) + K.K_ANCHOR * (pp * pp + at * at);
+            o.total = o.cover + o.duct + o.bar + o.lre + o.hook + o.anchor;
             return o;
+        },
+
+        /*  ── 갈고리의 자리는 **벽이 아니라 종방향 철근**이다 ──────────────────
+            ㄷ(스터럽)는 단면 평면 **안에** 누워 있고, 그 평면을 **뚫고 지나가는**
+            철근만 걸 수 있다 — 그게 종방향(점)이다. 횡방향은 같은 평면에 나란히
+            누워 있어 걸 수가 없다(부딪힐 뿐이다). 그래서 인력 대상은 종방향뿐이고,
+            콘크리트 피복은 인력이 아니라 **결과**다 (검사로 돌린다).
+
+            ── 절곡 «직전»에서 멈추게 하는 법 ──────────────────────────────────
+            철근이 절곡 아크 **안**으로 들어가면 안 되고, 아크가 시작되는 접선점에
+            닿아야 한다. 코너 C · 중심선 곡률반경 R · 다리방향 û · 법선 n̂ 일 때
+            그 자리는
+
+                q = C − R·û + need·n̂                     (need = (dᵃ+dᵇ)/2)
+
+            이다. 이것을 **두 수직거리**로 쓰면 항이 둘로 끝난다 :
+
+                다리(자유단)  까지의 수직거리 = need      ← 철근에 닿는다
+                몸통(연결조각)까지의 수직거리 = R         ← 절곡이 시작되는 거리
+
+            둘을 동시에 만족하는 점이 하나뿐이고 그게 접선점이다. 아크를 따로
+            재지 않아도 되고, 다리를 따라 미끄러지는 자유도도 안 남는다 —
+            **코너의 자리는 두 직선의 교점이 정하고, 그 교점을 몸통 항이 잡는다.**
+            (한때 다리에 축방향 항 K_AX·s² 를 줘 봤는데, `joinCorners` 가 코너를
+             교점으로 다시 만들면서 그 항이 지워졌다. 축을 잡는 자리는 몸통이다.)
+
+            항의 꼴은 피복항과 같다 — 양쪽 우물에 가중치만 어긋나 있다 :
+                J = w (d − target)² ,   w = ( d < target ? K_LRE : 1 )
+            멀면 당기고(1), 파고들면 세게 민다(K_LRE). 인력과 척력이 한 항이다.
+
+            H13/H13 · R 32.5 이면 코너까지 √(R²+need²) = 35.00, 아크까지 정확히
+            need 다. **직선에는 닿고 아크에는 안 들어간다.**
+
+            seg 에 실어 보내는 것 :
+              hook     이 조각이 갈고리인가        hookQ    걸 종방향 {x,y,dia}
+              hookEnd  코너가 p2 쪽이면 +1         hookSide 법선의 부호
+              bendR    중심선 곡률반경             link     연결 조각인가           */
+        hookTarget: function (seg) {
+            return seg.link ? (seg.bendR || 0) : this.lreNeed(seg.hookQ, seg.dia);
+        },
+
+        hookGeom: function (pose, seg) {
+            const half = seg.len / 2, q = seg.hookQ;
+            const ux = Math.cos(pose.th), uy = Math.sin(pose.th);
+            const nu = seg.hookSide || 1;
+            const nx = nu * -uy, ny = nu * ux;                 // n̂ = ν·u⊥
+            const vx = q.x - pose.cx, vy = q.y - pose.cy;
+            const h = vx * nx + vy * ny;                       // 중심선까지의 수직거리
+            const a = vx * ux + vy * uy;                       // 축방향 (야코비에만 쓴다)
+            return { h: h, a: a, half: half, ux: ux, uy: uy, nx: nx, ny: ny,
+                     nu: nu, target: this.hookTarget(seg) };
+        },
+
+        /*  잔차와 야코비. 변수는 (cx, cy, φ = th·half) — 전부 mm.
+              h = (q − c)·n̂      ∂h/∂c = −n̂      ∂h/∂th = −ν·(q − c)·û = −ν·a      */
+        hookRows: function (pose, seg) {
+            const K = this.CONF, g = this.hookGeom(pose, seg), half = Math.max(g.half, 1);
+            const gh = g.h - g.target;
+            const w = Math.sqrt(gh < 0 ? K.K_LRE : 1);
+            return [{ r: w * gh, j: [-w * g.nx, -w * g.ny, -w * g.nu * g.a / half] }];
+        },
+
+        hookEnergy: function (pose, seg) {
+            const K = this.CONF, g = this.hookGeom(pose, seg);
+            const gh = g.h - g.target;
+            return (gh < 0 ? K.K_LRE : 1) * gh * gh;
+        },
+
+        //  중심선 곡률반경 (페이지의 bendRadiusForDia 와 같은 규칙). bar.bendR 이 이긴다.
+        bendRadius: function (dia) {
+            const inside = (dia <= 16) ? 2 * dia : 3.5 * dia;
+            return inside + dia / 2;
+        },
+
+        /*  갈고리가 **걸 종방향 하나**를 고른다 — 가장 가까운 것. 벽은 안 본다.
+            법선의 부호(ν)도 여기서 정한다 : 코너 쪽 끝점에서 그 철근을 향하는 쪽. */
+        hookSetup: function (seg, lpts) {
+            let best = null;
+            (lpts || []).forEach(q => {
+                const d = this.segToPoint([seg.p1, seg.p2], q);
+                if (!best || d < best.d) best = { d: d, q: q };
+            });
+            if (!best) { seg.hookQ = null; return null; }
+            seg.hookQ = best.q;
+            const vx = seg.p2.x - seg.p1.x, vy = seg.p2.y - seg.p1.y;
+            const L = hyp(vx, vy) || 1, ux = vx / L, uy = vy / L;
+            const t = (best.q.x - seg.mid.x) * (-uy) + (best.q.y - seg.mid.y) * ux;   // (q−c)·u⊥
+            seg.hookSide = (t >= 0) ? 1 : -1;
+            return best.q;
         },
 
         /*  횡방향 조각이 **종방향 철근**과 지켜야 할 중심거리.
@@ -324,17 +414,23 @@
                 횡방향은 종방향을 못 본다 — **한 접촉이 한쪽에서만 작동**했다.
                 갈고리(ㄷ)가 종방향에 걸려 서려면 이쪽 방향이 있어야 한다.          */
             (lpts || []).forEach(q => {
+                if (q === seg.hookQ) return;          // 제 자리는 ⑤ 가 맡는다 (이중 계산 금지)
                 const g = this.segToPoint(pts, q) - this.lreNeed(q, seg.dia);
                 if (g < 0) { const e = this.clrRes(g, K.K_LRE); J += e.r * e.r; }
             });
 
-            //  ⓪ 제자리 고정항 — residuals() 의 그것과 같다 (설명은 거기에)
+            //  ⑤ 갈고리 다리 — 자리가 종방향 철근이다 (hookGeom 주석)
+            if (seg.hook && seg.hookQ) J += this.hookEnergy(pose, seg);
+
+            /*  ⓪ 제자리 고정항 — residuals() 의 그것과 같다 (설명은 거기에).
+                갈고리 다리는 **축방향을 철근이 잡으므로** init 축 고정을 끈다 —
+                둘이 같은 방향을 서로 다른 자리로 당기면 타협점에 선다.          */
             const ux = Math.cos(pose.th), uy = Math.sin(pose.th);
             const dcx = pose.cx - seg.c0.x, dcy = pose.cy - seg.c0.y;
             const ax = dcx * ux + dcy * uy;                  // 축방향 미끄러짐
             const pp = -dcx * uy + dcy * ux;                 // 면 쪽 이동
             const at = (pose.th - seg.th0) * half;
-            J += K.K_AXIAL * ax * ax + K.K_ANCHOR * (pp * pp + at * at);
+            J += (seg.hook ? 0 : K.K_AXIAL * ax * ax) + K.K_ANCHOR * (pp * pp + at * at);
 
             return J;
         },
@@ -490,11 +586,14 @@
                 무게가 1e-6 이라 제약이 있는 방향에서는 0.003 mm 수준이고(무시),
                 아무도 안 잡아 주는 방향에서만 유일하게 일하는 항이다.
                 덕트가 철근을 면을 따라 밀어내는 것(K_CLR=4)도 막지 않는다.           */
-            const ka = Math.sqrt(K.K_ANCHOR), kx = Math.sqrt(K.K_AXIAL);
+            //  ⑤ 갈고리 다리 — 자리가 종방향 철근이다 (hookGeom 주석)
+            if (seg.hook && seg.hookQ) this.hookRows(pose, seg).forEach(r => rows.push(r));
+
+            const ka = Math.sqrt(K.K_ANCHOR), kx = Math.sqrt(seg.hook ? 0 : K.K_AXIAL);
             const dcx = pose.cx - seg.c0.x, dcy = pose.cy - seg.c0.y;
             const ax = dcx * ux + dcy * uy;                  // 축방향 미끄러짐
             const pp = -dcx * uy + dcy * ux;                 // 면 쪽 이동
-            rows.push({ r: kx * ax, j: [kx * ux, kx * uy, kx * pp / half] });
+            if (!seg.hook) rows.push({ r: kx * ax, j: [kx * ux, kx * uy, kx * pp / half] });
             rows.push({ r: ka * pp, j: [-ka * uy, ka * ux, -ka * ax / half] });
             rows.push({ r: ka * (pose.th - seg.th0) * half, j: [0, 0, ka] });
 
@@ -533,6 +632,7 @@
 
             //  ④ 종방향 철근 — 점이라 ② 와 같은 꼴. 무게만 K_LRE 다 (CONF 주석 참조)
             (lpts || []).forEach(q => {
+                if (q === seg.hookQ) return;          // 제 자리는 ⑤ 가 맡는다
                 clearRow(q, this.lreNeed(q, seg.dia), this.closestOnSeg(pts, q), K.K_LRE);
             });
 
@@ -635,7 +735,13 @@
             여기서는 **걸음의 크기**로 멈춘다. 가짜 기울기가 끼어들 자리가 없다.     */
         descend: function (pose, seg, cons, ducts, placed, lpts, assign) {
             const K = this.CONF, half = Math.max(seg.len / 2, 1);
-            const lim = K.THMAX * Math.PI / 180;
+            /*  **갈고리는 각을 안 바꾼다.** 보통 조각은 앉은 벽이 각을 정해 주는데
+                (form 의 「앉은 면이 그 조각의 직선식이다」), 갈고리는 벽을 안 보므로
+                각을 잡아 주는 것이 없다 — 점 하나에서 거리 13 인 직선은 **무한히**
+                많아서 LM 이 각을 흘린다 (다리가 기울어 코너가 수십 mm 어긋났다).
+                ㄷ 의 꼴과 자세는 `code` 와 `rot` 이 정하는 **설계 의도**다.
+                장은 그것을 **옮기기만** 한다.                                      */
+            const lim = seg.hook ? 0 : K.THMAX * Math.PI / 180;
             let last = this.energy(pose, seg, cons, ducts, placed, lpts, assign);
             let lam = K.LAM0, i = 0;
 
@@ -712,8 +818,25 @@
             250 mm 를 못 줄였다). 배정을 고정하면 두 문제가 같이 사라진다.
             배정이 되돌아오면(진동) 거기서 멈추고 그 사실을 보고한다.              */
         settle: function (seg, walls, sec, ducts, placed, lpts) {
-            const cons = this.targets(seg, walls, sec, seg.dia);
             const pose0 = { cx: seg.c0.x, cy: seg.c0.y, th: seg.th0 };
+
+            /*  **갈고리 다리는 벽을 안 본다.** 자리가 종방향 철근이다 (hookGeom 주석).
+                그래서 벽 후보를 비우고(cons = []) ⑤ 항 하나로 내려간다 —
+                배정을 번갈아 할 것이 없으니 교대최소화도 건너뛴다.               */
+            if (seg.hook) {          //  link(몸통)여도 여기로 온다 — 목표만 R 로 다르다
+                if (!this.hookSetup(seg, lpts))
+                    return { pose: pose0, cons: [], iter: 0, stopped: 'no-seat', contacts: [] };
+                this._seg = seg.label || '';
+                this._stage = 1;
+                const h1 = this.descend(pose0, seg, [], [], [], [], []);     // 자리만
+                this._stage = 2;
+                const h2 = this.descend(h1.pose, seg, [], ducts, placed, lpts, []);
+                return { pose: h2.pose, cons: [], iter: h1.iter + h2.iter,
+                         Jcover: h1.J, J: h2.J, outer: 1, rest: [], hookQ: seg.hookQ,
+                         stopped: h2.stopped || h1.stopped || null, contacts: [] };
+            }
+
+            const cons = this.targets(seg, walls, sec, seg.dia);
             if (!cons.length)
                 return { pose: pose0, cons: cons, iter: 0, stopped: 'no-target', contacts: [] };
 
@@ -821,8 +944,15 @@
                 const th = Math.atan2(vy, vx);
                 const mid = { x: (s.p1.x + s.p2.x) / 2, y: (s.p1.y + s.p2.y) / 2 };
                 //  `link` = 두 코너 사이의 **연결 조각**. 양 끝(자유단)이 아닌 것.
+                const link = i > 0 && i < arr.length - 1;
+                /*  `bar.hook` 이면 **자유단이 갈고리 다리**다 — 벽이 아니라 종방향을
+                    자리로 쓴다 (hookGeom 주석). 가운데 연결 조각은 그대로 둔다.
+                    코너는 첫 조각이면 p2 쪽(+1), 마지막이면 p1 쪽(−1)이다.        */
                 return { label: s.label, len: L, len0: L, dia: bar.dia, n0: s.normal, th0: th,
-                         link: i > 0 && i < arr.length - 1,
+                         link: link,
+                         hook: !!bar.hook && arr.length > 1,
+                         hookEnd: (i === 0) ? 1 : -1,
+                         bendR: bar.bendR || this.bendRadius(bar.dia),
                          p1: s.p1, p2: s.p2, mid: mid, c0: mid };
             });
 
@@ -858,6 +988,9 @@
                     label: sg.label, iter: r.iter, J: r.J, Jcover: r.Jcover, len0: sg.len0,
                     cons: r.cons.map(c => c.w.id), contacts: r.contacts || [],
                     rest: r.rest || [], stopped: r.stopped || null,
+                    //  갈고리 다리는 「어느 종방향에 걸렸나」가 결과다 (rest 의 자리)
+                    hook: !!sg.hook, hookQ: sg.hookQ || null, hookSide: sg.hookSide || 1,
+                    bendR: sg.bendR || 0,
                     u: { x: ux, y: uy },
                     p1: { x: r.pose.cx - dx, y: r.pose.cy - dy },
                     p2: { x: r.pose.cx + dx, y: r.pose.cy + dy }
