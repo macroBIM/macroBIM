@@ -1457,13 +1457,21 @@
           //  ③ 자리마다 마주보는 두 면을 찾아 그 사이에 ㄷ 를 세운다
           var made = 0, pulled = 0, outside = 0, oneSide = 0, tooFar = 0, lens = [];
           var nm = { x: -n.x, y: -n.y };
-          var hit = function (q, d) {
+          var hitW = function (q, d) {
             var best = null;
             walls.forEach(function (w) {
               var t = JLong.rayHit(q, d, w);
-              if (t != null && (best == null || t < best)) best = t;
+              if (t != null && (best == null || t < best.t)) best = { t: t, w: w };
             });
             return best;
+          };
+          var hit = function (q, d) { var o = hitW(q, d); return o ? o.t : null; };
+          /*  그 면이 요구하는 «철근 중심선까지» — 피복 + 지름/2 (JField.coverOf 와 같다). */
+          var needOf = function (o) {
+            if (!o || !o.w) return 0;
+            var cv = (sec && sec.covers) || {};
+            var tag = String(o.w.tag || 'outer').toLowerCase();
+            return (cv[tag] != null ? cv[tag] : 50) + dia / 2;
           };
           pos.forEach(function (p, k) {
             /*  **배치 직선이 밖이어도 끌려 들어오면 될 일이다.** 데크가 −3% 로
@@ -1483,7 +1491,8 @@
               if (!best) { outside++; return; }
               p = best.q; pulled++;
             }
-            var dp = hit(p, n), dm = hit(p, nm);
+            var hp = hitW(p, n), hm = hitW(p, nm);
+            var dp = hp ? hp.t : null, dm = hm ? hm.t : null;
             if (dp == null || dm == null || dp + dm < 1) { oneSide++; return; }
             /*  **영향 반경** — `JLong.CONF.RHO0`. 새 규칙이 아니다, 이미 재서 정해 둔
                 그 값이다(「장은 무한히 멀리까지 당기지 않는다」). 복부가 슬래브로
@@ -1500,7 +1509,16 @@
             /*  **면에서 면을 어느 칸에 넣느냐** — 그 하나가 ㄷ 와 ∩ 를 가른다.
                 ㄷ : 몸통 B 가 면에서 면 · 다리는 입력
                 ∩ : **다리 A·C 가** 면에서 면 · 몸통은 입력                     */
-            var box = cap ? { A: dp + dm, B: cap, C: dp + dm }
+            /*  ── ∩ 의 다리 길이는 «면에서 면» 이 아니라 «철근줄에서 철근줄» 이다 ──
+                ㄷ 의 몸통은 면에서 면으로 **넉넉하게** 태어나고 장이 줄여 준다 —
+                가운데 조각의 길이는 코너가 정하기 때문이다(`joinCorners`).
+                ∩ 의 다리는 **끝 조각**이라 `len0` 이 그대로 쓰인다 — 줄여 줄 사람이
+                없다. 면에서 면으로 주면 몸통이 상면 **밖으로 41 mm** 솟는다
+                (재서 확인했다). 그래서 ∩ 는 처음부터 제 길이로 태어난다 :
+                    ℓ = (dp + dm) − need(가까운 면) − need(먼 면)
+                곧 **위 철근줄에서 아래 철근줄까지**다. 도면의 ∩ 가 그 꼴이다.    */
+            var box = cap ? { A: dp + dm - needOf(hp) - needOf(hm), B: cap,
+                              C: dp + dm - needOf(hp) - needOf(hm) }
                           : { A: leg, B: dp + dm, C: leg };
             /*  **꼴의 기준점은 코너다** (trebar 주석). ㄷ 는 면에서 면인 것이
                 «몸통» 이라 코너에 세우면 그대로 두 면 사이에 걸치는데, ∩ 는 면에서
@@ -1521,7 +1539,8 @@
                     if (v < lo) lo = v;
                   });
                 });
-                cc = { x: c.x + n.x * (-dm - lo), y: c.y + n.y * (-dm - lo) };
+                cc = { x: c.x + n.x * (-(dm - needOf(hm)) - lo),
+                       y: c.y + n.y * (-(dm - needOf(hm)) - lo) };
               }
             }
             try { rb = TrebarFactory.create(rd.code, cc, box, init.rot || 0, null, null, null); }

@@ -321,8 +321,17 @@
 
         /*  띠를 잰다 — 다리 하나(자리를 고른 그 다리)와 벽으로 충분하다.
             `q` 걸 종방향 · `dir` 다리가 뻗는 쪽(코너 → 자유단) · `len` 다리 길이.    */
-        hookBandOf: function (q, dir, len, R, walls, sec, dia) {
+        hookBandOf: function (q, dir, len, R, walls, sec, dia, cap) {
             const K = this.CONF;
+            /*  ── ∩ 는 «다리 끝» 에서 문다 ────────────────────────────────────
+                ㄷ 의 다리는 철근을 **지나** `leg` 만큼 더 뻗는 정착이라, 무는 자리가
+                절곡부 쪽이고 그 뒤로 길이가 남아야 했다 (`LEG_MIN`).
+                ∩ 의 다리는 다르다 — **철근줄에서 철근줄까지**가 다리고, 먼 쪽
+                철근을 **제 끝으로** 문다. 정착은 반대쪽 절곡(몸통)이 맡는다.
+                그래서 띠의 위끝이 ℓ 이고, 선호도 거기다. 아래끝은 그대로 R —
+                절곡 아크 안은 여전히 자리가 아니다.                             */
+            if (cap) return { lo: R, hi: len, wLo: K.K_BAR, wHi: K.K_BAR,
+                              pref: len, shut: false, tf: null, tc: null, len: len };
             /*  위끝은 「다리 위에 있다」(h ≤ ℓ)가 아니라 **「정착이 남는다」**다 —
                 끝에서 물면 뒤에 아무것도 안 남는다 (CONF.LEG_MIN 주석).         */
             let lo = R, wLo = K.K_BAR, hi = len - K.LEG_MIN * dia, wHi = K.K_COV;
@@ -577,7 +586,11 @@
                     이웃 ㄷ 와 같은 철근을 문다 (복부 바닥에서 실제로 그랬다 — 바깥줄
                     종방향이 −5,645 에서 끝나는데 −5,800 자리의 ㄷ 가 거기까지 올라와
                     옆 ㄷ 와 13 mm 겹쳤다). 없으면 **그 자리엔 갈고리가 없다.**      */
-                const c = (seg.hookEnd === 1) ? seg.p2 : seg.p1;
+                /*  ∩ 는 **자유단**에서 문다 (hookBandOf 주석) — 재는 자리가 코너가
+                    아니라 끝이다. 코너에서 재면 위 철근줄을 물어 몸통이 콘크리트
+                    밖으로 솟는다.                                               */
+                const c = seg.cap ? ((seg.hookEnd === 1) ? seg.p1 : seg.p2)
+                                  : ((seg.hookEnd === 1) ? seg.p2 : seg.p1);
                 const reach = seg.len || hyp(seg.p2.x - seg.p1.x, seg.p2.y - seg.p1.y);
                 const a = inherit && inherit.axis, q0 = inherit && inherit.q;
                 //  짝을 알아볼 수 있나 — 무리(g)와 자리(t)가 실려 왔을 때만
@@ -1365,7 +1378,11 @@
                     둘이 **다른 철근**을 보고 있었고, 코너가 189 mm 어긋났다
                     (hookSetup 주석의 그 병이 배정 쪽에서 되살아난 것이다).         */
                 if (e0) {
-                    const pick = this.hookPick(segs, lpts, ducts);
+                    /*  ∩ 는 **자유단**에서 문다. `hookPick` 은 코너에서 재므로
+                        그대로 쓰면 위 철근줄을 골라 ㄷ 가 통째로 뒤집힌다
+                        (재서 확인했다 — 몸통이 상면 밖으로 637 mm 솟았다).
+                        덕트를 비키는 일이라 하부슬래브에는 쓸 데도 없다 — 끈다.   */
+                    const pick = bar.cap ? null : this.hookPick(segs, lpts, ducts);
                     if (pick) e0._inherit = { q: pick, use: true };
                     this.hookSetup(e0, lpts, e0._inherit);
                 }
@@ -1381,7 +1398,7 @@
                     /*  ㉱ 몸통이 축방향을 정한다 — 못박지 않고 **띠**로 준다
                         (hookRows 위 주석). 띠는 다리 하나와 벽에서 나온다.        */
                     const band = this.hookBandOf(e0.hookQ, dir, e0.len0,
-                                                 e0.bendR || 0, walls, sec, bar.dia);
+                                                 e0.bendR || 0, walls, sec, bar.dia, !!bar.cap);
                     segs.forEach(s => {
                         if (!s.link) return;
                         s._inherit = { q: lead.q, dir: dir, body: true };
