@@ -1746,6 +1746,36 @@
           if (noSeat.length)
             warn.push(g.id + ' : ' + noSeat.length + '개가 붙을 면을 못 찾았습니다 ' +
                       '(법선 방향에 마주보는 면이 있는지, init 이 콘크리트 안인지 보세요)');
+          /*  ── **피복을 깬 알을 말한다** ─────────────────────────────────────
+              지금까지 종방향은 간격·붙을 면만 보고 **피복은 아무도 안 봤다.**
+              그래서 복부 위에서 D1 한 알이 피복선 **밖으로 12.6 mm** 나가 있는데도
+              화면이 아무 말을 안 했다 (재 보면 ①-1 과 13.0 — 딱 붙었고, ⑥-3 H22 와
+              18.0/17.5 — 둘 사이에 끼여 위로 빠져나간 것이다).
+              까닭은 무게에 있다 : 겹침은 `K_BAR` 1000, 피복 위반은 `K_COV` 20 이라
+              **겹침을 피하려고 피복을 산다.** 그 둘의 값은 따로 재서 정해야 하는데,
+              그 전에 적어도 **보이게는** 해 둔다 — 조용히 틀리는 것만은 막는다.    */
+          var cov = [];
+          [[res, ''], [pairRes, ' 아래줄']].forEach(function (pr) {
+            var r = pr[0]; if (!r || !r.bars) return;
+            r.bars.forEach(function (b) {
+              if (!b.rest) return;
+              var st = JLong.seatsAt({ x: b.x, y: b.y }, r.axes.n, sec.walls, sec, g.dia)
+                             .filter(function (c) { return c.used; });
+              if (!st.length) return;
+              /*  **양쪽을 다 본다.** 밖으로 나간 것(음수)만 보면 반쪽이다 —
+                  같은 알이 무게를 바꾸면 «가라앉기도» 한다(깊이 160). 둘 다
+                  「제 면에 안 앉았다」는 같은 말이다. 한 겹(철근 지름)보다 깊이
+                  들어간 것도 적는다. 자는 **겹 수**다 — 한 겹은 정상이고(철근 뒤에
+                  앉는다) 두 겹도 있을 수 있다. **세 겹이면 자리를 잃은 것**이다.   */
+              var slack = st[0].d - st[0].need;
+              if (slack < -0.5) cov.push(Math.round(b.x) + ':' + slack.toFixed(0));
+              else if (slack > 3 * g.dia) cov.push(Math.round(b.x) + ':+' + slack.toFixed(0));
+            });
+          });
+          if (cov.length)
+            warn.push(g.id + ' : ' + cov.length + '개가 **제 면에 안 앉았습니다** (x:어긋남 ' +
+                      cov.slice(0, 6).join(', ') + (cov.length > 6 ? ' …' : '') +
+                      ' mm · 음수는 피복선 밖, 양수는 너무 깊음 — 이웃 철근 사이에 끼인 자리입니다)');
           if (res.gaps.length) {
             var lo = Math.min.apply(null, res.gaps), hi = Math.max.apply(null, res.gaps);
             if (g.ctcmin != null && lo < g.ctcmin - 0.5)
