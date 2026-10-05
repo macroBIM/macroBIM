@@ -330,8 +330,31 @@
                 철근을 **제 끝으로** 문다. 정착은 반대쪽 절곡(몸통)이 맡는다.
                 그래서 띠의 위끝이 ℓ 이고, 선호도 거기다. 아래끝은 그대로 R —
                 절곡 아크 안은 여전히 자리가 아니다.                             */
-            if (cap) return { lo: R, hi: len, wLo: K.K_BAR, wHi: K.K_BAR,
-                              pref: len, shut: false, tf: null, tc: null, len: len };
+            if (cap) {
+                /*  ∩ 도 **코너가 먼저 앉는다** — 선호는 ㄷ 와 같은 쪽(절곡 접선점)이다.
+                    갈리는 것은 **위끝**이다 : ㄷ 는 철근을 지나 `leg` 가 남아야 해서
+                    ℓ−6dᵇ 인데, ∩ 는 다리 끝이 반대쪽 절곡(몸통)으로 정착하므로 끝까지
+                    갈 수 있다 (ℓ). 아래끝과 피복 두 항은 ㄷ 와 **같은 식**이다.     */
+                /*  ── 아래끝이 ㄷ 와 다르다 : **R 이 아니라 need** ──────────────
+                    ㄷ 의 다리는 철근을 **지나** 뻗으므로 철근이 직선 구간에 있고,
+                    「절곡 아크 안은 자리가 아니다」(h ≥ R)가 맞는 말이었다.
+                    ∩ 의 코너는 그 철근을 **품는다** — 스터럽 코너 안이 종방향이
+                    들어앉는 바로 그 자리다. h ≥ R 로 막으면 몸통이 철근보다 R 만큼
+                    더 바깥으로 밀려 **상면 피복을 31 mm 깬다** (재서 확인했다).
+                    품을 수 있는 가장 가까운 자리는 몸통에 **맞닿는** 곳이다 :
+                        h ≥ need = (dᵖ + dᵇ)/2 + 순간격
+                    `need` 와 `R` 사이는 아크 안이다 — 거기가 정상인 것이 스터럽
+                    코너이고, 그 「선호로 돌려주기」는 STATUS 「아직 안 한 것」이다. */
+                const cneed = this.lreNeed(q, dia);
+                let clo = cneed, cwLo = K.K_BAR, chi = len, cwHi = K.K_BAR;
+                const ctf = this.reachAhead(q, dir, walls, sec, dia);
+                const ctc = this.reachAhead(q, { x: -dir.x, y: -dir.y }, walls, sec, dia);
+                if (ctf != null && len - ctf > clo) { clo = len - ctf; cwLo = K.K_COV; }
+                if (ctc != null && ctc < chi) { chi = ctc; cwHi = K.K_COV; }
+                const cshut = chi < clo;
+                return { lo: clo, hi: cshut ? clo : chi, wLo: cwLo, wHi: cwHi,
+                         pref: clo, shut: cshut, tf: ctf, tc: ctc, len: len };
+            }
             /*  위끝은 「다리 위에 있다」(h ≤ ℓ)가 아니라 **「정착이 남는다」**다 —
                 끝에서 물면 뒤에 아무것도 안 남는다 (CONF.LEG_MIN 주석).         */
             let lo = R, wLo = K.K_BAR, hi = len - K.LEG_MIN * dia, wHi = K.K_COV;
@@ -586,11 +609,15 @@
                     이웃 ㄷ 와 같은 철근을 문다 (복부 바닥에서 실제로 그랬다 — 바깥줄
                     종방향이 −5,645 에서 끝나는데 −5,800 자리의 ㄷ 가 거기까지 올라와
                     옆 ㄷ 와 13 mm 겹쳤다). 없으면 **그 자리엔 갈고리가 없다.**      */
-                /*  ∩ 는 **자유단**에서 문다 (hookBandOf 주석) — 재는 자리가 코너가
-                    아니라 끝이다. 코너에서 재면 위 철근줄을 물어 몸통이 콘크리트
-                    밖으로 솟는다.                                               */
-                const c = seg.cap ? ((seg.hookEnd === 1) ? seg.p1 : seg.p2)
-                                  : ((seg.hookEnd === 1) ? seg.p2 : seg.p1);
+                /*  **재는 자리는 «몸통과 만나는 끝» 이다 — ㄷ 도 ∩ 도 같다.**
+                    철근을 먼저 잡아 주는 것은 절곡부다 : 몸통과 다리가 만나는 그
+                    코너가 종방향에 걸려 앉고, 다리는 거기서부터 뻗는다. ∩ 를 한때
+                    **자유단**에서 재게 해 두었는데(아래 ①), 그건 「끝이 아래 줄에
+                    닿는 그림」을 맞추려던 것이지 안착의 기준이 아니었다. 기준이
+                    없으니 후보가 「끝에서 가까운 아무 알」이 되고, 몸통이 기울어
+                    두 다리가 같은 줄에 **같이** 닿을 수 없는 자리에서 한쪽이
+                    허공에 떴다 (재면 7 개 · 최악 81 mm).                         */
+                const c = (seg.hookEnd === 1) ? seg.p2 : seg.p1;
                 const reach = seg.len || hyp(seg.p2.x - seg.p1.x, seg.p2.y - seg.p1.y);
                 const a = inherit && inherit.axis, q0 = inherit && inherit.q;
                 //  짝을 알아볼 수 있나 — 무리(g)와 자리(t)가 실려 왔을 때만

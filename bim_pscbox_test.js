@@ -1706,17 +1706,27 @@
             뜻이고, 고칠 수 있는 것은 입력(ㄷ 의 구간·간격)뿐이니 숫자를 그대로 낸다.
             덕트에 밀린 것과 가려 주지 않는다 — 가르는 일은 `bench/jsre.js` 가 한다
             (덕트를 빼고 한 번 더 풀어 봐야 갈라지는데, 화면에서 두 번 풀 수는 없다). */
-        /*  ── **자가 둘이다** — ㄷ 와 ∩ 는 결속점이 다리의 «어디» 인가가 다르다 ──
-            ㄷ : 결속점이 **절곡부 쪽**이고 그 뒤로 `leg` 가 남는다. 남은 곧은
-                 길이가 정착이라, 잴 것은 「뒤로 얼마 남았나」(≥ 6·dᵇ)다.
-            ∩ : 결속점이 **다리 끝**이다 — 다리가 철근줄에서 철근줄까지이고 먼
-                 쪽을 제 끝으로 문다. 뒤로 남는 것이 없는 것이 꼴이고, 정착은
-                 반대쪽 절곡(몸통)이 맡는다 (`jfield.js` hookBandOf 주석).
-                 그래서 잴 것이 뒤바뀐다 — 「끝이 그 철근줄에 **닿았나**」다.
-            한 자로 둘을 재면 ∩ 쪽에 **틀린 말**이 나온다 : 정착이 0 이라고 흉보고,
-            끝이 못 닿은 것을 「상·하 종방향의 짝이 어긋났다」고 진단했다. 둘 다
+        /*  ── **자가 둘이다** — 결속점 «뒤» 에 무엇이 있어야 하는가가 다르다 ────
+            둘 다 **몸통과 만나는 끝**(절곡부)이 먼저 앉는다 — 거기가 안착의 기준이다.
+            갈리는 것은 그 뒤다 :
+            ㄷ : 다리가 철근을 **지나** `leg` 만큼 더 뻗는다. 뒤에 남은 곧은 길이가
+                 정착이라 잴 것은 「뒤로 얼마 남았나」(≥ 6·dᵇ)다. 띠는 [R, ℓ−6dᵇ].
+            ∩ : 코너가 철근을 **품는다** — `need` 만큼 떨어진 자리가 가장 가까이
+                 품은 것이고, `need`~R 은 **아크 안**이다 (스터럽 코너에선 정상).
+                 뒤에 남는 것이 없는 것이 꼴이고 정착은 반대쪽 절곡(몸통)이 맡는다.
+                 띠는 [need, ℓ]. 잴 것은 「**다리 끝**이 먼 줄에 닿았나」다.
+            한 자로 둘을 재면 ∩ 쪽에 **틀린 말**이 나온다 : 정착이 0 이라 흉보고,
+            아크 안에 품은 것을 「상·하 종방향의 짝이 어긋났다」고 진단한다. 둘 다
             거짓이다. 개념이 다르면 자도 달라야 한다.                              */
         var off = [], slip = [], anc = [], reach = [];
+        var lmin = function (pt) {           //  그 점에서 가장 가까운 종방향까지 (mm)
+          var b = Infinity;
+          lpts.forEach(function (q) {
+            var d = Math.hypot(q.x - pt.x, q.y - pt.y) - ((q.dia || 13) + 13) / 2;
+            if (d < b) b = d;
+          });
+          return b;
+        };
         out.forEach(function (r) {
           if (drop[String(r.id)]) return;
           var isCap = !!(byId[String(r.id)] || {}).cap;
@@ -1742,12 +1752,18 @@
             var sOff = ((i === 0) ? (half - g.a) : (g.a + half)) - R;
             var top = (sg.len0 != null ? sg.len0 : L) - R;
             if (isCap) {
-              /*  ∩ — 선호가 **끝**(= top)이다. 남은 수는 「끝이 얼마 모자라나」다 :
-                  양수면 결속점이 끝보다 멀어 다리가 그만큼 **못 닿았다**,
-                  0 이면 끝이 그 철근줄 위다 (꼴이 뜻한 자리).                   */
-              reach.push({ v: sOff - top, id: r.id + '[' + sg.label + ']' });
-              if (sOff < -2)
+              /*  ∩ — 띠의 아래끝이 R 이 아니라 `need` 다 (코너가 철근을 품는다).
+                  그래서 `sOff` 가 `need − R` 만큼 **음수인 것이 제 자리**다.
+                  그 자리는 아크 «안» 이고, 스터럽 코너에선 그것이 정상이다.     */
+              var nd = JField.lreNeed(sg.hookQ, r.dia) - R;
+              if (sOff < nd - 2 || sOff > top + 2)
                 slip.push(r.id + '[' + sg.label + '] ' + sOff.toFixed(0));
+              /*  ∩ 가 내는 수는 **다리 끝**이다 — 몸통 쪽은 결속으로 잡혔으니
+                  남은 물음은 「반대쪽 끝이 먼 줄에 닿았나」 하나다. 어느 알인지
+                  미리 못박지 않고 **가장 가까운 종방향까지의 순거리**로 잰다
+                  (0 이면 닿았다 · 양수면 그만큼 떴다).                          */
+              var tip = (i === 0) ? a : b;
+              reach.push({ v: lmin(tip), id: r.id + '[' + sg.label + ']' });
             } else {
               if (sOff < -2 || sOff > top + 2)
                 slip.push(r.id + '[' + sg.label + '] ' + sOff.toFixed(0));
@@ -1760,20 +1776,21 @@
           warn.push('갈고리 다리 ' + slip.length + '개가 **다리의 곧은 구간을 벗어났습니다** (' +
                     slip.slice(0, 6).join(', ') + (slip.length > 6 ? ' …' : '') +
                     ' mm — 그 자리에서 상·하 종방향의 짝이 어긋나 있습니다)');
-        /*  ∩ 의 자로 잰 모자람. ㄷ 의 「곧은 구간을 벗어났다」와 **다른 말**이다 —
-            짝이 어긋난 것이 아니라 **다리가 짧은** 것이다. ∩ 의 다리는 배치선에서
-            잰 「철근줄에서 철근줄」로 태어나는데, 무는 철근은 짝 규칙이 고른 **옆
-            자리**일 수 있고 그 자리의 줄은 소피트 기울기만큼 깊다. 다리 길이도
-            출력이어야 한다는 뜻이다 (STATUS 「아직 안 한 것」).                   */
-        var shortLeg = reach.filter(function (o) { return o.v > 2; });
+        /*  ∩ 의 자로 잰 **다리 끝**. ㄷ 의 「곧은 구간을 벗어났다」와 다른 말이다 —
+            어긋난 것이 아니라 **다리가 짧거나 길은** 것이다. ∩ 의 다리는 배치선에서
+            잰 「피복선에서 피복선」으로 태어나는데, 두께가 변하는 자리(헌치)에서는
+            그 길이로 반대쪽 줄에 닿지 못한다. 다리 길이도 출력이어야 한다는 뜻이다
+            (STATUS 「아직 안 한 것」).                                           */
+        var shortLeg = reach.filter(function (o) { return o.v > 10; });
         if (shortLeg.length) {
           shortLeg.sort(function (a, b) { return b.v - a.v; });
-          warn.push('∩ 다리 ' + shortLeg.length + '개가 **제 철근줄에 끝이 못 닿았습니다** (' +
+          warn.push('∩ 다리 ' + shortLeg.length + '개가 **끝이 종방향에서 떴습니다** (' +
                     shortLeg.slice(0, 6).map(function (o) {
                       return o.id + ' ' + Math.round(o.v); }).join(', ') +
                     (shortLeg.length > 6 ? ' …' : '') +
-                    ' mm 모자람 — ∩ 는 **다리 끝으로** 무는 꼴이라 그만큼 다리가 짧습니다. ' +
-                    '무는 자리가 배치선이 아닌 옆 자리라 그 줄이 더 깊습니다)');
+                    ' mm — 몸통 쪽은 결속으로 잡혔고 **반대쪽 끝**이 뜬 것입니다. ' +
+                    '두께가 변하는 자리에서 「피복선에서 피복선」으로 태어난 다리가 ' +
+                    '반대쪽 줄에 못 미칩니다 — 다리 길이도 출력이어야 합니다)');
         }
         if (off.length)
           warn.push('갈고리 다리 ' + off.length + '개가 종방향에 **못 닿았습니다** (' +
@@ -1901,12 +1918,12 @@
                       ' (한계 ' + JField.CONF.LEG_MIN + '·dᵇ)');
         }
         /*  ∩ 는 **정착을 다리에 안 맡긴다** — 그래서 같은 줄을 찍으면 늘 0 이고,
-            그 0 은 흉이 아니라 꼴이다. ∩ 가 내는 수는 「끝이 닿았나」다.         */
+            그 0 은 흉이 아니라 꼴이다. ∩ 가 내는 수는 「반대쪽 끝이 닿았나」다.   */
         if (reach.length) {
           reach.sort(function (a, b) { return a.v - b.v; });
-          console.log('[SREBAR] ∩ 다리 끝 ↔ 무는 철근줄 ' + Math.round(reach[0].v) + ' ~ ' +
-                      Math.round(reach[reach.length - 1].v) + ' mm · 최악 ' +
-                      reach[reach.length - 1].id + ' (양수가 못 닿은 것)');
+          console.log('[SREBAR] ∩ 다리 끝 ↔ 가장 가까운 종방향 ' + Math.round(reach[0].v) +
+                      ' ~ ' + Math.round(reach[reach.length - 1].v) + ' mm · 최악 ' +
+                      reach[reach.length - 1].id + ' (0 이 닿은 것)');
         }
         //  마크 — 길이로 묶으면 도면의 T1-1/T1-2/T1-3 이 돌아온다 (_srebarMarks 주석)
         this._smarks = this._srebarMarks();
