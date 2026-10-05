@@ -1664,10 +1664,28 @@
             });
             free = s; freeBar = has;
           }
+          /*  **얼마가 모자란가**를 한 수로 낸다 — 이게 고칠 사람이 쓸 수 있는 값이다.
+              「덕트가 비기 시작하는 거리」에서 「알이 다리 **끝**에라도 걸리는 거리」를
+              뺀 것. 이 차는 **다리 길이와 무관하다** : 다리를 늘리면 걸림 한계도
+              자유단도 같이 가서 상쇄된다 (ℓ = 150·200·250·300 에서 전부 17.7 이었다).
+              그러니 고칠 곳은 ㄷ 가 아니라 **종방향 줄이나 덕트**다.               */
+          var sClear = null;
+          for (var s2 = 0; s2 <= span * 2; s2 += 1) {
+            if (worstOf(r, s2, dir).g >= 0) { sClear = s2; break; }
+            if (worstOf(r, -s2, dir).g >= 0) { sClear = -s2; break; }
+          }
+          var aBar = null, sTip = null;
+          if (r.segs[0].hookQ) {
+            var Q = r.segs[0].hookQ;
+            aBar = (Q.x - c.x) * dir.x + (Q.y - c.y) * dir.y;
+            sTip = ell - aBar;
+          }
           //  **화면 기준**으로 말해 준다 — 옮기는 벡터는 −dir·s 다
           var fx = (free === null) ? 0 : -dir.x * free, fy = (free === null) ? 0 : -dir.y * free;
           dcl.push({ id: r.id, g: now.g, d: now.d, free: free, bar: freeBar,
                      dist: Math.round(Math.hypot(fx, fy)),
+                     short: (sClear === null || sTip === null) ? null
+                            : Math.round(Math.abs(sClear) - sTip),
                      way: (Math.abs(fx) >= Math.abs(fy))
                           ? (fx > 0 ? '오른쪽' : '왼쪽') : (fy > 0 ? '위' : '아래') });
         });
@@ -1687,9 +1705,10 @@
             warn.push('갈고리 ' + noBar.length + '개는 **비킬 자리는 있는데 거기엔 걸 종방향이 없습니다** (' +
                       lst(noBar) + ' mm · ' +
                       noBar.slice(0, 4).map(function (o) {
-                        return o.id + ' 는 ' + o.way + ' ' + o.dist + ' mm'; }).join(', ') +
-                      ' 가면 덕트가 빕니다 — **종방향 줄 간격**이나 덕트 자리를 보세요. ' +
-                      '다리를 늘리는 것으로는 안 됩니다: 늘린 만큼 자유단이 덕트로 되돌아갑니다)');
+                        return o.id + ' 는 ' + o.way + ' ' + o.dist + ' mm 면 덕트가 비는데' +
+                               (o.short == null ? '' : ' 다리가 **' + o.short + ' mm** 모자랍니다'); }).join(', ') +
+                      ' — **그 종방향 알을 그만큼 옮기거나** 덕트 자리를 보세요. ' +
+                      '다리를 늘려도 그 모자람은 안 줄어듭니다: 늘린 만큼 자유단이 덕트로 되돌아갑니다)');
           var rest = dcl.filter(function (o) { return o.free !== null && o.bar; });
           if (rest.length)
             warn.push('갈고리 ' + rest.length + '개가 **덕트를 비키지 못했습니다** (' + lst(rest) +
