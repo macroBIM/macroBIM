@@ -51,6 +51,7 @@ P._swarnBuild = P._expandSrebar(Domain.currentSection) || [];
 P._toast = () => {}; P._solveWithJField();
 
 const JF = vm.runInContext('JField', ctx);
+const JLong = vm.runInContext('JLong', ctx);
 const sec = Domain.currentSection;
 const K = JF.CONF;
 const DIA = 13, R = JF.bendRadius(DIA);
@@ -191,13 +192,15 @@ const bands = [];
         if (g < 0) { cnt++; if (g < worst) { worst = g; atw = t.id + '[' + 'abc'[i] + '] ↔ ' + (d.id || ''); } }
     })));
     console.log('\n⑤ 덕트 — 침범 ' + cnt + '건 · 최악 ' + worst.toFixed(1) + (atw ? ' (' + atw + ')' : ''));
-    console.log('     접선점에 못박았을 때        13건 · 최악 −140.5  (T1#18 의 몸통이 TC1R 한가운데를)');
-    console.log('     띠를 열고 J 만 보았을 때      8건 · 최악  −40.1  ← 벌점은 g=0 에서 사라져 늘 겹친다');
-    console.log('     지킬 수 있으면 지키게 하니    3건 · 최악  −40.1  ← 전부 T1#8 **하나**다');
-    console.log('   남은 하나는 띠 안 **어디로 가도** TC1L 을 못 벗어난다 (가장 나은 자리도 −39.8).');
-    console.log('   덕트는 못 지키는 위반이 흔한 항이고(K_CLR 주석), 무게로 억지로 지키게 하면');
-    console.log('   배근이 망가진다. 그러니 **말하고 넘긴다** — 화면이 그 ㄷ 를 이름으로 부른다.');
-    console.log('   (정착을 안 지키면 6건 · 최악 −8.5 까지 되지만, 그때 T1#8 은 **다리 끝에서** 물어');
+    console.log('     ㉠ 접선점에 못박았을 때          13건 · 최악 −140.5  (T1#18 몸통이 TC1R 한가운데를)');
+    console.log('     ㉡ 띠를 열고 J 만 보았을 때        8건 · 최악  −40.1  벌점은 g=0 에서 사라져 늘 겹친다');
+    console.log('     ㉢ 지킬 수 있으면 지키게 하니      3건 · 최악  −40.1  전부 T1#8 하나');
+    console.log('     ㉣ **종방향도 비켜 주게 하니       0건**             ← 지금');
+    console.log('   ㉣ 가 답이다 : ㄷ 와 그 종방향은 **결속되어 한 몸**인데, 푸는 차례가 한 방향이라');
+    console.log('   종방향이 ㄷ 의 사정을 영영 못 봤다. 교대최소화 한 바퀴를 더 돌면(갈고리가 요구한');
+    console.log('   자리를 `tie` 로 실어 종방향을 다시 푼다) **장이 스스로 푼다** — 사람에게 미룰 일이');
+    console.log('   아니었다. 옮기는 양은 「위반이 0 이 되는 가장 작은 |δ|」로 **재서** 고른다.');
+    console.log('   (정착을 안 지키면 ㉡ 가 6건 · −8.5 까지 되지만, 그때 T1#8 은 **다리 끝에서** 물어');
     console.log('    결속점 뒤에 0.2 mm 밖에 안 남는다. 그건 갈고리가 아니다 — CONF.LEG_MIN 주석.)');
 }
 
@@ -223,9 +226,13 @@ const bands = [];
         if (Math.abs(sl.d) < 0.05) return;
         moved++; vBefore += sl.v0; vAfter += sl.v;
         //  사전식 : 위반이 늘면 결함. 위반이 같은데 J 가 늘어도 결함.
-        const ok = (sl.v < sl.v0 - 1e-9) || (Math.abs(sl.v - sl.v0) <= 1e-9 && sl.J <= sl.J0 + 1e-9);
-        if (!ok) { worse++; console.log('   ✗ ' + t.id + ' 위반 ' + sl.v0.toFixed(0) + ' → ' +
-            sl.v.toFixed(0) + ' · J ' + sl.J0.toFixed(0) + ' → ' + sl.J.toFixed(0)); }
+        /*  자는 **절대 1e-6**이다. 1e-9 로 재면 J 가 사실상 0 인 ㄷ 들이
+            (0 → 3e-9 같은) 부동소수 티끌로 「J 가 올랐다」가 된다.             */
+        const ok = (sl.v < sl.v0 - 1e-6) ||
+                   (Math.abs(sl.v - sl.v0) <= 1e-6 && sl.J <= sl.J0 + 1e-6 + 1e-9 * Math.abs(sl.J0));
+        if (!ok) { worse++; console.log('   ✗ ' + t.id + ' 위반 ' + sl.v0.toExponential(3) + ' → ' +
+            sl.v.toExponential(3) + ' · J ' + sl.J0.toExponential(3) + ' → ' + sl.J.toExponential(3) +
+            ' · δ ' + sl.d.toFixed(2)); }
         if (sl.v0 > 0 && sl.v === 0) saved++;
         if (!big || (sl.v0 - sl.v) > (big.v0 - big.v)) { big = sl; big.id = t.id; }
     });
@@ -241,6 +248,39 @@ const bands = [];
     console.log('   띠가 넓으면 더 크게 일한다 : `bench/jhookseat.js` 의 다리 400 짜리 ㄷ 는');
     console.log('   244 mm 미끄러지며 J 가 3,233 → 895 (3.6 배) 내려간다.');
     bad += worse;
+}
+
+/*  ── ⑦ 종방향이 비켜 준 값 — **공짜가 아니다. 얼마를 치렀나** ────────────────
+    ㄷ 가 못 비키면 매달린 종방향이 비켜 준다(`_tieDemand` → `tie` → 다시 풀기).
+    그러면 그 줄의 간격이 흐트러진다. 숨기면 안 되는 수다 : 여기서 센다.
+    교란은 **장애물 근처에 갇혀야** 한다 — `JLong.K_A` 의 뜻이 그것이고,
+    S14 에서 실제로 **두 자리만** 움직였다 (99 mm · 26 mm).                    */
+{
+    const hint = P._tieHint || [];
+    console.log('\n⑦ 종방향이 비켜 준 값 — 갈고리가 민 자리 ' + hint.length + '곳' +
+        (hint.length ? ' : ' + hint.map(h => h.id + ' → ' + h.grp + ' 자리 ' + Math.round(h.t) +
+            ' 를 ' + Math.round(h.delta) + ' mm (그 ㄷ 는 ' + h.was.toFixed(1) + ' 을 파고들고 있었다)').join(', ')
+          : ' — 아무도 안 밀었다'));
+    //  그 줄의 간격이 얼마나 흐트러졌나 (숨기면 안 되는 수다)
+    const dg = P._ldiag || {};
+    hint.forEach(h => {
+        const o = dg[h.grp]; if (!o || !o.res || !o.g) return;
+        const ts = o.res.bars.map(b => b.t).slice().sort((a, b) => a - b), g = o.g;
+        let over = 0, under = 0, near = [];
+        for (let i = 1; i < ts.length; i++) {
+            const s = ts[i] - ts[i - 1];
+            if (g.ctcmax != null && s > g.ctcmax + 0.5) over++;
+            if (g.ctcmin != null && s < g.ctcmin - 0.5) under++;
+            if (Math.abs(ts[i] - h.t) < 2 * g.ctc) near.push(Math.round(s));
+        }
+        console.log('   ' + h.grp + ' : ctcmax ' + g.ctcmax + ' 넘김 ' + over + '개 · ctcmin ' +
+            g.ctcmin + ' 깸 ' + under + '개   그 둘레 간격 ' + near.join(' '));
+    });
+    console.log('   **공짜가 아니다** — 민 자리 둘레의 간격이 흐트러진다. S14 에서는 D1 의');
+    console.log('   ctcmax 넘김이 1 → 2 개가 됐다 (322 mm 짜리 하나). 덕트 −40.1 을 지우고');
+    console.log('   간격 한계를 22 mm 넘긴 것이고, 무게가 그렇게 말한다 : 덕트 K_CLR 4 ·');
+    console.log('   최대간격 K_CTCMAX 1 — **덕트가 넷, 간격이 하나**다.');
+    console.log('   교란은 **장애물 근처에 갇힌다** (JLong.K_A) — 줄 전체가 아니라 두 자리만 움직였다.');
 }
 
 console.log('\n' + (bad ? '  ✗ ' + bad + '곳 어긋남' : '  모두 통과'));

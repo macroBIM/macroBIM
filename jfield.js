@@ -1578,11 +1578,15 @@
                     한 발씩 다가가다 위반이 생기면 멈춘다.** (가능영역의 가장자리다.)  */
                 const want = h0 - b.pref;               // 선호가 바라는 δ
                 const step = (want > feas) ? 0.1 : -0.1;
-                for (let d = feas + step; (step > 0 ? d <= want : d >= want); d += step) {
+                for (let d = feas + step; (step > 0 ? d <= want + step / 2 : d >= want - step / 2); d += step) {
                     if (d < dLo || d > dHi) break;
                     if (!okv(parts(d))) break;
                     feas = d;
                 }
+                /*  **바라는 자리 자체를 마지막에 한 번 본다.** 0.1 씩 더하다 보면
+                    끝에서 1e-17 쯤 넘쳐 고리가 한 걸음 일찍 끝난다 — 그러면 멀쩡히
+                    선호 자리에 설 수 있는 ㄷ 가 0.1 mm 밀린 채 남는다 (J 0 → 0.01).  */
+                if (want >= dLo && want <= dHi && okv(parts(want))) feas = want;
                 bd = feas; bJ = parts(feas).v + parts(feas).p;
             } else {
                 for (let d = Math.max(dLo, bd - 1); d <= Math.min(dHi, bd + 1) + 1e-9; d += 0.1) {

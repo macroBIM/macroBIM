@@ -1206,6 +1206,7 @@
         });
 
         //  ── 종방향 철근 (lrebar) 도 J 로 푼다 ────────────────────────────
+        this._tieHint = null;
         var lwarn = this._solveLrebarWithJ(sec);
 
         /*  ── 갈고리 (srebar) — **종방향 뒤에** 푼다 ──────────────────────────
@@ -1219,6 +1220,33 @@
               placed0.push({ p1: r.pts[i], p2: r.pts[i + 1], dia: bars[bi].dia, z: bars[bi].z || 0 });
           });
           swarn = this._solveSrebarWithJ(sec, placed0);
+
+          /*  ── ㉢ **갈고리가 못 비키면, 매달린 종방향이 비켜 준다** ────────────
+              ㄷ 와 그 종방향은 **결속되어 한 몸**이다. 그런데 푸는 차례가 한쪽
+              방향이라(종방향 → 갈고리) 종방향은 ㄷ 의 사정을 영영 못 본다. 그래서
+              T1#8 은 TC1L 을 40 mm 파고든 채 섰고, 우리는 「그 알을 옮기세요」라고
+              **사람에게 미뤘다.** 그 알도 장이 놓는 것인데 미룰 일이 아니다.
+
+              고치는 법은 이 저장소가 이미 쓰는 것 — **교대최소화 한 바퀴**다 :
+                ㉠ 종방향을 푼다 → ㉡ 갈고리를 푼다 →
+                ㉢ **갈고리가 요구하는 자리로 종방향을 다시 푼다** → ㉡ 다시
+              요구는 **한 자리(t)의 이동**으로 말한다. `JLong.solve` 가 이미 받는
+              `tie`(자리 묶음)에 그 하나만 적어 보내면, 나머지는 `home`·`ctc` 항이
+              **줄 전체로 퍼뜨린다** — 한 알만 손으로 옮기면 이웃 간격이 안 맞는다
+              (`_slidePairs` 가 같은 이유로 다시 푼다).
+              **얼마나?** 묻지 않고 **잰다** : 그 짝을 δ 만큼 옮겨 놓고 ㄷ 를 다시
+              풀어 보며, 덕트 위반이 0 이 되는 **가장 작은 |δ|** 를 고른다. 최소
+              이동이다 — 교란을 장애물 근처에 가두는 `K_A` 의 뜻 그대로다.        */
+          var hint = this._tieDemand(sec);
+          if (hint && hint.length) {
+            this._tieHint = hint;
+            console.log('[SREBAR] 갈고리가 못 비킨 자리 ' + hint.length + '곳 — 종방향을 다시 풉니다 (' +
+                        hint.map(function (h) {
+                          return h.id + ' → ' + h.grp + ' 자리 ' + Math.round(h.t) +
+                                 ' 를 ' + Math.round(h.delta) + ' mm'; }).join(', ') + ')');
+            lwarn = this._solveLrebarWithJ(sec);
+            swarn = this._solveSrebarWithJ(sec, placed0);
+          }
         }
 
         //  풀린 것은 큐에서 뺀다 — 예전 엔진이 다시 건드리지 않게
@@ -1791,6 +1819,25 @@
               한쪽 면이 없다는 뜻이다. 버릴 쪽은 **init 에서 더 멀리 간 쪽**이다.
               gap 이 없으면 예전대로 한 줄이다.                                  */
           var res, pairRes = null, dropped = 0, noSeat = 0;
+          /*  ── 갈고리가 요구한 자리 (`_tieDemand`) 를 `tie` 로 실어 보낸다 ──────
+              **한 자리만 적는다.** 나머지는 `null` — 그래야 `home`·`ctc` 항이
+              이동을 줄 전체로 퍼뜨린다 (한 알만 못박으면 이웃 간격이 깨진다).
+              δ 는 갈고리의 다리 축으로 쟀으므로 무리의 축(û)으로 돌려 준다.      */
+          var tieHint = null;
+          (self._tieHint || []).forEach(function (hn) {
+            if (hn.grp !== g.id) return;
+            var axg = JLong.axes(g), was = (self._lties || {})[g.id];
+            if (!was || !was.length) return;
+            var bi = -1, bd = Infinity;
+            was.forEach(function (tv, i) {
+              var dd = Math.abs(tv - hn.t); if (dd < bd) { bd = dd; bi = i; }
+            });
+            if (bi < 0 || bd > g.ctc) return;
+            //  옮기는 벡터는 −dir·δ. 그것을 û 에 사영한다
+            var dt = -(hn.dir.x * axg.u.x + hn.dir.y * axg.u.y) * hn.delta;
+            if (!tieHint) tieHint = was.map(function () { return null; });
+            tieHint[bi] = was[bi] + dt;
+          });
           try {
             if (g.gap > 0) {
               var ax = JLong.axes(g), h = g.gap / 2;
@@ -1799,7 +1846,7 @@
               var gB = Object.assign({}, g, { nors: -g.nors,
                                               init: { x: g.init.x - ax.n.x * h,
                                                       y: g.init.y - ax.n.y * h, rot: g.init.rot } });
-              res = JLong.solve(gT, sec.walls, sec, self._ducts || [], prims);
+              res = JLong.solve(gT, sec.walls, sec, self._ducts || [], prims, tieHint);
               var prims2 = prims.concat(res.bars.map(function (b) {
                 return { t: 'line', p: [b.x, b.y, b.x, b.y], dia: g.dia };   // 점 장애물
               }));
@@ -1812,7 +1859,7 @@
               var sl = self._slidePairs(g, gT, gB, sec, res, pairRes, prims, tie);
               if (sl) { res = sl.res; pairRes = sl.pair; }
             } else {
-              res = JLong.solve(g, sec.walls, sec, self._ducts || [], prims);
+              res = JLong.solve(g, sec.walls, sec, self._ducts || [], prims, tieHint);
             }
           }
           catch (e) { console.error('[PSCBOX] JLong:', g.id, e); warn.push(g.id + ' : 배치 실패'); return; }
@@ -1843,6 +1890,9 @@
                                    ' — 그 자리엔 한쪽 면이 없습니다)');
           }
           self._ldiag[g.id] = { g: g, res: res, pair: pairRes, dropped: dropped };
+          //  푼 자리(t) 를 적어 둔다 — ㉢ 이 「어느 알이냐」를 이것으로 찾는다
+          self._lties = self._lties || {};
+          self._lties[g.id] = res.bars.map(function (b) { return b.t; });
 
           //  particles 에 써 넣는다 (그림이 읽는 자리)
           grp.particles = pts.map(function (b) {
@@ -1912,6 +1962,85 @@
                       ' · 간격 ' + res.gaps.map(function (x) { return Math.round(x); }).join(','));
         });
         return warn;
+      },
+
+      /*  ── 갈고리가 종방향에게 «얼마나 비켜 달라» 하는가 ─────────────────────
+          덕트를 못 비킨 ㄷ 마다, **매달린 짝을 δ 만큼 옮겨 놓고 그 ㄷ 를 다시
+          풀어 본다.** 위반이 0 이 되는 **가장 작은 |δ|** 가 답이다 — 묻지 않고
+          재는 것이고, 「최소 이동」이 그 말 그대로 나온다.
+          짝(상·하 두 알)은 같이 간다 — `gap` 무리는 한 자리(t)에 두 알이 서고
+          ㄷ 가 그 «한 짝»을 문다 (`JLong.K_TIE`).
+          δ 의 범위는 **이웃 ㄷ 의 칸**(hookSpan = ctc/2)으로 묶는다. 그보다 가면
+          이웃 ㄷ 가 물 알을 빼앗는다.                                          */
+      _tieDemand: function (sec) {
+        var ducts = this._ducts || [];
+        if (!ducts.length || typeof JField === 'undefined') return [];
+        var hooks = (Domain.trebarList || []).filter(function (t) { return t._srebar; });
+        if (!hooks.length) return [];
+        var lpts0 = this._lrebarPoints(), out = [], self = this;
+        var placed = [];
+        (Domain.trebarList || []).forEach(function (o) {
+          if (o._srebar) return;
+          (o.segments || []).forEach(function (g) {
+            placed.push({ p1: g.p1, p2: g.p2, dia: o.dia || 13, z: o.z || 0 });
+          });
+        });
+        var worstOf = function (r, dia) {
+          var w = 0;
+          for (var i = 0; i + 1 < r.pts.length; i++)
+            for (var j = 0; j < ducts.length; j++) {
+              var d = ducts[j];
+              var need = (d.D / 2) + (d.clr != null ? d.clr : 30) + dia / 2;
+              var g = JField.segToPoint([r.pts[i], r.pts[i + 1]], d) - need;
+              if (g < w) w = g;
+            }
+          return w;
+        };
+        hooks.forEach(function (t) {
+          if (!t._birth || !t.segments || !t.segments[0] || !t.segments[0].hookQ) return;
+          var w0 = 0;
+          (t.segments || []).forEach(function (s) {
+            ducts.forEach(function (d) {
+              var need = (d.D / 2) + (d.clr != null ? d.clr : 30) + (t.dia || 13) / 2;
+              var g = JField.segToPoint([s.p1, s.p2], d) - need;
+              if (g < w0) w0 = g;
+            });
+          });
+          if (w0 >= -0.5) return;                       // 멀쩡하면 아무것도 요구 안 한다
+          var q = t.segments[0].hookQ;
+          if (q.g == null || q.t == null) return;       // 짝을 알아볼 수 없으면 못 옮긴다
+          //  다리가 뻗는 쪽 — δ 는 그 축을 따른다
+          var a = t.segments[0], c = a.p2, f = a.p1;
+          var dl = Math.hypot(f.x - c.x, f.y - c.y) || 1;
+          var dir = { x: (f.x - c.x) / dl, y: (f.y - c.y) / dl };
+          var span = t.hookSpan || 250;
+          var bar = { id: String(t.id), dia: t.dia || 13, z: t.z || 0, hook: true,
+                      hookSpan: t.hookSpan || 0,
+                      segs: t._birth.map(function (s) {
+                        return { label: s.label, p1: { x: s.p1.x, y: s.p1.y },
+                                 p2: { x: s.p2.x, y: s.p2.y },
+                                 normal: { x: s.normal.x, y: s.normal.y } }; }) };
+          var best = null;
+          for (var m = 5; m <= span && best === null; m += 5) {
+            //  양쪽을 같이 본다 — **가까운 쪽부터**. 최소 이동이다
+            for (var k = 0; k < 2 && best === null; k++) {
+              var mm = k ? -m : m;
+              var lp = lpts0.map(function (p) {
+                if (!(p.g === q.g && p.t != null && Math.abs(p.t - q.t) < 1)) return p;
+                return { x: p.x - dir.x * mm, y: p.y - dir.y * mm,
+                         dia: p.dia, g: p.g, t: p.t };
+              });
+              var r;
+              try { r = JField.form(bar, sec.walls, sec, ducts, placed, lp); }
+              catch (e) { continue; }
+              if (worstOf(r, t.dia || 13) >= -0.05) best = mm;
+            }
+          }
+          if (best === null) return;                    // 칸 안에서는 못 푼다 — 말로만 낸다
+          out.push({ id: String(t.id), grp: String(q.g), t: q.t, delta: best,
+                     dir: dir, was: w0 });
+        });
+        return out;
       },
 
       /*  ── 짝을 같이 옆으로 옮겨 본다 (JLong.slidePairs 를 태운다) ────────
