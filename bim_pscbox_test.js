@@ -1067,7 +1067,8 @@
 
         var bars = Domain.trebarList.map(function (t) {
           return {
-            id: String(t.id), dia: t.dia || 13,
+            //  z = 교축방향 층. **횡방향끼리만** 같은 z 에서 부딪힌다 (JField.sameZ)
+            id: String(t.id), dia: t.dia || 13, z: t.z || 0,
             segs: (t.segments || []).map(function (s) {
               return { label: s.label,
                        p1: { x: s.p1.x, y: s.p1.y }, p2: { x: s.p2.x, y: s.p2.y },

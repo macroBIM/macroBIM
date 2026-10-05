@@ -153,6 +153,7 @@
                 if (g < 0) { const e = this.clrRes(g); o.duct += e.r * e.r; }
             });
             (placed || []).forEach(q => {
+                if (!this.sameZ(q, seg)) return;
                 const need = (q.dia + seg.dia) / 2;
                 this.clearPairs(pts, q.p1, q.p2).forEach(n => {
                     const g = n.d - need;
@@ -237,6 +238,19 @@
             const K = this.CONF, g = this.hookGeom(pose, seg);
             const gh = g.h - g.target;
             return (gh < 0 ? K.K_LRE : 1) * gh * gh;
+        },
+
+        /*  ── 같은 단면에 있는 철근인가 (z) ────────────────────────────────────
+            **횡방향끼리만 z 를 본다.** 물리가 셋으로 갈린다 :
+              횡방향 ↔ 횡방향   둘 다 단면 평면에 **눕는다**  → 같은 z 에서만 만난다
+              횡방향 ↔ 종방향   종방향은 모든 단면을 **뚫는다** → 언제나 만난다
+              종방향 ↔ 종방향   둘 다 축방향                   → 언제나 만난다
+            그래서 `placed`(횡방향 조각)에만 걸고, `lpts`(종방향 점)에는 안 건다.
+            도면이 그렇게 그린다 — 8-243 단면에서 ㄷ(T1)는 **점선**이다. 이 단면에
+            없다는 뜻이고, ① 횡방향과 같은 깊이에 보여도 서로 부딪히지 않는다.
+            (z 는 예전 엔진 `_relaxRebar` 만 보고 있었고 `jfield` 는 몰랐다.)      */
+        sameZ: function (a, b) {
+            return (a.z || 0) === (b.z || 0);
         },
 
         //  중심선 곡률반경 (페이지의 bendRadiusForDia 와 같은 규칙). bar.bendR 이 이긴다.
@@ -402,6 +416,7 @@
                 physics.js 는 이것을 wallStack 표로 손수 관리한다. 여기서는
                 순간격 제약 하나가 그 일을 한다.                                  */
             (placed || []).forEach(q => {
+                if (!this.sameZ(q, seg)) return;              // 다른 단면의 철근이다 (sameZ 주석)
                 const need = (q.dia + seg.dia) / 2;
                 this.clearPairs(pts, q.p1, q.p2).forEach(n => {
                     const g = n.d - need;
@@ -624,6 +639,7 @@
 
             //  ③ 이미 놓인 철근 — energy() 와 **같은 표본 쌍**을 쓴다 (clearPairs)
             (placed || []).forEach(q => {
+                if (!this.sameZ(q, seg)) return;              // 다른 단면의 철근이다
                 const need = (q.dia + seg.dia) / 2;
                 this.clearPairs(pts, q.p1, q.p2).forEach(n => {
                     clearRow({ x: n.qx, y: n.qy }, need, n);
@@ -949,7 +965,7 @@
                     자리로 쓴다 (hookGeom 주석). 가운데 연결 조각은 그대로 둔다.
                     코너는 첫 조각이면 p2 쪽(+1), 마지막이면 p1 쪽(−1)이다.        */
                 return { label: s.label, len: L, len0: L, dia: bar.dia, n0: s.normal, th0: th,
-                         link: link,
+                         link: link, z: bar.z || 0,
                          hook: !!bar.hook && arr.length > 1,
                          hookEnd: (i === 0) ? 1 : -1,
                          bendR: bar.bendR || this.bendRadius(bar.dia),
@@ -1037,7 +1053,7 @@
                 const r = this.form(b, walls, sec, ducts, placed, lpts);
                 out.push(r);
                 for (let i = 0; i + 1 < r.pts.length; i++)
-                    placed.push({ p1: r.pts[i], p2: r.pts[i + 1], dia: b.dia });
+                    placed.push({ p1: r.pts[i], p2: r.pts[i + 1], dia: b.dia, z: b.z || 0 });
             });
             return out;
         },
