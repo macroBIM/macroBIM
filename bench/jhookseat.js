@@ -87,7 +87,16 @@ console.log('   ' + '─'.repeat(86));
         S.link = (i === 1);
         const g = JF.hookGeom(pose, S);
 
-        const okh = Math.abs(g.h - g.target) < 0.3, oks = true;
+        /*  s — **축방향**. 코너(절곡부)에서 종방향까지가 R 이어야 한다.
+            한때 여기 `oks = true` 라고 박아 두고 「s = 0 접선점」이라고 적어 두었다.
+            **재지 않고 통과시킨 것**이고, 그 사이 실제로는 평균 66 mm 어긋나 있었다
+            (jfield hookSetup 주석). 이제 잰다.                                  */
+        const half = L / 2;
+        const sOff = ((S.hookEnd === 1) ? (half - g.a) : (g.a + half)) - R;
+        /*  재는 자는 **절곡 반지름 자신**이다 — |s| 가 R 을 넘으면 종방향이 절곡부를
+            벗어나 곧은 구간 한가운데에 있다는 뜻이고, 그러면 갈고리가 «무는» 것이
+            아니라 그냥 «닿는» 것이다. 안에서는 덕트·이웃 철근에 밀린 타협이다.   */
+        const okh = Math.abs(g.h - g.target) < 0.3, oks = Math.abs(sOff) <= R;
         n++; if (!(okh && oks)) bad++;
         /*  피복은 **그 점이 선 x** 에서 잰다 (데크가 -3% 로 기울어 있다).
             한때 `deckTop(S.hookQ.x)` 로 쟀는데, 그러면 상면은 종방향의 x 에서
@@ -104,7 +113,8 @@ console.log('   ' + '─'.repeat(86));
             '   ' + (i === 0 ? body.toFixed(1).padStart(7) : '       ') +
             '  ' + (i === 0 ? ('깊이 ' + (deckTop(S.hookQ.x) - S.hookQ.y).toFixed(0)).padStart(9)
                             : ('깊이 ' + (deckTop(S.hookQ.x) - S.hookQ.y).toFixed(0)).padStart(9)) +
-            '   ' + (okh && oks ? '✓' : '✗'));
+            '  s ' + sOff.toFixed(1).padStart(6) +
+            '   ' + (okh && oks ? '✓' : (okh ? '✗ 접선점' : '✗ 자리')));
     });
 });
 console.log('   ' + '─'.repeat(86));

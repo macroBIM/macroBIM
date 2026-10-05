@@ -342,21 +342,77 @@
             return inside + dia / 2;
         },
 
-        /*  갈고리가 **걸 종방향 하나**를 고른다 — 가장 가까운 것. 벽은 안 본다.
-            법선의 부호(ν)도 여기서 정한다 : 코너 쪽 끝점에서 그 철근을 향하는 쪽. */
-        hookSetup: function (seg, lpts) {
-            let best = null;
-            (lpts || []).forEach(q => {
-                const d = this.segToPoint([seg.p1, seg.p2], q);
-                if (!best || d < best.d) best = { d: d, q: q };
-            });
-            if (!best) { seg.hookQ = null; return null; }
-            seg.hookQ = best.q;
+        /*  ── 갈고리가 **걸 종방향 하나**를 고른다 ──────────────────────────────
+            벽은 안 본다. 고르는 자리가 둘로 갈린다 :
+
+            ── 자유단(다리) : «절곡부에 가장 가까운» 철근이다 ───────────────────
+            한때 「조각까지 가장 가까운 것」(segToPoint)으로 골랐다. **다리에서는
+            그 거리가 못 가른다** — 다리는 부재 면을 따라 눕고 종방향 줄도 같은 면에
+            누우므로, 다리를 따라 늘어선 철근이 **전부 같은 수직거리**에 있다.
+            그래서 사실상 아무거나 골랐고, 재 보니 물어야 할 자리에서 평균 66 mm ·
+            최악 282 mm 어긋나 있었다 (|s|<5 인 다리가 194 중 76).
+            갈고리가 무는 자리는 **절곡부**다 — 다리는 그 철근을 지나 `leg` 만큼 더
+            뻗는 정착이다. 그러니 **코너에 가장 가까운 철근**이 그 철근이다.
+
+            ── 연결 조각(몸통) : «이웃한 다리가 문 그 철근» 이다 ─────────────────
+            몸통은 다리에 수직이라, 몸통의 수직거리는 곧 **다리의 축방향 좌표**다.
+            목표를 R 로 두면 코너가 그 철근의 접선점에 선다 (hookGeom 주석).
+            그런데 몸통이 **제 나름대로 가장 가까운 철근**을 고르면 다리가 문 것과
+            다른 철근이 되어, 두 제약이 서로 다른 자리를 가리킨다. 그것이 위의
+            66 mm 다. **한 ㄷ 는 «한 자리» 를 문다** — 몸통은 다리의 선택을 따른다.
+
+            ── 둘째 다리 : «첫째와 같은 자리» 의 철근이다 ──────────────────────
+            같은 까닭으로 둘째 다리도 제 나름대로 고르면 안 된다. ㄷ 가 무는 것은
+            마주보는 두 면의 **짝**이고, 그 짝이 같은 자리에 서도록 `jlong` 에
+            `K_TIE` 를 넣어 둔 것이 바로 이것 때문이다(「나중에 ㄷ자 갈고리 하나가
+            두 다리를 같이 붙잡으므로 같은 자리에 서야 한다」). 그래서 둘째 다리는
+            **자리 어긋남**(첫째 철근과의 축방향 차)이 가장 작은 것을 고르고,
+            같은 자리가 여럿이면 제 다리에 가까운 것을 고른다.
+            짝이 없으면 어긋남이 결과에 그대로 남는다 — 가려 주지 않는다.
+
+            ── 법선의 부호(ν) ──────────────────────────────────────────────────
+            다리는 **그 철근을 향하는 쪽**이다 (어느 면에 안기느냐의 문제다).
+            몸통은 다르다 — **다리가 뻗어 나가는 쪽**이어야 한다. 부호를 철근에서
+            가져오면 「몸통에서 R 떨어진 곳」이 **ㄷ 바깥쪽**이 될 수 있고, 그러면
+            갈고리가 제 밖에 있는 철근을 무는 꼴이 된다 (실제로 그랬다 : 철근이
+            코너 **너머** 32.5 에 서서 다리는 반대 방향으로 뻗었다). 다리 쪽으로
+            고정해 두면 h < 0 이 「철근이 아직 ㄷ 밖이다」가 되어, 무거운 쪽
+            가중치가 ㄷ 를 **철근을 품는 자리로 끌어온다.**                        */
+        hookSetup: function (seg, lpts, inherit) {
+            let q = null;
+            if (inherit && inherit.body) q = inherit.q;     // 몸통 — 다리가 고른 것 그대로
+            else {
+                /*  **닿을 수 있는 것만 후보다.** 다리는 그 철근을 지나 `leg` 만큼 더
+                    뻗는 정착이므로, 물 수 있는 철근은 코너에서 **다리 길이 안**에
+                    있는 것뿐이다. 문턱이 아니라 **다리 자신의 길이**다.
+                    이게 없으면 자리에 철근이 없는 ㄷ 가 멀리 있는 철근까지 끌려가
+                    이웃 ㄷ 와 같은 철근을 문다 (복부 바닥에서 실제로 그랬다 — 바깥줄
+                    종방향이 −5,645 에서 끝나는데 −5,800 자리의 ㄷ 가 거기까지 올라와
+                    옆 ㄷ 와 13 mm 겹쳤다). 없으면 **그 자리엔 갈고리가 없다.**      */
+                const c = (seg.hookEnd === 1) ? seg.p2 : seg.p1;
+                const reach = seg.len || hyp(seg.p2.x - seg.p1.x, seg.p2.y - seg.p1.y);
+                const a = inherit && inherit.axis, q0 = inherit && inherit.q;
+                let best = null;
+                (lpts || []).forEach(p => {
+                    if (q0 && p === q0) return;
+                    const d = hyp(p.x - c.x, p.y - c.y);
+                    if (d > reach) return;                       // 다리가 못 닿는다
+                    //  둘째 다리는 **첫째와 같은 자리**가 먼저다. 같으면 가까운 쪽.
+                    const st = a ? Math.abs((p.x - q0.x) * a.x + (p.y - q0.y) * a.y) : 0;
+                    if (!best || st < best.st - 1 ||
+                        (Math.abs(st - best.st) <= 1 && d < best.d)) best = { st: st, d: d, q: p };
+                });
+                q = best && best.q;
+            }
+            if (!q) { seg.hookQ = null; return null; }
+            seg.hookQ = q;
             const vx = seg.p2.x - seg.p1.x, vy = seg.p2.y - seg.p1.y;
             const L = hyp(vx, vy) || 1, ux = vx / L, uy = vy / L;
-            const t = (best.q.x - seg.mid.x) * (-uy) + (best.q.y - seg.mid.y) * ux;   // (q−c)·u⊥
+            const t = (inherit && inherit.body)
+                ? inherit.dir.x * (-uy) + inherit.dir.y * ux       // 몸통 — 다리가 뻗는 쪽
+                : (q.x - seg.mid.x) * (-uy) + (q.y - seg.mid.y) * ux;   // 다리 — (q−c)·u⊥
             seg.hookSide = (t >= 0) ? 1 : -1;
-            return best.q;
+            return q;
         },
 
         /*  횡방향 조각이 **종방향 철근**과 지켜야 할 중심거리.
@@ -933,7 +989,7 @@
                   2단계  그 자리에서 면을 고르고     각을 풀어 평행으로 돌린다
                   ㉢     면이 바뀌면 다시 2단계 (교대최소화. 되돌아오면 멈춘다)   */
             if (seg.hook) {          //  link(몸통)여도 여기로 온다 — 목표만 R 로 다르다
-                if (!this.hookSetup(seg, lpts))
+                if (!this.hookSetup(seg, lpts, seg._inherit))
                     return { pose: pose0, cons: [], iter: 0, stopped: 'no-seat', contacts: [] };
                 this._seg = seg.label || '';
                 seg.parW = null; seg.parD = null;
@@ -1088,6 +1144,30 @@
                          bendR: bar.bendR || this.bendRadius(bar.dia),
                          p1: s.p1, p2: s.p2, mid: mid, c0: mid };
             });
+
+            /*  **한 ㄷ 는 «한 자리» 를 문다.** 자유단(다리)이 절곡부에 가장 가까운
+                종방향을 고르고, 가운데 연결 조각(몸통)은 **그 선택을 따른다** —
+                몸통의 수직거리가 곧 다리의 축방향이므로, 둘이 다른 철근을 보면
+                코너가 접선점에 안 선다 (hookSetup 주석).
+                두 다리의 철근은 «짝» 이어야 한다 — `jlong` 의 `K_TIE` 가 상·하
+                종방향을 같은 자리에 묶는 것이 그래서다. 짝이 아니면 한쪽 다리의
+                절곡부가 어긋나고, 그 어긋남은 결과에 그대로 남아 보인다.        */
+            if (bar.hook && segs.length > 1) {
+                const ends = segs.filter(s => !s.link);
+                const e0 = ends[0];
+                if (e0) this.hookSetup(e0, lpts);           //  ㉮ 첫째 다리가 «자리» 를 정한다
+                if (e0 && e0.hookQ) {
+                    //  다리가 뻗는 쪽 = 코너 → 자유단.  축 = 그 반대(코너 쪽)
+                    const c = (e0.hookEnd === 1) ? e0.p2 : e0.p1;
+                    const f = (e0.hookEnd === 1) ? e0.p1 : e0.p2;
+                    const dx = f.x - c.x, dy = f.y - c.y, dl = hyp(dx, dy) || 1;
+                    const dir = { x: dx / dl, y: dy / dl };
+                    const lead = { q: e0.hookQ, dir: dir, axis: dir };
+                    //  ㉯ 나머지 다리는 **같은 자리**, ㉰ 몸통은 **그 철근 그대로**
+                    ends.slice(1).forEach(s => { s._inherit = lead; });
+                    segs.forEach(s => { if (s.link) s._inherit = { q: lead.q, dir: dir, body: true }; });
+                }
+            }
 
             const byId = {};
             (walls || []).forEach(w => { byId[w.id] = w; });

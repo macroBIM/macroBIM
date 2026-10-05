@@ -91,7 +91,7 @@ const TOAST = [];
 P._toast = (m) => TOAST.push(m);
 P._solveWithJField();
 
-let bad = 0;
+let bad = 0, SLIP = 0;
 const hooks = Domain.trebarList.filter(t => t._srebar);
 const W = {}; sec.walls.forEach(w => { W[w.id] = w; });
 
@@ -267,6 +267,38 @@ const BITE = JF.CONF.NUDGE;
 console.log('     («스침» 과 «파고듦» 은 NUDGE ' + BITE + ' mm 로 가른다 — 엔진이 스스로 밀어 넣는 양이다)');
 if (worstT < -BITE || worstL < -BITE) bad += biteT + biteL;
 
+/*  ── ⑦ 절곡 접선점에서 무는가 (축방향 s) ──────────────────────────────────────
+    ⑤ 는 다리의 **수직거리**만 본다. 축방향 — 종방향이 다리의 «어디»에 오느냐 — 는
+    몸통이 정한다(몸통의 수직거리가 곧 다리의 축방향이다). 그런데 몸통이 다리와
+    **다른 철근**을 고르고 있어서, 재 보니 물어야 할 자리에서 평균 66 mm · 최악
+    282 mm 어긋나 있었다. 갈고리가 «무는» 것이 아니라 그냥 «닿는» 것이었다.
+    재는 자는 **절곡 반지름 자신**이다 — |s| 가 R 을 넘으면 종방향이 절곡부를 벗어나
+    곧은 구간 한가운데에 있다는 뜻이다.                                          */
+{
+    const R = JF.bendRadius(13);
+    let worst = 0, atw = '', over = 0, sum = 0, n7 = 0;
+    hooks.forEach(t => [0, 2].forEach(i => {
+        const s = t.segments[i]; if (!s.hookQ) return;
+        const a = s.p1, b = s.p2;
+        const L = Math.hypot(b.x - a.x, b.y - a.y) || 1, half = L / 2;
+        const pose = { cx: (a.x + b.x) / 2, cy: (a.y + b.y) / 2, th: Math.atan2(b.y - a.y, b.x - a.x) };
+        const g = JF.hookGeom(pose, { len: L, dia: t.dia, p1: a, p2: b, hook: true, hookQ: s.hookQ,
+                   hookEnd: (i === 0) ? 1 : -1, hookSide: s.hookSide, bendR: R, link: false });
+        const off = ((i === 0) ? (half - g.a) : (g.a + half)) - R;
+        n7++; sum += Math.abs(off);
+        if (Math.abs(off) > Math.abs(worst)) { worst = off; atw = t.id + '[' + s.label + ']'; }
+        if (Math.abs(off) > R) over++;
+    }));
+    console.log('\n  ⑦ 절곡 접선점 (s = 코너에서 종방향까지 − R, R = ' + R + ')');
+    console.log('     다리 ' + n7 + '개 · 평균 |s| ' + (sum / n7).toFixed(1) + ' mm · 최악 ' +
+                worst.toFixed(1) + ' (' + atw + ') · R 을 넘은 다리 ' + over);
+    console.log('     (고치기 전 : 평균 66.3 · 최악 282.4 — 몸통이 다리와 다른 철근을 보고 있었다)');
+    /*  R 을 넘은 것은 **짝이 어긋난 자리**다 — 결함이 아니라 입력/기하의 사실이고,
+        화면이 말해 준다. 말 안 하고 넘어가는 것만 결함이다 (⑥ 에서 확인한다).   */
+    if (over) console.log('     R 을 넘은 것은 상·하 종방향의 짝이 그 자리에서 어긋난 것이다 — 경고로 낸다.');
+    SLIP = over;
+}
+
 /*  ── ⑤ 마크 — **길이로 묶는다. 몇 가지가 될지는 가공 쪽 판단이다** ──────────────
     도면(8-243)은 마크가 셋인데, 그 셋이 길이 셋이라는 뜻은 **아니다** : T1-1 의
     주기가 `X = 206~480`, T1-2 가 `212~486` 으로 **둘이 거의 같은 범위를 덮는다.**
@@ -303,6 +335,9 @@ if (said_n && TOAST.join(' ').indexOf('평행해질 면이 뒤집힘') < 0) {
 }
 if ((tight + squeeze + said_n) && TOAST.join(' ').indexOf('못 닿았습니다') < 0) {
     console.log('     ✗ 못 닿은 다리를 말하지 않았다'); bad++;
+}
+if (SLIP && TOAST.join(' ').indexOf('절곡부에서 물지 못했습니다') < 0) {
+    console.log('     ✗ 절곡부를 벗어난 다리를 말하지 않았다'); bad++;
 }
 
 console.log('\n  입력에서 **사라진 것** : 몸통 길이 X · 마크 (11)(11-1)(12) · nors · ctcmax · ctcmin');

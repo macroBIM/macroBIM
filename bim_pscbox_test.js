@@ -1526,17 +1526,34 @@
 
         var byId = {};
         hooks.forEach(function (t) { byId[String(t.id)] = t; });
+        /*  **걸 종방향이 없는 ㄷ 는 버린다.** `lrebar` 가 「그 자리엔 한쪽 면이
+            없다 → 철근도 없다」로 짝을 버리는 것과 같은 규칙이다. 갈고리는 종방향에
+            걸려 서는 철근이라, 다리가 닿는 데 철근이 없으면 그 자리엔 ㄷ 가 없다.
+            (복부 바닥이 그렇다 — 바깥줄 종방향이 거기서 끝난다.)                 */
+        var drop = {};
         out.forEach(function (r) {
           var t = byId[String(r.id)];
-          if (t && t.segments) self._writeBack(t, r, sec);
+          if (!t || !t.segments) return;
+          if (r.segs.some(function (s) { return s.stopped === 'no-seat'; })) {
+            drop[String(r.id)] = 1; return;
+          }
+          self._writeBack(t, r, sec);
         });
+        var ndrop = Object.keys(drop).length;
+        if (ndrop) {
+          Domain.trebarList = Domain.trebarList.filter(function (t) { return !drop[String(t.id)]; });
+          warn.push('갈고리 ' + ndrop + '개를 버렸습니다 (' +
+                    Object.keys(drop).slice(0, 6).join(', ') + (ndrop > 6 ? ' …' : '') +
+                    ' — 그 자리엔 걸 종방향이 없습니다)');
+        }
         /*  ── 다리가 **종방향에 닿았나** ───────────────────────────────────────
             갈고리의 자리는 종방향이다. 못 닿은 다리는 그 자리에 **틈이 없다**는
             뜻이고, 고칠 수 있는 것은 입력(ㄷ 의 구간·간격)뿐이니 숫자를 그대로 낸다.
             덕트에 밀린 것과 가려 주지 않는다 — 가르는 일은 `bench/jsre.js` 가 한다
             (덕트를 빼고 한 번 더 풀어 봐야 갈라지는데, 화면에서 두 번 풀 수는 없다). */
-        var off = [];
+        var off = [], slip = [];
         out.forEach(function (r) {
+          if (drop[String(r.id)]) return;
           [0, 2].forEach(function (i) {
             var sg = r.segs[i];
             if (!sg || !sg.hookQ) return;
@@ -1546,19 +1563,30 @@
                          th: Math.atan2(b.y - a.y, b.x - a.x) };
             var g = JField.hookGeom(pose, { len: L, dia: r.dia, p1: a, p2: b, hook: true,
                                             hookQ: sg.hookQ, hookEnd: (i === 0) ? 1 : -1,
-                                            hookSide: sg.hookSide, bendR: r.segs[1] ? 0 : 0,
-                                            link: false });
+                                            hookSide: sg.hookSide, bendR: 0, link: false });
             if (Math.abs(g.h - g.target) > 0.5)
               off.push(r.id + '[' + sg.label + '] ' + g.h.toFixed(0) + '/' + g.target.toFixed(0));
+            /*  축방향 — 종방향이 **절곡부**에 와야 갈고리가 «무는» 것이다. 재는 자는
+                절곡 반지름 자신이다 : |s| 가 R 을 넘으면 종방향이 곧은 구간 한가운데에
+                있다는 뜻이고, 그러면 무는 것이 아니라 그냥 닿는 것이다.
+                대개 **상·하 종방향의 짝이 그 자리에서 어긋난** 것이다.          */
+            var R = JField.bendRadius(r.dia), half = L / 2;
+            var sOff = ((i === 0) ? (half - g.a) : (g.a + half)) - R;
+            if (Math.abs(sOff) > R) slip.push(r.id + '[' + sg.label + '] ' + sOff.toFixed(0));
           });
         });
+        if (slip.length)
+          warn.push('갈고리 다리 ' + slip.length + '개가 **절곡부에서 물지 못했습니다** (' +
+                    slip.slice(0, 6).join(', ') + (slip.length > 6 ? ' …' : '') +
+                    ' mm — 그 자리에서 상·하 종방향의 짝이 어긋나 있습니다)');
         if (off.length)
           warn.push('갈고리 다리 ' + off.length + '개가 종방향에 **못 닿았습니다** (' +
                     off.slice(0, 6).join(', ') + (off.length > 6 ? ' …' : '') +
                     ' — 덕트나 이웃 철근에 막힌 자리입니다. ㄷ 의 구간을 보세요)');
 
         //  몸통 길이는 **출력**이다 — 도면의 X 가 여기서 나온다
-        var body = out.map(function (r) { return r.segs[1] ? r.segs[1].len : 0; })
+        var body = out.filter(function (r) { return !drop[String(r.id)]; })
+                      .map(function (r) { return r.segs[1] ? r.segs[1].len : 0; })
                       .filter(function (v) { return v > 0; });
         if (body.length)
           console.log('[SREBAR] 몸통 길이(출력) ' + Math.round(Math.min.apply(null, body)) +
