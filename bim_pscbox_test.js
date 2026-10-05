@@ -1363,10 +1363,16 @@
                     range: (rd.range && isFinite(rd.range.min) && isFinite(rd.range.max)
                             && rd.range.max > rd.range.min) ? rd.range : null,
                     align: rd.align || null };
-          var pos = JLong.layout(g);
+          /*  `range` 는 **한계**다 — `lrebar` 와 같은 뜻. `JLong.layout` 은 align 이
+              'init' 이면 range 를 안 보므로(열차는 init 한가운데), 여기서 **잘라 준다.**
+              안 자르면 칸이 적혀 있는데 아무 일도 안 하는 꼴이 된다.             */
+          var pos = JLong.layout(g).filter(function (q) {
+            return !g.range || (q.t >= g.range.min - 1e-6 && q.t <= g.range.max + 1e-6);
+          });
+          var clipped = rd.num - pos.length;
 
           //  ③ 자리마다 마주보는 두 면을 찾아 그 사이에 ㄷ 를 세운다
-          var made = 0, pulled = 0, outside = 0, oneSide = 0, lens = [];
+          var made = 0, pulled = 0, outside = 0, oneSide = 0, tooFar = 0, lens = [];
           var nm = { x: -n.x, y: -n.y };
           var hit = function (q, d) {
             var best = null;
@@ -1396,6 +1402,14 @@
             }
             var dp = hit(p, n), dm = hit(p, nm);
             if (dp == null || dm == null || dp + dm < 1) { oneSide++; return; }
+            /*  **영향 반경** — `JLong.CONF.RHO0`. 새 규칙이 아니다, 이미 재서 정해 둔
+                그 값이다(「장은 무한히 멀리까지 당기지 않는다」). 복부 꼭대기처럼
+                부재가 열리는 자리에서는 마주보는 첫 면이 **건너편 복부**가 되어
+                몸통이 6,892 mm 로 나온다 — 그 자리엔 ㄷ 가 설 부재가 없다는 뜻이다.
+                부재 두께(복부 500 · 슬래브 280~600)와 셀 너비(6,900)가 1,500 을
+                사이에 두고 깨끗이 갈린다.                                        */
+            var rho = (JLong.CONF && JLong.CONF.RHO0) || 1500;
+            if (dp > rho || dm > rho) { tooFar++; return; }
             var c = { x: p.x + n.x * (dp - dm) / 2, y: p.y + n.y * (dp - dm) / 2 };
             var rb;
             try { rb = TrebarFactory.create(rd.code, c, { A: leg, B: dp + dm, C: leg },
@@ -1421,15 +1435,21 @@
           });
 
           self._sdiag[String(rd.id)] = { num: rd.num, made: made, pulled: pulled,
-                                         outside: outside, oneSide: oneSide,
-                                         u: u, n: n, lens: lens };
+                                         outside: outside, oneSide: oneSide, tooFar: tooFar,
+                                         clipped: clipped, u: u, n: n, lens: lens };
+          if (clipped) warn.push(rd.id + ' : ' + clipped + '개가 range 밖입니다' +
+                                 ' (num × ctc 가 range 보다 넓습니다)');
           if (outside) warn.push(rd.id + ' : ' + outside + '개를 버렸습니다 ' +
                                  '(배치 직선이 **콘크리트 밖**이고 끌어들일 면도 없습니다 — ' +
                                  'init 과 range 를 보세요)');
           if (oneSide) warn.push(rd.id + ' : ' + oneSide + '개를 버렸습니다' +
                                  ' (그 자리엔 마주보는 면이 한쪽뿐입니다)');
+          if (tooFar) warn.push(rd.id + ' : ' + tooFar + '개를 버렸습니다 (마주보는 면이 ' +
+                                ((JLong.CONF && JLong.CONF.RHO0) || 1500) +
+                                ' mm 보다 멉니다 — 그 자리엔 ㄷ 가 설 부재가 없습니다)');
           console.log('[SREBAR] ' + rd.id + ' ' + made + '/' + rd.num + '개' +
                       (pulled ? ' (' + pulled + '개는 부재 안으로 끌어들였다)' : '') +
+                      (tooFar ? ' (' + tooFar + '개는 부재가 없어 버렸다)' : '') +
                       ' · 몸통 출발길이 ' +
                       (lens.length ? Math.round(Math.min.apply(null, lens)) + '~' +
                                      Math.round(Math.max.apply(null, lens)) : '-') + ' mm');
