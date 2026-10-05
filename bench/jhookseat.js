@@ -98,8 +98,14 @@ console.log('   ' + '─'.repeat(86));
 
         const okh = Math.abs(g.h - g.target) < 0.3, oks = true;
         n++; if (!(okh && oks)) bad++;
-        //  피복은 **그 철근이 선 x** 에서 잰다 (데크가 -3% 로 기울어 있다)
-        const c = (i === 2) ? (deckTop(S.hookQ.x) - a.y - DIA / 2) : null;
+        /*  피복은 **그 점이 선 x** 에서 잰다 (데크가 -3% 로 기울어 있다).
+            한때 `deckTop(S.hookQ.x)` 로 쟀는데, 그러면 상면은 종방향의 x 에서
+            재면서 y 는 코너의 x 에서 가져온다 — 두 x 가 250 mm 떨어져 있어
+            −3% 로 7.5 mm 가 어긋났다. 다리가 수평일 때는 안 보였고, ⑥(평행항)이
+            다리를 데크와 나란히 돌리자 51 → 59 로 보여 **피복이 변한 것처럼**
+            보였다. 변한 것은 피복이 아니라 이 측정이다 (bench/jpar.js 가 벽까지의
+            수직거리로 제대로 재면 1.0~1.8 mm 안쪽, 곧 피복 51.0~51.8 이다).      */
+        const c = (i === 2) ? (deckTop(a.x) - a.y - DIA / 2) : null;
         console.log('  ' + String(X).padStart(5) + '      ' + sg.label +
             '    (' + S.hookQ.x.toFixed(0).padStart(5) + ',' + S.hookQ.y.toFixed(1).padStart(7) + ')' +
             '   ' + g.h.toFixed(2).padStart(6) + ' ' + g.target.toFixed(1).padStart(6) +

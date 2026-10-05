@@ -975,8 +975,11 @@
           var dx = b.x - a.x, dy = b.y - a.y, L = Math.hypot(dx, dy) || 1;
           seg.uDir = { x: dx / L, y: dy / L };
           seg.nodes = NP.map(function (k) { return { x: a.x + dx * k, y: a.y + dy * k, vx: 0, vy: 0 }; });
+          /*  갈고리 다리는 `rest` 가 **평행해질 면**이다 (jfield parSetup 주석) —
+              자리는 종방향이 정하고 그 면은 자세만 정한다. 피복을 재는 면은 같다. */
           seg.fitWall = wallById[(rs.rest && rs.rest[0]) || ''] || null;
           seg.contactWall = seg.fitWall;
+          seg.stopped = rs.stopped || null;
           seg.state = rs.stopped === 'no-target' ? 'FITTING' : 'SETTLED';
         });
         /*  **자리가 없는 조각은 실패가 아니다.**
@@ -1141,6 +1144,19 @@
         });
         if (free.length) warn.push('자리 없이 코너가 정한 조각 ' + free.join(', ') +
                                    ' (ㄷ 몸통이면 정상입니다)');
+        /*  갈고리 다리의 두 가지 — 둘 다 **입력을 보라는 신호**다 :
+              no-seat    걸 종방향이 없다. ㄷ 는 종방향에 걸려 서는 철근이다
+              par-cycle  평행해질 면이 두 개 사이에서 뒤집힌다 (헌치 모서리)       */
+        var hk = [];
+        Domain.trebarList.forEach(function (t) {
+          (t.segments || []).forEach(function (s, i) {
+            if (s.stopped === 'no-seat' || s.stopped === 'par-cycle')
+              hk.push(t.id + '[' + 'abcdef'[i] + '] ' +
+                      (s.stopped === 'no-seat' ? '걸 종방향이 없음' : '평행해질 면이 뒤집힘'));
+          });
+        });
+        if (hk.length) warn.push('갈고리 다리 ' + hk.join(', ') +
+                                 ' (종방향 줄과 ㄷ 의 자리를 보세요)');
         var offs = [];
         Object.keys(this._diag).forEach(function (k) {
           selfD._diag[k].forEach(function (d) {

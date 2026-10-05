@@ -144,7 +144,7 @@
             const K = this.CONF, half = seg.len / 2;
             const dx = Math.cos(pose.th) * half, dy = Math.sin(pose.th) * half;
             const pts = [{ x: pose.cx - dx, y: pose.cy - dy }, { x: pose.cx + dx, y: pose.cy + dy }];
-            const o = { cover: 0, duct: 0, bar: 0, lre: 0, hook: 0, anchor: 0 };
+            const o = { cover: 0, duct: 0, bar: 0, lre: 0, hook: 0, par: 0, anchor: 0 };
 
             pts.forEach((p, i) => {
                 const c = (assign && cons[assign[i]]) || this.nearestCon(p, cons);
@@ -174,8 +174,9 @@
             const pp = -(pose.cx - seg.c0.x) * uy + (pose.cy - seg.c0.y) * ux;
             const at = (pose.th - seg.th0) * half;
             if (seg.hook && seg.hookQ) o.hook = this.hookEnergy(pose, seg);
+            if (seg.hook && seg.parW) o.par = this.parEnergy(pose, seg);
             o.anchor = (seg.hook ? 0 : K.K_AXIAL * ax * ax) + K.K_ANCHOR * (pp * pp + at * at);
-            o.total = o.cover + o.duct + o.bar + o.lre + o.hook + o.anchor;
+            o.total = o.cover + o.duct + o.bar + o.lre + o.hook + o.par + o.anchor;
             return o;
         },
 
@@ -243,6 +244,83 @@
             const K = this.CONF, g = this.hookGeom(pose, seg);
             const gh = g.h - g.target;
             return (gh < 0 ? K.K_BAR : 1) * gh * gh;
+        },
+
+        /*  ── ⑥ 갈고리 다리가 콘크리트 면과 «평행» 해지는 항 ────────────────────
+            ⑤ 로 다리의 **자리**(종방향까지의 수직거리)는 정해졌다. 그런데 자세가
+            안 정해진다 — 점 하나에서 거리 need 인 직선은 무한히 많다. 그래서
+            한동안 각을 init 에 **묶어** 두었다(`descend` 의 lim = 0). 그 대가가
+            이것이다 : 데크 상면은 −3% 로 기울어 있는데 다리는 수평인 채로 선다.
+            S14 에서 재면 **다리 양 끝의 피복이 12 mm 달라지고**, 한쪽 끝은 피복선
+            밖으로 6~11 mm 나간다. 헌치(E23, 12°) 쪽은 83 mm 다.
+
+            ── 평행은 «새 규칙»이 아니다. 같은 피복장의 2차 모멘트다 ──────────────
+            곧은 조각이 평면 벽 가까이 있을 때, 축좌표 s 인 점의 피복 여유는
+                g(s) = g₀ + s·m ,    g₀ = (c−p)·n̂ − need ,   m = û·n̂
+            두 끝점에서 재면 (엔진이 ① 에서 하는 그것) :
+                g(+half)² + g(−half)² = 2·g₀²  +  2·half²·m²
+            **거리의 0차항 + 기울기의 m² 항**이고, m² 항의 최소는 m = 0 — 평행이다.
+            곧 ① 안에 평행이 이미 들어 있었다. 갈고리는 `cons = []` 로 **그 항을
+            잃은 것**이지, 평행이라는 규칙이 따로 없던 것이 아니다.
+
+            ── 무게는 고르는 값이 아니다. 유도로 1 + K_COV 다 ──────────────────
+            다리를 기울이면 한쪽 끝은 피복선 **안**으로, 다른 쪽 끝은 **반드시
+            밖으로** 나간다 (g₀ 를 ⑤ 가 가져갔으므로 g(±half) = ±half·m 이다).
+            안쪽은 무게 1, 밖은 K_COV 다. 그래서
+                J = 1·(half·m)² + K_COV·(half·m)² = (1 + K_COV)·half²·m²
+            상태에 안 딸린 상수다. **평행은 「피복을 깨지 않는 유일한 자세」**이고,
+            그 벌점은 피복 위반의 벌점 그대로다. 새 K 를 만들지 않는다.
+
+            ── 0차는 철근이, 2차는 콘크리트가 ────────────────────────────────
+            ① 을 통째로 주면 안 된다. 그러면 벽이 다리를 **피복선으로 끌어당겨**
+            ⑤ 와 다툰다 — 다리의 자리는 종방향이 정하고 콘크리트 피복은 **결과**다
+            (hookGeom 주석). 그래서 0차항(거리)은 ⑤ 가 갖고 여기는 2차항만 쓴다.
+            야코비가 각 성분 하나뿐(∂r/∂c = 0)이므로 **자리를 흔들 수가 없다** :
+                r = √(1+K_COV) · half · m ,   ∂r/∂φ = √(1+K_COV) · (û⊥·n̂)
+            자유도 셋이 이렇게 갈린다 — ⑤ 가 수직거리, ⑥ 가 각, 코너가 축방향.
+
+            ── 어느 면인가 : «앉은 뒤에» 찾는다 ────────────────────────────────
+            걸 종방향을 찾을 때는 콘크리트를 안 본다(⑤). 앉은 **뒤에** 그 자리에서
+            `seats()` 를 돌려 가장 가까운 면을 고른다 — 보통 조각과 같은 규칙
+            (법선이 마주보고 · 콘크리트 쪽이고 · 띠 안이고, 그 중 가장 가까운 것).
+            S14 에서 그 참거리가 1~11 mm 다. **자리는 이미 맞았고 각만 틀렸다**는
+            뜻이고, 그래서 ⑥ 는 각만 고친다.
+            면이 바뀌면 다시 내려간다 (`alternate` 와 같은 교대최소화). 헌치 근처
+            에서는 E23(6 mm)과 E24(30 mm)가 10° 차이로 나란히 있어 몇 mm 움직임에
+            고른 면이 뒤집힐 수 있다 — 되돌아오면 거기서 멈추고 보고한다.         */
+        parSetup: function (seg, walls, sec, pose) {
+            const half = seg.len / 2;
+            const dx = Math.cos(pose.th) * half, dy = Math.sin(pose.th) * half;
+            const p1 = { x: pose.cx - dx, y: pose.cy - dy };
+            const p2 = { x: pose.cx + dx, y: pose.cy + dy };
+            //  `seats()` 는 init 기하(p1·p2·mid)를 본다. **앉은 자세**로 갈아 준다.
+            const at = { len: seg.len, dia: seg.dia, n0: seg.n0, link: seg.link,
+                         p1: p1, p2: p2, mid: { x: pose.cx, y: pose.cy } };
+            const cands = this.seats(at, walls, sec, seg.dia).filter(c => c.used);
+            let best = null;
+            cands.forEach(c => { if (!best || c.d < best.d) best = c; });
+            seg.parW = best ? best.w : null;
+            seg.parD = best ? best.d : null;
+            return seg.parW;
+        },
+
+        //  m = û·n̂ (0 이면 평행) 과 ∂m/∂th = û⊥·n̂
+        parGeom: function (pose, seg) {
+            const w = seg.parW;
+            const ux = Math.cos(pose.th), uy = Math.sin(pose.th);
+            return { m: ux * w.nx + uy * w.ny, dm: -uy * w.nx + ux * w.ny,
+                     half: Math.max(seg.len / 2, 1) };
+        },
+
+        parRows: function (pose, seg) {
+            const g = this.parGeom(pose, seg);
+            const k = Math.sqrt(1 + this.CONF.K_COV);          // 유도값 — 주석 참조
+            return [{ r: k * g.half * g.m, j: [0, 0, k * g.dm] }];
+        },
+
+        parEnergy: function (pose, seg) {
+            const g = this.parGeom(pose, seg);
+            return (1 + this.CONF.K_COV) * g.half * g.half * g.m * g.m;
         },
 
         /*  ── 같은 단면에 있는 철근인가 (z) ────────────────────────────────────
@@ -441,6 +519,8 @@
 
             //  ⑤ 갈고리 다리 — 자리가 종방향 철근이다 (hookGeom 주석)
             if (seg.hook && seg.hookQ) J += this.hookEnergy(pose, seg);
+            //  ⑥ 갈고리 다리의 자세 — 콘크리트 면과 평행 (parSetup 주석)
+            if (seg.hook && seg.parW) J += this.parEnergy(pose, seg);
 
             /*  ⓪ 제자리 고정항 — residuals() 의 그것과 같다 (설명은 거기에).
                 갈고리 다리는 **축방향을 철근이 잡으므로** init 축 고정을 끈다 —
@@ -608,6 +688,8 @@
                 덕트가 철근을 면을 따라 밀어내는 것(K_CLR=4)도 막지 않는다.           */
             //  ⑤ 갈고리 다리 — 자리가 종방향 철근이다 (hookGeom 주석)
             if (seg.hook && seg.hookQ) this.hookRows(pose, seg).forEach(r => rows.push(r));
+            //  ⑥ 갈고리 다리의 자세 — 콘크리트 면과 평행 (parSetup 주석)
+            if (seg.hook && seg.parW) this.parRows(pose, seg).forEach(r => rows.push(r));
 
             const ka = Math.sqrt(K.K_ANCHOR), kx = Math.sqrt(seg.hook ? 0 : K.K_AXIAL);
             const dcx = pose.cx - seg.c0.x, dcy = pose.cy - seg.c0.y;
@@ -756,13 +838,15 @@
             여기서는 **걸음의 크기**로 멈춘다. 가짜 기울기가 끼어들 자리가 없다.     */
         descend: function (pose, seg, cons, ducts, placed, lpts, assign) {
             const K = this.CONF, half = Math.max(seg.len / 2, 1);
-            /*  **갈고리는 각을 안 바꾼다.** 보통 조각은 앉은 벽이 각을 정해 주는데
-                (form 의 「앉은 면이 그 조각의 직선식이다」), 갈고리는 벽을 안 보므로
-                각을 잡아 주는 것이 없다 — 점 하나에서 거리 13 인 직선은 **무한히**
-                많아서 LM 이 각을 흘린다 (다리가 기울어 코너가 수십 mm 어긋났다).
-                ㄷ 의 꼴과 자세는 `code` 와 `rot` 이 정하는 **설계 의도**다.
-                장은 그것을 **옮기기만** 한다.                                      */
-            const lim = seg.hook ? 0 : K.THMAX * Math.PI / 180;
+            /*  **각은 그것을 정해 주는 항이 있을 때만 풀린다.**
+                보통 조각은 앉은 벽이 각을 정해 준다 (form 의 「앉은 면이 그 조각의
+                직선식이다」). 갈고리 다리는 ⑤ 로 **자리만** 정해지므로 — 점 하나에서
+                거리 13 인 직선은 무한히 많다 — 1단계에서는 각을 묶는다(lim 0).
+                그러지 않으면 LM 이 각을 흘려 다리가 기울고 코너가 수십 mm 어긋난다.
+                2단계에서 ⑥(평행항)이 붙으면 각을 정해 주는 것이 생기므로 **그때
+                풀어 준다.** 그래도 init 주위 THMAX 안이다 — 자세의 바탕은 `code` ·
+                `rot` 이 정하는 설계 의도이고, 장은 그것을 **면에 맞춰 다듬는다**. */
+            const lim = (seg.hook && !seg.parW) ? 0 : K.THMAX * Math.PI / 180;
             let last = this.energy(pose, seg, cons, ducts, placed, lpts, assign);
             let lam = K.LAM0, i = 0;
 
@@ -841,20 +925,48 @@
         settle: function (seg, walls, sec, ducts, placed, lpts) {
             const pose0 = { cx: seg.c0.x, cy: seg.c0.y, th: seg.th0 };
 
-            /*  **갈고리 다리는 벽을 안 본다.** 자리가 종방향 철근이다 (hookGeom 주석).
-                그래서 벽 후보를 비우고(cons = []) ⑤ 항 하나로 내려간다 —
-                배정을 번갈아 할 것이 없으니 교대최소화도 건너뛴다.               */
+            /*  **갈고리 다리는 «자리를 찾을 때» 벽을 안 본다.** 자리가 종방향
+                철근이다 (hookGeom 주석). 그래서 벽 후보를 비우고(cons = []) ⑤ 로
+                내려간다. 그러나 **앉은 뒤에는 콘크리트를 본다** — 다리는 면과
+                평행해야 한다 (parSetup 주석). 세 걸음이다 :
+                  1단계  종방향에 걸려 앉는다        각은 묶인 채 (lim 0)
+                  2단계  그 자리에서 면을 고르고     각을 풀어 평행으로 돌린다
+                  ㉢     면이 바뀌면 다시 2단계 (교대최소화. 되돌아오면 멈춘다)   */
             if (seg.hook) {          //  link(몸통)여도 여기로 온다 — 목표만 R 로 다르다
                 if (!this.hookSetup(seg, lpts))
                     return { pose: pose0, cons: [], iter: 0, stopped: 'no-seat', contacts: [] };
                 this._seg = seg.label || '';
+                seg.parW = null; seg.parD = null;
                 this._stage = 1;
                 const h1 = this.descend(pose0, seg, [], [], [], [], []);     // 자리만
                 this._stage = 2;
-                const h2 = this.descend(h1.pose, seg, [], ducts, placed, lpts, []);
-                return { pose: h2.pose, cons: [], iter: h1.iter + h2.iter,
-                         Jcover: h1.J, J: h2.J, outer: 1, rest: [], hookQ: seg.hookQ,
-                         stopped: h2.stopped || h1.stopped || null, contacts: [] };
+
+                let pose = h1.pose, iter = h1.iter, J = h1.J, stop = h1.stopped || null;
+                const seen = [];
+                let o = 0;
+                for (; o < this.CONF.OUTER; o++) {
+                    const w = this.parSetup(seg, walls, sec, pose);
+                    const id = w ? w.id : '-';
+                    if (seen.length) {
+                        //  같은 면이 다시 나왔다 — 끝이거나(마지막과 같다) 진동이다
+                        if (seen.indexOf(id) >= 0) {
+                            if (seen[seen.length - 1] !== id) stop = stop || 'par-cycle';
+                            break;
+                        }
+                    }
+                    seen.push(id);
+                    const h = this.descend(pose, seg, [], ducts, placed, lpts, []);
+                    pose = h.pose; iter += h.iter; J = h.J; stop = stop || h.stopped || null;
+                }
+                if (o >= this.CONF.OUTER) stop = stop || 'outer-limit';
+                /*  `rest` 는 **고른 면**이다 (양 끝 같은 면). form 이 이것으로
+                    「앉은 면이 그 조각의 직선식이다」를 적용해 자유단까지 같은 선에
+                    올려 주고, 화면·표·`bench` 가 피복을 이 면에서 잰다.            */
+                const rest = seg.parW ? [seg.parW.id, seg.parW.id] : [];
+                return { pose: pose, cons: [], iter: iter,
+                         Jcover: h1.J, J: J, outer: o + 1, rest: rest, hookQ: seg.hookQ,
+                         parW: seg.parW ? seg.parW.id : null,
+                         stopped: stop, contacts: [] };
             }
 
             const cons = this.targets(seg, walls, sec, seg.dia);
@@ -1011,7 +1123,7 @@
                     rest: r.rest || [], stopped: r.stopped || null,
                     //  갈고리 다리는 「어느 종방향에 걸렸나」가 결과다 (rest 의 자리)
                     hook: !!sg.hook, hookQ: sg.hookQ || null, hookSide: sg.hookSide || 1,
-                    bendR: sg.bendR || 0,
+                    parW: r.parW || null, bendR: sg.bendR || 0,
                     u: { x: ux, y: uy },
                     p1: { x: r.pose.cx - dx, y: r.pose.cy - dy },
                     p2: { x: r.pose.cx + dx, y: r.pose.cy + dy }
