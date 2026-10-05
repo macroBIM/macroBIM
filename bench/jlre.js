@@ -16,7 +16,7 @@
  *
  *  마지막 열은 같은 일을 덕트 무게(K_CLR)로 해 본 것이다. 겹친 채 멈추는 것이
  *  보인다 — `jlong` 이 같은 접촉을 K_BAR 1000 으로 미는데 여기서만 4 로 밀면
- *  **한 접촉이 아니다.** K_LRE 가 1000 인 이유가 이 열이다.
+ *  **한 접촉이 아니다.** K_BAR 가 1000 인 이유가 이 열이다.
  *
  *  실행 :  node bench/jlre.js
  */
@@ -55,7 +55,7 @@ function run(sg, ducts) {
 }
 
 let bad = 0, tight = 0, n = 0, sum2 = 0, sum4 = 0;
-console.log('종방향 → 횡방향 척력 (jfield ④ · K_LRE ' + JField.CONF.K_LRE + ')\n');
+console.log('종방향 → 횡방향 척력 (jfield ④ · K_BAR ' + JField.CONF.K_BAR + ')\n');
 console.log('  철근       need   종방향을 놓으면   덕트 빼면    무게 4 라면');
 console.log('  ' + '─'.repeat(66));
 
@@ -67,10 +67,10 @@ D.bars.forEach(bar => {
         if (!a) return;
         n++;
 
-        const keep = JField.CONF.K_LRE;
-        JField.CONF.K_LRE = JField.CONF.K_CLR;
+        const keep = JField.CONF.K_BAR;
+        JField.CONF.K_BAR = JField.CONF.K_CLR;
         const w4 = run(sg, D.ducts);
-        JField.CONF.K_LRE = keep;
+        JField.CONF.K_BAR = keep;
         sum2 += a.d; sum4 += w4 ? w4.d : 0;
 
         if (a.d >= a.need - OK) return;                 // 지켰다 — 조용히 넘어간다
@@ -89,7 +89,7 @@ D.bars.forEach(bar => {
 console.log('  ' + '─'.repeat(66));
 console.log('\n  조각 ' + n + '개 · 지킨 것 ' + (n - tight - bad) +
             ' · 덕트에 끼어 못 지킨 것 ' + tight + (bad ? ' · **결함 ' + bad + '**' : ' · 결함 없음'));
-console.log('  평균 중심거리 :  K_LRE ' + JField.CONF.K_LRE + ' 에서 ' + (sum2 / n).toFixed(1) +
+console.log('  평균 중심거리 :  K_BAR ' + JField.CONF.K_BAR + ' 에서 ' + (sum2 / n).toFixed(1) +
             ' mm  ·  무게 4 에서 ' + (sum4 / n).toFixed(1) + ' mm');
 console.log('  → 무게가 낮으면 **겹친 채로 멈춘다**. 같은 접촉을 두 엔진이 같은 수로 밀어야 한다.');
 process.exit(bad ? 1 : 0);

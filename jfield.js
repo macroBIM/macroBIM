@@ -72,28 +72,33 @@
                        상면 철근이 덕트를 피해 단면 밖으로 수천 mm 날아갔다.
                        세 무게는 논문에서 교정할 값이다 — 코드에 숨기지 않는다.          */
             K_COV: 20.0,       // 피복 부족(slack < 0) 쪽 벌점
-            K_CLR: 4.0,        // 순간격 위반 벌점 (작은 위반에서의 2차 계수)
-            /*  K_LRE  **종방향 철근과의 접촉.** `JLong.CONF.K_BAR` 과 같은 값이다.
-                같은 두 철근이 닿는 일인데 **어느 쪽이 움직이느냐에 따라 뻣뻣함이
-                달라지면 안 된다** — 종방향이 움직일 때는 1000 으로 밀어내면서
-                횡방향이 움직일 때는 4 로 민다면 그것은 한 접촉이 아니라 두 접촉이다.
-                그래서 두 엔진이 같은 수를 쓴다. 바꿀 때는 **같이** 바꾼다.
-                (지금 `placed` 즉 횡방향끼리는 아직 K_CLR 4 를 쓴다 — 같은 논리로는
-                 이것도 올라가야 하지만 기존 결과가 바뀌므로 따로 잰 뒤에 고친다.) */
-            K_LRE: 1000.0,     // 종방향 철근과의 순간격 위반 (= JLong.CONF.K_BAR)
-            /*  RHO_LINK  **연결 조각(가운데)이 자리를 찾아 나서지 않는 반경** (mm).
-                `jlong` 의 RHO0 와 달리 **모든 조각에 걸지 않는다.** 여기 조각은
-                init 자리에서 작게 태어나 제 면까지 **가기** 때문이다 — 거리로 자르면
-                가는 길을 자른다 (⑥ 의 다리는 3.2 m 를 간다. 결함이 아니라 설계다).
-                가르는 것은 거리가 아니라 **조각의 역할**이다 :
-                  자유단   제 면에 닿는 것이 일이다 → 얼마가 걸리든 간다. 안 건다
-                  연결조각 두 코너를 잇는 것이 일이고 **길이는 이미 출력이다**
-                           → 찾아 나서지 않는다. 옆에 면이 있으면 물리고 없으면 없다
-                S14 에서 잰 값 (태어난 자리 ↔ 그 조각이 앉은 면) :
-                  연결 조각 넷   ⑥-1[b] 1 · ⑥-4[b] 1 · ⑥-3[b] 9 · ⑥-2[b] 409 mm
-                  상부슬래브 ㄷ 의 몸통이 잡던 헛자리 (캔틸레버 선단면)   6,153 mm
-                409 와 6,153 사이면 어디든 되고 **15 배**가 비어 있다. 1,500 을 쓰는
-                것은 `JLong.CONF.RHO0` 과 같은 수를 두 엔진이 쓰게 하려는 것뿐이다.  */
+            K_CLR: 4.0,        // **덕트** 순간격 위반 (작은 위반에서의 2차 계수)
+            /*  K_BAR  **철근끼리의 접촉.** 덕트(K_CLR)와 갈라 둔다 — 성격이 다르다.
+                덕트는 구멍이라 **못 지키는** 위반이 흔하다 (복부철근이 TC D440 을
+                어디로 가도 120 mm 겹친다). 세게 주면 그 120 이 피복 인력을 이겨
+                배근이 통째로 망가진다 — 한때 400 을 줬다가 상면 철근이 단면 밖으로
+                수천 mm 날아갔다. 그래서 덕트는 4 다.
+                철근끼리는 **지킬 수 있는** 위반이고 지켜야 한다. 그리고 같은 두
+                철근이 닿는 일인데 **어느 쪽이 움직이느냐에 따라 뻣뻣함이 달라지면
+                한 접촉이 아니다** — `JLong.CONF.K_BAR` 와 같은 1000 을 쓴다.
+
+                K_TRE  **횡방향끼리.** 원칙대로는 K_BAR 과 같은 수여야 한다.
+                그런데 **아직 못 올린다.** 올리면 재서 나빠진다 (`bench/jk.js`) :
+                  K_TRE      4      20      50     100     200     400    1000
+                  겹치는 짝  50      44      44      44      42      42      42
+                  피복모자람 없음   없음    없음   -1.8    없음   -2.4    -2.4
+                  꼭짓점이동  0.0     8.9    11.5     9.1    24.8    11.2    11.3
+                겹침 50 중 **16 은 「엇갈림」**이다 — 두 횡방향이 단면에서 교차한다.
+                밀어서 풀 수 있는 것이 아니고, 실제로는 교축방향으로 다른 자리에
+                있다(`sameZ`). 그런데 **시트의 trebar z 가 전부 0** 이라 엔진에는
+                진짜 충돌로 보인다. 감쇠 배리어의 포화힘이 √K·CLR_SOFT 이므로
+                K 를 올리면 **그 못 지킬 힘도 같이 커져서** 멀쩡한 철근을 민다 :
+                  K 1000 에서 ①[b] 가 ②[b] 와의 엇갈림에 밀려 피복을 2.4 mm 깼고,
+                  20 에서도 횡방향이 종방향 자리로 밀려 D1#50·#95 를 5.9 mm 침범했다
+                  (`bench/jbend.js`). 덕트에서 겪은 그 병과 같다.
+                **z 를 채우면 올릴 수 있다.** 그때 K_TRE 는 지우고 K_BAR 하나로 간다.  */
+            K_BAR: 1000.0,     // 철근끼리 (= JLong.CONF.K_BAR). 바꿀 때는 **같이** 바꾼다
+            K_TRE: 4.0,        // 횡방향끼리 — **z 를 채울 때까지** 옛 값에 둔다
             RHO_LINK: 1500.0,  // 연결 조각이 자리를 찾는 반경 (자유단에는 안 건다)
             CLR_SOFT: 30.0,    // 이 이상 벌어진 위반은 힘이 되내려간다 (mm) — clrRes 참조
             THMAX: 30,         // init 자세에서 벗어날 수 있는 각의 한계 (도)
@@ -157,12 +162,12 @@
                 const need = (q.dia + seg.dia) / 2;
                 this.clearPairs(pts, q.p1, q.p2).forEach(n => {
                     const g = n.d - need;
-                    if (g < 0) { const e = this.clrRes(g); o.bar += e.r * e.r; }
+                    if (g < 0) { const e = this.clrRes(g, K.K_TRE); o.bar += e.r * e.r; }
                 });
             });
             (lpts || []).forEach(q => {
                 const g = this.segToPoint(pts, q) - this.lreNeed(q, seg.dia);
-                if (g < 0) { const e = this.clrRes(g, K.K_LRE); o.lre += e.r * e.r; }
+                if (g < 0) { const e = this.clrRes(g, K.K_BAR); o.lre += e.r * e.r; }
             });
             const ux = Math.cos(pose.th), uy = Math.sin(pose.th);
             const ax = (pose.cx - seg.c0.x) * ux + (pose.cy - seg.c0.y) * uy;
@@ -199,8 +204,8 @@
              교점으로 다시 만들면서 그 항이 지워졌다. 축을 잡는 자리는 몸통이다.)
 
             항의 꼴은 피복항과 같다 — 양쪽 우물에 가중치만 어긋나 있다 :
-                J = w (d − target)² ,   w = ( d < target ? K_LRE : 1 )
-            멀면 당기고(1), 파고들면 세게 민다(K_LRE). 인력과 척력이 한 항이다.
+                J = w (d − target)² ,   w = ( d < target ? K_BAR : 1 )
+            멀면 당기고(1), 파고들면 세게 민다(K_BAR). 인력과 척력이 한 항이다.
 
             H13/H13 · R 32.5 이면 코너까지 √(R²+need²) = 35.00, 아크까지 정확히
             need 다. **직선에는 닿고 아크에는 안 들어간다.**
@@ -230,14 +235,14 @@
         hookRows: function (pose, seg) {
             const K = this.CONF, g = this.hookGeom(pose, seg), half = Math.max(g.half, 1);
             const gh = g.h - g.target;
-            const w = Math.sqrt(gh < 0 ? K.K_LRE : 1);
+            const w = Math.sqrt(gh < 0 ? K.K_BAR : 1);
             return [{ r: w * gh, j: [-w * g.nx, -w * g.ny, -w * g.nu * g.a / half] }];
         },
 
         hookEnergy: function (pose, seg) {
             const K = this.CONF, g = this.hookGeom(pose, seg);
             const gh = g.h - g.target;
-            return (gh < 0 ? K.K_LRE : 1) * gh * gh;
+            return (gh < 0 ? K.K_BAR : 1) * gh * gh;
         },
 
         /*  ── 같은 단면에 있는 철근인가 (z) ────────────────────────────────────
@@ -420,7 +425,7 @@
                 const need = (q.dia + seg.dia) / 2;
                 this.clearPairs(pts, q.p1, q.p2).forEach(n => {
                     const g = n.d - need;
-                    if (g < 0) { const e = this.clrRes(g); J += e.r * e.r; }
+                    if (g < 0) { const e = this.clrRes(g, K.K_TRE); J += e.r * e.r; }
                 });
             });
 
@@ -431,7 +436,7 @@
             (lpts || []).forEach(q => {
                 if (q === seg.hookQ) return;          // 제 자리는 ⑤ 가 맡는다 (이중 계산 금지)
                 const g = this.segToPoint(pts, q) - this.lreNeed(q, seg.dia);
-                if (g < 0) { const e = this.clrRes(g, K.K_LRE); J += e.r * e.r; }
+                if (g < 0) { const e = this.clrRes(g, K.K_BAR); J += e.r * e.r; }
             });
 
             //  ⑤ 갈고리 다리 — 자리가 종방향 철근이다 (hookGeom 주석)
@@ -466,7 +471,7 @@
             잔차꼴로 두면 r = √K·g/√u (u = 1+(g/δ)²) 이고 미분이 딱 떨어진다 :
                 dr/dg = √K · u^(−3/2)                                             */
         /*  `k` 를 주면 그 무게로 잰다 (안 주면 K_CLR). 종방향 철근과의 접촉만
-            K_LRE 로 들어온다 — 이유는 CONF.K_LRE 주석에.                        */
+            K_BAR 로 들어온다 — 이유는 CONF.K_BAR 주석에.                        */
         clrRes: function (g, k) {
             k = Math.sqrt(k != null ? k : this.CONF.K_CLR);
             const d = this.CONF.CLR_SOFT;
@@ -642,14 +647,14 @@
                 if (!this.sameZ(q, seg)) return;              // 다른 단면의 철근이다
                 const need = (q.dia + seg.dia) / 2;
                 this.clearPairs(pts, q.p1, q.p2).forEach(n => {
-                    clearRow({ x: n.qx, y: n.qy }, need, n);
+                    clearRow({ x: n.qx, y: n.qy }, need, n, K.K_TRE);
                 });
             });
 
-            //  ④ 종방향 철근 — 점이라 ② 와 같은 꼴. 무게만 K_LRE 다 (CONF 주석 참조)
+            //  ④ 종방향 철근 — 점이라 ② 와 같은 꼴. 무게는 K_BAR (CONF 주석 참조)
             (lpts || []).forEach(q => {
                 if (q === seg.hookQ) return;          // 제 자리는 ⑤ 가 맡는다
-                clearRow(q, this.lreNeed(q, seg.dia), this.closestOnSeg(pts, q), K.K_LRE);
+                clearRow(q, this.lreNeed(q, seg.dia), this.closestOnSeg(pts, q), K.K_BAR);
             });
 
             return rows;
