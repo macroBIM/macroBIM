@@ -1611,32 +1611,89 @@
           console.log('[SREBAR] 몸통 길이(출력) ' + Math.round(Math.min.apply(null, body)) +
                       ' ~ ' + Math.round(Math.max.apply(null, body)) + ' mm · ' + body.length + '개');
         this._sbody = body;
-        /*  ── 덕트를 비키지 못한 ㄷ ───────────────────────────────────────────
-            축방향은 띠로 열려 있고(`JField.hookBandOf`), ㄷ 전체로 한 번 더 내린다
-            (`JField.axialSlide`). 그래도 남는 것은 **띠 안에 피할 자리가 없는 것**
-            이다 — 덕트는 못 지키는 위반이 흔한 항이라 무게로 억지로 지키게 하면
-            배근이 망가진다(jfield K_CLR 주석). 그러니 **말하고 넘긴다.**         */
+        /*  ── 덕트를 비키지 못한 ㄷ — **왜 못 비켰는지까지 말한다** ─────────────
+            축방향은 띠로 열려 있고(`JField.hookBandOf`), ㄷ 전체로 한 번 더 내리고
+            (`JField.axialSlide`), 지킬 수 있으면 지킨다(여과). 그래도 남는 것이
+            있는데, 「피할 데가 없습니다」라고만 하면 **틀린 말이 된다.**
+            T1#8 이 그랬다 : 옆으로 100 mm 만 가면 덕트가 **깨끗이 비는데**,
+            거기서는 다리가 종방향에 못 닿는다 (D1 줄이 250 ctc 인데 다리에서 걸 수
+            있는 구간은 ℓ−R−6dᵇ = 39.5 mm 뿐이다 — 자리의 16 % 에만 알이 온다).
+            다리를 늘리면 될 것 같지만 **안 된다** : 늘린 만큼 자유단이 덕트 쪽으로
+            되돌아간다 (재 봤다 — 150→280 은 −40.1 을 −6.8 로 줄이는 대신 다리 4 개가
+            제 종방향을 놓치고, 400 은 −176 으로 더 나빠진다).
+            그러니 **둘을 갈라서 말한다** — 고칠 자리가 다르기 때문이다 :
+              비킬 자리가 아예 없다     → ㄷ 의 자리나 덕트를 본다
+              비킬 자리는 있는데 알이 없다 → **종방향 줄 간격**이나 덕트를 본다      */
         var dcl = [], dus = this._ducts || [];
-        dus.length && out.forEach(function (r) {
-          if (drop[String(r.id)]) return;
-          var w = 0, at = '';
-          r.segs.forEach(function (sg, i) {
-            var a = r.pts[i], b = r.pts[i + 1];
-            dus.forEach(function (d) {
+        var worstOf = function (r, s, dir) {
+          var mx = -dir.x * s, my = -dir.y * s, w = 0, at = '';
+          for (var i = 0; i + 1 < r.pts.length; i++) {
+            var a = { x: r.pts[i].x + mx, y: r.pts[i].y + my };
+            var b = { x: r.pts[i + 1].x + mx, y: r.pts[i + 1].y + my };
+            for (var j = 0; j < dus.length; j++) {
+              var d = dus[j];
               var need = (d.D / 2) + (d.clr != null ? d.clr : 30) + r.dia / 2;
               var g = JField.segToPoint([a, b], d) - need;
               if (g < w) { w = g; at = (d.id || ''); }
+            }
+          }
+          return { g: w, d: at };
+        };
+        dus.length && out.forEach(function (r) {
+          if (drop[String(r.id)]) return;
+          var now = worstOf(r, 0, { x: 1, y: 0 });
+          if (now.g >= -0.5) return;
+          //  다리가 뻗는 쪽 (코너 → 자유단). 「오른쪽」은 그 반대다
+          var c = r.pts[1], f = r.pts[0];
+          var dx = f.x - c.x, dy = f.y - c.y, L = Math.hypot(dx, dy) || 1;
+          var dir = { x: dx / L, y: dy / L };
+          var t = byId[String(r.id)] || {};
+          var span = t.hookSpan || 250;
+          var R = JField.bendRadius(r.dia), ell = r.segs[0].len0 || L;
+          var hi = ell - (JField.CONF.LEG_MIN || 0) * r.dia;
+          var free = null, freeBar = false;
+          for (var s = -span; s <= span; s += 5) {
+            if (worstOf(r, s, dir).g < -0.5) continue;
+            if (free !== null && Math.abs(s) >= Math.abs(free)) continue;
+            //  그 자리에서 다리의 **걸 수 있는 구간**에 종방향이 오는가
+            var c2 = { x: c.x - dir.x * s, y: c.y - dir.y * s }, has = false;
+            lpts.forEach(function (p) {
+              var ax = (p.x - c2.x) * dir.x + (p.y - c2.y) * dir.y;
+              var lat = Math.abs((p.x - c2.x) * (-dir.y) + (p.y - c2.y) * dir.x);
+              if (ax >= R - 2 && ax <= hi + 2 && lat < 60) has = true;
             });
-          });
-          if (w < -0.5) dcl.push({ id: r.id, g: w, d: at });
+            free = s; freeBar = has;
+          }
+          //  **화면 기준**으로 말해 준다 — 옮기는 벡터는 −dir·s 다
+          var fx = (free === null) ? 0 : -dir.x * free, fy = (free === null) ? 0 : -dir.y * free;
+          dcl.push({ id: r.id, g: now.g, d: now.d, free: free, bar: freeBar,
+                     dist: Math.round(Math.hypot(fx, fy)),
+                     way: (Math.abs(fx) >= Math.abs(fy))
+                          ? (fx > 0 ? '오른쪽' : '왼쪽') : (fy > 0 ? '위' : '아래') });
         });
         if (dcl.length) {
           dcl.sort(function (a, b) { return a.g - b.g; });
-          warn.push('갈고리 ' + dcl.length + '개가 **덕트를 비키지 못했습니다** (' +
-                    dcl.slice(0, 5).map(function (o) {
-                      return o.id + ' ↔ ' + o.d + ' ' + Math.round(o.g); }).join(', ') +
-                    (dcl.length > 5 ? ' …' : '') +
-                    ' mm — 그 자리엔 다리를 움직여도 피할 데가 없습니다. ㄷ 의 자리나 덕트를 보세요)');
+          var noRoom = dcl.filter(function (o) { return o.free === null; });
+          var noBar = dcl.filter(function (o) { return o.free !== null && !o.bar; });
+          var lst = function (arr) {
+            return arr.slice(0, 4).map(function (o) {
+              return o.id + ' ↔ ' + o.d + ' ' + Math.round(o.g); }).join(', ') +
+              (arr.length > 4 ? ' …' : '');
+          };
+          if (noRoom.length)
+            warn.push('갈고리 ' + noRoom.length + '개가 **덕트를 비키지 못했습니다** (' +
+                      lst(noRoom) + ' mm — 그 자리엔 비킬 데가 아예 없습니다. ㄷ 의 자리나 덕트를 보세요)');
+          if (noBar.length)
+            warn.push('갈고리 ' + noBar.length + '개는 **비킬 자리는 있는데 거기엔 걸 종방향이 없습니다** (' +
+                      lst(noBar) + ' mm · ' +
+                      noBar.slice(0, 4).map(function (o) {
+                        return o.id + ' 는 ' + o.way + ' ' + o.dist + ' mm'; }).join(', ') +
+                      ' 가면 덕트가 빕니다 — **종방향 줄 간격**이나 덕트 자리를 보세요. ' +
+                      '다리를 늘리는 것으로는 안 됩니다: 늘린 만큼 자유단이 덕트로 되돌아갑니다)');
+          var rest = dcl.filter(function (o) { return o.free !== null && o.bar; });
+          if (rest.length)
+            warn.push('갈고리 ' + rest.length + '개가 **덕트를 비키지 못했습니다** (' + lst(rest) +
+                      ' mm — 비킬 자리에 걸 종방향도 있습니다. 배정을 보세요)');
         }
         /*  **정착은 띠의 대가다.** 결속점을 접선점에 못박으면 ℓ−R 로 한 수인데,
             띠를 열면 덕트를 비킨 만큼 짧아진다. 숨길 수가 없는 수이므로 찍는다
