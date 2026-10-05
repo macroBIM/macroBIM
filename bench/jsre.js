@@ -34,11 +34,31 @@ const sheet = JSON.parse(fs.readFileSync(path.join(__dirname, 'fixture', 's14.js
     이다. 이 단면에 없다는 뜻이고, 교축방향으로 다른 자리에 선다는 뜻이다.
     z 가 0 이면 엔진이 ① 횡방향과 **같은 깊이를 다투는** 것으로 보고 서로 민다
     (JField.sameZ 주석). 종방향은 모든 단면을 뚫으므로 z 와 무관하게 걸린다.     */
-//        srebar  id   code dia  init        range          num  ctc  leg       ...      z
-const T1 = ['srebar', 'T1', 21, 13, '0,-150,90', '-6200,6200', 25, 500, 150, '', '', '', 1];
+/*  **도면 8-243 에서 읽은 그대로**다 (SREBAR_S14.md 참조) :
+      T1   상부슬래브 — 몸통이 «수직». 다리 150 이 상·하 종방향을 문다
+           ctc 500 은 도면의 타이를 세어서 나온 값이다 (501·499·501·498 … ±2)
+           num 25 = 데크 12,400 / 500
+      T2   복부 — 몸통이 «수평»(복부 두께를 가로지른다). 41 @ 150 = 6,150 → 42개
+           rot 180 = 몸통이 위·다리가 아래. 좌·우 복부는 **x 부호만** 다르다
+    `z` — 8-243 단면에서 ㄷ 는 **점선**이다. 이 단면에 없다는 뜻이고, 교축방향으로
+    다른 자리에 선다는 뜻이다. 0 이면 엔진이 ① 횡방향과 같은 깊이를 다투는 것으로
+    보고 서로 민다 (JField.sameZ). 그리고 **T1 과 T2 도 서로 다른 z** 다 — 간격이
+    500 과 150 으로 달라 같은 단면에 같이 서지 않는다. 한 z 에 두면 복부·슬래브
+    이음부에서 570 쌍이 겹친 것으로 잡힌다. 종방향은 모든 단면을 뚫으므로 z 와
+    무관하게 걸린다.                                                            */
+//          srebar  id    code dia  init              range         num  ctc  leg    …   z
+const T1   = ['srebar', 'T1',   21, 13, '0,-150,90',      '-6200,6200', 25, 500, 150, '','','', 1];
+/*  **T2 는 두 줄이다 — 엇갈려 선다.** 다리 150 에 간격도 150 이라, 한 켜에 다 세우면
+    한 ㄷ 의 다리 끝이 **바로 다음 ㄷ 의 몸통 위**에 선다 (재면 겹침 −13.0 = 지름).
+    도면이 이 ㄷ 를 번갈아 다른 색으로 그린 것이 그 뜻이다. 그래서 300 간격 두 줄로
+    적고 150 어긋나게 둔다 — `z` 가 그것을 말한다.                                */
+const T2a  = ['srebar', 'T2',   21, 13, '-3250,-3400,180', '-4500,4500', 21, 300, 150, '','','', 2];
+const T2b  = ['srebar', 'T2b',  21, 13, '-3250,-3250,180', '-4500,4500', 21, 300, 150, '','','', 3];
+const T2Ma = ['srebar', 'T2-1', 21, 13,  '3250,-3400,180', '-4500,4500', 21, 300, 150, '','','', 2];
+const T2Mb = ['srebar', 'T2-1b',21, 13,  '3250,-3250,180', '-4500,4500', 21, 300, 150, '','','', 3];
 {
     const at = sheet.findIndex(r => String(r[0] || '').trim().toLowerCase() === 'end');
-    sheet.splice(at < 0 ? sheet.length : at, 0, T1);
+    sheet.splice(at < 0 ? sheet.length : at, 0, T1, T2a, T2b, T2Ma, T2Mb);
 }
 const D = prepare(sheet, {}, 'box');
 const { ctx, P, rows } = D;
@@ -75,31 +95,41 @@ let bad = 0;
 const hooks = Domain.trebarList.filter(t => t._srebar);
 const W = {}; sec.walls.forEach(w => { W[w.id] = w; });
 
-console.log('srebar 한 줄 → 갈고리 열차  (code ' + T1[2] + ' · num ' + T1[6] +
-            ' · ctc ' + T1[7] + ' · leg ' + T1[8] + ')\n');
+console.log('도면 8-243 의 ㄷ 를 `srebar` 로 적은 것 — T1(상부슬래브) · T2/T2-1(복부)\n');
 
 //  ── ① 펼치기 ────────────────────────────────────────────────────────────
-const dg = (P._sdiag || {})['T1'] || {};
-console.log('  ① 펼치기 : ' + (dg.made || 0) + '/' + (dg.num || 0) + '개' +
-            (dg.pulled ? ' · 부재 안으로 끌어들인 것 ' + dg.pulled : '') +
-            (dg.outside ? ' · 버림(콘크리트 밖) ' + dg.outside : '') +
-            (dg.oneSide ? ' · 버림(마주보는 면이 한쪽뿐) ' + dg.oneSide : '') +
-            '   열차 방향 (' + (dg.u ? dg.u.x.toFixed(2) + ',' + dg.u.y.toFixed(2) : '?') + ')' +
-            '  몸통 방향 (' + (dg.n ? dg.n.x.toFixed(2) + ',' + dg.n.y.toFixed(2) : '?') + ')');
+console.log('  ① 펼치기');
+['T1', 'T2', 'T2b', 'T2-1', 'T2-1b'].forEach(id => {
+    const dg = (P._sdiag || {})[id] || {};
+    console.log('     ' + id.padEnd(7) + (dg.made || 0) + '/' + (dg.num || 0) + '개' +
+        (dg.pulled ? ' · 부재 안으로 끌어들임 ' + dg.pulled : '') +
+        (dg.tooFar ? ' · 버림(부재 없음 ρ₀) ' + dg.tooFar : '') +
+        (dg.outside ? ' · 버림(콘크리트 밖) ' + dg.outside : '') +
+        (dg.oneSide ? ' · 버림(마주보는 면이 한쪽뿐) ' + dg.oneSide : '') +
+        (dg.clipped ? ' · range 밖 ' + dg.clipped : '') +
+        '   열차(' + (dg.u ? dg.u.x.toFixed(2) + ',' + dg.u.y.toFixed(2) : '?') + ')' +
+        ' 몸통(' + (dg.n ? dg.n.x.toFixed(2) + ',' + dg.n.y.toFixed(2) : '?') + ')');
+});
 if (!hooks.length) { console.log('\n  ✗ 하나도 안 섰다'); process.exit(1); }
 P._swarnBuild.forEach(w => console.log('     · ' + w));
 
 //  ── ② 몸통 길이는 «출력» 이다 ─────────────────────────────────────────────
-const body = hooks.map(t => {
+const body = hooks.filter(t => t._srebar === 'T1').map(t => {
     const s = t.segments[1];
     return { id: t.id, x: (s.p1.x + s.p2.x) / 2, len: Math.hypot(s.p2.x - s.p1.x, s.p2.y - s.p1.y) };
 }).sort((a, b) => a.x - b.x);
+const bodyT2 = hooks.filter(t => t._srebar !== 'T1').map(t => {
+    const s = t.segments[1];
+    return Math.hypot(s.p2.x - s.p1.x, s.p2.y - s.p1.y);
+});
 const bmin = Math.min.apply(null, body.map(b => b.len));
 const bmax = Math.max.apply(null, body.map(b => b.len));
 console.log('\n  ② 몸통 길이(출력) ' + bmin.toFixed(0) + ' ~ ' + bmax.toFixed(0) + ' mm' +
-            '   — 입력 칸이 **없다**. 도면의 X = 206~480 과 견준다');
-console.log('     x 를 따라 :  ' + body.filter((_, i) => i % 3 === 0)
+            '   — 입력 칸이 **없다**. 도면 X = 164 / 206~480 / 212~486');
+console.log('     T1 x 를 따라 :  ' + body.filter((_, i) => i % 3 === 0)
             .map(b => Math.round(b.x) + ':' + Math.round(b.len)).join('  '));
+console.log('     T2 복부      :  ' + Math.min.apply(null, bodyT2).toFixed(1) + ' ~ ' +
+            Math.max.apply(null, bodyT2).toFixed(1) + ' mm   (도면 402 · 이론 500−2×46.5 = 407)');
 if (bmax - bmin < 20) { console.log('     ✗ 자리마다 안 변한다 — 두께를 안 보고 있다'); bad++; }
 
 /*  ── 덕트 없이 한 번 더 — 「결함」과 「덕트에 끼인 것」을 가른다 ──────────────
@@ -228,9 +258,14 @@ segs.filter(s => s.hook).forEach(s => {
 console.log('\n  ④ 파고듦 :  횡방향 ' + biteT + '쌍 (최악 ' + worstT.toFixed(1) +
             (atT ? ' ' + atT : '') + ')  ·  종방향 ' + biteL + '개 (최악 ' + worstL.toFixed(1) +
             (atL ? ' ' + atL : '') + ')');
-console.log('     ㄷ 의 z 가 1 이라 ① 횡방향과는 **같은 단면에서 만나지 않는다** (도면에서 점선).');
+console.log('     ㄷ 는 ① 횡방향과 **다른 z** 다 (도면에서 점선) · T1 과 T2 도 서로 다른 z 다.');
 console.log('     종방향은 모든 단면을 뚫으므로 z 와 무관하게 걸린다 (JField.sameZ).');
-bad += biteT + biteL;
+/*  **스침과 파고듦을 가른다.** 엔진이 「닿았다」로 보는 폭이 `TOUCH` 0.5 이고,
+    2단계 시작 전에 스스로 밀어 넣는 양이 `NUDGE` 1.0 이다. 그 안쪽은 엔진이
+    스스로 만들어 내는 흔들림이라 결함으로 셀 수 없다. 그보다 깊으면 파고든 것이다.  */
+const BITE = JF.CONF.NUDGE;
+console.log('     («스침» 과 «파고듦» 은 NUDGE ' + BITE + ' mm 로 가른다 — 엔진이 스스로 밀어 넣는 양이다)');
+if (worstT < -BITE || worstL < -BITE) bad += biteT + biteL;
 
 /*  ── ⑤ 마크 — **길이로 묶는다. 몇 가지가 될지는 가공 쪽 판단이다** ──────────────
     도면(8-243)은 마크가 셋인데, 그 셋이 길이 셋이라는 뜻은 **아니다** : T1-1 의
