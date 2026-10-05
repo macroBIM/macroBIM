@@ -1403,13 +1403,15 @@
             var dp = hit(p, n), dm = hit(p, nm);
             if (dp == null || dm == null || dp + dm < 1) { oneSide++; return; }
             /*  **영향 반경** — `JLong.CONF.RHO0`. 새 규칙이 아니다, 이미 재서 정해 둔
-                그 값이다(「장은 무한히 멀리까지 당기지 않는다」). 복부 꼭대기처럼
-                부재가 열리는 자리에서는 마주보는 첫 면이 **건너편 복부**가 되어
+                그 값이다(「장은 무한히 멀리까지 당기지 않는다」). 복부가 슬래브로
+                열리는 꼭대기·바닥에서는 마주보는 첫 면이 **건너편 복부**가 되어
                 몸통이 6,892 mm 로 나온다 — 그 자리엔 ㄷ 가 설 부재가 없다는 뜻이다.
+                재는 것은 **몸통 전체**(dp + dm)다 : ㄷ 는 두 면을 «같이» 봐야 하는
+                철근이라, 몸통이 ρ₀ 를 넘으면 한 다리가 반대쪽 면을 못 본다.
                 부재 두께(복부 500 · 슬래브 280~600)와 셀 너비(6,900)가 1,500 을
                 사이에 두고 깨끗이 갈린다.                                        */
             var rho = (JLong.CONF && JLong.CONF.RHO0) || 1500;
-            if (dp > rho || dm > rho) { tooFar++; return; }
+            if (dp + dm > rho) { tooFar++; return; }
             var c = { x: p.x + n.x * (dp - dm) / 2, y: p.y + n.y * (dp - dm) / 2 };
             var rb;
             try { rb = TrebarFactory.create(rd.code, c, { A: leg, B: dp + dm, C: leg },
@@ -1575,9 +1577,14 @@
         var warn = [];
         if (typeof JLong === 'undefined' || !Domain.lrebarList || !Domain.lrebarList.length) return warn;
 
-        //  절곡철근 — 선분과 굴짐 아크를 화면이 그리는 그대로 꺼낸다
+        /*  절곡철근 — 선분과 굴짐 아크를 화면이 그리는 그대로 꺼낸다.
+            **갈고리는 뺀다.** `_expandSrebar` 가 `Domain.trebarList` 에 미리 펼쳐
+            넣지만 그것은 아직 «태어난 자리»일 뿐이고, 갈고리는 종방향 **뒤에**
+            풀린다. 넣으면 아직 놓이지도 않은 것이 종방향을 밀어낸다 — 실제로
+            D2 의 최소간격이 100 → 90 으로 깨졌다.                               */
         var prims = [], self = this;
         Domain.trebarList.forEach(function (t) {
+          if (t._srebar) return;
           (self._trebarPrimitives(t) || []).forEach(function (pr) {
             prims.push({ t: pr.t, p: pr.p, dia: t.dia || 13 });
           });
