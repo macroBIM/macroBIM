@@ -111,6 +111,16 @@
                           겹치면 **위로 쌓여야지 옆으로 도망가면 안 된다.**
                 K_ANCHOR  면 쪽 이동과 회전은 거의 안 묶는다. 제약이 없는 방향에서만
                           유일하게 일하라고 두는 값이다.                              */
+            /*  LEG_MIN  **결속점 뒤로 남겨야 하는 곧은 길이** — 지름의 배수.
+                갈고리의 다리는 정착하려고 있는 것이라, 종방향을 다리의 **끝**에서
+                물면 뒤에 남는 것이 없어 아무것도 정착하지 못한다. 띠를 열었더니
+                실제로 그리 갔다 (T1#8 이 h = ℓ 로 미끄러져 정착 0.2 mm 가 됐다).
+                값은 **기준이 정한다** — 135° 갈고리의 연장은 6dᵇ 이상이다
+                (KDS 14 20 52 · EN 1992-1-1 8.5). H13 이면 78 mm 다.
+                이것은 고르는 값이 아니라 **인용**이고, `mat | fck | fy` 가 단면
+                입력에 들어오면 그 자리를 정착길이 식이 가져간다 (STATUS 「아직 안
+                한 것」). 그때까지는 가장 느슨한 쪽(6dᵇ)을 쓴다.                 */
+            LEG_MIN: 6,        // 결속점 뒤 곧은 길이 ≥ 6·dᵇ (135° 갈고리 연장)
             K_AXIAL: 1.0,      // 축방향 미끄러짐을 막는 무게 (피복 인력과 같은 급)
             K_ANCHOR: 1e-6,    // 나머지 방향을 아주 약하게 묶는 무게
             LAM0: 1e-3,        // LM 감쇠의 시작값 (2차 근사를 얼마나 믿을지)
@@ -313,7 +323,9 @@
             `q` 걸 종방향 · `dir` 다리가 뻗는 쪽(코너 → 자유단) · `len` 다리 길이.    */
         hookBandOf: function (q, dir, len, R, walls, sec, dia) {
             const K = this.CONF;
-            let lo = R, wLo = K.K_BAR, hi = len, wHi = K.K_BAR;
+            /*  위끝은 「다리 위에 있다」(h ≤ ℓ)가 아니라 **「정착이 남는다」**다 —
+                끝에서 물면 뒤에 아무것도 안 남는다 (CONF.LEG_MIN 주석).         */
+            let lo = R, wLo = K.K_BAR, hi = len - K.LEG_MIN * dia, wHi = K.K_COV;
             const tf = this.reachAhead(q, dir, walls, sec, dia);
             const tc = this.reachAhead(q, { x: -dir.x, y: -dir.y }, walls, sec, dia);
             if (tf != null && len - tf > lo) { lo = len - tf; wLo = K.K_COV; }   // 자유단이 밖으로
@@ -1401,12 +1413,16 @@
                     rest: r.rest || [], stopped: r.stopped || null,
                     //  갈고리 다리는 「어느 종방향에 걸렸나」가 결과다 (rest 의 자리)
                     hook: !!sg.hook, hookQ: sg.hookQ || null, hookSide: sg.hookSide || 1,
+                    link: !!sg.link, band: sg.band || null,
                     parW: r.parW || null, bendR: sg.bendR || 0,
                     u: { x: ux, y: uy },
                     p1: { x: r.pose.cx - dx, y: r.pose.cy - dy },
                     p2: { x: r.pose.cx + dx, y: r.pose.cy + dy }
                 };
             });
+
+            //  ㉡′ 축방향은 **ㄷ 의 자유도**다 — 조각이 아니라 ㄷ 로 한 번 더 내린다
+            const slide = this.axialSlide(res, bar, ducts, placed, lpts);
 
             //  ㉡㉢ 교점으로 잇고, 자유단은 입력 길이만큼 되짚는다
             const pts = this.joinCorners(res);
@@ -1415,7 +1431,123 @@
             res.forEach((s, i) => { s.len = hyp(pts[i + 1].x - pts[i].x, pts[i + 1].y - pts[i].y); });
             const total = res.reduce((a, s) => a + s.len, 0);
 
-            return { id: bar.id, dia: bar.dia, segs: res, pts: pts, len: total, pass: 1, moved: 0 };
+            return { id: bar.id, dia: bar.dia, segs: res, pts: pts, len: total,
+                     pass: 1, moved: 0, slide: slide };
+        },
+
+        /*  ── ㄷ 의 축방향은 «조각» 이 아니라 «ㄷ» 의 자유도다 ──────────────────
+            이 엔진은 J 를 **조각마다** 내린다 (블록 좌표하강). 조각이 서로 독립인
+            동안은 그래도 된다. 갈고리는 아니다 — 자유도를 세어 보면 그렇다 :
+
+              평면에서 강체 ㄷ 는 자유도 셋이다.
+                ⑤ 다리가 제 종방향에 닿는다        → 가로 하나를 먹는다
+                ⑥ 다리가 제 면과 나란해진다        → 각 하나를 먹는다
+                남는 하나가 **축방향**이고, 그것이 몸통의 h 다 (hookRows 위 주석).
+
+            그런데 그 **하나뿐인 자유도**를 몸통 혼자 쥐고 있고, 몸통은 `settle` 에서
+            **제 조각의** 장애물만 본다. 그래서 **다리가 덕트를 파고들어도 몸통은
+            가만히 있는다.** 실제로 그랬다 : T1#8 은 다리 a 가 TC1L 을 22.9 mm
+            파고든 채 h 112 에 섰는데, 같은 J 를 **ㄷ 전체로** 썰어 보면 h 150 이
+            2,113 → 1,107 로 더 낮다. 띠 안이고, 갈 수 있는데 못 갔다.
+
+            ── 새 항도 새 자유도도 아니다 ────────────────────────────────────
+            여기서 더하는 것이 없다. **같은 J** (덕트 K_CLR · 철근 K_BAR/K_TRE ·
+            띠와 접선점 선호) 를 **같은 한 자유도** 위에서 내릴 뿐이다. 달라지는 것은
+            **쪼개는 방식**이고, 그건 장이 아니라 푸는 순서의 문제였다.
+            이 저장소가 이미 쓰는 그 교대최소화의 마지막 블록이다 (`alternate` ·
+            자리 배정 · `par-cycle` 과 같은 구조) :
+                조각마다 내린다  →  ㄷ 로 축방향 한 번  →  코너를 잇는다
+
+            ── 왜 기울기 한 걸음이 아니라 «훑기» 인가 ────────────────────────
+            덕트·철근 배리어는 되내려가는(redescending) 꼴이라 **볼록하지 않다.**
+            기울기는 제가 선 골짜기만 본다 — 이 저장소가 이미 적어 둔 그 병이다
+            (「능선을 못 넘고 덕트 위에 걸터앉는다」). 그런데 이 블록은 변수가
+            **하나**고 구간이 **띠로 막혀 있다.** 유계 1차원에서는 훑는 것이
+            전역최소이고, 기울기보다 **강한** 답이다. 2 mm 로 훑고 0.1 mm 로 다듬는다.
+
+            ── 움직이는 것은 몸통의 선 하나다 ────────────────────────────────
+            몸통의 선을 n̂ 으로 δ 옮기면 `joinCorners` 가 코너를 **다리의 선 위에서**
+            옮겨 준다 — 다리의 선은 그대로이므로 ⑤(닿음)도 ⑥(각)도 변하지 않는다.
+            곧 δ 는 **다른 모든 항을 건드리지 않는 순수한 축방향 자유도**다.
+            그래서 δ 를 재는 J 에 ⑤ 와 ⑥ 을 넣지 않는다 (상수라 최소를 안 옮긴다).  */
+        axialSlide: function (res, bar, ducts, placed, lpts) {
+            const K = this.CONF;
+            let bi = -1;
+            for (let i = 0; i < res.length; i++)
+                if (res[i].link && res[i].band && res[i].hookQ) bi = i;
+            if (bi < 0) return null;
+
+            const sg = res[bi], b = sg.band, q = sg.hookQ;
+            const L = hyp(sg.p2.x - sg.p1.x, sg.p2.y - sg.p1.y) || 1;
+            const ux = (sg.p2.x - sg.p1.x) / L, uy = (sg.p2.y - sg.p1.y) / L;
+            const nu = sg.hookSide || 1;
+            const nx = nu * -uy, ny = nu * ux;
+            const cx = (sg.p1.x + sg.p2.x) / 2, cy = (sg.p1.y + sg.p2.y) / 2;
+            const h0 = (q.x - cx) * nx + (q.y - cy) * ny;      // 지금의 h
+            //  띠를 δ 로 옮긴다 : 몸통을 +n̂ 으로 δ 옮기면 h 는 δ 만큼 **준다**
+            const dLo = h0 - b.hi, dHi = h0 - b.lo;
+            if (!(dHi > dLo)) return null;
+
+            //  **닿을 수 있는 것만 본다** — 띠를 훑는 동안 ㄷ 가 지나는 자리 둘레
+            const span = Math.max(Math.abs(dLo), Math.abs(dHi));
+            let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
+            res.forEach(r => { [r.p1, r.p2].forEach(p => {
+                x0 = Math.min(x0, p.x); x1 = Math.max(x1, p.x);
+                y0 = Math.min(y0, p.y); y1 = Math.max(y1, p.y); }); });
+            const pad = span + 800;
+            const inBox = p => p.x > x0 - pad && p.x < x1 + pad && p.y > y0 - pad && p.y < y1 + pad;
+            const dus = (ducts || []).filter(inBox);
+            const lps = (lpts || []).filter(p => inBox(p) && !res.some(r => r.hookQ === p));
+            const bars = (placed || []).filter(o => (o.z || 0) === (bar.z || 0) &&
+                                                    (inBox(o.p1) || inBox(o.p2)));
+
+            const cost = d => {
+                const rs = res.map((r, i) => i !== bi ? r : {
+                    u: r.u, len0: r.len0,
+                    p1: { x: r.p1.x + nx * d, y: r.p1.y + ny * d },
+                    p2: { x: r.p2.x + nx * d, y: r.p2.y + ny * d } });
+                const pts = this.joinCorners(rs);
+                let J = 0;
+                for (let i = 0; i + 1 < pts.length; i++) {
+                    const pp = [pts[i], pts[i + 1]];
+                    dus.forEach(k => {
+                        const need = (k.D / 2) + (k.clr != null ? k.clr : 30) + bar.dia / 2;
+                        const g = this.segToPoint(pp, k) - need;
+                        if (g < 0) { const e = this.clrRes(g); J += e.r * e.r; }
+                    });
+                    lps.forEach(p => {
+                        const g = this.segToPoint(pp, p) - this.lreNeed(p, bar.dia);
+                        if (g < 0) { const e = this.clrRes(g, K.K_BAR); J += e.r * e.r; }
+                    });
+                    bars.forEach(o => {
+                        const need = (o.dia + bar.dia) / 2;
+                        this.clearPairs(pp, o.p1, o.p2).forEach(n => {
+                            const g = n.d - need;
+                            if (g < 0) { const e = this.clrRes(g, K.K_TRE); J += e.r * e.r; }
+                        });
+                    });
+                }
+                //  띠(하드) 와 접선점 선호(감쇠) — hookRows 와 **같은 식**이다
+                const h = h0 - d;
+                if (h < b.lo) J += b.wLo * (h - b.lo) * (h - b.lo);
+                else if (h > b.hi && b.wHi > 0) J += b.wHi * (h - b.hi) * (h - b.hi);
+                const e = this.clrRes(h - b.pref, 1);
+                return J + e.r * e.r;
+            };
+
+            const J0 = cost(0);
+            let bd = 0, bJ = J0;
+            for (let d = dLo; d <= dHi + 1e-9; d += 2) {
+                const J = cost(d); if (J < bJ - 1e-9) { bJ = J; bd = d; }
+            }
+            for (let d = Math.max(dLo, bd - 2); d <= Math.min(dHi, bd + 2) + 1e-9; d += 0.1) {
+                const J = cost(d); if (J < bJ - 1e-9) { bJ = J; bd = d; }
+            }
+            if (bd !== 0) {
+                sg.p1 = { x: sg.p1.x + nx * bd, y: sg.p1.y + ny * bd };
+                sg.p2 = { x: sg.p2.x + nx * bd, y: sg.p2.y + ny * bd };
+            }
+            return { d: bd, h0: h0, h: h0 - bd, J0: J0, J: bJ, lo: b.lo, hi: b.hi };
         },
 
         /*  코너 = 이웃한 두 직선의 교점. 평행이면 안착한 끝점을 그대로 둔다.

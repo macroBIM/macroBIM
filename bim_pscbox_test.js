@@ -1049,6 +1049,8 @@
         var NP = (typeof CONFIG !== 'undefined' && CONFIG.PHYSICS && CONFIG.PHYSICS.NODE_POS) || [0.4, 0.6];
         var wallById = {};
         (sec.walls || []).forEach(function (w) { wallById[w.id] = w; });
+        //  ⑦ 축방향 — ㄷ 로 한 번 더 내린 결과 (JField.axialSlide). 벤치·진단이 읽는다
+        if (r.slide) t._slide = r.slide;
         r.segs.forEach(function (rs, i) {
           var seg = t.segments[i];
           if (!seg) return;
@@ -1609,6 +1611,33 @@
           console.log('[SREBAR] 몸통 길이(출력) ' + Math.round(Math.min.apply(null, body)) +
                       ' ~ ' + Math.round(Math.max.apply(null, body)) + ' mm · ' + body.length + '개');
         this._sbody = body;
+        /*  ── 덕트를 비키지 못한 ㄷ ───────────────────────────────────────────
+            축방향은 띠로 열려 있고(`JField.hookBandOf`), ㄷ 전체로 한 번 더 내린다
+            (`JField.axialSlide`). 그래도 남는 것은 **띠 안에 피할 자리가 없는 것**
+            이다 — 덕트는 못 지키는 위반이 흔한 항이라 무게로 억지로 지키게 하면
+            배근이 망가진다(jfield K_CLR 주석). 그러니 **말하고 넘긴다.**         */
+        var dcl = [], dus = this._ducts || [];
+        dus.length && out.forEach(function (r) {
+          if (drop[String(r.id)]) return;
+          var w = 0, at = '';
+          r.segs.forEach(function (sg, i) {
+            var a = r.pts[i], b = r.pts[i + 1];
+            dus.forEach(function (d) {
+              var need = (d.D / 2) + (d.clr != null ? d.clr : 30) + r.dia / 2;
+              var g = JField.segToPoint([a, b], d) - need;
+              if (g < w) { w = g; at = (d.id || ''); }
+            });
+          });
+          if (w < -0.5) dcl.push({ id: r.id, g: w, d: at });
+        });
+        if (dcl.length) {
+          dcl.sort(function (a, b) { return a.g - b.g; });
+          warn.push('갈고리 ' + dcl.length + '개가 **덕트를 비키지 못했습니다** (' +
+                    dcl.slice(0, 5).map(function (o) {
+                      return o.id + ' ↔ ' + o.d + ' ' + Math.round(o.g); }).join(', ') +
+                    (dcl.length > 5 ? ' …' : '') +
+                    ' mm — 그 자리엔 다리를 움직여도 피할 데가 없습니다. ㄷ 의 자리나 덕트를 보세요)');
+        }
         /*  **정착은 띠의 대가다.** 결속점을 접선점에 못박으면 ℓ−R 로 한 수인데,
             띠를 열면 덕트를 비킨 만큼 짧아진다. 숨길 수가 없는 수이므로 찍는다
             (`mat|fck|fy` 가 들어오면 여기서 코드 값과 견줄 수 있다 — STATUS 참조). */

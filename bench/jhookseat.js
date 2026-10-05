@@ -13,9 +13,10 @@
  *
  *  s = 0 은 그 뒤 **요구에서 선호로 내려갔다** — 결속점이 절곡이 끝나는 바로 그
  *  점일 이유가 없고, 축방향은 점이 아니라 띠 s ∈ [0, ℓ−R] 다 (`bench/jband.js`).
- *  막는 것(덕트)이 없으면 선호가 s = 0 을 고르므로 **여기서 보는 답은 그대로다.**
- *  이 벤치에 덕트를 넣지 않는 것이 그 「막는 것이 없다」이고, 아래의 |s| ≤ R 은
- *  띠보다 **더 좁은** 자다 — 선호가 실제로 접선점을 고르는지까지 본다.
+ *  그래서 재는 자도 **띠**다. 막는 것이 없으면 선호가 s = 0 을 고르므로 대개는
+ *  예전 답 그대로이고, **비켜난 자리는 그 까닭(δ 와 J 가 얼마나 내려갔나)을 같이
+ *  찍는다** — 여기 ㄷ 는 다리가 400 mm 라 띠가 367 mm 로 넓고(실제 T1 은 150),
+ *  덕트와 종방향이 들어와 있어 한 자리는 실제로 244 mm 미끄러진다.
  *
  *  실행 :  node bench/jhookseat.js
  */
@@ -99,10 +100,12 @@ console.log('   ' + '─'.repeat(86));
             (jfield hookSetup 주석). 이제 잰다.                                  */
         const half = L / 2;
         const sOff = ((S.hookEnd === 1) ? (half - g.a) : (g.a + half)) - R;
-        /*  재는 자는 **절곡 반지름 자신**이다 — |s| 가 R 을 넘으면 종방향이 절곡부를
-            벗어나 곧은 구간 한가운데에 있다는 뜻이고, 그러면 갈고리가 «무는» 것이
-            아니라 그냥 «닿는» 것이다. 안에서는 덕트·이웃 철근에 밀린 타협이다.   */
-        const okh = Math.abs(g.h - g.target) < 0.3, oks = Math.abs(sOff) <= R;
+        /*  재는 자는 **띠**다 : s ∈ [0, ℓ−R]. 아래로 벗어나면 절곡 아크를 파고든
+            것이고, 위로 벗어나면 종방향이 다리 밖이라 아예 못 문 것이다. 그 사이는
+            덕트·이웃 철근에 밀린 **타협**이고, 얼마나 밀렸는지는 아래에 찍는다.
+            여유 2 mm 는 폴리라인 코너와 푼 자세의 차다 (`bench/jsre.js` ⑦).      */
+        const okh = Math.abs(g.h - g.target) < 0.3;
+        const oks = sOff >= -2 && sOff <= (LEG - R) + 2;
         n++; if (!(okh && oks)) bad++;
         /*  피복은 **그 점이 선 x** 에서 잰다 (데크가 -3% 로 기울어 있다).
             한때 `deckTop(S.hookQ.x)` 로 쟀는데, 그러면 상면은 종방향의 x 에서
@@ -120,11 +123,24 @@ console.log('   ' + '─'.repeat(86));
             '  ' + (i === 0 ? ('깊이 ' + (deckTop(S.hookQ.x) - S.hookQ.y).toFixed(0)).padStart(9)
                             : ('깊이 ' + (deckTop(S.hookQ.x) - S.hookQ.y).toFixed(0)).padStart(9)) +
             '  s ' + sOff.toFixed(1).padStart(6) +
-            '   ' + (okh && oks ? '✓' : (okh ? '✗ 접선점' : '✗ 자리')));
+            '   ' + (okh && oks ? '✓' : (okh ? '✗ 띠 밖' : '✗ 자리')));
     });
+    /*  **비켜난 자리는 까닭을 찍는다.** ⑦(축방향)은 ㄷ 전체로 한 번 더 내리는
+        블록이라(`JField.axialSlide`), 얼마나 옮겼고 J 가 얼마나 내려갔는지가
+        그대로 나온다. 옮겼는데 J 가 안 내려갔으면 그게 결함이다.               */
+    const sl = r.slide;
+    if (sl && Math.abs(sl.d) > 2) {
+        const drop = sl.J0 > 0 ? (sl.J0 / Math.max(sl.J, 1e-9)) : 1;
+        console.log('           ↳ ⑦ 축방향 : ' + sl.d.toFixed(1) + ' mm 미끄러졌다 (h ' +
+            sl.h0.toFixed(1) + ' → ' + sl.h.toFixed(1) + ' · 띠 [' + sl.lo.toFixed(0) + ',' +
+            sl.hi.toFixed(0) + '])  J ' + sl.J0.toFixed(0) + ' → ' + sl.J.toFixed(0) +
+            (sl.J < sl.J0 ? '  (' + drop.toFixed(1) + '배 내려갔다)' : '  ✗ 안 내려갔다'));
+        if (!(sl.J < sl.J0)) bad++;
+    }
 });
 console.log('   ' + '─'.repeat(86));
-console.log('\n  다리는 h = need(' + NEED + '), 몸통은 h = R(' + R + ') 이어야 한다.');
-console.log('  둘을 동시에 만족하는 점이 **절곡 접선점** 하나다 — 직선에는 닿고 아크에는 안 들어간다.');
+console.log('\n  다리는 h = need(' + NEED + ') — 이것은 **요구**다 (종방향에 닿는다).');
+console.log('  축방향은 띠 s ∈ [0, ' + (LEG - R) + '] 이고, s = 0(접선점)은 **선호**다 — 정착이 가장 길다.');
+console.log('  막는 것이 없으면 선호가 접선점을 고르고, 막히면 띠 안에서 비켜난다 (⑦ JField.axialSlide).');
 console.log('\n  다리 ' + n + '개 중 ' + (n - bad) + '개 통과' + (bad ? '  ✗ ' + bad + '개 어긋남' : ''));
 process.exit(bad ? 1 : 0);
