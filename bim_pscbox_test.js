@@ -1431,6 +1431,10 @@
             rb.dia = dia;
             rb.z = rd.z || 0;
             rb.hook = true;              //  자유단이 **종방향**에 앉는다 (JField hookGeom)
+            /*  **제 칸** — 걸 철근을 고를 때 돌아다닐 수 있는 반경 (JField.hookPick).
+                덕트를 피해 옆 철근으로 옮겨 갈 수 있어야 하는데, 옆 ㄷ 의 자리까지
+                가면 둘이 같은 철근을 문다. 그 경계가 **간격의 절반**이다.        */
+            rb.hookSpan = rd.ctc / 2;
             rb._srebar = String(rd.id);  //  종방향 뒤에 따로 푼다는 표시
             //  태어난 꼴 — ↻(Respawn) 이 이것으로 그 하나만 다시 푼다
             rb._birth = rb.segments.map(function (s) {
@@ -1515,6 +1519,7 @@
         if (!hooks.length) return warn;
         var bars = hooks.map(function (t) {
           return { id: String(t.id), dia: t.dia || 13, z: t.z || 0, hook: true,
+                   hookSpan: t.hookSpan || 0,
                    segs: (t.segments || []).map(function (s) {
                      return { label: s.label,
                               p1: { x: s.p1.x, y: s.p1.y }, p2: { x: s.p2.x, y: s.p2.y },

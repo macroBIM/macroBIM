@@ -384,9 +384,64 @@
             코너 **너머** 32.5 에 서서 다리는 반대 방향으로 뻗었다). 다리 쪽으로
             고정해 두면 h < 0 이 「철근이 아직 ㄷ 밖이다」가 되어, 무거운 쪽
             가중치가 ㄷ 를 **철근을 품는 자리로 끌어온다.**                        */
+        /*  ── 걸 철근은 «가장 가까운 것» 이 아니라 **J 가 고른다** ──────────────
+            코너에 가장 가까운 철근을 고르면, 그 자리에 **덕트가 있어도** 거기로 간다.
+            실제로 ㄷ 조각 13 개가 덕트를 가로질렀다 (최악 −140.5 — T1#18 의 몸통이
+            TC1R 한가운데를 지났다). 덕트가 못 밀어낸 것이 아니다 :
+              ⑤(자리) 잔차  h−R = 140 · 무게 1          → 19,600
+              덕트 배리어   √4·140/√(1+(140/30)²) = 58.7 → 3,450   ← 포화해서 진다
+            **덕트는 못 지키는 위반이 흔해서 일부러 무르게 둔 항**이다(K_CLR 4).
+            그러니 무게 싸움으로 풀 일이 아니다 — ㄷ 는 **옆 철근으로 옮겨 가면**
+            그만이고, 그것은 연속 자유도가 아니라 **배정**의 문제다.
+            이 저장소는 그것을 이미 교대최소화로 푼다(`alternate`). 같은 방식으로,
+            닿을 수 있는 철근 몇을 놓고 **ㄷ 를 그 자리로 옮겨 본 뒤 덕트 위반이
+            가장 작은 것**을 고른다. 같으면 코너에 가까운 쪽이다.
+            (옮기는 양은 기하가 준다 : 그 철근이 **접선점**에 오도록 축방향으로
+             a − R 만큼. ㄷ 는 강체라 세 조각이 같이 간다.)                       */
+        hookPick: function (segs, lpts, ducts) {
+            const ends = segs.filter(s => !s.link), e0 = ends[0];
+            if (!e0) return null;
+            const corner = (e0.hookEnd === 1) ? e0.p2 : e0.p1;
+            const free = (e0.hookEnd === 1) ? e0.p1 : e0.p2;
+            const dx0 = free.x - corner.x, dy0 = free.y - corner.y;
+            const L = hyp(dx0, dy0) || 1, ux = dx0 / L, uy = dy0 / L;
+            const R = e0.bendR || 0;
+            /*  고를 수 있는 범위는 **제 칸**이다 — `hookSpan`(= ctc/2). 그보다 멀면
+                옆 ㄷ 의 자리이고, 둘이 같은 철근을 물면 서로 겹친다(전에 그랬다).
+                **안 주면 고르지 않는다.** 한때 다리 길이(400)로 대신했는데, 그건
+                제 칸이 아니라 «팔 길이» 다 — 옆자리까지 다 들어와, 덕트가 없는
+                벤치에서도 ㄷ 가 250 mm 떨어진 철근으로 건너갔다(s 252.0 / −265.1).
+                칸을 모르면 돌아다닐 자격이 없다 — 옛 규칙(코너 최근접)에 맡긴다.  */
+            const span = e0.hookSpan;
+            if (!(span > 0)) return null;
+            const cand = (lpts || [])
+                .map(q => ({ q: q, d: hyp(q.x - corner.x, q.y - corner.y) }))
+                .filter(o => o.d <= span).sort((a, b) => a.d - b.d).slice(0, 8);
+            if (!cand.length) return null;
+            let best = null;
+            cand.forEach(o => {
+                const a = (o.q.x - corner.x) * ux + (o.q.y - corner.y) * uy;
+                const mx = (a - R) * ux, my = (a - R) * uy;     // ㄷ 를 이만큼 옮기면 접선점
+                let viol = 0;
+                segs.forEach(s => {
+                    const p1 = { x: s.p1.x + mx, y: s.p1.y + my };
+                    const p2 = { x: s.p2.x + mx, y: s.p2.y + my };
+                    (ducts || []).forEach(d => {
+                        const need = (d.D / 2) + (d.clr != null ? d.clr : 30) + s.dia / 2;
+                        const g = this.segToPoint([p1, p2], d) - need;
+                        if (g < 0) viol += g * g;
+                    });
+                });
+                if (!best || viol < best.viol - 1 ||
+                    (Math.abs(viol - best.viol) <= 1 && o.d < best.d)) best = { q: o.q, viol: viol, d: o.d };
+            });
+            return best && best.q;
+        },
+
         hookSetup: function (seg, lpts, inherit) {
             let q = null;
-            if (inherit && inherit.body) q = inherit.q;     // 몸통 — 다리가 고른 것 그대로
+            if (inherit && inherit.use) q = inherit.q;      // 이미 고른 것 (hookPick)
+            else if (inherit && inherit.body) q = inherit.q;   // 몸통 — 다리가 고른 것 그대로
             else {
                 /*  **닿을 수 있는 것만 후보다.** 다리는 그 철근을 지나 `leg` 만큼 더
                     뻗는 정착이므로, 물 수 있는 철근은 코너에서 **다리 길이 안**에
@@ -1147,7 +1202,7 @@
                     자리로 쓴다 (hookGeom 주석). 가운데 연결 조각은 그대로 둔다.
                     코너는 첫 조각이면 p2 쪽(+1), 마지막이면 p1 쪽(−1)이다.        */
                 return { label: s.label, len: L, len0: L, dia: bar.dia, n0: s.normal, th0: th,
-                         link: link, z: bar.z || 0,
+                         link: link, z: bar.z || 0, hookSpan: bar.hookSpan || 0,
                          hook: !!bar.hook && arr.length > 1,
                          hookEnd: (i === 0) ? 1 : -1,
                          bendR: bar.bendR || this.bendRadius(bar.dia),
@@ -1164,7 +1219,11 @@
             if (bar.hook && segs.length > 1) {
                 const ends = segs.filter(s => !s.link);
                 const e0 = ends[0];
-                if (e0) this.hookSetup(e0, lpts);           //  ㉮ 첫째 다리가 «자리» 를 정한다
+                //  ㉮ 첫째 다리가 «자리» 를 정한다 — **덕트를 피해서** (hookPick 주석)
+                if (e0) {
+                    const pick = this.hookPick(segs, lpts, ducts);
+                    this.hookSetup(e0, lpts, pick ? { q: pick, use: true } : null);
+                }
                 if (e0 && e0.hookQ) {
                     //  다리가 뻗는 쪽 = 코너 → 자유단.  축 = 그 반대(코너 쪽)
                     const c = (e0.hookEnd === 1) ? e0.p2 : e0.p1;
