@@ -19,15 +19,6 @@ const { prepare } = require('./jengine');
 
 const ROOT = path.join(__dirname, '..');
 const sheet = JSON.parse(fs.readFileSync(path.join(__dirname, 'fixture', 's14.json'), 'utf8'));
-/*  **고정자료에 종방향 줄이 없다.** `bench/fixture/s14.json` 은 9/27 판이라
-    `lrebar` 가 한 줄도 없는데, 실제 시트(PSCBOX_S14.xlsx)에는 D1 이 있다.
-    갈고리는 종방향이 없으면 잴 것이 없으므로 여기서 그 줄을 넣는다 —
-    **실제 시트에 있는 것 그대로**다. (고정자료를 맞추는 것은 따로 할 일이다.) */
-{
-    const D1 = ['lrebar', 'D1', 13, 50, '0,100,0', '-6200,6200', 1, 250, 300, 100, 600, '', '', ''];
-    const at = sheet.findIndex(r => String(r[0] || '').trim().toLowerCase() === 'end');
-    sheet.splice(at < 0 ? sheet.length : at, 0, D1);
-}
 const D = prepare(sheet, {}, 'box');
 const { ctx, P, rows } = D;
 const Domain = vm.runInContext('Domain', ctx);

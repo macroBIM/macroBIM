@@ -1164,8 +1164,12 @@
 
         /*  한 단면. 철근을 입력 순서대로 놓고, 놓인 것은 다음 철근의 척력이 된다.
             (지금 척력은 꼭짓점만 본다 — 논문 주장 3 은 선분끼리로 바꿔야 한다.)   */
-        solve: function (bars, walls, sec, ducts, lpts) {
-            const placed = [], out = [];
+        /*  `placed0` — **이미 놓여 있는 것**을 가지고 시작한다 (선택).
+            갈고리(srebar)는 종방향 **뒤에** 풀리는데, 그때 횡방향은 벌써 다 놓여
+            있다. 빈 배열로 시작하면 갈고리가 그 횡방향을 못 보고 통과한다.
+            꼴은 `placed` 와 같다 : { p1, p2, dia, z }.                          */
+        solve: function (bars, walls, sec, ducts, lpts, placed0) {
+            const placed = (placed0 || []).slice(), out = [];
             (bars || []).forEach(b => {
                 const r = this.form(b, walls, sec, ducts, placed, lpts);
                 out.push(r);

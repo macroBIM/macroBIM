@@ -20,12 +20,6 @@ const { prepare } = require('./jengine');
 
 const ROOT = path.join(__dirname, '..');
 const sheet = JSON.parse(fs.readFileSync(path.join(__dirname, 'fixture', 's14.json'), 'utf8'));
-//  고정자료에 종방향 줄이 없다 (9/27 판). 실제 시트에 있는 D1 을 넣어 쓴다.
-{
-    const D1 = ['lrebar', 'D1', 13, 50, '0,100,0', '-6200,6200', 1, 250, 300, 100, 600, '', '', ''];
-    const at = sheet.findIndex(r => String(r[0] || '').trim().toLowerCase() === 'end');
-    sheet.splice(at < 0 ? sheet.length : at, 0, D1);
-}
 const D = prepare(sheet, {}, 'box');
 const { ctx, P, rows } = D;
 const Domain = vm.runInContext('Domain', ctx);

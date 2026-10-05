@@ -374,6 +374,20 @@
           var type = self._rbStr(row[0]).toLowerCase();
           out.push(type === 'lrebar' ? self._parseLrebarRow(row) : self._parseTrebarRow(row));
         });
+        /*  `srebar`(갈고리 열차)는 **이 페이지에 아직 없다.** 조용히 빠지면
+            「시트에 적었는데 안 나온다」가 되므로 말은 해 둔다.
+            구현은 `bim_pscbox_test.js` 에 있다 (J 엔진이 기본인 페이지).        */
+        var ns = 0;
+        (Array.isArray(fullData) ? fullData : []).forEach(function (row) {
+          if (!Array.isArray(row)) return;
+          for (var c = 0; c < row.length; c++) {
+            var t = String(row[c] == null ? '' : row[c]).trim().toLowerCase();
+            if (t === 'srebar') { ns++; return; }
+            if (t !== '') return;
+          }
+        });
+        if (ns) console.warn('[PSCBOX-DIA] srebar ' + ns + '줄을 건너뛰었습니다 — ' +
+                             '격벽 페이지는 갈고리 열차를 아직 배치하지 않습니다');
         // id 중복 검사 — 중복이면 철근 로딩 중단 (결과는 로딩 토스트가 표시. 빈 id 는 검사 제외)
         var seen = {}, dups = [];
         out.forEach(function (o) {

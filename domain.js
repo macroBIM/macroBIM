@@ -121,6 +121,12 @@ const Domain = {
 
         rb.id = data.id;
         rb.dia = data.dia || 13;
+        /*  z (교축방향 층) — **철근 객체가 들고 있어야 한다.**
+            옛 엔진(`_relaxRebar`)은 `_rebarData` 에서 `zmap` 을 따로 만들어 쓰므로
+            이것이 없어도 돌아갔다. 그래서 J 엔진이 `t.z` 를 읽기 시작했을 때
+            **언제나 0 이었다** — `sameZ` 규칙이 아무 일도 안 하고 있었다.
+            입력에 있는 값이 엔진까지 가는 길을 한 군데로 둔다.                  */
+        rb.z = Number(data.z) || 0;
 
         if (targetWall) {
             let segIndex = anchorSegKey.charCodeAt(0) - 65;
