@@ -581,15 +581,25 @@
                 const reach = seg.len || hyp(seg.p2.x - seg.p1.x, seg.p2.y - seg.p1.y);
                 const a = inherit && inherit.axis, q0 = inherit && inherit.q;
                 //  짝을 알아볼 수 있나 — 무리(g)와 자리(t)가 실려 왔을 때만
-                const pair = !!(q0 && q0.g != null && q0.t != null);
+                const pair = !!(q0 && q0.g != null && q0.t != null) && !seg.cap;
+                /*  ── ∩ 는 «짝» 의 뜻이 다르다 ──────────────────────────────────
+                    ㄷ 는 두 다리가 **한 자리(t)의 상·하 두 알**을 문다 — 그래서 짝은
+                    「같은 g · 같은 t」다. ∩ 는 두 다리가 **같은 줄의 다른 두 자리**를
+                    문다 (몸통만큼 떨어져 있다). 그래서 짝은 「같은 g · **다른** t」이고,
+                    그 중 **제 코너에 가장 가까운** 것이다.
+                    이걸 안 가르면 ∩ 는 한 자리도 못 선다 — 실제로 14 개 중 13 개가
+                    조용히 버려졌다 (같은 t 인 알이 없으니 후보가 0 이 된다).       */
+                const capPair = !!(seg.cap && q0 && q0.g != null);
                 let best = null;
                 (lpts || []).forEach(p => {
                     if (q0 && p === q0) return;
+                    if (capPair && !(p.g === q0.g &&
+                                     (p.t == null || q0.t == null || Math.abs(p.t - q0.t) > 1))) return;
                     if (pair && !(p.g === q0.g && p.t != null && Math.abs(p.t - q0.t) < 1)) return;
                     const d = hyp(p.x - c.x, p.y - c.y);
                     if (d > reach) return;                       // 다리가 못 닿는다
                     //  짝을 모를 때만 — 첫째와 **같은 자리**가 먼저. 같으면 가까운 쪽.
-                    const st = (a && !pair) ? Math.abs((p.x - q0.x) * a.x + (p.y - q0.y) * a.y) : 0;
+                    const st = (a && !pair && !capPair) ? Math.abs((p.x - q0.x) * a.x + (p.y - q0.y) * a.y) : 0;
                     if (!best || st < best.st - 1 ||
                         (Math.abs(st - best.st) <= 1 && d < best.d)) best = { st: st, d: d, q: p };
                 });
@@ -1330,6 +1340,7 @@
                     코너는 첫 조각이면 p2 쪽(+1), 마지막이면 p1 쪽(−1)이다.        */
                 return { label: s.label, len: L, len0: L, dia: bar.dia, n0: s.normal, th0: th,
                          link: link, z: bar.z || 0, hookSpan: bar.hookSpan || 0,
+                         cap: !!bar.cap,
                          hook: !!bar.hook && arr.length > 1,
                          hookEnd: (i === 0) ? 1 : -1,
                          bendR: bar.bendR || this.bendRadius(bar.dia),

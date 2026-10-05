@@ -388,6 +388,11 @@
             여기서 유도해야 한다 — 그건 시트에 아직 없으니 지금은 입력으로 둔다
             (「아직 안 한 것」에 적어 두었다).                                   */
         if (this._rbHas(row[8])) o.leg = this._rbNum(row[8]);
+        /*  `body` — **∩ 꼴**이다. 비우면 지금까지의 ㄷ (열차 ∥ 다리 · 몸통이
+            마주보는 두 면 사이), 적으면 **뒤집힌다** : 열차 ∥ 몸통 · **다리가**
+            마주보는 두 면 사이다. 도면 8-243 의 하부슬래브 T3 가 그 꼴이고,
+            값은 그 몸통 길이(387)다. 자세한 것은 `_expandSrebar` 주석에.      */
+        if (this._rbHas(row[9])) o.body = this._rbNum(row[9]);
         o.z = this._rbHas(row[12]) ? Number(row[12]) : 0;
         return o;
       },
@@ -1378,7 +1383,25 @@
                            `bench/jhookseat.js` 주석). 그래서 이것은 넉넉한 출발점이고,
                           **답은 장이 낸다** (도면의 X = 206~480 이 결과로 나온다)
             마주보는 면이 한쪽이라도 없으면 **그 자리엔 갈고리가 없다** — `lrebar` 의
-            `gap` 탈락과 같은 규칙이다. 몇 개를 왜 버렸는지는 경고로 낸다.          */
+            `gap` 탈락과 같은 규칙이다. 몇 개를 왜 버렸는지는 경고로 낸다.
+
+          ── ∩ 꼴 : `body` 를 적으면 **역할이 뒤집힌다** ─────────────────────────
+            도면 8-243 의 하부슬래브 T3 가 ㄷ 가 아니라 **∩** 다 : 몸통이 상면을
+            따라 387 mm 가고, **다리 둘이 두께를 가로질러** 내려가 아래 종방향을 문다.
+            위의 규칙(열차 ∥ 다리 · 몸통 = 면에서 면)으로는 못 적는다.
+
+            바뀌는 것은 **두 방향의 역할뿐**이다 — 새 꼴도 새 코드도 아니다 :
+                       ㄷ (지금까지)              ∩ (`body` 를 적으면)
+              열차 u   꼴의 첫 조각(다리)         꼴의 **둘째 조각(몸통)**
+              부재 n   꼴의 둘째 조각(몸통)       꼴의 **첫 조각(다리)**
+              면에서 면  몸통 B = dp + dm          **다리 A = C = dp + dm**
+              입력      다리 leg                  **몸통 body** (+ leg 은 안 쓴다)
+            그래서 코드는 `{A, B, C}` 중 **어느 칸에 dp+dm 을 넣느냐** 하나만 갈린다.
+
+            ∩ 라고 갈고리 규칙이 달라지지 않는다. 다리가 **가까운 쪽** 종방향을
+            절곡 접선점에서 물고(⑤), 그 다리가 두께를 가로질러 **먼 쪽** 종방향까지
+            내려간다 — ㄷ 가 「다리가 철근을 지나 leg 만큼 더 뻗는다」 하던 그 말이
+            여기서는 「leg 이 두께다」가 될 뿐이다.                                */
       _expandSrebar: function (sec) {
         var warn = [], rows = this._srebarRows();
         this._sdiag = {};
@@ -1392,9 +1415,11 @@
 
         rows.forEach(function (rd) {
           var dia = rd.dia || 13, leg = rd.leg, init = rd.init || {};
+          var cap = rd.body > 0 ? rd.body : 0;         // ∩ : 몸통이 입력이다
           if (!rd.num || !rd.ctc) { warn.push(rd.id + ' : num 과 ctc 가 있어야 배치합니다'); return; }
-          if (!leg) { warn.push(rd.id + ' : leg(다리 길이)가 있어야 배치합니다'); return; }
+          if (!leg && !cap) { warn.push(rd.id + ' : leg(다리 길이) 나 body(∩ 몸통) 가 있어야 배치합니다'); return; }
           if (rd.code == null) { warn.push(rd.id + ' : code(꼴)가 있어야 배치합니다'); return; }
+          if (cap) leg = leg || 400;                   // probe 용 — 실제 다리는 면이 정한다
 
           //  ① 꼴을 한 번 만들어 열차 방향 u 와 몸통 방향 n 을 읽는다
           var probe;
@@ -1411,6 +1436,8 @@
             return { x: dx / L, y: dy / L };
           };
           var u = un(sa.p1, sa.p2), n = un(sb.p1, sb.p2);
+          //  ∩ 는 **두 방향의 역할이 바뀐다** (위 주석의 표). 그것뿐이다
+          if (cap) { var sw = u; u = n; n = sw; }
 
           //  ② 열차 자리 — `lrebar` 와 **같은 식**을 쓴다 (JLong.layout)
           var g = { init: { x: init.x || 0, y: init.y || 0,
@@ -1470,8 +1497,34 @@
             if (dp + dm > rho) { tooFar++; return; }
             var c = { x: p.x + n.x * (dp - dm) / 2, y: p.y + n.y * (dp - dm) / 2 };
             var rb;
-            try { rb = TrebarFactory.create(rd.code, c, { A: leg, B: dp + dm, C: leg },
-                                            init.rot || 0, null, null, null); }
+            /*  **면에서 면을 어느 칸에 넣느냐** — 그 하나가 ㄷ 와 ∩ 를 가른다.
+                ㄷ : 몸통 B 가 면에서 면 · 다리는 입력
+                ∩ : **다리 A·C 가** 면에서 면 · 몸통은 입력                     */
+            var box = cap ? { A: dp + dm, B: cap, C: dp + dm }
+                          : { A: leg, B: dp + dm, C: leg };
+            /*  **꼴의 기준점은 코너다** (trebar 주석). ㄷ 는 면에서 면인 것이
+                «몸통» 이라 코너에 세우면 그대로 두 면 사이에 걸치는데, ∩ 는 면에서
+                면인 것이 «다리» 라 코너에 세우면 몸통이 가운데 오고 다리가 **한쪽으로
+                만 늘어진다** (재면 소피트 아래 490 mm 까지 내려갔다).
+                그래서 ∩ 는 한 번 떠 보고 **부재 방향의 아래끝을 먼 면에 맞춰** 옮긴다.
+                옮기는 양은 기하가 준다 — 추측이 아니다.                          */
+            var cc = c;
+            if (cap) {
+              var t0 = null;
+              try { t0 = TrebarFactory.create(rd.code, c, box, init.rot || 0, null, null, null); }
+              catch (e) { t0 = null; }
+              if (t0 && t0.segments) {
+                var lo = Infinity;
+                t0.segments.forEach(function (s) {
+                  [s.p1, s.p2].forEach(function (q) {
+                    var v = (q.x - p.x) * n.x + (q.y - p.y) * n.y;
+                    if (v < lo) lo = v;
+                  });
+                });
+                cc = { x: c.x + n.x * (-dm - lo), y: c.y + n.y * (-dm - lo) };
+              }
+            }
+            try { rb = TrebarFactory.create(rd.code, cc, box, init.rot || 0, null, null, null); }
             catch (e) { rb = null; }
             if (!rb) { oneSide++; return; }
             /*  이름 : 알맹이는 `T1#3` (낱개), **마크는 길이로 묶어 따로 낸다**
@@ -1485,6 +1538,7 @@
                 덕트를 피해 옆 철근으로 옮겨 갈 수 있어야 하는데, 옆 ㄷ 의 자리까지
                 가면 둘이 같은 철근을 문다. 그 경계가 **간격의 절반**이다.        */
             rb.hookSpan = rd.ctc / 2;
+            if (cap) rb.cap = true;      //  ∩ — 두 다리가 «같은 줄의 다른 두 자리» 를 문다
             rb._srebar = String(rd.id);  //  종방향 뒤에 따로 푼다는 표시
             //  태어난 꼴 — ↻(Respawn) 이 이것으로 그 하나만 다시 푼다
             rb._birth = rb.segments.map(function (s) {
@@ -1569,7 +1623,7 @@
         if (!hooks.length) return warn;
         var bars = hooks.map(function (t) {
           return { id: String(t.id), dia: t.dia || 13, z: t.z || 0, hook: true,
-                   hookSpan: t.hookSpan || 0,
+                   hookSpan: t.hookSpan || 0, cap: !!t.cap,
                    segs: (t.segments || []).map(function (s) {
                      return { label: s.label,
                               p1: { x: s.p1.x, y: s.p1.y }, p2: { x: s.p2.x, y: s.p2.y },
