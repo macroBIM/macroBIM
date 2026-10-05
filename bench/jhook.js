@@ -11,11 +11,11 @@
  *      X = 슬래브 두께 − (상면 피복 + d/2) − (하면 피복 + d/2)
  *
  *  ── 아직 안 된 것 ────────────────────────────────────────────────────────
- *  ㄷ의 **몸통은 두 면에 수직이라 마주보는 벽이 원래 없다.** 그런데 `jfield` 에는
- *  영향 반경(ρ₀)이 없어서, 6 m 떨어진 캔틸레버 선단면이 후보로 들어오고 ㄷ 전체가
- *  거기로 끌려간다. 이 벤치는 **ρ₀ 가 있다고 치고** 몸통 길이를 재고, ρ₀ 없이
- *  지금 무슨 일이 나는지를 같이 찍는다. `JField.CONF.RHO0` 이 생기면 저절로
- *  그 값을 쓴다 — 그때 「ρ₀ 없이」 줄이 없어지면 고쳐진 것이다.
+ *  ㄷ의 **몸통은 두 면에 수직이라 마주보는 벽이 원래 없다.** 그런데 6 m 떨어진
+ *  캔틸레버 선단면이 후보로 들어와 ㄷ 전체를 끌고 갔다. `CONF.RHO_LINK` 가
+ *  그것을 막는다 — **연결 조각(가운데)은 자리를 찾아 나서지 않는다**는 규칙이다.
+ *  자유단에는 안 건다 (⑥ 의 다리는 3.2 m 를 가야 한다). 아래에서 끄고도 찍어
+ *  둔다 — 그 규칙이 없으면 무슨 일이 나는지가 같이 보여야 한다.
  *
  *  실행 :  node bench/jhook.js
  */
@@ -28,7 +28,7 @@ const fix = f => JSON.parse(fs.readFileSync(path.join(__dirname, 'fixture', f + 
 const D = prepare(fix('s14'), {}, 'box');
 const sec = { covers: D.covers };
 const DIA = 13, LEG = 400, HALF = 100;
-const RHO = (JField.CONF.RHO0 != null) ? JField.CONF.RHO0 : 1500;   // 엔진에 생기면 그걸 쓴다
+const RHO = JField.CONF.RHO_LINK;      // 연결 조각이 자리를 찾는 반경 (엔진 값 그대로)
 
 /*  **검산은 「엔진이 낸 길이」가 아니라 「코너가 피복선 위에 있나」로 한다.**
     ㄷ의 두 코너는 다리 둘이 앉은 면의 피복선 위에 정확히 있어야 하고, 그러면
@@ -51,16 +51,17 @@ function deckTop(X) {
     return top;
 }
 
+/*  `rho` 를 Infinity 로 주면 **연결 조각의 반경을 꺼서** 고치기 전 동작을 재현한다. */
 function hook(X, Y, rho) {
-    const orig = JField.targets.bind(JField);
-    if (isFinite(rho)) JField.targets = (sg, w, s, d) => orig(sg, w, s, d).filter(c => c.d <= rho);
+    const keep = JField.CONF.RHO_LINK;
+    if (!isFinite(rho)) JField.CONF.RHO_LINK = Infinity;
     const bar = { id: 'T1', dia: DIA, segs: [
         { label: 'a', p1: { x: X-LEG, y: Y-HALF }, p2: { x: X, y: Y-HALF }, normal: { x: 0, y: -1 } },
         { label: 'b', p1: { x: X, y: Y-HALF },     p2: { x: X, y: Y+HALF }, normal: { x: 1, y: 0 } },
         { label: 'c', p1: { x: X, y: Y+HALF },     p2: { x: X-LEG, y: Y+HALF }, normal: { x: 0, y: 1 } }] };
     let r;
     try { r = JField.form(bar, D.walls, sec, D.ducts, [], []); }
-    finally { JField.targets = orig; }
+    finally { JField.CONF.RHO_LINK = keep; }
     return { r: r, body: Math.hypot(r.pts[2].x - r.pts[1].x, r.pts[2].y - r.pts[1].y),
              x: r.pts[1].x, seats: r.segs.map(s => (s.rest && s.rest[0]) || '없음'),
              //  두 끝이 **서로 다른 면**에 앉았나 (헌치를 타고 넘는 다리)
@@ -69,7 +70,7 @@ function hook(X, Y, rho) {
 }
 
 let bad = 0;
-console.log('ㄷ자 갈고리 몸통 — 입력 없이 나오는가  (ρ₀ = ' + RHO + ' mm 로 가정)\n');
+console.log('ㄷ자 갈고리 몸통 — 입력 없이 나오는가  (RHO_LINK = ' + RHO + ' mm)\n');
 console.log('  init x   데크 상면 y      몸통 X    코너↔피복선   자리 (a · b · c)');
 console.log('  ' + '─'.repeat(72));
 /*  x=0 은 넣지 않는다 — 좌·우 벽(E1·E2, E15·E24)이 **거기서 끝나 서로 만난다.**
@@ -102,11 +103,11 @@ console.log('  ' + '─'.repeat(72));
 
 //  ρ₀ 없이 지금 무슨 일이 나는가
 const n = hook(400, deckTop(400) - 120, Infinity);
-console.log('\n  ρ₀ 없이 (지금 엔진) :  init x=0 인데 몸통이 x=' + Math.round(n.x) +
+console.log('\n  RHO_LINK 를 끄면 :  init x=400 인데 몸통이 x=' + Math.round(n.x) +
             ' 에 선다 — 자리 ' + n.seats.join(' · '));
 console.log('  ㄷ의 몸통은 두 면에 수직이라 마주보는 벽이 원래 없는데,');
 console.log('  6 m 떨어진 캔틸레버 선단면이 후보로 들어와 ㄷ 전체를 끌고 간다.');
-console.log('  → `jfield` 에 영향 반경이 필요하다. 그 값은 아직 안 정했다 (STATUS 참조).');
+console.log('  → **연결 조각은 자리를 찾아 나서지 않는다**가 그것을 막는다. 자유단에는 안 건다.');
 
 /*  ── 고친 것 : init 높이에 따라 피복선에 못 닿고 멈추던 것 ──────────────── */
 const topX = deckTop(800);

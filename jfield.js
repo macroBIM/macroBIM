@@ -81,6 +81,20 @@
                 (지금 `placed` 즉 횡방향끼리는 아직 K_CLR 4 를 쓴다 — 같은 논리로는
                  이것도 올라가야 하지만 기존 결과가 바뀌므로 따로 잰 뒤에 고친다.) */
             K_LRE: 1000.0,     // 종방향 철근과의 순간격 위반 (= JLong.CONF.K_BAR)
+            /*  RHO_LINK  **연결 조각(가운데)이 자리를 찾아 나서지 않는 반경** (mm).
+                `jlong` 의 RHO0 와 달리 **모든 조각에 걸지 않는다.** 여기 조각은
+                init 자리에서 작게 태어나 제 면까지 **가기** 때문이다 — 거리로 자르면
+                가는 길을 자른다 (⑥ 의 다리는 3.2 m 를 간다. 결함이 아니라 설계다).
+                가르는 것은 거리가 아니라 **조각의 역할**이다 :
+                  자유단   제 면에 닿는 것이 일이다 → 얼마가 걸리든 간다. 안 건다
+                  연결조각 두 코너를 잇는 것이 일이고 **길이는 이미 출력이다**
+                           → 찾아 나서지 않는다. 옆에 면이 있으면 물리고 없으면 없다
+                S14 에서 잰 값 (태어난 자리 ↔ 그 조각이 앉은 면) :
+                  연결 조각 넷   ⑥-1[b] 1 · ⑥-4[b] 1 · ⑥-3[b] 9 · ⑥-2[b] 409 mm
+                  상부슬래브 ㄷ 의 몸통이 잡던 헛자리 (캔틸레버 선단면)   6,153 mm
+                409 와 6,153 사이면 어디든 되고 **15 배**가 비어 있다. 1,500 을 쓰는
+                것은 `JLong.CONF.RHO0` 과 같은 수를 두 엔진이 쓰게 하려는 것뿐이다.  */
+            RHO_LINK: 1500.0,  // 연결 조각이 자리를 찾는 반경 (자유단에는 안 건다)
             CLR_SOFT: 30.0,    // 이 이상 벌어진 위반은 힘이 되내려간다 (mm) — clrRes 참조
             THMAX: 30,         // init 자세에서 벗어날 수 있는 각의 한계 (도)
             /*  ⓪ 제자리 고정. **방향마다 다르다.**
@@ -245,8 +259,12 @@
                 const d = Math.min.apply(null, this.pairCands(body, q1, q2).map(c => c.d));
                 const a = pr(w.x1, w.y1), b = pr(w.x2, w.y2);
                 const ov = Math.min(L, Math.max(a, b)) - Math.max(0, Math.min(a, b));
-                all.push({ w: w, need: need, d: d, band: ov > 0,
-                           gap: ov > 0 ? 0 : -ov, used: ov > 0 });
+                /*  ④ **연결 조각(가운데)은 자리를 찾아 나서지 않는다** — CONF.RHO_LINK.
+                    자유단에는 안 건다. 그 조각은 제 면에 닿는 것이 일이라 얼마가
+                    걸리든 가야 한다 (⑥ 의 다리 3.2 m).                            */
+                const far = !!seg.link && d > this.CONF.RHO_LINK;
+                all.push({ w: w, need: need, d: d, band: ov > 0, far: far,
+                           gap: ov > 0 ? 0 : -ov, used: ov > 0 && !far });
             });
             return all;
         },
@@ -797,12 +815,14 @@
             **처음 앉은 자리가 답이다.** 다시 풀 이유가 없다.                     */
         form: function (bar, walls, sec, ducts, placed, lpts) {
             this._pass = 1;
-            const segs = bar.segs.map(s => {
+            const segs = bar.segs.map((s, i, arr) => {
                 const vx = s.p2.x - s.p1.x, vy = s.p2.y - s.p1.y;
                 const L = hyp(vx, vy) || 1;
                 const th = Math.atan2(vy, vx);
                 const mid = { x: (s.p1.x + s.p2.x) / 2, y: (s.p1.y + s.p2.y) / 2 };
+                //  `link` = 두 코너 사이의 **연결 조각**. 양 끝(자유단)이 아닌 것.
                 return { label: s.label, len: L, len0: L, dia: bar.dia, n0: s.normal, th0: th,
+                         link: i > 0 && i < arr.length - 1,
                          p1: s.p1, p2: s.p2, mid: mid, c0: mid };
             });
 

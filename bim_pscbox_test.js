@@ -1019,15 +1019,17 @@
       _seatDiag: function (bar, sec) {
         if (typeof JField === 'undefined' || !bar || !sec || !sec.walls) return [];
         var dia = bar.dia || 13;
-        return (bar.segs || []).map(function (s) {
+        return (bar.segs || []).map(function (s, i, arr) {
           var vx = s.p2.x - s.p1.x, vy = s.p2.y - s.p1.y;
           var len = Math.hypot(vx, vy) || 1;
           var mid = { x: (s.p1.x + s.p2.x) / 2, y: (s.p1.y + s.p2.y) / 2 };
+          //  `link` 를 같이 넘겨야 진단이 실제 풀이와 같은 판정을 본다 (CONF.RHO_LINK)
           var seg = { label: s.label, len: len, dia: dia, n0: s.normal,
+                      link: i > 0 && i < arr.length - 1,
                       p1: s.p1, p2: s.p2, mid: mid, c0: mid, th0: Math.atan2(vy, vx) };
           var st = JField.seats(seg, sec.walls, sec, dia).map(function (c) {
             return { id: c.w.id, tag: c.w.tag, d: c.d, band: c.band, gap: c.gap,
-                     used: c.used, need: c.need };
+                     far: c.far, used: c.used, need: c.need };
           }).sort(function (a, b) { return a.d - b.d; });
           var use = st.filter(function (c) { return c.used; });
           //  st 는 참거리 오름차순이므로 st[0] 가 가장 가까운 면, use[0] 가 쓰인 면

@@ -35,15 +35,16 @@ const pad = (s, n) => String(s).padStart(n);
 
 function diag(bar, walls, sec) {
     const dia = bar.dia || 13;
-    return bar.segs.map(s => {
+    return bar.segs.map((s, i, arr) => {
         const len = hyp(s.p2.x - s.p1.x, s.p2.y - s.p1.y) || 1;
         const mid = { x: (s.p1.x + s.p2.x) / 2, y: (s.p1.y + s.p2.y) / 2 };
         const seg = { label: s.label, len: len, dia: dia, n0: s.normal,
+                      link: i > 0 && i < arr.length - 1,     // 연결 조각 (CONF.RHO_LINK)
                       p1: s.p1, p2: s.p2, mid: mid, c0: mid,
                       th0: Math.atan2(s.p2.y - s.p1.y, s.p2.x - s.p1.x) };
         //  seats() 는 벽 객체를 그대로 물고 온다 (c.w) — 찍기 쉽게 풀어 둔다
         const seats = JField.seats(seg, walls, sec, dia)
-            .map(c => ({ id: c.w.id, tag: c.w.tag, d: c.d, band: c.band, gap: c.gap, used: c.used }))
+            .map(c => ({ id: c.w.id, tag: c.w.tag, d: c.d, band: c.band, gap: c.gap, far: c.far, used: c.used }))
             .sort((a, b) => a.d - b.d);
         const use = seats.filter(c => c.used);
         return {
