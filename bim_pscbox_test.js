@@ -1417,9 +1417,27 @@
           var dia = rd.dia || 13, leg = rd.leg, init = rd.init || {};
           var cap = rd.body > 0 ? rd.body : 0;         // ∩ : 몸통이 입력이다
           if (!rd.num || !rd.ctc) { warn.push(rd.id + ' : num 과 ctc 가 있어야 배치합니다'); return; }
-          if (!leg && !cap) { warn.push(rd.id + ' : leg(다리 길이) 나 body(∩ 몸통) 가 있어야 배치합니다'); return; }
           if (rd.code == null) { warn.push(rd.id + ' : code(꼴)가 있어야 배치합니다'); return; }
-          if (cap) leg = leg || 400;                   // probe 용 — 실제 다리는 면이 정한다
+          /*  ── **빈칸이 콘크리트가 정하는 쪽이다** ──────────────────────────────
+              복부 스터럽과 하부슬래브 스터럽은 **다른 개념**이다 :
+                ㄷ  양단(몸통의 두 끝)이 복부 면에 붙고 **몸통이 늘어난다**
+                    → 적는 것은 `leg`, 비우는 것은 `body`
+                ∩  양단(다리 둘)이 두께를 가로질러 서고 **몸통이 면과 나란하다**
+                    → 적는 것은 `body`, 비우는 것은 `leg`
+              그래서 **둘 중 하나만** 적는다. 둘 다 적으면 「무엇을 콘크리트가 정하느냐」
+              가 두 개가 되고, 둘 다 비우면 아무것도 안 정해진다. 입력이 **어느 개념인지
+              스스로 말하게** 하는 자리다 — 깃발을 따로 두지 않는 까닭이다.           */
+          if (leg > 0 && cap > 0) {
+            warn.push(rd.id + ' : leg 과 body 를 **같이** 적었습니다 — 하나는 빈칸이어야 합니다' +
+                      ' (빈칸이 «콘크리트가 정하는 쪽»입니다. ㄷ 는 leg, ∩ 는 body)');
+            return;
+          }
+          if (!(leg > 0) && !(cap > 0)) {
+            warn.push(rd.id + ' : leg 이나 body 중 **하나**를 적어야 합니다' +
+                      ' (ㄷ = 몸통이 늘어난다 → leg · ∩ = 다리가 늘어난다 → body)');
+            return;
+          }
+          if (cap) leg = 400;                          // probe 용 — 실제 다리는 면이 정한다
 
           //  ① 꼴을 한 번 만들어 열차 방향 u 와 몸통 방향 n 을 읽는다
           var probe;
@@ -1565,11 +1583,12 @@
                        normal: { x: s.normal.x, y: s.normal.y } };
             });
             Domain.trebarList.push(rb);
-            lens.push(dp + dm);
+            lens.push(cap ? (dp + dm - needOf(hp) - needOf(hm)) : (dp + dm));
             made++;
           });
 
-          self._sdiag[String(rd.id)] = { num: rd.num, made: made, pulled: pulled,
+          self._sdiag[String(rd.id)] = { kind: cap ? 'cap' : 'hoop',
+                                         num: rd.num, made: made, pulled: pulled,
                                          outside: outside, oneSide: oneSide, tooFar: tooFar,
                                          clipped: clipped, u: u, n: n, lens: lens };
           if (clipped) warn.push(rd.id + ' : ' + clipped + '개가 range 밖입니다' +
@@ -1585,7 +1604,9 @@
           console.log('[SREBAR] ' + rd.id + ' ' + made + '/' + rd.num + '개' +
                       (pulled ? ' (' + pulled + '개는 부재 안으로 끌어들였다)' : '') +
                       (tooFar ? ' (' + tooFar + '개는 부재가 없어 버렸다)' : '') +
-                      ' · 몸통 출발길이 ' +
+                      (cap ? '  ∩ (다리가 늘어난다 · 몸통 ' + cap + ')'
+                           : '  ㄷ (몸통이 늘어난다 · 다리 ' + leg + ')') +
+                      ' · ' + (cap ? '다리' : '몸통') + ' 출발길이 ' +
                       (lens.length ? Math.round(Math.min.apply(null, lens)) + '~' +
                                      Math.round(Math.max.apply(null, lens)) : '-') + ' mm');
         });
@@ -1685,9 +1706,20 @@
             뜻이고, 고칠 수 있는 것은 입력(ㄷ 의 구간·간격)뿐이니 숫자를 그대로 낸다.
             덕트에 밀린 것과 가려 주지 않는다 — 가르는 일은 `bench/jsre.js` 가 한다
             (덕트를 빼고 한 번 더 풀어 봐야 갈라지는데, 화면에서 두 번 풀 수는 없다). */
-        var off = [], slip = [], anc = [];
+        /*  ── **자가 둘이다** — ㄷ 와 ∩ 는 결속점이 다리의 «어디» 인가가 다르다 ──
+            ㄷ : 결속점이 **절곡부 쪽**이고 그 뒤로 `leg` 가 남는다. 남은 곧은
+                 길이가 정착이라, 잴 것은 「뒤로 얼마 남았나」(≥ 6·dᵇ)다.
+            ∩ : 결속점이 **다리 끝**이다 — 다리가 철근줄에서 철근줄까지이고 먼
+                 쪽을 제 끝으로 문다. 뒤로 남는 것이 없는 것이 꼴이고, 정착은
+                 반대쪽 절곡(몸통)이 맡는다 (`jfield.js` hookBandOf 주석).
+                 그래서 잴 것이 뒤바뀐다 — 「끝이 그 철근줄에 **닿았나**」다.
+            한 자로 둘을 재면 ∩ 쪽에 **틀린 말**이 나온다 : 정착이 0 이라고 흉보고,
+            끝이 못 닿은 것을 「상·하 종방향의 짝이 어긋났다」고 진단했다. 둘 다
+            거짓이다. 개념이 다르면 자도 달라야 한다.                              */
+        var off = [], slip = [], anc = [], reach = [];
         out.forEach(function (r) {
           if (drop[String(r.id)]) return;
+          var isCap = !!(byId[String(r.id)] || {}).cap;
           [0, 2].forEach(function (i) {
             var sg = r.segs[i];
             if (!sg || !sg.hookQ) return;
@@ -1704,21 +1736,45 @@
                 띠다 : s = 0 (절곡 접선점)에서 s = ℓ−R (자유단)까지. s = 0 은 정착이
                 가장 길어 **선호**이고, 덕트에 걸린 ㄷ 는 띠 안에서 비켜난다
                 (`jfield.js` hookRows 위 주석 · `bench/jband.js`).
-                띠를 **벗어난** 것만 말한다 — 대개 상·하 종방향의 짝이 그 자리에서
-                어긋난 것이다. 여유 2 mm 는 폴리라인 코너와 푼 자세의 차다.      */
+                띠를 **벗어난** 것만 말한다 — ㄷ 에서는 대개 상·하 종방향의 짝이
+                그 자리에서 어긋난 것이다. 여유 2 mm 는 폴리라인 코너와 푼 자세의 차다. */
             var R = JField.bendRadius(r.dia), half = L / 2;
             var sOff = ((i === 0) ? (half - g.a) : (g.a + half)) - R;
             var top = (sg.len0 != null ? sg.len0 : L) - R;
-            if (sOff < -2 || sOff > top + 2)
-              slip.push(r.id + '[' + sg.label + '] ' + sOff.toFixed(0));
-            //  결속점 뒤로 남은 곧은 길이 = 정착. **띠가 열린 대가**가 이 수다
-            anc.push({ v: top - sOff, id: r.id + '[' + sg.label + ']' });
+            if (isCap) {
+              /*  ∩ — 선호가 **끝**(= top)이다. 남은 수는 「끝이 얼마 모자라나」다 :
+                  양수면 결속점이 끝보다 멀어 다리가 그만큼 **못 닿았다**,
+                  0 이면 끝이 그 철근줄 위다 (꼴이 뜻한 자리).                   */
+              reach.push({ v: sOff - top, id: r.id + '[' + sg.label + ']' });
+              if (sOff < -2)
+                slip.push(r.id + '[' + sg.label + '] ' + sOff.toFixed(0));
+            } else {
+              if (sOff < -2 || sOff > top + 2)
+                slip.push(r.id + '[' + sg.label + '] ' + sOff.toFixed(0));
+              //  결속점 뒤로 남은 곧은 길이 = 정착. **띠가 열린 대가**가 이 수다
+              anc.push({ v: top - sOff, id: r.id + '[' + sg.label + ']' });
+            }
           });
         });
         if (slip.length)
           warn.push('갈고리 다리 ' + slip.length + '개가 **다리의 곧은 구간을 벗어났습니다** (' +
                     slip.slice(0, 6).join(', ') + (slip.length > 6 ? ' …' : '') +
                     ' mm — 그 자리에서 상·하 종방향의 짝이 어긋나 있습니다)');
+        /*  ∩ 의 자로 잰 모자람. ㄷ 의 「곧은 구간을 벗어났다」와 **다른 말**이다 —
+            짝이 어긋난 것이 아니라 **다리가 짧은** 것이다. ∩ 의 다리는 배치선에서
+            잰 「철근줄에서 철근줄」로 태어나는데, 무는 철근은 짝 규칙이 고른 **옆
+            자리**일 수 있고 그 자리의 줄은 소피트 기울기만큼 깊다. 다리 길이도
+            출력이어야 한다는 뜻이다 (STATUS 「아직 안 한 것」).                   */
+        var shortLeg = reach.filter(function (o) { return o.v > 2; });
+        if (shortLeg.length) {
+          shortLeg.sort(function (a, b) { return b.v - a.v; });
+          warn.push('∩ 다리 ' + shortLeg.length + '개가 **제 철근줄에 끝이 못 닿았습니다** (' +
+                    shortLeg.slice(0, 6).map(function (o) {
+                      return o.id + ' ' + Math.round(o.v); }).join(', ') +
+                    (shortLeg.length > 6 ? ' …' : '') +
+                    ' mm 모자람 — ∩ 는 **다리 끝으로** 무는 꼴이라 그만큼 다리가 짧습니다. ' +
+                    '무는 자리가 배치선이 아닌 옆 자리라 그 줄이 더 깊습니다)');
+        }
         if (off.length)
           warn.push('갈고리 다리 ' + off.length + '개가 종방향에 **못 닿았습니다** (' +
                     off.slice(0, 6).join(', ') + (off.length > 6 ? ' …' : '') +
@@ -1840,8 +1896,17 @@
             (`mat|fck|fy` 가 들어오면 여기서 코드 값과 견줄 수 있다 — STATUS 참조). */
         if (anc.length) {
           anc.sort(function (a, b) { return a.v - b.v; });
-          console.log('[SREBAR] 결속점 뒤 곧은 길이(정착) ' + Math.round(anc[0].v) + ' ~ ' +
-                      Math.round(anc[anc.length - 1].v) + ' mm · 최소 ' + anc[0].id);
+          console.log('[SREBAR] ㄷ 결속점 뒤 곧은 길이(정착) ' + Math.round(anc[0].v) + ' ~ ' +
+                      Math.round(anc[anc.length - 1].v) + ' mm · 최소 ' + anc[0].id +
+                      ' (한계 ' + JField.CONF.LEG_MIN + '·dᵇ)');
+        }
+        /*  ∩ 는 **정착을 다리에 안 맡긴다** — 그래서 같은 줄을 찍으면 늘 0 이고,
+            그 0 은 흉이 아니라 꼴이다. ∩ 가 내는 수는 「끝이 닿았나」다.         */
+        if (reach.length) {
+          reach.sort(function (a, b) { return a.v - b.v; });
+          console.log('[SREBAR] ∩ 다리 끝 ↔ 무는 철근줄 ' + Math.round(reach[0].v) + ' ~ ' +
+                      Math.round(reach[reach.length - 1].v) + ' mm · 최악 ' +
+                      reach[reach.length - 1].id + ' (양수가 못 닿은 것)');
         }
         //  마크 — 길이로 묶으면 도면의 T1-1/T1-2/T1-3 이 돌아온다 (_srebarMarks 주석)
         this._smarks = this._srebarMarks();
