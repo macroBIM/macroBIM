@@ -256,15 +256,16 @@ const bands = [];
     교란은 **장애물 근처에 갇혀야** 한다 — `JLong.K_A` 의 뜻이 그것이고,
     S14 에서 실제로 **두 자리만** 움직였다 (99 mm · 26 mm).                    */
 {
-    const hint = P._tieHint || [];
+    const hint = P._tieLog || [];
     console.log('\n⑦ 종방향이 비켜 준 값 — 갈고리가 민 자리 ' + hint.length + '곳' +
-        (hint.length ? ' : ' + hint.map(h => h.id + ' → ' + h.grp + ' 자리 ' + Math.round(h.t) +
-            ' 를 ' + Math.round(h.delta) + ' mm (그 ㄷ 는 ' + h.was.toFixed(1) + ' 을 파고들고 있었다)').join(', ')
+        (hint.length ? ' : ' + hint.map(h => h.id + ' → ' + h.grp + ' 을 모두 ' + Math.round(h.sum) +
+            ' mm (' + h.laps + '바퀴에 나눠 · 처음엔 ' + h.was.toFixed(1) + ' 을 파고들고 있었다)').join(', ')
           : ' — 아무도 안 밀었다'));
     //  그 줄의 간격이 얼마나 흐트러졌나 (숨기면 안 되는 수다)
     const dg = P._ldiag || {};
     hint.forEach(h => {
         const o = dg[h.grp]; if (!o || !o.res || !o.g) return;
+        void h;
         const ts = o.res.bars.map(b => b.t).slice().sort((a, b) => a - b), g = o.g;
         let over = 0, under = 0, near = [];
         for (let i = 1; i < ts.length; i++) {
@@ -277,8 +278,8 @@ const bands = [];
             g.ctcmin + ' 깸 ' + under + '개   그 둘레 간격 ' + near.join(' '));
     });
     console.log('   **공짜가 아니다** — 민 자리 둘레의 간격이 흐트러진다. S14 에서는 D1 의');
-    console.log('   ctcmax 넘김이 1 → 2 개가 됐다 (322 mm 짜리 하나). 덕트 −40.1 을 지우고');
-    console.log('   간격 한계를 22 mm 넘긴 것이고, 무게가 그렇게 말한다 : 덕트 K_CLR 4 ·');
+    console.log('   ctcmax 넘김이 1 → 2 개가 됐다 (321 mm 짜리 하나). 덕트 −40.1 을 지우고');
+    console.log('   간격 한계를 21 mm 넘긴 것이고, 무게가 그렇게 말한다 : 덕트 K_CLR 4 ·');
     console.log('   최대간격 K_CTCMAX 1 — **덕트가 넷, 간격이 하나**다.');
     console.log('   교란은 **장애물 근처에 갇힌다** (JLong.K_A) — 줄 전체가 아니라 두 자리만 움직였다.');
 }

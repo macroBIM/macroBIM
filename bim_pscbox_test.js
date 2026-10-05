@@ -1237,11 +1237,31 @@
               **얼마나?** 묻지 않고 **잰다** : 그 짝을 δ 만큼 옮겨 놓고 ㄷ 를 다시
               풀어 보며, 덕트 위반이 0 이 되는 **가장 작은 |δ|** 를 고른다. 최소
               이동이다 — 교란을 장애물 근처에 가두는 `K_A` 의 뜻 그대로다.        */
-          var hint = this._tieDemand(sec);
-          if (hint && hint.length) {
+          /*  **한 바퀴로는 안 끝난다.** 요구는 「그 짝만 δ 옮기고 ㄷ 를 다시 푼
+              다」로 쟀는데, 실제 ㉢ 은 **줄 전체를 다시 푼다** — `home`·피복·이웃이
+              당겨서 알이 요구한 자리에 정확히 서지는 않는다 (97 을 달라 해서 받은
+              것이 93 쯤이라 −3.7 이 남았다). 그러니 **재고 다시 묻는다** : 남은
+              위반에서 다시 δ 를 재어 더한다. 교대최소화는 원래 그렇게 돈다.
+              되돌아오면(요구가 그대로면) 거기서 멈춘다.                          */
+          var seen = {};
+          this._tieLog = [];                           // 바퀴마다의 요구 — 합이 «민 양»이다
+          for (var tp = 0; tp < 4; tp++) {
+            var hint = this._tieDemand(sec);
+            if (!hint || !hint.length) break;
+            var key = hint.map(function (h) {
+              return h.id + ':' + Math.round(h.delta); }).join('|');
+            if (seen[key]) break;                       // 같은 요구가 다시 나왔다
+            seen[key] = 1;
             this._tieHint = hint;
-            console.log('[SREBAR] 갈고리가 못 비킨 자리 ' + hint.length + '곳 — 종방향을 다시 풉니다 (' +
-                        hint.map(function (h) {
+            var lg = this._tieLog;
+            hint.forEach(function (h) {
+              var e = null;
+              lg.forEach(function (o) { if (o.id === h.id) e = o; });
+              if (!e) { e = { id: h.id, grp: h.grp, sum: 0, was: h.was, laps: 0 }; lg.push(e); }
+              e.sum += h.delta; e.laps++; e.t = h.t;
+            });
+            console.log('[SREBAR] ㉢ ' + (tp + 1) + '바퀴 — 갈고리가 못 비킨 자리 ' + hint.length +
+                        '곳 (' + hint.map(function (h) {
                           return h.id + ' → ' + h.grp + ' 자리 ' + Math.round(h.t) +
                                  ' 를 ' + Math.round(h.delta) + ' mm'; }).join(', ') + ')');
             lwarn = this._solveLrebarWithJ(sec);
@@ -2020,20 +2040,30 @@
                         return { label: s.label, p1: { x: s.p1.x, y: s.p1.y },
                                  p2: { x: s.p2.x, y: s.p2.y },
                                  normal: { x: s.normal.x, y: s.normal.y } }; }) };
+          var ok = function (mm) {
+            var lp = lpts0.map(function (p) {
+              if (!(p.g === q.g && p.t != null && Math.abs(p.t - q.t) < 1)) return p;
+              return { x: p.x - dir.x * mm, y: p.y - dir.y * mm, dia: p.dia, g: p.g, t: p.t };
+            });
+            var r;
+            try { r = JField.form(bar, sec.walls, sec, ducts, placed, lp); }
+            catch (e) { return false; }
+            return worstOf(r, t.dia || 13) >= -0.05;
+          };
           var best = null;
+          //  5 mm 로 훑어 **처음 되는 자리**를 찾고, 1 mm 로 되돌려 깎는다.
+          //  최소 이동이라고 말하려면 눈금이 5 mm 여서는 안 된다.
           for (var m = 5; m <= span && best === null; m += 5) {
-            //  양쪽을 같이 본다 — **가까운 쪽부터**. 최소 이동이다
             for (var k = 0; k < 2 && best === null; k++) {
               var mm = k ? -m : m;
-              var lp = lpts0.map(function (p) {
-                if (!(p.g === q.g && p.t != null && Math.abs(p.t - q.t) < 1)) return p;
-                return { x: p.x - dir.x * mm, y: p.y - dir.y * mm,
-                         dia: p.dia, g: p.g, t: p.t };
-              });
-              var r;
-              try { r = JField.form(bar, sec.walls, sec, ducts, placed, lp); }
-              catch (e) { continue; }
-              if (worstOf(r, t.dia || 13) >= -0.05) best = mm;
+              if (ok(mm)) best = mm;
+            }
+          }
+          if (best !== null) {
+            var st = (best > 0) ? -1 : 1;
+            for (var b2 = best + st; Math.abs(b2) >= 1; b2 += st) {
+              if (!ok(b2)) break;
+              best = b2;
             }
           }
           if (best === null) return;                    // 칸 안에서는 못 푼다 — 말로만 낸다
