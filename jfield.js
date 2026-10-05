@@ -1501,53 +1501,105 @@
             const bars = (placed || []).filter(o => (o.z || 0) === (bar.z || 0) &&
                                                     (inBox(o.p1) || inBox(o.p2)));
 
-            const cost = d => {
+            /*  **위반**과 **선호**를 갈라 둔다. 벌점으로 섞으면 안 되는 까닭은 ↓.   */
+            const parts = d => {
                 const rs = res.map((r, i) => i !== bi ? r : {
                     u: r.u, len0: r.len0,
                     p1: { x: r.p1.x + nx * d, y: r.p1.y + ny * d },
                     p2: { x: r.p2.x + nx * d, y: r.p2.y + ny * d } });
                 const pts = this.joinCorners(rs);
-                let J = 0;
+                let v = 0, bite = 0;          // bite — **mm 로 잰** 가장 깊은 파고듦
                 for (let i = 0; i + 1 < pts.length; i++) {
                     const pp = [pts[i], pts[i + 1]];
                     dus.forEach(k => {
                         const need = (k.D / 2) + (k.clr != null ? k.clr : 30) + bar.dia / 2;
                         const g = this.segToPoint(pp, k) - need;
-                        if (g < 0) { const e = this.clrRes(g); J += e.r * e.r; }
+                        if (g < 0) { const e = this.clrRes(g); v += e.r * e.r; bite = Math.min(bite, g); }
                     });
                     lps.forEach(p => {
                         const g = this.segToPoint(pp, p) - this.lreNeed(p, bar.dia);
-                        if (g < 0) { const e = this.clrRes(g, K.K_BAR); J += e.r * e.r; }
+                        if (g < 0) { const e = this.clrRes(g, K.K_BAR); v += e.r * e.r; bite = Math.min(bite, g); }
                     });
                     bars.forEach(o => {
                         const need = (o.dia + bar.dia) / 2;
                         this.clearPairs(pp, o.p1, o.p2).forEach(n => {
                             const g = n.d - need;
-                            if (g < 0) { const e = this.clrRes(g, K.K_TRE); J += e.r * e.r; }
+                            if (g < 0) { const e = this.clrRes(g, K.K_TRE); v += e.r * e.r; bite = Math.min(bite, g); }
                         });
                     });
                 }
                 //  띠(하드) 와 접선점 선호(감쇠) — hookRows 와 **같은 식**이다
                 const h = h0 - d;
-                if (h < b.lo) J += b.wLo * (h - b.lo) * (h - b.lo);
-                else if (h > b.hi && b.wHi > 0) J += b.wHi * (h - b.hi) * (h - b.hi);
+                let p = 0;
+                if (h < b.lo) p += b.wLo * (h - b.lo) * (h - b.lo);
+                else if (h > b.hi && b.wHi > 0) p += b.wHi * (h - b.hi) * (h - b.hi);
                 const e = this.clrRes(h - b.pref, 1);
-                return J + e.r * e.r;
+                return { v: v, p: p + e.r * e.r, bite: bite };
             };
+            const cost = d => { const o = parts(d); return o.v + o.p; };
+            /*  **지키고 있나는 mm 로 가른다.** 에너지로 「v === 0」을 보면 안 된다 —
+                다리는 제 종방향 줄과 정확히 need 만큼 떨어져 **나란히** 눕는데, 그 줄이
+                데크 기울기를 타고 있어 몇몇 알이 1e-5 mm 쯤 어긋난다. 에너지로 보면
+                그것도 위반이라 가능영역이 통째로 비어 보여서, 멀쩡히 앉아 있던 ㄷ 가
+                117 mm 날아갔다 (벤치 x = 400 · 900 에서 J 0 → 844).
+                자는 **공학이 아니라 수치**다 — 1 µm 는 재는 오차지 순간격이 아니다.
+                (공학 쪽 자인 `TOUCH` 0.5 mm 를 쓰면 안 된다. 그걸 쓰면 선호가 ㄷ 를
+                 **그 0.5 mm 끝까지** 끌어당겨, 0.0 으로 설 수 있는 자리가 있는데도
+                 −0.5 에 선다. 실제로 그랬다.)                                     */
+            const okv = o => o.bite > -1e-3;
 
-            const J0 = cost(0);
-            let bd = 0, bJ = J0;
-            for (let d = dLo; d <= dHi + 1e-9; d += 2) {
-                const J = cost(d); if (J < bJ - 1e-9) { bJ = J; bd = d; }
+            /*  ── 지킬 수 있으면 «지킨다» — 벌점이 아니라 여과다 ──────────────────
+                순간격 벌점은 g = 0 에서 **2차로 사라진다.** 그래서 반대쪽에서 아무리
+                약한 힘이 당겨도 **언제나 조금은 겹친 채로** 멈춘다. T1#9 가 그랬다 :
+                  h 60.6 에서 덕트 −1.9 · 덕트 기울기 2·K_CLR·g = 15.2
+                                        접선점 선호 기울기 ≈ 2·(h−R) = 56
+                  → 선호가 이겨서 1.9 mm 를 겹친 채 선다. 그런데 **h 72 에서는 덕트가
+                    정확히 0.0 이고 정착도 78 로 지켜진다** — 둘 다 되는 자리가 있다.
+                벌점으로 섞는 한 그 자리를 못 고른다. 2차로 사라지는 항은 제약을
+                **강제할 수가 없다** — 그건 기하의 성질이 아니라 벌점법의 성질이다.
+
+                이 저장소는 이미 그 답을 쓴다 (`descend` 의 `feasible`·`atRest`) :
+                「여과가 할 일은 **지키고 있는 것을 깨지 않는 것**이다.」
+                순간격은 **지켜야 하는 것**이고 접선점은 **좋으면 좋은 것**이다.
+                그래서 이 블록에서는 이렇게 고른다 :
+                  ㉮ 띠 안에 위반 0 인 자리가 **있으면** — 그 중에서 선호가 가장 작은 것
+                  ㉯ 없으면 — 예전처럼 J = 위반 + 선호 를 최소로 (못 지키는 타협)
+                이것을 여기서 할 수 있는 까닭은 이 블록이 **1차원이고 유계**이기
+                때문이다. 훑으면 가능영역이 통째로 보인다 — 기울기로는 못 하는 일이다. */
+            const base = parts(0), J0 = base.v + base.p;
+            let bd = 0, bJ = J0, feas = null, feasP = Infinity;
+            for (let d = dLo; d <= dHi + 1e-9; d += 1) {
+                const o = parts(d);
+                if (o.v + o.p < bJ - 1e-9) { bJ = o.v + o.p; bd = d; }
+                if (okv(o) && o.p < feasP) { feasP = o.p; feas = d; }
             }
-            for (let d = Math.max(dLo, bd - 2); d <= Math.min(dHi, bd + 2) + 1e-9; d += 0.1) {
-                const J = cost(d); if (J < bJ - 1e-9) { bJ = J; bd = d; }
+            if (feas != null) {
+                /*  가능영역 안에서 선호는 pref 에 가까울수록 작다 — 그러니 **pref 쪽으로
+                    한 발씩 다가가다 위반이 생기면 멈춘다.** (가능영역의 가장자리다.)  */
+                const want = h0 - b.pref;               // 선호가 바라는 δ
+                const step = (want > feas) ? 0.1 : -0.1;
+                for (let d = feas + step; (step > 0 ? d <= want : d >= want); d += step) {
+                    if (d < dLo || d > dHi) break;
+                    if (!okv(parts(d))) break;
+                    feas = d;
+                }
+                bd = feas; bJ = parts(feas).v + parts(feas).p;
+            } else {
+                for (let d = Math.max(dLo, bd - 1); d <= Math.min(dHi, bd + 1) + 1e-9; d += 0.1) {
+                    const J = cost(d); if (J < bJ - 1e-9) { bJ = J; bd = d; }
+                }
             }
+            /*  `v` 를 같이 낸다 — 고르는 자가 **둘**이기 때문이다 (위반이 먼저,
+                같으면 J). 벤치는 그 사전식 차례로 검사한다.
+                **옮기기 전에** 잰다 — 옮기고 나서 `parts(0)` 을 부르면 그것은
+                이미 «옮긴 자리»다 (한 번 그렇게 적었다가 위반이 0 → 0 으로 보였다). */
+            const fin = parts(bd);
             if (bd !== 0) {
                 sg.p1 = { x: sg.p1.x + nx * bd, y: sg.p1.y + ny * bd };
                 sg.p2 = { x: sg.p2.x + nx * bd, y: sg.p2.y + ny * bd };
             }
-            return { d: bd, h0: h0, h: h0 - bd, J0: J0, J: bJ, lo: b.lo, hi: b.hi };
+            return { d: bd, h0: h0, h: h0 - bd, J0: J0, J: bJ,
+                     v0: base.v, v: fin.v, feas: feas != null, lo: b.lo, hi: b.hi };
         },
 
         /*  코너 = 이웃한 두 직선의 교점. 평행이면 안착한 끝점을 그대로 둔다.

@@ -191,14 +191,24 @@ const bands = [];
         if (g < 0) { cnt++; if (g < worst) { worst = g; atw = t.id + '[' + 'abc'[i] + '] ↔ ' + (d.id || ''); } }
     })));
     console.log('\n⑤ 덕트 — 침범 ' + cnt + '건 · 최악 ' + worst.toFixed(1) + (atw ? ' (' + atw + ')' : ''));
-    console.log('   접선점에 못박았을 때 : 13건 · 최악 −140.5 (T1#18 의 몸통이 TC1R 한가운데를 지났다)');
-    console.log('   정착을 안 지키면 : 6건 · 최악 −8.5 — 그런데 그때 T1#8 은 **다리 끝에서** 물어');
-    console.log('   결속점 뒤에 0.2 mm 밖에 안 남는다. 그건 갈고리가 아니다 (CONF.LEG_MIN 주석).');
-    console.log('   **덕트 둘을 더 받고 정착을 지킨다** — 못 지키는 쪽은 덕트다(K_CLR 주석).');
-    console.log('   남는 것은 띠 안에 피할 자리가 없는 것이고, 화면이 그 ㄷ 를 말해 준다.');
+    console.log('     접선점에 못박았을 때        13건 · 최악 −140.5  (T1#18 의 몸통이 TC1R 한가운데를)');
+    console.log('     띠를 열고 J 만 보았을 때      8건 · 최악  −40.1  ← 벌점은 g=0 에서 사라져 늘 겹친다');
+    console.log('     지킬 수 있으면 지키게 하니    3건 · 최악  −40.1  ← 전부 T1#8 **하나**다');
+    console.log('   남은 하나는 띠 안 **어디로 가도** TC1L 을 못 벗어난다 (가장 나은 자리도 −39.8).');
+    console.log('   덕트는 못 지키는 위반이 흔한 항이고(K_CLR 주석), 무게로 억지로 지키게 하면');
+    console.log('   배근이 망가진다. 그러니 **말하고 넘긴다** — 화면이 그 ㄷ 를 이름으로 부른다.');
+    console.log('   (정착을 안 지키면 6건 · 최악 −8.5 까지 되지만, 그때 T1#8 은 **다리 끝에서** 물어');
+    console.log('    결속점 뒤에 0.2 mm 밖에 안 남는다. 그건 갈고리가 아니다 — CONF.LEG_MIN 주석.)');
 }
 
 /*  ── ⑥ 축방향은 «조각» 이 아니라 «ㄷ» 의 자유도다 (JField.axialSlide) ────────
+    고르는 자가 **둘**이다. 순간격(덕트·철근)은 **지켜야 하는 것**이고 접선점은
+    **좋으면 좋은 것**이라, 섞어서 더하면 안 된다 — 순간격 벌점은 g = 0 에서 2차로
+    사라져서 반대쪽이 아무리 약해도 **언제나 조금 겹친 채** 멈춘다 (T1#9 가 1.9 mm
+    겹친 채 섰는데, 같은 띠 안 h 72 에 **덕트 0.0 · 정착 78** 인 자리가 있었다).
+    그래서 사전식으로 고른다 : **위반이 먼저, 같으면 J.** 벤치도 그 차례로 잰다.
+    (`descend` 의 `feasible`·`atRest` 가 쓰는 바로 그 여과다 — 「지키고 있는 것을
+     깨지 않는다」. 1차원이고 유계라서 여기서는 가능영역을 **통째로** 볼 수 있다.)
     엔진은 J 를 조각마다 내린다. 축방향 자유도는 **몸통 하나가 쥐고 있고**, 몸통은
     제 조각의 장애물만 본다 — 그래서 **다리가 덕트를 파고들어도 몸통이 안 움직였다**
     (T1#8 : 다리 a 가 TC1L 을 22.9 파고든 채 h 112). 새 항을 더한 것이 아니다.
@@ -207,23 +217,29 @@ const bands = [];
     기울기 한 걸음이 아니라 **띠를 훑는다** (유계 1차원에서는 훑기가 전역최소다).
     여기서 보는 것 : **옮겼으면 J 가 내려갔는가.** 안 내려갔으면 결함이다.       */
 {
-    let moved = 0, worse = 0, sumBefore = 0, sumAfter = 0, big = null;
+    let moved = 0, worse = 0, saved = 0, vBefore = 0, vAfter = 0, big = null;
     hooks.forEach(t => {
         const sl = t._slide; if (!sl) return;
         if (Math.abs(sl.d) < 0.05) return;
-        moved++; sumBefore += sl.J0; sumAfter += sl.J;
-        if (!(sl.J < sl.J0 + 1e-9)) { worse++; console.log('   ✗ ' + t.id + ' J ' +
-            sl.J0.toFixed(0) + ' → ' + sl.J.toFixed(0) + ' 로 **올랐다**'); }
-        if (!big || (sl.J0 - sl.J) > (big.J0 - big.J)) { big = sl; big.id = t.id; }
+        moved++; vBefore += sl.v0; vAfter += sl.v;
+        //  사전식 : 위반이 늘면 결함. 위반이 같은데 J 가 늘어도 결함.
+        const ok = (sl.v < sl.v0 - 1e-9) || (Math.abs(sl.v - sl.v0) <= 1e-9 && sl.J <= sl.J0 + 1e-9);
+        if (!ok) { worse++; console.log('   ✗ ' + t.id + ' 위반 ' + sl.v0.toFixed(0) + ' → ' +
+            sl.v.toFixed(0) + ' · J ' + sl.J0.toFixed(0) + ' → ' + sl.J.toFixed(0)); }
+        if (sl.v0 > 0 && sl.v === 0) saved++;
+        if (!big || (sl.v0 - sl.v) > (big.v0 - big.v)) { big = sl; big.id = t.id; }
     });
-    console.log('\n⑥ ㄷ 로 한 번 더 — 미끄러진 ㄷ ' + moved + '개 · J 가 오른 것 ' + worse);
-    if (moved) console.log('   합 J ' + sumBefore.toFixed(0) + ' → ' + sumAfter.toFixed(0) +
-        '   가장 크게 내려간 것 ' + big.id + ' : ' + big.d.toFixed(1) + ' mm (h ' +
-        big.h0.toFixed(0) + ' → ' + big.h.toFixed(0) + ') J ' + big.J0.toFixed(0) + ' → ' + big.J.toFixed(0));
+    console.log('\n⑥ ㄷ 로 한 번 더 — 미끄러진 ㄷ ' + moved + '개 · 사전식을 어긴 것 ' + worse);
+    if (moved) console.log('   순간격 위반 합 ' + vBefore.toFixed(0) + ' → ' + vAfter.toFixed(0) +
+        ' · **0 으로 떨어진 ㄷ ' + saved + '개**   가장 크게 내려간 것 ' + big.id + ' : ' +
+        big.d.toFixed(1) + ' mm (h ' + big.h0.toFixed(0) + ' → ' + big.h.toFixed(0) +
+        ') 위반 ' + big.v0.toFixed(0) + ' → ' + big.v.toFixed(0) + ' · J ' +
+        big.J0.toFixed(0) + ' → ' + big.J.toFixed(0) + ' (선호는 조금 올려 준다)');
     console.log('   조각으로만 풀었을 때 : T1#8 이 −22.9 로 선 채 못 움직였다 (몸통은 제 몫 −0.3 만 봤다)');
-    console.log('   S14 에서 이 블록의 몫은 작다 — 정착(LEG_MIN)이 띠를 39.5 mm 로 좁혀서,');
-    console.log('   조각 풀이가 이미 띠 끝에 가 있기 때문이다. 띠가 넓으면 크게 일한다 :');
-    console.log('   `bench/jhookseat.js` 의 다리 400 짜리 ㄷ 는 244 mm 미끄러져 J 가 3.6 배 내려간다.');
+    console.log('   J 는 조금 오른다 (선호를 내준다). **그게 맞다** — 순간격은 지켜야 하는 것이고');
+    console.log('   접선점은 좋으면 좋은 것이다. 둘 다 되는 자리가 있으면 둘 다 가져간다.');
+    console.log('   띠가 넓으면 더 크게 일한다 : `bench/jhookseat.js` 의 다리 400 짜리 ㄷ 는');
+    console.log('   244 mm 미끄러지며 J 가 3,233 → 895 (3.6 배) 내려간다.');
     bad += worse;
 }
 
