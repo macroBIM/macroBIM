@@ -376,24 +376,24 @@
             let ang = Math.atan2(p.y - cy, p.x - cx) / D2R - a0;
             while (ang < 0) ang += 360; while (ang > 360) ang -= 360;
             if (ang <= span) {
-                /*  **절곡부 «안쪽»은 자리가 아니다.**
-                    예전에는 오목한 쪽에서도 반지름 방향으로 밀었다 — 곡률중심 쪽으로.
-                    그러면 철근이 코너에 **박힌다**. 실제로 S14 에서 종방향 6개가
-                    곡률중심에서 정확히 R−need (19.5 = 32.5−13 · 70.5 = 88−17.5) 에
-                    끼어 있었다. 도면의 갈고리는 그렇게 안 놓인다 — **절곡이 시작되기
-                    전 직선 구간**에 닿는다.
-                    그래서 오목한 쪽에서는 **접선 방향으로 빼낸다.** 구간을 벗어나면
-                    곧은 조각의 수직거리 배리어가 이어받아 접선점에 세운다.
-                    `d` 를 음수로(= 구간 안으로 들어간 호길이) 주고 부르는 쪽이
-                    need 0 으로 받는다 — 경계에서 0 이 되어 저절로 꺼진다.         */
+                /*  ── 절곡부 «안쪽» : 미는 것은 **강재**지 «영역» 이 아니다 ────────
+                    한동안 여기서 「절곡부 안은 자리가 아니다」를 **접선 방향**으로,
+                    그것도 `d` 를 「구간 안으로 들어간 호길이」로, need 0 으로 받아
+                    밀었다. 그 자는 다른 모든 항(피복·겹침·덕트)이 쓰는 「표면까지의
+                    mm」와 **다른 자**였고, 그래서 크기가 터무니없이 커졌다 :
+                      복부 위 D1 한 알이 ⑥-4 의 절곡 원(R 88) 안에 들어가자
+                      호길이 33 mm 로 매겨져 **J 492,047 짜리 벽**이 섰다.
+                      그 알은 가장 가까운 강재에서 **41.8 mm 나 떨어져 있었다** —
+                      겹친 것이 하나도 없는데 벽이 선 것이다. 피복 인력(깊이 104 에서
+                      10,816)으로는 46 분의 1 이라 못 넘고, 알은 **공중에 떴다.**
+                    고친다 — **아크 중심선까지가 R − rho** 이고, 그것이 need 보다
+                    멀면 **아무 힘도 없다.** 0 이 되는 자리는 영역의 가장자리가 아니라
+                    **강재의 표면**이다. 방향은 그 거리의 기울기 그대로 곡률중심 쪽이다.
+                    (「절곡부 안은 자리가 아니다」는 갈고리가 종방향을 무는 자리에서
+                     나온 **선호**다. 순간격과 한 항에 섞여 있던 것을 떼어 낸 것이고,
+                     그 선호를 어떻게 돌려줄지는 따로 본다.)                      */
                 const rx = (p.x - cx) / rho, ry = (p.y - cy) / rho;
-                if (rho < R) {
-                    const toA0 = ang, toA1 = span - ang;           // 양 끝까지의 각 (도)
-                    const out = (toA0 <= toA1);                    // 가까운 끝으로 나간다
-                    const arc = rho * (out ? toA0 : toA1) * D2R;   // 안으로 들어간 호길이
-                    return { d: -arc, corner: true,
-                             ex: out ? ry : -ry, ey: out ? -rx : rx };
-                }
+                if (rho < R) return { d: R - rho, corner: true, ex: -rx, ey: -ry };
                 return { d: rho - R, ex: rx, ey: ry };
             }
             let best = null;
@@ -448,7 +448,7 @@
                         if (!e) return;
                         //  `corner` = 절곡부 안쪽. d 가 음수로 와서 need 0 으로 받는다
                         barrier(pr.t === 'arc' ? 'bend' : 'tre', p, i, e.d, e.ex, e.ey,
-                                e.corner ? 0 : need, K.K_BAR, K.CLR_SOFT);
+                                need, K.K_BAR, K.CLR_SOFT);
                     });
                 });
                 //  ④ 종방향끼리 — **적층이 여기서 나온다**
@@ -703,7 +703,7 @@
                     const need = (pr.dia + dia) / 2;
                     const e = this.toPrim(p, pr, need + dia);
                     if (e) barrier(pr.t === 'arc' ? 'bend' : 'tre', e.d, e.ex, e.ey,
-                                   e.corner ? 0 : need, K.K_BAR, K.CLR_SOFT);
+                                   need, K.K_BAR, K.CLR_SOFT);
                 });
                 for (let j = 0; j < P.length; j++) {
                     if (j === i) continue;
