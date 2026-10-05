@@ -1292,7 +1292,13 @@
         (Domain.lrebarList || []).forEach(function (g) {
           (g.particles || []).forEach(function (p) {
             if (!p || !isFinite(p.x) || !isFinite(p.y)) return;
-            out.push({ x: p.x, y: p.y, dia: p.dia || g.dia || 13 });
+            /*  `g`·`t` 를 같이 낸다 — **짝을 알아볼 수 있어야 한다.**
+                `gap` 을 준 무리는 한 자리(t)에 상·하 두 알이 선다. ㄷ 는 그 «한 짝»을
+                무는 철근이고, `jlong` 의 `K_TIE` 가 둘을 같은 t 에 묶는 것이 바로
+                그것 때문이다. 이게 없으면 갈고리가 **다른 무리의 철근**을 물어
+                엉뚱한 꼴이 된다 (복부 위의 슬래브 ㄷ 가 D2 복부철근을 물었다).   */
+            out.push({ x: p.x, y: p.y, dia: p.dia || g.dia || 13,
+                       g: String(g.id), t: (p.t == null ? null : p.t) });
           });
         });
         return out;
