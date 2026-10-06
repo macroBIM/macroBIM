@@ -393,6 +393,22 @@
             마주보는 두 면 사이다. 도면 8-243 의 하부슬래브 T3 가 그 꼴이고,
             값은 그 몸통 길이(387)다. 자세한 것은 `_expandSrebar` 주석에.      */
         if (this._rbHas(row[9])) o.body = this._rbNum(row[9]);
+        /*  `end` — **자유단의 끝이 어디서 멈추나.** ∩ 에만 묻는다.
+            ∩ 의 다리는 두께를 **가로지르므로** 두 면에 수직이고, 그래서 그 면들에
+            「앉을」 수가 없다 (법선이 옆을 본다 — 재면 `rest` 가 빈다). 즉 이것은
+            **앉는 자리**가 아니라 **끝막음**이고, 고르는 것은 다리 길이 ℓ 을 정하는
+            «자» 다. 둘 다 ℓ 을 출력으로 만든다 :
+              face  맞은편 면의 **피복선**까지. 벽체가 기울면 두 다리 길이가 서로
+                    **달라지고**, 그 다름이 곧 「경사를 맞춘다」다 (복부의 ∩).
+              bar   그 자리에서 가장 가까운 **종방향**까지 (하부슬래브의 ∩).
+            꼴과 **직교**하는 성질이라 코드를 안 쪼갠다 — 같은 ∩ 가 복부에도
+            하부에도 서고, 나중에 ㄷ 에도 같은 물음이 생긴다. 엔진의 `hook` 깃발
+            (「자유단이 벽이 아니라 종방향에 앉는다」)이 바로 이 자리다.         */
+        if (this._rbHas(row[10])) {
+          var ev = this._rbStr(row[10]).toLowerCase();
+          o.end = (ev === 'face' || ev === 'wall') ? 'face'
+                : (ev === 'bar' || ev === 'lrebar' || ev === 'rebar') ? 'bar' : ev;
+        }
         o.z = this._rbHas(row[12]) ? Number(row[12]) : 0;
         return o;
       },
@@ -1224,7 +1240,8 @@
             for (var i = 0; i + 1 < r.pts.length; i++)
               placed0.push({ p1: r.pts[i], p2: r.pts[i + 1], dia: bars[bi].dia, z: bars[bi].z || 0 });
           });
-          swarn = this._solveSrebarWithJ(sec, placed0);
+          //  ∩ 의 다리 길이는 **풀린 종방향**을 봐야 정해진다 (`_capLegs` 주석)
+          swarn = this._capLegs(sec).concat(this._solveSrebarWithJ(sec, placed0));
 
           /*  ── ㉢ **갈고리가 못 비키면, 매달린 종방향이 비켜 준다** ────────────
               ㄷ 와 그 종방향은 **결속되어 한 몸**이다. 그런데 푸는 차례가 한쪽
@@ -1270,7 +1287,10 @@
                           return h.id + ' → ' + h.grp + ' 자리 ' + Math.round(h.t) +
                                  ' 를 ' + Math.round(h.delta) + ' mm'; }).join(', ') + ')');
             lwarn = this._solveLrebarWithJ(sec);
-            swarn = this._solveSrebarWithJ(sec, placed0);
+            /*  ∩ 의 다리 길이도 **바퀴마다 다시 잰다.** 길이를 잰 뒤 ∩ 가 축방향으로
+                미끄러지면(띠) 끝이 그만큼 어긋나므로, 한 번 재고 마는 것은 모자란다 —
+                교대최소화가 종방향에 하는 일과 같다.                              */
+            swarn = this._capLegs(sec).concat(this._solveSrebarWithJ(sec, placed0));
           }
         }
 
@@ -1357,6 +1377,117 @@
           });
         });
         return out;
+      },
+
+      /*  ── ∩ 의 **다리 길이를 끝까지 출력으로** ─────────────────────────────
+          「복부에서는 양쪽 단부가 줄어들면서 최종으로는 복부 벽체 경사를 맞추면
+           되는데, 하부슬래브에 들어가는 철근은 마지막에 수직이거나 아래쪽 가장
+           가까운 점철근에 의지해야 해」 — 그 둘이 여기다.
+
+          지금까지 ∩ 는 **배치선 한 곳에서** 잰 「피복선에서 피복선」을 두 다리에
+          똑같이 주고 태어났다. 그래서 (ㄱ) 두 면이 안 나란한 자리에서 두 다리가
+          같은 길이일 까닭이 없는데 같았고, (ㄴ) 끝이 아무 데서나 멈춰 6~16 개가
+          떴다. 이제 **다리마다 제 자를 댄다** :
+            face  제 다리가 뻗는 쪽의 첫 면 — 그 **피복선**까지.
+                  두 면이 기울면 A 와 C 가 **달라진다.** 그 다름이 「경사를 맞춘다」다.
+            bar   그 자리에서 **가장 가까운 종방향**까지. face 로 잰 길이를 기준으로
+                  그 둘레에서 고른다 — 「가장 가까운」이 그 뜻이다.
+          **종방향을 푼 뒤에** 불러야 한다 (`_expandSrebar` 의 `_cap` 주석).      */
+      _capLegs: function (sec) {
+        var warn = [], self = this;
+        var caps = (Domain.trebarList || []).filter(function (t) { return t._cap; });
+        if (!caps.length) return warn;
+        var walls = (sec && sec.walls) || [];
+        var lpts = this._lrebarPoints();
+        var cv = (sec && sec.covers) || {};
+        var needOfW = function (w, dia) {
+          var tag = String((w && w.tag) || 'outer').toLowerCase();
+          return (cv[tag] != null ? cv[tag] : 50) + dia / 2;
+        };
+        //  한 점에서 d 방향으로 쏘아 **막아서는 첫 면의 피복선**까지 (mm)
+        var toFace = function (q, d, dia) {
+          var best = null;
+          walls.forEach(function (w) {
+            var t = JLong.rayHit(q, d, w);
+            if (t == null) return;
+            var v = t - needOfW(w, dia);
+            if (best == null || v < best) best = v;
+          });
+          return best;
+        };
+        var moved = 0, byRule = { face: 0, bar: 0 };
+        caps.forEach(function (t) {
+          var c = t._cap, u = c.u, dia = t.dia || 13;
+          var segs = t.segments || [];
+          if (segs.length < 3) return;
+          /*  **방향은 꼴에서 꺼낸다 — 가정하지 않는다.** `_cap.nt` 는 probe 의
+              축이라 다리가 뻗는 쪽의 **반대**일 수 있다 (실제로 위를 보고 있었다).
+              코너 → 자유단이 다리가 뻗는 쪽이고, 그건 조각이 그대로 말해 준다.  */
+          var mid = segs[1], ends = [];
+          var corner = [0, 2].map(function (i, k) {
+            var s = segs[i];
+            var d1 = Math.hypot(s.p1.x - mid.p1.x, s.p1.y - mid.p1.y) +
+                     Math.hypot(s.p1.x - mid.p2.x, s.p1.y - mid.p2.y);
+            var d2 = Math.hypot(s.p2.x - mid.p1.x, s.p2.y - mid.p1.y) +
+                     Math.hypot(s.p2.x - mid.p2.x, s.p2.y - mid.p2.y);
+            ends[k] = (d1 < d2) ? s.p2 : s.p1;
+            return (d1 < d2) ? s.p1 : s.p2;
+          });
+          var dl = [0, 1].map(function (k) {
+            var vx = ends[k].x - corner[k].x, vy = ends[k].y - corner[k].y;
+            var m = Math.hypot(vx, vy) || 1;
+            return { x: vx / m, y: vy / m };
+          });
+          var L = [0, 1].map(function (k) {
+            var q = corner[k], nt = dl[k];
+            var face = toFace(q, nt, dia);
+            if (!(face > 0)) return null;
+            if (c.end === 'face') return face;
+            /*  `bar` — **가장 가까운 종방향**을 글자 그대로 고른다.
+                고르는 자는 «옆으로 얼마나 가까운가»(l) 다 — 다리는 이미 제 면에
+                수직으로 서 있으므로 x 는 몸통이 정했고, 남은 물음은 「그 x 에서
+                아래로 내려가면 어느 알 옆에 서나」뿐이다. 옆 거리에 문턱을 두면
+                (한때 54 mm 로 두었다) 알이 그 밖에 있는 다리는 조용히 면으로
+                되돌아가 **끝이 떴다** (12 개 · 최악 67 mm). 문턱을 없앤다.
+                끝이 **닿는** 것이 아니라 **기대는** 것이다 — 정하는 것은 그 알의
+                «깊이»(s) 이고, 옆 거리는 누구를 고르느냐에만 쓴다.
+                고르는 범위는 끝 둘레(s)다 — 위 철근줄(s ≈ need)은 여기 안 든다.  */
+            var best = null;
+            lpts.forEach(function (p) {
+              var s = (p.x - q.x) * nt.x + (p.y - q.y) * nt.y;        // 다리를 따라 (깊이)
+              var l = Math.abs((p.x - q.x) * u.x + (p.y - q.y) * u.y); // 옆으로
+              if (!(s > face * 0.4) || s > face * 1.8) return;         // 끝 둘레만
+              if (best == null || l < best.l - 1e-6 ||
+                  (Math.abs(l - best.l) <= 1e-6 && Math.abs(s - face) < Math.abs(best.s - face)))
+                best = { l: l, s: s };
+            });
+            return best ? best.s : face;
+          });
+          if (L[0] == null || L[1] == null) return;
+          if (Math.abs(L[0] - c.box.A) < 0.5 && Math.abs(L[1] - c.box.C) < 0.5) return;
+          var box = { A: L[0], B: c.box.B, C: L[1] };
+          var rb = null;
+          try { rb = TrebarFactory.create(c.code, c.cc, box, c.rot, null, null, null); }
+          catch (e) { rb = null; }
+          if (!rb || !rb.segments || rb.segments.length < 3) return;
+          /*  **같은 철근이다** — 조각만 갈아 끼운다. id·지름·z·깃발은 그대로 둔다
+              (버리고 새로 만들면 `_srebar`·`hookSpan`·`cap` 까지 다시 달아야 한다). */
+          t.segments = rb.segments;
+          t._birth = rb.segments.map(function (s) {
+            return { label: s.label, p1: { x: s.p1.x, y: s.p1.y }, p2: { x: s.p2.x, y: s.p2.y },
+                     normal: { x: s.normal.x, y: s.normal.y } };
+          });
+          c.box = box;
+          moved++; byRule[c.end] = (byRule[c.end] || 0) + 1;
+        });
+        if (moved) {
+          var lens = [];
+          caps.forEach(function (t) { if (t._cap) { lens.push(t._cap.box.A); lens.push(t._cap.box.C); } });
+          console.log('[SREBAR] ∩ 다리 길이(출력) ' + Math.round(Math.min.apply(null, lens)) +
+                      ' ~ ' + Math.round(Math.max.apply(null, lens)) + ' mm · ' + moved + '개를 다시 쟀다' +
+                      ' (face ' + (byRule.face || 0) + ' · bar ' + (byRule.bar || 0) + ')');
+        }
+        return warn;
       },
 
       _srebarRows: function () {
@@ -1465,6 +1596,21 @@
           if (!capRole && !(leg > 0)) {
             warn.push(rd.id + ' : code ' + rd.code + '(ㄷ) 는 **leg** 를 적어야 합니다' +
                       ' (ㄷ 는 몸통이 늘어나므로 다리가 입력입니다)');
+            return;
+          }
+          /*  ∩ 는 **끝이 어디서 멈추는지**를 적어야 한다 (`end`). 기본값을 두지
+              않는 까닭은 복부의 ∩ 와 하부슬래브의 ∩ 가 **그 하나로** 갈리기
+              때문이다 — 눈치채게 두면 또 「어느 칸이 채워졌나」로 돌아간다.     */
+          if (capRole && rd.end !== 'bar' && rd.end !== 'face') {
+            warn.push(rd.id + ' : code 21a(∩) 는 **end** 를 적어야 합니다 — ' +
+                      '`bar`(끝이 가장 가까운 종방향에 기댄다 · 하부슬래브) 또는 ' +
+                      '`face`(끝이 맞은편 면의 피복선에서 멈춘다 · 복부, 벽체 경사를 따라간다)' +
+                      (rd.end ? ' [적힌 것 : ' + rd.end + ']' : ''));
+            return;
+          }
+          if (!capRole && rd.end) {
+            warn.push(rd.id + ' : code ' + rd.code + '(ㄷ) 에는 **end** 가 없습니다 — ' +
+                      'ㄷ 의 다리는 철근을 지나 뻗는 정착이라 끝막음이 아니라 `leg` 가 정합니다');
             return;
           }
           if (cap) leg = 400;                          // probe 용 — 실제 다리는 면이 정한다
@@ -1641,7 +1787,16 @@
                 덕트를 피해 옆 철근으로 옮겨 갈 수 있어야 하는데, 옆 ㄷ 의 자리까지
                 가면 둘이 같은 철근을 문다. 그 경계가 **간격의 절반**이다.        */
             rb.hookSpan = rd.ctc / 2;
-            if (cap) rb.cap = true;      //  ∩ — 두 다리가 «같은 줄의 다른 두 자리» 를 문다
+            if (cap) {
+              rb.cap = true;             //  ∩ — 두 다리가 «같은 줄의 다른 두 자리» 를 문다
+              /*  ── 다시 지을 수 있게 **낳은 값**을 챙겨 둔다 ────────────────────
+                  `end = bar` 는 **풀린 종방향**이 있어야 잴 수 있는데, 이 자리에서
+                  보이는 종방향은 아직 `init` 에 모여 있다 (재면 전부 0,−6480 이다).
+                  그래서 길이는 여기서 못 정하고, 종방향을 푼 **뒤에** `_capLegs`
+                  가 다시 짓는다. 그때 필요한 것이 이것뿐이다.                   */
+              rb._cap = { code: rd.code, cc: { x: cc.x, y: cc.y }, box: { A: box.A, B: box.B, C: box.C },
+                          rot: rot0, end: rd.end, nt: { x: nt.x, y: nt.y }, u: { x: u.x, y: u.y } };
+            }
             rb._srebar = String(rd.id);  //  종방향 뒤에 따로 푼다는 표시
             //  태어난 꼴 — ↻(Respawn) 이 이것으로 그 하나만 다시 푼다
             rb._birth = rb.segments.map(function (s) {
@@ -1785,13 +1940,26 @@
             아크 안에 품은 것을 「상·하 종방향의 짝이 어긋났다」고 진단한다. 둘 다
             거짓이다. 개념이 다르면 자도 달라야 한다.                              */
         var off = [], slip = [], anc = [], reach = [];
-        var lmin = function (pt) {           //  그 점에서 가장 가까운 종방향까지 (mm)
-          var b = Infinity;
+        /*  ── ∩ 의 끝을 재는 자는 **깊이**다 ─────────────────────────────────
+            한때 끝에서 가장 가까운 종방향까지의 **순거리**로 쟀다. 그건 틀린 자다 :
+            다리의 x 는 몸통이 정하므로 끝이 알과 알 **사이**에 설 수 있는데
+            (D3 가 125 간격이니 옆으로 최대 62.5), 깊이가 정확히 맞아도 순거리가
+            48 로 나와 「떴다」고 읽혔다. `end = bar` 가 정하는 것은 **그 알의 깊이**
+            이지 옆 거리가 아니다 (`_capLegs` 주석 — 닿는 게 아니라 기댄다).
+            그래서 **다리를 따라** 잰다 : 고르는 것은 옆으로 가장 가까운 알이고,
+            내는 수는 그 알의 깊이와 끝의 깊이 차다. 0 이면 제자리다.            */
+        var tipGap = function (corner, tip, dia) {
+          var vx = tip.x - corner.x, vy = tip.y - corner.y;
+          var ell = Math.hypot(vx, vy) || 1;
+          var dx = vx / ell, dy = vy / ell;
+          var best = null;
           lpts.forEach(function (q) {
-            var d = Math.hypot(q.x - pt.x, q.y - pt.y) - ((q.dia || 13) + 13) / 2;
-            if (d < b) b = d;
+            var s = (q.x - corner.x) * dx + (q.y - corner.y) * dy;        // 깊이
+            var l = Math.abs((q.x - corner.x) * (-dy) + (q.y - corner.y) * dx);
+            if (!(s > ell * 0.4) || s > ell * 1.8) return;                // 끝 둘레만
+            if (best == null || l < best.l) best = { l: l, s: s };
           });
-          return b;
+          return best ? Math.abs(best.s - ell) : 0;
         };
         out.forEach(function (r) {
           if (drop[String(r.id)]) return;
@@ -1828,8 +1996,8 @@
                   남은 물음은 「반대쪽 끝이 먼 줄에 닿았나」 하나다. 어느 알인지
                   미리 못박지 않고 **가장 가까운 종방향까지의 순거리**로 잰다
                   (0 이면 닿았다 · 양수면 그만큼 떴다).                          */
-              var tip = (i === 0) ? a : b;
-              reach.push({ v: lmin(tip), id: r.id + '[' + sg.label + ']' });
+              var tip = (i === 0) ? a : b, cnr = (i === 0) ? b : a;
+              reach.push({ v: tipGap(cnr, tip, r.dia), id: r.id + '[' + sg.label + ']' });
             } else {
               if (sOff < -2 || sOff > top + 2)
                 slip.push(r.id + '[' + sg.label + '] ' + sOff.toFixed(0));
