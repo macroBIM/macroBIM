@@ -618,7 +618,17 @@
                     두 다리가 같은 줄에 **같이** 닿을 수 없는 자리에서 한쪽이
                     허공에 떴다 (재면 7 개 · 최악 81 mm).                         */
                 const c = (seg.hookEnd === 1) ? seg.p2 : seg.p1;
-                const reach = seg.len || hyp(seg.p2.x - seg.p1.x, seg.p2.y - seg.p1.y);
+                /*  ── ∩ 는 **제 칸 안에서** 고른다 ───────────────────────────────
+                    ㄷ 의 다리는 철근을 지나 뻗는 정착이라 「닿을 수 있는 것」이 곧
+                    다리 길이였다. ∩ 의 다리는 두께를 가로지르므로 그 길이가
+                    **옆으로 돌아다닐 자격**과 아무 상관이 없다 — 660 mm 짜리 다리가
+                    660 mm 떨어진 알까지 후보로 보면 이웃 ∩ 의 자리를 통째로 덮는다.
+                    ∩ 의 칸은 ㄷ 와 같은 것이다 : **간격의 절반**(`hookSpan` = ctc/2,
+                    `hookPick` 주석). 「그룹으로 넣는 철근은 ctc 를 지켜야 한다」가
+                    여기서 지켜진다 — 새 칸을 안 만들고 이미 적은 `ctc` 를 쓴다.     */
+                const reachRaw = seg.len || hyp(seg.p2.x - seg.p1.x, seg.p2.y - seg.p1.y);
+                const reach = (seg.cap && seg.hookSpan > 0)
+                              ? Math.min(reachRaw, seg.hookSpan) : reachRaw;
                 const a = inherit && inherit.axis, q0 = inherit && inherit.q;
                 //  짝을 알아볼 수 있나 — 무리(g)와 자리(t)가 실려 왔을 때만
                 const pair = !!(q0 && q0.g != null && q0.t != null) && !seg.cap;
@@ -633,6 +643,8 @@
                 let best = null;
                 (lpts || []).forEach(p => {
                     if (q0 && p === q0) return;
+                    //  **이미 다른 ∩ 가 감싼 알은 후보가 아니다** (solve 의 주석)
+                    if (seg.cap && seg._claim && seg._claim.has(p)) return;
                     if (capPair && !(p.g === q0.g &&
                                      (p.t == null || q0.t == null || Math.abs(p.t - q0.t) > 1))) return;
                     if (pair && !(p.g === q0.g && p.t != null && Math.abs(p.t - q0.t) < 1)) return;
@@ -1366,7 +1378,7 @@
                    남은 후보가 데크 상면(E2) 하나뿐이라 **b 가 5.7 m 위로 올라간다**
               판3  a 는 복부면의 길이를 벗어나 후보가 0 개가 된다 (no-target)
             **처음 앉은 자리가 답이다.** 다시 풀 이유가 없다.                     */
-        form: function (bar, walls, sec, ducts, placed, lpts) {
+        form: function (bar, walls, sec, ducts, placed, lpts, claim) {
             this._pass = 1;
             const segs = bar.segs.map((s, i, arr) => {
                 const vx = s.p2.x - s.p1.x, vy = s.p2.y - s.p1.y;
@@ -1381,6 +1393,9 @@
                 return { label: s.label, len: L, len0: L, dia: bar.dia, n0: s.normal, th0: th,
                          link: link, z: bar.z || 0, hookSpan: bar.hookSpan || 0,
                          cap: !!bar.cap,
+                         //  임자 명단 — `settle` 이 조각마다 `hookSetup` 을 다시 부르므로
+                         //  인자가 아니라 **조각에 실어** 보낸다 (거기까지 따라가야 한다)
+                         _claim: claim || null,
                          hook: !!bar.hook && arr.length > 1,
                          hookEnd: (i === 0) ? 1 : -1,
                          bendR: bar.bendR || this.bendRadius(bar.dia),
@@ -1723,11 +1738,24 @@
             갈고리(srebar)는 종방향 **뒤에** 풀리는데, 그때 횡방향은 벌써 다 놓여
             있다. 빈 배열로 시작하면 갈고리가 그 횡방향을 못 보고 통과한다.
             꼴은 `placed` 와 같다 : { p1, p2, dia, z }.                          */
+        /*  ── **한 종방향을 둘이 감싸지 않는다** ────────────────────────────────
+            ∩ 의 두 다리는 「같은 줄의 다른 두 자리」를 문다(`capPair`). 그런데 그
+            규칙은 **제 안에서만** 보므로, 이웃한 ∩ 가 같은 알을 무는 것은 못 막는다.
+            S14 에서 재면 26 개 다리 중 **6 개**가 옆 ∩ 와 알을 나눠 물었다
+            (`t = 2000 · 1125 · 250 · −1125 · −1500 · −2375`). ctc 450 에 몸통이 387 이라
+            이웃한 ∩ 의 «안쪽 다리» 둘이 **63 mm** 밖에 안 떨어져, 125 짜리 줄에서
+            둘 사이에 알이 하나뿐인 자리가 생기기 때문이다.
+            그래서 **먼저 문 쪽이 그 알을 가진다** — 뒤에 오는 ∩ 는 제 칸(`hookSpan`
+            = ctc/2) 안에서 **남은 알**을 고른다. 차례가 곧 임자다 (`placed` 와 같은
+            규칙이다 — 이미 놓인 것이 다음 것의 조건이 된다).                     */
         solve: function (bars, walls, sec, ducts, lpts, placed0) {
             const placed = (placed0 || []).slice(), out = [];
+            const claim = new Set();
             (bars || []).forEach(b => {
-                const r = this.form(b, walls, sec, ducts, placed, lpts);
+                const r = this.form(b, walls, sec, ducts, placed, lpts, claim);
                 out.push(r);
+                //  **다 만든 뒤에** 임자를 적는다 — 만드는 중에는 제 알을 몇 번씩 본다
+                if (b.cap) (r.segs || []).forEach(s => { if (s.hookQ) claim.add(s.hookQ); });
                 for (let i = 0; i + 1 < r.pts.length; i++)
                     placed.push({ p1: r.pts[i], p2: r.pts[i + 1], dia: b.dia, z: b.z || 0 });
             });

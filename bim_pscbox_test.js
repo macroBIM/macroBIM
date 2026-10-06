@@ -1966,6 +1966,51 @@
                       Math.round(anc[anc.length - 1].v) + ' mm · 최소 ' + anc[0].id +
                       ' (한계 ' + JField.CONF.LEG_MIN + '·dᵇ)');
         }
+        /*  ── **같은 알을 둘이 감쌀 수 있는 입력인가** ─────────────────────────
+            엔진은 「먼저 문 쪽이 가진다」로 **나눠 무는 일은 막는다**(`JField.solve`).
+            그런데 그건 뒤에 오는 ∩ 를 옆 알로 밀어내는 것이라, 입력이 애초에
+            빠듯하면 다리 끝이 뜬다. 막을 수 있는 자리는 **입력**이다.
+            ∩ 둘이 나란히 서면 사이에 「안쪽 다리」 둘이 생기고, 그 틈이
+                ctc − body
+            다. 그 틈에 종방향이 **적어도 한 알**은 들어와야 둘이 다른 알을 문다 :
+                ctc − body ≥ L   (L = 그 종방향 줄의 간격)
+            S14 에서 재면 450 − 387 = **63 < 125** 이라 못 지킨다. 실제로 26 개 다리
+            중 6 개가 옆 ∩ 와 알을 나눠 물고 있었다. 500 − 375 = 125 로 바꿔 재 보면
+            **겹침이 −13.0 → 0.0** 이 된다. 그래서 고칠 곳을 숫자로 말해 준다.     */
+        var lctc = {};
+        (this._rebarData || []).forEach(function (r) {
+          if (String(r.type || '').toLowerCase() === 'lrebar' && r.bar && r.bar.ctc > 0)
+            lctc[String(r.id)] = r.bar.ctc;
+        });
+        this._srebarRows().forEach(function (rd) {
+          if (!(rd.body > 0) || !(rd.ctc > 0)) return;
+          //  이 ∩ 가 실제로 문 줄 — 가장 많이 문 무리를 쓴다 (추측이 아니다)
+          var tally = {};
+          out.forEach(function (r) {
+            if (drop[String(r.id)] || String(r.id).split('#')[0] !== String(rd.id)) return;
+            [0, 2].forEach(function (i) {
+              var sg = r.segs[i];
+              if (sg && sg.hookQ && sg.hookQ.g != null)
+                tally[sg.hookQ.g] = (tally[sg.hookQ.g] || 0) + 1;
+            });
+          });
+          var gid = null;
+          Object.keys(tally).forEach(function (k) { if (!gid || tally[k] > tally[gid]) gid = k; });
+          var L = gid && lctc[gid];
+          if (!(L > 0)) return;
+          var slot = rd.ctc - rd.body;              //  이웃한 ∩ 의 «안쪽 다리» 사이 틈
+          if (slot >= L - 1e-6) return;
+          /*  몸통을 **줄의 눈금에 맞춘 뒤** 거기에 한 칸을 더한 것이 맞는 ctc 다
+              (몸통 자체도 배수가 아니면 두 다리가 알 위에 안 선다).            */
+          var bodyFit = Math.max(L, Math.round(rd.body / L) * L);
+          var fit = bodyFit + L;
+          warn.push(rd.id + ' : ∩ 의 ctc ' + rd.ctc + ' 와 몸통 ' + rd.body +
+                    ' 가 **종방향 ' + gid + ' 의 간격 ' + L + ' 을 못 담습니다** — ' +
+                    '이웃한 ∩ 의 안쪽 다리 사이가 ' + Math.round(slot) + ' mm 라 ' +
+                    '그 틈에 알이 하나도 안 들어옵니다 (ctc − body ≥ ' + L + ' 이어야 합니다). ' +
+                    '지금은 **먼저 문 쪽이 가지고** 뒤에 오는 ∩ 가 옆 알로 밀려나며 ' +
+                    '다리 끝이 뜹니다. ctc ' + fit + ' · 몸통 ' + bodyFit + ' 이면 딱 맞습니다)');
+        });
         /*  ∩ 는 **정착을 다리에 안 맡긴다** — 그래서 같은 줄을 찍으면 늘 0 이고,
             그 0 은 흉이 아니라 꼴이다. ∩ 가 내는 수는 「반대쪽 끝이 닿았나」다.   */
         if (reach.length) {
