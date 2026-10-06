@@ -1417,6 +1417,23 @@
           var dia = rd.dia || 13, leg = rd.leg, init = rd.init || {};
           if (!rd.num || !rd.ctc) { warn.push(rd.id + ' : num 과 ctc 가 있어야 배치합니다'); return; }
           if (rd.code == null) { warn.push(rd.id + ' : code(꼴)가 있어야 배치합니다'); return; }
+          /*  ── **모르는 코드는 «모른다»고, 맨 먼저 말한다** ──────────────────────
+              `TrebarFactory.create` 는 모르는 코드에 `null` 을 돌려주고 그 줄이
+              통째로 빠진다. 실제로 그랬다 : 시트를 `21a` 로 바꿔 보낸 뒤 옛 판
+              프로그램에서 열었더니 **하부슬래브가 통째로 사라졌다.** 그때 나오던
+              말은 「조각이 셋이 아니다」·「body 를 비워야 한다」라 **입력을 탓하는
+              틀린 말**이었다 — 틀린 것은 입력이 아니라 **판이 어긋난 것**이다.
+              그래서 칸을 보기 **전에** 코드부터 본다. 코드가 새로 생기면 시트와
+              프로그램이 같이 움직여야 한다 (`trebar.js` `normCode` 주석의 `23-1`). */
+          var known = null;
+          try { known = TrebarFactory.create(rd.code, { x: 0, y: 0 }, {}, 0, null, null, null); }
+          catch (e) { known = null; }
+          if (!known) {
+            warn.push(rd.id + ' : 이 프로그램 판은 **code ' + rd.code + ' 를 모릅니다** — ' +
+                      '시트가 프로그램보다 새것입니다 (아는 코드 : 1 · 11 · 11a · 14 · 15 · ' +
+                      '21 · 21a · 23 · 23a · 41). `trebar.js` 를 같이 받으세요');
+            return;
+          }
           /*  ── **어느 개념인지는 `code` 가 말한다** ────────────────────────────
               복부의 ㄷ 와 하부슬래브의 ∩ 는 **굽는 모양이 같은 철근**이다 — 재 보면
               같은 공장에서 같은 `rot` 으로 조각 방향까지 같게 나오고 **치수 비율만**
@@ -1458,7 +1475,7 @@
                         { A: leg, B: 400, C: leg }, init.rot || 0, null, null, null); }
           catch (e) { probe = null; }
           if (!probe || !probe.segments || probe.segments.length < 3) {
-            warn.push(rd.id + ' : code ' + rd.code + ' 는 조각이 셋인 꼴이 아닙니다 (ㄷ=21)');
+            warn.push(rd.id + ' : code ' + rd.code + ' 는 조각이 셋인 꼴이 아닙니다 (ㄷ=21 · ∩=21a)');
             return;
           }
           var sa = probe.segments[0], sb = probe.segments[1];
