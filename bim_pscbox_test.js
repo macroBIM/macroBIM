@@ -1415,26 +1415,39 @@
 
         rows.forEach(function (rd) {
           var dia = rd.dia || 13, leg = rd.leg, init = rd.init || {};
-          var cap = rd.body > 0 ? rd.body : 0;         // ∩ : 몸통이 입력이다
           if (!rd.num || !rd.ctc) { warn.push(rd.id + ' : num 과 ctc 가 있어야 배치합니다'); return; }
           if (rd.code == null) { warn.push(rd.id + ' : code(꼴)가 있어야 배치합니다'); return; }
-          /*  ── **빈칸이 콘크리트가 정하는 쪽이다** ──────────────────────────────
-              복부 스터럽과 하부슬래브 스터럽은 **다른 개념**이다 :
-                ㄷ  양단(몸통의 두 끝)이 복부 면에 붙고 **몸통이 늘어난다**
-                    → 적는 것은 `leg`, 비우는 것은 `body`
-                ∩  양단(다리 둘)이 두께를 가로질러 서고 **몸통이 면과 나란하다**
-                    → 적는 것은 `body`, 비우는 것은 `leg`
-              그래서 **둘 중 하나만** 적는다. 둘 다 적으면 「무엇을 콘크리트가 정하느냐」
-              가 두 개가 되고, 둘 다 비우면 아무것도 안 정해진다. 입력이 **어느 개념인지
-              스스로 말하게** 하는 자리다 — 깃발을 따로 두지 않는 까닭이다.           */
-          if (leg > 0 && cap > 0) {
-            warn.push(rd.id + ' : leg 과 body 를 **같이** 적었습니다 — 하나는 빈칸이어야 합니다' +
-                      ' (빈칸이 «콘크리트가 정하는 쪽»입니다. ㄷ 는 leg, ∩ 는 body)');
+          /*  ── **어느 개념인지는 `code` 가 말한다** ────────────────────────────
+              복부의 ㄷ 와 하부슬래브의 ∩ 는 **굽는 모양이 같은 철근**이다 — 재 보면
+              같은 공장에서 같은 `rot` 으로 조각 방향까지 같게 나오고 **치수 비율만**
+              다르다 (trebar.js `Shape21Cap` 주석). 그래서 가공표에는 둘 다 21 로
+              나간다. 그런데 **엔진에서는 한 가지를 뜻하지 않는다** :
+                21   몸통 B 가 면에서 면 → 늘어나는 것이 **몸통**, 적는 것은 `leg`
+                21a  다리 A·C 가 면에서 면 → 늘어나는 것이 **다리**, 적는 것은 `body`
+              여기서 열차 방향·짝 규칙·띠·안착하는 끝이 전부 갈린다. 그 갈림을 한때
+              「어느 칸이 채워졌나」로 눈치채게 두었는데, 시트를 읽어서는 알 수가
+              없었다. **코드가 말한다.** 칸은 그 코드를 **맞검사**하는 자리로 남는다
+              — 빈 쪽이 「콘크리트가 정하는 쪽」이라는 뜻은 그대로다.              */
+          var capRole = (TrebarFactory.normCode(rd.code) === 21.1);
+          var cap = capRole ? (rd.body > 0 ? rd.body : 0) : 0;
+          if (capRole && !(cap > 0)) {
+            warn.push(rd.id + ' : code ' + rd.code + '(∩) 는 **body** 를 적어야 합니다' +
+                      ' (∩ 는 다리가 늘어나므로 몸통이 입력입니다. 다리는 비웁니다)');
             return;
           }
-          if (!(leg > 0) && !(cap > 0)) {
-            warn.push(rd.id + ' : leg 이나 body 중 **하나**를 적어야 합니다' +
-                      ' (ㄷ = 몸통이 늘어난다 → leg · ∩ = 다리가 늘어난다 → body)');
+          if (capRole && leg > 0) {
+            warn.push(rd.id + ' : code ' + rd.code + '(∩) 에 **leg** 를 적었습니다 — 비워야 합니다' +
+                      ' (빈칸이 «콘크리트가 정하는 쪽»입니다. ∩ 는 다리가 그 쪽입니다)');
+            return;
+          }
+          if (!capRole && rd.body > 0) {
+            warn.push(rd.id + ' : code ' + rd.code + '(ㄷ) 에 **body** 를 적었습니다 — 비워야 합니다' +
+                      ' (∩ 로 넣으려면 code 를 21a 로 바꾸세요)');
+            return;
+          }
+          if (!capRole && !(leg > 0)) {
+            warn.push(rd.id + ' : code ' + rd.code + '(ㄷ) 는 **leg** 를 적어야 합니다' +
+                      ' (ㄷ 는 몸통이 늘어나므로 다리가 입력입니다)');
             return;
           }
           if (cap) leg = 400;                          // probe 용 — 실제 다리는 면이 정한다
@@ -1544,24 +1557,60 @@
                 만 늘어진다** (재면 소피트 아래 490 mm 까지 내려갔다).
                 그래서 ∩ 는 한 번 떠 보고 **부재 방향의 아래끝을 먼 면에 맞춰** 옮긴다.
                 옮기는 양은 기하가 준다 — 추측이 아니다.                          */
+            /*  ── ∩ 는 **제 면에 맞춰 태어난다** ────────────────────────────────
+                「하부에 설치되는 경우는 양단부가 슬래브에 수직으로 딱 맞게 배치되고
+                 몸통을 하부슬래브 경사면에 평행하게 맞추는 거야」 — 맞다. 그런데
+                `rot` 은 **한 줄에 하나**라 꼴이 전역 방향으로 태어난다. 재 보니
+                다리가 13 개 전부 **90.00°(연직)** 인데 그 자리의 면은 6.44° ~ −9.81°
+                였다 — 다리가 면에 수직이 아니고 몸통도 면과 안 나란했다.
+                슬래브 상면이 꺾인 폴리라인이라 기울기가 자리마다 다르므로, **자리마다**
+                제 면의 기울기를 재어 `rot` 에 얹는다. 기준 면은 **몸통이 눕는 면**,
+                곧 `hm` 이다 (`cc` 가 꼴의 −n 쪽 끝을 그 면의 피복선에 맞춘다).
+                추측이 아니라 그 면의 법선에서 나온다.                              */
+            var tilt = 0;
+            /*  기준 면은 **몸통이 눕는 면**이다. `cc` 가 꼴의 끝을 맞추는 `hm` 이
+                아니라 그 **반대쪽**(`hp`)이다 — 재서 확인했다 : `hm` 으로 재면 13 개가
+                전부 같은 −1.72°(소피트 하나가 길게 이어진 면)를 받아, 헌치 쪽
+                (6.44° · −9.81°)이 안 맞았다.                                      */
+            if (cap && hp && hp.w) {
+              //  몸통이 누울 면의 «안쪽 법선» 의 **반대**가 다리가 뻗는 쪽이다
+              var want = Math.atan2(-hp.w.ny, -hp.w.nx);
+              var have = Math.atan2(n.y, n.x);                  // 지금 다리가 뻗는 쪽
+              tilt = (want - have) / D2R;
+              while (tilt > 180) tilt -= 360;
+              while (tilt <= -180) tilt += 360;
+              //  THMAX 와 같은 뜻의 울타리 — 면을 잘못 집었으면 돌리지 않는다
+              if (!(Math.abs(tilt) < 30)) tilt = 0;
+            }
+            var rot0 = (init.rot || 0) + tilt;
+            /*  돌렸으면 **재는 축도 같이 돈다.** 다리가 뻗는 쪽 `nt` 는 돌린 뒤의
+                방향이고, 몸통이 누울 면까지의 거리도 `n` 을 따라가 아니라 그 면의
+                **수직거리**로 재야 한다 (기울면 둘이 다르다). tilt 0 이면 예전과
+                같은 수다.                                                        */
+            var nt = n, dmP = dm;
+            if (cap && tilt) {
+              var th = Math.atan2(n.y, n.x) + tilt * D2R;
+              nt = { x: Math.cos(th), y: Math.sin(th) };
+              dmP = (p.x - hm.w.x1) * hm.w.nx + (p.y - hm.w.y1) * hm.w.ny;   // 면에서 안쪽으로
+            }
             var cc = c;
             if (cap) {
               var t0 = null;
-              try { t0 = TrebarFactory.create(rd.code, c, box, init.rot || 0, null, null, null); }
+              try { t0 = TrebarFactory.create(rd.code, c, box, rot0, null, null, null); }
               catch (e) { t0 = null; }
               if (t0 && t0.segments) {
                 var lo = Infinity;
                 t0.segments.forEach(function (s) {
                   [s.p1, s.p2].forEach(function (q) {
-                    var v = (q.x - p.x) * n.x + (q.y - p.y) * n.y;
+                    var v = (q.x - p.x) * nt.x + (q.y - p.y) * nt.y;
                     if (v < lo) lo = v;
                   });
                 });
-                cc = { x: c.x + n.x * (-(dm - needOf(hm)) - lo),
-                       y: c.y + n.y * (-(dm - needOf(hm)) - lo) };
+                cc = { x: c.x + nt.x * (-(dmP - needOf(hm)) - lo),
+                       y: c.y + nt.y * (-(dmP - needOf(hm)) - lo) };
               }
             }
-            try { rb = TrebarFactory.create(rd.code, cc, box, init.rot || 0, null, null, null); }
+            try { rb = TrebarFactory.create(rd.code, cc, box, rot0, null, null, null); }
             catch (e) { rb = null; }
             if (!rb) { oneSide++; return; }
             /*  이름 : 알맹이는 `T1#3` (낱개), **마크는 길이로 묶어 따로 낸다**
@@ -3066,6 +3115,10 @@
         var CODES = [
           { c: 1,  lbl: 'Code 1'  }, { c: 11, lbl: 'Code 11' }, { c: 11.1, lbl: 'Code 11a' },
           { c: 14, lbl: 'Code 14' }, { c: 15, lbl: 'Code 15' }, { c: 21, lbl: 'Code 21' },
+          /*  21a 는 21 과 **같은 모양으로 굽는** 철근이다 (가공표는 둘 다 21).
+              카드에 두 장이 걸리는 까닭은 엔진에서 뜻이 갈리기 때문이고, 기본
+              치수를 다르게 두어 **무엇이 늘어나는 쪽인가**가 그림에 보이게 했다. */
+          { c: 21.1, lbl: 'Code 21a' },
           { c: 23, lbl: 'Code 23' }, { c: 23.1, lbl: 'Code 23a' },
           { c: 41, lbl: 'Code 41' }
         ];

@@ -1439,7 +1439,28 @@
 
             //  ㉠ 각자 한 번 앉는다
             const res = segs.map(sg => {
-                const r = this.settle(sg, walls, sec, ducts, placed, lpts);
+                /*  ── ∩ 의 **다리**는 멀리 있는 면을 자리로 삼지 않는다 ───────────
+                    ∩ 의 다리는 두께를 **가로지르므로** 제 법선이 옆을 본다. 하부
+                    슬래브에는 그 쪽에 쓸 면이 없는데, `seats` 의 ③(띠)는 벽이 길면
+                    통과시켜서 **3 m 밖 복부면**(E7 · E10)을 자리로 잡았다. 그 면의
+                    피복 우물이 다리를 그 벽 방향으로 세워, 다리가 13 개 전부 정확히
+                    90.00°(연직)가 됐다 — 그 자리의 슬래브 면은 6.44° ~ −9.81° 인데도.
+                    「양단부가 슬래브에 수직으로 딱 맞게」가 안 되던 까닭이 이것이다.
+                    새 상수를 만들지 않는다 — **이미 재서 정해 둔 반경**을 쓴다
+                    (`RHO_LINK` 1500 = `JLong.CONF.RHO0`, 「장은 무한히 멀리까지
+                    당기지 않는다」). ∩ 의 다리는 길어야 ~900 이고 슬래브는 ≤600 이라
+                    1,500 안의 면은 진짜 이웃이고 3 m 밖은 아니다.                  */
+                let wl = walls;
+                if (bar.cap && !sg.link) {
+                    const rho = this.CONF.RHO_LINK;
+                    wl = (walls || []).filter(w => {
+                        const wx = w.x2 - w.x1, wy = w.y2 - w.y1, wl2 = wx * wx + wy * wy || 1;
+                        let t = ((sg.mid.x - w.x1) * wx + (sg.mid.y - w.y1) * wy) / wl2;
+                        t = Math.max(0, Math.min(1, t));
+                        return hyp(sg.mid.x - (w.x1 + wx * t), sg.mid.y - (w.y1 + wy * t)) <= rho;
+                    });
+                }
+                const r = this.settle(sg, wl, sec, ducts, placed, lpts);
                 const half = sg.len / 2;
                 let ux = Math.cos(r.pose.th), uy = Math.sin(r.pose.th);
 
@@ -1453,7 +1474,20 @@
                     J 가 찾은 값이고, 그건 살려 둬야 한다. 방향만 벽의 것으로 바꾼다.
                     두 끝이 서로 다른 면에 앉았으면(헌치를 타고 넘는 조각) 벽이 하나로
                     정해지지 않으므로 앉은 자세를 그대로 쓴다.                      */
-                const rw = (r.rest && r.rest.length === 2 && r.rest[0] === r.rest[1])
+                /*  ── ∩ 의 **다리**에는 이 규칙을 안 쓴다 ────────────────────────
+                    위 규칙은 「다리가 부재를 따라 누워 제 면에 안긴다」는 ㄷ 를 두고
+                    한 말이다. ∩ 의 다리는 두께를 **가로지르므로** 제 법선이 옆을
+                    보는데, 하부슬래브에는 그 쪽에 쓸 면이 없어 멀리 있는 **복부면
+                    (연직)** 을 집는다. 그러면 다리가 그 벽의 방향으로 **끌려가** 13 개
+                    전부 정확히 90.00°(연직)가 됐다 — 그 자리의 슬래브 면은 6.44° ~
+                    −9.81° 인데도. 「양단부가 슬래브에 수직으로 딱 맞게」가 안 된 까닭이
+                    이것이다.
+                    ∩ 의 다리 방향은 **태어날 때 제 면의 법선으로** 정해져 들어온다
+                    (`_expandSrebar` 의 자리별 `tilt`). 여기서 벽이 덮지만 않으면
+                    그 방향이 그대로 간다 — 앉은 자세를 쓰는 것이 맞고, 그건 바로
+                    아래 「두 끝이 서로 다른 면에 앉았으면」과 같은 처분이다.      */
+                const rw = (!(bar.cap && !sg.link) &&
+                            r.rest && r.rest.length === 2 && r.rest[0] === r.rest[1])
                            ? byId[r.rest[0]] : null;
                 if (rw) {
                     const wx = rw.x2 - rw.x1, wy = rw.y2 - rw.y1, wl = hyp(wx, wy) || 1;

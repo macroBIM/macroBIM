@@ -298,6 +298,45 @@ class Shape21 extends TrebarBase {
     }
 }
 
+/*  21a : ∩ — **굽는 모양은 21 과 같고, 콘크리트가 정하는 쪽이 다르다.**
+ *
+ *  재서 확인한 것부터 : 같은 공장에 넣으면 둘은 **같은 철근**으로 나온다.
+ *      21  rot 180  A150 B500 C150  →  a 150세로 · b 500가로 · c 150세로   (ㄷ · 복부)
+ *      21  rot 180  A660 B387 C660  →  a 660세로 · b 387가로 · c 660세로   (∩ · 하부)
+ *  조각 수도 방향도 같고 **치수 비율만** 다르다. 그래서 가공표에는 둘 다 BS 8666 의
+ *  21 로 나가야 한다 — `fabCode` 가 그것이다. 같은 모양으로 굽는 철근을 집계에서
+ *  두 줄로 쪼개면 그건 틀린 표다.
+ *
+ *  그런데 **엔진에서는 한 가지를 뜻하지 않는다.** 같은 `21 · rot 180` 인데
+ *      ㄷ  몸통 B 가 면에서 면 → 늘어나는 것이 **몸통**, 적는 것은 다리(`leg`)
+ *      ∩  다리 A·C 가 면에서 면 → 늘어나는 것이 **다리**, 적는 것은 몸통(`body`)
+ *  이고, 여기서 열차 방향·짝 규칙·띠·안착하는 끝이 **전부** 갈린다. 그 갈림을
+ *  「어느 칸이 채워졌나」로 눈치채게 두었더니 시트를 읽어서는 알 수가 없었다.
+ *  그래서 **코드가 말하게** 한다 : `21a` 면 ∩ 다.
+ *
+ *  기본 치수를 21 과 다르게 두는 까닭은 Shape Codes 카드 때문이다. 카드는 손으로
+ *  그린 그림이 아니라 이 공장에서 기본 치수로 뜬 것이라, 400/400/400 으로 두면
+ *  21 과 **똑같은 그림**이 두 장 걸린다. 다리를 길게·몸통을 짧게 두면 카드가
+ *  곧바로 「무엇이 늘어나는 쪽인가」를 말한다.                                  */
+class Shape21Cap extends TrebarBase {
+    generate() {
+        let A = this.dims.A || 620;
+        let B = this.dims.B || 300;
+        let C = this.dims.C || 620;
+
+        let r = this.buildSequential(
+            [A, B, C],
+            -90,
+            [90, 90],
+            [-1, -1, -1],
+            (pts) => ({ x: pts[1].x + B / 2, y: pts[1].y })
+        );
+        r.cap = true;          //  ∩ — 면에서 면인 것이 «다리» 다 (엔진이 이것으로 가른다)
+        r.fabCode = 21;        //  가공표에는 21 로 나간다 — 21 과 같은 모양으로 굽는다
+        return r;
+    }
+}
+
 // 23: Z(크랭크). BS 8666 의 A + B + (C).
 //     21 과 조각 수는 같지만 **A 와 C 가 B 의 반대쪽에 선다** — 21 은 같은 쪽(ㄷ)이다.
 //     A 가 -90 으로 내려와 +90 턴 → B 수평, 다시 -90 턴 → C 가 내려간다.
@@ -429,6 +468,7 @@ class TrebarFactory {
         else if (code === 14) r = new Shape14(center, dims, rotation, angs, nors, barEnds);
         else if (code === 15) r = new Shape15(center, dims, rotation, angs, nors, barEnds);
         else if (code === 21) r = new Shape21(center, dims, rotation, angs, nors, barEnds);
+        else if (code === 21.1) r = new Shape21Cap(center, dims, rotation, angs, nors, barEnds);
         else if (code === 23) r = new Shape23(center, dims, rotation, angs, nors, barEnds);
         else if (code === 23.1) r = new Shape23M(center, dims, rotation, angs, nors, barEnds);
         else if (code === 41) r = new Shape41(center, dims, rotation, angs, nors, barEnds);
