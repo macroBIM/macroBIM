@@ -393,21 +393,23 @@
             마주보는 두 면 사이다. 도면 8-243 의 하부슬래브 T3 가 그 꼴이고,
             값은 그 몸통 길이(387)다. 자세한 것은 `_expandSrebar` 주석에.      */
         if (this._rbHas(row[9])) o.body = this._rbNum(row[9]);
-        /*  `end` — **자유단의 끝이 어디서 멈추나.** ∩ 에만 묻는다.
-            ∩ 의 다리는 두께를 **가로지르므로** 두 면에 수직이고, 그래서 그 면들에
-            「앉을」 수가 없다 (법선이 옆을 본다 — 재면 `rest` 가 빈다). 즉 이것은
-            **앉는 자리**가 아니라 **끝막음**이고, 고르는 것은 다리 길이 ℓ 을 정하는
-            «자» 다. 둘 다 ℓ 을 출력으로 만든다 :
-              face  맞은편 면의 **피복선**까지. 벽체가 기울면 두 다리 길이가 서로
-                    **달라지고**, 그 다름이 곧 「경사를 맞춘다」다 (복부의 ∩).
-              bar   그 자리에서 가장 가까운 **종방향**까지 (하부슬래브의 ∩).
-            꼴과 **직교**하는 성질이라 코드를 안 쪼갠다 — 같은 ∩ 가 복부에도
-            하부에도 서고, 나중에 ㄷ 에도 같은 물음이 생긴다. 엔진의 `hook` 깃발
-            (「자유단이 벽이 아니라 종방향에 앉는다」)이 바로 이 자리다.         */
+        /*  `end` — **다리가 벽체를 어느 쪽으로 찾나.** ∩ 에만 묻는다.
+            규칙은 하나이고, ∩ 가 어디 서느냐로 갈린다 :
+              normal   다리가 면을 **따라 눕는다** → 제 **법선**으로 벽체를 찾는다.
+                       면에 안기므로 두 다리가 각자 제 면을 따라 줄어들고, 그 다름이
+                       곧 「벽체 경사를 맞춘다」다.                    ← **복부**의 ∩
+              tangent  다리가 두께를 **가로지른다** → 법선은 옆을 보고 그 쪽엔 쓸 면이
+                       없다(재면 `rest` 가 빈다). **접선**(다리가 뻗는 쪽)으로 찾는다.
+                       끝은 앞에 있는 종방향에 기대고, 없으면 그 면의 피복선에서
+                       멈춘다.                                     ← **하부슬래브**의 ∩
+            「끝단의 어디를 정착시킬 것인가」가 이 한 칸이다 : 법선이면 다리의 **옆**
+            이, 접선이면 다리의 **끝**이 자리를 잡는다.
+            꼴과 **직교**하는 성질이라 코드를 안 쪼갠다 — 같은 ∩ 가 복부에도 하부에도
+            서고, 나중에 ㄷ 에도 같은 물음이 생긴다.                                */
         if (this._rbHas(row[10])) {
           var ev = this._rbStr(row[10]).toLowerCase();
-          o.end = (ev === 'face' || ev === 'wall') ? 'face'
-                : (ev === 'bar' || ev === 'lrebar' || ev === 'rebar') ? 'bar' : ev;
+          o.end = (ev === 'normal' || ev === 'n') ? 'normal'
+                : (ev === 'tangent' || ev === 't') ? 'tangent' : ev;
         }
         o.z = this._rbHas(row[12]) ? Number(row[12]) : 0;
         return o;
@@ -1415,7 +1417,7 @@
           });
           return best;
         };
-        var moved = 0, byRule = { face: 0, bar: 0 };
+        var moved = 0, byRule = { normal: 0, tangent: 0 };
         caps.forEach(function (t) {
           var c = t._cap, u = c.u, dia = t.dia || 13;
           var segs = t.segments || [];
@@ -1442,7 +1444,10 @@
             var q = corner[k], nt = dl[k];
             var face = toFace(q, nt, dia);
             if (!(face > 0)) return null;
-            if (c.end === 'face') return face;
+            /*  `normal` — 다리가 제 면을 따라 **눕는다.** 길이를 여기서 정하지
+                않는다 : 면에 안기는 일은 `settle`(seats) 이 하고, 줄어드는 것도
+                그 면이 한다. 접선으로 재면 **엉뚱한 면**을 집는다.             */
+            if (c.end === 'normal') return null;
             /*  `bar` — **가장 가까운 종방향**을 글자 그대로 고른다.
                 고르는 자는 «옆으로 얼마나 가까운가»(l) 다 — 다리는 이미 제 면에
                 수직으로 서 있으므로 x 는 몸통이 정했고, 남은 물음은 「그 x 에서
@@ -1485,7 +1490,7 @@
           caps.forEach(function (t) { if (t._cap) { lens.push(t._cap.box.A); lens.push(t._cap.box.C); } });
           console.log('[SREBAR] ∩ 다리 길이(출력) ' + Math.round(Math.min.apply(null, lens)) +
                       ' ~ ' + Math.round(Math.max.apply(null, lens)) + ' mm · ' + moved + '개를 다시 쟀다' +
-                      ' (face ' + (byRule.face || 0) + ' · bar ' + (byRule.bar || 0) + ')');
+                      ' (법선 ' + (byRule.normal || 0) + ' · 접선 ' + (byRule.tangent || 0) + ')');
         }
         return warn;
       },
@@ -1601,10 +1606,10 @@
           /*  ∩ 는 **끝이 어디서 멈추는지**를 적어야 한다 (`end`). 기본값을 두지
               않는 까닭은 복부의 ∩ 와 하부슬래브의 ∩ 가 **그 하나로** 갈리기
               때문이다 — 눈치채게 두면 또 「어느 칸이 채워졌나」로 돌아간다.     */
-          if (capRole && rd.end !== 'bar' && rd.end !== 'face') {
+          if (capRole && rd.end !== 'tangent' && rd.end !== 'normal') {
             warn.push(rd.id + ' : code 21a(∩) 는 **end** 를 적어야 합니다 — ' +
-                      '`bar`(끝이 가장 가까운 종방향에 기댄다 · 하부슬래브) 또는 ' +
-                      '`face`(끝이 맞은편 면의 피복선에서 멈춘다 · 복부, 벽체 경사를 따라간다)' +
+                      '`normal`(다리가 면을 따라 누워 **법선**으로 벽체를 찾는다 · 복부) 또는 ' +
+                      '`tangent`(다리가 두께를 가로질러 **접선**으로 찾는다 · 하부슬래브)' +
                       (rd.end ? ' [적힌 것 : ' + rd.end + ']' : ''));
             return;
           }
@@ -1885,6 +1890,8 @@
         var bars = hooks.map(function (t) {
           return { id: String(t.id), dia: t.dia || 13, z: t.z || 0, hook: true,
                    hookSpan: t.hookSpan || 0, cap: !!t.cap,
+                   //  다리가 벽체를 **어느 쪽으로** 찾나 (`_parseSrebarRow` 의 `end`)
+                   endMode: (t._cap && t._cap.end) || 'tangent',
                    segs: (t.segments || []).map(function (s) {
                      return { label: s.label,
                               p1: { x: s.p1.x, y: s.p1.y }, p2: { x: s.p2.x, y: s.p2.y },
