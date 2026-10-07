@@ -1472,7 +1472,7 @@
           if (Math.abs(L[0] - c.box.A) < 0.5 && Math.abs(L[1] - c.box.C) < 0.5) return;
           var box = { A: L[0], B: c.box.B, C: L[1] };
           var rb = null;
-          try { rb = TrebarFactory.create(c.code, c.cc, box, c.rot, null, null, null); }
+          try { rb = TrebarFactory.create(c.code, c.cc, box, c.rot, c.angs || null, null, null); }
           catch (e) { rb = null; }
           if (!rb || !rb.segments || rb.segments.length < 3) return;
           /*  **같은 철근이다** — 조각만 갈아 끼운다. id·지름·z·깃발은 그대로 둔다
@@ -1725,32 +1725,39 @@
                 만 늘어진다** (재면 소피트 아래 490 mm 까지 내려갔다).
                 그래서 ∩ 는 한 번 떠 보고 **부재 방향의 아래끝을 먼 면에 맞춰** 옮긴다.
                 옮기는 양은 기하가 준다 — 추측이 아니다.                          */
-            /*  ── ∩ 는 **제 면에 맞춰 태어난다** ────────────────────────────────
-                「하부에 설치되는 경우는 양단부가 슬래브에 수직으로 딱 맞게 배치되고
-                 몸통을 하부슬래브 경사면에 평행하게 맞추는 거야」 — 맞다. 그런데
-                `rot` 은 **한 줄에 하나**라 꼴이 전역 방향으로 태어난다. 재 보니
-                다리가 13 개 전부 **90.00°(연직)** 인데 그 자리의 면은 6.44° ~ −9.81°
-                였다 — 다리가 면에 수직이 아니고 몸통도 면과 안 나란했다.
-                슬래브 상면이 꺾인 폴리라인이라 기울기가 자리마다 다르므로, **자리마다**
-                제 면의 기울기를 재어 `rot` 에 얹는다. 기준 면은 **몸통이 눕는 면**,
-                곧 `hm` 이다 (`cc` 가 꼴의 −n 쪽 끝을 그 면의 피복선에 맞춘다).
-                추측이 아니라 그 면의 법선에서 나온다.                              */
-            var tilt = 0;
-            /*  기준 면은 **몸통이 눕는 면**이다. `cc` 가 꼴의 끝을 맞추는 `hm` 이
-                아니라 그 **반대쪽**(`hp`)이다 — 재서 확인했다 : `hm` 으로 재면 13 개가
-                전부 같은 −1.72°(소피트 하나가 길게 이어진 면)를 받아, 헌치 쪽
-                (6.44° · −9.81°)이 안 맞았다.                                      */
-            if (cap && hp && hp.w) {
-              //  몸통이 누울 면의 «안쪽 법선» 의 **반대**가 다리가 뻗는 쪽이다
-              var want = Math.atan2(-hp.w.ny, -hp.w.nx);
-              var have = Math.atan2(n.y, n.x);                  // 지금 다리가 뻗는 쪽
-              tilt = (want - have) / D2R;
-              while (tilt > 180) tilt -= 360;
-              while (tilt <= -180) tilt += 360;
-              //  THMAX 와 같은 뜻의 울타리 — 면을 잘못 집었으면 돌리지 않는다
-              if (!(Math.abs(tilt) < 30)) tilt = 0;
+            /*  ── ∩ 는 **몸통만 면을 따르고, 다리는 연직으로 내려간다** ───────
+                「하부슬래브 철근은 위에서 아래로 내려오면서 자리를 잡아야 하고,
+                 양쪽 다리가 **수직**으로 내려와서 하부슬래브 하단에 닿아야지.
+                 **몸통과 양쪽 다리는 90도로 만날 필요 없어.**」
+
+                꼴 전체를 기울이면 안 된다 — 그러면 다리도 같이 기운다. 어제 그렇게
+                해서 다리가 **면에 수직**으로 섰는데, 면이 기울어 있으니 다리가
+                연직이 아니었다 (그림에서 다리가 비스듬한 것이 그것이다).
+                바른 꼴은 **꺾임각이 90°가 아닌** ∩ 다 :
+                    몸통 B  그 자리 **상면의 기울기**를 그대로
+                    다리 A·C  **연직** (중력 방향)
+                    따라서 두 코너의 각이 90° ∓ 기울기로 **서로 다르다**
+                `buildSequential` 이 `angs` 로 꺾임각을 받으므로 새 꼴이 필요 없다.
+                회전 R 일 때 세 조각의 세계각은
+                    A = −90 + R · B = −90 + RA + R · C = −90 + RA + RB + R
+                이고, 두 다리가 연직이려면 RA + RB = 180 이면 된다 (A 와 C 가 서로
+                반대 방향). 그러니 B 를 면과 나란하게 두는 RA 하나만 풀면 된다.
+                면이 수평이면 RA = RB = 90 — **예전 직각 ∩ 로 그대로 돌아간다.**  */
+            var tilt = 0, angs = null;
+            if (cap && rd.end === 'tangent' && hp && hp.w) {
+              var R0 = init.rot || 0;
+              var wa = Math.atan2(hp.w.y2 - hp.w.y1, hp.w.x2 - hp.w.x1) / D2R;  // 면의 방향
+              var base = R0;                       // RA = 90 일 때의 B 세계각 (−90+90+R)
+              var bw = wa;                         // 면과 나란한 가지 중 기본에 가까운 것
+              while (bw - base > 90) bw -= 180;
+              while (base - bw > 90) bw += 180;
+              var ra = bw + 90 - R0;
+              while (ra > 180) ra -= 360;
+              while (ra <= -180) ra += 360;
+              //  THMAX 와 같은 뜻의 울타리 — 면을 잘못 집었으면 직각 ∩ 로 둔다
+              if (Math.abs(ra - 90) < 30) angs = { RA: ra, RB: 180 - ra };
             }
-            var rot0 = (init.rot || 0) + tilt;
+            var rot0 = (init.rot || 0) + tilt;   // tilt 는 `normal` 쪽에 남겨 둔다
             /*  돌렸으면 **재는 축도 같이 돈다.** 다리가 뻗는 쪽 `nt` 는 돌린 뒤의
                 방향이고, 몸통이 누울 면까지의 거리도 `n` 을 따라가 아니라 그 면의
                 **수직거리**로 재야 한다 (기울면 둘이 다르다). tilt 0 이면 예전과
@@ -1764,7 +1771,7 @@
             var cc = c;
             if (cap) {
               var t0 = null;
-              try { t0 = TrebarFactory.create(rd.code, c, box, rot0, null, null, null); }
+              try { t0 = TrebarFactory.create(rd.code, c, box, rot0, angs, null, null); }
               catch (e) { t0 = null; }
               if (t0 && t0.segments) {
                 var lo = Infinity;
@@ -1778,7 +1785,7 @@
                        y: c.y + nt.y * (-(dmP - needOf(hm)) - lo) };
               }
             }
-            try { rb = TrebarFactory.create(rd.code, cc, box, rot0, null, null, null); }
+            try { rb = TrebarFactory.create(rd.code, cc, box, rot0, angs, null, null); }
             catch (e) { rb = null; }
             if (!rb) { oneSide++; return; }
             /*  이름 : 알맹이는 `T1#3` (낱개), **마크는 길이로 묶어 따로 낸다**
@@ -1800,7 +1807,8 @@
                   그래서 길이는 여기서 못 정하고, 종방향을 푼 **뒤에** `_capLegs`
                   가 다시 짓는다. 그때 필요한 것이 이것뿐이다.                   */
               rb._cap = { code: rd.code, cc: { x: cc.x, y: cc.y }, box: { A: box.A, B: box.B, C: box.C },
-                          rot: rot0, end: rd.end, nt: { x: nt.x, y: nt.y }, u: { x: u.x, y: u.y } };
+                          rot: rot0, angs: angs, end: rd.end,
+                          nt: { x: nt.x, y: nt.y }, u: { x: u.x, y: u.y } };
             }
             rb._srebar = String(rd.id);  //  종방향 뒤에 따로 푼다는 표시
             //  태어난 꼴 — ↻(Respawn) 이 이것으로 그 하나만 다시 푼다
