@@ -2169,6 +2169,47 @@
                       Math.round(anc[anc.length - 1].v) + ' mm · 최소 ' + anc[0].id +
                       ' (한계 ' + JField.CONF.LEG_MIN + '·dᵇ)');
         }
+        /*  ── **띠가 닫혔다 = 「그 자리엔 넣을 수 없다」** ───────────────────────
+            `hookBandOf` 는 띠의 위·아래끝을 재면서 `hi < lo` 면 `shut` 을 세운다.
+            그 말의 뜻은 **입력이 불가능하다**는 것이다 — 지켜야 하는 두 가지가
+            서로를 배제한다. 그런데 그 깃발을 **아무도 읽지 않고** 있었다. 대신
+            코드는 `hi = lo` 로 못박고 조용히 넘어갔고, 우리는 결과만 보고
+            「피복이 깨졌다」고 자를 탓했다.
+            S14 의 ∩ 는 **13 개가 전부 닫혀 있다** :
+                tc = 1.5 mm   (무는 알 뒤로 남은 피복)
+                need = 14.5   (스터럽이 그 알을 품는 데 필요한 거리)
+            13 mm 가 모자라고, 그 13 은 **스터럽 지름**이다. 까닭은 하나다 —
+            `lrebar` 가 종방향을 **콘크리트 면**에서 피복만큼 띄워 앉히는데,
+            스터럽은 종방향 **바깥**을 감는 철근이라 실제 자리가
+            `피복 + dˢ + dᵖ/2` 여야 한다. 그 한 켜가 없다.
+            **장은 이미 이것을 국소화하고 수치화해 두었다.** 우리가 할 일은 그
+            수를 내보내는 것이고, 푸는 것은 ㉢(`_tieDemand`)이 덕트에 하는 것과
+            같은 일이다 — 종방향이 비켜 준다 (STATUS 「아직 안 한 것」).        */
+        var shut = [];
+        out.forEach(function (r) {
+          if (drop[String(r.id)]) return;
+          if (!(byId[String(r.id)] || {}).cap) return;
+          var b = r.segs[1] && r.segs[1].band;
+          if (!b || !b.shut) return;
+          var sg0 = r.segs[0];
+          var nd = (sg0 && sg0.hookQ) ? JField.lreNeed(sg0.hookQ, r.dia) : null;
+          shut.push({ id: r.id, tc: b.tc, need: nd });
+        });
+        if (shut.length) {
+          var tcs = shut.filter(function (o) { return o.tc != null; }).map(function (o) { return o.tc; });
+          var nds = shut.filter(function (o) { return o.need != null; }).map(function (o) { return o.need; });
+          warn.push('∩ ' + shut.length + '개의 **띠가 닫혔습니다 — 그 자리엔 넣을 수 없습니다** (' +
+                    shut.slice(0, 6).map(function (o) { return o.id; }).join(', ') +
+                    (shut.length > 6 ? ' …' : '') +
+                    '). 무는 알 뒤로 남은 피복이 ' +
+                    (tcs.length ? Math.min.apply(null, tcs).toFixed(1) + '~' +
+                                  Math.max.apply(null, tcs).toFixed(1) : '?') +
+                    ' mm 인데 스터럽이 그 알을 품으려면 ' +
+                    (nds.length ? Math.max.apply(null, nds).toFixed(1) : '?') + ' mm 가 필요합니다 — ' +
+                    '**종방향이 한 켜(스터럽 지름)만큼 안으로 들어와야** 합니다. ' +
+                    '`lrebar` 가 종방향을 «면»에서 피복만큼 띄우는데, 스터럽은 그 바깥을 ' +
+                    '감는 철근이라 실제 자리는 «피복 + 스터럽지름 + 종방향지름/2» 입니다');
+        }
         /*  ── **같은 알을 둘이 감쌀 수 있는 입력인가** ─────────────────────────
             엔진은 「먼저 문 쪽이 가진다」로 **나눠 무는 일은 막는다**(`JField.solve`).
             그런데 그건 뒤에 오는 ∩ 를 옆 알로 밀어내는 것이라, 입력이 애초에
