@@ -1092,6 +1092,9 @@
               표·그림·집계가 읽는다 (벽에 앉은 조각의 `fitWall` 과 같은 급이다).  */
           seg.hookQ = rs.hookQ || null;
           seg.hookSide = rs.hookSide || 1;
+          //  ∩ 의 다리는 알을 둘 문다 (jfield hookRows 주석)
+          seg.hookQ2 = rs.hookQ2 || null;
+          seg.hookSide2 = rs.hookSide2 || 1;
           seg.state = rs.stopped === 'no-target' ? 'FITTING' : 'SETTLED';
         });
         /*  **자리가 없는 조각은 실패가 아니다.**

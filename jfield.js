@@ -232,16 +232,18 @@
             return seg.link ? (seg.bendR || 0) : this.lreNeed(seg.hookQ, seg.dia);
         },
 
-        hookGeom: function (pose, seg) {
-            const half = seg.len / 2, q = seg.hookQ;
+        /*  `alt` 면 **둘째 알**을 본다 — ∩ 의 다리는 위·아래 둘을 문다
+            (hookRows 의 「다리가 무는 알이 둘이다」 주석).                      */
+        hookGeom: function (pose, seg, alt) {
+            const half = seg.len / 2, q = alt ? seg.hookQ2 : seg.hookQ;
             const ux = Math.cos(pose.th), uy = Math.sin(pose.th);
-            const nu = seg.hookSide || 1;
+            const nu = (alt ? seg.hookSide2 : seg.hookSide) || 1;
             const nx = nu * -uy, ny = nu * ux;                 // n̂ = ν·u⊥
             const vx = q.x - pose.cx, vy = q.y - pose.cy;
             const h = vx * nx + vy * ny;                       // 중심선까지의 수직거리
             const a = vx * ux + vy * uy;                       // 축방향 (야코비에만 쓴다)
             return { h: h, a: a, half: half, ux: ux, uy: uy, nx: nx, ny: ny,
-                     nu: nu, target: this.hookTarget(seg) };
+                     nu: nu, target: alt ? this.lreNeed(q, seg.dia) : this.hookTarget(seg) };
         },
 
         /*  ── 축방향은 «꼭 접선점» 이 아니다. **띠 안의 어디든** 이다 ──────────────
@@ -377,9 +379,30 @@
             const K = this.CONF, g = this.hookGeom(pose, seg), half = Math.max(g.half, 1);
             const mk = (r, s) => ({ r: r, j: [-s * g.nx, -s * g.ny, -s * g.nu * g.a / half] });
             if (!seg.link) {                       // 다리 — 종방향에 **닿는다** (요구)
+                /*  ── ∩ 의 다리는 **알을 둘** 문다 ─────────────────────────────
+                    「몸통과 맞닿는 수직철근 부분을 먼저 종방향을 감싸는 위치로
+                     정착한다 … 수직철근의 마지막 부분을 슬래브 하단 피복까지 내리고,
+                     그 위치에서 가장 가까운 종방향으로 철근을 위치한다 … 이렇게 되면
+                     90 도를 유지할 필요가 없다」
+                    위 알 하나만 물면 다리의 **각이 안 정해진다** — 그래서 태어난
+                    각(연직)이 그대로 남았다. 아래 알을 하나 더 물리면 두 요구가
+                    각을 정한다 : 다리는 **두 알을 잇는 선과 나란**해지고, 90° 는
+                    처음 활성화 때의 출발값일 뿐이 된다.
+                    줄은 같은 꼴이다 — 수직거리가 need 가 되라는 양쪽 우물.
+                    (갈고리 안쪽이 모자란 쪽만 K_BAR 로 세게 미는 것도 그대로다.)  */
+                const out1 = [];
                 const gh = g.h - g.target;
                 const w = Math.sqrt(gh < 0 ? K.K_BAR : 1);
-                return [mk(w * gh, w)];
+                out1.push(mk(w * gh, w));
+                if (seg.hookQ2) {
+                    const g2 = this.hookGeom(pose, seg, true);
+                    const mk2 = (r, s2) => ({ r: r,
+                        j: [-s2 * g2.nx, -s2 * g2.ny, -s2 * g2.nu * g2.a / half] });
+                    const gh2 = g2.h - g2.target;
+                    const w2 = Math.sqrt(gh2 < 0 ? K.K_BAR : 1);
+                    out1.push(mk2(w2 * gh2, w2));
+                }
+                return out1;
             }
             const b = this.hookBand(seg), out = [];
             if (g.h < b.lo) { const w = Math.sqrt(b.wLo); out.push(mk(w * (g.h - b.lo), w)); }
@@ -395,7 +418,12 @@
             const K = this.CONF, g = this.hookGeom(pose, seg);
             if (!seg.link) {
                 const gh = g.h - g.target;
-                return (gh < 0 ? K.K_BAR : 1) * gh * gh;
+                let J0 = (gh < 0 ? K.K_BAR : 1) * gh * gh;
+                if (seg.hookQ2) {                      // 아래 알 (hookRows 주석)
+                    const g2 = this.hookGeom(pose, seg, true), gh2 = g2.h - g2.target;
+                    J0 += (gh2 < 0 ? K.K_BAR : 1) * gh2 * gh2;
+                }
+                return J0;
             }
             const b = this.hookBand(seg);
             let J = 0;
@@ -650,6 +678,13 @@
                     if (pair && !(p.g === q0.g && p.t != null && Math.abs(p.t - q0.t) < 1)) return;
                     const d = hyp(p.x - c.x, p.y - c.y);
                     if (d > reach) return;                       // 다리가 못 닿는다
+                    /*  ∩ 은 알을 **감싸므로** 안쪽 알만 후보다 (위 `_inSide` 주석) */
+                    if (seg.cap && seg._inSide) {
+                        const vx = seg.p2.x - seg.p1.x, vy = seg.p2.y - seg.p1.y;
+                        const L3 = hyp(vx, vy) || 1;
+                        const t3 = (p.x - seg.mid.x) * (-vy / L3) + (p.y - seg.mid.y) * (vx / L3);
+                        if ((t3 >= 0 ? 1 : -1) !== seg._inSide) return;
+                    }
                     //  짝을 모를 때만 — 첫째와 **같은 자리**가 먼저. 같으면 가까운 쪽.
                     const st = (a && !pair && !capPair) ? Math.abs((p.x - q0.x) * a.x + (p.y - q0.y) * a.y) : 0;
                     if (!best || st < best.st - 1 ||
@@ -664,7 +699,9 @@
             const t = (inherit && inherit.body)
                 ? inherit.dir.x * (-uy) + inherit.dir.y * ux       // 몸통 — 다리가 뻗는 쪽
                 : (q.x - seg.mid.x) * (-uy) + (q.y - seg.mid.y) * ux;   // 다리 — (q−c)·u⊥
-            seg.hookSide = (t >= 0) ? 1 : -1;
+            //  ∩ 은 **안쪽**으로 문다 — 위도 아래도 (위 `_inSide` 주석)
+            seg.hookSide = (seg.cap && seg._inSide && !(inherit && inherit.body))
+                           ? seg._inSide : ((t >= 0) ? 1 : -1);
             return q;
         },
 
@@ -1411,6 +1448,22 @@
                 절곡부가 어긋나고, 그 어긋남은 결과에 그대로 남아 보인다.        */
             if (bar.hook && segs.length > 1) {
                 const ends = segs.filter(s => !s.link);
+                /*  ── ∩ 은 알을 **감싼다** — 위도 아래도 «안쪽» 이다 ───────────────
+                    「몸통과 맞닿는 수직철근 부분을 종방향을 **감싸는** 위치로 정착」
+                    「종방향이 **∩ 내부에** 배치되는 형태로」 — 둘 다 안쪽이다.
+                    한쪽만 안쪽으로 두었더니 위를 바깥으로 문 다리가 생겼고(7 개),
+                    그런 다리는 두 요구가 서로 반대라 **둘 사이에 끼여** 양쪽 다
+                    47.6 mm 씩 어긋났다. 안쪽이 어느 쪽인지는 ∩ 가 말해 준다 —
+                    두 다리의 한가운데 쪽이다.                                    */
+                if (bar.cap) {
+                    const mx = ends.reduce((a, s) => a + s.mid.x, 0) / ends.length;
+                    const my = ends.reduce((a, s) => a + s.mid.y, 0) / ends.length;
+                    ends.forEach(s => {
+                        const vx = s.p2.x - s.p1.x, vy = s.p2.y - s.p1.y;
+                        const L2 = hyp(vx, vy) || 1;
+                        s._inSide = ((mx - s.mid.x) * (-vy / L2) + (my - s.mid.y) * (vx / L2)) >= 0 ? 1 : -1;
+                    });
+                }
                 const e0 = ends[0];
                 /*  ㉮ 첫째 다리가 «자리» 를 정한다 — **덕트를 피해서** (hookPick 주석)
                     고른 것은 `_inherit` 에 실어 둔다. `settle` 이 조각마다 **다시**
@@ -1446,6 +1499,49 @@
                         s._inherit = { q: lead.q, dir: dir, body: true };
                         s.band = band;
                     });
+                    /*  ── ㉲ ∩ 의 다리는 **아래 알도 문다** ───────────────────────
+                        「수직철근의 마지막 부분을 슬래브 하단 피복까지 내리고,
+                         그 위치에서 가장 가까운 종방향으로 철근을 위치한다. 이때
+                         종방향이 **∩ 내부에 배치되는** 형태로 위치를 찾는다.」
+                        차례가 그대로 식이 된다 :
+                          ① 다리는 연직으로 태어나 있다 (`_expandSrebar` 의 `angs`)
+                          ② 위 알은 이미 물었다 (`hookSetup` — 코너 쪽)
+                          ③ 제 끝까지 내려가 **그 끝에서 가장 가까운** 알을 고른다
+                          ④ 그 알이 **∩ 안쪽**에 오도록 무는 쪽을 정한다
+                        고르는 것은 거리뿐이다 — 인력장이 가장 가까운 것을 당긴다.
+                        이미 위 알로 물린 것은 뺀다 (한 알을 두 번 물 수 없다).     */
+                    if (bar.cap && bar.endMode === 'tangent') {
+                        //  ∩ 의 «안쪽» — 두 다리의 한가운데 쪽
+                        const mx = ends.reduce((a, s) => a + s.mid.x, 0) / ends.length;
+                        const my = ends.reduce((a, s) => a + s.mid.y, 0) / ends.length;
+                        const mine = new Set();
+                        ends.forEach(s => {
+                            const tip = (s.hookEnd === 1) ? s.p1 : s.p2;   // 자유단 (아래 끝)
+                            const cnr = (s.hookEnd === 1) ? s.p2 : s.p1;
+                            const vx = s.p2.x - s.p1.x, vy = s.p2.y - s.p1.y;
+                            const L2 = hyp(vx, vy) || 1, ux2 = vx / L2, uy2 = vy / L2;
+                            //  다리에서 ∩ 한가운데로 가는 쪽이 «안쪽» 이다
+                            const inSide = ((mx - s.mid.x) * (-uy2) + (my - s.mid.y) * ux2) >= 0 ? 1 : -1;
+                            let best = null;
+                            (lpts || []).forEach(q => {
+                                if (q === s.hookQ || mine.has(q)) return;
+                                if (claim && claim.has(q)) return;
+                                const d = hyp(q.x - tip.x, q.y - tip.y);
+                                if (d > (s.hookSpan > 0 ? s.hookSpan : s.len0)) return;
+                                //  위 알 쪽으로 되돌아간 것은 «아래» 알이 아니다
+                                if (!((q.x - cnr.x) * (tip.x - cnr.x) +
+                                      (q.y - cnr.y) * (tip.y - cnr.y) > 0)) return;
+                                //  **∩ 안쪽에 오는 알만** — 바깥에 두면 다리가 알을 등진다
+                                const t2 = (q.x - s.mid.x) * (-uy2) + (q.y - s.mid.y) * ux2;
+                                if ((t2 >= 0 ? 1 : -1) !== inSide) return;
+                                if (!best || d < best.d) best = { d: d, q: q };
+                            });
+                            if (!best) return;
+                            mine.add(best.q);
+                            s.hookQ2 = best.q;
+                            s.hookSide2 = inSide;      //  h 가 양수가 되는 쪽 = 안쪽
+                        });
+                    }
                 }
             }
 
@@ -1469,7 +1565,12 @@
                     한때 이것을 **반경**(`RHO_LINK` 1500)으로 막았는데, 그건 이 규칙의
                     그림자였다 — 「멀면 아니다」가 아니라 **「그 쪽으로 안 찾는다」**가
                     맞는 말이다. 길이는 `_capLegs` 가 접선으로 재어 준다.          */
-                const tang = !!bar.cap && !sg.link && bar.endMode === 'tangent';
+                /*  ⑥ 「나머지 수평부 몸통 철근을 **수평 무시하고** 양단을 연결해서
+                       마무리한다」 — 몸통에도 앉을 면을 주지 않는다. 다리가 알을
+                    둘씩 물어 코너가 이미 정해졌으므로, 몸통은 그 둘을 잇는 선이다
+                    (`joinCorners`). 면을 주면 몸통이 그 면과 나란해지려 하고,
+                    면이 꺾이는 자리에서 양단을 잇는 선과 **다투게** 된다.        */
+                const tang = !!bar.cap && bar.endMode === 'tangent';
                 const r = this.settle(sg, tang ? [] : walls, sec, ducts, placed, lpts);
                 const half = sg.len / 2;
                 let ux = Math.cos(r.pose.th), uy = Math.sin(r.pose.th);
@@ -1512,6 +1613,8 @@
                     rest: r.rest || [], stopped: r.stopped || null,
                     //  갈고리 다리는 「어느 종방향에 걸렸나」가 결과다 (rest 의 자리)
                     hook: !!sg.hook, hookQ: sg.hookQ || null, hookSide: sg.hookSide || 1,
+                    //  ∩ 의 다리는 알을 둘 문다 — 둘째도 결과에 실어 보낸다
+                    hookQ2: sg.hookQ2 || null, hookSide2: sg.hookSide2 || 1,
                     link: !!sg.link, band: sg.band || null,
                     parW: r.parW || null, bendR: sg.bendR || 0,
                     u: { x: ux, y: uy },
