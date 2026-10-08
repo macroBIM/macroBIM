@@ -215,7 +215,7 @@
             let min = null, max = null;
             for (let t = lo; t <= hi; t += step) {
                 const p = { x: a.O.x + a.u.x * t, y: a.O.y + a.u.y * t };
-                if (!this.seatsAt(p, a.n, walls, sec, g.dia).some(c => c.used)) continue;
+                if (!this.seatsAt(p, a.n, walls, sec, g.dia, g.wrap).some(c => c.used)) continue;
                 if (min === null) min = t;
                 max = t;
             }
@@ -271,7 +271,17 @@
             광선은 **면에 맞지 끝점에 안 맞고**(끝점은 측도 0), 첫 경계 너머를 못 본다.
             그래서 band·꼭짓점 규칙·폴백이 **막을 상황 자체가 안 생긴다.**
             남는 것은 게이트 하나 — 그건 땜질이 아니라 `nors` 의 물리적 뜻이다.     */
-        seatsAt: function (p, n0, walls, sec, dia) {
+        /*  `wrap` — **그 종방향을 감는 스터럽의 지름.**
+            종방향의 자리를 여태 「면에서 피복 + dᵖ/2」로 잡았는데, 스터럽은
+            종방향 **바깥**을 감는 철근이다. 그러면 피복을 받는 것은 스터럽이고,
+            종방향은 그보다 **한 켜 안쪽**이 제자리다 :
+                need = 피복 + dˢ + dᵖ/2
+            그 한 켜가 없어서 ∩ 의 띠가 13 개 전부 닫혀 있었다(= 그 자리엔 넣을 수
+            없다). 모자란 수가 **정확히 스터럽 지름**이었다 (jfield `hookBandOf` ·
+            `_tieDemand` 의 「띠가 닫혔다」 가지).
+            **누가 감는지는 재서 안다** — 갈고리가 실제로 문 무리에만 붙는다
+            (`_wrapOf`). 안 감기는 줄은 `wrap = 0` 이라 예전과 같은 수다.      */
+        seatsAt: function (p, n0, walls, sec, dia, wrap) {
             const ins = this.inside(p, walls);
             const dir = ins ? n0 : { x: -n0.x, y: -n0.y };
             let first = null;
@@ -300,7 +310,7 @@
                 (Khatib 의 ρ₀ 도 응용마다 정하는 값이다.)                        */
             if (first.t > this.CONF.RHO0) return [];
             if (first.w.nx * n0.x + first.w.ny * n0.y > this.CONF.GATE) return [];
-            return [{ w: first.w, need: JF.coverOf(first.w, sec) + dia / 2,
+            return [{ w: first.w, need: JF.coverOf(first.w, sec) + (wrap || 0) + dia / 2,
                       d: first.t, tt: 0.5, band: true, used: true }];
         },
 
@@ -1049,7 +1059,7 @@
                             ? g.path.reduce((o, k) => (o[String(k).toUpperCase()] = 1, o), {}) : null;
 
             const seatsFor = p => {
-                let s = this.seatsAt(p, a.n, walls, sec, g.dia).filter(c => c.used);
+                let s = this.seatsAt(p, a.n, walls, sec, g.dia, g.wrap).filter(c => c.used);
                 if (pathSet) s = s.filter(c => pathSet[String(c.w.id).toUpperCase()]);
                 return s;
             };
@@ -1132,7 +1142,7 @@
         pockets: function (g, walls, sec, ducts, prims, res, i) {
             const P = res.bars.map(b => ({ x: b.x, y: b.y }));
             const seatOf = p => {
-                const s = this.seatsAt(p, res.axes.n, walls, sec, g.dia).filter(c => c.used);
+                const s = this.seatsAt(p, res.axes.n, walls, sec, g.dia, g.wrap).filter(c => c.used);
                 return s.length ? this.nearestSeat(p, s) : null;
             };
             const ctx0 = { assign: P.map(seatOf), home: res.home,

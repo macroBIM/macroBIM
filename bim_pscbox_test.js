@@ -1095,6 +1095,8 @@
           //  ∩ 의 다리는 알을 둘 문다 (jfield hookRows 주석)
           seg.hookQ2 = rs.hookQ2 || null;
           seg.hookSide2 = rs.hookSide2 || 1;
+          //  띠 — **닫혔는지**를 ㉢ 이 읽는다 (`_tieDemand` 의 「띠가 닫혔다」 가지)
+          seg.band = rs.band || null;
           seg.state = rs.stopped === 'no-target' ? 'FITTING' : 'SETTLED';
         });
         /*  **자리가 없는 조각은 실패가 아니다.**
@@ -1233,6 +1235,7 @@
 
         //  ── 종방향 철근 (lrebar) 도 J 로 푼다 ────────────────────────────
         this._tieHint = null;
+        this._wrap = this._wrap || {};
         var lwarn = this._solveLrebarWithJ(sec);
 
         /*  ── 갈고리 (srebar) — **종방향 뒤에** 푼다 ──────────────────────────
@@ -1247,6 +1250,8 @@
           });
           //  ∩ 의 다리 길이는 **풀린 종방향**을 봐야 정해진다 (`_capLegs` 주석)
           swarn = this._capLegs(sec).concat(this._solveSrebarWithJ(sec, placed0));
+          //  누가 누구를 감는지 — 다음 바퀴의 종방향 자리가 이것을 쓴다 (`_wrapOf`)
+          this._wrap = this._wrapOf();
 
           /*  ── ㉢ **갈고리가 못 비키면, 매달린 종방향이 비켜 준다** ────────────
               ㄷ 와 그 종방향은 **결속되어 한 몸**이다. 그런데 푸는 차례가 한쪽
@@ -1296,6 +1301,7 @@
                 미끄러지면(띠) 끝이 그만큼 어긋나므로, 한 번 재고 마는 것은 모자란다 —
                 교대최소화가 종방향에 하는 일과 같다.                              */
             swarn = this._capLegs(sec).concat(this._solveSrebarWithJ(sec, placed0));
+            this._wrap = this._wrapOf();
           }
         }
 
@@ -1496,6 +1502,27 @@
                       ' (법선 ' + (byRule.normal || 0) + ' · 접선 ' + (byRule.tangent || 0) + ')');
         }
         return warn;
+      },
+
+      /*  ── **누가 누구를 감는가** — 재서 안다 ───────────────────────────────
+          종방향의 자리는 「면에서 피복 + dᵖ/2」가 아니라, 스터럽이 그 바깥을 감으면
+          「피복 + dˢ + dᵖ/2」다 (`JLong.seatsAt` 의 `wrap` 주석). 문제는 **누가
+          감느냐**인데, 그건 입력에 안 적혀 있고 추측할 일도 아니다 — 갈고리가
+          **실제로 문** 무리가 곧 감기는 무리다. 그래서 갈고리를 푼 뒤에 세어 둔다.
+          한 무리를 여러 굵기가 감으면 **가장 굵은 것**이 자리를 정한다.        */
+      _wrapOf: function () {
+        var w = {};
+        (Domain.trebarList || []).forEach(function (t) {
+          if (!t._srebar) return;
+          (t.segments || []).forEach(function (s) {
+            [s.hookQ, s.hookQ2].forEach(function (q) {
+              if (!q || q.g == null) return;
+              var k = String(q.g), d = t.dia || 13;
+              if (!(w[k] > d)) w[k] = d;
+            });
+          });
+        });
+        return w;
       },
 
       _srebarRows: function () {
@@ -2304,6 +2331,12 @@
               계산해 버리고 ctcmax 는 아예 안 쓴다) 입력 행에서 그대로 읽는다.      */
           var bar = rd.bar || {}, init = grp.initData || {};
           var g = {
+            /*  `wrap` — **그 줄을 감는 스터럽의 지름** (`JLong.seatsAt` 주석).
+                추측하지 않는다 : 지난 바퀴에 갈고리가 **실제로 문** 무리에만 붙는다
+                (`_wrapOf`). 첫 바퀴에는 갈고리가 아직 안 풀렸으니 0 이고, ㉢ 이
+                한 바퀴 돌면 그때부터 제 값이 든다 — 교대최소화가 덕트에 하는 것과
+                같은 차례다.                                                     */
+            wrap: (self._wrap && self._wrap[String(grp.id)]) || 0,
             id: String(grp.id), dia: grp.dia || 13, num: grp.num || 0,
             init: { x: init.x || 0, y: init.y || 0, rot: init.rot || 0 },
             nors: (init.grav === -1) ? -1 : 1,
@@ -2446,7 +2479,7 @@
             var r = pr[0]; if (!r || !r.bars) return;
             r.bars.forEach(function (b) {
               if (!b.rest) return;
-              var st = JLong.seatsAt({ x: b.x, y: b.y }, r.axes.n, sec.walls, sec, g.dia)
+              var st = JLong.seatsAt({ x: b.x, y: b.y }, r.axes.n, sec.walls, sec, g.dia, g.wrap)
                              .filter(function (c) { return c.used; });
               if (!st.length) return;
               /*  **양쪽을 다 본다.** 밖으로 나간 것(음수)만 보면 반쪽이다 —
@@ -2487,7 +2520,7 @@
           이웃 ㄷ 가 물 알을 빼앗는다.                                          */
       _tieDemand: function (sec) {
         var ducts = this._ducts || [];
-        if (!ducts.length || typeof JField === 'undefined') return [];
+        if (typeof JField === 'undefined') return [];
         var hooks = (Domain.trebarList || []).filter(function (t) { return t._srebar; });
         if (!hooks.length) return [];
         var lpts0 = this._lrebarPoints(), out = [], self = this;
@@ -2563,6 +2596,39 @@
           out.push({ id: String(t.id), grp: String(q.g), t: q.t, delta: best,
                      dir: dir, was: w0 });
         });
+
+        /*  ── **띠가 닫힌 것도 요구다** ────────────────────────────────────────
+            덕트 쪽 요구는 「얼마나?」를 **쓸어 보며** 잰다 — 덕트는 둥글고 ㄷ 는
+            꺾여 있어 식으로 안 떨어지기 때문이다. 닫힌 띠는 다르다 : 모자람이
+            **그 자리에서 바로 읽힌다.**
+                tc    무는 알 뒤로 남은 피복            (`hookBandOf` 가 잰 수)
+                need  스터럽이 그 알을 품는 데 필요한 거리
+                모자람 = need − tc
+            그만큼 그 알이 **안쪽으로** 들어오면 띠가 열린다. 쓸어 볼 까닭이 없다 —
+            이것이 장이 국소화하고 수치화해 둔 **최소 이동**이다.
+            방향은 다리가 뻗는 쪽(`dir`)이다. `ok()` 의 꼴과 맞추려고 부호를 뒤집어
+            적는다 (거기서 알은 `p − dir·δ` 로 움직인다).
+            푸는 일은 덕트와 **똑같다** — 한 자리(t)의 이동으로 말하고, 나머지는
+            `home`·`ctc` 가 줄 전체로 퍼뜨린다.                                   */
+        hooks.forEach(function (t) {
+          if (!t.cap || !t.segments || t.segments.length < 3) return;
+          var b = t.segments[1] && t.segments[1].band;
+          if (!b || !b.shut || b.tc == null) return;
+          var a0 = t.segments[0], q0 = a0 && a0.hookQ;
+          if (!q0 || q0.g == null || q0.t == null) return;
+          var need = JField.lreNeed(q0, t.dia || 13);
+          var lack = need - b.tc;
+          if (!(lack > 0.5)) return;
+          //  이미 덕트 쪽에서 요구가 난 ㄷ 는 그쪽에 맡긴다 (두 번 밀지 않는다)
+          var dup = false;
+          out.forEach(function (o) { if (o.id === String(t.id)) dup = true; });
+          if (dup) return;
+          var c0 = a0.p2, f0 = a0.p1;
+          var dl0 = Math.hypot(f0.x - c0.x, f0.y - c0.y) || 1;
+          var dir0 = { x: (f0.x - c0.x) / dl0, y: (f0.y - c0.y) / dl0 };
+          out.push({ id: String(t.id), grp: String(q0.g), t: q0.t, delta: -lack,
+                     dir: dir0, was: -lack, why: 'shut' });
+        });
         return out;
       },
 
@@ -2576,7 +2642,7 @@
         var ducts = this._ducts || [];
         var seatOn = function (axn) {
           return function (p) {
-            var st = JLong.seatsAt(p, axn, sec.walls, sec, g.dia).filter(function (c) { return c.used; });
+            var st = JLong.seatsAt(p, axn, sec.walls, sec, g.dia, g.wrap).filter(function (c) { return c.used; });
             return st.length ? JLong.nearestSeat(p, st) : null;
           };
         };
