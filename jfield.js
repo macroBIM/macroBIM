@@ -401,6 +401,70 @@
         /*  잔차와 야코비. 변수는 (cx, cy, φ = th·half) — 전부 mm.
               h = (q − c)·n̂      ∂h/∂c = −n̂      ∂h/∂th = −ν·(q − c)·û = −ν·a
             잔차가 h 의 함수 f 면 ∂r/∂x = f′(h)·∂h/∂x 다 — 줄을 몇 개 쌓아도 같다.  */
+        /*  ── **절곡 아크의 순간격 (2차원)** ──────────────────────────────────
+            여태 J 는 철근을 **직선 조각으로만** 봤다 (`hookTarget` : 「직선에는 닿고
+            아크에는 안 들어간다」). 그래서 알이 절곡부 안으로 들어가도 밀어내는 항이
+            없었고, 그 자리를 내가 **손으로 풀어 적어 넣으려** 했다. 자리는 장이 찾아야
+            한다 — 그래서 아크를 **물체 하나**로 넣는다.
+            항은 저장소가 이미 쓰는 「점 ↔ 물체 순간격」 그대로다 :
+                점 ↔ 직선조각   g = segToPoint(pts, q) − need      (있던 것)
+                점 ↔ 아크       g = | ‖q − c‖ − R | − need         (이것)
+                둘 다           J += K_BAR · g²   (g < 0 일 때만)
+            **«2차원» 인 까닭** : 알의 평면 자리 (a, h) **둘로** 재야 한다. 한때 h
+            하나로 줄여 놨는데(옆거리를 need 로 **가정**), 그건 「다리가 물 때」만
+            참이다. 몸통이 물면 옆거리가 자유다.
+
+            몸통의 자리틀에서 코너는 ±half·û 이고, 아크중심은 거기서 몸통을 따라 R
+            물러나 다리 쪽으로 R 간 자리다 :
+                A_k = a − k(half − R) ,  B = h − R ,  D = √(A² + B²)
+                g   = |D − R| − need
+            야코비 (변수 cx, cy, φ = th·half) :
+                ∂A/∂c = −û , ∂A/∂φ =  ν·h/half
+                ∂B/∂c = −n̂ , ∂B/∂φ = −ν·a/half
+                ∂g/∂D = sign(D − R)
+            아크의 **쓸림 안**에서만 건다 — 코너 바깥(곧은 구간 옆)은 직선 쪽 항의
+            몫이다.                                                              */
+        /*  `arcTerm` 과 **같은 식**을 (h, a) 로 바로 재는 것. 축방향 블록이 쓴다
+            (`axialSlide` — 축방향에 달린 항은 그 목적함수에 전부 있어야 한다).   */
+        arcAt: function (seg, h, a, dia) {
+            if (!seg || !seg.cap || !seg.hookQ) return 0;
+            const R = seg.bendR || 0;
+            if (!(R > 0)) return 0;
+            const need = this.lreNeed(seg.hookQ, dia || seg.dia);
+            const half = Math.max((seg.len0 != null ? seg.len0 : seg.len) / 2, 1);
+            let J = 0;
+            for (let i = 0; i < 2; i++) {
+                const k = i ? -1 : 1;
+                const A = a - k * (half - R), B = h - R;
+                if (!(A * k >= 0 && B <= 0)) continue;
+                const D = Math.sqrt(A * A + B * B) || 1e-9;
+                const gap = Math.abs(D - R) - need;
+                if (gap < 0) J += this.CONF.K_BAR * gap * gap;
+            }
+            return J;
+        },
+
+        arcTerm: function (seg, g, each) {
+            if (!seg.cap || !seg.link || !seg.hookQ) return;
+            const R = seg.bendR || 0;
+            if (!(R > 0)) return;
+            const need = this.lreNeed(seg.hookQ, seg.dia);
+            const half = Math.max(g.half, 1);
+            for (let i = 0; i < 2; i++) {
+                const k = i ? -1 : 1;
+                const A = g.a - k * (half - R), B = g.h - R;
+                if (!(A * k >= 0 && B <= 0)) continue;      // 아크가 쓸고 가는 사분면 밖
+                const D = Math.sqrt(A * A + B * B) || 1e-9;
+                const gap = Math.abs(D - R) - need;
+                if (gap >= 0) continue;                      // 아크에 안 닿는다
+                const sd = (D - R) >= 0 ? 1 : -1;
+                const dA = sd * A / D, dB = sd * B / D;
+                each(gap, -(dA * g.ux + dB * g.nx),
+                          -(dA * g.uy + dB * g.ny),
+                          g.nu * (dA * g.h - dB * g.a) / half);
+            }
+        },
+
         hookRows: function (pose, seg) {
             const K = this.CONF, g = this.hookGeom(pose, seg), half = Math.max(g.half, 1);
             const mk = (r, s) => ({ r: r, j: [-s * g.nx, -s * g.ny, -s * g.nu * g.a / half] });
@@ -452,6 +516,9 @@
                 if (g.h > b.hi && b.wHi > 0) {
                     const w2 = Math.sqrt(b.wHi); out.push(mk(w2 * (g.h - b.hi), w2));
                 }
+                const wa = Math.sqrt(K.K_BAR);               // 절곡 아크 (arcTerm 주석)
+                this.arcTerm(seg, g, (gap, jx, jy, jp) =>
+                    out.push({ r: wa * gap, j: [wa * jx, wa * jy, wa * jp] }));
                 return out;
             }
             if (g.h < b.lo) { const w = Math.sqrt(b.wLo); out.push(mk(w * (g.h - b.lo), w)); }
@@ -481,6 +548,7 @@
                 const gh = g.h - this.lreNeed(seg.hookQ, seg.dia);
                 J = (gh < 0 ? K.K_BAR : 1) * gh * gh;
                 if (g.h > b.hi && b.wHi > 0) J += b.wHi * (g.h - b.hi) * (g.h - b.hi);
+                this.arcTerm(seg, g, gap => { J += K.K_BAR * gap * gap; });
                 return J;
             }
             if (g.h < b.lo) J += b.wLo * (g.h - b.lo) * (g.h - b.lo);
@@ -1746,6 +1814,7 @@
             const nx = nu * -uy, ny = nu * ux;
             const cx = (sg.p1.x + sg.p2.x) / 2, cy = (sg.p1.y + sg.p2.y) / 2;
             const h0 = (q.x - cx) * nx + (q.y - cy) * ny;      // 지금의 h
+            const a0 = (q.x - cx) * ux + (q.y - cy) * uy;      // 축방향 (아크 항이 쓴다)
             //  띠를 δ 로 옮긴다 : 몸통을 +n̂ 으로 δ 옮기면 h 는 δ 만큼 **준다**
             const dLo = h0 - b.hi, dHi = h0 - b.lo;
             if (!(dHi > dLo)) return null;
@@ -1796,7 +1865,14 @@
                 if (h < b.lo) p += b.wLo * (h - b.lo) * (h - b.lo);
                 else if (h > b.hi && b.wHi > 0) p += b.wHi * (h - b.hi) * (h - b.hi);
                 const e = this.clrRes(h - b.pref, 1);
-                return { v: v, p: p + e.r * e.r, bite: bite };
+                p += e.r * e.r;
+                /*  ── **축방향에 달린 항은 전부 여기 있어야 한다** ────────────────
+                    절곡 아크(`arcTerm`)가 그렇다. 빼놓았더니 `settle` 이 아크를 피해
+                    옮겨 놓은 것을 여기서 **도로 끌고 왔다** — 재면 알이 코너의 이론
+                    꼭짓점(h = need)에 그대로 서서 아크를 7.5 mm 깼다.
+                    (덕트에서 한 번, 피복에서 한 번 겪은 그 병이다.)             */
+                p += this.arcAt(sg, h, a0, bar.dia);
+                return { v: v, p: p, bite: bite };
             };
             const cost = d => { const o = parts(d); return o.v + o.p; };
             /*  **지키고 있나는 mm 로 가른다.** 에너지로 「v === 0」을 보면 안 된다 —
@@ -1836,20 +1912,30 @@
                 if (okv(o) && o.p < feasP) { feasP = o.p; feas = d; }
             }
             if (feas != null) {
-                /*  가능영역 안에서 선호는 pref 에 가까울수록 작다 — 그러니 **pref 쪽으로
-                    한 발씩 다가가다 위반이 생기면 멈춘다.** (가능영역의 가장자리다.)  */
-                const want = h0 - b.pref;               // 선호가 바라는 δ
-                const step = (want > feas) ? 0.1 : -0.1;
-                for (let d = feas + step; (step > 0 ? d <= want + step / 2 : d >= want - step / 2); d += step) {
-                    if (d < dLo || d > dHi) break;
-                    if (!okv(parts(d))) break;
-                    feas = d;
+                /*  ── 가능영역 **안에서는 J 가 고른다** ──────────────────────────
+                    한때 여기서 **띠의 `pref` 로 바로 점프**했다. 「선호는 pref 에
+                    가까울수록 작다」가 참일 때는 같은 말이지만, 항이 하나 늘면
+                    거짓이 된다. 실제로 그랬다 — 절곡 아크 항(`arcAt`)을 넣었는데도
+                    알이 코너의 이론 꼭짓점에 그대로 서서 아크를 7.5 mm 깼다.
+                    `settle` 이 아크를 피해 옮겨 놓은 것을 **여기서 도로 끌고 온** 것이다.
+                    그러니 점프하지 않고 **가능영역을 훑어 `v + p` 의 바닥을 고른다.**
+                    항이 하나뿐이면 그 바닥이 곧 `pref` 라 예전과 같은 답이 나온다.
+                    사전식은 그대로다 — **가능한 것들 중에서만** 고른다.          */
+                let bf = feas, bfJ = Infinity;
+                for (let d = dLo; d <= dHi + 1e-9; d += 0.5) {
+                    const o = parts(d);
+                    if (!okv(o)) continue;
+                    const J = o.v + o.p;
+                    if (J < bfJ - 1e-9) { bfJ = J; bf = d; }
                 }
-                /*  **바라는 자리 자체를 마지막에 한 번 본다.** 0.1 씩 더하다 보면
-                    끝에서 1e-17 쯤 넘쳐 고리가 한 걸음 일찍 끝난다 — 그러면 멀쩡히
-                    선호 자리에 설 수 있는 ㄷ 가 0.1 mm 밀린 채 남는다 (J 0 → 0.01).  */
-                if (want >= dLo && want <= dHi && okv(parts(want))) feas = want;
-                bd = feas; bJ = parts(feas).v + parts(feas).p;
+                for (let d = bf - 0.5; d <= bf + 0.5 + 1e-9; d += 0.05) {   // 0.05 mm 로 다듬는다
+                    if (d < dLo || d > dHi) continue;
+                    const o = parts(d);
+                    if (!okv(o)) continue;
+                    const J = o.v + o.p;
+                    if (J < bfJ - 1e-9) { bfJ = J; bf = d; }
+                }
+                bd = bf; bJ = parts(bf).v + parts(bf).p;
             } else {
                 for (let d = Math.max(dLo, bd - 1); d <= Math.min(dHi, bd + 1) + 1e-9; d += 0.1) {
                     const J = cost(d); if (J < bJ - 1e-9) { bJ = J; bd = d; }
