@@ -1536,9 +1536,13 @@
               var k = String(q.g), ds = t.dia || 13, dp = q.dia || 13;
               var d = ds;                                  // ㄷ — 한 켜
               if (t.cap) {
-                var R = JField.bendRadius(ds), nd = (ds + dp) / 2;
-                var hN = R > nd ? (R - (R - nd) / Math.SQRT2) : nd;
-                d = ds / 2 + hN - dp / 2;                   // ∩ — 품긴 자리
+                /*  ∩ 의 코너가 무는 알은 **절곡 접선점**에 선다 (`hookBandOf` 의
+                    「아래끝은 R」 주석 — 다리의 갈고리 요구 ∧ 아크 순간격의 교집합).
+                    그러면 몸통 중심선에서 알까지가 R 이므로
+                        면에서 알까지 = 피복 + dˢ/2 + R
+                    `seatsAt` 이 `피복 + wrap + dᵖ/2` 로 받으니
+                        wrap = dˢ/2 + R − dᵖ/2      (S14 : 6.5 + 32.5 − 8 = **31**) */
+                d = ds / 2 + JField.bendRadius(ds) - dp / 2;
               }
               if (!(w[k] > d)) w[k] = d;
             });
