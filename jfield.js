@@ -1846,6 +1846,8 @@
                 if (o === undefined) {
                     o = parts(d);
                     o.J = o.v + o.p; o.ok = o.bite > OK; o.d = d;
+                    //  둘째 층 — 없으면 늘 참이라 한 층짜리와 똑같이 돈다
+                    o.ok2 = o.ok && (o.bite2 == null || o.bite2 > OK);
                     memo.set(k, o); n++;
                 }
                 return o;
@@ -1954,34 +1956,60 @@
             //  ① J 의 바닥
             let best = null;
             sweep(lo, hi, o => { if (!best || o.J < best.J - 1e-12) best = o; });
-            if (best.ok) { const w = strict(best); return { d: w.d, o: w, feas: true, n: n }; }
+            if (best.ok2) { const w = strict(best); return { d: w.d, o: w, feas: true, n: n }; }
 
-            /*  ② 바닥이 깨고 있다 — 가능영역을 찾는다. `bite` 의 부호가 바뀌는 칸을
+            /*  ② 바닥이 깨고 있다 — 가능영역을 찾는다. 판정의 부호가 바뀌는 칸을
                 이분법으로 갈라 구간을 세우고, 그 안에서만 다시 고른다.
-                (칸보다 좁은 가능영역은 못 본다 — 훑을 때도 못 봤다.)            */
-            const edge = (xa, xb) => {               // 가능한 쪽 끝을 돌려준다
-                let a = F(xa).ok ? xa : xb, b = F(xa).ok ? xb : xa;
-                for (let it = 0; it < 32 && Math.abs(b - a) > EDGE; it++) {
-                    const mid = (a + b) / 2;
-                    if (F(mid).ok) a = mid; else b = mid;
-                }
-                return a;
-            };
-            const m = cut(hi - lo);           // ① 과 **같은** 격자다 (memo 가 받는다)
-            const gx = [], gv = [];
-            for (let i = 0; i <= m; i++) { const x = lo + (hi - lo) * i / m; gx.push(x); gv.push(F(x)); }
-            const segs = [];
-            let s = gv[0].ok ? gx[0] : null;
-            for (let i = 1; i <= m; i++) {
-                if (gv[i].ok && !gv[i - 1].ok) s = edge(gx[i - 1], gx[i]);
-                else if (!gv[i].ok && gv[i - 1].ok) { segs.push([s, edge(gx[i - 1], gx[i])]); s = null; }
-            }
-            if (s != null) segs.push([s, gx[m]]);
+                (칸보다 좁은 가능영역은 못 본다 — 훑을 때도 못 봤다.)
 
-            let fb = null;
-            const grab = o => { if (o.ok && (!fb || o.J < fb.J - 1e-12)) fb = o; };
-            segs.forEach(sg => { if (sg[0] != null) sweep(sg[0], sg[1], grab); });
-            if (fb) { const w = strict(fb); return { d: w.d, o: w, feas: true, n: n }; }
+                ── 사전식이 **세 층**인 까닭 ────────────────────────────────────
+                한 층으로 두면 **되도록 피할 것**이 **절대로 안 될 것**을 가린다.
+                받치는 ∩ 의 다리는 하면 종방향 매트 **옆을 지나** 소피트로 내려가므로
+                그 알과 순간격이 모자란 자리가 칸 안에 **아예 없을 수 있다.** 그러면
+                가능영역이 통째로 비어 보여 사전식이 꺼지고, J 바닥만 고른 끝에
+                이웃 ∩ 와 **9.8 mm 부딪쳤다** (T3#8 ↔ T3#9). 철근끼리 부딪치는 것은
+                절대로 안 되는 것이고, 알 옆을 지나는 것은 어쩔 수 없는 것이다.
+                그래서 층을 가른다 :
+                  ㉠ `ok2` — 덕트 · 이미 놓인 철근 · **몸통** ↔ 알 (전부 지킨다)
+                  ㉡ `ok`  — 덕트 · 이미 놓인 철근만 (철근끼리는 **절대로**)
+                  ㉢ J
+                위 층에 자리가 있으면 거기서 고르고, 없으면 한 층 내려간다.
+                층이 하나인 블록(`axialSlide`)은 `bite2` 가 없어 `ok2 === ok` 라
+                예전과 **똑같이** 돈다.                                          */
+            const pick = key => {
+                const okf = o => !!o[key];
+                const edge = (xa, xb) => {           // 가능한 쪽 끝을 돌려준다
+                    let a = okf(F(xa)) ? xa : xb, b = okf(F(xa)) ? xb : xa;
+                    for (let it = 0; it < 32 && Math.abs(b - a) > EDGE; it++) {
+                        const mid = (a + b) / 2;
+                        if (okf(F(mid))) a = mid; else b = mid;
+                    }
+                    return a;
+                };
+                const m = cut(hi - lo);       // ① 과 **같은** 격자다 (memo 가 받는다)
+                const gx = [], gv = [];
+                for (let i = 0; i <= m; i++) {
+                    const x = lo + (hi - lo) * i / m; gx.push(x); gv.push(F(x));
+                }
+                const segs = [];
+                let s0 = okf(gv[0]) ? gx[0] : null;
+                for (let i = 1; i <= m; i++) {
+                    if (okf(gv[i]) && !okf(gv[i - 1])) s0 = edge(gx[i - 1], gx[i]);
+                    else if (!okf(gv[i]) && okf(gv[i - 1])) {
+                        segs.push([s0, edge(gx[i - 1], gx[i])]); s0 = null;
+                    }
+                }
+                if (s0 != null) segs.push([s0, gx[m]]);
+                let fb = null;
+                const grab = o => { if (okf(o) && (!fb || o.J < fb.J - 1e-12)) fb = o; };
+                segs.forEach(sg => { if (sg[0] != null) sweep(sg[0], sg[1], grab); });
+                return fb;
+            };
+            const lv = ['ok2', 'ok'];
+            for (let i = 0; i < lv.length; i++) {
+                const fb = pick(lv[i]);
+                if (fb) { const w = strict(fb); return { d: w.d, o: w, feas: true, n: n }; }
+            }
             return { d: best.d, o: best, feas: false, n: n };
         },
 
@@ -2223,7 +2251,7 @@
                     p1: { x: r.p1.x + ux * d, y: r.p1.y + uy * d },
                     p2: { x: r.p2.x + ux * d, y: r.p2.y + uy * d } }));
                 const pts = this.joinCorners(rs);
-                let v = 0, bite = 0;
+                let v = 0, bite = 0, bite2 = 0;
                 for (let i = 0; i + 1 < pts.length; i++) {
                     const pp = [pts[i], pts[i + 1]];
                     dus.forEach(k => {
@@ -2231,9 +2259,30 @@
                         const gg = this.segToPoint(pp, k) - need;
                         if (gg < 0) { const e = this.clrRes(gg); v += e.r * e.r; bite = Math.min(bite, gg); }
                     });
+                    /*  ── **가능 판정은 «피할 수 있는 것» 으로만 한다** ──────────
+                        묶이지 않은 알을 `bite` 에 넣으면 안 된다. 받치는 ∩ 의 다리는
+                        하면 종방향 매트 **옆을 지나** 소피트로 내려가므로 그 알과
+                        순간격이 모자란 자리가 **칸 안에 아예 없을 수 있다.** 그러면
+                        가능영역이 통째로 비어 보여서 사전식이 꺼지고, `lineMin` 은
+                        J 바닥만 고른다 — 그 바람에 이웃 ∩ 와 **9.9 mm 부딪쳤다**
+                        (T3#8 ↔ T3#9). 철근끼리 부딪치는 것은 **절대로** 안 되는
+                        것이고, 알 옆을 지나는 것은 어쩔 수 없는 것이다. 둘을 같은
+                        자로 재면 안 되는 것이 어쩔 수 없는 것에 묻힌다.
+                        그래서 **다리**가 보는 알은 에너지로만 센다 (`v`).
+                        **몸통은 다르다** — 몸통은 알이 얹히는 «받치는 면» 이라 거기
+                        파고드는 것은 어쩔 수 없는 것이 아니다. 다리만 뺐더니
+                        겹침은 0.0 이 됐는데 알이 몸통을 **12.4 mm** 파고들었다.
+                        그러니 `bite` 에 넣는 것은 **몸통 ↔ 알** 까지다.
+                        덕트와 이미 놓인 철근(`bars` — 다른 갈고리·횡방향)도 그대로
+                        둔다 : 그 셋은 비킬 자리가 있다.
+                        (조각 순서는 `joinCap` 이 정한다 — 0 다리 · 1 몸통 · 2 다리.) */
+                    const isBody = (pts.length === 4 && i === 1);
                     lps.forEach(p => {
                         const gg = this.segToPoint(pp, p) - this.lreNeed(p, bar.dia);
-                        if (gg < 0) { const e = this.clrRes(gg, K.K_BAR); v += e.r * e.r; bite = Math.min(bite, gg); }
+                        if (gg < 0) {
+                            const e = this.clrRes(gg, K.K_BAR); v += e.r * e.r;
+                            if (isBody) bite2 = Math.min(bite2, gg);
+                        }
                     });
                     bars.forEach(o => {
                         const need = (o.dia + bar.dia) / 2;
@@ -2257,15 +2306,16 @@
                         p += (gh < 0 ? K.K_BAR : 1) * gh * gh;
                     });
                 });
-                return { v: v, p: p, bite: bite };
+                return { v: v, p: p, bite: bite, bite2: Math.min(bite, bite2) };
             };
             /*  칸 안에서 **직선탐색**한다 (`lineMin`). 한때 5 → 0.5 → 0.05 mm 로
                 훑었는데, ∩ 하나에 130 번씩 J 를 다시 세워 2 분을 넘겼다.         */
             const r = this.lineMin(parts, -span, span);
             let bd = r.d, bJ = r.o.J;
             const z = parts(0);
-            z.J = z.v + z.p; z.ok = z.bite > -1e-3;
-            if ((z.ok === r.o.ok && z.J <= bJ + 1e-9) || (z.ok && !r.o.ok)) { bd = 0; bJ = z.J; }
+            z.J = z.v + z.p; z.ok = z.bite2 > -1e-3;
+            const rok = r.o.ok2 != null ? r.o.ok2 : r.o.ok;
+            if ((z.ok === rok && z.J <= bJ + 1e-9) || (z.ok && !rok)) { bd = 0; bJ = z.J; }
             if (bd === 0) return { d: 0, J: bJ, feas: z.ok, span: span, n: r.n };
             res.forEach(r2 => {
                 r2.p1 = { x: r2.p1.x + ux * bd, y: r2.p1.y + uy * bd };

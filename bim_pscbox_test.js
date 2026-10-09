@@ -1513,6 +1513,22 @@
           if (L[0] == null || L[1] == null) return;
           if (Math.abs(L[0] - c.box.A) < 0.5 && Math.abs(L[1] - c.box.C) < 0.5) return;
           var box = { A: L[0], B: c.box.B, C: L[1] };
+          /*  ── 다시 세우는 자리를 **몸통 중점**으로 바꿔 봤다 — 안 된다 ──────
+              `c.cc` 는 **태어난** 배치점이라, 그걸로 다시 세우면 J 가 찾아 놓은
+              자리를 **매 바퀴 버린다.** `Shape21Cap` 의 기준점이 몸통의 중점이니
+              (`buildSequential` 의 앵커 `pts[1].x + B/2`) 지금 몸통의 중점을
+              넘기면 몸통은 그대로 두고 다리만 다시 날 것 — 그렇게 재 봤다 :
+                다리 끝이 피복선에서 **71.3 → 28.4** mm 로 가까워졌다
+                그런데 알이 몸통을 **12.4 mm 파고들었다** (T3#9)
+                이웃 ∩ 와 9.9 mm 부딪치기도 했다 — 그건 사전식을 세 층으로
+                갈라 고쳤지만(`lineMin`), 파고듦은 안 고쳐진다
+              까닭은 매 바퀴의 **되돌림이 사실은 닻**이었다는 것이다 : 받치는 ∩ 의
+              몸통은 인력이 없고(척력만) 제 피복도 안 닿으므로, 되돌림을 빼면
+              다리 길이·몸통·알·`wrap` 넷이 **서로를 쫓아** 네 바퀴로 안 멈춘다.
+              **철근 속 12.4 mm 는 다리 71 mm 보다 나쁘다.** 그래서 되돌림을
+              그대로 둔다. 제대로 고치는 길은 몸통에 **제 기준**을 주는 것이고
+              (「끝단을 하부 피복과 J 값으로 비교」 — 다리 끝의 피복 항을 몸통의
+               변수로 적는다), 그건 STATUS 「아직 안 한 것」의 그 칸이다.      */
           var rb = null;
           try { rb = TrebarFactory.create(c.code, c.cc, box, c.rot, c.angs || null, null, null); }
           catch (e) { rb = null; }
@@ -1544,7 +1560,7 @@
           **실제로 문** 무리가 곧 감기는 무리다. 그래서 갈고리를 푼 뒤에 세어 둔다.
           한 무리를 여러 굵기가 감으면 **가장 굵은 것**이 자리를 정한다.        */
       _wrapOf: function () {
-        var w = {};
+        var w = {}, byT = {};
         (Domain.trebarList || []).forEach(function (t) {
           if (!t._srebar) return;
           /*  ── **`wrap` 은 받칠 때도 재서 쓴다** ────────────────────────────
@@ -1596,9 +1612,20 @@
                 if (hm > 0 && hm < 200) d = ds / 2 + hm - dp / 2;
               }
               if (!(w[k] > d)) w[k] = d;
+              /*  ── **자리마다도 적어 둔다** ─────────────────────────────────
+                  무리에 하나(최댓값)만 주면 ∩ 이 낮은 자리의 알이 몸통에서 뜬다 —
+                  한 무리라도 자리마다 슬래브 두께가 달라 ∩ 의 높이가 다르기
+                  때문이다. 그 자리의 ∩ 에서 잰 값을 그 자리에 준다
+                  (`JLong.wrapAt`). 안 감기는 자리는 무리 값으로 떨어진다.      */
+              if (q.t != null) {
+                var kt = String(q.t);
+                if (!byT[k]) byT[k] = {};
+                if (!(byT[k][kt] > d)) byT[k][kt] = d;
+              }
             });
           });
         });
+        w._byT = byT;
         return w;
       },
 
@@ -2424,7 +2451,9 @@
                 (`_wrapOf`). 첫 바퀴에는 갈고리가 아직 안 풀렸으니 0 이고, ㉢ 이
                 한 바퀴 돌면 그때부터 제 값이 든다 — 교대최소화가 덕트에 하는 것과
                 같은 차례다.                                                     */
-            wrap: (self._wrap && self._wrap[String(grp.id)]) || 0,
+            wrap: { def: (self._wrap && self._wrap[String(grp.id)]) || 0,
+                    byT: (self._wrap && self._wrap._byT &&
+                          self._wrap._byT[String(grp.id)]) || null },
             id: String(grp.id), dia: grp.dia || 13, num: grp.num || 0,
             init: { x: init.x || 0, y: init.y || 0, rot: init.rot || 0 },
             nors: (init.grav === -1) ? -1 : 1,

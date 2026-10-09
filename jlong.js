@@ -281,7 +281,20 @@
             `_tieDemand` 의 「띠가 닫혔다」 가지).
             **누가 감는지는 재서 안다** — 갈고리가 실제로 문 무리에만 붙는다
             (`_wrapOf`). 안 감기는 줄은 `wrap = 0` 이라 예전과 같은 수다.      */
+        /*  `wrap` 은 숫자이거나 `{def, byT}` 다 — 뒤쪽은 **자리(t)마다** 다른 값.
+            한 무리라도 자리마다 슬래브 두께가 달라 ∩ 의 몸통 높이가 다르다. 무리에
+            하나(최댓값)만 주면 ∩ 이 낮은 자리의 알이 **몸통에서 뜬다** (재 보니
+            13 자리 중 8 곳 · 1.2~18.0 mm). 그 자리의 ∩ 에서 잰 값을 쓴다.       */
+        wrapAt: function (wrap, p) {
+            if (wrap == null) return 0;
+            if (typeof wrap === 'number') return wrap;
+            const t = (p && p.t != null) ? String(p.t) : null;
+            if (t != null && wrap.byT && wrap.byT[t] != null) return wrap.byT[t];
+            return wrap.def || 0;
+        },
+
         seatsAt: function (p, n0, walls, sec, dia, wrap) {
+            wrap = this.wrapAt(wrap, p);
             const ins = this.inside(p, walls);
             const dir = ins ? n0 : { x: -n0.x, y: -n0.y };
             let first = null;
