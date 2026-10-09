@@ -1475,7 +1475,12 @@
                   (Math.abs(l - best.l) <= 1e-6 && Math.abs(s - face) < Math.abs(best.s - face)))
                 best = { l: l, s: s };
             });
-            return best ? best.s : face;
+            /*  ③ 「다리 길이는 입력을 하지 않으면 **그냥 슬래브 내에 배치**하는
+                   것으로 해」 — 그래서 고른 알이 면보다 멀면 **면에서 멈춘다.**
+                알을 쫓다가 다리가 소피트 피복선을 넘으면 띠의 아래끝(`ℓ − tf`)이
+                커져 띠가 **닫힌다** (= 그 자리엔 넣을 수 없다). 넘지 않게 자르면
+                그 닫힘이 사라진다 — 길이는 어차피 **출력**이다.                 */
+            return Math.min(best ? best.s : face, face);
           });
           if (L[0] == null || L[1] == null) return;
           if (Math.abs(L[0] - c.box.A) < 0.5 && Math.abs(L[1] - c.box.C) < 0.5) return;
@@ -1517,7 +1522,24 @@
           (t.segments || []).forEach(function (s) {
             [s.hookQ, s.hookQ2].forEach(function (q) {
               if (!q || q.g == null) return;
-              var k = String(q.g), d = t.dia || 13;
+              /*  ── **무는 꼴이 자리를 가른다** ────────────────────────────────
+                  ∩  코너가 알을 **품는다** → 알은 절곡 아크 안이다
+                        면에서 알까지 = 피복 + dˢ/2 + h_품김
+                        `seatsAt` 이 `피복 + wrap + dᵖ/2` 로 받으므로
+                        wrap = dˢ/2 + h_품김 − dᵖ/2    (S14 : **18.27**)
+                  ㄷ  다리가 알을 **지나** `leg` 만큼 더 뻗는다 → 알은 **직선 구간**에
+                        있지 절곡부에 품기지 않는다 (그것이 `LEG_MIN` 이야기다).
+                        스터럽이 한 켜 바깥일 뿐이다 :  wrap = dˢ   (S14 : **13**)
+                  가르지 않고 둘 다 품김으로 주었더니 D1 이 5.3 mm 더 깊이 들어가
+                  **T1 의 ㄷ 25 개 중 10 개가 걸 자리를 잃었다.** 꼴이 다르면 자리도
+                  다르다 — `hookBandOf` 가 ㄷ 와 ∩ 의 띠를 가르는 것과 같은 가름이다. */
+              var k = String(q.g), ds = t.dia || 13, dp = q.dia || 13;
+              var d = ds;                                  // ㄷ — 한 켜
+              if (t.cap) {
+                var R = JField.bendRadius(ds), nd = (ds + dp) / 2;
+                var hN = R > nd ? (R - (R - nd) / Math.SQRT2) : nd;
+                d = ds / 2 + hN - dp / 2;                   // ∩ — 품긴 자리
+              }
               if (!(w[k] > d)) w[k] = d;
             });
           });
@@ -2616,7 +2638,10 @@
           if (!b || !b.shut || b.tc == null) return;
           var a0 = t.segments[0], q0 = a0 && a0.hookQ;
           if (!q0 || q0.g == null || q0.t == null) return;
-          var need = JField.lreNeed(q0, t.dia || 13);
+          /*  요구하는 수는 **띠가 요구하는 것**이어야 한다 — `lo` 다.
+              `lreNeed`(= 알이 몸통에 닿는 자리)를 쓰면 띠의 아래끝(절곡부 안에
+              품긴 자리 `h_품김`)보다 작아서, 밀고도 띠가 안 열린다.            */
+          var need = b.lo;
           var lack = need - b.tc;
           if (!(lack > 0.5)) return;
           //  이미 덕트 쪽에서 요구가 난 ㄷ 는 그쪽에 맡긴다 (두 번 밀지 않는다)

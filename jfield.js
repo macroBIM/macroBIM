@@ -347,7 +347,22 @@
                         h ≥ need = (dᵖ + dᵇ)/2 + 순간격
                     `need` 와 `R` 사이는 아크 안이다 — 거기가 정상인 것이 스터럽
                     코너이고, 그 「선호로 돌려주기」는 STATUS 「아직 안 한 것」이다. */
-                const cneed = this.lreNeed(q, dia);
+                /*  ── 알은 절곡부 **안에 품긴다** — 자리가 기하로 닫힌다 ──────────
+                    「종방향 철근이 ∩ 철근의 몸통의 **절곡부 시작부분**에 매치되는
+                     것이 가장 J 값이 작을 것 같은데?」 — 방향이 맞다. 한때 아래끝을
+                    `need` 로 두었는데(= 알이 몸통 직선에 **닿는다**), 그건 알을
+                    코너의 **이론 꼭짓점**으로 밀어 넣는 자리라 실제로 앉는 데가
+                    아니다. 알은 절곡 아크의 **안쪽 면**에 닿아 품긴다 :
+                        아크중심은 코너에서 (R, R)
+                        아크 안쪽면까지 R − dˢ/2 ,  알 반지름 dᵖ/2
+                        ⇒ 아크중심에서 알까지 = R − (dˢ+dᵖ)/2 = **R − need**
+                        ⇒ 알은 이등분선 위, 코너에서 (R − (R−need)/√2) 만큼
+                    새 상수가 없다 — `R` 과 `need` 에서 나온다 :
+                        h_품김 = R − (R − need)/√2
+                    S14 (R 32.5 · need 14.5) 에서 **19.77 mm** 이고,
+                    `need 14.5 < 19.77 < R 32.5` 로 둘 사이에 바르게 든다.        */
+                const cneed0 = this.lreNeed(q, dia);
+                const cneed = R > cneed0 ? (R - (R - cneed0) / Math.SQRT2) : cneed0;
                 let clo = cneed, cwLo = K.K_BAR, chi = len, cwHi = K.K_BAR;
                 const ctf = this.reachAhead(q, dir, walls, sec, dia);
                 const ctc = this.reachAhead(q, { x: -dir.x, y: -dir.y }, walls, sec, dia);
@@ -1565,12 +1580,16 @@
                     한때 이것을 **반경**(`RHO_LINK` 1500)으로 막았는데, 그건 이 규칙의
                     그림자였다 — 「멀면 아니다」가 아니라 **「그 쪽으로 안 찾는다」**가
                     맞는 말이다. 길이는 `_capLegs` 가 접선으로 재어 준다.          */
-                /*  ⑥ 「나머지 수평부 몸통 철근을 **수평 무시하고** 양단을 연결해서
-                       마무리한다」 — 몸통에도 앉을 면을 주지 않는다. 다리가 알을
-                    둘씩 물어 코너가 이미 정해졌으므로, 몸통은 그 둘을 잇는 선이다
-                    (`joinCorners`). 면을 주면 몸통이 그 면과 나란해지려 하고,
-                    면이 꺾이는 자리에서 양단을 잇는 선과 **다투게** 된다.        */
-                const tang = !!bar.cap && bar.endMode === 'tangent';
+                /*  ⑥ 「몸통은 **수평 무시하고** 양단을 연결해 마무리한다」 —
+                    그래서 몸통이 면과 **나란해지라**는 요구는 뗀다 (아래 `rw` 가
+                    그것이고, `bar.cap` 이면 안 쓴다).
+                    그렇다고 **면을 통째로 떼면 안 된다.** 한때 그렇게 했더니 몸통의
+                    **피복 우물까지 같이 떨어져 나갔고**, 밀어낼 항이 없으니 몸통이
+                    상면 피복 안으로 **19.2 mm** 들어갔다 (5 개가 그랬다).
+                    「수평 무시」는 *나란히 서라* 를 떼라는 말이지 *피복* 을 떼라는
+                    말이 아니다. 면을 안 주는 것은 **다리**뿐이다 — 다리는 두께를
+                    가로질러 어느 면에도 못 앉는다(재면 `rest` 가 빈다).          */
+                const tang = !!bar.cap && !sg.link && bar.endMode === 'tangent';
                 const r = this.settle(sg, tang ? [] : walls, sec, ducts, placed, lpts);
                 const half = sg.len / 2;
                 let ux = Math.cos(r.pose.th), uy = Math.sin(r.pose.th);
