@@ -506,13 +506,22 @@
                 return out1;
             }
             const b = this.hookBand(seg), out = [];
-            /*  ∩ 의 몸통은 **알을 문다** (위 `capBody` 주석) — 띠의 선호 대신 다리와
-                **같은 꼴**의 양쪽 우물이다 : 몸통에서 알까지가 need 가 되라.
+            /*  ── ∩ 의 몸통 : **감싼다** 가 아니라 **받친다** ──────────────────────
+                「도면을 자세히 보니 하부 ∩ 철근은 종방향 철근을 **감싸는 게 아니고,
+                 철근을 받치는** 거야. 이건 철근의 **반발**로 위치를 잡을 수 있을 것
+                 같은데 J 값으로」
+                J 안에서 그 둘의 차이는 **우물의 한쪽**이다 :
+                  감싼다 — `gh = h − need` 의 **양쪽** 우물. gh > 0 이면 끌어당긴다.
+                  받친다 — `gh < 0` 쪽만. 알이 몸통을 파고들 때만 **밀어낸다.**
+                그래서 `gh > 0` 반쪽을 지운다. 끌어당기는 힘이 없어지므로 ∩ 는 알을
+                **찾아가지 않고**, 알이 제 피복·`home` 에 눌려 내려오다 ∩ 위에서
+                멈춘다 — 받치는 자리는 그 멈춤이 정한다.
+                (그 반쪽을 지우려면 종방향이 ∩ 을 **볼 수 있어야** 한다. 그 쪽은
+                 `bim_pscbox_test.js` 의 `_solveLrebarWithJ` → `prims` 다.)
                 띠의 위끝(코너가 피복 밖으로)은 그대로 둔다 — 그건 여전히 참이다.  */
             if (seg.cap) {
                 const gh = g.h - this.lreNeed(seg.hookQ, seg.dia);
-                const w = Math.sqrt(gh < 0 ? K.K_BAR : 1);
-                out.push(mk(w * gh, w));
+                if (gh < 0) { const w = Math.sqrt(K.K_BAR); out.push(mk(w * gh, w)); }
                 if (g.h > b.hi && b.wHi > 0) {
                     const w2 = Math.sqrt(b.wHi); out.push(mk(w2 * (g.h - b.hi), w2));
                 }
@@ -544,9 +553,9 @@
             }
             const b = this.hookBand(seg);
             let J = 0;
-            if (seg.cap) {                              // ∩ 의 몸통 — 알을 문다
+            if (seg.cap) {                              // ∩ 의 몸통 — **받친다** (hookRows 주석)
                 const gh = g.h - this.lreNeed(seg.hookQ, seg.dia);
-                J = (gh < 0 ? K.K_BAR : 1) * gh * gh;
+                J = (gh < 0) ? K.K_BAR * gh * gh : 0;
                 if (g.h > b.hi && b.wHi > 0) J += b.wHi * (g.h - b.hi) * (g.h - b.hi);
                 this.arcTerm(seg, g, gap => { J += K.K_BAR * gap * gap; });
                 return J;
