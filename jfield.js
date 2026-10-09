@@ -1743,7 +1743,7 @@
                     hook: !!sg.hook, hookQ: sg.hookQ || null, hookSide: sg.hookSide || 1,
                     //  ∩ 의 다리는 알을 둘 문다 — 둘째도 결과에 실어 보낸다
                     hookQ2: sg.hookQ2 || null, hookSide2: sg.hookSide2 || 1,
-                    link: !!sg.link, band: sg.band || null,
+                    link: !!sg.link, band: sg.band || null, cap: !!sg.cap,
                     parW: r.parW || null, bendR: sg.bendR || 0,
                     u: { x: ux, y: uy },
                     p1: { x: r.pose.cx - dx, y: r.pose.cy - dy },
@@ -1754,6 +1754,9 @@
             //  ㉡′ 축방향은 **ㄷ 의 자유도**다 — 조각이 아니라 ㄷ 로 한 번 더 내린다
             const slide = this.axialSlide(res, bar, ducts, placed, lpts);
 
+            //  ㉡″ ∩ 은 **한 덩어리로 옆으로도** 민다 (lateralSlide 주석)
+            const lat = this.lateralSlide(res, bar, ducts, placed, lpts);
+
             //  ㉡㉢ 교점으로 잇고, 자유단은 입력 길이만큼 되짚는다
             const pts = this.joinCorners(res);
 
@@ -1762,7 +1765,215 @@
             const total = res.reduce((a, s) => a + s.len, 0);
 
             return { id: bar.id, dia: bar.dia, segs: res, pts: pts, len: total,
-                     pass: 1, moved: 0, slide: slide };
+                     pass: 1, moved: 0, slide: slide, lat: lat };
+        },
+
+        /*  ── **직선탐색** — 미끄럼 블록의 쓸기를 버린다 ──────────────────────────
+            미끄럼 블록 둘(`axialSlide` · `lateralSlide`)은 변수가 **하나**고 구간이
+            막혀 있다. 그래서 전역최소를 고를 수 있는데, 지금까지는 5 → 0.5 → 0.05
+            mm 로 **훑어서** 골랐다. 그건 방법이 아니다 — 0.05 라는 숫자가 답에
+            들어오고, ∩ 하나에 130 번씩 J 를 다시 세워 2 분을 넘겼다.
+
+            ── 그 한 축 위에서 J 가 어떤 꼴인가 ──────────────────────────────────
+            이 두 블록은 **조각의 방향을 바꾸지 않는다** :
+              · 몸통은 평행이동한다 (방향 그대로)
+              · 다리는 **제 직선 위에서 끝점만** 움직인다 — `joinCorners` 가 코너를
+                다리의 선 위에서 옮기고, 다리의 선 자체는 가만히 있다
+            그러면 폴리라인의 모든 꼭짓점이 d 의 **1차식**이고, 순간격 항은 어디서나
+            둘 중 하나다 :
+              (가) 수선의 발이 조각 안   g = a + b·d                 → K·g² 는 d 의 2차식
+              (나) 끝점·아크           g = √(α d² + β d + γ) − ρ    → (g+ρ)² 가 2차식
+            켜지고 꺼지는 자리(활성집합이 바뀌는 d)도 1차식의 근이다. 곧
+            **J(d) 는 구간별 2차**다 — 구간이 몇 개이고 어디서 갈리는지만 모른다.
+
+            ── 그래서 포물선을 맞추고 «맞았나» 를 검사한다 ────────────────────────
+            세 점에 포물선을 맞춰 꼭짓점을 구하고, 거기서 J 를 **한 번 더 재서**
+            포물선 값과 비교한다.
+              같으면  — 네 점이 한 2차식 위에 있다 ⇒ 그 조각의 최소를 **정확히**
+                        찾은 것이다. 분해능이 없다. 보통 두세 번에 끝난다.
+              다르면  — 그 사이에 조각 경계가 있다 (접촉이 켜지거나, 피복 우물이
+                        `K_COV` 로 뒤집히거나, `clrRes` 가 되내려가는 자리) ⇒
+                        구간을 좁혀 다시 한다.
+            이 검사가 핵심이다. 구조를 **쓰지만** 구조를 **믿지는 않는다** — 2차가
+            아니면 황금분할로 떨어지므로 틀릴 수가 없다. Newton 을 그냥 못 쓰는
+            까닭도 여기 있다 : 피복 우물은 g = 0 에서 비대칭이고 배리어는 되내려가니
+            Hessian 이 끊기고 음수도 된다. 그 자리에서 Newton 은 반대편으로 넘어간다.
+
+            ── 거친 격자는 «골짜기 세기» 에만 쓴다 ──────────────────────────────
+            배리어가 볼록하지 않아 골짜기가 여럿이다. 먼저 거친 격자로 골짜기를
+            **세고** 골짜기마다 위 탐색을 돌린다. 격자는 **고르는 데 쓰지 않는다** —
+            세는 데만 쓴다.
+            칸을 25 mm 로 나눠 봤더니 **덕트가 셋 깨졌다.** 격자가 덕트의 가능창을
+            통째로 건너뛴 것이다 (덮개 순간격이 D/2 + 30 + dᵇ/2 라 창이 10~20 mm
+            밖에 안 되는 자리가 있다). 격자는 **가장 좁은 자질**보다 촘촘해야 하고,
+            여기서 가장 좁은 것은 철근 지름(13) 쯤이다 — 그래서 `GRID` 8 mm 다.
+            이것이 분해능이 답에 들어오는 것은 아니다 : 격자는 골짜기를 **세기만**
+            하고, 자리는 포물선이 정확히 집는다.
+
+            ── 사전식은 그대로다 ──────────────────────────────────────────────
+            J 의 전역최소가 **지키고 있으면** 그것이 답이다 (가능한 것 중 J 최소니까).
+            깨고 있을 때만 가능영역을 찾는다. 가능영역은 `bite(d)` 의 부호가 정하는
+            **구간들**이라 경계를 이분법으로 0.001 mm 까지 잡고 그 안에서 다시 돈다.
+            **지키고 있나는 mm 로 가른다** (`OK` = −1e-3). 에너지로 「v === 0」을 보면
+            안 된다 — 다리는 제 종방향 줄과 정확히 need 만큼 떨어져 나란히 눕는데,
+            그 줄이 데크 기울기를 타고 있어 몇몇 알이 1e-5 mm 쯤 어긋난다. 에너지로
+            보면 그것도 위반이라 가능영역이 통째로 비어 보여서, 멀쩡히 앉아 있던 ㄷ 가
+            117 mm 날아갔다 (벤치 x = 400 · 900 에서 J 0 → 844). 자는 **공학이 아니라
+            수치**다 — 1 µm 는 재는 오차지 순간격이 아니다. (공학 쪽 자인 `TOUCH`
+            0.5 mm 를 쓰면 안 된다. 그걸 쓰면 선호가 ㄷ 를 그 0.5 mm 끝까지 끌어당겨,
+            0.0 으로 설 수 있는 자리가 있는데도 −0.5 에 선다. 실제로 그랬다.)
+
+            `parts(d)` 는 `{v, p, bite}` 를 낸다 — 위반(v) 과 선호(p) 를 갈라 두는
+            까닭은 `axialSlide` 주석에 있다. 여기서는 J = v + p 로 겨루고 `bite` 로
+            가른다.                                                                */
+        lineMin: function (parts, lo, hi) {
+            const TOL = 1e-4, OK = -1e-3, EDGE = 1e-3, GRID = 8;
+            const cut = w => Math.max(4, Math.min(64, Math.ceil(w / GRID)));
+            let n = 0;
+            const memo = new Map();
+            const F = d => {
+                const k = Math.round(d * 1e7);
+                let o = memo.get(k);
+                if (o === undefined) {
+                    o = parts(d);
+                    o.J = o.v + o.p; o.ok = o.bite > OK; o.d = d;
+                    memo.set(k, o); n++;
+                }
+                return o;
+            };
+            if (!(hi - lo > TOL)) { const o = F(lo); return { d: lo, o: o, feas: o.ok, n: n }; }
+
+            //  세 점을 지나는 2차식의 값 (라그랑주)
+            const quadAt = (x1, y1, x2, y2, x3, y3, x) =>
+                y1 * ((x - x2) * (x - x3)) / ((x1 - x2) * (x1 - x3)) +
+                y2 * ((x - x1) * (x - x3)) / ((x2 - x1) * (x2 - x3)) +
+                y3 * ((x - x1) * (x - x2)) / ((x3 - x1) * (x3 - x2));
+
+            /*  한 골짜기를 끝까지 내린다 — 포물선 + 증명서, 안 되면 황금분할.
+                세 점은 언제나 x 로 정렬돼 있고, 한 번 돌 때마다 양 끝 중 하나를
+                버리므로 폭이 반드시 줄어든다 (멈추는 것이 보장된다).            */
+            const refine = (a, b, c) => {
+                let P = [F(a), F(b), F(c)].sort((u, w) => u.d - w.d);
+                for (let it = 0; it < 60; it++) {
+                    const x1 = P[0].d, y1 = P[0].J, x2 = P[1].d, y2 = P[1].J,
+                          x3 = P[2].d, y3 = P[2].J;
+                    if (!(x3 - x1 > TOL) || !(x2 - x1 > 0) || !(x3 - x2 > 0)) break;
+                    const den = (x2 - x1) * (y2 - y3) - (x2 - x3) * (y2 - y1);
+                    let xs = null, par = false;
+                    if (den > 0) {                       // 위로 열린 포물선일 때만
+                        const num = (x2 - x1) * (x2 - x1) * (y2 - y3) -
+                                    (x2 - x3) * (x2 - x3) * (y2 - y1);
+                        const t = x2 - 0.5 * num / den;
+                        if (t > x1 && t < x3) { xs = t; par = true; }
+                    }
+                    //  이미 쥔 점과 겹치면 포물선을 쓸 수 없다 (0 으로 나눈다)
+                    if (par && (Math.abs(xs - x1) < TOL * 0.05 ||
+                                Math.abs(xs - x2) < TOL * 0.05 ||
+                                Math.abs(xs - x3) < TOL * 0.05)) par = false;
+                    if (!par) xs = (x3 - x2 > x2 - x1) ? x2 + 0.382 * (x3 - x2)
+                                                       : x2 - 0.382 * (x2 - x1);
+                    const o = F(xs);
+                    if (par) {
+                        const pr = quadAt(x1, y1, x2, y2, x3, y3, xs);
+                        const sc = Math.max(1, Math.abs(pr), Math.abs(y2));
+                        if (Math.abs(o.J - pr) <= 1e-7 * sc) return o;   // ← 정확히 찾았다
+                    }
+                    const Q = P.concat([o]).sort((u, w) => u.d - w.d);
+                    let k = 0;
+                    for (let i = 1; i < Q.length; i++) if (Q[i].J < Q[k].J) k = i;
+                    const i0 = Math.min(Math.max(k - 1, 0), Q.length - 3);
+                    P = Q.slice(i0, i0 + 3);
+                }
+                return P.reduce((u, w) => (w.J < u.J ? w : u));
+            };
+
+            /*  거친 격자 위에서 골짜기를 세고, 골짜기마다 내린다.
+                끝 칸은 **언제나** 본다 — 띠의 끝이 답인 경우가 흔하다.          */
+            const sweep = (a, b, take) => {
+                if (!(b - a > TOL)) { take(F(a)); return; }
+                const k = cut(b - a);
+                const gx = [], gv = [];
+                for (let i = 0; i <= k; i++) {
+                    const x = a + (b - a) * i / k; gx.push(x); gv.push(F(x)); take(gv[i]);
+                }
+                for (let i = 1; i < k; i++)
+                    if (gv[i].J <= gv[i - 1].J && gv[i].J <= gv[i + 1].J)
+                        take(refine(gx[i - 1], gx[i], gx[i + 1]));
+                if (gv[0].J <= gv[1].J)
+                    take(refine(gx[0], gx[0] + (gx[1] - gx[0]) * 0.146, gx[1]));
+                if (gv[k].J <= gv[k - 1].J)
+                    take(refine(gx[k - 1], gx[k] - (gx[k] - gx[k - 1]) * 0.146, gx[k]));
+            };
+
+            /*  ── 고른 자리를 «지킨 쪽» 으로 되민다 ────────────────────────────
+                가능 여부는 수치 띠(`OK` = −1e-3)로 가른다 — 1 µm 는 재는 오차지
+                순간격이 아니기 때문이다. 그런데 최소가 제약 **경계**에 있으면
+                (덕트에 눌린 ㄷ 가 그렇다) 정확히 푼 답은 그 띠 **안쪽**, 곧
+                g = −0.3 µm 같은 자리에 앉는다. 공학으로는 접촉이지만 「지켰다」고
+                말할 수는 없다 — 재는 자마다 다르게 읽힌다. 실제로 그랬다 :
+                훑을 때는 격자가 경계에 못 앉아 우연히 안전한 쪽에 멈췄는데,
+                정확히 풀자 `bench/jband` 의 「덕트 침범 0건」이 4건(최악 −0.0)이
+                되고 「위반이 0 으로 떨어진 ㄷ 3개」가 0개로 읽혔다.
+                그래서 bite 가 커지는 쪽으로 넓혀 가며 **bite ≥ 0 인 첫 자리**를
+                이분법으로 잡는다. 0.1 mm 는 **한도**이고 분해능이 아니다 (그 안
+                에서는 이분법이 정확하다). J 는 이 거리에서 2차로 변하므로 바뀌는
+                양이 없다 — 옮기는 것은 부호뿐이다.                            */
+            const clamp = d => (d < lo ? lo : (d > hi ? hi : d));
+            const strict = o => {
+                if (!(o.bite < 0)) return o;
+                let dir = 0, bb = o.bite;
+                [1, -1].forEach(s => {
+                    const t = F(clamp(o.d + s * 1e-3));
+                    if (t.bite > bb) { bb = t.bite; dir = s; }
+                });
+                if (!dir) return o;
+                let far = null;
+                for (let st = 1e-3; st <= 0.1 + 1e-12; st *= 2) {
+                    const t = F(clamp(o.d + dir * st));
+                    if (!(t.bite < 0)) { far = t; break; }
+                }
+                if (!far) return o;
+                let a = o.d, b = far.d;                 // a : 아직 음수 · b : 0 이상
+                for (let i = 0; i < 40 && Math.abs(b - a) > 1e-6; i++) {
+                    const m = (a + b) / 2;
+                    if (F(m).bite < 0) a = m; else b = m;
+                }
+                const t = F(b);
+                return (t.ok && !(t.bite < 0)) ? t : o;
+            };
+
+            //  ① J 의 바닥
+            let best = null;
+            sweep(lo, hi, o => { if (!best || o.J < best.J - 1e-12) best = o; });
+            if (best.ok) { const w = strict(best); return { d: w.d, o: w, feas: true, n: n }; }
+
+            /*  ② 바닥이 깨고 있다 — 가능영역을 찾는다. `bite` 의 부호가 바뀌는 칸을
+                이분법으로 갈라 구간을 세우고, 그 안에서만 다시 고른다.
+                (칸보다 좁은 가능영역은 못 본다 — 훑을 때도 못 봤다.)            */
+            const edge = (xa, xb) => {               // 가능한 쪽 끝을 돌려준다
+                let a = F(xa).ok ? xa : xb, b = F(xa).ok ? xb : xa;
+                for (let it = 0; it < 32 && Math.abs(b - a) > EDGE; it++) {
+                    const mid = (a + b) / 2;
+                    if (F(mid).ok) a = mid; else b = mid;
+                }
+                return a;
+            };
+            const m = cut(hi - lo);           // ① 과 **같은** 격자다 (memo 가 받는다)
+            const gx = [], gv = [];
+            for (let i = 0; i <= m; i++) { const x = lo + (hi - lo) * i / m; gx.push(x); gv.push(F(x)); }
+            const segs = [];
+            let s = gv[0].ok ? gx[0] : null;
+            for (let i = 1; i <= m; i++) {
+                if (gv[i].ok && !gv[i - 1].ok) s = edge(gx[i - 1], gx[i]);
+                else if (!gv[i].ok && gv[i - 1].ok) { segs.push([s, edge(gx[i - 1], gx[i])]); s = null; }
+            }
+            if (s != null) segs.push([s, gx[m]]);
+
+            let fb = null;
+            const grab = o => { if (o.ok && (!fb || o.J < fb.J - 1e-12)) fb = o; };
+            segs.forEach(sg => { if (sg[0] != null) sweep(sg[0], sg[1], grab); });
+            if (fb) { const w = strict(fb); return { d: w.d, o: w, feas: true, n: n }; }
+            return { d: best.d, o: best, feas: false, n: n };
         },
 
         /*  ── ㄷ 의 축방향은 «조각» 이 아니라 «ㄷ» 의 자유도다 ──────────────────
@@ -1788,12 +1999,14 @@
             자리 배정 · `par-cycle` 과 같은 구조) :
                 조각마다 내린다  →  ㄷ 로 축방향 한 번  →  코너를 잇는다
 
-            ── 왜 기울기 한 걸음이 아니라 «훑기» 인가 ────────────────────────
+            ── 왜 기울기 한 걸음이 아니라 «직선탐색» 인가 ────────────────────
             덕트·철근 배리어는 되내려가는(redescending) 꼴이라 **볼록하지 않다.**
             기울기는 제가 선 골짜기만 본다 — 이 저장소가 이미 적어 둔 그 병이다
             (「능선을 못 넘고 덕트 위에 걸터앉는다」). 그런데 이 블록은 변수가
-            **하나**고 구간이 **띠로 막혀 있다.** 유계 1차원에서는 훑는 것이
-            전역최소이고, 기울기보다 **강한** 답이다. 2 mm 로 훑고 0.1 mm 로 다듬는다.
+            **하나**고 구간이 **띠로 막혀 있다.** 유계 1차원에서는 골짜기를 세고
+            골짜기마다 **정확히** 내릴 수 있다 — 기울기보다 **강한** 답이다.
+            그 방법이 `lineMin` 이다 (구간별 2차 + 포물선 증명서). 한때 여기서
+            5 → 0.5 → 0.05 mm 로 훑었는데, 분해능이 답에 들어오고 느렸다.
 
             ── 움직이는 것은 몸통의 선 하나다 ────────────────────────────────
             몸통의 선을 n̂ 으로 δ 옮기면 `joinCorners` 가 코너를 **다리의 선 위에서**
@@ -1874,18 +2087,6 @@
                 p += this.arcAt(sg, h, a0, bar.dia);
                 return { v: v, p: p, bite: bite };
             };
-            const cost = d => { const o = parts(d); return o.v + o.p; };
-            /*  **지키고 있나는 mm 로 가른다.** 에너지로 「v === 0」을 보면 안 된다 —
-                다리는 제 종방향 줄과 정확히 need 만큼 떨어져 **나란히** 눕는데, 그 줄이
-                데크 기울기를 타고 있어 몇몇 알이 1e-5 mm 쯤 어긋난다. 에너지로 보면
-                그것도 위반이라 가능영역이 통째로 비어 보여서, 멀쩡히 앉아 있던 ㄷ 가
-                117 mm 날아갔다 (벤치 x = 400 · 900 에서 J 0 → 844).
-                자는 **공학이 아니라 수치**다 — 1 µm 는 재는 오차지 순간격이 아니다.
-                (공학 쪽 자인 `TOUCH` 0.5 mm 를 쓰면 안 된다. 그걸 쓰면 선호가 ㄷ 를
-                 **그 0.5 mm 끝까지** 끌어당겨, 0.0 으로 설 수 있는 자리가 있는데도
-                 −0.5 에 선다. 실제로 그랬다.)                                     */
-            const okv = o => o.bite > -1e-3;
-
             /*  ── 지킬 수 있으면 «지킨다» — 벌점이 아니라 여과다 ──────────────────
                 순간격 벌점은 g = 0 에서 **2차로 사라진다.** 그래서 반대쪽에서 아무리
                 약한 힘이 당겨도 **언제나 조금은 겹친 채로** 멈춘다. T1#9 가 그랬다 :
@@ -1900,47 +2101,30 @@
                 「여과가 할 일은 **지키고 있는 것을 깨지 않는 것**이다.」
                 순간격은 **지켜야 하는 것**이고 접선점은 **좋으면 좋은 것**이다.
                 그래서 이 블록에서는 이렇게 고른다 :
-                  ㉮ 띠 안에 위반 0 인 자리가 **있으면** — 그 중에서 선호가 가장 작은 것
-                  ㉯ 없으면 — 예전처럼 J = 위반 + 선호 를 최소로 (못 지키는 타협)
+                  ㉮ 띠 안에 위반 0 인 자리가 **있으면** — 그 중에서 J 가 가장 작은 것
+                  ㉯ 없으면 — J = 위반 + 선호 를 최소로 (못 지키는 타협)
                 이것을 여기서 할 수 있는 까닭은 이 블록이 **1차원이고 유계**이기
-                때문이다. 훑으면 가능영역이 통째로 보인다 — 기울기로는 못 하는 일이다. */
-            const base = parts(0), J0 = base.v + base.p;
-            let bd = 0, bJ = J0, feas = null, feasP = Infinity;
-            for (let d = dLo; d <= dHi + 1e-9; d += 1) {
-                const o = parts(d);
-                if (o.v + o.p < bJ - 1e-9) { bJ = o.v + o.p; bd = d; }
-                if (okv(o) && o.p < feasP) { feasP = o.p; feas = d; }
+                때문이다. 가능영역이 통째로 보인다 — 기울기로는 못 하는 일이다.
+                고르는 일은 `lineMin` 이 한다 (사전식도 거기 있다).
+
+                ── 한때 여기서 띠의 `pref` 로 **바로 점프**했다 ──────────────────
+                「선호는 pref 에 가까울수록 작다」가 참일 때는 같은 말이지만, 항이
+                하나 늘면 거짓이 된다. 실제로 그랬다 — 절곡 아크 항(`arcAt`)을
+                넣었는데도 알이 코너의 이론 꼭짓점에 그대로 서서 아크를 7.5 mm 깼다.
+                `settle` 이 아크를 피해 옮겨 놓은 것을 **여기서 도로 끌고 온** 것이다.
+                그러니 점프하지 않고 **J 의 바닥을 푼다.**                        */
+            const base = parts(0);
+            base.J = base.v + base.p; base.ok = base.bite > -1e-3;
+            const J0 = base.J;
+            const r = this.lineMin(parts, dLo, dHi);
+            let bd = r.d, bJ = r.o.J;
+            /*  제자리가 **같은 값**이면 안 움직인다 — 수치로 흔들리지 않게.
+                (`d = 0` 이 띠 밖일 수 있으니 띠 안일 때만 견준다.)                */
+            if (0 >= dLo && 0 <= dHi &&
+                ((base.ok === r.o.ok && J0 <= bJ + 1e-9) || (base.ok && !r.o.ok))) {
+                bd = 0; bJ = J0;
             }
-            if (feas != null) {
-                /*  ── 가능영역 **안에서는 J 가 고른다** ──────────────────────────
-                    한때 여기서 **띠의 `pref` 로 바로 점프**했다. 「선호는 pref 에
-                    가까울수록 작다」가 참일 때는 같은 말이지만, 항이 하나 늘면
-                    거짓이 된다. 실제로 그랬다 — 절곡 아크 항(`arcAt`)을 넣었는데도
-                    알이 코너의 이론 꼭짓점에 그대로 서서 아크를 7.5 mm 깼다.
-                    `settle` 이 아크를 피해 옮겨 놓은 것을 **여기서 도로 끌고 온** 것이다.
-                    그러니 점프하지 않고 **가능영역을 훑어 `v + p` 의 바닥을 고른다.**
-                    항이 하나뿐이면 그 바닥이 곧 `pref` 라 예전과 같은 답이 나온다.
-                    사전식은 그대로다 — **가능한 것들 중에서만** 고른다.          */
-                let bf = feas, bfJ = Infinity;
-                for (let d = dLo; d <= dHi + 1e-9; d += 0.5) {
-                    const o = parts(d);
-                    if (!okv(o)) continue;
-                    const J = o.v + o.p;
-                    if (J < bfJ - 1e-9) { bfJ = J; bf = d; }
-                }
-                for (let d = bf - 0.5; d <= bf + 0.5 + 1e-9; d += 0.05) {   // 0.05 mm 로 다듬는다
-                    if (d < dLo || d > dHi) continue;
-                    const o = parts(d);
-                    if (!okv(o)) continue;
-                    const J = o.v + o.p;
-                    if (J < bfJ - 1e-9) { bfJ = J; bf = d; }
-                }
-                bd = bf; bJ = parts(bf).v + parts(bf).p;
-            } else {
-                for (let d = Math.max(dLo, bd - 1); d <= Math.min(dHi, bd + 1) + 1e-9; d += 0.1) {
-                    const J = cost(d); if (J < bJ - 1e-9) { bJ = J; bd = d; }
-                }
-            }
+            const feas = r.feas;
             /*  `v` 를 같이 낸다 — 고르는 자가 **둘**이기 때문이다 (위반이 먼저,
                 같으면 J). 벤치는 그 사전식 차례로 검사한다.
                 **옮기기 전에** 잰다 — 옮기고 나서 `parts(0)` 을 부르면 그것은
@@ -1950,8 +2134,8 @@
                 sg.p1 = { x: sg.p1.x + nx * bd, y: sg.p1.y + ny * bd };
                 sg.p2 = { x: sg.p2.x + nx * bd, y: sg.p2.y + ny * bd };
             }
-            return { d: bd, h0: h0, h: h0 - bd, J0: J0, J: bJ,
-                     v0: base.v, v: fin.v, feas: feas != null, lo: b.lo, hi: b.hi };
+            return { d: bd, h0: h0, h: h0 - bd, J0: J0, J: bJ, n: r.n,
+                     v0: base.v, v: fin.v, feas: feas, lo: b.lo, hi: b.hi };
         },
 
         /*  코너 = 이웃한 두 직선의 교점. 평행이면 안착한 끝점을 그대로 둔다.
@@ -1959,7 +2143,153 @@
             넣어도 복부 깊이만큼 늘어나는 이유다. 길이는 출력이다.
             양 끝 조각만은 코너에서 **입력 길이**만큼 되짚는다 — 자유단의 위치는
             도면이 주는 값(겹이음 위치)이고, 콘크리트가 정해 주지 않는다.         */
+        /*  ── **가로 미끄럼** — ∩ 을 한 덩어리로 몸통 방향으로 민다 ──────────────
+            「철근의 폭은 입력값으로 고정. 다만 하부슬래브 하면의 종방향 철근과
+             **위치를 공유할 수는 없어.** 이 경우는 **위치를 이동**해야 해」
+            폭을 고정하면(`joinCap`) ∩ 이 뻣뻣해져 다리가 각자 제 알로 갈 수가 없다.
+            재면 안착이 132 → 106 으로 떨어지고 이웃과 13 mm 겹쳤다. 그러니 **옮길
+            자유도**를 줘야 한다 — 그게 이것이다.
+            `axialSlide` 와 **같은 꼴**이다. 다른 것 둘 :
+              ㉠ 미는 방향이 몸통의 축(û)이다 — 다리 축이 아니라.
+              ㉡ **모든 조각을 같이** 민다 (강체) — `axialSlide` 는 몸통만 민다.
+                 같이 밀어야 폭이 안 변한다.
+            ── 돌아다닐 칸 — **셋 중 가장 작은 것** ──────────────────────────────
+            셋 다 넘을 이유가 없다 :
+              · CTC (`hookSpan` = ctc/2) — 넘으면 **옆 ∩ 의 자리**다 (`hookPick` 주석).
+                그룹으로 넣은 철근은 CTC 를 지켜야 하고, 한 종방향을 둘이 받칠 수 없다.
+              · 제 폭의 절반 (몸통 `len0`/2) — 넘으면 **제 몸통 밖으로** 나간 꼴이라
+                받치던 알을 놓치고 다른 칸의 알을 찾아 떠난다.
+              · **장의 한 주기** — 종방향 줄이 축을 따라 일정한 간격으로 되풀이되므로
+                J 도 그 간격으로 되풀이된다. 한 주기 밖은 **같은 그림**이다.
+                그 간격은 재서 쓴다 (입력이 아니라 놓인 알에서 나온다).
+            387 mm 를 다 뒤졌더니 골짜기가 너무 많아 J 를 208.9 번 세웠다 — 훑던
+            때(133.0)보다 비쌌다. 주기로 묶으면 그 값이 내려가고, **답은 같다.**
+            고르는 자는 `axialSlide` 와 같다 : **위반이 먼저(mm), 같으면 J.**
+            제자리에 머물려는 것은 `K_AXIAL` 이다 (「조각이 제 축을 따라 미끄러지는
+            것은 막는다」).                                                       */
+        lateralSlide: function (res, bar, ducts, placed, lpts) {
+            if (!bar.cap || res.length !== 3) return null;
+            const K = this.CONF, b = res[1];
+            if (!b || !b.link) return null;
+            const wide = (b.len0 != null ? b.len0 : hyp(b.p2.x - b.p1.x, b.p2.y - b.p1.y)) / 2;
+            const cell = bar.hookSpan > 0 ? bar.hookSpan : 0;
+            const ux = b.u.x, uy = b.u.y;
+            /*  장의 주기 — 몸통 축에 가까운 종방향 알을 축으로 사영해 **이웃
+                간격의 중앙값**을 잡는다. 평균이 아니라 중앙값인 까닭은 줄이
+                중간에 끊기거나 둘로 겹쳐 있어도 흔들리지 않기 때문이다.      */
+            let period = 0;
+            {
+                const cx = (b.p1.x + b.p2.x) / 2, cy = (b.p1.y + b.p2.y) / 2;
+                const nx0 = -uy, ny0 = ux, A = [];
+                (lpts || []).forEach(p => {
+                    if (Math.abs((p.x - cx) * nx0 + (p.y - cy) * ny0) > 200) return;
+                    const a = (p.x - cx) * ux + (p.y - cy) * uy;
+                    if (Math.abs(a) <= wide + 400) A.push(a);
+                });
+                A.sort((u, w) => u - w);
+                const gap = [];
+                for (let i = 1; i < A.length; i++) if (A[i] - A[i - 1] > 1) gap.push(A[i] - A[i - 1]);
+                if (gap.length >= 2) { gap.sort((u, w) => u - w); period = gap[gap.length >> 1]; }
+            }
+            let span = wide;
+            if (cell > 0) span = Math.min(span, cell);
+            if (period > 0) span = Math.min(span, period);
+            if (!(span > 0)) return null;
+
+            //  닿을 수 있는 것만 본다 (axialSlide 와 같은 상자)
+            let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
+            res.forEach(r => { [r.p1, r.p2].forEach(p => {
+                x0 = Math.min(x0, p.x); x1 = Math.max(x1, p.x);
+                y0 = Math.min(y0, p.y); y1 = Math.max(y1, p.y); }); });
+            const pad = span + 400;
+            const inBox = p => p.x > x0 - pad && p.x < x1 + pad && p.y > y0 - pad && p.y < y1 + pad;
+            const dus = (ducts || []).filter(inBox);
+            const ties = new Set();
+            res.forEach(r => { if (r.hookQ) ties.add(r.hookQ); if (r.hookQ2) ties.add(r.hookQ2); });
+            const lps = (lpts || []).filter(p => inBox(p) && !ties.has(p));
+            const bars = (placed || []).filter(o => (o.z || 0) === (bar.z || 0) &&
+                                                    (inBox(o.p1) || inBox(o.p2)));
+            const parts = d => {
+                const rs = res.map(r => ({ u: r.u, len0: r.len0, cap: r.cap, link: r.link,
+                    p1: { x: r.p1.x + ux * d, y: r.p1.y + uy * d },
+                    p2: { x: r.p2.x + ux * d, y: r.p2.y + uy * d } }));
+                const pts = this.joinCorners(rs);
+                let v = 0, bite = 0;
+                for (let i = 0; i + 1 < pts.length; i++) {
+                    const pp = [pts[i], pts[i + 1]];
+                    dus.forEach(k => {
+                        const need = (k.D / 2) + (k.clr != null ? k.clr : 30) + bar.dia / 2;
+                        const gg = this.segToPoint(pp, k) - need;
+                        if (gg < 0) { const e = this.clrRes(gg); v += e.r * e.r; bite = Math.min(bite, gg); }
+                    });
+                    lps.forEach(p => {
+                        const gg = this.segToPoint(pp, p) - this.lreNeed(p, bar.dia);
+                        if (gg < 0) { const e = this.clrRes(gg, K.K_BAR); v += e.r * e.r; bite = Math.min(bite, gg); }
+                    });
+                    bars.forEach(o => {
+                        const need = (o.dia + bar.dia) / 2;
+                        this.clearPairs(pp, o.p1, o.p2).forEach(n => {
+                            const gg = n.d - need;
+                            if (gg < 0) { const e = this.clrRes(gg, K.K_TRE); v += e.r * e.r; bite = Math.min(bite, gg); }
+                        });
+                    });
+                }
+                /*  **묶음도 여기 있어야 한다** — 옆으로 밀면 다리가 제 알에서
+                    멀어진다. 축방향 블록이 띠를 들고 있는 것과 같은 까닭이다.    */
+                let p = K.K_AXIAL * d * d;
+                res.forEach((r, i) => {
+                    if (r.link) return;
+                    const q1 = r.hookQ, q2 = r.hookQ2;
+                    const sx = r.p1.x + ux * d, sy = r.p1.y + uy * d;
+                    const nx = -r.u.y, ny = r.u.x;
+                    [q1, q2].forEach(q => {
+                        if (!q) return;
+                        const gh = Math.abs((q.x - sx) * nx + (q.y - sy) * ny) - this.lreNeed(q, bar.dia);
+                        p += (gh < 0 ? K.K_BAR : 1) * gh * gh;
+                    });
+                });
+                return { v: v, p: p, bite: bite };
+            };
+            /*  칸 안에서 **직선탐색**한다 (`lineMin`). 한때 5 → 0.5 → 0.05 mm 로
+                훑었는데, ∩ 하나에 130 번씩 J 를 다시 세워 2 분을 넘겼다.         */
+            const r = this.lineMin(parts, -span, span);
+            let bd = r.d, bJ = r.o.J;
+            const z = parts(0);
+            z.J = z.v + z.p; z.ok = z.bite > -1e-3;
+            if ((z.ok === r.o.ok && z.J <= bJ + 1e-9) || (z.ok && !r.o.ok)) { bd = 0; bJ = z.J; }
+            if (bd === 0) return { d: 0, J: bJ, feas: z.ok, span: span, n: r.n };
+            res.forEach(r2 => {
+                r2.p1 = { x: r2.p1.x + ux * bd, y: r2.p1.y + uy * bd };
+                r2.p2 = { x: r2.p2.x + ux * bd, y: r2.p2.y + uy * bd };
+            });
+            return { d: bd, J: bJ, feas: r.feas, span: span, n: r.n };
+        },
+
+        /*  ── ∩ 은 **폭이 입력이다** — 코너를 몸통에서 잡는다 ──────────────────
+            아래 규칙(코너 = 두 직선의 교점 · 자유단 = 코너 ± û·len0)은 **ㄷ 를 두고**
+            한 말이다 : 다리가 입력이고 몸통이 출력이니 다리의 `len0` 을 지키고 몸통을
+            교점에 맡긴다. **∩ 은 정확히 반대**인데 같은 규칙을 쓰고 있었다. 그래서
+            「철근의 폭은 입력값으로 고정」이 안 지켜졌다 — 입력 387 인데 재면
+            **277.8 ~ 288.4** 로 108 mm 가 줄어 있었다 (두 다리가 각자 제 알로 앉으며
+            코너를 안쪽으로 당긴 것이다).
+            ∩ 에서는 **몸통이 제 `len0` 을 지키고** 코너가 그 두 끝이다. 다리는
+            거기서 제 방향으로 제 길이만큼 뻗는다 — 다리가 출력이다.            */
+        joinCap: function (res) {
+            const b = res[1];
+            const L = (b.len0 != null ? b.len0 : hyp(b.p2.x - b.p1.x, b.p2.y - b.p1.y));
+            const mx = (b.p1.x + b.p2.x) / 2, my = (b.p1.y + b.p2.y) / 2;
+            const c0 = { x: mx - b.u.x * L / 2, y: my - b.u.y * L / 2 };
+            const c1 = { x: mx + b.u.x * L / 2, y: my + b.u.y * L / 2 };
+            const f = res[0], l = res[2];
+            //  다리의 방향은 코너에서 **자유단 쪽**이다 (û 는 p1→p2)
+            const d0 = { x: -f.u.x, y: -f.u.y };          // 첫 조각 : 자유단 → 코너
+            return [{ x: c0.x + d0.x * f.len0, y: c0.y + d0.y * f.len0 },
+                    c0, c1,
+                    { x: c1.x + l.u.x * l.len0, y: c1.y + l.u.y * l.len0 }];
+        },
+
         joinCorners: function (res) {
+            if (res.length === 3 && res[1] && res[1].cap && res[1].link) return this.joinCap(res);
             const pts = [], corner = [];
             for (let i = 0; i + 1 < res.length; i++)
                 corner.push(this.lineX(res[i], res[i + 1]) || { x: res[i].p2.x, y: res[i].p2.y });
