@@ -360,9 +360,21 @@
                         ⇒ (h − R)² + (need − R)² ≤ (R − need)²  ⇒  (h−R)² ≤ 0  ⇒  **h = R**
                     그래서 ∩ 의 아래끝은 ㄷ 와 **같은 R** 이다 — 특례가 하나 줄었다.
                     그리고 R 은 내가 고른 수가 아니라 `bendRadius(dia)` 다.
-                    ②를 **항으로** 넣은 것이 아래 `arcRows` 다 — 그래야 「h = R」이
-                    적어 넣은 값이 아니라 **J 가 찾는 자리**가 된다.               */
-                let clo = R, cwLo = K.K_BAR, chi = len, cwHi = K.K_BAR;
+                    ── 그런데 그 결론은 **다리가 물 때**의 것이다 ──────────────────
+                    「∩ 철근의 **몸통에** 종방향이 안착되어야 하는데 양쪽 단부 다리에
+                     안착되었네」 — 그렇다. ① 을 다리에 걸면 알이 **다리 옆**에 붙는다.
+                    몸통이 물면 ① 이 「몸통에서 아래로 need」가 되고 알은 **몸통 아래**
+                    에 붙는다. 그래서 지금 아래끝은 `need` 다 (`hookRows` 의 `capBody`).
+                    대가는 재어 두었다 : 그러면 알이 (need, need) 곧 코너의 **이론
+                    꼭짓점**에 서고 **절곡 아크를 7.4 mm 깬다.** 두 직선에 모두 접하면서
+                    아크를 안 깨는 자리는 **없다** — 실제 철근은 아크에 닿아 품긴다.
+                    아크를 항으로 넣는 일은 2 차원 순간격이라야 하고, 아직 안 했다
+                    (STATUS 「아직 안 한 것」).                                     */
+                /*  아래끝은 **몸통이 무는 자리**, 곧 `need` 다 (`hookRows` 의
+                    `capBody` 주석). 한때 `R`(절곡 접선점)로 두었는데 그건 알을
+                    **다리**가 물던 꼴의 수다 — 지금은 몸통이 문다. 띠를 안 고치면
+                    `shut` 이 **허위로** 선다 (13 개가 그랬다).                    */
+                let clo = this.lreNeed(q, dia), cwLo = K.K_BAR, chi = len, cwHi = K.K_BAR;
                 const ctf = this.reachAhead(q, dir, walls, sec, dia);
                 const ctc = this.reachAhead(q, { x: -dir.x, y: -dir.y }, walls, sec, dia);
                 if (ctf != null && len - ctf > clo) { clo = len - ctf; cwLo = K.K_COV; }
@@ -389,43 +401,6 @@
         /*  잔차와 야코비. 변수는 (cx, cy, φ = th·half) — 전부 mm.
               h = (q − c)·n̂      ∂h/∂c = −n̂      ∂h/∂th = −ν·(q − c)·û = −ν·a
             잔차가 h 의 함수 f 면 ∂r/∂x = f′(h)·∂h/∂x 다 — 줄을 몇 개 쌓아도 같다.  */
-        /*  ── **절곡 아크의 순간격** — 「절곡부 안은 자리가 아니다」를 항으로 ──────
-            여태 아크는 J 에 **없었다** (`hookTarget` : 「직선에는 닿고 아크에는 안
-            들어간다」). 그래서 알이 절곡부 안으로 들어가도 아무도 안 밀었고, 나는
-            그 자리를 **손으로 풀어 적어 넣으려** 했다. 그건 이 논문이 치우려는 바로
-            그 짓이다 — 자리는 **장이 찾아야** 한다.
-            아크는 반지름 R 의 강재다. 알과의 순간격은 두 원의 그것이고, 식도 저장소가
-            이미 쓰는 꼴(순간격 ≥ need)이다 :
-                c    아크중심 — 코너에서 다리축·법선으로 각각 R
-                g    = (R − need) − |q − c|        (알은 아크 **안**이다)
-                J   += K_BAR · g²   (g < 0 일 때만 — 깨는 쪽만 민다)
-            다리가 알을 물고 있으면(l = need) 이 항은 **h = R 에서만 0** 이다.
-            곧 「절곡부 시작부분」이 **적어 넣은 값이 아니라 J 의 바닥**이 된다.
-            변수는 몸통의 h 하나다 :  ∂g/∂h = −(h − R)/|q − c|.                  */
-        arcRows: function (pose, seg, g, out) {
-            if (!seg.cap || !seg.link || !seg.hookQ) return out;
-            const R = seg.bendR || 0, need = this.lreNeed(seg.hookQ, seg.dia);
-            if (!(R > need)) return out;
-            const dh = g.h - R, dl = need - R;
-            const d = Math.sqrt(dh * dh + dl * dl) || 1e-9;
-            const gap = (R - need) - d;
-            if (gap >= 0) return out;                       // 아크 밖 — 아무 말 없다
-            const w = Math.sqrt(this.CONF.K_BAR);
-            const s = w * (dh / d);                         // ∂(w·gap)/∂h = −w·dh/d
-            const half = Math.max(g.half, 1);
-            out.push({ r: w * gap, j: [-s * g.nx, -s * g.ny, -s * g.nu * g.a / half] });
-            return out;
-        },
-
-        arcEnergy: function (pose, seg, g) {
-            if (!seg.cap || !seg.link || !seg.hookQ) return 0;
-            const R = seg.bendR || 0, need = this.lreNeed(seg.hookQ, seg.dia);
-            if (!(R > need)) return 0;
-            const dh = g.h - R, dl = need - R;
-            const gap = (R - need) - Math.sqrt(dh * dh + dl * dl);
-            return gap < 0 ? this.CONF.K_BAR * gap * gap : 0;
-        },
-
         hookRows: function (pose, seg) {
             const K = this.CONF, g = this.hookGeom(pose, seg), half = Math.max(g.half, 1);
             const mk = (r, s) => ({ r: r, j: [-s * g.nx, -s * g.ny, -s * g.nu * g.a / half] });
@@ -442,9 +417,20 @@
                     줄은 같은 꼴이다 — 수직거리가 need 가 되라는 양쪽 우물.
                     (갈고리 안쪽이 모자란 쪽만 K_BAR 로 세게 미는 것도 그대로다.)  */
                 const out1 = [];
-                const gh = g.h - g.target;
-                const w = Math.sqrt(gh < 0 ? K.K_BAR : 1);
-                out1.push(mk(w * gh, w));
+                /*  ── ∩ 에서는 **몸통이** 위 알을 문다 ──────────────────────────
+                    「∩ 철근의 **몸통에** 종방향 철근이 안착되어야 하는데, 양쪽 단부
+                     다리에 안착되었네」 — 맞다. 위 알을 **다리**가 물게 두었더니
+                    다리 쪽 접선(옆으로 need)이 강제되고, 그러면 아크를 안 깨는
+                    자리가 h = R 하나로 못박혀 알이 **다리 옆**에 붙는다.
+                    몸통이 물면 요구는 「몸통에서 아래로 need」 하나이고, 알은
+                    **몸통 아래**에 붙는다 — 그게 ∩ 가 종방향 매트를 덮는 꼴이다.
+                    그래서 ∩ 의 다리는 **아래 알만** 문다.                       */
+                const capBody = !!(seg.cap && seg.hookQ2);
+                if (!capBody) {
+                    const gh = g.h - g.target;
+                    const w = Math.sqrt(gh < 0 ? K.K_BAR : 1);
+                    out1.push(mk(w * gh, w));
+                }
                 if (seg.hookQ2) {
                     const g2 = this.hookGeom(pose, seg, true);
                     const mk2 = (r, s2) => ({ r: r,
@@ -456,21 +442,33 @@
                 return out1;
             }
             const b = this.hookBand(seg), out = [];
+            /*  ∩ 의 몸통은 **알을 문다** (위 `capBody` 주석) — 띠의 선호 대신 다리와
+                **같은 꼴**의 양쪽 우물이다 : 몸통에서 알까지가 need 가 되라.
+                띠의 위끝(코너가 피복 밖으로)은 그대로 둔다 — 그건 여전히 참이다.  */
+            if (seg.cap) {
+                const gh = g.h - this.lreNeed(seg.hookQ, seg.dia);
+                const w = Math.sqrt(gh < 0 ? K.K_BAR : 1);
+                out.push(mk(w * gh, w));
+                if (g.h > b.hi && b.wHi > 0) {
+                    const w2 = Math.sqrt(b.wHi); out.push(mk(w2 * (g.h - b.hi), w2));
+                }
+                return out;
+            }
             if (g.h < b.lo) { const w = Math.sqrt(b.wLo); out.push(mk(w * (g.h - b.lo), w)); }
             else if (g.h > b.hi && b.wHi > 0) {
                 const w = Math.sqrt(b.wHi); out.push(mk(w * (g.h - b.hi), w));
             }
             const e = this.clrRes(g.h - b.pref, 1);        // 접선점 선호 — 감쇠 · 무게 1
             out.push(mk(e.r, e.s));
-            this.arcRows(pose, seg, g, out);               // 절곡 아크의 순간격
             return out;
         },
 
         hookEnergy: function (pose, seg) {
             const K = this.CONF, g = this.hookGeom(pose, seg);
             if (!seg.link) {
+                const capBody = !!(seg.cap && seg.hookQ2);
                 const gh = g.h - g.target;
-                let J0 = (gh < 0 ? K.K_BAR : 1) * gh * gh;
+                let J0 = capBody ? 0 : (gh < 0 ? K.K_BAR : 1) * gh * gh;
                 if (seg.hookQ2) {                      // 아래 알 (hookRows 주석)
                     const g2 = this.hookGeom(pose, seg, true), gh2 = g2.h - g2.target;
                     J0 += (gh2 < 0 ? K.K_BAR : 1) * gh2 * gh2;
@@ -479,10 +477,16 @@
             }
             const b = this.hookBand(seg);
             let J = 0;
+            if (seg.cap) {                              // ∩ 의 몸통 — 알을 문다
+                const gh = g.h - this.lreNeed(seg.hookQ, seg.dia);
+                J = (gh < 0 ? K.K_BAR : 1) * gh * gh;
+                if (g.h > b.hi && b.wHi > 0) J += b.wHi * (g.h - b.hi) * (g.h - b.hi);
+                return J;
+            }
             if (g.h < b.lo) J += b.wLo * (g.h - b.lo) * (g.h - b.lo);
             else if (g.h > b.hi && b.wHi > 0) J += b.wHi * (g.h - b.hi) * (g.h - b.hi);
             const e = this.clrRes(g.h - b.pref, 1);
-            return J + e.r * e.r + this.arcEnergy(pose, seg, g);   // 절곡 아크 순간격
+            return J + e.r * e.r;
         },
 
         /*  ── ⑥ 갈고리 다리가 콘크리트 면과 «평행» 해지는 항 ────────────────────
