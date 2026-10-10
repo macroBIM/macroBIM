@@ -12592,7 +12592,14 @@
        and says nothing that reaches the person who pressed Print. */
     var fr = document.createElement('iframe');
     fr.setAttribute('aria-hidden', 'true');
-    fr.style.cssText = 'position:fixed;right:0;bottom:0;width:0;height:0;border:0';
+    /* 종이 폭을 준다. 0×0 으로 두었더니 안의 문서가 「가장 좁게 접었을 때」인
+       391 px 폭으로 조판되어 157,643 px 까지 길어졌다 — A4 폭에서 19,298 px 인
+       것의 8.2 배다. 그 상태로 넘기면 표 46개가 저마다 한 장보다 길어지는데,
+       아래 PRINT_CSS 가 표에 break-inside:avoid 를 걸어 두었으므로 쪽나눔이
+       성립하지 않는 덩어리가 잔뜩 생긴다.
+       794 px 은 A4(210 mm)를 96 dpi 로 잰 값이다. 화면 밖에 두어 안 보인다. */
+    fr.style.cssText = 'position:fixed;left:-10000px;top:0;' +
+                       'width:794px;height:1123px;border:0';
     document.body.appendChild(fr);
     var d = fr.contentDocument;
     d.open();
