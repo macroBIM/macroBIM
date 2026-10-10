@@ -2228,8 +2228,17 @@
                 for (let i = 1; i < A.length; i++) if (A[i] - A[i - 1] > 1) gap.push(A[i] - A[i - 1]);
                 if (gap.length >= 2) { gap.sort((u, w) => u - w); period = gap[gap.length >> 1]; }
             }
-            let span = wide;
-            if (cell > 0) span = Math.min(span, cell);
+            /*  ── 칸은 **CTC 가 남겨 준 만큼**이다 ────────────────────────────
+                「그룹으로 입력하는 철근의 경우 **CTC 를 지켜야 해**」
+                한때 칸을 ctc/2(`hookSpan`) 로 두었다. 그러면 이웃 둘이 서로를 향해
+                각각 ctc/2 씩 와서 **폭만큼 겹칠 수 있다** — 실제로 T3#10 과 T3#11 의
+                간격이 450 이어야 하는데 **257** 이 되어 다리가 이웃의 몸통을
+                가로질렀다 (겹침 −13.0).
+                CTC 를 지키는 칸은 **(ctc − 폭)/2** 다 : 둘이 마주 와도 꼭 닿는다.
+                S14 의 T3 은 ctc 450 · 폭 387 이라 한쪽 **31.5 mm** 다. 좁다 —
+                그런데 그게 입력이 남겨 준 전부다. 더 가면 CTC 가 깨진다.
+                장의 주기(`period`)로도 한 번 더 묶는다 (그 밖은 같은 그림이다). */
+            let span = Math.max(0, (cell > 0 ? cell : wide) - wide);
             if (period > 0) span = Math.min(span, period);
             if (!(span > 0)) return null;
 

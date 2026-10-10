@@ -1508,9 +1508,31 @@
                 안착과 **같이** 풀려야 한다 (STATUS 「아직 안 한 것」의 그 칸).
                 지금은 아래 `bar` 규칙을 그대로 둔다 — 끝이 31~71 mm 뜨지만
                 몸통은 받치고 있다. 재는 것 `scratchpad/tip.js`.              */
+            /*  ── **받치는 ∩ 은 «안에서 시작해 위로» 자란다** ───────────────
+                「종방향 철근을 **받쳐야** 하니까. **안에서 시작해서 하부슬래브
+                 상단으로 커져야** 해」
+                자라는 쪽은 **몸통**이다 — 아래(다리 끝)는 그대로 두고 몸통이
+                하부슬래브 **상단의 피복선**을 만날 때까지 올라간다. 그래야 그
+                위에 얹히는 종방향을 받친다.
+                  len  지금 다리 길이 (슬래브 안으로 잘라 둔다 — 입력이 길어도)
+                  back 코너에서 **반대쪽**(상단) 면의 피복선까지   ← 올라갈 거리
+                몸통을 back 만큼 올리고 다리를 그만큼 **늘리면 끝은 제자리**다.
+                (한때 아래쪽도 같이 못박아 「슬래브를 꽉 채우기」를 해 봤는데,
+                 그러면 몸통이 알에서 104~146 mm 떠서 받치는 것이 없어졌다.
+                 자라는 쪽은 **한쪽**이다.)                                   */
+            if (self._capRests(t))
+              return { len: Math.min(best ? best.s : face, face),
+                       back: toFace(q, { x: -nt.x, y: -nt.y }, dia) };
             return Math.min(best ? best.s : face, face);
           });
           if (L[0] == null || L[1] == null) return;
+          //  받치는 ∩ — 몸통을 상단 피복선까지 올리고, 다리를 그만큼 늘린다
+          var back = 0;
+          if (L[0].len != null) {
+            back = Math.min(L[0].back, L[1].back);       // 먼저 닿는 쪽이 멈춘다
+            if (!(back > 0)) back = 0;
+            L = [L[0].len + back, L[1].len + back];
+          }
           if (Math.abs(L[0] - c.box.A) < 0.5 && Math.abs(L[1] - c.box.C) < 0.5) return;
           var box = { A: L[0], B: c.box.B, C: L[1] };
           /*  ── 다시 세우는 자리를 **몸통 중점**으로 바꿔 봤다 — 안 된다 ──────
@@ -1529,8 +1551,33 @@
               그대로 둔다. 제대로 고치는 길은 몸통에 **제 기준**을 주는 것이고
               (「끝단을 하부 피복과 J 값으로 비교」 — 다리 끝의 피복 항을 몸통의
                변수로 적는다), 그건 STATUS 「아직 안 한 것」의 그 칸이다.      */
+          /*  ── 기준점 : **세로는 살리고 가로는 되돌린다** ────────────────────
+              `Shape21Cap` 의 앵커는 **몸통의 중점**이다 (`buildSequential` 의
+              `pts[1].x + B/2`). 받치는 ∩ 은 몸통을 `back` 만큼 **올려** 다시
+              세운다 — 다리가 그만큼 길어졌으므로 끝은 제자리다.
+              그런데 지금 몸통의 자리를 **통째로** 쓰면 안 된다. 옆으로 미끄러진
+              양(`lateralSlide`)까지 같이 실려 **바퀴마다 쌓이기** 때문이다.
+              실제로 그랬다 : T3#10 과 T3#11 의 간격이 450 이어야 하는데 **257** 이
+              되어 다리가 이웃의 몸통을 가로질렀다(겹침 −13.0). 전에는 매 바퀴
+              `c.cc` 로 되돌리는 것이 그 흐름을 지우고 있었다.
+              그러니 **다리 축 방향**(위아래)만 지금 자리에서 가져오고, **옆**은
+              태어난 자리를 쓴다. 미끄럼은 한 바퀴 안에서만 살고, 자라는 것은
+              바퀴를 넘어 쌓인다 — 쌓여야 하는 것만 쌓는다.                     */
+          var ax = -dl[0].x, ay = -dl[0].y;              // 다리의 반대 = 자라는 쪽
+          var lx = -ay, ly = ax;                         // 그에 수직 = 몸통 축 (옆)
+          var mx0 = (mid.p1.x + mid.p2.x) / 2, my0 = (mid.p1.y + mid.p2.y) / 2;
+          var sUp = (mx0 - c.cc.x) * ax + (my0 - c.cc.y) * ay;
+          var sSide = (mx0 - c.cc.x) * lx + (my0 - c.cc.y) * ly;
+          /*  옆으로는 **CTC 가 남겨 준 만큼**으로 묶는다 ((ctc − 폭)/2).
+              안 묶으면 한 바퀴의 미끄럼이 다음 바퀴의 출발점이 되어 **쌓인다** —
+              T3#10 ↔ T3#11 의 간격이 450 → 257 이 된 것이 그것이다.
+              위로 자라는 것은 쌓여야 하고, 옆으로 미는 것은 쌓이면 안 된다.    */
+          var lim = Math.max(0, (t.hookSpan || 0) - (c.box.B || 0) / 2);
+          if (sSide > lim) sSide = lim; else if (sSide < -lim) sSide = -lim;
+          var at = { x: c.cc.x + ax * (sUp + back) + lx * sSide,
+                     y: c.cc.y + ay * (sUp + back) + ly * sSide };
           var rb = null;
-          try { rb = TrebarFactory.create(c.code, c.cc, box, c.rot, c.angs || null, null, null); }
+          try { rb = TrebarFactory.create(c.code, at, box, c.rot, c.angs || null, null, null); }
           catch (e) { rb = null; }
           if (!rb || !rb.segments || rb.segments.length < 3) return;
           /*  **같은 철근이다** — 조각만 갈아 끼운다. id·지름·z·깃발은 그대로 둔다
