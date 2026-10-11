@@ -185,7 +185,8 @@
             const at = (pose.th - seg.th0) * half;
             if (seg.hook && seg.hookQ) o.hook = this.hookEnergy(pose, seg);
             if (seg.hook && seg.parW) o.par = this.parEnergy(pose, seg);
-            o.anchor = (seg.hook ? 0 : K.K_AXIAL * ax * ax) + K.K_ANCHOR * (pp * pp + at * at);
+            o.anchor = ((!seg.hook || (seg.capRest && seg.link)) ? K.K_AXIAL * ax * ax : 0) +
+                       K.K_ANCHOR * (pp * pp + at * at);
             o.total = o.cover + o.duct + o.bar + o.lre + o.hook + o.par + o.anchor;
             return o;
         },
@@ -1064,7 +1065,8 @@
             const ax = dcx * ux + dcy * uy;                  // 축방향 미끄러짐
             const pp = -dcx * uy + dcy * ux;                 // 면 쪽 이동
             const at = (pose.th - seg.th0) * half;
-            J += (seg.hook ? 0 : K.K_AXIAL * ax * ax) + K.K_ANCHOR * (pp * pp + at * at);
+            J += ((!seg.hook || (seg.capRest && seg.link)) ? K.K_AXIAL * ax * ax : 0) +
+                 K.K_ANCHOR * (pp * pp + at * at);
 
             return J;
         },
@@ -1249,11 +1251,21 @@
             //  ⑥ 갈고리 다리의 자세 — 콘크리트 면과 평행 (parSetup 주석)
             if (seg.hook && seg.parW) this.parRows(pose, seg).forEach(r => rows.push(r));
 
-            const ka = Math.sqrt(K.K_ANCHOR), kx = Math.sqrt(seg.hook ? 0 : K.K_AXIAL);
+            /*  ── 받치는 ∩ 의 **몸통은 옆으로 안 미끄러진다** ──────────────────
+                갈고리 조각은 `K_AXIAL` 을 끈다 — 다리가 제 축을 따라 어디서 묶이든
+                상관없기 때문이다(띠). 그런데 ∩ 의 **몸통**에서는 그 축이 곧 **옆**
+                이다. 꺼 두면 몸통이 옆으로 자유롭게 흐른다 — 재면 열세 개가 제
+                태어난 자리에서 **−270 ~ +223 mm** 흘러 이웃 간격이 입력 ctc 450 인데
+                **367 ~ 710** 이 되고 둘이 겹쳤다.
+                「철근을 만나서 좌우로 이동하는 걸 추가하면 무한루프에 빠질 수도
+                 있겠다」 — 비키지 않기로 한 그 규칙이 여기서도 같은 말이다.
+                그래서 받치는 ∩ 의 몸통만 `K_AXIAL` 을 **되살린다**.            */
+            const noSlide = !seg.hook || (seg.capRest && seg.link);
+            const ka = Math.sqrt(K.K_ANCHOR), kx = Math.sqrt(noSlide ? K.K_AXIAL : 0);
             const dcx = pose.cx - seg.c0.x, dcy = pose.cy - seg.c0.y;
             const ax = dcx * ux + dcy * uy;                  // 축방향 미끄러짐
             const pp = -dcx * uy + dcy * ux;                 // 면 쪽 이동
-            if (!seg.hook) rows.push({ r: kx * ax, j: [kx * ux, kx * uy, kx * pp / half] });
+            if (noSlide) rows.push({ r: kx * ax, j: [kx * ux, kx * uy, kx * pp / half] });
             rows.push({ r: ka * pp, j: [-ka * uy, ka * ux, -ka * ax / half] });
             rows.push({ r: ka * (pose.th - seg.th0) * half, j: [0, 0, ka] });
 
