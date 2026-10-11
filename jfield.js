@@ -832,9 +832,42 @@
             const t = (inherit && inherit.body)
                 ? inherit.dir.x * (-uy) + inherit.dir.y * ux       // 몸통 — 다리가 뻗는 쪽
                 : (q.x - seg.mid.x) * (-uy) + (q.y - seg.mid.y) * ux;   // 다리 — (q−c)·u⊥
-            //  ∩ 은 **안쪽**으로 문다 — 위도 아래도 (위 `_inSide` 주석)
+            /*  ── 어느 쪽에 두라는 말인가 ─────────────────────────────────────
+                `hookSide`(ν)는 n̂ = ν·û⊥ 의 부호다. 순간격 항이 미는 방향이 이것이고,
+                그래서 **알이 조각의 어느 쪽에 서는지**를 이 한 부호가 정한다.
+                  ∩ 의 다리 — **안쪽**으로 문다, 위도 아래도 (`_inSide` 주석)
+                  몸통      — 지금까지 **다리가 뻗는 쪽**이었다. 곧 n̂ 이 아래를
+                              보니 「알을 몸통 **아래**에 두라」가 된다.
+                ── 받치는 ∩ 은 그 반대다 ────────────────────────────────────────
+                「∩ 의 몸통이 슬래브 **중앙에서 생성**되어 하부슬래브 상면까지
+                 커지면서 J 를 따지면 **맨 처음 만나는 게 종방향 철근**인데 그걸
+                 **뚫고 올라갈 순 없잖아**」
+                아래에서 위로 자라면 먼저 만나는 것이 그 알이고, 뚫을 수 없으니
+                **알은 몸통 위에 남는다.** 그것이 「받친다」다 — 도면이 정하는 것이
+                아니라 **자라는 방향이 정하는 것**이었다.
+                재면 그랬다 : 몸통은 배치선 y −6480 에서 태어나는데 D3 위줄은
+                −6183 인데도, 한 바퀴 뒤 몸통이 **−6154**(알보다 위)에 섰다.
+                n̂ 이 아래를 보니 장이 **밀어 올려 통과시킨** 것이다.
+                그래서 받치는 ∩ 의 **몸통만** 부호를 뒤집는다 — 다리는 그대로다.  */
+            /*  ── 어느 쪽에 두라는 말인가 — 받치는 ∩ 의 몸통은 **반대**다 ───────
+                `hookSide`(ν)는 n̂ = ν·û⊥ 의 부호이고, 순간격 항이 미는 방향이다.
+                곧 **알이 조각의 어느 쪽에 서는지**를 이 한 부호가 정한다.
+                  다리 — **안쪽**으로 문다, 위도 아래도 (`_inSide` 주석)
+                  몸통 — 여태 **다리가 뻗는 쪽**이었다 : n̂ 이 아래를 보니
+                         「알을 몸통 **아래**에 두라」가 된다 (감싸는 ∩ 의 말이다)
+                받치는 ∩ 은 반대다. 두께 가운데에서 **위로 자라다 처음 만나는
+                알에서 멈추면** 그 알은 몸통 **위**에 남는다 — 그것이 「받친다」다.
+                이 부호를 안 뒤집으면 `_capLegs` 가 알 아래에 세워 놓아도 풀이가
+                **도로 밀어 올려 지나친다** (재면 몸통이 알보다 13 mm 위에서 닿았다).
+                ── 순서가 있다 ─────────────────────────────────────────────────
+                이 뒤집기를 **태어나는 자리를 고치기 전에** 넣었더니 터졌다
+                (떴음 201.5 · 다리가 6,819 mm 날아갔다) — 그때는 몸통이 상면에
+                붙어 태어나 이미 알보다 위였고, 부호를 뒤집는 순간 `K_BAR` 가 그
+                어긋남을 통째로 밀어냈다. **가운데에서 낳은 뒤에야** 맞는 말이다. */
+            const bodySide = (t >= 0) ? 1 : -1;
             seg.hookSide = (seg.cap && seg._inSide && !(inherit && inherit.body))
-                           ? seg._inSide : ((t >= 0) ? 1 : -1);
+                           ? seg._inSide
+                           : ((seg.capRest && inherit && inherit.body) ? -bodySide : bodySide);
             return q;
         },
 
@@ -935,6 +968,16 @@
             return all;
         },
 
+        //  점에서 d 방향으로 쏘아 벽 **토막**에 맞는 거리 (없으면 null)
+        rayHitW: function (p, d, w) {
+            const ex = w.x2 - w.x1, ey = w.y2 - w.y1;
+            const den = d.x * ey - d.y * ex;
+            if (Math.abs(den) < 1e-9) return null;
+            const t = ((w.x1 - p.x) * ey - (w.y1 - p.y) * ex) / den;
+            const u = ((w.x1 - p.x) * d.y - (w.y1 - p.y) * d.x) / den * -1;
+            return (t > -1e-6 && u >= -1e-9 && u <= 1 + 1e-9) ? Math.max(t, 0) : null;
+        },
+
         //  점이 벽의 피복선보다 얼마나 안쪽인가. 0 이면 피복선 위, 음수면 넘어섰다.
         slack: function (px, py, c) {
             const w = c.w;
@@ -962,8 +1005,20 @@
                 const c = (assign && cons[assign[i]]) || this.nearestCon(p, cons);
                 if (!c) return;
                 const g = this.slack(p.x, p.y, c);
+                //  받치는 ∩ 의 몸통은 **끌려가지 않는다** — 자랄 뿐이다 (residuals 주석)
+                if (seg.capRest && seg.link && g > 0) return;
                 J += g * g * (g < 0 ? K.K_COV : 1);
             });
+
+            //  ①′ 다리 끝의 피복 (residuals 와 같은 항)
+            if (seg._floor && seg._legs && seg._legs.length === 2) {
+                const ux2 = Math.cos(pose.th), uy2 = Math.sin(pose.th), sg2 = [-1, 1];
+                seg._legs.forEach((lg, i) => {
+                    const cx2 = pose.cx + ux2 * sg2[i] * half, cy2 = pose.cy + uy2 * sg2[i] * half;
+                    const g = this.slack(cx2 + lg.dir.x * lg.len, cy2 + lg.dir.y * lg.len, seg._floor);
+                    if (g < 0) J += K.K_COV * g * g;
+                });
+            }
 
             //  ② 덕트 — 순간격을 못 지키면 벌점 (한쪽 배리어)
             (ducts || []).forEach(d => {
@@ -1151,10 +1206,34 @@
                 const c = cons[assign[i]];
                 if (!c) return;
                 const g = this.slack(p.x, p.y, c);
+                /*  ── 받치는 ∩ 의 몸통은 **면에 끌려가지 않는다** ──────────────────
+                    피복 줄은 양쪽이다 : 밖(g<0)은 `K_COV` 로 밀고, 안(g>0)은 무게 1 로
+                    **당긴다**. 당기는 반쪽이 받치는 ∩ 에서는 거짓이다 —
+                    「∩ 의 몸통이 슬래브 **중앙에서 생성**되어 상면까지 **커지면서**
+                     맨 처음 만나는 철근에서 멈춘다」이지, 면이 끌어가는 것이 아니다.
+                    실제로 그 인력이 몸통을 상면 피복선까지 **끌어올려 알을 지나쳤다**
+                    (몸통 −6154 · D3 위줄 −6183). 커지는 일은 `_capLegs` 의 첫 닿음이
+                    하고, 장은 **밀기만** 한다.                                    */
+                if (seg.capRest && seg.link && g > 0) return;
                 const w = Math.sqrt(g < 0 ? K.K_COV : 1);
                 rows.push({ r: w * g,
                             j: [w * c.w.nx, w * c.w.ny, w * sg[i] * (px * c.w.nx + py * c.w.ny)] });
             });
+
+            /*  ①′ 받치는 ∩ — **다리 끝의 피복**을 몸통의 줄로 (form 의 `_legs` 주석).
+                한쪽만 쓴다 : 넘었을 때만 민다. 안쪽으로 **끌어가지 않는다** —
+                자라는 일은 `_capLegs` 의 첫 닿음이 한다.                        */
+            if (seg._floor && seg._legs && seg._legs.length === 2) {
+                seg._legs.forEach((lg, i) => {
+                    const cor = { x: pose.cx + ux * sg[i] * half, y: pose.cy + uy * sg[i] * half };
+                    const g = this.slack(cor.x + lg.dir.x * lg.len, cor.y + lg.dir.y * lg.len, seg._floor);
+                    if (g >= 0) return;
+                    const w = Math.sqrt(K.K_COV);
+                    rows.push({ r: w * g,
+                                j: [w * seg._floor.w.nx, w * seg._floor.w.ny,
+                                    w * sg[i] * (px * seg._floor.w.nx + py * seg._floor.w.ny)] });
+                });
+            }
 
             /*  ⓪ init 고정항 — **아주 약하게** 제자리에 묶는다.
                 조각이 제 면을 따라 미끄러지는 방향은 J 가 정해 주지 않는다. 앞 판
@@ -1412,7 +1491,14 @@
                   2단계  그 자리에서 면을 고르고     각을 풀어 평행으로 돌린다
                   ㉢     면이 바뀌면 다시 2단계 (교대최소화. 되돌아오면 멈춘다)   */
             if (seg.hook) {          //  link(몸통)여도 여기로 온다 — 목표만 R 로 다르다
-                if (!this.hookSetup(seg, lpts, seg._inherit))
+                /*  ── 받치는 ∩ 은 **앉을 자리가 아니라 멈출 데**가 필요하다 ──────
+                    「자리가 종방향 철근이다」는 **감싸는** 갈고리의 말이다. 받치는
+                    ∩ 은 다르다 : 두께 가운데에서 작게 태어나 **자라다 처음 만나는
+                    데서 멈춘다** (`_capLegs` 의 `firstTouch`). 태어난 자리에 걸
+                    종방향이 없는 것은 **당연한 일**이지 버릴 까닭이 아니다.
+                    버리던 때에는 가운데에서 낳자마자 13 개가 전부 `no-seat` 으로
+                    사라졌다. 길이는 출력이고, 자리는 자라면서 정해진다.         */
+                if (!this.hookSetup(seg, lpts, seg._inherit) && !seg.capRest)
                     return { pose: pose0, cons: [], iter: 0, stopped: 'no-seat', contacts: [] };
                 this._seg = seg.label || '';
                 seg.parW = null; seg.parD = null;
@@ -1563,6 +1649,8 @@
                 return { label: s.label, len: L, len0: L, dia: bar.dia, n0: s.normal, th0: th,
                          link: link, z: bar.z || 0, hookSpan: bar.hookSpan || 0,
                          cap: !!bar.cap,
+                         //  받치는 ∩ (하부슬래브) — 몸통이 «아래에서 위로» 자란다
+                         capRest: !!bar.cap && bar.endMode === 'tangent',
                          //  임자 명단 — `settle` 이 조각마다 `hookSetup` 을 다시 부르므로
                          //  인자가 아니라 **조각에 실어** 보낸다 (거기까지 따라가야 한다)
                          _claim: claim || null,
@@ -1707,6 +1795,36 @@
                     「수평 무시」는 *나란히 서라* 를 떼라는 말이지 *피복* 을 떼라는
                     말이 아니다. 면을 안 주는 것은 **다리**뿐이다 — 다리는 두께를
                     가로질러 어느 면에도 못 앉는다(재면 `rest` 가 빈다).          */
+                /*  ── 받치는 ∩ : **다리 끝의 피복을 «몸통의 줄» 로 적는다** ──────
+                    `joinCap` 이 다리를 몸통의 **출력**으로 만들므로 다리의 포즈에 건
+                    항은 버려진다. 그런데 다리 끝 = 몸통의 끝 + **상수 벡터**
+                    (d̂·ℓ — 방향은 연직 고정, 길이는 출력이지만 이 풀이 안에서는 상수)
+                    이고, 상수를 더한 것은 **미분을 바꾸지 않는다.** 그러니 기존 피복
+                    줄에서 **평가하는 점만 상수만큼 옮겨** 몸통의 줄로 넣으면 된다.
+                    야코비는 한 글자도 안 바뀐다.
+                    이것이 없으면 다리에는 피복이 **아예 없다**(다리는 벽을 안 본다) —
+                    재면 끝이 소피트 피복선을 **3 ~ 103 mm** 넘어갔다.            */
+                if (bar.cap && bar.endMode === 'tangent' && sg.link) {
+                    const ends2 = segs.filter(z => !z.link);
+                    const legs = ends2.map(z => {
+                        const far = (hyp(z.p1.x - sg.mid.x, z.p1.y - sg.mid.y) >
+                                     hyp(z.p2.x - sg.mid.x, z.p2.y - sg.mid.y)) ? z.p1 : z.p2;
+                        const near = (far === z.p1) ? z.p2 : z.p1;
+                        const l2 = hyp(far.x - near.x, far.y - near.y) || 1;
+                        return { dir: { x: (far.x - near.x) / l2, y: (far.y - near.y) / l2 },
+                                 len: z.len0 || l2, tip: far };
+                    });
+                    if (legs.length === 2) {
+                        let fl = null;
+                        (walls || []).forEach(w => {
+                            const t2 = this.rayHitW(legs[0].tip, legs[0].dir, w);
+                            if (t2 == null) return;
+                            if (!fl || t2 < fl.t) fl = { t: t2, w: w };
+                        });
+                        sg._legs = legs;
+                        sg._floor = fl ? { w: fl.w, need: this.coverOf(fl.w, sec) + sg.dia / 2 } : null;
+                    }
+                }
                 const tang = !!bar.cap && !sg.link && bar.endMode === 'tangent';
                 const r = this.settle(sg, tang ? [] : walls, sec, ducts, placed, lpts);
                 const half = sg.len / 2;
@@ -2206,6 +2324,16 @@
             것은 막는다」).                                                       */
         lateralSlide: function (res, bar, ducts, placed, lpts) {
             if (!bar.cap || res.length !== 3) return null;
+            /*  ── **받치는 ∩ 은 옆으로 안 비킨다** ─────────────────────────────
+                「철근을 만나서 **좌우로 이동**하는 걸 추가로 하게 되면, 코드가
+                 **무한루프**에 빠질 수도 있을 거 같다」 — 맞다. 자라다 만나면
+                비키고, 비킨 자리에서 또 만나면 또 비킨다. 멈춘다는 보장이 없다.
+                자라는 모형에서는 비킬 까닭도 없다 : **만나면 멈춘다**, 그뿐이다.
+                게다가 비킨 양이 바퀴를 넘어 쌓여 이웃과 **13.0 mm 겹쳤다**
+                (T3#3 ↔ T3#4 · T3#11 ↔ T3#12). 그룹은 CTC 를 지켜야 한다.
+                감싸는 ∩ (복부)은 그대로 둔다 — 거기선 알을 **고르는** 일이라
+                고를 자리를 옆에서 찾아야 한다.                                */
+            if (bar.endMode === 'tangent') return null;
             const K = this.CONF, b = res[1];
             if (!b || !b.link) return null;
             const wide = (b.len0 != null ? b.len0 : hyp(b.p2.x - b.p1.x, b.p2.y - b.p1.y)) / 2;

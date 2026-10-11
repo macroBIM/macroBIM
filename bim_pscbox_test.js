@@ -1441,6 +1441,119 @@
           });
           return best;
         };
+        /*  ── **자라다 처음 만나는 것에서 멈춘다** ─────────────────────────────
+            「∩ 의 몸통이 슬래브 **중앙에서 생성**되어 하부슬래브 상면까지 커지면서
+             J 값을 따지면 **맨 처음 만나는 게 종방향 철근**인데 그걸 **뚫고 올라갈
+             순 없잖아**. 횡방향이 될 수도 있고 종방향이 될 수도 있는데, **그 철근을
+             뚫고 갈 순 없다** 라고 정의하면 거기서 멈춰야지」
+
+            이 한 줄이 「앞뒤」 물음을 없앤다. 몸통이 **아래에서 위로** 자라면 먼저
+            만나는 것이 그 알이므로 몸통은 **알의 아래**에서 멈춘다 — 그것이 곧
+            「받친다」다. 도면을 볼 일이 아니라 **J 가 고르는 것**이었다.
+
+            그런데 여태 멈추는 자가 **콘크리트 면 하나**였다(`toFace`). 그래서 몸통이
+            알을 **뚫고** 상면 피복선 쪽으로 지나갔다 — 재면 몸통 −6202 · D3 위줄
+            −6219 로 **알보다 면 쪽**에 서 있었다. 순간격 항은 한쪽만 밀므로
+            (`hookRows` 의 「받친다」) 일단 넘어가 버리면 도로 끌어오는 힘이 없다.
+
+            그러니 멈추는 자를 **J 의 장애물 전부**로 바꾼다 :
+              s 만큼 올라간 몸통이 **무엇에도 안 닿는 가장 큰 s**
+              후보 — ㉠ 콘크리트 면의 피복선  ㉡ 종방향 알  ㉢ 이미 놓인 횡방향
+            자는 전부 **순간격**이고, 재는 것은 이 저장소가 이미 쓰는 거리 함수다
+            (`JField.segToPoint` · `segToSeg`) — 식을 베껴 쓰지 않는다.
+            첫 닿음은 1 mm 로 훑어 **처음 부호가 바뀌는 칸**을 잡고 이분법으로
+            0.01 mm 까지 좁힌다. 「처음」을 묻는 것이라 닫힌 식이 없다 — 대신
+            칸을 잡은 뒤는 이분법이 정확하다.                                       */
+        var firstTouch = function (t, p1, p2, a, dia, limit) {
+          var mine = {};
+          (t.segments || []).forEach(function (sg, i) { mine[i] = 1; });
+          //  닿을 수 있는 것만 — 몸통이 쓸고 갈 띠 둘레
+          var x0 = Math.min(p1.x, p2.x) - 200, x1 = Math.max(p1.x, p2.x) + 200;
+          var y0 = Math.min(p1.y, p2.y) - limit - 200, y1 = Math.max(p1.y, p2.y) + limit + 200;
+          var inBox = function (q) { return q.x > x0 && q.x < x1 && q.y > y0 && q.y < y1; };
+          var pts = lpts.filter(inBox);
+          var segsO = [];
+          (Domain.trebarList || []).forEach(function (o) {
+            if (o === t || (o.z || 0) !== (t.z || 0)) return;
+            (o.segments || []).forEach(function (g2) {
+              if (!inBox(g2.p1) && !inBox(g2.p2)) return;
+              segsO.push({ p1: g2.p1, p2: g2.p2, dia: o.dia || 13 });
+            });
+          });
+          //  s 올라간 몸통의 **최악 순간격**
+          var worst = function (sv) {
+            var q1 = { x: p1.x + a.x * sv, y: p1.y + a.y * sv };
+            var q2 = { x: p2.x + a.x * sv, y: p2.y + a.y * sv };
+            var w = Infinity;
+            pts.forEach(function (q) {
+              var g2 = JField.segToPoint([q1, q2], q) - (dia + (q.dia || 13)) / 2;
+              if (g2 < w) w = g2;
+            });
+            segsO.forEach(function (o) {
+              var g2 = JField.segToSeg([q1, q2], o.p1, o.p2) - (dia + o.dia) / 2;
+              if (g2 < w) w = g2;
+            });
+            return w;
+          };
+          if (!(limit > 0)) return 0;
+          if (worst(0) < 0) return 0;                 // 이미 닿아 있다
+          var lo = 0, hi = null;
+          for (var sv = 1; sv <= limit + 1e-9; sv += 1) {
+            if (worst(sv) < 0) { hi = sv; break; }
+            lo = sv;
+          }
+          if (hi == null) return limit;               // 면이 먼저다
+          for (var it = 0; it < 24 && hi - lo > 0.01; it++) {
+            var md = (lo + hi) / 2;
+            if (worst(md) < 0) hi = md; else lo = md;
+          }
+          return lo;
+        };
+
+        /*  **점**이 a 방향으로 가다 처음 닿는 거리 — 다리가 내려가는 자다.
+            몸통은 긴 조각이 띠를 쓸므로 조각으로 재고(`firstTouch`), 다리는 **끝이
+            앞장서므로** 끝점으로 잰다. 옆을 스치는 것은 이미 거기 있던 것이다.
+            「철근을 만나서 좌우로 이동하는 걸 추가하면 무한루프에 빠질 수도
+             있겠다」 — 그래서 비키지 않는다. **만나면 멈춘다**, 그뿐이다.      */
+        var firstTouchPt = function (t, from, a, dia, limit) {
+          if (!(limit > 0)) return 0;
+          var x0 = from.x - 200, x1 = from.x + 200;
+          var y0 = Math.min(from.y, from.y + a.y * limit) - 200;
+          var y1 = Math.max(from.y, from.y + a.y * limit) + 200;
+          var inBox = function (q) { return q.x > x0 && q.x < x1 && q.y > y0 && q.y < y1; };
+          var pts = lpts.filter(inBox), segsO = [];
+          (Domain.trebarList || []).forEach(function (o) {
+            if (o === t || (o.z || 0) !== (t.z || 0)) return;
+            (o.segments || []).forEach(function (g2) {
+              if (!inBox(g2.p1) && !inBox(g2.p2)) return;
+              segsO.push({ p1: g2.p1, p2: g2.p2, dia: o.dia || 13 });
+            });
+          });
+          var worst = function (sv) {
+            var q = { x: from.x + a.x * sv, y: from.y + a.y * sv }, w = Infinity;
+            pts.forEach(function (o) {
+              var g2 = Math.hypot(q.x - o.x, q.y - o.y) - (dia + (o.dia || 13)) / 2;
+              if (g2 < w) w = g2;
+            });
+            segsO.forEach(function (o) {
+              var g2 = JField.segToPoint([o.p1, o.p2], q) - (dia + o.dia) / 2;
+              if (g2 < w) w = g2;
+            });
+            return w;
+          };
+          var lo = 0, hi = null;
+          for (var sv = 1; sv <= limit + 1e-9; sv += 1) {
+            if (worst(sv) < 0) { hi = sv; break; }
+            lo = sv;
+          }
+          if (hi == null) return limit;                 // 피복선이 먼저다
+          for (var it = 0; it < 24 && hi - lo > 0.01; it++) {
+            var md = (lo + hi) / 2;
+            if (worst(md) < 0) hi = md; else lo = md;
+          }
+          return lo;
+        };
+
         var moved = 0, byRule = { normal: 0, tangent: 0 };
         caps.forEach(function (t) {
           var c = t._cap, u = c.u, dia = t.dia || 13;
@@ -1520,38 +1633,36 @@
                 (한때 아래쪽도 같이 못박아 「슬래브를 꽉 채우기」를 해 봤는데,
                  그러면 몸통이 알에서 104~146 mm 떠서 받치는 것이 없어졌다.
                  자라는 쪽은 **한쪽**이다.)                                   */
-            if (self._capRests(t))
-              return { len: Math.min(best ? best.s : face, face),
-                       back: toFace(q, { x: -nt.x, y: -nt.y }, dia) };
+            /*  ── 받치는 ∩ — **아래로도 첫 닿음까지 자란다** ────────────────
+                「양단 철근이 **아래로 늘어나서 제일 처음 만나는 데서 멈추는**
+                 것으로 하자」
+                아래의 `bar` 규칙(끝이 가장 가까운 알에 **기댄다**)은 감싸던 때의
+                것이다. 받치는 ∩ 의 다리는 기댈 알을 **고르지 않는다** — 그냥
+                내려가다 **처음 만나는 것**(알이든 횡방향이든 소피트 피복선이든)
+                에서 멈춘다. 고르는 일이 없으니 비킬 일도 없다.               */
+            if (self._capRests(t)) {
+              var cur = Math.hypot(ends[k].x - q.x, ends[k].y - q.y);
+              var lim = toFace(ends[k], nt, dia);
+              var dwn = firstTouchPt(t, ends[k], nt, dia, Math.max(0, lim || 0));
+              return { len: cur + dwn, back: toFace(q, { x: -nt.x, y: -nt.y }, dia) };
+            }
             return Math.min(best ? best.s : face, face);
           });
           if (L[0] == null || L[1] == null) return;
           //  받치는 ∩ — 몸통을 상단 피복선까지 올리고, 다리를 그만큼 늘린다
           var back = 0;
           if (L[0].len != null) {
-            back = Math.min(L[0].back, L[1].back);       // 먼저 닿는 쪽이 멈춘다
+            //  ㉠ 콘크리트 면이 멈추는 자리
+            back = Math.min(L[0].back, L[1].back);
             if (!(back > 0)) back = 0;
+            //  ㉡㉢ 그 전에 **철근**을 만나면 거기서 멈춘다 (firstTouch 주석)
+            var aUp = { x: -dl[0].x, y: -dl[0].y };
+            back = firstTouch(t, mid.p1, mid.p2, aUp, dia, back);
             L = [L[0].len + back, L[1].len + back];
           }
           if (Math.abs(L[0] - c.box.A) < 0.5 && Math.abs(L[1] - c.box.C) < 0.5) return;
           var box = { A: L[0], B: c.box.B, C: L[1] };
-          /*  ── 다시 세우는 자리를 **몸통 중점**으로 바꿔 봤다 — 안 된다 ──────
-              `c.cc` 는 **태어난** 배치점이라, 그걸로 다시 세우면 J 가 찾아 놓은
-              자리를 **매 바퀴 버린다.** `Shape21Cap` 의 기준점이 몸통의 중점이니
-              (`buildSequential` 의 앵커 `pts[1].x + B/2`) 지금 몸통의 중점을
-              넘기면 몸통은 그대로 두고 다리만 다시 날 것 — 그렇게 재 봤다 :
-                다리 끝이 피복선에서 **71.3 → 28.4** mm 로 가까워졌다
-                그런데 알이 몸통을 **12.4 mm 파고들었다** (T3#9)
-                이웃 ∩ 와 9.9 mm 부딪치기도 했다 — 그건 사전식을 세 층으로
-                갈라 고쳤지만(`lineMin`), 파고듦은 안 고쳐진다
-              까닭은 매 바퀴의 **되돌림이 사실은 닻**이었다는 것이다 : 받치는 ∩ 의
-              몸통은 인력이 없고(척력만) 제 피복도 안 닿으므로, 되돌림을 빼면
-              다리 길이·몸통·알·`wrap` 넷이 **서로를 쫓아** 네 바퀴로 안 멈춘다.
-              **철근 속 12.4 mm 는 다리 71 mm 보다 나쁘다.** 그래서 되돌림을
-              그대로 둔다. 제대로 고치는 길은 몸통에 **제 기준**을 주는 것이고
-              (「끝단을 하부 피복과 J 값으로 비교」 — 다리 끝의 피복 항을 몸통의
-               변수로 적는다), 그건 STATUS 「아직 안 한 것」의 그 칸이다.      */
-          /*  ── 기준점 : **세로는 살리고 가로는 되돌린다** ────────────────────
+          /*  ── 기준점 : **세로는 살리고 가로는 묶는다** ─────────────────────
               `Shape21Cap` 의 앵커는 **몸통의 중점**이다 (`buildSequential` 의
               `pts[1].x + B/2`). 받치는 ∩ 은 몸통을 `back` 만큼 **올려** 다시
               세운다 — 다리가 그만큼 길어졌으므로 끝은 제자리다.
@@ -1572,7 +1683,11 @@
               안 묶으면 한 바퀴의 미끄럼이 다음 바퀴의 출발점이 되어 **쌓인다** —
               T3#10 ↔ T3#11 의 간격이 450 → 257 이 된 것이 그것이다.
               위로 자라는 것은 쌓여야 하고, 옆으로 미는 것은 쌓이면 안 된다.    */
-          var lim = Math.max(0, (t.hookSpan || 0) - (c.box.B || 0) / 2);
+          /*  받치는 ∩ 은 옆으로 비키지 않으므로(`lateralSlide`) 옆은 **태어난
+              자리**가 전부다. 조금이라도 물려받으면 바퀴마다 쌓여 이웃과
+              겹친다 — 재면 13.0 mm 였다 (T3#8↔#9 · T3#11↔#12).            */
+          var lim = self._capRests(t) ? 0
+                    : Math.max(0, (t.hookSpan || 0) - (c.box.B || 0) / 2);
           if (sSide > lim) sSide = lim; else if (sSide < -lim) sSide = -lim;
           var at = { x: c.cc.x + ax * (sUp + back) + lx * sSide,
                      y: c.cc.y + ay * (sUp + back) + ly * sSide };
@@ -1607,9 +1722,18 @@
           **실제로 문** 무리가 곧 감기는 무리다. 그래서 갈고리를 푼 뒤에 세어 둔다.
           한 무리를 여러 굵기가 감으면 **가장 굵은 것**이 자리를 정한다.        */
       _wrapOf: function () {
-        var w = {}, byT = {};
+        var w = {}, byT = {}, self = this;
         (Domain.trebarList || []).forEach(function (t) {
           if (!t._srebar) return;
+          /*  ── **받치는 ∩ 은 `wrap` 이 0 이다** ──────────────────────────────
+              `wrap` 은 「알과 콘크리트 면 **사이에** 스터럽이 끼어 있다」는 값이다.
+              자라는 모형에서는 거짓이다 : 몸통이 두께 가운데에서 **위로 자라다
+              그 알 아래에서 멈추므로**, 알과 면 사이에는 아무것도 없다.
+              그대로 두면 되먹임이 돈다 — 몸통이 오르면 h 가 커지고, `wrap` 이
+              커져 알이 더 깊이 내려가고, h 가 또 커진다. 재면 그랬다 :
+              D3 위줄이 −6176 까지 내려가 몸통과 **103 ~ 132 mm** 벌어졌다.
+              알의 자리는 **제 피복**이 정하고, 몸통은 그 아래에서 멈춘다.    */
+          if (self._capRests(t)) return;
           /*  ── **`wrap` 은 받칠 때도 재서 쓴다** ────────────────────────────
               이제 종방향이 ∩ 을 `prims` 로 직접 본다(`_capRests`). 그래서 `wrap`
               이 이중 계산인가 물었고, **아니다** — 재 봤다 :
@@ -1954,7 +2078,51 @@
               var t0 = null;
               try { t0 = TrebarFactory.create(rd.code, c, box, rot0, angs, null, null); }
               catch (e) { t0 = null; }
-              if (t0 && t0.segments) {
+              /*  ── **받치는 ∩ 은 «가운데에서 작게» 태어난다** ───────────────────
+                  「∩ 의 몸통이 슬래브 **중앙에서 생성**되어 하부슬래브 상면까지
+                   커지면서 J 값을 따지면 맨 처음 만나는 게 종방향 철근인데 그걸
+                   뚫고 올라갈 순 없잖아 … 거기서 멈춰야지」
+                  아래 규칙(가장 바깥 점을 제 면의 피복선에 붙인다)은 **감싸는** ∩ 의
+                  것이다. 받치는 ∩ 에 그대로 쓰면 **상면에 붙어서** 태어난다 — 재면
+                  열세 개 전부 상면에서 3 ~ 36 mm 아래, 두께 가운데보다 **340 ~ 472 mm
+                  위**였다. 그러면 자랄 것이 없고, D3 위줄은 이미 그 아래라 「처음
+                  만나는 데서 멈춘다」가 **돌 수가 없다**.
+                  그래서 받치는 ∩ 은 **두께의 가운데**에 **다리를 6dᵇ 로 짧게** 낳는다.
+                  거기서부터 `_capLegs` 가 위로(몸통) · 아래로(다리) 첫 닿음까지
+                  키운다. 길이는 출력이고, **크는 일은 장이 멈춘다.**            */
+              var restCap = (String(rd.end || '').toLowerCase() === 'tangent');
+              if (t0 && t0.segments && restCap) {
+                var mm0 = t0.segments[1], aa0 = t0.segments[0];
+                var e1 = Math.hypot(aa0.p1.x - mm0.p1.x, aa0.p1.y - mm0.p1.y) +
+                         Math.hypot(aa0.p1.x - mm0.p2.x, aa0.p1.y - mm0.p2.y);
+                var e2 = Math.hypot(aa0.p2.x - mm0.p1.x, aa0.p2.y - mm0.p1.y) +
+                         Math.hypot(aa0.p2.x - mm0.p2.x, aa0.p2.y - mm0.p2.y);
+                var cor0 = (e1 < e2) ? aa0.p1 : aa0.p2, tip0 = (e1 < e2) ? aa0.p2 : aa0.p1;
+                var ll0 = Math.hypot(tip0.x - cor0.x, tip0.y - cor0.y) || 1;
+                var dnv = { x: (tip0.x - cor0.x) / ll0, y: (tip0.y - cor0.y) / ll0 };
+                var upv = { x: -dnv.x, y: -dnv.y };
+                var hU = null, hD = null;
+                (sec.walls || []).forEach(function (w) {
+                  var tU = JLong.rayHit(p, upv, w);
+                  if (tU != null && tU > 1 && (hU == null || tU < hU)) hU = tU;
+                  var tD = JLong.rayHit(p, dnv, w);
+                  if (tD != null && tD > 1 && (hD == null || tD < hD)) hD = tD;
+                });
+                if (hU != null && hD != null) {
+                  box.A = box.C = Math.max(6 * dia, 2 * JField.bendRadius(dia));
+                  var t1 = null;
+                  try { t1 = TrebarFactory.create(rd.code, c, box, rot0, angs, null, null); }
+                  catch (e) { t1 = null; }
+                  if (t1 && t1.segments && t1.segments[1]) {
+                    var m1 = t1.segments[1];
+                    var bm = { x: (m1.p1.x + m1.p2.x) / 2, y: (m1.p1.y + m1.p2.y) / 2 };
+                    var mid0 = (hD - hU) / 2;             // p 에서 아래로 이만큼이 가운데
+                    cc = { x: c.x + (p.x + dnv.x * mid0 - bm.x),
+                           y: c.y + (p.y + dnv.y * mid0 - bm.y) };
+                  }
+                } else { restCap = false; }
+              } else { restCap = false; }
+              if (t0 && t0.segments && !restCap) {
                 var lo = Infinity;
                 t0.segments.forEach(function (s) {
                   [s.p1, s.p2].forEach(function (q) {
