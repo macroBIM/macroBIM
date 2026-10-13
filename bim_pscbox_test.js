@@ -1387,7 +1387,7 @@
                 그것 때문이다. 이게 없으면 갈고리가 **다른 무리의 철근**을 물어
                 엉뚱한 꼴이 된다 (복부 위의 슬래브 ㄷ 가 D2 복부철근을 물었다).   */
             out.push({ x: p.x, y: p.y, dia: p.dia || g.dia || 13,
-                       g: String(g.id), t: (p.t == null ? null : p.t) });
+                       g: String(g.id), t: (p.t == null ? null : p.t), rest: p.rest || null });
           });
         });
         return out;
@@ -2778,7 +2778,8 @@
 
           //  particles 에 써 넣는다 (그림이 읽는 자리)
           grp.particles = pts.map(function (b) {
-            return { x: b.x, y: b.y, vx: 0, vy: 0, t: b.t, target: null, state: 'SETTLED' };
+            //  `rest` — 그 철근이 기댄 피복면. ㄷ 의 다리가 이 면을 따라 눕는다 (JField.parSetup)
+            return { x: b.x, y: b.y, vx: 0, vy: 0, t: b.t, rest: b.rest || null, target: null, state: 'SETTLED' };
           });
           grp.num = res.bars.length;
           grp.state = 'SETTLED';

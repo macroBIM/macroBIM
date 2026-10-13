@@ -609,7 +609,21 @@
             면이 바뀌면 다시 내려간다 (`alternate` 와 같은 교대최소화). 헌치 근처
             에서는 E23(6 mm)과 E24(30 mm)가 10° 차이로 나란히 있어 몇 mm 움직임에
             고른 면이 뒤집힐 수 있다 — 되돌아오면 거기서 멈추고 보고한다.         */
+        /*  ── 끝 조각(다리)은 **무는 종방향이 기댄 면**을 따라간다 ──────────────
+            다리는 그 종방향과 콘크리트 면 **사이**에 눕는다 — 그러니 나란해야 할 면은
+            그 종방향이 이미 기대고 있는 면이다 (`jlong` 이 정한 `rest`). 「다리가
+            지금 선 자리에서 가장 가까운 면」으로 고르면 **아직 안 돌아간 다리**의
+            자리에 답이 달린다 : 헌치(E23, 12°) 위의 다리가 1단계에서 수평으로 서면
+            통째로 피복면 **밖**에 있을 수 있고, 그러면 `seats()` 가 E23 을 거르고
+            6.5 m 아래 하부슬래브 소피트(E8)를 골라 다리가 **수평인 채** 콘크리트
+            밖으로 나갔다 (bench/jhookseat x 1,400). 옛 코드가 통과한 것은 다리 끝이
+            E23 의 콘크리트 쪽에 **1.5 mm** 걸려 있었던 운이다.
+            몸통(link)은 이 규칙을 안 쓴다 — ㄷ 의 몸통은 그 면에 수직이다.
+            `rest` 가 없으면(옛 입력 · 앉을 면을 못 찾은 알) 예전처럼 찾는다.      */
         parSetup: function (seg, walls, sec, pose) {
+            const rid = !seg.link && seg.hookQ && seg.hookQ.rest;
+            const rw = rid && (walls || []).find(w => w.id === rid);
+            if (rw) { seg.parW = rw; seg.parD = null; return rw; }
             const half = seg.len / 2;
             const dx = Math.cos(pose.th) * half, dy = Math.sin(pose.th) * half;
             const p1 = { x: pose.cx - dx, y: pose.cy - dy };
@@ -812,6 +826,18 @@
                     if (pair && !(p.g === q0.g && p.t != null && Math.abs(p.t - q0.t) < 1)) return;
                     const d = hyp(p.x - c.x, p.y - c.y);
                     if (d > reach) return;                       // 다리가 못 닿는다
+                    /*  ㄷ 의 첫 다리는 **다리 쪽에 있는 철근만** 문다 — 다리는 그 철근을
+                        지나 뻗는 정착이다. 몸통 **뒤**의 철근은 거리만 가까울 뿐 이 다리가
+                        품을 수 없다. 이 거름이 없어서 bench/jhookseat 의 x 1,400 ㄷ 가
+                        다리를 따라 놓인 1,373 (코너에서 371 mm) 대신 몸통 뒤 1,623 (368 mm,
+                        헌치라 더 깊어 3 mm 가까웠다)을 골랐고, 거기 닿으려 ㄷ 째 380 mm
+                        미끄러져 윗다리가 철근을 5 mm 파고들었다.
+                        둘째 다리(짝)는 첫째가 고른 자리를 따르므로 거르지 않는다.       */
+                    if (!seg.cap && !pair) {
+                        const fx = (seg.hookEnd === 1) ? seg.p1 : seg.p2;
+                        const lx = fx.x - c.x, ly = fx.y - c.y, ll = hyp(lx, ly) || 1;
+                        if ((p.x - c.x) * lx / ll + (p.y - c.y) * ly / ll < 0) return;
+                    }
                     /*  ∩ 은 알을 **감싸므로** 안쪽 알만 후보다 (위 `_inSide` 주석) */
                     if (seg.cap && seg._inSide) {
                         const vx = seg.p2.x - seg.p1.x, vy = seg.p2.y - seg.p1.y;
@@ -2140,7 +2166,31 @@
                 const fb = pick(lv[i]);
                 if (fb) { const w = strict(fb); return { d: w.d, o: w, feas: true, n: n }; }
             }
-            return { d: best.d, o: best, feas: false, n: n };
+            /*  ③ 어느 층에도 자리가 없다 — **가장 얕게 파고드는 자리**(mm), 같으면 J.
+                J 로 고르면 안 된다 : 덕트 항은 못 지키는 위반이 흔해 **일부러 되내려가게**
+                둔 것이라(K_CLR · CLR_SOFT), 깊이 들어갈수록 값이 덜 자란다. 그래서 J 는
+                「철근에 1.9 mm」(K_BAR → 3,432) 보다 「덕트에 38 mm」(포화 → 1,000 남짓)를
+                싸다고 읽는다. 실제로 bench/jhookseat x 1,400 의 ㄷ 가 제자리(다리가 옆
+                종방향에 1.9 mm 모자람)를 두고 204 mm 미끄러져 덕트 AR1 에 38 mm 들어갔다.
+                위반끼리는 **같은 자(mm)** 로 견준다 — 「mm 단위로 새는 쪽이 낫다」
+                (jlong K_CTCMIN 주석)와 같은 말이다. 격자에서 고른 뒤 그 둘레를 황금분할로
+                다듬는다. 0.1 mm 안의 차이는 같은 것으로 보고 J 로 가른다.          */
+            const better = (u, w) => (u.bite > w.bite + 0.1) ||
+                                     (Math.abs(u.bite - w.bite) <= 0.1 && u.J < w.J);
+            let sh = null;
+            memo.forEach(o => { if (!sh || better(o, sh)) sh = o; });
+            {
+                const w0 = (hi - lo) / cut(hi - lo);
+                let a = Math.max(lo, sh.d - w0), b = Math.min(hi, sh.d + w0);
+                for (let it = 0; it < 40 && b - a > EDGE; it++) {
+                    const x1 = b - 0.618 * (b - a), x2 = a + 0.618 * (b - a);
+                    const o1 = F(x1), o2 = F(x2);
+                    if (better(o1, sh)) sh = o1;
+                    if (better(o2, sh)) sh = o2;
+                    if (o1.bite > o2.bite) b = x2; else a = x1;
+                }
+            }
+            return { d: sh.d, o: sh, feas: false, n: n };
         },
 
         /*  ── ㄷ 의 축방향은 «조각» 이 아니라 «ㄷ» 의 자유도다 ──────────────────
