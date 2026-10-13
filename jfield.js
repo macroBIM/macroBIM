@@ -620,10 +620,44 @@
             E23 의 콘크리트 쪽에 **1.5 mm** 걸려 있었던 운이다.
             몸통(link)은 이 규칙을 안 쓴다 — ㄷ 의 몸통은 그 면에 수직이다.
             `rest` 가 없으면(옛 입력 · 앉을 면을 못 찾은 알) 예전처럼 찾는다.      */
+        /*  ── 다리가 꺾인 면 둘에 걸치면 : **다리 길이가 더 많이 놓인 쪽** ─────────
+            철근이 기댄 면은 «어느 쪽 콘크리트인가»를 정한다. 그런데 다리는 그 면보다
+            길 수 있다 — bench/jhookseat x 1,400 의 400 mm 다리는 헌치(E23) 위의
+            철근을 물고 왼쪽으로 꺾임(x 1,250)을 넘어 평평한 아랫면(E24) 위로 245 mm
+            간다 (E23 위는 155). E23 과 나란히 두면 그 직선이 E24 쪽 옆 철근(1,123)
+            을 8.4 mm 에 지나가 J 가 타협했고, 제 철근에 3.6 mm 가깝게 섰다.
+            「가까운 쪽 면을 따라간다」 — 그 면과 **꼭짓점을 함께 쓰는 이웃 면**까지를
+            후보로 두고, **겹치는 길이가 가장 긴 면**을 고른다. 같으면 철근이 기댄 면.
+            · 겹침은 **면의 축**으로 잰다. 다리 축으로 재면 다리와 거의 수직인 면도
+              제 끝점 사이에 다리가 있으면 길게 잡힌다 — 양평대교 T1#36 의 다리가
+              복부 외측면(E6, 77°)을 골라 세로로 돌아 슬래브 위로 솟았다.
+            · 다리의 자리는 **무는 철근에서** 잡는다 : 절곡부(R) 뒤에서 자유단까지.
+              푸는 도중의 자세로 재면 다리가 잠깐 헌치 위에 있을 때 면이 바뀐다
+              (T1#41 이 그랬다).                                                  */
         parSetup: function (seg, walls, sec, pose) {
             const rid = !seg.link && seg.hookQ && seg.hookQ.rest;
             const rw = rid && (walls || []).find(w => w.id === rid);
-            if (rw) { seg.parW = rw; seg.parD = null; return rw; }
+            if (rw) {
+                //  코너 → 자유단 방향 (hookEnd 가 코너 쪽 끝을 말한다)
+                const half0 = seg.len / 2, c0 = Math.cos(pose.th), s0 = Math.sin(pose.th);
+                const sg = (seg.hookEnd === 1) ? -1 : 1;          // 자유단 = p1(−) 또는 p2(+)
+                const ux = sg * c0, uy = sg * s0, q = seg.hookQ;
+                const R = seg.bendR || 0, Lg = Math.max(seg.len0 || 0, half0 * 2);
+                const A = { x: q.x - ux * R, y: q.y - uy * R }, B = { x: q.x + ux * Lg, y: q.y + uy * Lg };
+                const over = w => {
+                    const ex = w.x2 - w.x1, ey = w.y2 - w.y1, Lw = hyp(ex, ey) || 1;
+                    const ta = ((A.x - w.x1) * ex + (A.y - w.y1) * ey) / Lw;
+                    const tb = ((B.x - w.x1) * ex + (B.y - w.y1) * ey) / Lw;
+                    return Math.max(0, Math.min(Lw, Math.max(ta, tb)) - Math.max(0, Math.min(ta, tb)));
+                };
+                const near = (p, q) => hyp(p.x - q.x, p.y - q.y) < 1;
+                const ends = w => [{ x: w.x1, y: w.y1 }, { x: w.x2, y: w.y2 }];
+                const nbr = (walls || []).filter(w => w !== rw &&
+                    ends(w).some(p => ends(rw).some(q => near(p, q))));
+                let pick = rw, best = over(rw);
+                nbr.forEach(w => { const o = over(w); if (o > best + 1e-6) { best = o; pick = w; } });
+                seg.parW = pick; seg.parD = null; return pick;
+            }
             const half = seg.len / 2;
             const dx = Math.cos(pose.th) * half, dy = Math.sin(pose.th) * half;
             const p1 = { x: pose.cx - dx, y: pose.cy - dy };
