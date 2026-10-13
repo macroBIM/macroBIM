@@ -2641,8 +2641,12 @@
         var prims = [], self = this;
         Domain.trebarList.forEach(function (t) {
           if (t._srebar && !self._capRests(t)) return;
+          /*  `rest` — 받치는 ∩ 은 종방향 **안쪽**에서 받친다. 2단계 출발점을 찾는
+              `JLong.firstClear` 가 그것을 «넘어갈 바깥 켜»로 보면 알이 ∩ 몸통을
+              뚫고 밑으로 간다 (S14 에서 ∩ 다리 끝이 1 → 12 개 떴다).            */
+          var rest = !!(t._srebar && self._capRests(t));
           (self._trebarPrimitives(t) || []).forEach(function (pr) {
-            prims.push({ t: pr.t, p: pr.p, dia: t.dia || 13 });
+            prims.push({ t: pr.t, p: pr.p, dia: t.dia || 13, rest: rest });
           });
         });
 

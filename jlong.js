@@ -149,6 +149,10 @@
                 그 길을 `rescue()` 가 낸다. 둘은 같이 있어야 한다.                 */
             K_TIE: 1000.0,     // 상·하 짝을 같은 t 에 묶는다 (축 방향만)
             NUDGE: 1.0,        // 2단계 시작 전 안쪽으로 밀어 대칭을 깨는 양 (mm)
+            /*  `firstClear` 가 「비었다」고 볼 겹침의 한계. 겹침 항(K_BAR)이 스스로
+                누르는 크기가 δ ≤ 0.5 mm 다(K_BAR 주석) — 그보다 작게, 그 반으로 둔다.
+                0 으로 두면 틈이 **딱 한 알 너비**인 자리가 측도 0 이 되어 안 보인다. */
+            CLEAR_TOL: 0.25,
             LAM0: 1e-3, ITER: 300, OUTER: 8, TOL: 1e-4
         },
 
@@ -1033,6 +1037,62 @@
             return P;
         },
 
+        /*  ── 2단계의 출발점 : **균등 자리(t) 그대로, 안쪽으로 직선탐색** ──────
+            1단계는 콘크리트만 보고 철근을 피복선에 앉힌다. 그런데 그 선이 **횡방향
+            철근의 중심선과 같다** (둘 다 피복 + d/2). 그래서 2단계를 거기서 시작하면
+            알이 횡철근 «위»에, 척력의 꼭대기에 서 있다. 횡철근이 하나면 NUDGE 1 mm 로
+            안쪽이 정해지지만, **기울어진 횡철근**이거나 **두 개가 엇갈리는 자리**면
+            척력에 축 성분이 생기고 K_BAR(1000) 이 K_A(0.5) · K_CTCMIN(20) 을 압도해
+            알이 **옆으로** 밀려난다. 양평대교 하부 ⑩ · ⑪ 이 엇갈리는 헌치 꺾임에서
+            열 개가 최대 270 mm 밀려나 19 mm 로 몰리고 570 mm 구멍이 났다 —
+            그 자리 J 889,746, 같은 알을 제자리에서 한 켜 깊이 두면 84,706.
+            J 는 맞았고 **출발점이 틀렸다** (하강은 국소다).
+            규칙 : **종방향은 먼저 균등하게 놓인다.** 그래서 출발점을 자리(t)는 그대로
+            두고 면의 법선에서 축 성분을 뺀 방향(= `rescue` 와 같은 방향)으로 들어가며
+            **횡철근에서 처음 비는 자리**로 둔다. 그다음은 전부 J 가 정한다 —
+            옆으로 가는 편이 정말 낮으면 `slidePairs`·`escape` 가 여전히 고른다.
+            · 비켜설 것이 횡철근(prims)일 때만이다. **덕트는 넘어가지 않는다** —
+              덕트 너머는 부재 깊숙이라 그리로 들어가면 종방향 구실을 못 한다.
+            · 한계는 `rescue` 와 같은 10d. 못 찾으면 예전 출발점.                     */
+        firstClear: function (p, c, g, prims, ducts, a) {
+            //  받치는 ∩(`rest`)은 안쪽 켜다 — 넘어갈 것이 아니다 (페이지의 prims 주석)
+            const near = (prims || []).filter(pr => !pr.rest && this.toPrim(p, pr, 12 * g.dia + pr.dia));
+            const blocked = q => near.some(pr => {
+                const need = (pr.dia + g.dia) / 2;
+                const e = this.toPrim(q, pr, need + g.dia);
+                return e && e.d < need - this.CONF.CLEAR_TOL;
+            });
+            if (!blocked(p)) return null;                     // 비어 있다 — 예전대로
+            let dx = c.w.nx, dy = c.w.ny;
+            const ax = dx * a.u.x + dy * a.u.y;
+            dx -= ax * a.u.x; dy -= ax * a.u.y;
+            const dn = hyp(dx, dy);
+            if (dn < 1e-9) return null;
+            dx /= dn; dy /= dn;
+            const at = s => ({ x: p.x + dx * s, y: p.y + dy * s });
+            /*  걸음은 **0.5 mm** 다. `rescue` 의 d/4 로 두었더니 두 횡철근 사이가 딱
+                한 알 너비인 자리(양평대교 ④·⑤ 가 엇갈리는 x ±3,000 : 틈 38 · 필요 38)를
+                건너뛰고 ⑤ 너머로 두 켜(58 mm) 들어갔다. 한계는 `rescue` 와 같은 10d.  */
+            const step = 0.5, lim = 10 * g.dia;
+            let lo = 0, hi = null;
+            for (let s = step; s <= lim; s += step) {
+                if (!blocked(at(s))) { hi = s; break; }
+                lo = s;
+            }
+            if (hi == null) return null;
+            //  막힌 lo 와 빈 hi 사이를 0.1 mm 까지 좁힌다 — 닿는 자리가 답이다
+            while (hi - lo > 0.1) {
+                const m = (lo + hi) / 2;
+                if (blocked(at(m))) lo = m; else hi = m;
+            }
+            const q = at(hi);
+            const duct = (ducts || []).some(d => {
+                const need = (d.D / 2) + (d.clr != null ? d.clr : 30) + g.dia / 2;
+                return hyp(q.x - d.x, q.y - d.y) < need;
+            });
+            return duct ? null : q;
+        },
+
         /*  한 무리를 푼다. `jfield.settle()` 과 같은 차례다 :
             1단계 콘크리트만 → 2단계 덕트·철근을 켜고 다시 내린다.
             각 단계 안에서 「면 배정 → 고정하고 하강 → 다시 배정」을 번갈아 한다.  */
@@ -1093,6 +1153,8 @@
                         const s = seatsFor(p);
                         const c = s.length ? this.nearestSeat(p, s) : null;
                         if (!c) return p;
+                        const q = this.firstClear(p, c, g, prims, ducts, a);
+                        if (q) return q;
                         return { x: p.x + c.w.nx * this.CONF.NUDGE, y: p.y + c.w.ny * this.CONF.NUDGE };
                     });
                 }
