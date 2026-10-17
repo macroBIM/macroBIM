@@ -29,8 +29,13 @@ const CODE = {};
 function makeContext(pageKey = 'dia') {
   const PAGE = PAGES[pageKey].file;
   const EL = {};
+  /*  `tagName` — 페이지는 `<select>` 를 tagName 으로 알아보고 값을 **글자 그대로** 읽는다.
+      없으면 'OCT' 를 숫자로 읽다가 실패해 기본값(HEX)으로 떨어진다 — 격벽 개구부가
+      **아래 모서리 접기 없이** 섰다 (S15 의 OCT 가 하네스에서만 HEX 였다).
+      지금 `<select>` 인 입력칸은 이름이 `_shape` 로 끝나는 것뿐이다.           */
   const mk = id => (EL[id] = {
-    id, value: '', checked: false, disabled: false, textContent: '',
+    id, tagName: /_shape$/.test(id) ? 'SELECT' : 'INPUT',
+    value: '', checked: false, disabled: false, textContent: '',
     style: {}, classList: { toggle() {}, add() {}, remove() {}, contains: () => false },
     querySelectorAll: () => [], appendChild() {}, setAttribute() {}, getAttribute: () => null
   });
