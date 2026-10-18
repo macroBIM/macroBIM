@@ -408,11 +408,17 @@
 
       /*  ── `srebar` code 1 — 곧은 철근 열차 (면 철근망) ──────────────────────
           칸은 `bim_pscbox_test.js` 의 `srebar` 와 같다 :
-            2 code · 3 dia · 4 init(x, y, rot) · 5 range(−, +) · 6 num · 7 ctc · 12 z
+            2 code · 3 dia · 4 init(x, y, rot) · 5 range(−, +) · 6 num · 7 ctc · 8 len · 12 z
           rot   철근이 **눕는 방향** (90 = 세로 철근 · 0 = 가로 철근)
           열차  철근에 수직으로 행진한다 — 방향은 rot 을 시계로 90° 돌린 쪽
                 (세로 철근이면 +x). init 이 열차의 한가운데, range 는 그 기준의 한계.
-          길이는 입력이 아니다 — `_expandMesh` 가 그 직선 위의 콘크리트에서 낸다.  */
+          len   비우면 길이는 입력이 아니다 — `_expandMesh` 가 그 직선 위의 콘크리트에서
+                낸다 (면 철근망). 적으면 **그 길이로 고정**이다 — 자리를 한가운데로 두고
+                ±len/2 (개구부 보강 M1~M3 처럼 도면이 길이를 정한 철근). 고정 길이는
+                외곽 피복이 줄이지 않는다(입력한 대로 — 「엔진을 고칠 때 지킬 것」 ②).
+                덕트가 미는 것 · 개구부가 자르는 것은 똑같다.
+                (`bim_pscbox_test.js` 의 srebar 는 이 칸이 갈고리 다리 `leg` 다 — 같은
+                 자리에 «철근 길이» 를 둔 것이다.)                                       */
       _parseMeshRow: function (row) {
         var o = { type: 'srebar', id: this._rbStr(row[1]) };
         this._rbCurId = o.id;
@@ -422,6 +428,7 @@
         var range = this._rbRange(row[5]); if (range) o.range = range;
         if (this._rbHas(row[6])) o.num = this._rbNum(row[6]);
         if (this._rbHas(row[7])) o.ctc = this._rbNum(row[7]);
+        if (this._rbHas(row[8])) o.len = this._rbNum(row[8]);
         o.z = this._rbHas(row[12]) ? Number(row[12]) : 0;
         return o;
       },
@@ -535,6 +542,17 @@
             };
           };
           var okLine = okOf(lineW), okAll = okOf(walls);
+          //  고정 길이 — 외곽은 안 보고 개구부(자르는 장)만 본다
+          var openW = walls.filter(isCut);
+          var okOpen = function (p) {
+            if (openW.length && inside(openW, p)) return false;
+            for (var i = 0; i < openW.length; i++) {
+              var w = openW[i];
+              if (segPt({ x: w.x1, y: w.y1 }, { x: w.x2, y: w.y2 }, p) < need(w) - 1e-6) return false;
+            }
+            return true;
+          };
+          var LEN = (rd.len > 0) ? rd.len : 0;
           //  철근 직선을 따라 훑는 폭 — 단면을 그 직선에 투영한 길이 (고를 값이 없다)
           var s0 = Infinity, s1 = -Infinity;
           walls.forEach(function (w) {
@@ -545,20 +563,23 @@
           });
           var STEP = 10;
           //  자리 c 를 지나는 직선 위의 «놓일 수 있는» 구간들 → [[A, B], …]
+          //  훑는 폭은 단면 투영(길이를 콘크리트가 낼 때) 또는 ±len/2 (고정 길이)
           var piecesAt = function (ok, c) {
+            var sa = LEN ? -LEN / 2 : s0, sb = LEN ? LEN / 2 : s1;
             var at = function (s) { return { x: c.x + b.x * s, y: c.y + b.y * s }; };
             var edge = function (sa, sb) {
               var fa = ok(at(sa)), lo = sa, hi = sb;
               for (var i = 0; i < 30; i++) { var m = (lo + hi) / 2; if (ok(at(m)) === fa) lo = m; else hi = m; }
               return (lo + hi) / 2;
             };
-            var out = [], prev = ok(at(s0)), st = prev ? s0 : null;
-            for (var s = s0 + STEP; s <= s1 + STEP; s += STEP) {
-              var cur = ok(at(s));
-              if (cur && !prev) st = edge(s - STEP, s);
-              if (!cur && prev) { out.push([st, edge(s - STEP, s)]); st = null; }
+            var out = [], prev = ok(at(sa)), st = prev ? sa : null;
+            for (var s = sa + STEP; s < sb + STEP; s += STEP) {
+              var sc = Math.min(s, sb), cur = ok(at(sc));
+              if (cur && !prev) st = edge(sc - STEP, sc);
+              if (!cur && prev) { out.push([st, edge(sc - STEP, sc)]); st = null; }
               prev = cur;
             }
+            if (prev) out.push([st, sb]);         //  끝까지 놓일 수 있으면 끝에서 닫는다
             return out.filter(function (r) { return r[1] - r[0] > 2 * dia; })
                       .map(function (r) { return [at(r[0]), at(r[1])]; });
           };
@@ -572,13 +593,18 @@
             var c0 = { x: O.x + u.x * t, y: O.y + u.y * t };
             //  ② 민다 — 외곽만 본 철근(자르기 전)을 덕트가 옆으로
             var r = self._ductPush((function (c0) {
-              return function (d) { return piecesAt(okLine, { x: c0.x + u.x * d, y: c0.y + u.y * d }); };
+              return function (d) {
+                var cc = { x: c0.x + u.x * d, y: c0.y + u.y * d };
+                return LEN ? [[{ x: cc.x - b.x * LEN / 2, y: cc.y - b.y * LEN / 2 },
+                               { x: cc.x + b.x * LEN / 2, y: cc.y + b.y * LEN / 2 }]]
+                           : piecesAt(okLine, cc);
+              };
             })(c0), ctc / 2, dia);
             var c = { x: c0.x + u.x * r.d, y: c0.y + u.y * r.d };
             if (Math.abs(r.d) > 0.5) moved++;
             if (!r.feas) bad.push((i + 1) + '(' + r.bite.toFixed(1) + ')');
             //  ③ 자른다 — 밀린 자리에서 개구부까지 넣고 다시 잰다
-            var pcs = piecesAt(okAll, c);
+            var pcs = piecesAt(LEN ? okOpen : okAll, c);
             if (pcs.length > 1) cut++;
             pcs.forEach(function (pc, j) {
               var tb = TrebarFactory.create(1, { x: 0, y: 0 }, { A: 400 }, 0, null, null, null);
