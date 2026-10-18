@@ -1203,7 +1203,11 @@
       _watchSettle: function () {
         var self = this;
         if (this._settleTimer) { clearInterval(this._settleTimer); this._settleTimer = null; }
-        if (typeof Domain === 'undefined' || !Domain.queue || Domain.queue.length === 0) return;
+        if (typeof Domain === 'undefined' || !Domain.queue) return;
+        /*  물리로 떨어질 철근이 하나도 없어도 **마무리는 해야 한다** — 폐합철근(crebar)은
+            마무리(_finalizeArcs → _startHoopSettle)에서 시작한다. 여기서 그냥 돌아가면
+            고리 · 철근망만 있는 시트(양평대교 B-B)에서 고리가 하나도 안 섰다.          */
+        if (Domain.queue.length === 0) { this._finalizeArcs(); return; }
         var lastIndex = -1, stallTicks = 0, totalTicks = 0, stuck = [];
         var STALL_LIMIT = 60;     // 진행 없이 정체(약 9초) → 현재 철근 강제 스킵 (느린 정상 안착은 통과)
         var HARD_LIMIT = 4000;    // 타이머 영구화 방지 안전 상한 (약 10분)
