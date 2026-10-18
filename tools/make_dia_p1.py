@@ -15,6 +15,14 @@
 
 실행 :  python3 tools/make_dia_p1.py
 """
+
+# ── 엑셀이 원본이다 (2026-10-18 사용자 결정) ─────────────────────────────
+#  이 스크립트는 시트를 **처음 만들 때만** 썼다. 이제 원본은 엑셀이고, 사람이든
+#  Claude 든 엑셀을 직접 고친다. 여기서 다시 만들면 엑셀에서 고친 것이 사라진다.
+#  그래서 엑셀이 있으면 멈춘다. (출처 설명은 엑셀의 # 주석 행에 그대로 있다.)
+import os as _os, sys as _sys
+if _os.path.exists('PSCBOX_DIAPHRAGM_P1.xlsx'):
+    _sys.exit('PSCBOX_DIAPHRAGM_P1.xlsx 이 이미 있다 — 엑셀이 원본이다(2026-10-18). 엑셀을 직접 고친다. 이 스크립트는 다시 쓰지 않는다.')
 import openpyxl
 
 R = []
