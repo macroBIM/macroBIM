@@ -408,7 +408,7 @@
 
       /*  ── `srebar` code 1 — 곧은 철근 열차 (면 철근망) ──────────────────────
           칸은 `bim_pscbox_test.js` 의 `srebar` 와 같다 :
-            2 code · 3 dia · 4 init(x, y, rot) · 5 range(−, +) · 6 num · 7 ctc · 8 len · 12 z
+            2 code · 3 dia · 4 init(x, y, rot) · 5 range(−, +) · 6 num · 7 ctc · 8 len · 9 seat · 12 z
           rot   철근이 **눕는 방향** (90 = 세로 철근 · 0 = 가로 철근)
           열차  철근에 수직으로 행진한다 — 방향은 rot 을 시계로 90° 돌린 쪽
                 (세로 철근이면 +x). init 이 열차의 한가운데, range 는 그 기준의 한계.
@@ -418,7 +418,9 @@
                 외곽 피복이 줄이지 않는다(입력한 대로 — 「엔진을 고칠 때 지킬 것」 ②).
                 덕트가 미는 것 · 개구부가 자르는 것은 똑같다.
                 (`bim_pscbox_test.js` 의 srebar 는 이 칸이 갈고리 다리 `leg` 다 — 같은
-                 자리에 «철근 길이» 를 둔 것이다.)                                       */
+                 자리에 «철근 길이» 를 둔 것이다.)
+          seat  `open` 이면 열차가 **개구부 면으로 끌려가 J 최소에 앉는다** (개구부 보강).
+                비우면 init 자리 그대로 (덕트에 밀리기만 한다).                         */
       _parseMeshRow: function (row) {
         var o = { type: 'srebar', id: this._rbStr(row[1]) };
         this._rbCurId = o.id;
@@ -429,6 +431,7 @@
         if (this._rbHas(row[6])) o.num = this._rbNum(row[6]);
         if (this._rbHas(row[7])) o.ctc = this._rbNum(row[7]);
         if (this._rbHas(row[8])) o.len = this._rbNum(row[8]);
+        if (this._rbHas(row[9])) o.seat = this._rbStr(row[9]).toLowerCase();
         o.z = this._rbHas(row[12]) ? Number(row[12]) : 0;
         return o;
       },
@@ -462,17 +465,23 @@
         return isFinite(v) && v > 0 ? v : 30;
       },
 
+      //  두 선분 [a, b] · [c, d] 사이 거리 (교차하면 0)
+      _segSeg: function (a, b, c, d) {
+        var segPt = function (p, q, r) { return JField.segToPoint([p, q], r); };
+        var cr = function (p, q, r) { return (q.x - p.x) * (r.y - p.y) - (q.y - p.y) * (r.x - p.x); };
+        var d1 = cr(a, b, c), d2 = cr(a, b, d), d3 = cr(c, d, a), d4 = cr(c, d, b);
+        if (((d1 > 0) !== (d2 > 0)) && ((d3 > 0) !== (d4 > 0))) return 0;
+        return Math.min(segPt(a, b, c), segPt(a, b, d), segPt(c, d, a), segPt(c, d, b));
+      },
+
       //  철근 조각 [a, b] 에서 덕트 **면**까지 (원은 정확히, 그 밖은 폴리곤 · 교차하면 0)
       _ductGap: function (a, b, k) {
-        var segPt = function (p, q, r) { return JField.segToPoint([p, q], r); };
-        if (k.shape === 'circ') return segPt(a, b, { x: k.x, y: k.y }) - k.D / 2;
-        var cr = function (p, q, r) { return (q.x - p.x) * (r.y - p.y) - (q.y - p.y) * (r.x - p.x); };
+        if (k.shape === 'circ') return JField.segToPoint([a, b], { x: k.x, y: k.y }) - k.D / 2;
         var P = k.pts || [], m = Infinity;
         for (var i = 0; i < P.length; i++) {
           var c = { x: P[i][0], y: P[i][1] }, d = { x: P[(i + 1) % P.length][0], y: P[(i + 1) % P.length][1] };
-          var d1 = cr(a, b, c), d2 = cr(a, b, d), d3 = cr(c, d, a), d4 = cr(c, d, b);
-          if (((d1 > 0) !== (d2 > 0)) && ((d3 > 0) !== (d4 > 0))) return 0;
-          m = Math.min(m, segPt(a, b, c), segPt(a, b, d), segPt(c, d, a), segPt(c, d, b));
+          m = Math.min(m, this._segSeg(a, b, c, d));
+          if (m === 0) return 0;
         }
         return m;
       },
@@ -586,13 +595,70 @@
 
           //  ① 자리 — lrebar · srebar 와 같은 식 (init 이 한가운데, range 는 한계)
           var R = rd.range, okR = R && isFinite(R.min) && isFinite(R.max) && R.max > R.min;
-          var made = 0, moved = 0, cut = 0, bad = [];
-          for (var i = 0; i < rd.num; i++) {
-            var t = (i - (rd.num - 1) / 2) * ctc;
-            if (okR && (t < R.min - 1e-6 || t > R.max + 1e-6)) continue;
+          var made = 0, moved = 0, cut = 0, bad = [], seatNote = '';
+          var slots = [];
+          for (var i0 = 0; i0 < rd.num; i0++) {
+            var t0 = (i0 - (rd.num - 1) / 2) * ctc;
+            if (!(okR && (t0 < R.min - 1e-6 || t0 > R.max + 1e-6))) slots.push({ i: i0, t: t0 });
+          }
+
+          /*  ①-2 `seat open` — 열차가 **개구부 면으로 끌려가 J 최소에 앉는다** (개구부 보강).
+                면     개구부 면 중 철근과 나란한 것(5° 안) · 열차에서 가장 가까운 것
+                g(d)   열차를 철근에 수직으로 d 만큼 옮겼을 때, 그 면에 가장 가까운 철근의
+                       면까지 거리 − (내측 피복 + 지름/2)
+                J(d) = ½·g² + 덕트 위반     · g < 0 (피복을 깸) 은 배리어
+              → 가장 가까운 철근이 그 면의 피복선에 앉고, 나머지는 ctc 로 뒤따른다.
+              열차는 한 덩어리로 옮긴다 (lrebar 열차와 같다). 철근 길이 방향 자리는 init 그대로.  */
+          var dT = 0;
+          if (rd.seat === 'open') {
+            var barAt = function (t, d) {
+              var cc = { x: O.x + u.x * (t + d), y: O.y + u.y * (t + d) }, h = (LEN || 1000) / 2;
+              return [{ x: cc.x - b.x * h, y: cc.y - b.y * h }, { x: cc.x + b.x * h, y: cc.y + b.y * h }];
+            };
+            var par = openW.filter(function (w) {
+              var wx = w.x2 - w.x1, wy = w.y2 - w.y1, wl = Math.hypot(wx, wy) || 1;
+              return Math.abs(wx / wl * b.y - wy / wl * b.x) < Math.sin(5 * D2R);
+            });
+            var gapTo = function (w, d) {
+              var m = Infinity;
+              slots.forEach(function (sl) {
+                var br = barAt(sl.t, d);
+                m = Math.min(m, self._segSeg(br[0], br[1], { x: w.x1, y: w.y1 }, { x: w.x2, y: w.y2 }));
+              });
+              return m;
+            };
+            var face = null, g0 = Infinity;
+            par.forEach(function (w) { var g = gapTo(w, 0); if (g < g0) { g0 = g; face = w; } });
+            if (!face) { log.push(id + ' : seat open — no opening face parallel to the bars'); return; }
+            //  면 쪽이 +u 인가 −u 인가 — 면의 중점이 열차의 어느 편에 있나
+            var fm = { x: (face.x1 + face.x2) / 2, y: (face.y1 + face.y2) / 2 };
+            var sg = ((fm.x - O.x) * u.x + (fm.y - O.y) * u.y) > 0 ? 1 : -1;
+            var needF = need(face);
+            var seatParts = function (d) {
+              var g = gapTo(face, d) - needF, v = 0, bite = 0;
+              if (g < 0) { v += g * g * 1000; bite = g; }
+              slots.forEach(function (sl) {
+                var br = barAt(sl.t, d);
+                (self._ducts || []).forEach(function (k) {
+                  var gd = self._ductGap(br[0], br[1], k) - (self._ductClr(k) + dia / 2);
+                  if (gd < 0) { v += gd * gd * 1000; if (gd < bite) bite = gd; }
+                });
+              });
+              return { v: v, p: 0.5 * g * g, bite: bite };
+            };
+            //  면 쪽으로는 면에 닿을 때까지, 반대로는 반 칸
+            var lo = (sg > 0) ? -ctc / 2 : -(g0 + 1), hi = (sg > 0) ? (g0 + 1) : ctc / 2;
+            var rs = JField.lineMin(seatParts, lo, hi);
+            dT = rs.d;
+            seatNote = ' · seated on opening face ' + face.id + ' (moved ' + dT.toFixed(1) + ', gap ' +
+                       (gapTo(face, dT)).toFixed(1) + ')' + (rs.feas ? '' : ' · INFEASIBLE');
+          }
+
+          for (var si = 0; si < slots.length; si++) {
+            var i = slots[si].i, t = slots[si].t + dT;
             var c0 = { x: O.x + u.x * t, y: O.y + u.y * t };
             //  ② 민다 — 외곽만 본 철근(자르기 전)을 덕트가 옆으로
-            var r = self._ductPush((function (c0) {
+            var r = (rd.seat === 'open') ? { d: 0, bite: 0, feas: true } : self._ductPush((function (c0) {
               return function (d) {
                 var cc = { x: c0.x + u.x * d, y: c0.y + u.y * d };
                 return LEN ? [[{ x: cc.x - b.x * LEN / 2, y: cc.y - b.y * LEN / 2 },
@@ -617,11 +683,11 @@
               sg.state = 'SETTLED';
               tb.id = id + '#' + (i + 1) + (pcs.length > 1 ? String.fromCharCode(97 + j) : '');
               tb.dia = dia; tb.z = rd.z || 0; tb.state = 'FORMED';
-              tb._mesh = { row: id, slot: t, shift: r.d, bite: r.bite };
+              tb._mesh = { row: id, slot: t - dT, shift: r.d + dT, bite: r.bite };
               bars.push(tb); made++;
             });
           }
-          var msg = id + ' : ' + made + ' bars · pushed by ducts ' + moved + ' · cut by opening ' + cut +
+          var msg = id + ' : ' + made + ' bars · pushed by ducts ' + moved + ' · cut by opening ' + cut + seatNote +
                     (bad.length ? ' · STILL ON A DUCT ' + bad.join(' ') : '');
           log.push(msg);
           console.log('[PSCDIA] 철근망 ' + msg);
