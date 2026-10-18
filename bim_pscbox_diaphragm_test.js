@@ -486,22 +486,62 @@
         return m;
       },
 
-      _ductPush: function (segsAt, half, dia) {
-        var ducts = this._ducts || [], self = this;
-        if (!ducts.length || typeof JField === 'undefined' || typeof JField.lineMin !== 'function')
-          return { d: 0, bite: 0, feas: true };
-        var parts = function (d) {
-          var v = 0, bite = 0;
-          segsAt(d).forEach(function (pc) {
+      /*  ── 열차 하나를 **평형까지** 민다 (2026-10-18 사용자 : 「덕트에서 밀리고 이웃 철근에 밀리지만
+          평형될 때까지 밀리면 되잖아 · 공간이 허락하는 데까지」) ──────────────────────
+            철근 i 의 옮김 d_i 를 같이 푼다 :
+              J = Σ ½·d_i²                         제 자리로 돌아가려는 힘 (jlong 균등배치와 같은 꼴)
+                + Σ K·(덕트 위반)²                  덕트 · 매입물이 민다  (위반 = 면까지 − (clr + d/2) < 0)
+                + Σ K·(이웃 위반)²                  이웃 철근이 민다      (위반 = 중심 간격 − 지름 < 0 · 겹침만)
+            한 번에 하나씩 (Gauss–Seidel) JField.lineMin 으로 — 위반 없는 자리 중 J 최소, 없으면 가장
+            얕게 무는 자리. 움직임이 0.01 mm 아래가 될 때까지 되풀이한다.
+            한 철근이 움직이는 범위는 **양 이웃 사이**뿐이다 (순서가 안 바뀐다). ±ctc/2 같은 칸 한계는 없다.
+            공간이 모자라면 억지로 풀지 않는다 — 가장 얕게 무는 채로 멈추고 `bite` 로 남긴다.
+          `st[i] = { t0, segsAt(d) }` : 자리(열차 축 좌표)와, 옮긴 거리 d 에서 그 철근의 선분들.      */
+      _trainEquilibrium: function (st, dia, ctc) {
+        var n = st.length, d = st.map(function () { return 0; }), bite = d.slice(), self = this;
+        var ducts = this._ducts || [], K = 1000, sweeps = 0;
+        if (!n || typeof JField === 'undefined' || typeof JField.lineMin !== 'function') return { d: d, bite: bite, sweeps: 0 };
+        var ductOf = function (i, di) {
+          var v = 0, b = 0;
+          st[i].segsAt(di).forEach(function (pc) {
             ducts.forEach(function (k) {
               var g = self._ductGap(pc[0], pc[1], k) - (self._ductClr(k) + dia / 2);
-              if (g < 0) { v += g * g * 1000; if (g < bite) bite = g; }
+              if (g < 0) { v += K * g * g; if (g < b) b = g; }
             });
           });
-          return { v: v, p: 0.5 * d * d, bite: bite };
+          return { v: v, bite: b };
         };
-        var r = JField.lineMin(parts, -half, half);
-        return { d: r.d, bite: r.o.bite, feas: r.feas };
+        var partsOf = function (i) {
+          var x0 = st[i].t0;
+          var nb = [];
+          if (i > 0) nb.push(st[i - 1].t0 + d[i - 1]);
+          if (i < n - 1) nb.push(st[i + 1].t0 + d[i + 1]);
+          return function (di) {
+            var o = ductOf(i, di), v = o.v, b = o.bite, x = x0 + di;
+            nb.forEach(function (xn) {
+              var g = Math.abs(x - xn) - dia;
+              if (g < 0) { v += K * g * g; if (g < b) b = g; }
+            });
+            return { v: v, p: 0.5 * di * di, bite: b };
+          };
+        };
+        //  덕트가 하나도 없고 이웃이 겹치지 않으면 움직일 까닭이 없다
+        if (!ducts.length) return { d: d, bite: bite, sweeps: 0 };
+        for (sweeps = 1; sweeps <= 200; sweeps++) {
+          var step = 0;
+          for (var i = 0; i < n; i++) {
+            var x0 = st[i].t0;
+            var lo = (i > 0) ? (st[i - 1].t0 + d[i - 1]) - x0 + 0.5 : -ctc;
+            var hi = (i < n - 1) ? (st[i + 1].t0 + d[i + 1]) - x0 - 0.5 : ctc;
+            if (!(hi > lo)) continue;
+            var r = JField.lineMin(partsOf(i), lo, hi);
+            step = Math.max(step, Math.abs(r.d - d[i]));
+            d[i] = r.d;
+          }
+          if (step < 0.01) break;
+        }
+        for (var j = 0; j < n; j++) bite[j] = partsOf(j)(d[j]).bite;
+        return { d: d, bite: bite, sweeps: sweeps };
       },
 
       _expandMesh: function (sec) {
@@ -654,18 +694,20 @@
                        (gapTo(face, dT)).toFixed(1) + ')' + (rs.feas ? '' : ' · INFEASIBLE');
           }
 
+          //  ② 민다 — 열차 전체를 평형까지 (외곽만 본 철근 · 자르기 전). seat open 이면 이미 앉았다
+          var eq = (rd.seat === 'open') ? null : self._trainEquilibrium(slots.map(function (sl) {
+            return { t0: sl.t, segsAt: function (d) {
+              var cc = { x: O.x + u.x * (sl.t + d), y: O.y + u.y * (sl.t + d) };
+              return LEN ? [[{ x: cc.x - b.x * LEN / 2, y: cc.y - b.y * LEN / 2 },
+                             { x: cc.x + b.x * LEN / 2, y: cc.y + b.y * LEN / 2 }]]
+                         : piecesAt(okLine, cc);
+            } };
+          }), dia, ctc);
+
           for (var si = 0; si < slots.length; si++) {
             var i = slots[si].i, t = slots[si].t + dT;
             var c0 = { x: O.x + u.x * t, y: O.y + u.y * t };
-            //  ② 민다 — 외곽만 본 철근(자르기 전)을 덕트가 옆으로
-            var r = (rd.seat === 'open') ? { d: 0, bite: 0, feas: true } : self._ductPush((function (c0) {
-              return function (d) {
-                var cc = { x: c0.x + u.x * d, y: c0.y + u.y * d };
-                return LEN ? [[{ x: cc.x - b.x * LEN / 2, y: cc.y - b.y * LEN / 2 },
-                               { x: cc.x + b.x * LEN / 2, y: cc.y + b.y * LEN / 2 }]]
-                           : piecesAt(okLine, cc);
-              };
-            })(c0), ctc / 2, dia);
+            var r = eq ? { d: eq.d[si], bite: eq.bite[si], feas: eq.bite[si] > -1e-3 } : { d: 0, bite: 0, feas: true };
             var c = { x: c0.x + u.x * r.d, y: c0.y + u.y * r.d };
             if (Math.abs(r.d) > 0.5) moved++;
             if (!r.feas) bad.push((i + 1) + '(' + r.bite.toFixed(1) + ')');
@@ -2145,14 +2187,14 @@
       return out;
     },
 
-    /*  고리 한 가닥을 덕트가 민다 (`_ductPush` 위 주석).
-        단면에서 고리는 자른 선 v 위의 한 줄이다 — 콘크리트 바깥 윤곽 안에서 양 끝
-        피복(격벽면 피복 + 지름/2)만큼 들인 구간. 개구부는 아직 안 뺀다 (미는 것이 먼저).  */
-    _pushHoop: function (v0, ax, dia, ctc) {
+    /*  고리 한 가닥이 단면에서 차지하는 선분 — 자른 선 v0 + d 위의 한 줄. 콘크리트 바깥 윤곽
+        안에서 양 끝 피복(격벽면 피복 + 지름/2)만큼 들인 구간. 개구부는 아직 안 뺀다(미는 것이 먼저).
+        `_trainEquilibrium` 이 이것으로 덕트와 견준다.                                        */
+    _hoopSegsAt: function (v0, ax, dia) {
       var outer = (this._sectPoly && this._sectPoly.outer) || [], self = this;
-      if (outer.length < 3) return { d: 0, bite: 0, feas: true };
       var need = this._diaCover() + dia / 2;
-      var segsAt = function (d) {
+      return function (d) {
+        if (outer.length < 3) return [];
         var v = v0 + d;
         return self._polySpans(outer, v, ax)
           .filter(function (s) { return s[1] - s[0] > 2 * need; })
@@ -2161,7 +2203,6 @@
             return ax ? [{ x: v, y: a }, { x: v, y: b }] : [{ x: a, y: v }, { x: b, y: v }];
           });
       };
-      return this._ductPush(segsAt, ctc / 2, dia);
     },
 
     _spanAt: function (v, ax) {
@@ -2182,7 +2223,7 @@
       var other = ax ? 0 : 1;
       /*  자르는 것은 **개구부뿐**이다. 덕트는 미는 장이라 여기서 빼지 않는다 —
           한때 덕트도 구멍으로 빼서 고리 ⑩ 이 덕트에서 **잘렸다**(철근망은 밀리고).
-          같은 덕트가 철근마다 다르게 굴었다. 고리도 이제 먼저 밀린다 (`_pushHoop`). */
+          같은 덕트가 철근마다 다르게 굴었다. 고리도 이제 먼저 밀린다 (`_trainEquilibrium`). */
       var holePolys = [];
       (this._openings || []).forEach(function (op) { if (op && op.pts) holePolys.push(op.pts); });
       holePolys.forEach(function (hp) {
@@ -2294,9 +2335,13 @@
           for (var k2 = 0; k2 < n; k2++) stations.push(a0 + pad + k2 * ctc);
         } else stations.push(h.at);
 
-        stations.forEach(function (at0) {
-          //  ① 덕트가 먼저 민다 — 제 칸(±ctc/2) 안에서 옆으로 · ② 그 자리에서 개구부가 자른다
-          var pu = self._pushHoop(at0, ax, h.dia || 25, (h.ctc > 0) ? h.ctc : 150);
+        //  ① 덕트가 먼저 민다 — 줄 전체를 평형까지 (`_trainEquilibrium`) · ② 그 자리에서 개구부가 자른다
+        var hctc = (h.ctc > 0) ? h.ctc : 150;
+        var heq = self._trainEquilibrium(stations.map(function (at0) {
+          return { t0: at0, segsAt: self._hoopSegsAt(at0, ax, h.dia || 25) };
+        }), h.dia || 25, hctc);
+        stations.forEach(function (at0, ks) {
+          var pu = { d: heq.d[ks], bite: heq.bite[ks] };
           var at = at0 + pu.d;
           var spans = self._spansAt(at, ax);          // 개구부를 뺀 콘크리트 구간들
           if (!spans.length) return;
