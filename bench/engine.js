@@ -17,13 +17,14 @@ const SRC = ['geomath.js', 'equation.js', 'bim_box12cell.js', 'bim_duct.js', 'tr
              'lrebar.js', 'physics.js', 'domain.js'];
 //  페이지는 둘이다 — 격벽(PXDIA)과 일반 박스(PXBOX). S14 처럼 격벽이 아닌 단면은 PXBOX 가 읽는다.
 const PAGES = {
-  dia: { file: 'bim_pscbox_diaphragm_test.js', global: 'PXDIA' },
+  //  격벽 페이지는 철근망(srebar code 1)의 옆 이동에 JField.lineMin 을 빌려 쓴다 — 그것만 더 읽는다
+  dia: { file: 'bim_pscbox_diaphragm_test.js', global: 'PXDIA', extra: ['jfield.js'] },
   box: { file: 'bim_pscbox_test.js', global: 'PXBOX' }
 };
 
 //  소스는 한 번만 읽어 둔다 (컨텍스트만 새로 만든다)
 const CODE = {};
-[...SRC, ...Object.values(PAGES).map(p => p.file)]
+[...SRC, ...Object.values(PAGES).flatMap(p => [p.file, ...(p.extra || [])])]
   .forEach(f => { CODE[f] = fs.readFileSync(path.join(ROOT, f), 'utf8'); });
 
 function makeContext(pageKey = 'dia') {
@@ -55,7 +56,7 @@ function makeContext(pageKey = 'dia') {
     createElement: () => ({ style: {}, appendChild() {}, classList: { toggle() {} } }),
     addEventListener: () => {}, head: { appendChild() {} }, body: { appendChild() {} }
   };
-  [...SRC, PAGE].forEach(f => {
+  [...SRC, ...(PAGES[pageKey].extra || []), PAGE].forEach(f => {
     try { vm.runInContext(CODE[f], ctx, { filename: f }); }
     catch (e) { throw new Error('load ' + f + ' : ' + e.message); }
   });
@@ -127,12 +128,16 @@ function run(sheet, patch = {}, budget = 40000, pageKey = 'dia') {
 
   const bad = [];
   rows.forEach(rd => {
+    if (String(rd.type || '').toLowerCase() === 'srebar') return;   // 철근망 — 아래 _expandMesh 가 놓는다
     try {
       const rb = Domain._createTrebarFromData(rd);
       if (rb) { Domain.trebarList.push(rb); Domain.queue.push({ kind: 'trebar', obj: rb }); }
       else bad.push(String(rd.id));
     } catch (e) { bad.push(String(rd.id) + ':' + e.message); }
   });
+  //  면 철근망 — 페이지와 같은 자리에서 (물리 큐 밖 · 처음부터 FORMED)
+  P._rebarData = rows;
+  if (typeof P._expandMesh === 'function') P._expandMesh(sec).forEach(t => Domain.trebarList.push(t));
 
   //  ⑤ 스텝 — 바깥에서 종료를 분류한다 (엔진은 손대지 않는다)
   let steps = 0, lastIdx = -1, sameIdxFor = 0, stuckAt = null;
@@ -154,14 +159,14 @@ function run(sheet, patch = {}, budget = 40000, pageKey = 'dia') {
     }
     const finite = pts.every(p => isFinite(p[0]) && isFinite(p[1]));
     return {
-      id: String(t.id), dia: t.dia || 0, state: t.state, pts, finite,
+      id: String(t.id), dia: t.dia || 0, state: t.state, pts, finite, mesh: t._mesh || null,
       segStates: segs.map(s => s.state),
       len: pts.slice(1).reduce((a, p, i) => a + Math.hypot(p[0] - pts[i][0], p[1] - pts[i][1]), 0)
     };
   });
 
   return {
-    outcome, steps, finished, badRows: bad,
+    outcome, steps, finished, badRows: bad, meshLog: P._meshLog || [],
     queued: Domain.queue.length, done: Domain.activeQueueIndex,
     ap,
     covers: sec.covers,

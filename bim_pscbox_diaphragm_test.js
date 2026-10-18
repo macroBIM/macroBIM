@@ -104,6 +104,7 @@
     if (!hasGlobal('TrebarFactory')) need.push(PAGES + 'trebar.js');
     if (!hasGlobal('LRebarEngine')) need.push(PAGES + 'lrebar.js');
     if (!hasGlobal('Physics')) need.push(PAGES + 'physics.js');
+    if (!hasGlobal('JField')) need.push(PAGES + 'jfield.js');     // 철근망(srebar code 1)의 옆 이동 — lineMin 만 빌려 쓴다
     if (!hasGlobal('SectionBase')) need.push(PAGES + 'section.js');
     if (!hasGlobal('Domain')) need.push(PAGES + 'domain.js');
     if (!hasGlobal('UI')) need.push(PAGES + 'ui.js');
@@ -374,20 +375,17 @@
           var type = self._rbStr(row[0]).toLowerCase();
           out.push(type === 'lrebar' ? self._parseLrebarRow(row) : self._parseTrebarRow(row));
         });
-        /*  `srebar`(갈고리 열차)는 **이 페이지에 아직 없다.** 조용히 빠지면
-            「시트에 적었는데 안 나온다」가 되므로 말은 해 둔다.
-            구현은 `bim_pscbox_test.js` 에 있다 (J 엔진이 기본인 페이지).        */
+        /*  `srebar` — 이 페이지는 **code 1 (곧은 철근 열차 = 면 철근망)** 만 놓는다
+            (`_expandMesh`). 갈고리(ㄷ · ∩)는 아직 없다 — 조용히 빠지면 「시트에
+            적었는데 안 나온다」가 되므로 말은 해 둔다. 갈고리 구현은
+            `bim_pscbox_test.js` 에 있다 (J 엔진이 기본인 페이지).              */
         var ns = 0;
-        (Array.isArray(fullData) ? fullData : []).forEach(function (row) {
-          if (!Array.isArray(row)) return;
-          for (var c = 0; c < row.length; c++) {
-            var t = String(row[c] == null ? '' : row[c]).trim().toLowerCase();
-            if (t === 'srebar') { ns++; return; }
-            if (t !== '') return;
-          }
+        this._extractRebarDataRows(fullData, ['srebar']).forEach(function (row) {
+          var o = self._parseMeshRow(row);
+          if (o.code === 1) out.push(o); else ns++;
         });
         if (ns) console.warn('[PSCBOX-DIA] srebar ' + ns + '줄을 건너뛰었습니다 — ' +
-                             '격벽 페이지는 갈고리 열차를 아직 배치하지 않습니다');
+                             '격벽 페이지는 code 1(철근망)만 놓고 갈고리 열차는 아직 배치하지 않습니다');
         // id 중복 검사 — 중복이면 철근 로딩 중단 (결과는 로딩 토스트가 표시. 빈 id 는 검사 제외)
         var seen = {}, dups = [];
         out.forEach(function (o) {
@@ -406,6 +404,189 @@
           return [];
         }
         return out;
+      },
+
+      /*  ── `srebar` code 1 — 곧은 철근 열차 (면 철근망) ──────────────────────
+          칸은 `bim_pscbox_test.js` 의 `srebar` 와 같다 :
+            2 code · 3 dia · 4 init(x, y, rot) · 5 range(−, +) · 6 num · 7 ctc · 12 z
+          rot   철근이 **눕는 방향** (90 = 세로 철근 · 0 = 가로 철근)
+          열차  철근에 수직으로 행진한다 — 방향은 rot 을 시계로 90° 돌린 쪽
+                (세로 철근이면 +x). init 이 열차의 한가운데, range 는 그 기준의 한계.
+          길이는 입력이 아니다 — `_expandMesh` 가 그 직선 위의 콘크리트에서 낸다.  */
+      _parseMeshRow: function (row) {
+        var o = { type: 'srebar', id: this._rbStr(row[1]) };
+        this._rbCurId = o.id;
+        if (this._rbHas(row[2])) o.code = TrebarFactory.normCode(row[2]);
+        if (this._rbHas(row[3])) o.dia = this._rbNum(row[3]);
+        var init = this._rbInit(row[4], ['x', 'y', 'rot']); if (init) o.init = init;
+        var range = this._rbRange(row[5]); if (range) o.range = range;
+        if (this._rbHas(row[6])) o.num = this._rbNum(row[6]);
+        if (this._rbHas(row[7])) o.ctc = this._rbNum(row[7]);
+        o.z = this._rbHas(row[12]) ? Number(row[12]) : 0;
+        return o;
+      },
+
+      /*  ── 면 철근망 : **미는 장이 먼저, 자르는 장이 나중** (2026-10-18 사용자 결정) ──
+            ① 자리   열차의 자리마다 철근 하나. 그 직선 위에서 «콘크리트 안 · 모든 면에서
+                     피복 이상» 인 구간이 철근이다 — 이때 **개구부는 아직 없다** (외곽만).
+            ② 민다   덕트 · 매입물이 그 철근과 겹치면 **옆으로** 민다. 제 칸(±ctc/2) 안에서
+                     JField.lineMin — 위반 없는 자리 중 J 최소 · 없으면 가장 얕게 무는 자리.
+                       J = Σ(덕트 위반)²·1000 + ½·d²     (d = 자리에서 옮긴 거리)
+                     ½·d² 는 jlong 의 균등배치 복귀와 같은 꼴이다.
+            ③ 자른다  밀린 자리에서 **개구부까지 넣고** 구간을 다시 잰다 — 개구부를 지나는
+                     철근은 위 · 아래 두 토막이 된다.
+          순서가 뒤집히면(잘라 놓고 밀면) 개구부 옆 토막이 덕트와 상관없이 따로 놀아
+          한 줄이던 철근이 위 · 아래에서 다른 자리에 선다. 그래서 미는 것이 먼저다.
+          덕트 순간격 `clr` 은 덕트 줄의 것을 쓴다 (비우면 내측 피복 — bim_duct.js).
+          물리(옛 엔진)로 떨어뜨리지 않는다 — 처음부터 FORMED 로 선다.
+          엔진(jfield · jlong)은 고치지 않는다 — lineMin · segToPoint 만 빌려 쓴다.      */
+      _expandMesh: function (sec) {
+        var rows = this._meshRows(), bars = [], log = [];
+        this._meshBars = bars; this._meshLog = log;
+        if (!rows.length) return bars;
+        if (typeof JField === 'undefined' || typeof JField.lineMin !== 'function') {
+          log.push('JField is not loaded — mesh rows skipped');
+          console.warn('[PSCDIA] 철근망 : JField 가 없어 놓지 못했습니다');
+          return bars;
+        }
+        var walls = (sec && sec.walls) || [], ducts = (sec && sec.ducts) || [];
+        var cv = (sec && sec.covers) || {};
+        var isCut = function (w) { return String(w.src || '').indexOf('open') === 0; };
+        var lineW = walls.filter(function (w) { return !isCut(w); });
+        var D2R = Math.PI / 180;
+        var segPt = function (a, b, q) { return JField.segToPoint([a, b], q); };
+        //  두 선분 사이 거리 (교차하면 0) — 사각 덕트용
+        var segSeg = function (a, b, c, d) {
+          var cr = function (p, q, r) { return (q.x - p.x) * (r.y - p.y) - (q.y - p.y) * (r.x - p.x); };
+          var d1 = cr(a, b, c), d2 = cr(a, b, d), d3 = cr(c, d, a), d4 = cr(c, d, b);
+          if (((d1 > 0) !== (d2 > 0)) && ((d3 > 0) !== (d4 > 0))) return 0;
+          return Math.min(segPt(a, b, c), segPt(a, b, d), segPt(c, d, a), segPt(c, d, b));
+        };
+        //  철근 조각 [a, b] 에서 덕트 면까지 (원은 정확히, 그 밖은 폴리곤)
+        var toDuct = function (a, b, k) {
+          if (k.shape === 'circ') return segPt(a, b, { x: k.x, y: k.y }) - k.D / 2;
+          var P = k.pts || [], m = Infinity;
+          for (var i = 0; i < P.length; i++) {
+            var p = P[i], q = P[(i + 1) % P.length];
+            m = Math.min(m, segSeg(a, b, { x: p[0], y: p[1] }, { x: q[0], y: q[1] }));
+          }
+          return m;
+        };
+        var inside = function (W, p) {
+          var c = false;
+          W.forEach(function (w) {
+            if ((w.y1 > p.y) !== (w.y2 > p.y)) {
+              var x = w.x1 + (p.y - w.y1) / (w.y2 - w.y1) * (w.x2 - w.x1);
+              if (x > p.x) c = !c;
+            }
+          });
+          return c;
+        };
+
+        rows.forEach(function (rd) {
+          var id = rd.id || 'M', dia = rd.dia || 13, init = rd.init || {};
+          if (!(rd.num > 0) || !(rd.ctc > 0)) { log.push(id + ' : num and ctc are required'); return; }
+          var rot = (init.rot != null ? init.rot : 90) * D2R;
+          var b = { x: Math.cos(rot), y: Math.sin(rot) }, u = { x: b.y, y: -b.x };
+          var O = { x: init.x || 0, y: init.y || 0 }, ctc = rd.ctc;
+          var need = function (w) {
+            var tag = String(w.tag || 'outer').toLowerCase();
+            return (cv[tag] != null ? cv[tag] : 50) + dia / 2;
+          };
+          var dneed = function (k) { return (k.clr != null ? k.clr : (cv.inner != null ? cv.inner : 30)) + dia / 2; };
+          var okOf = function (W) {
+            return function (p) {
+              if (!inside(W, p)) return false;
+              for (var i = 0; i < W.length; i++) {
+                var w = W[i];
+                if (segPt({ x: w.x1, y: w.y1 }, { x: w.x2, y: w.y2 }, p) < need(w) - 1e-6) return false;
+              }
+              return true;
+            };
+          };
+          var okLine = okOf(lineW), okAll = okOf(walls);
+          //  철근 직선을 따라 훑는 폭 — 단면을 그 직선에 투영한 길이 (고를 값이 없다)
+          var s0 = Infinity, s1 = -Infinity;
+          walls.forEach(function (w) {
+            [[w.x1, w.y1], [w.x2, w.y2]].forEach(function (e) {
+              var s = (e[0] - O.x) * b.x + (e[1] - O.y) * b.y;
+              if (s < s0) s0 = s; if (s > s1) s1 = s;
+            });
+          });
+          var STEP = 10;
+          //  자리 c 를 지나는 직선 위의 «놓일 수 있는» 구간들 → [[A, B], …]
+          var piecesAt = function (ok, c) {
+            var at = function (s) { return { x: c.x + b.x * s, y: c.y + b.y * s }; };
+            var edge = function (sa, sb) {
+              var fa = ok(at(sa)), lo = sa, hi = sb;
+              for (var i = 0; i < 30; i++) { var m = (lo + hi) / 2; if (ok(at(m)) === fa) lo = m; else hi = m; }
+              return (lo + hi) / 2;
+            };
+            var out = [], prev = ok(at(s0)), st = prev ? s0 : null;
+            for (var s = s0 + STEP; s <= s1 + STEP; s += STEP) {
+              var cur = ok(at(s));
+              if (cur && !prev) st = edge(s - STEP, s);
+              if (!cur && prev) { out.push([st, edge(s - STEP, s)]); st = null; }
+              prev = cur;
+            }
+            return out.filter(function (r) { return r[1] - r[0] > 2 * dia; })
+                      .map(function (r) { return [at(r[0]), at(r[1])]; });
+          };
+
+          //  ① 자리 — lrebar · srebar 와 같은 식 (init 이 한가운데, range 는 한계)
+          var R = rd.range, okR = R && isFinite(R.min) && isFinite(R.max) && R.max > R.min;
+          var made = 0, moved = 0, cut = 0, bad = [];
+          for (var i = 0; i < rd.num; i++) {
+            var t = (i - (rd.num - 1) / 2) * ctc;
+            if (okR && (t < R.min - 1e-6 || t > R.max + 1e-6)) continue;
+            var c0 = { x: O.x + u.x * t, y: O.y + u.y * t };
+            //  ② 민다 — 외곽만 본 철근(자르기 전)을 덕트가 옆으로
+            var parts = (function (c0) {
+              return function (d) {
+                var c = { x: c0.x + u.x * d, y: c0.y + u.y * d }, v = 0, bite = 0;
+                piecesAt(okLine, c).forEach(function (pc) {
+                  ducts.forEach(function (k) {
+                    var g = toDuct(pc[0], pc[1], k) - dneed(k);
+                    if (g < 0) { v += g * g * 1000; if (g < bite) bite = g; }
+                  });
+                });
+                return { v: v, p: 0.5 * d * d, bite: bite };
+              };
+            })(c0);
+            var r = JField.lineMin(parts, -ctc / 2, ctc / 2);
+            var c = { x: c0.x + u.x * r.d, y: c0.y + u.y * r.d };
+            if (Math.abs(r.d) > 0.5) moved++;
+            if (!r.feas) bad.push((i + 1) + '(' + r.o.bite.toFixed(1) + ')');
+            //  ③ 자른다 — 밀린 자리에서 개구부까지 넣고 다시 잰다
+            var pcs = piecesAt(okAll, c);
+            if (pcs.length > 1) cut++;
+            pcs.forEach(function (pc, j) {
+              var tb = TrebarFactory.create(1, { x: 0, y: 0 }, { A: 400 }, 0, null, null, null);
+              if (!tb || !tb.segments || !tb.segments.length) return;
+              var sg = tb.segments[0], a = pc[0], e = pc[1];
+              sg.p1 = { x: a.x, y: a.y }; sg.p2 = { x: e.x, y: e.y };
+              sg.nodes = [{ x: a.x, y: a.y, vx: 0, vy: 0 }, { x: e.x, y: e.y, vx: 0, vy: 0 }];
+              sg.uDir = { x: b.x, y: b.y }; sg.normal = { x: u.x, y: u.y };
+              sg.initialLen = Math.hypot(e.x - a.x, e.y - a.y);
+              sg.state = 'SETTLED';
+              tb.id = id + '#' + (i + 1) + (pcs.length > 1 ? String.fromCharCode(97 + j) : '');
+              tb.dia = dia; tb.z = rd.z || 0; tb.state = 'FORMED';
+              tb._mesh = { row: id, slot: t, shift: r.d, bite: r.o.bite };
+              bars.push(tb); made++;
+            });
+          }
+          var msg = id + ' : ' + made + ' bars · pushed by ducts ' + moved + ' · cut by opening ' + cut +
+                    (bad.length ? ' · STILL ON A DUCT ' + bad.join(' ') : '');
+          log.push(msg);
+          console.log('[PSCDIA] 철근망 ' + msg);
+        });
+        return bars;
+      },
+
+      _meshRows: function () {
+        return (this._rebarData || []).filter(function (r) {
+          return String(r.type || '').toLowerCase() === 'srebar' && r.code === 1;
+        });
       },
 
       _parseTrebarRow: function (row) {
@@ -619,6 +800,7 @@
         var self = this, h = '';
         var codeById = {};
         (this._rebarData || []).forEach(function (rd) { if (rd && rd.id != null && rd.code != null) codeById[String(rd.id)] = rd.code; });
+        (this._meshBars || []).forEach(function (t) { codeById[String(t.id)] = 1; });
         function fmt(n) { return (n == null || !isFinite(n)) ? '' : String(Math.round(n)); }
         /*  형상 code 는 엔진 안에서 숫자 하나다 ('23a' → 23.1 · '11a' → 11.1).
             표에는 **도면대로 되돌려** 적는다 — fmt 는 반올림이라 23.1 을 23 으로
@@ -712,6 +894,7 @@
         }
         if (!rd) { console.warn('[PSCDIA] respawnOne: 데이터 없음', id); return; }
         var kind = String(rd.type || 'trebar').toLowerCase();
+        if (kind === 'srebar') return;           //  철근망은 물리로 안 떨어진다 — 다시 놓을 것이 없다
         try {
           if (kind === 'trebar') {
             var nb = Domain._createTrebarFromData(rd);
@@ -1387,6 +1570,9 @@
             }
           } catch (e) { console.error('[SeoulPhD] 철근 생성 오류:', rd.id, e); }
         });
+        //  면 철근망 — 물리 큐에 안 넣는다. 덕트로 밀고 개구부로 잘라 처음부터 FORMED 로 선다
+        try { this._expandMesh(sec).forEach(function (t) { Domain.trebarList.push(t); }); }
+        catch (e) { console.error('[PSCDIA] 철근망:', e); }
         // 섹션 폴리라인 (엔진 UI 그룹/렌더 함수 사용)
         UI.sectionGroup.destroyChildren();
         UI.normalGroup.destroyChildren();
@@ -1603,8 +1789,11 @@
             // 'open' 줄이 없는 2 Cell 파일은 X 가 0 이라 둘이 중앙복부에 겹친다 — 셀 중앙으로 맞춘다
             if (!no && self._seedOpeningX()) self.redraw();
             var nre = self._rebarData ? self._rebarData.length : 0;
-            var ntre = 0, nlre = 0;
-            (self._rebarData || []).forEach(function (rd) { if (String(rd.type).toLowerCase() === 'lrebar') nlre++; else ntre++; });
+            var ntre = 0, nlre = 0, nsre = 0;
+            (self._rebarData || []).forEach(function (rd) {
+              var ty = String(rd.type).toLowerCase();
+              if (ty === 'lrebar') nlre++; else if (ty === 'srebar') nsre++; else ntre++;
+            });
             var oncell = document.querySelector('input[name="box12cell_ncell"]:checked');
             var cd = function (id) { var el = document.getElementById(id); return el ? el.value : '?'; };
             self._loadLog = { time: new Date().toLocaleString(), ok: true, lines: [
@@ -1616,8 +1805,9 @@
               'Segment   : ' + cd('segLen_s') + (ns ? '' : '  (default — no seg row)'),
               'Opening   : ' + (no ? 'from file' : 'defaults — no open row'),
               'Duct      : ' + (nd ? nd + ' from file' : 'none'),
-              'Rebar     : ' + nre + '  (trebar ' + ntre + ', lrebar ' + nlre + ')'
+              'Rebar     : ' + nre + '  (trebar ' + ntre + ', lrebar ' + nlre + ', srebar mesh ' + nsre + ')'
             ] };
+            (self._meshLog || []).forEach(function (l) { self._loadLog.lines.push('Mesh      : ' + l); });
             // 최종 결과 토스트 — 철근 id 중복이면 오류 상태로 (성공 토스트가 덮지 않게)
             if (self._evalErrs && self._evalErrs.length) {
               self._loadLog.ok = false;

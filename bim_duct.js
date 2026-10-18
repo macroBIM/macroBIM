@@ -12,6 +12,8 @@
  *             soffit  바닥 밑면에서 위로
  *             abs     절대 y (단면 좌표 그대로)
  *      clr    철근과의 최소 순간격. 비우면 페이지 기본값(내측 피복)
+ *             **0 은 0 이다** — 도면이 덕트에 철근을 붙여 그린 자리(8-244 : −2 ~ 5 mm).
+ *             한때 0 을 「비움」과 같이 읽어 내측 피복으로 바꿨다 (2026-10-18 고침).
  *
  *  덕트는 결국 **콘크리트에 뚫린 구멍**이라, 벽을 만드는 길이 격벽 개구부와 같다 —
  *  반시계 고리 + 구멍 바깥(콘크리트 쪽) 법선. 다른 것은 개수뿐이다.
@@ -51,7 +53,7 @@
 
         var D = num(3), H = num(4), x = num(5), y = num(6);
         var ref = (g(7) || 'deck').toLowerCase();
-        var clr = num(8);
+        var clr = (g(8) === '') ? NaN : num(8);      // 빈칸은 Number('') = 0 이라 따로 가른다
 
         if (!isFinite(D) || D <= 0 || !isFinite(x) || !isFinite(y)) {
           if (root.console) console.warn('[duct] ' + id + ' : D · x · y 가 숫자가 아니다 — 건너뛴다');
@@ -61,7 +63,7 @@
 
         list.push({ id: id || String(list.length + 1), shape: shape, D: D,
                     H: (shape === 'rect' ? H : D), x: x, y: y, ref: ref,
-                    clr: (isFinite(clr) && clr > 0) ? clr : null });
+                    clr: (isFinite(clr) && clr >= 0) ? clr : null });
       }
       return list;
     },
