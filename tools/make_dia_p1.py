@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""tools/make_dia_p1.py — PSCBOX_DIAPHRAGM_P1.xlsx 를 만든다.
+"""tools/make_dia_p1.py — PSCBOX_BUKSIL_DIAPHRAGM_P1.xlsx 를 만든다.
 
 검증 단면 셋째 : **주두부 격벽** (2D · 단면 평면의 철근만)
   엔진은 동결 상태다 (jfield.js · jlong.js = 012ae5c, tools/check_freeze.js).
@@ -21,16 +21,16 @@
 #  Claude 든 엑셀을 직접 고친다. 여기서 다시 만들면 엑셀에서 고친 것이 사라진다.
 #  그래서 엑셀이 있으면 멈춘다. (출처 설명은 엑셀의 # 주석 행에 그대로 있다.)
 import os as _os, sys as _sys
-if _os.path.exists('PSCBOX_DIAPHRAGM_P1.xlsx'):
-    _sys.exit('PSCBOX_DIAPHRAGM_P1.xlsx 이 이미 있다 — 엑셀이 원본이다(2026-10-18). 엑셀을 직접 고친다. 이 스크립트는 다시 쓰지 않는다.')
+if _os.path.exists('PSCBOX_BUKSIL_DIAPHRAGM_P1.xlsx'):
+    _sys.exit('PSCBOX_BUKSIL_DIAPHRAGM_P1.xlsx 이 이미 있다 — 엑셀이 원본이다(2026-10-18). 엑셀을 직접 고친다. 이 스크립트는 다시 쓰지 않는다.')
 import openpyxl
 
 R = []
 def row(*v): R.append(list(v))
 
-row('# PSCBOX DIAPHRAGM  --  P1 주두부 격벽 (8-244)   *** 2D TEST · 엔진 동결 012ae5c ***')
+row('# PSCBOX DIAPHRAGM  --  북실대교 P1 주두부 격벽 (8-244)   *** 2D TEST · 엔진 동결 012ae5c ***')
 row('# page    : bim_pscbox_diaphragm_test.js  (셀이 콘크리트로 차 있고 가운데 개구부 하나)')
-row('# section : 평창~정선 도로건설공사 (3공구) / 주두부 배근도(2) / 8-244 / S=1:30 / 2007.12')
+row('# section : 평창~정선 도로건설공사 (3공구) · 북실대교 / 주두부 배근도(2) / 8-244 / S=1:30 / 2007.12')
 row('#           단면 · 개구부는 S15 (8-018 일반 단면 제원도 · 8-020 주두부 구조 일반도 단면 A-A) 그대로')
 row('#')
 row('# 8-244 벡터로 다시 잰 것 (pdftocairo -svg · 청록 선 · 21.174 mm/pt — 1:30 의 반 크기로 인쇄된 도면)')
@@ -120,5 +120,5 @@ row('end')
 
 wb = openpyxl.Workbook(); ws = wb.active; ws.title = 'input'
 for r in R: ws.append(r)
-wb.save('PSCBOX_DIAPHRAGM_P1.xlsx')
-print('PSCBOX_DIAPHRAGM_P1.xlsx  ·  ducts', nd, ' ·  rows', len(R))
+wb.save('PSCBOX_BUKSIL_DIAPHRAGM_P1.xlsx')
+print('PSCBOX_BUKSIL_DIAPHRAGM_P1.xlsx  ·  ducts', nd, ' ·  rows', len(R))
