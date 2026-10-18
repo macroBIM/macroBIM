@@ -440,6 +440,54 @@
           덕트 순간격 `clr` 은 덕트 줄의 것을 쓴다 (비우면 내측 피복 — bim_duct.js).
           물리(옛 엔진)로 떨어뜨리지 않는다 — 처음부터 FORMED 로 선다.
           엔진(jfield · jlong)은 고치지 않는다 — lineMin · segToPoint 만 빌려 쓴다.      */
+      /*  ── 덕트는 **미는 장**이다 — 어떤 철근이든 (2026-10-18 사용자 결정) ─────────
+          격벽에서 덕트 · 매입물을 지나는 철근은 **옆으로 밀린다.** 철근망이든 폐합철근
+          ⑩ 의 다리든 규칙은 하나다. 잘리는 것은 개구부(자르는 장)뿐이다.
+            · 철근은 개구부를 **빼기 전의** 한 직선으로 본다 — 그 선이 덕트와 겹치면
+              제 칸(±half) 안에서 옆으로 옮긴다. JField.lineMin 으로
+                J = Σ(덕트 위반)²·1000 + ½·d²   (위반 없는 자리 중 J 최소 · 없으면 가장 얕게 무는 자리)
+            · 밀린 자리에서 개구부로 자른다 (부르는 쪽이 한다).
+          `segsAt(d)` 는 옮긴 거리 d 에서 철근이 차지하는 선분들 [[A, B], …] 을 낸다.
+          덕트 순간격은 덕트 줄의 `clr` (비우면 내측 피복).                           */
+      _ductClr: function (k) {
+        if (k && k.clr != null) return k.clr;
+        var el = document.getElementById('cover_int_s'), v = el ? Number(el.value) : NaN;
+        return isFinite(v) && v > 0 ? v : 30;
+      },
+
+      //  철근 조각 [a, b] 에서 덕트 **면**까지 (원은 정확히, 그 밖은 폴리곤 · 교차하면 0)
+      _ductGap: function (a, b, k) {
+        var segPt = function (p, q, r) { return JField.segToPoint([p, q], r); };
+        if (k.shape === 'circ') return segPt(a, b, { x: k.x, y: k.y }) - k.D / 2;
+        var cr = function (p, q, r) { return (q.x - p.x) * (r.y - p.y) - (q.y - p.y) * (r.x - p.x); };
+        var P = k.pts || [], m = Infinity;
+        for (var i = 0; i < P.length; i++) {
+          var c = { x: P[i][0], y: P[i][1] }, d = { x: P[(i + 1) % P.length][0], y: P[(i + 1) % P.length][1] };
+          var d1 = cr(a, b, c), d2 = cr(a, b, d), d3 = cr(c, d, a), d4 = cr(c, d, b);
+          if (((d1 > 0) !== (d2 > 0)) && ((d3 > 0) !== (d4 > 0))) return 0;
+          m = Math.min(m, segPt(a, b, c), segPt(a, b, d), segPt(c, d, a), segPt(c, d, b));
+        }
+        return m;
+      },
+
+      _ductPush: function (segsAt, half, dia) {
+        var ducts = this._ducts || [], self = this;
+        if (!ducts.length || typeof JField === 'undefined' || typeof JField.lineMin !== 'function')
+          return { d: 0, bite: 0, feas: true };
+        var parts = function (d) {
+          var v = 0, bite = 0;
+          segsAt(d).forEach(function (pc) {
+            ducts.forEach(function (k) {
+              var g = self._ductGap(pc[0], pc[1], k) - (self._ductClr(k) + dia / 2);
+              if (g < 0) { v += g * g * 1000; if (g < bite) bite = g; }
+            });
+          });
+          return { v: v, p: 0.5 * d * d, bite: bite };
+        };
+        var r = JField.lineMin(parts, -half, half);
+        return { d: r.d, bite: r.o.bite, feas: r.feas };
+      },
+
       _expandMesh: function (sec) {
         var rows = this._meshRows(), bars = [], log = [];
         this._meshBars = bars; this._meshLog = log;
@@ -449,29 +497,12 @@
           console.warn('[PSCDIA] 철근망 : JField 가 없어 놓지 못했습니다');
           return bars;
         }
-        var walls = (sec && sec.walls) || [], ducts = (sec && sec.ducts) || [];
+        var walls = (sec && sec.walls) || [], self = this;
         var cv = (sec && sec.covers) || {};
         var isCut = function (w) { return String(w.src || '').indexOf('open') === 0; };
         var lineW = walls.filter(function (w) { return !isCut(w); });
         var D2R = Math.PI / 180;
         var segPt = function (a, b, q) { return JField.segToPoint([a, b], q); };
-        //  두 선분 사이 거리 (교차하면 0) — 사각 덕트용
-        var segSeg = function (a, b, c, d) {
-          var cr = function (p, q, r) { return (q.x - p.x) * (r.y - p.y) - (q.y - p.y) * (r.x - p.x); };
-          var d1 = cr(a, b, c), d2 = cr(a, b, d), d3 = cr(c, d, a), d4 = cr(c, d, b);
-          if (((d1 > 0) !== (d2 > 0)) && ((d3 > 0) !== (d4 > 0))) return 0;
-          return Math.min(segPt(a, b, c), segPt(a, b, d), segPt(c, d, a), segPt(c, d, b));
-        };
-        //  철근 조각 [a, b] 에서 덕트 면까지 (원은 정확히, 그 밖은 폴리곤)
-        var toDuct = function (a, b, k) {
-          if (k.shape === 'circ') return segPt(a, b, { x: k.x, y: k.y }) - k.D / 2;
-          var P = k.pts || [], m = Infinity;
-          for (var i = 0; i < P.length; i++) {
-            var p = P[i], q = P[(i + 1) % P.length];
-            m = Math.min(m, segSeg(a, b, { x: p[0], y: p[1] }, { x: q[0], y: q[1] }));
-          }
-          return m;
-        };
         var inside = function (W, p) {
           var c = false;
           W.forEach(function (w) {
@@ -493,7 +524,6 @@
             var tag = String(w.tag || 'outer').toLowerCase();
             return (cv[tag] != null ? cv[tag] : 50) + dia / 2;
           };
-          var dneed = function (k) { return (k.clr != null ? k.clr : (cv.inner != null ? cv.inner : 30)) + dia / 2; };
           var okOf = function (W) {
             return function (p) {
               if (!inside(W, p)) return false;
@@ -541,22 +571,12 @@
             if (okR && (t < R.min - 1e-6 || t > R.max + 1e-6)) continue;
             var c0 = { x: O.x + u.x * t, y: O.y + u.y * t };
             //  ② 민다 — 외곽만 본 철근(자르기 전)을 덕트가 옆으로
-            var parts = (function (c0) {
-              return function (d) {
-                var c = { x: c0.x + u.x * d, y: c0.y + u.y * d }, v = 0, bite = 0;
-                piecesAt(okLine, c).forEach(function (pc) {
-                  ducts.forEach(function (k) {
-                    var g = toDuct(pc[0], pc[1], k) - dneed(k);
-                    if (g < 0) { v += g * g * 1000; if (g < bite) bite = g; }
-                  });
-                });
-                return { v: v, p: 0.5 * d * d, bite: bite };
-              };
-            })(c0);
-            var r = JField.lineMin(parts, -ctc / 2, ctc / 2);
+            var r = self._ductPush((function (c0) {
+              return function (d) { return piecesAt(okLine, { x: c0.x + u.x * d, y: c0.y + u.y * d }); };
+            })(c0), ctc / 2, dia);
             var c = { x: c0.x + u.x * r.d, y: c0.y + u.y * r.d };
             if (Math.abs(r.d) > 0.5) moved++;
-            if (!r.feas) bad.push((i + 1) + '(' + r.o.bite.toFixed(1) + ')');
+            if (!r.feas) bad.push((i + 1) + '(' + r.bite.toFixed(1) + ')');
             //  ③ 자른다 — 밀린 자리에서 개구부까지 넣고 다시 잰다
             var pcs = piecesAt(okAll, c);
             if (pcs.length > 1) cut++;
@@ -571,7 +591,7 @@
               sg.state = 'SETTLED';
               tb.id = id + '#' + (i + 1) + (pcs.length > 1 ? String.fromCharCode(97 + j) : '');
               tb.dia = dia; tb.z = rd.z || 0; tb.state = 'FORMED';
-              tb._mesh = { row: id, slot: t, shift: r.d, bite: r.o.bite };
+              tb._mesh = { row: id, slot: t, shift: r.d, bite: r.bite };
               bars.push(tb); made++;
             });
           }
@@ -2029,6 +2049,25 @@
       return out;
     },
 
+    /*  고리 한 가닥을 덕트가 민다 (`_ductPush` 위 주석).
+        단면에서 고리는 자른 선 v 위의 한 줄이다 — 콘크리트 바깥 윤곽 안에서 양 끝
+        피복(격벽면 피복 + 지름/2)만큼 들인 구간. 개구부는 아직 안 뺀다 (미는 것이 먼저).  */
+    _pushHoop: function (v0, ax, dia, ctc) {
+      var outer = (this._sectPoly && this._sectPoly.outer) || [], self = this;
+      if (outer.length < 3) return { d: 0, bite: 0, feas: true };
+      var need = this._diaCover() + dia / 2;
+      var segsAt = function (d) {
+        var v = v0 + d;
+        return self._polySpans(outer, v, ax)
+          .filter(function (s) { return s[1] - s[0] > 2 * need; })
+          .map(function (s) {
+            var a = s[0] + need, b = s[1] - need;
+            return ax ? [{ x: v, y: a }, { x: v, y: b }] : [{ x: a, y: v }, { x: b, y: v }];
+          });
+      };
+      return this._ductPush(segsAt, ctc / 2, dia);
+    },
+
     _spanAt: function (v, ax) {
       var sp = this._spansAt(v, ax);
       if (!sp.length) return null;
@@ -2045,10 +2084,11 @@
       if (outer.length < 3) return [];
       var spans = this._polySpans(outer, v, ax);
       var other = ax ? 0 : 1;
-      //  구멍은 개구부만이 아니다 — 덕트도 콘크리트를 비운다. 둘을 같이 뺀다.
+      /*  자르는 것은 **개구부뿐**이다. 덕트는 미는 장이라 여기서 빼지 않는다 —
+          한때 덕트도 구멍으로 빼서 고리 ⑩ 이 덕트에서 **잘렸다**(철근망은 밀리고).
+          같은 덕트가 철근마다 다르게 굴었다. 고리도 이제 먼저 밀린다 (`_pushHoop`). */
       var holePolys = [];
       (this._openings || []).forEach(function (op) { if (op && op.pts) holePolys.push(op.pts); });
-      (this._ducts || []).forEach(function (dk) { if (dk && dk.pts) holePolys.push(dk.pts); });
       holePolys.forEach(function (hp) {
         if (!hp || hp.length < 3) return;
 
@@ -2158,7 +2198,10 @@
           for (var k2 = 0; k2 < n; k2++) stations.push(a0 + pad + k2 * ctc);
         } else stations.push(h.at);
 
-        stations.forEach(function (at) {
+        stations.forEach(function (at0) {
+          //  ① 덕트가 먼저 민다 — 제 칸(±ctc/2) 안에서 옆으로 · ② 그 자리에서 개구부가 자른다
+          var pu = self._pushHoop(at0, ax, h.dia || 25, (h.ctc > 0) ? h.ctc : 150);
+          var at = at0 + pu.d;
           var spans = self._spansAt(at, ax);          // 개구부를 뺀 콘크리트 구간들
           if (!spans.length) return;
           //  from/to 로 더 잘라 쓸 수도 있다 (숫자 또는 'open')
@@ -2174,7 +2217,7 @@
           cut.forEach(function (s, k) {
             var sfx = (cut.length > 1) ? ('-' + (k + 1)) : '';
             var o = buildOne(h, ax, at, s[0], s[1], sfx);
-            if (o) jobs.push(o);
+            if (o) { o.at0 = at0; o.shift = pu.d; o.bite = pu.bite; jobs.push(o); }
           });
         });
       });
@@ -2184,6 +2227,10 @@
           출발을 두 프레임씩 어긋내 **한 쪽에서 반대쪽으로 차례로** 앉게 한다.
           본 철근이 큐에서 하나씩 앉는 모습과 결이 같아진다.                   */
       jobs.forEach(function (j, k) { j.start = k * 2; });
+      var nPush = jobs.filter(function (j) { return Math.abs(j.shift || 0) > 0.5; }).length;
+      var nBite = jobs.filter(function (j) { return (j.bite || 0) < -1e-3; }).length;
+      console.log('[PSCDIA] 폐합철근 : ' + jobs.length + ' 가닥 · 덕트에 밀린 것 ' + nPush +
+                  (nBite ? ' · 아직 덕트를 무는 것 ' + nBite : ''));
       this._hoopJobs = jobs;
       this._syncHoops();
       return jobs.length;
@@ -2201,6 +2248,7 @@
         if (j.rb.state === 'FORMED') pts.push([pts[0][0], pts[0][1]]);   // 안착해야 닫는다
         var xs = pts.map(function (p) { return p[0]; });
         return { id: j.id, mark: j.mark, dia: j.dia, at: j.at, plane: j.plane,
+                 at0: j.at0, shift: j.shift, bite: j.bite,
                  state: j.rb.state, pts: pts, lap: j.lap,
                  gotW: Math.max.apply(null, xs) - Math.min.apply(null, xs) };
       }).filter(Boolean);

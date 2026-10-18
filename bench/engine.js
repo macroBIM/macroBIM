@@ -149,6 +149,18 @@ function run(sheet, patch = {}, budget = 40000, pageKey = 'dia') {
   const finished = Domain.activeQueueIndex >= Domain.queue.length;
   const outcome = stuckAt ? stuckAt : (finished ? 'CONVERGED' : 'STALLED');
 
+  //  ⑤-2 폐합철근 (crebar) — 페이지와 같은 길 : 본 철근이 끝난 뒤 제 평면에서 앉힌다
+  let hoops = [];
+  if (typeof P._loadCrebarFromExcel === 'function' && P._loadCrebarFromExcel(sheet)) {
+    mk('diaThk_s').value = String(patch.diaThk || 2000);
+    try {
+      P._settleHoops();
+      for (let t = 0; t < 4000; t++) if (P._stepHoopJobs(6, t) === 0) break;
+      hoops = (P._syncHoops() || []).map(h => ({ id: h.id, mark: h.mark, at: h.at, at0: h.at0,
+        shift: h.shift, bite: h.bite, state: h.state, plane: h.plane, pts: h.pts }));
+    } catch (e) { hoops = [{ error: e.message }]; }
+  }
+
   //  ⑥ 결과를 순수 데이터로
   const bars = Domain.trebarList.map(t => {
     const segs = t.segments || [];
@@ -166,7 +178,7 @@ function run(sheet, patch = {}, budget = 40000, pageKey = 'dia') {
   });
 
   return {
-    outcome, steps, finished, badRows: bad, meshLog: P._meshLog || [],
+    outcome, steps, finished, badRows: bad, meshLog: P._meshLog || [], hoops,
     queued: Domain.queue.length, done: Domain.activeQueueIndex,
     ap,
     covers: sec.covers,
