@@ -327,6 +327,9 @@ git status --short     # 비어 있어야 한다
 
 ### 2026-10-18
 
+- **격벽 ⑩ 자리 — 그대로 둔다** · `PSCBOX_BUKSIL_DIAPHRAGM_P1.xlsx` (주석 한 칸) · 사용자 결정 「복부에 없는 채로 둔다」
+  · ⑩ 은 cell · 150 균등(−3,000 ~ 3,000 · 41 자리). 도면은 복부 안 ±3,347 까지 한쪽 22 개 — 비교표에 차이로 적는다.
+
 - **격벽 — 세로 철근은 폐합철근 ⑩ 하나 · ⑩ 이 덕트에 밀린다** · `bim_pscbox_diaphragm_test.js` (`_pushHoop` · `_ductPush` · `_spansAt`) ·
   `bench/engine.js` (고리도 돌린다) · `PSCBOX_BUKSIL_DIAPHRAGM_P1.xlsx` (세로 철근망 V · VW 네 행 지움) · **테스트** · 엔진 동결 그대로
   · 사용자 : 「수직 보라는 지우고 주황 고리 철근이 덕트에 밀려야지」. 세로 철근망이 ⑩ 고리의 세로 다리와 **같은 자리에 두 번** 서 있었다.
