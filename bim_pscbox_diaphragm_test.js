@@ -268,7 +268,7 @@
           ['lrebar', 'id', 'dia', 'num', 'init (x, y, rot)', 'range (-, +)', 'nors', 'ctc', 'ctcmax', 'ctcmin', 'gap', 'path', 'z'],
           //  교축방향 폐합철근 — 격벽을 한 번 더 자른 평면에 눕는다. 크기는 콘크리트가 정한다.
           //  at : cell(복부 사이) · all(단면 전체) · -6000~6000(범위) · -1100(한 자리)
-          ['crebar', 'id', 'dia', 'plane', 'at (cell/all/range)', 'set', 'lap', 'from', 'to', 'ctc', '', '', ''],
+          ['crebar', 'id', 'dia', 'plane', 'at (cell/all/range)', 'set', 'lap', 'from', 'to', 'ctc', '', 'ctcmin, ctcmax', ''],
           //  매입물 — 철근이 아니라 콘크리트에 뚫린 구멍이다. 개구부와 같은 길로 벽이 된다.
           //  ref : deck(상면에서 아래로 · 기본) · soffit(밑면에서 위로) · abs(절대 y)
           DuctBlock.SCHEMA_ROW
@@ -408,7 +408,11 @@
 
       /*  ── `srebar` code 1 — 곧은 철근 열차 (면 철근망) ──────────────────────
           칸은 `bim_pscbox_test.js` 의 `srebar` 와 같다 :
-            2 code · 3 dia · 4 init(x, y, rot) · 5 range(−, +) · 6 num · 7 ctc · 8 len · 9 seat · 12 z
+            2 code · 3 dia · 4 init(x, y, rot) · 5 range(−, +) · 6 num · 7 ctc · 8 len · 9 seat ·
+            11 ctcmin, ctcmax · 12 z
+          ctcmin, ctcmax  이웃 철근 중심 간격의 한계 — 「100, 200」 · 한쪽만
+                「, 200」. 덕트에 밀릴 때 이 밖으로 나가는 순간 힘이 켜진다 (`_trainEquilibrium`).
+                10 칸은 비워 둔다 — `bim_pscbox_test.js` 의 srebar 가 거기에 `end` 를 둔다.
           rot   철근이 **눕는 방향** (90 = 세로 철근 · 0 = 가로 철근)
           열차  철근에 수직으로 행진한다 — 방향은 rot 을 시계로 90° 돌린 쪽
                 (세로 철근이면 +x). init 이 열차의 한가운데, range 는 그 기준의 한계.
@@ -432,6 +436,7 @@
         if (this._rbHas(row[7])) o.ctc = this._rbNum(row[7]);
         if (this._rbHas(row[8])) o.len = this._rbNum(row[8]);
         if (this._rbHas(row[9])) o.seat = this._rbStr(row[9]).toLowerCase();
+        var lim = this._rbLim(row[11]); if (lim) o.ctcLim = lim;
         o.z = this._rbHas(row[12]) ? Number(row[12]) : 0;
         return o;
       },
@@ -496,11 +501,24 @@
             얕게 무는 자리. 움직임이 0.01 mm 아래가 될 때까지 되풀이한다.
             한 철근이 움직이는 범위는 **양 이웃 사이**뿐이다 (순서가 안 바뀐다). ±ctc/2 같은 칸 한계는 없다.
             공간이 모자라면 억지로 풀지 않는다 — 가장 얕게 무는 채로 멈추고 `bite` 로 남긴다.
-          `st[i] = { t0, segsAt(d) }` : 자리(열차 축 좌표)와, 옮긴 거리 d 에서 그 철근의 선분들.      */
-      _trainEquilibrium: function (st, dia, ctc) {
+          `st[i] = { t0, segsAt(d) }` : 자리(열차 축 좌표)와, 옮긴 거리 d 에서 그 철근의 선분들.
+
+          ── 간격 항 (2026-10-24 사용자 : 「간격 항을 넣어야지」) ──────────────────────────
+            설계자가 준 `lim = { min, max }` (ctcmin · ctcmax) 를 벗어나는 **순간** 힘이 켜진다.
+            꼴과 무게는 `jlong.js` ⑤ 를 그대로 따른다 :
+                + Σ K_CTCMIN·(s − ctcmin)²          s < ctcmin 일 때  딱딱하다 — 위반(v) · bite
+                + Σ K_CTCMAX·g²/(1 + (g/200)²)      g = ctcmax − s < 0  되내려간다 — 선호(p)
+            최대간격을 위반이 아니라 선호에 두는 까닭도 jlong 과 같다 : 개수가 입력이라 못 지킬
+            수 있고, 그때는 배근을 비틀지 않고 **보고**한다 (`gaps` 로 돌려준다).
+            ½·d² 가 jlong 의 K_A(0.5)·d² 와 같은 꼴이라 무게를 그대로 옮겨도 단위가 맞는다.
+            lim 이 없으면 이 항들은 없다 — 전과 같다.                                         */
+      _trainEquilibrium: function (st, dia, ctc, lim) {
         var n = st.length, d = st.map(function () { return 0; }), bite = d.slice(), self = this;
         var ducts = this._ducts || [], K = 1000, sweeps = 0;
-        if (!n || typeof JField === 'undefined' || typeof JField.lineMin !== 'function') return { d: d, bite: bite, sweeps: 0 };
+        var K_CTCMIN = 20, K_CTCMAX = 1, CTCMAX_SOFT = 200;          //  jlong.js CONF 와 같은 값
+        var cmin = (lim && isFinite(lim.min) && lim.min > 0) ? lim.min : null;
+        var cmax = (lim && isFinite(lim.max) && lim.max > 0) ? lim.max : null;
+        if (!n || typeof JField === 'undefined' || typeof JField.lineMin !== 'function') return { d: d, bite: bite, sweeps: 0, gaps: [] };
         var ductOf = function (i, di) {
           var v = 0, b = 0;
           st[i].segsAt(di).forEach(function (pc) {
@@ -517,16 +535,38 @@
           if (i > 0) nb.push(st[i - 1].t0 + d[i - 1]);
           if (i < n - 1) nb.push(st[i + 1].t0 + d[i + 1]);
           return function (di) {
-            var o = ductOf(i, di), v = o.v, b = o.bite, x = x0 + di;
+            var o = ductOf(i, di), v = o.v, b = o.bite, x = x0 + di, p = 0.5 * di * di, b0;
             nb.forEach(function (xn) {
-              var g = Math.abs(x - xn) - dia;
+              var s = Math.abs(x - xn), g = s - dia;
               if (g < 0) { v += K * g * g; if (g < b) b = g; }
             });
-            return { v: v, p: 0.5 * di * di, bite: b };
+            b0 = b;                       //  덕트 · 겹침만 — 「덕트를 아직 문다」 보고는 이것으로
+            nb.forEach(function (xn) {
+              var s = Math.abs(x - xn);
+              if (cmin != null && s < cmin) {
+                var gm = s - cmin;
+                v += K_CTCMIN * gm * gm; if (gm < b) b = gm;
+              }
+              if (cmax != null && s > cmax) {
+                var gx = cmax - s, tt = gx / CTCMAX_SOFT;
+                p += K_CTCMAX * gx * gx / (1 + tt * tt);
+              }
+            });
+            return { v: v, p: p, bite: b, bite0: b0 };
           };
         };
-        //  덕트가 하나도 없고 이웃이 겹치지 않으면 움직일 까닭이 없다
-        if (!ducts.length) return { d: d, bite: bite, sweeps: 0 };
+        //  이웃 간격이 한계를 벗어난 자리 — 푼 뒤에 보고한다 (lo · hi : 그 간격과 한계)
+        var gapsOut = function () {
+          var out = [];
+          for (var k = 0; k + 1 < n; k++) {
+            var s = (st[k + 1].t0 + d[k + 1]) - (st[k].t0 + d[k]);
+            if (cmin != null && s < cmin - 0.5) out.push({ i: k, s: s, lim: 'min', v: cmin });
+            if (cmax != null && s > cmax + 0.5) out.push({ i: k, s: s, lim: 'max', v: cmax });
+          }
+          return out;
+        };
+        //  덕트가 하나도 없으면 움직일 까닭이 없다 (자리는 ctc 균등이라 간격 항도 조용하다)
+        if (!ducts.length) return { d: d, bite: bite, sweeps: 0, gaps: gapsOut() };
         for (sweeps = 1; sweeps <= 200; sweeps++) {
           var step = 0;
           for (var i = 0; i < n; i++) {
@@ -540,8 +580,9 @@
           }
           if (step < 0.01) break;
         }
-        for (var j = 0; j < n; j++) bite[j] = partsOf(j)(d[j]).bite;
-        return { d: d, bite: bite, sweeps: sweeps };
+        //  bite 는 덕트 · 겹침만 돌려준다 — 간격 한계는 `gaps` 가 따로 말한다
+        for (var j = 0; j < n; j++) bite[j] = partsOf(j)(d[j]).bite0;
+        return { d: d, bite: bite, sweeps: sweeps, gaps: gapsOut() };
       },
 
       _expandMesh: function (sec) {
@@ -702,7 +743,7 @@
                              { x: cc.x + b.x * LEN / 2, y: cc.y + b.y * LEN / 2 }]]
                          : piecesAt(okLine, cc);
             } };
-          }), dia, ctc);
+          }), dia, ctc, rd.ctcLim);
 
           for (var si = 0; si < slots.length; si++) {
             var i = slots[si].i, t = slots[si].t + dT;
@@ -730,7 +771,10 @@
             });
           }
           var msg = id + ' : ' + made + ' bars · pushed by ducts ' + moved + ' · cut by opening ' + cut + seatNote +
-                    (bad.length ? ' · STILL ON A DUCT ' + bad.join(' ') : '');
+                    (bad.length ? ' · STILL ON A DUCT ' + bad.join(' ') : '') +
+                    (eq && eq.gaps && eq.gaps.length ? ' · SPACING OUTSIDE CTC LIMITS ' + eq.gaps.map(function (q) {
+                      return (q.i + 1) + '-' + (q.i + 2) + '(' + q.s.toFixed(1) + (q.lim === 'min' ? '<' : '>') + q.v + ')';
+                    }).join(' ') : '');
           log.push(msg);
           console.log('[PSCDIA] 철근망 ' + msg);
         });
@@ -848,6 +892,16 @@
         if (this._rbHas(toks[0])) o.min = this._rbNum(toks[0]);
         if (this._rbHas(toks[1])) o.max = this._rbNum(toks[1]);
         return Object.keys(o).length ? o : null;
+      },
+
+      /*  간격 한계 「ctcmin, ctcmax」 — `_rbRange` 와 같은 꼴이지만 **빈 자리를 지우지 않는다.**
+          `_rbList` 는 빈 토막을 버려서 「, 200」 이 「200」 이 되어 최소간격으로 읽힌다.     */
+      _rbLim: function (cell) {
+        if (!this._rbHas(cell)) return null;
+        var toks = this._rbStr(cell).split(','), o = {};
+        if (this._rbHas(toks[0])) o.min = this._rbNum(toks[0]);
+        if (this._rbHas(toks[1])) o.max = this._rbNum(toks[1]);
+        return (isFinite(o.min) || isFinite(o.max)) ? o : null;
       },
 
       _rbEnd: function (cell) {
@@ -2061,7 +2115,7 @@
     },
 
     /* ── 'crebar' 블록 : 교축방향 폐합철근 (⑩ ⑩-1 ⑩-2) ──────────────────
-         crebar | id | dia | plane | at | set | lap | from | to
+         crebar | id | dia | plane | at | set | lap | from | to | ctc | · | ctcmin, ctcmax
 
        다른 철근(trebar)은 단면 평면에 눕는다. 이 철근은 그 평면과 90° 다르다 —
        격벽의 두께(교축 z)를 감아 도는 닫힌 고리다.
@@ -2111,6 +2165,8 @@
                    plane: (this._rbStr(g[3]) || 'yz').toLowerCase(),
                    at: at, at2: at2,
                    ctc: this._rbHas(g[9]) ? this._rbNum(g[9]) : 150,
+                   //  이웃 고리 간격의 한계 (srebar code 1 과 같은 11 칸 · 같은 꼴)
+                   ctcLim: this._rbLim(g[11]),
                    set: (this._rbStr(g[5]) || 'all').toLowerCase(),
                    lap: this._rbHas(g[6]) ? this._rbNum(g[6]) : 0,
                    //  긴 축을 여기서 여기까지만. 숫자 대신 `open` 을 쓰면 개구부를 따라간다 —
@@ -2339,7 +2395,10 @@
         var hctc = (h.ctc > 0) ? h.ctc : 150;
         var heq = self._trainEquilibrium(stations.map(function (at0) {
           return { t0: at0, segsAt: self._hoopSegsAt(at0, ax, h.dia || 25) };
-        }), h.dia || 25, hctc);
+        }), h.dia || 25, hctc, h.ctcLim);
+        if (heq.gaps && heq.gaps.length)
+          console.warn('[PSCDIA] crebar ' + h.id + ' : spacing outside ctc limits at ' + heq.gaps.length + ' gap(s) — ' +
+            heq.gaps.map(function (q) { return q.s.toFixed(1) + (q.lim === 'min' ? ' < ' : ' > ') + q.v; }).join(', '));
         stations.forEach(function (at0, ks) {
           var pu = { d: heq.d[ks], bite: heq.bite[ks] };
           var at = at0 + pu.d;
