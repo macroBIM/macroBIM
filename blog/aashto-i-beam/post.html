@@ -29,6 +29,8 @@
 .aib-grid svg{flex:0 0 260px;max-width:100%;}
 .aib-out{flex:1 1 280px;}
 .aib-warn{color:#b91c1c;font-size:14px;}
+.aib-dl{background:#2563eb;color:#fff;border:0;border-radius:6px;padding:6px 12px;font-size:14px;cursor:pointer;margin:2px 4px 2px 0;}
+.aib-dl:hover{background:#1d4ed8;}
 .aib-btn{display:inline-block;background:#2563eb;color:#fff !important;text-decoration:none;padding:9px 18px;border-radius:7px;font-size:15px;}
 </style>
 
@@ -36,7 +38,7 @@
 
 <p>If you have ever load-rated an older highway bridge in the United States, there is a good chance its superstructure is a row of <b>precast, prestressed concrete I-beams</b> of one of six standard AASHTO shapes. They are often simply called <b>AASHTO girders</b> or AASHTO Type I to Type VI beams.</p>
 <p>The shapes are easy to find as scanned standard sheets, but much harder to find in a form you can actually <i>use</i>: one table with every dimension, section properties you can check, and a CAD outline you can drop into a drawing. This post puts all three in one place.</p>
-<div class="aib-note">In this post: the dimension table for all six types (inches and SI), section properties I recalculated and checked against the PCI Bridge Design Manual, an interactive section-property calculator, a comparison with AASHTO-PCI bulb-tees, and a free way to export each shape as a DXF.</div>
+<div class="aib-note">In this post: the dimension table for all six types (inches and SI), section properties I recalculated and checked against the PCI Bridge Design Manual, an interactive section-property calculator, a comparison with AASHTO-PCI bulb-tees, and free DXF downloads of every shape.</div>
 
 <h2 class="aib-h2"><span class="aib-q">&#10077;</span>What is an AASHTO I-beam girder?</h2>
 <p>An AASHTO I-beam is a pretensioned concrete girder cast in a precasting plant, shipped to site, and set side by side under a cast-in-place deck. The deck is placed on top and acts compositely with the girders. The six shapes were standardized jointly by AASHTO and the Precast/Prestressed Concrete Institute (PCI) so that fabricators could reuse the same steel forms on many projects.</p>
@@ -75,6 +77,7 @@
  <div class="row"><label>Shape <select id="aib-type"><option>I</option><option>II</option><option>III</option><option selected>IV</option><option>V</option><option>VI</option><option value="c">Custom</option></select></label></div>
  <div class="row" id="aib-dins"></div>
  <div class="row" id="aib-bins"></div>
+ <div class="row"><button type="button" class="aib-dl" id="aib-dl-in">Download DXF · inch</button><button type="button" class="aib-dl" id="aib-dl-mm">Download DXF · mm</button></div>
  <div class="aib-grid"><svg id="aib-svg" viewBox="0 0 260 300" width="260" height="300"></svg><div class="aib-out" id="aib-out"></div></div>
 </div>
 
@@ -86,30 +89,24 @@
 <p>At the same 54-inch depth, a BT-54 is slightly <b>stiffer</b> than a Type IV while using about <b>16% less concrete</b>. At 72 inches, the BT-72 carries about 74% of the Type VI inertia with only 71% of its weight. The thin web and wide top flange of the bulb-tee put the material where it works hardest, and the lighter weight also means longer pieces can be shipped and erected with the same cranes. That, more than anything, is why newer projects tend to move away from Types I–IV.</p>
 <p>The AASHTO shapes still have advantages: their heavy bottom flange holds many strands for its depth, the thick flanges are forgiving in handling, and for widening an existing bridge there is often no real choice.</p>
 
-<h2 class="aib-h2"><span class="aib-q">&#10077;</span>Getting an AASHTO girder as a DXF</h2>
-<p>For drawings, the fastest way I know is the free I-Beam tool on <a href="https://www.macrobim.com/" target="_blank" rel="noopener">macroBIM</a>, a browser-based drafting tool I built for bridge sections. It draws the section with dimensions and exports a DXF that opens in AutoCAD, BricsCAD, LibreCAD or QCAD — no installation or sign-up for this feature. Types I–IV map onto it directly.</p>
-<figure class="aib-fig"><img src="https://macrobim.github.io/macroBIM/blog/aashto-i-beam/tool.png" alt="macroBIM I-beam drawing tool showing AASHTO Type IV girder in inches" loading="lazy"/><figcaption>AASHTO Type IV in the macroBIM I Beam tool, inch mode</figcaption></figure>
-<h3 class="aib-h3"><span style="color:#0593d3;">&#9613;</span>Step by step</h3>
-<ol>
-<li>Open <b>macroBIM → Drawings → I Beam</b>.</li>
-<li>Click <b>in</b> next to the DXF button <i>first</i>, so the values are read as inches. The exported DXF is then saved with inch units.</li>
-<li>Paste the three lines below into <b>Batch Input</b> (line 1 = front section, line 2 = back section, line 3 = segment length) and click outside the box.</li>
-<li>Press <b>DXF out</b>.</li>
-</ol>
-<div class="aib-code"><div class="aib-bar"><span style="color:#f38ba8">&#9679;</span> <span style="color:#f9e2af">&#9679;</span> <span style="color:#a6e3a1">&#9679;</span><span class="aib-ctitle">Batch Input — AASHTO Type IV, 20 ft segment (inches)</span></div><pre><span class="aib-ln">1</span>54,20,26,8,6,8,9,8,0,0,0,0,0
-<span class="aib-ln">2</span>54,20,26,8,6,8,9,8,0,0,0,0,0
-<span class="aib-ln">3</span>240
-</pre></div>
-<div class="aib-tw"><table class="aib-t"><thead><tr><th>Type</th><th>Batch Input line (h, bt, bb, ttf, ttf1, tbf, tbf1, tw, fillets…, chamfer)</th></tr></thead><tbody><tr><td>Type I</td><td><span style="font-family:JetBrains Mono,Consolas,monospace;font-size:14px;">28,12,16,4,3,5,5,6,0,0,0,0,0</span></td></tr><tr><td>Type II</td><td><span style="font-family:JetBrains Mono,Consolas,monospace;font-size:14px;">36,12,18,6,3,6,6,6,0,0,0,0,0</span></td></tr><tr><td>Type III</td><td><span style="font-family:JetBrains Mono,Consolas,monospace;font-size:14px;">45,16,22,7,4.5,7,7.5,7,0,0,0,0,0</span></td></tr><tr><td>Type IV</td><td><span style="font-family:JetBrains Mono,Consolas,monospace;font-size:14px;">54,20,26,8,6,8,9,8,0,0,0,0,0</span></td></tr></tbody></table></div><p class="aib-cap">Table 5 — Copy the line twice (front and back) and add the length on line 3.</p>
-<p>The mapping is simple: h = D1, bt = B1, bb = B2, ttf = D2, ttf1 = D4, tbf = D6, tbf1 = D5, tw = B3, and the fillet and chamfer values are zero. Because the tool takes a separate front and back section, you can also model a girder whose depth changes along its length.</p>
-<div class="aib-note"><b>Types V and VI:</b> their top flange has a second taper (D3 and B5), which the tool does not draw yet, so it can only approximate them. I will add that and the bulb-tee shapes in a follow-up post.</div>
+<h2 class="aib-h2"><span class="aib-q">&#10077;</span>Download AASHTO girder DXF files</h2>
+<p>Every girder in Table 1 can be downloaded below as a DXF outline, generated right here in your browser — no sign-up, no external site. Choose inches to keep the AASHTO dimensions as they are, or millimetres for metric drawings. The file opens in AutoCAD, BricsCAD, LibreCAD, QCAD and most other CAD programs, and the drawing units are already set inside the file.</p>
+<div class="aib-tw"><table class="aib-t"><thead><tr><th>Girder</th><th>Depth</th><th>Download</th></tr></thead><tbody><tr><td>Type I</td><td>28 in (711 mm)</td><td><button type="button" class="aib-dl" data-t="I" data-u="in">DXF · inch</button> <button type="button" class="aib-dl" data-t="I" data-u="mm">DXF · mm</button></td></tr><tr><td>Type II</td><td>36 in (914 mm)</td><td><button type="button" class="aib-dl" data-t="II" data-u="in">DXF · inch</button> <button type="button" class="aib-dl" data-t="II" data-u="mm">DXF · mm</button></td></tr><tr><td>Type III</td><td>45 in (1,143 mm)</td><td><button type="button" class="aib-dl" data-t="III" data-u="in">DXF · inch</button> <button type="button" class="aib-dl" data-t="III" data-u="mm">DXF · mm</button></td></tr><tr><td>Type IV</td><td>54 in (1,372 mm)</td><td><button type="button" class="aib-dl" data-t="IV" data-u="in">DXF · inch</button> <button type="button" class="aib-dl" data-t="IV" data-u="mm">DXF · mm</button></td></tr><tr><td>Type V</td><td>63 in (1,600 mm)</td><td><button type="button" class="aib-dl" data-t="V" data-u="in">DXF · inch</button> <button type="button" class="aib-dl" data-t="V" data-u="mm">DXF · mm</button></td></tr><tr><td>Type VI</td><td>72 in (1,829 mm)</td><td><button type="button" class="aib-dl" data-t="VI" data-u="in">DXF · inch</button> <button type="button" class="aib-dl" data-t="VI" data-u="mm">DXF · mm</button></td></tr></tbody></table></div><p class="aib-cap">Table 5 — Section outlines as closed polylines on layer GIRDER, origin at the bottom centre of the girder.</p>
+<h3 class="aib-h3"><span style="color:#0593d3;">&#9613;</span>What is in the file</h3>
+<ul>
+<li>The girder outline on layer <b>GIRDER</b>, drawn to the exact Table 1 dimensions, with the origin at the bottom centre — easy to place on a bearing line or a deck section.</li>
+<li>The neutral axis at y<sub>b</sub> on layer <b>NA</b>, and a label with the type and depth on layer <b>TEXT</b>.</li>
+<li>Units stored in the file header (inches or millimetres), so it scales correctly when inserted into another drawing.</li>
+</ul>
+<p>Need a modified shape — a wider top flange, a deeper web for a spliced girder? Edit the values in the calculator above and use its download buttons: the DXF follows whatever is on screen.</p>
+<div class="aib-note">The outlines leave out the small corner chamfers of real forms (about 3/4 in.). Add them in CAD if your detail needs them.</div>
 
 <h2 class="aib-h2"><span class="aib-q">&#10077;</span>Summary</h2>
 <ul>
 <li>AASHTO Type I–VI girders run from 28 in. to 72 in. deep; all dimensions are in Table 1.</li>
 <li>Recomputed section properties match the PCI Bridge Design Manual, in both U.S. and SI units.</li>
 <li>Bulb-tees of the same depth are stiffer per unit weight, which is why many new bridges use them instead.</li>
-<li>Types I–IV can be exported as a dimensioned DXF in about a minute with the free macroBIM I Beam tool.</li>
+<li>All six types — and any modified shape from the calculator — can be downloaded as DXF in inches or millimetres directly from this page.</li>
 </ul>
 <p style="font-size:15px;color:#555;"><b>Source:</b> dimensions and published properties from the <a href="https://www.pci.org/PCI_Docs/GCPCI_Docs/Transportation_Resources/2011PCIBridgeManual-Appendix_BC.pdf" target="_blank" rel="noopener">PCI Bridge Design Manual, Appendix B</a>. Section properties recalculated by the author.</p>
 <p style="font-size:15px;color:#555;"><b>About the author:</b> Yopa is a structural engineer with more than 15 years in bridge design, including project work in the Middle East, and the developer of macroBIM.</p>
@@ -158,6 +155,42 @@ function calc(){
    +'<text x="'+(ox+W/2*s+4)+'" y="'+(cy-6)+'" font-size="11" fill="#dc2626" text-anchor="end">N.A.</text>'
    +'<text x="130" y="296" font-size="12" fill="#475569" text-anchor="middle">D1 = '+D1+' in</text>';
 }
+
+function outlineOf(v){var D1=v[0],D2=v[1],D3=v[2],D4=v[3],D5=v[4],D6=v[5],B1=v[6],B2=v[7],B3=v[8],B4=v[9];
+  var y1=D6,y2=D6+D5,y5=D1-D2,y4=y5-D3,y3=y4-D4;
+  var R=[[B2/2,0],[B2/2,y1],[B3/2,y2],[B3/2,y3],[B3/2+B4,y4],[B1/2,y5],[B1/2,D1]];
+  var P=R.concat(R.slice().reverse().map(function(p){return[-p[0],p[1]];})),Q=[];
+  P.forEach(function(p){var q=Q[Q.length-1];if(!q||Math.abs(q[0]-p[0])>1e-9||Math.abs(q[1]-p[1])>1e-9)Q.push(p);});
+  if(Q.length>1&&Math.abs(Q[0][0]-Q[Q.length-1][0])<1e-9&&Math.abs(Q[0][1]-Q[Q.length-1][1])<1e-9)Q.pop();
+  return Q;}
+function ybOf(v){var D1=v[0],D2=v[1],D3=v[2],D4=v[3],D5=v[4],D6=v[5],B1=v[6],B2=v[7],B3=v[8],B4=v[9],hw=D1-D2-D3-D4-D5-D6;
+  var segs=[[B2,B2,D6],[B2,B3,D5],[B3,B3,hw],[B3,B3+2*B4,D4],[B3+2*B4,B1,D3],[B1,B1,D2]],A=0,S=0,y=0;
+  segs.forEach(function(s){var a=s[0],b=s[1],h=s[2];if(h<=0)return;var Ai=(a+b)/2*h;A+=Ai;S+=Ai*(y+h*(a+2*b)/(3*(a+b)));y+=h;});return S/A;}
+function dxfOf(v,unit,label){
+  var k=unit==='mm'?25.4:1,o=[],f=function(x){return (Math.round(x*k*10000)/10000).toString();};
+  function g(c,val){o.push(c,val);}
+  g(0,'SECTION');g(2,'HEADER');g(9,'$ACADVER');g(1,'AC1009');g(9,'$INSUNITS');g(70,unit==='mm'?4:1);g(9,'$MEASUREMENT');g(70,unit==='mm'?1:0);g(0,'ENDSEC');
+  g(0,'SECTION');g(2,'TABLES');g(0,'TABLE');g(2,'LTYPE');g(70,2);
+  g(0,'LTYPE');g(2,'CONTINUOUS');g(70,0);g(3,'Solid line');g(72,65);g(73,0);g(40,0.0);
+  g(0,'LTYPE');g(2,'CENTER');g(70,0);g(3,'Center');g(72,65);g(73,2);g(40,2.0*k);g(49,1.25*k);g(49,-0.75*k);g(0,'ENDTAB');
+  g(0,'TABLE');g(2,'LAYER');g(70,3);
+  [['GIRDER',4,'CONTINUOUS'],['NA',1,'CENTER'],['TEXT',7,'CONTINUOUS']].forEach(function(L){g(0,'LAYER');g(2,L[0]);g(70,0);g(62,L[1]);g(6,L[2]);});
+  g(0,'ENDTAB');g(0,'ENDSEC');
+  g(0,'SECTION');g(2,'ENTITIES');
+  var P=outlineOf(v);
+  g(0,'POLYLINE');g(8,'GIRDER');g(66,1);g(10,'0');g(20,'0');g(30,'0');g(70,1);
+  P.forEach(function(p){g(0,'VERTEX');g(8,'GIRDER');g(10,f(p[0]));g(20,f(p[1]));g(30,'0');});
+  g(0,'SEQEND');g(8,'GIRDER');
+  var W=Math.max(v[6],v[7])/2+3,yb=ybOf(v);
+  g(0,'LINE');g(8,'NA');g(10,f(-W));g(20,f(yb));g(30,'0');g(11,f(W));g(21,f(yb));g(31,'0');
+  g(0,'TEXT');g(8,'TEXT');g(10,f(-Math.max(v[6],v[7])/2));g(20,f(-4));g(30,'0');g(40,f(1.5));g(1,label+' - D = '+(unit==='mm'?Math.round(v[0]*25.4)+' mm':v[0]+' in'));
+  g(0,'ENDSEC');g(0,'EOF');
+  return o.join('\r\n')+'\r\n';}
+function dl(txt,name){var b=new Blob([txt],{type:'application/dxf'}),u=URL.createObjectURL(b),a=document.createElement('a');a.href=u;a.download=name;document.body.appendChild(a);a.click();setTimeout(function(){document.body.removeChild(a);URL.revokeObjectURL(u);},500);}
+function curV(){return DN.concat(BN).map(function(n){return g(n);});}
+document.querySelectorAll('.aib-dl[data-t]').forEach(function(btn){btn.addEventListener('click',function(){var t=btn.getAttribute('data-t'),u=btn.getAttribute('data-u');dl(dxfOf(T[t],u,'AASHTO Type '+t),'AASHTO_Type_'+t+'_'+u+'.dxf');});});
+['in','mm'].forEach(function(u){$('aib-dl-'+u).addEventListener('click',function(){var t=$('aib-type').value,name=t==='c'?'Custom_I-girder':'AASHTO_Type_'+t;dl(dxfOf(curV(),u,name.replace(/_/g,' ')),name+'_'+u+'.dxf');});});
+window.__aibDXF=dxfOf;
 build();
 if(window.Plotly){
   var names=["Type I", "Type II", "Type III", "Type IV", "Type V", "Type VI", "BT-54", "BT-63", "BT-72"],I=[22744, 50979, 125390, 260741, 521163, 733320, 268077, 392638, 545894],W=[0.287, 0.384, 0.583, 0.822, 1.055, 1.13, 0.686, 0.743, 0.799];

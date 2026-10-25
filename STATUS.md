@@ -327,7 +327,7 @@ git status --short     # 비어 있어야 한다
 
 ### 2026-10-25
 
-- **영어 블로그 이미지 호스팅 폴더** · `blog/aashto-i-beam/` (hero · notation · tool.png) · 코드 아님 — macrobim.blogspot.com 글이 GitHub Pages 주소로 부른다. 지우거나 옮기면 글 이미지가 깨진다
+- **영어 블로그 이미지 호스팅 폴더** · `blog/aashto-i-beam/` (hero · notation.png · post.html) · 코드 아님 — macrobim.blogspot.com 글이 GitHub Pages 주소로 부른다. 지우거나 옮기면 글 이미지가 깨진다
 - **I Beam 도면에 mm | in 단위 토글** · `bim_ibeam_test.js` (`ibeam_setunit` · `ibeam_load`) · `bim_dxf.js` (`units()` — 부른 페이지만 헤더에 `$INSUNITS`/`$MEASUREMENT`, 안 부른 페이지 DXF 는 그대로) · `bim_draw_test_core.js` (`rec.dec` — 기본 0 이면 지금과 같다) · **운영** (`bim_ibeam_test.js` 는 운영이 부르는 파일 — `layout_body.js` 는 손대지 않음). 영어권 블로그(AASHTO 거더 표준도)용. 확인 : 1500 → 59.055 in → 1500 왕복 · ezdxf 로 mm=4 · in=1
 
 ### 2026-10-24
