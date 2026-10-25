@@ -1,0 +1,172 @@
+<div class="aib">
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Noto+Serif+KR:wght@400;700&family=JetBrains+Mono:wght@400;600&display=swap');
+.aib{font-family:'Noto Serif KR',serif;font-size:17px;line-height:1.85;color:#222;}
+.aib p,.aib li,.aib td,.aib th,.aib figcaption,.aib label,.aib input,.aib select,.aib button{font-family:'Noto Serif KR',serif;}
+.aib-h2{font-family:'Noto Serif KR',serif;font-size:24px;font-weight:400;color:#111;margin:46px 0 18px;padding:0 0 10px;border-bottom:1px solid #cfcfcf;position:relative;line-height:1.5;}
+.aib-q{display:block;font-size:34px;line-height:1;color:#9a9a9a;margin-bottom:4px;}
+.aib-h3{font-family:'Noto Serif KR',serif;font-size:20px;font-weight:700;color:#111;margin:30px 0 12px;}
+.aib-tw{overflow-x:auto;margin:14px 0;}
+.aib-t{border-collapse:collapse;width:100%;font-size:15px;}
+.aib-t th{background:#f2f2f2;font-weight:700;border:1px solid #ddd;padding:8px 10px;text-align:center;white-space:nowrap;}
+.aib-t td{border:1px solid #ddd;padding:7px 10px;text-align:center;}
+.aib-t td:first-child{text-align:left;white-space:nowrap;}
+.aib-cap,.aib figcaption{font-size:14px;color:#666;text-align:center;margin:4px 0 18px;}
+.aib-fig{margin:22px 0;text-align:center;}
+.aib-fig img{max-width:100%;height:auto;border:1px solid #e5e7eb;border-radius:6px;}
+.aib-note{background:#f7f9fc;border-left:4px solid #5c6bc0;border-radius:6px;padding:12px 18px;margin:16px 0;font-size:16px;}
+.aib-code{background:#1e1e2e;border-radius:10px;box-shadow:0 4px 14px rgba(0,0,0,.18);margin:16px 0;overflow:hidden;}
+.aib-bar{background:#181825;padding:8px 14px;font-size:13px;color:#a6adc8;font-family:'JetBrains Mono',Consolas,monospace;}
+.aib-ctitle{margin-left:12px;}
+.aib-code pre{margin:0;padding:14px 16px;color:#cdd6f4;font-family:'JetBrains Mono',Consolas,'Malgun Gothic',monospace !important;font-size:14px;line-height:1.75;overflow-x:auto;background:#1e1e2e;font-variant-ligatures:none;}
+.aib-ln{display:inline-block;width:2em;color:#585b70;user-select:none;}
+.aib-calc{border:1px solid #dbe3ee;border-radius:10px;padding:16px 18px;margin:18px 0;background:#fbfcfe;}
+.aib-calc .row{display:flex;flex-wrap:wrap;gap:10px 14px;margin:8px 0;}
+.aib-calc label{font-size:14px;color:#334155;display:flex;align-items:center;gap:6px;}
+.aib-calc input{width:64px;padding:4px 6px;border:1px solid #cbd5e1;border-radius:5px;font-size:14px;text-align:right;}
+.aib-calc select{padding:4px 8px;border:1px solid #cbd5e1;border-radius:5px;font-size:15px;}
+.aib-grid{display:flex;flex-wrap:wrap;gap:16px;align-items:flex-start;margin-top:10px;}
+.aib-grid svg{flex:0 0 260px;max-width:100%;}
+.aib-out{flex:1 1 280px;}
+.aib-warn{color:#b91c1c;font-size:14px;}
+.aib-btn{display:inline-block;background:#2563eb;color:#fff !important;text-decoration:none;padding:9px 18px;border-radius:7px;font-size:15px;}
+</style>
+
+<p><img src="https://macrobim.github.io/macroBIM/blog/aashto-i-beam/hero.png" alt="AASHTO Type I to VI precast concrete I-beam girders drawn to scale" style="max-width:100%;height:auto;border-radius:8px;"/></p>
+
+<p>If you have ever load-rated an older highway bridge in the United States, there is a good chance its superstructure is a row of <b>precast, prestressed concrete I-beams</b> of one of six standard AASHTO shapes. They are often simply called <b>AASHTO girders</b> or AASHTO Type I to Type VI beams.</p>
+<p>The shapes are easy to find as scanned standard sheets, but much harder to find in a form you can actually <i>use</i>: one table with every dimension, section properties you can check, and a CAD outline you can drop into a drawing. This post puts all three in one place.</p>
+<div class="aib-note">In this post: the dimension table for all six types (inches and SI), section properties I recalculated and checked against the PCI Bridge Design Manual, an interactive section-property calculator, a comparison with AASHTO-PCI bulb-tees, and a free way to export each shape as a DXF.</div>
+
+<h2 class="aib-h2"><span class="aib-q">&#10077;</span>What is an AASHTO I-beam girder?</h2>
+<p>An AASHTO I-beam is a pretensioned concrete girder cast in a precasting plant, shipped to site, and set side by side under a cast-in-place deck. The deck is placed on top and acts compositely with the girders. The six shapes were standardized jointly by AASHTO and the Precast/Prestressed Concrete Institute (PCI) so that fabricators could reuse the same steel forms on many projects.</p>
+<p>The family grows from a 28-inch Type I for short spans to a 72-inch Type VI for long ones. Types I through IV share the same look: a narrow top flange, a single 45-degree-ish taper into the web, and a wide, heavy bottom flange that holds the prestressing strands. Types V and VI were added for longer spans and have a much wider (42-inch) top flange with a two-stage taper.</p>
+<h3 class="aib-h3"><span style="color:#0593d3;">&#9613;</span>Where you will still meet them</h3>
+<ul>
+<li><b>Existing bridges.</b> A large share of the prestressed girder bridges built in the U.S. in the second half of the 20th century use these shapes, so they come up constantly in inspection, rating and widening work.</li>
+<li><b>Widenings and replacements.</b> When an old span is widened, matching the existing girder type keeps the stiffness and deck profile consistent.</li>
+<li><b>Teaching and exams.</b> They remain the default example for prestressed concrete design in many textbooks.</li>
+</ul>
+<p>For new bridges, many state DOTs now prefer more efficient shapes such as the AASHTO-PCI bulb-tee or their own families (NU girders, Florida I-beams, Texas Tx girders). We will see why in the comparison below.</p>
+
+<h2 class="aib-h2"><span class="aib-q">&#10077;</span>AASHTO Type I–VI dimensions</h2>
+<p>The PCI Bridge Design Manual describes every type with six depths (D1–D6) and six widths (B1–B6). The figure shows what each symbol means. Type V is drawn because it is the only family member that uses all twelve; in Types I–IV, D3 and B5 are zero.</p>
+<figure class="aib-fig"><img src="https://macrobim.github.io/macroBIM/blog/aashto-i-beam/notation.png" alt="AASHTO I-beam dimension notation D1 to D6 and B1 to B6" loading="lazy"/><figcaption>Dimension notation (PCI Bridge Design Manual, Appendix B)</figcaption></figure>
+<div class="aib-tw"><table class="aib-t"><thead><tr><th>Type</th><th>D1</th><th>D2</th><th>D3</th><th>D4</th><th>D5</th><th>D6</th><th>B1</th><th>B2</th><th>B3</th><th>B4</th><th>B5</th><th>B6</th></tr></thead><tbody><tr><td>Type I</td><td>28</td><td>4</td><td>0</td><td>3</td><td>5</td><td>5</td><td>12</td><td>16</td><td>6</td><td>3</td><td>0</td><td>5</td></tr><tr><td>Type II</td><td>36</td><td>6</td><td>0</td><td>3</td><td>6</td><td>6</td><td>12</td><td>18</td><td>6</td><td>3</td><td>0</td><td>6</td></tr><tr><td>Type III</td><td>45</td><td>7</td><td>0</td><td>4.5</td><td>7.5</td><td>7</td><td>16</td><td>22</td><td>7</td><td>4.5</td><td>0</td><td>7.5</td></tr><tr><td>Type IV</td><td>54</td><td>8</td><td>0</td><td>6</td><td>9</td><td>8</td><td>20</td><td>26</td><td>8</td><td>6</td><td>0</td><td>9</td></tr><tr><td>Type V</td><td>63</td><td>5</td><td>3</td><td>4</td><td>10</td><td>8</td><td>42</td><td>28</td><td>8</td><td>4</td><td>13</td><td>10</td></tr><tr><td>Type VI</td><td>72</td><td>5</td><td>3</td><td>4</td><td>10</td><td>8</td><td>42</td><td>28</td><td>8</td><td>4</td><td>13</td><td>10</td></tr></tbody></table></div><p class="aib-cap">Table 1 — AASHTO I-beam dimensions, inches. D1 = total depth, B1 = top flange width, B2 = bottom flange width, B3 = web width.</p>
+<h3 class="aib-h3"><span style="color:#0593d3;">&#9613;</span>Reading the table quickly</h3>
+<ul>
+<li><b>Depth (D1):</b> 28, 36, 45, 54, 63 and 72 in. — roughly 0.7 m to 1.8 m.</li>
+<li><b>Web (B3):</b> only 6 to 8 in. thick, which is why web shear and strand debonding details deserve attention in rating work.</li>
+<li><b>Bottom flange (B2 × D6):</b> grows from 16 × 5 in. to 28 × 8 in. — this is where the strands live.</li>
+<li><b>Clear web height</b> (D1 minus all flange parts) is 11, 15, 19, 23, 33 and 42 in. for Types I–VI.</li>
+</ul>
+<p>Actual forms also have small corner chamfers (typically around 3/4 in.) that are not in the table; they change the properties by a negligible amount.</p>
+
+<h2 class="aib-h2"><span class="aib-q">&#10077;</span>Section properties (non-composite)</h2>
+<p>I computed the properties below directly from the dimensions in Table 1, splitting each section into rectangles and trapezoids. Area, centroid and moment of inertia match the values published by PCI for all six types (for example Type IV: A = 789 in², y<sub>b</sub> = 24.73 in., I = 260,730 in⁴ in PCI versus 260,741 in⁴ here — the difference is rounding).</p>
+<div class="aib-tw"><table class="aib-t"><thead><tr><th>Type</th><th>A (in²)</th><th>y<sub>b</sub> (in)</th><th>I (in⁴)</th><th>S<sub>b</sub> (in³)</th><th>S<sub>t</sub> (in³)</th><th>Weight (kip/ft)</th></tr></thead><tbody><tr><td>Type I</td><td>276</td><td>12.59</td><td>22,744</td><td>1,807</td><td>1,476</td><td>0.287</td></tr><tr><td>Type II</td><td>369</td><td>15.83</td><td>50,979</td><td>3,221</td><td>2,527</td><td>0.384</td></tr><tr><td>Type III</td><td>560</td><td>20.27</td><td>125,390</td><td>6,185</td><td>5,071</td><td>0.583</td></tr><tr><td>Type IV</td><td>789</td><td>24.73</td><td>260,741</td><td>10,542</td><td>8,909</td><td>0.822</td></tr><tr><td>Type V</td><td>1,013</td><td>31.96</td><td>521,163</td><td>16,308</td><td>16,788</td><td>1.055</td></tr><tr><td>Type VI</td><td>1,085</td><td>36.38</td><td>733,320</td><td>20,157</td><td>20,588</td><td>1.130</td></tr></tbody></table></div><p class="aib-cap">Table 2 — Gross, non-composite properties. Weight assumes 150 pcf concrete. S<sub>b</sub> = I / y<sub>b</sub>, S<sub>t</sub> = I / (D1 − y<sub>b</sub>).</p>
+<h3 class="aib-h3"><span style="color:#0593d3;">&#9613;</span>Same table in SI units</h3>
+<div class="aib-tw"><table class="aib-t"><thead><tr><th>Type</th><th>Depth (mm)</th><th>A (×10³ mm²)</th><th>I (×10⁹ mm⁴)</th><th>Self-weight (kN/m)</th></tr></thead><tbody><tr><td>Type I</td><td>711</td><td>178.1</td><td>9.47</td><td>4.3</td></tr><tr><td>Type II</td><td>914</td><td>238.1</td><td>21.22</td><td>5.7</td></tr><tr><td>Type III</td><td>1,143</td><td>361.0</td><td>52.19</td><td>8.7</td></tr><tr><td>Type IV</td><td>1,372</td><td>509.0</td><td>108.53</td><td>12.2</td></tr><tr><td>Type V</td><td>1,600</td><td>653.5</td><td>216.92</td><td>15.7</td></tr><tr><td>Type VI</td><td>1,829</td><td>700.0</td><td>305.23</td><td>16.8</td></tr></tbody></table></div><p class="aib-cap">Table 3 — SI conversion. Self-weight uses 24 kN/m³.</p>
+<div class="aib-note">These are <b>gross, non-composite</b> girder properties. For design or rating you will also need the composite section (girder + transformed deck) and the transformed strand area — the calculator below gives you the girder part to start from.</div>
+
+<h2 class="aib-h2"><span class="aib-q">&#10077;</span>Interactive section property calculator</h2>
+<p>Pick a standard type, or overwrite any dimension to check a modified shape. The drawing and the properties update as you type. All inputs are in inches.</p>
+<div class="aib-calc" id="aib-calc">
+ <div class="row"><label>Shape <select id="aib-type"><option>I</option><option>II</option><option>III</option><option selected>IV</option><option>V</option><option>VI</option><option value="c">Custom</option></select></label></div>
+ <div class="row" id="aib-dins"></div>
+ <div class="row" id="aib-bins"></div>
+ <div class="aib-grid"><svg id="aib-svg" viewBox="0 0 260 300" width="260" height="300"></svg><div class="aib-out" id="aib-out"></div></div>
+</div>
+
+<h2 class="aib-h2"><span class="aib-q">&#10077;</span>How the AASHTO shapes compare with bulb-tees</h2>
+<p>The chart plots the moment of inertia of each girder (bars) against its self-weight (line). The three AASHTO-PCI bulb-tees use the PCI published properties.</p>
+<div id="aib-plot" style="width:100%;height:420px;"></div>
+<p class="aib-cap">Figure — Moment of inertia vs. self-weight, AASHTO I-beams and AASHTO-PCI bulb-tees</p>
+<div class="aib-tw"><table class="aib-t"><thead><tr><th>Girder</th><th>Depth (in)</th><th>A (in²)</th><th>I (in⁴)</th><th>I / A (in²)</th></tr></thead><tbody><tr><td>Type IV</td><td>54</td><td>789</td><td>260,741</td><td>330</td></tr><tr><td>BT-54</td><td>54</td><td>659</td><td>268,077</td><td>407</td></tr><tr><td>Type VI</td><td>72</td><td>1,085</td><td>733,320</td><td>676</td></tr><tr><td>BT-72</td><td>72</td><td>767</td><td>545,894</td><td>712</td></tr></tbody></table></div><p class="aib-cap">Table 4 — Same depth, different efficiency. I / A is a quick measure of stiffness per unit of concrete.</p>
+<p>At the same 54-inch depth, a BT-54 is slightly <b>stiffer</b> than a Type IV while using about <b>16% less concrete</b>. At 72 inches, the BT-72 carries about 74% of the Type VI inertia with only 71% of its weight. The thin web and wide top flange of the bulb-tee put the material where it works hardest, and the lighter weight also means longer pieces can be shipped and erected with the same cranes. That, more than anything, is why newer projects tend to move away from Types I–IV.</p>
+<p>The AASHTO shapes still have advantages: their heavy bottom flange holds many strands for its depth, the thick flanges are forgiving in handling, and for widening an existing bridge there is often no real choice.</p>
+
+<h2 class="aib-h2"><span class="aib-q">&#10077;</span>Getting an AASHTO girder as a DXF</h2>
+<p>For drawings, the fastest way I know is the free I-Beam tool on <a href="https://www.macrobim.com/" target="_blank" rel="noopener">macroBIM</a>, a browser-based drafting tool I built for bridge sections. It draws the section with dimensions and exports a DXF that opens in AutoCAD, BricsCAD, LibreCAD or QCAD — no installation or sign-up for this feature. Types I–IV map onto it directly.</p>
+<figure class="aib-fig"><img src="https://macrobim.github.io/macroBIM/blog/aashto-i-beam/tool.png" alt="macroBIM I-beam drawing tool showing AASHTO Type IV girder in inches" loading="lazy"/><figcaption>AASHTO Type IV in the macroBIM I Beam tool, inch mode</figcaption></figure>
+<h3 class="aib-h3"><span style="color:#0593d3;">&#9613;</span>Step by step</h3>
+<ol>
+<li>Open <b>macroBIM → Drawings → I Beam</b>.</li>
+<li>Click <b>in</b> next to the DXF button <i>first</i>, so the values are read as inches. The exported DXF is then saved with inch units.</li>
+<li>Paste the three lines below into <b>Batch Input</b> (line 1 = front section, line 2 = back section, line 3 = segment length) and click outside the box.</li>
+<li>Press <b>DXF out</b>.</li>
+</ol>
+<div class="aib-code"><div class="aib-bar"><span style="color:#f38ba8">&#9679;</span> <span style="color:#f9e2af">&#9679;</span> <span style="color:#a6e3a1">&#9679;</span><span class="aib-ctitle">Batch Input — AASHTO Type IV, 20 ft segment (inches)</span></div><pre><span class="aib-ln">1</span>54,20,26,8,6,8,9,8,0,0,0,0,0
+<span class="aib-ln">2</span>54,20,26,8,6,8,9,8,0,0,0,0,0
+<span class="aib-ln">3</span>240
+</pre></div>
+<div class="aib-tw"><table class="aib-t"><thead><tr><th>Type</th><th>Batch Input line (h, bt, bb, ttf, ttf1, tbf, tbf1, tw, fillets…, chamfer)</th></tr></thead><tbody><tr><td>Type I</td><td><span style="font-family:JetBrains Mono,Consolas,monospace;font-size:14px;">28,12,16,4,3,5,5,6,0,0,0,0,0</span></td></tr><tr><td>Type II</td><td><span style="font-family:JetBrains Mono,Consolas,monospace;font-size:14px;">36,12,18,6,3,6,6,6,0,0,0,0,0</span></td></tr><tr><td>Type III</td><td><span style="font-family:JetBrains Mono,Consolas,monospace;font-size:14px;">45,16,22,7,4.5,7,7.5,7,0,0,0,0,0</span></td></tr><tr><td>Type IV</td><td><span style="font-family:JetBrains Mono,Consolas,monospace;font-size:14px;">54,20,26,8,6,8,9,8,0,0,0,0,0</span></td></tr></tbody></table></div><p class="aib-cap">Table 5 — Copy the line twice (front and back) and add the length on line 3.</p>
+<p>The mapping is simple: h = D1, bt = B1, bb = B2, ttf = D2, ttf1 = D4, tbf = D6, tbf1 = D5, tw = B3, and the fillet and chamfer values are zero. Because the tool takes a separate front and back section, you can also model a girder whose depth changes along its length.</p>
+<div class="aib-note"><b>Types V and VI:</b> their top flange has a second taper (D3 and B5), which the tool does not draw yet, so it can only approximate them. I will add that and the bulb-tee shapes in a follow-up post.</div>
+
+<h2 class="aib-h2"><span class="aib-q">&#10077;</span>Summary</h2>
+<ul>
+<li>AASHTO Type I–VI girders run from 28 in. to 72 in. deep; all dimensions are in Table 1.</li>
+<li>Recomputed section properties match the PCI Bridge Design Manual, in both U.S. and SI units.</li>
+<li>Bulb-tees of the same depth are stiffer per unit weight, which is why many new bridges use them instead.</li>
+<li>Types I–IV can be exported as a dimensioned DXF in about a minute with the free macroBIM I Beam tool.</li>
+</ul>
+<p style="font-size:15px;color:#555;"><b>Source:</b> dimensions and published properties from the <a href="https://www.pci.org/PCI_Docs/GCPCI_Docs/Transportation_Resources/2011PCIBridgeManual-Appendix_BC.pdf" target="_blank" rel="noopener">PCI Bridge Design Manual, Appendix B</a>. Section properties recalculated by the author.</p>
+<p style="font-size:15px;color:#555;"><b>About the author:</b> Yopa is a structural engineer with more than 15 years in bridge design, including project work in the Middle East, and the developer of macroBIM.</p>
+
+<script src="https://cdn.plot.ly/plotly-2.35.2.min.js"></script>
+<script>
+(function(){
+var T={"I": [28, 4, 0, 3, 5, 5, 12, 16, 6, 3, 0, 5], "II": [36, 6, 0, 3, 6, 6, 12, 18, 6, 3, 0, 6], "III": [45, 7, 0, 4.5, 7.5, 7, 16, 22, 7, 4.5, 0, 7.5], "IV": [54, 8, 0, 6, 9, 8, 20, 26, 8, 6, 0, 9], "V": [63, 5, 3, 4, 10, 8, 42, 28, 8, 4, 13, 10], "VI": [72, 5, 3, 4, 10, 8, 42, 28, 8, 4, 13, 10]};
+var DN=['D1','D2','D3','D4','D5','D6'],BN=['B1','B2','B3','B4','B5','B6'];
+function $(i){return document.getElementById(i);}
+function build(){
+  var d='',b='';
+  DN.forEach(function(n,i){d+='<label>'+n+' <input type="number" step="0.25" id="aib-'+n+'"></label>';});
+  BN.forEach(function(n,i){b+='<label>'+n+' <input type="number" step="0.25" id="aib-'+n+'"'+(n==='B5'?' disabled title="B5 = (B1 - B3)/2 - B4"':'')+'></label>';});
+  $('aib-dins').innerHTML=d;$('aib-bins').innerHTML=b;
+  DN.concat(BN).forEach(function(n){var e=$('aib-'+n);e.addEventListener('input',function(){$('aib-type').value='c';calc();});});
+  $('aib-type').addEventListener('change',load);
+  load();
+}
+function load(){var t=$('aib-type').value;if(t==='c'){calc();return;}var v=T[t];DN.concat(BN).forEach(function(n,i){$('aib-'+n).value=v[i];});calc();}
+function g(n){return parseFloat($('aib-'+n).value)||0;}
+function calc(){
+  var D1=g('D1'),D2=g('D2'),D3=g('D3'),D4=g('D4'),D5=g('D5'),D6=g('D6'),B1=g('B1'),B2=g('B2'),B3=g('B3'),B4=g('B4');
+  var B5=(B1-B3)/2-B4; $('aib-B5').value=+B5.toFixed(3); var B6=(B2-B3)/2; $('aib-B6').value=+B6.toFixed(3);
+  var hw=D1-D2-D3-D4-D5-D6, warn='';
+  if(hw<=0) warn='The flange depths add up to more than D1.';
+  if(B5<0) warn='B1 is too narrow for B3 + 2·B4.';
+  if(B6<0) warn='B2 is narrower than the web.';
+  var segs=[[B2,B2,D6],[B2,B3,D5],[B3,B3,hw],[B3,B3+2*B4,D4],[B3+2*B4,B1,D3],[B1,B1,D2]],A=0,S=0,I0=0,y=0;
+  segs.forEach(function(s){var a=s[0],b=s[1],h=s[2];if(h<=0)return;var Ai=(a+b)/2*h,yc=y+h*(a+2*b)/(3*(a+b)),Ic=h*h*h*(a*a+4*a*b+b*b)/(36*(a+b));A+=Ai;S+=Ai*yc;I0+=Ic+Ai*yc*yc;y+=h;});
+  var yb=S/A,I=I0-A*yb*yb,yt=D1-yb,w=A/144*0.150;
+  var f=function(x,d){return x.toLocaleString('en-US',{minimumFractionDigits:d||0,maximumFractionDigits:d||0});};
+  var r=[['Area A',f(A,1)+' in²',f(A*645.16/1000,1)+' ×10³ mm²'],['Centroid y<sub>b</sub>',f(yb,2)+' in',f(yb*25.4,0)+' mm'],['Centroid y<sub>t</sub>',f(yt,2)+' in',f(yt*25.4,0)+' mm'],['Moment of inertia I',f(I,0)+' in⁴',f(I*Math.pow(25.4,4)/1e9,2)+' ×10⁹ mm⁴'],['S<sub>b</sub> = I / y<sub>b</sub>',f(I/yb,0)+' in³',f(I/yb*Math.pow(25.4,3)/1e6,1)+' ×10⁶ mm³'],['S<sub>t</sub> = I / y<sub>t</sub>',f(I/yt,0)+' in³',f(I/yt*Math.pow(25.4,3)/1e6,1)+' ×10⁶ mm³'],['Self-weight',f(w,3)+' kip/ft',f(A*645.16e-6*24,1)+' kN/m'],['Clear web height',f(hw,2)+' in',f(hw*25.4,0)+' mm']];
+  var h='<table class="aib-t"><thead><tr><th>Property</th><th>US</th><th>SI</th></tr></thead><tbody>';
+  r.forEach(function(x){h+='<tr><td>'+x[0]+'</td><td>'+x[1]+'</td><td>'+x[2]+'</td></tr>';});
+  $('aib-out').innerHTML=(warn?'<p class="aib-warn">'+warn+'</p>':'')+h+'</tbody></table>';
+  // drawing
+  var y1=D6,y2=D6+D5,y5=D1-D2,y4=y5-D3,y3=y4-D4;
+  var R=[[B2/2,0],[B2/2,y1],[B3/2,y2],[B3/2,y3],[B3/2+B4,y4],[B1/2,y5],[B1/2,D1]];
+  var pts=R.concat(R.slice().reverse().map(function(p){return[-p[0],p[1]];}));
+  var W=Math.max(B1,B2),s=Math.min(220/W,250/D1),ox=130,oy=275;
+  var poly=pts.map(function(p){return (ox+p[0]*s).toFixed(1)+','+(oy-p[1]*s).toFixed(1);}).join(' ');
+  var cy=oy-yb*s;
+  $('aib-svg').innerHTML='<polygon points="'+poly+'" fill="#e8eef7" stroke="#0f172a" stroke-width="1.6"/>'
+   +'<line x1="'+(ox-W/2*s-8)+'" y1="'+cy+'" x2="'+(ox+W/2*s+8)+'" y2="'+cy+'" stroke="#dc2626" stroke-dasharray="5 3"/>'
+   +'<text x="'+(ox+W/2*s+4)+'" y="'+(cy-6)+'" font-size="11" fill="#dc2626" text-anchor="end">N.A.</text>'
+   +'<text x="130" y="296" font-size="12" fill="#475569" text-anchor="middle">D1 = '+D1+' in</text>';
+}
+build();
+if(window.Plotly){
+  var names=["Type I", "Type II", "Type III", "Type IV", "Type V", "Type VI", "BT-54", "BT-63", "BT-72"],I=[22744, 50979, 125390, 260741, 521163, 733320, 268077, 392638, 545894],W=[0.287, 0.384, 0.583, 0.822, 1.055, 1.13, 0.686, 0.743, 0.799];
+  var col=names.map(function(n){return n.indexOf('BT')===0?'#2563eb':'#ff7a1a';});
+  Plotly.newPlot('aib-plot',[{type:'bar',x:names,y:I,name:'Moment of inertia I (in⁴)',marker:{color:col},text:I.map(function(v){return v.toLocaleString('en-US');}),textposition:'outside',cliponaxis:false},
+   {type:'scatter',mode:'lines+markers',x:names,y:W,name:'Self-weight (kip/ft)',yaxis:'y2',line:{color:'#0f172a',width:2},marker:{size:8}}],
+   {font:{family:"'Noto Serif KR',serif",size:14},margin:{t:40,r:60,l:70,b:60},legend:{orientation:'h',y:1.12},
+    yaxis:{title:'I (in⁴)',range:[0,733320*1.2]},yaxis2:{title:'kip/ft',overlaying:'y',side:'right',range:[0,1.13*1.2]},bargap:0.35},{displayModeBar:false,responsive:true});
+}
+})();
+</script>
+</div>
