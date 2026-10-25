@@ -325,6 +325,10 @@ git status --short     # 비어 있어야 한다
 
 **맨 위가 최신.** 한 줄에 하나: 날짜 · 커밋 · 무엇이 · 어디까지(테스트/운영).
 
+### 2026-10-25
+
+- **I Beam 도면에 mm | in 단위 토글** · `bim_ibeam_test.js` (`ibeam_setunit` · `ibeam_load`) · `bim_dxf.js` (`units()` — 부른 페이지만 헤더에 `$INSUNITS`/`$MEASUREMENT`, 안 부른 페이지 DXF 는 그대로) · `bim_draw_test_core.js` (`rec.dec` — 기본 0 이면 지금과 같다) · **운영** (`bim_ibeam_test.js` 는 운영이 부르는 파일 — `layout_body.js` 는 손대지 않음). 영어권 블로그(AASHTO 거더 표준도)용. 확인 : 1500 → 59.055 in → 1500 왕복 · ezdxf 로 mm=4 · in=1
+
 ### 2026-10-24
 
 - **격벽 열차에 간격 항 (ctcmin · ctcmax)** · `bim_pscbox_diaphragm_test.js` (`_trainEquilibrium` · `_rbLim`) · **테스트** · 엔진 동결 그대로

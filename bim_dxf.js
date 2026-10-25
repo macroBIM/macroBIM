@@ -10,6 +10,7 @@
 		
         let layers = [];
         let entities = []; // 여기에 도형이 쌓입니다.
+        let insUnits = null; // null = 헤더에 단위 안 씀(기존 출력 그대로) · 'mm' | 'in'
 
         function g(code, value) { return `${code}\n${value}\n`; }
 
@@ -28,6 +29,10 @@
             _reset();
             //console.log("초기화 완료");
         }
+
+        // 도면 단위 — 부른 페이지만 헤더에 $INSUNITS/$MEASUREMENT 를 쓴다.
+        // 부르지 않은 페이지의 DXF 는 한 바이트도 달라지지 않는다.
+        function units(u) { insUnits = (u === 'mm' || u === 'in') ? u : null; }
 
         function layer(name, color, ltype) {
 			//  1 : red
@@ -260,6 +265,8 @@
         function print() {
 			let header = g(0, "SECTION") + g(2, "HEADER") + 
                  g(9, "$ACADVER") + g(1, "AC1009") + 
+                 (insUnits ? g(9, "$INSUNITS") + g(70, insUnits === 'in' ? 1 : 4)
+                           + g(9, "$MEASUREMENT") + g(70, insUnits === 'in' ? 0 : 1) : "") + 
 //                 g(9, "$DIMSCALE") + g(40, 1.0) +  // 치수 전체 척도 (필요시 조절)
 //                 g(9, "$DIMASZ") + g(40, 2.5) +    // 화살표 크기
 //                 g(9, "$DIMTXT") + g(40, 2.5) +    // 텍스트 크기
@@ -312,7 +319,7 @@
             return true; // 성공 반환
         }
 
-        return { 	init, layer, line, circle, arc, text, rect, hbeam, hbeam_top, hbeam_bot, hbeam_side, print,
+        return { 	init, units, layer, line, circle, arc, text, rect, hbeam, hbeam_top, hbeam_bot, hbeam_side, print,
 					download };
     }
 

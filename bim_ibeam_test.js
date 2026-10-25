@@ -4,11 +4,46 @@
     via window.RWSVG (bim_draw_test_core.js). View logic mirrors the production
     fdraw_ibeam_2d, recorded through a MockViewer, with variable labels on the
     main dims. Reuses geo_ibeam + odxf_ibeam + render_ibeam_3d. Overrides fdraw_ibeam.
+    mm | in toggle (2026-10-25): inputs, dimension labels and DXF ($INSUNITS) share one unit.
 */
 (function () {
   "use strict";
 
   window._ibeamView = window._ibeamView || 'front';
+  window._ibeamUnit = window._ibeamUnit || 'mm';   // 'mm' | 'in' — 입력·치수·DXF 가 같은 단위
+  var MM_PER_IN = 25.4;
+  var _KEYS = ['dh', 'dbt', 'dbb', 'dttf', 'dttf1', 'dtbf', 'dtbf1', 'dtw', 'drtf', 'drwt', 'drwb', 'drbf', 'dchb'];
+  function unitK() { return window._ibeamUnit === 'in' ? 1 / MM_PER_IN : 1; }
+
+  // mm | in 토글 — 페이지 틀(layout_body.js)은 그대로 두고 여기서 붙인다.
+  // 바꾸면 입력값을 환산해 같은 형상을 다른 단위로 다시 그린다.
+  function ensureUnitBar() {
+    var mount = document.getElementById('mount-draw-ibeam');
+    if (!mount || mount.querySelector('#ibeam-unitbar')) return;
+    var dxfBtn = Array.prototype.find.call(mount.querySelectorAll('.hs-btn'), function (b) { return /DXF/i.test(b.textContent); });
+    if (!dxfBtn || !dxfBtn.parentNode) return;
+    var bar = document.createElement('span');
+    bar.id = 'ibeam-unitbar';
+    bar.style.cssText = 'display:inline-flex;gap:0;margin-right:4px;';
+    ['mm', 'in'].forEach(function (u, i) {
+      var b = document.createElement('button');
+      b.type = 'button'; b.className = 'hs-vbtn'; b.textContent = u; b.setAttribute('data-unit', u);
+      b.style.borderRadius = i === 0 ? '6px 0 0 6px' : '0 6px 6px 0';
+      b.onclick = function () { window.ibeam_setunit(u); };
+      bar.appendChild(b);
+    });
+    dxfBtn.parentNode.insertBefore(bar, dxfBtn.parentNode.firstChild);
+  }
+  function paintUnitBar() {
+    var mount = document.getElementById('mount-draw-ibeam');
+    if (!mount) return;
+    mount.querySelectorAll('#ibeam-unitbar button').forEach(function (b) {
+      var on = b.getAttribute('data-unit') === window._ibeamUnit;
+      b.style.background = on ? '#2563eb' : ''; b.style.color = on ? '#fff' : ''; b.style.borderColor = on ? '#2563eb' : '';
+    });
+    mount.querySelectorAll('.hs-unit').forEach(function (el) { el.textContent = window._ibeamUnit; });
+  }
+  function roundU(v, u) { return u === 'in' ? Math.round(v * 1000) / 1000 : Math.round(v * 10) / 10; }
   function G(n) { try { return (0, eval)(n); } catch (e) { return undefined; } }
 
   function layers(rec) {
@@ -52,7 +87,8 @@
   function drawIbeam(viewName, rec, data) {
     layers(rec);
     var gb = data.oibeam_b, ge = data.oibeam_e, apb = data.aparam_b, ape = data.aparam_e;
-    var half = data.dseg_leng / 2, off = 20, ext = 20;
+    var k = data.k || 1;   // 치수 간격도 단위를 따른다 (20 mm ≈ 0.79 in)
+    var half = data.dseg_leng / 2, off = 20 * k, ext = 20 * k;
 
     if (viewName === 'front') {
       gb.lines.forEach(function (l) { rec.addLine(viewName, l.x1, l.y1, l.x2, l.y2, 's'); });
@@ -107,13 +143,14 @@
       view3dId: 'ibeam3d', render3dName: 'render_ibeam_3d',
       mod3d: 'https://macrobim.github.io/macroBIM/bim_ibeam_3d.js',
       get3dArgs: function () { return [dd.oibeam_b, dd.oibeam_e, dd.dseg_leng]; },
-      drawView: function (view, rec) { drawIbeam(view, rec, dd); }
+      drawView: function (view, rec) { rec.dec = dd.unit === 'in' ? 2 : 0; drawIbeam(view, rec, dd); }
     });
   }
 
   window.fdraw_ibeam = function () {
     var host = document.getElementById('ibeamplot');
     if (!host) return;
+    ensureUnitBar(); paintUnitBar();
     var alayer = ['ibeam_solid', 'ibeam_hidden', 'ibeam_center'];
     var u = getParams_ibeam();
     var apb = u.aparam_b, ape = u.aparam_e, dseg = u.dseg_leng;
@@ -123,6 +160,7 @@
     var odxf = G('odxf_ibeam');
     if (odxf) {
       odxf.init();
+      if (odxf.units) odxf.units(window._ibeamUnit);
       odxf.layer(alayer[0], 4, 'CONTINUOUS');
       odxf.layer(alayer[1], 4, 'HIDDEN');
       odxf.layer(alayer[2], 1, 'CENTER');
@@ -132,10 +170,40 @@
       ge.lines.forEach(function (l) { odxf.line(l.x1 + col, l.y1, l.x2 + col, l.y2, alayer[0]); });
       ge.arcs.forEach(function (a) { odxf.arc(a.x + col, a.y, a.r, a.angb, a.ange, alayer[0]); });
     }
-    window._ibeam_drawData = { oibeam_b: gb, oibeam_e: ge, aparam_b: apb, aparam_e: ape, dseg_leng: dseg, alayer: alayer };
+    window._ibeam_drawData = { oibeam_b: gb, oibeam_e: ge, aparam_b: apb, aparam_e: ape, dseg_leng: dseg, alayer: alayer, unit: window._ibeamUnit, k: unitK() };
     renderView();
   };
 
   window.ibeam_setview = function (v) { window._ibeamView = v; renderView(); };
+
+  // 단위 바꾸기 : 값을 환산해 같은 형상으로 다시 그린다
+  window.ibeam_setunit = function (u) {
+    if (u !== 'mm' && u !== 'in') return;
+    var from = window._ibeamUnit;
+    if (u !== from) {
+      var f = u === 'in' ? 1 / MM_PER_IN : MM_PER_IN;
+      var ids = [];
+      _KEYS.forEach(function (key) { ids.push(key + '_s', key + '_e'); });
+      ids.push('dseg_leng');
+      ids.forEach(function (id) {
+        var el = document.getElementById(id);
+        if (el && el.value !== '') el.value = roundU(Number(el.value) * f, u);
+      });
+      window._ibeamUnit = u;
+    }
+    window.fdraw_ibeam();
+  };
+
+  // 한 번에 채우기 : 블로그·링크에서 표준 단면을 열 때 쓴다.
+  //   ibeam_load('in', [h,bt,bb,ttf,ttf1,tbf,tbf1,tw,rtf,rwt,rwb,rbf,chb], L)
+  window.ibeam_load = function (u, vals, L) {
+    window._ibeamUnit = (u === 'in') ? 'in' : 'mm';
+    _KEYS.forEach(function (key, i) {
+      if (vals[i] == null) return;
+      ['_s', '_e'].forEach(function (sfx) { var el = document.getElementById(key + sfx); if (el) el.value = vals[i]; });
+    });
+    var el = document.getElementById('dseg_leng'); if (el && L != null) el.value = L;
+    window.fdraw_ibeam();
+  };
   window._ibeamDrawView = drawIbeam;   // for the headless harness
 })();

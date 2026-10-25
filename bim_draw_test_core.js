@@ -81,7 +81,8 @@
     function poly(pts, col, w, dash) { e.push('<polyline points="' + pts + '" fill="none" stroke="' + col + '" stroke-width="' + w + '"' + (dash ? ' stroke-dasharray="' + dash + '"' : '') + '/>'); }
     function arrow(x, y, ux, uy, col) { var a = 7, bx = x - a * ux, by = y - a * uy, px = -uy * a * 0.34, py = ux * a * 0.34; e.push('<polygon points="' + f(x) + ',' + f(y) + ' ' + f(bx + px) + ',' + f(by + py) + ' ' + f(bx - px) + ',' + f(by - py) + '" fill="' + col + '"/>'); }
     function text(x, y, str, col, rot) { e.push('<text x="' + f(x) + '" y="' + f(y) + '" fill="' + col + '" font-size="11.5" font-family="ui-monospace,Menlo,Consolas,monospace" text-anchor="middle" dominant-baseline="middle"' + (rot ? ' transform="rotate(' + f(rot) + ' ' + f(x) + ' ' + f(y) + ')"' : '') + '>' + str + '</text>'); }
-    function num(v) { return String(Math.round(v)); }
+    // rec.dec : 치수 소수 자리 (기본 0 = 지금처럼 정수). 인치 도면이 2 를 준다 — 끝의 0 은 뗀다.
+    function num(v) { return rec.dec > 0 ? String(Number(v.toFixed(rec.dec))) : String(Math.round(v)); }
 
     rec.L.forEach(function (l) {
       if (l.lay === 'hidden') line(SX(l.x1), SY(l.y1), SX(l.x2), SY(l.y2), HID, 1, '6 3');
