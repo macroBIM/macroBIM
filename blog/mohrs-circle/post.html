@@ -208,7 +208,7 @@
   var o=solve(sx,sy,t,th),u=unit;
   circle(sx,sy,t,th,o); element(th,o); plot(sx,sy,t,th);
   var rows=[['Center C = (σx+σy)/2',f(o.C)+' '+u],['Radius R',f(o.R)+' '+u],['Major principal stress σ1',f(o.s1)+' '+u],['Minor principal stress σ2',f(o.s2)+' '+u],
-   ['Principal angle θp (x-axis → σ1)',f(o.tp)+'° '+(o.tp>=0?'CCW':'CW')],['Max in-plane shear τmax = R',f(o.R)+' '+u],['Max-shear plane θs',f(o.ts)+'° '+(o.ts>=0?'CCW':'CW')+', normal stress '+f(o.C)+' '+u],
+   ['Principal angle θp (x-axis → σ1)',f(Math.abs(o.tp))+'° '+(o.tp>=0?'CCW':'CW')],['Max in-plane shear τmax = R',f(o.R)+' '+u],['Max-shear plane θs',f(Math.abs(o.ts))+'° '+(o.ts>=0?'CCW':'CW')+', normal stress '+f(o.C)+' '+u],
    ['Absolute max shear (3D, σ3 = 0)',f(o.tabs)+' '+u],['σx′ at θ',f(o.sxr)+' '+u],['σy′ at θ',f(o.syr)+' '+u],['τx′y′ at θ',f(o.txr)+' '+u]];
   var h='<div class="mohr-tw"><table class="mohr-t"><thead><tr><th>Result</th><th>Value</th></tr></thead><tbody>';
   rows.forEach(function(r){h+='<tr><td>'+r[0]+'</td><td>'+r[1]+'</td></tr>';});
