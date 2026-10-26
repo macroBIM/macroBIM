@@ -49,10 +49,10 @@
 </style>
 <p><img src="https://macrobim.github.io/macroBIM/blog/w-beam-sizes/hero.png" alt="W beam sizes: AISC wide flange W12x26 section with flange width and depth" style="max-width:100%;height:auto;border-radius:8px;"/></p>
 
-<p>Wide flange beams, called W shapes in American practice, are the I-beams you see in almost every steel building, pipe rack and bridge in the United States. The AISC Shapes Database lists 289 of them, from the 13 lb/ft W4×13 to the 925 lb/ft W36×925, and a size like W12×26 tells you less than you might think: it is not 12 inches deep, and its 26 is a weight, not a dimension.</p>
+<p>Wide flange beams, called W shapes in American practice and H beams in much of the world, are the I-beams you see in almost every steel building, pipe rack and bridge in the United States. The AISC Shapes Database lists 289 of them, from the 13 lb/ft W4×13 to the 925 lb/ft W36×925, and a size like W12×26 tells you less than you might think: it is not 12 inches deep, and its 26 is a weight, not a dimension.</p>
 <p>This guide explains how to read W beam sizes, what every number in the steel tables means and when an engineer actually uses it. It works through a beam selection by hand and compares W shapes with their metric and European IPE and HEA counterparts. It finishes with an interactive table of all 289 shapes in US and SI units. That table includes a lightest-beam finder, a steel weight calculator, side-by-side comparison and a free DXF download for every section.</p>
 <!--more-->
-<div class="wsh-note">In this post: how to read a W designation, W vs S, M and HP shapes, wide flange beam dimensions and properties explained, a worked sizing example, common mistakes, sizes by depth group, metric and IPE/HEA equivalents, and the <a href="#wsh-tool">interactive W shape table, selector and DXF download</a>.</div>
+<div class="wsh-note">In this post: how to read a W designation, W beam vs H beam, W vs S, M and HP shapes, wide flange beam dimensions and properties explained, a worked sizing example, common mistakes, sizes by depth group, metric and IPE/HEA equivalents, and the <a href="#wsh-tool">interactive W shape table, selector and DXF download</a>.</div>
 
 <h2 class="wsh-h2"><span class="wsh-q">&#10077;</span>How to read a W beam size</h2>
 <p>A W designation has two numbers. In <b>W12×26</b>, the first number, 12, is the <b>nominal depth</b> in inches. The second, 26, is the <b>weight in pounds per linear foot</b>. That is all the name tells you. The real dimensions come from the steel tables: W12×26 is actually 12.2 in deep with a 6.49 in wide flange, a 0.38 in flange thickness and a 0.23 in web.</p>
@@ -69,6 +69,22 @@
 <li><b>HP (bearing pile)</b> shapes have the depth roughly equal to the flange width and the web as thick as the flanges, which makes them robust when driven into the ground as piles.</li>
 </ul>
 <p>"H beam" is the common name for a wide flange shape in Asia and the Middle East, and in Europe the closest families are the IPE and HE sections. A W shape with a wide flange, such as W14×90, is what many engineers would call an H section.</p>
+
+<h2 class="wsh-h2"><span class="wsh-q">&#10077;</span>W beam vs H beam: same steel, different names</h2>
+<p>If you trained in Korea, Japan, China, the Middle East or Europe, you probably call this section an <b>H beam</b>. In the United States the same rolled section is a <b>W shape</b>. There is no separate "H" family in the AISC tables: every H-shaped American section is listed among the W shapes, next to the deeper, narrower beam-type sizes.</p>
+<p>What changes is the proportion. A beam-type W shape such as W24×55 is about three times deeper than it is wide (23.6 in by 7.0 in), because it is meant to resist bending about one axis. A column-type W shape such as W12×65 is square in outline (12.1 in by 12.0 in), because a column needs stiffness about both axes. The second kind is what most of the world calls an H section.</p>
+<div class="wsh-tw"><table class="wsh-t"><thead><tr><th>Region / standard</th><th>H-shaped (column type)</th><th>I-shaped (beam type)</th><th>Channel</th></tr></thead><tbody>
+<tr><td>United States (AISC, ASTM A6)</td><td>W, e.g. W12×65; HP for piles</td><td>W, e.g. W24×55; S (sloped flanges)</td><td>C, MC</td></tr>
+<tr><td>Europe (EN 10365)</td><td>HE A, HE B, HE M</td><td>IPE</td><td>UPN, UPE</td></tr>
+<tr><td>Korea, Japan (KS D 3502, JIS G 3192)</td><td>H-300×300×10×15</td><td>H-600×200×11×17</td><td>Channel, e.g. 200×80×7.5×11</td></tr>
+</tbody></table></div>
+<p>The square H sizes line up closely across standards. These are approximate matches by dimensions and mass, useful for a first substitution check, not a replacement for checking the actual properties:</p>
+<div class="wsh-tw"><table class="wsh-t"><thead><tr><th>Asian H section (mm)</th><th>Mass (kg/m)</th><th>Closest W shape</th><th>W shape d × b<sub>f</sub> × t<sub>w</sub> × t<sub>f</sub> (mm)</th><th>Mass (kg/m)</th></tr></thead><tbody>
+<tr><td>H-200×200×8×12</td><td>49.9</td><td>W8×31</td><td>203 × 203 × 7.2 × 11.0</td><td>46.1</td></tr>
+<tr><td>H-250×250×9×14</td><td>72.4</td><td>W10×49</td><td>254 × 254 × 8.6 × 14.2</td><td>72.9</td></tr>
+<tr><td>H-300×300×10×15</td><td>94.0</td><td>W12×65</td><td>307 × 305 × 9.9 × 15.4</td><td>96.7</td></tr>
+</tbody></table></div>
+<p>In the AISC database, 34 W shapes have a flange width of at least 95 % of their depth, from W4×13 up to the W14×90–W14×283 column series. In the interactive table below, sort by b<sub>f</sub> or filter the W8, W10, W12 and W14 groups to see the H-type sizes together.</p>
 
 <h2 class="wsh-h2"><span class="wsh-q">&#10077;</span>Wide flange beam dimensions and properties explained</h2>
 <p>Every row in a W shape table carries the same set of dimensions and section properties. The figure below shows the dimensions on a W14×90 drawn to scale, and the table explains what each property is for.</p>
