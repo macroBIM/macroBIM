@@ -327,6 +327,7 @@ git status --short     # 비어 있어야 한다
 
 ### 2026-10-26
 
+- **영어 블로그 W 형강 글 이미지 · 본문 호스팅** · `blog/w-beam-sizes/` (hero · w14depth · families · notation · post.html) · 코드 아님 — macrobim.blogspot.com 예약 글(10/31)이 GitHub Pages 주소로 부른다. 지우거나 옮기면 글 이미지가 깨진다
 - **영어 블로그용 AISC 형강 데이터** · `blog/data/aisc/` (W 289 · C 32 · MC 40 · HSS 714 · Pipe 51, steelpy 1.1.1 · Apache-2.0) · 공식 AISC v15.0 엑셀과 겹치는 형강 전부 일치 확인 (`verify_v15.py`) · 코드 아님 — 블로그 형강 글의 원본 데이터
 - **영어 블로그 글 4편 이미지 · 본문 호스팅** · `blog/zero-force-members/` · `blog/mohrs-circle/` · `blog/castigliano/` · `blog/concrete-modulus/` · 코드 아님 — macrobim.blogspot.com 예약 글이 GitHub Pages 주소로 부른다. 지우거나 옮기면 글 이미지가 깨진다
 
