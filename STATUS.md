@@ -327,7 +327,7 @@ git status --short     # 비어 있어야 한다
 
 ### 2026-10-26
 
-- **영어 블로그 글 3편 이미지 · 본문 호스팅** · `blog/zero-force-members/` · `blog/mohrs-circle/` · `blog/castigliano/` · 코드 아님 — macrobim.blogspot.com 예약 글이 GitHub Pages 주소로 부른다. 지우거나 옮기면 글 이미지가 깨진다
+- **영어 블로그 글 4편 이미지 · 본문 호스팅** · `blog/zero-force-members/` · `blog/mohrs-circle/` · `blog/castigliano/` · `blog/concrete-modulus/` · 코드 아님 — macrobim.blogspot.com 예약 글이 GitHub Pages 주소로 부른다. 지우거나 옮기면 글 이미지가 깨진다
 
 ### 2026-10-25
 

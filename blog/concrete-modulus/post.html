@@ -1,0 +1,246 @@
+<div class="ecm">
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Noto+Serif+KR:wght@400;700&family=JetBrains+Mono:wght@400;600&display=swap');
+.ecm{font-family:'Noto Serif KR',serif;font-size:17px;line-height:1.85;color:#222;}
+.ecm p,.ecm li,.ecm td,.ecm th,.ecm figcaption,.ecm label,.ecm input,.ecm select,.ecm button{font-family:'Noto Serif KR',serif;}
+.ecm-h2{font-family:'Noto Serif KR',serif;font-size:24px;font-weight:400;color:#111;margin:46px 0 18px;padding:0 0 10px;border-bottom:1px solid #cfcfcf;line-height:1.5;}
+.ecm-q{display:block;font-size:34px;line-height:1;color:#9a9a9a;margin-bottom:4px;}
+.ecm-h3{font-family:'Noto Serif KR',serif;font-size:20px;font-weight:700;color:#111;margin:30px 0 12px;}
+.ecm-tw{overflow-x:auto;margin:14px 0;}
+.ecm-t{border-collapse:collapse;width:100%;font-size:15px;}
+.ecm-t th{background:#f2f2f2;font-weight:700;border:1px solid #ddd;padding:8px 10px;text-align:center;}
+.ecm-t td{border:1px solid #ddd;padding:7px 10px;text-align:center;}
+.ecm-t td:first-child{text-align:left;}
+.ecm-cap,.ecm figcaption{font-size:14px;color:#666;text-align:center;margin:4px 0 18px;}
+.ecm-fig{margin:22px 0;text-align:center;}
+.ecm-fig img{max-width:100%;height:auto;border:1px solid #e5e7eb;border-radius:6px;}
+.ecm-note{background:#f7f9fc;border-left:4px solid #5c6bc0;border-radius:6px;padding:12px 18px;margin:16px 0;font-size:16px;}
+.ecm-eq{background:#f7f9fc;border-left:4px solid #5c6bc0;border-radius:6px;padding:14px 20px;margin:16px 0;font-family:'Times New Roman','Noto Serif KR',serif;font-size:19px;line-height:2.0;color:#1a237e;overflow-x:auto;}
+.ecm-eq div{white-space:nowrap;}
+.ecm-eq small{font-family:'Noto Serif KR',serif;font-size:14px;color:#666;}
+.ecm-code{background:#1e1e2e;border-radius:10px;box-shadow:0 4px 14px rgba(0,0,0,.18);margin:16px 0;overflow:hidden;}
+.ecm-bar{background:#181825;padding:8px 14px;font-size:13px;color:#a6adc8;font-family:'JetBrains Mono',Consolas,monospace;}
+.ecm-ctitle{margin-left:12px;}
+.ecm-code pre{margin:0;padding:14px 16px;color:#cdd6f4;font-family:'JetBrains Mono',Consolas,'Malgun Gothic',monospace !important;font-size:14px;line-height:1.75;overflow-x:auto;background:#1e1e2e;font-variant-ligatures:none;}
+.ecm-ln{display:inline-block;width:2em;color:#585b70;user-select:none;}
+.ecm-calc{border:1px solid #dbe3ee;border-radius:10px;padding:16px 18px;margin:18px 0;background:#fbfcfe;}
+.ecm-row{display:flex;flex-wrap:wrap;gap:10px 16px;margin:8px 0;align-items:center;}
+.ecm-calc label{font-size:14px;color:#334155;display:flex;align-items:center;gap:6px;}
+.ecm-calc input{width:84px;padding:4px 6px;border:1px solid #cbd5e1;border-radius:5px;font-size:14px;text-align:right;}
+.ecm-calc select{padding:4px 8px;border:1px solid #cbd5e1;border-radius:5px;font-size:14px;}
+.ecm-tog{display:inline-flex;}
+.ecm-tog button{border:1px solid #cbd5e1;background:#fff;padding:5px 14px;font-size:14px;cursor:pointer;}
+.ecm-tog button:first-child{border-radius:6px 0 0 6px;}
+.ecm-tog button:last-child{border-radius:0 6px 6px 0;border-left:0;}
+.ecm-tog button.ecm-on{background:#2563eb;color:#fff;border-color:#2563eb;}
+.ecm-big{font-size:22px;color:#1a237e;margin:10px 0 4px;}
+.ecm-warn{color:#b91c1c;font-size:14px;margin:4px 0;}
+.ecm-t tr.ecm-sel td{background:#fff7ed;font-weight:700;}
+</style>
+
+<p><img src="https://macrobim.github.io/macroBIM/blog/concrete-modulus/hero.png" alt="Modulus of elasticity of concrete: stress-strain curve with secant modulus, ACI 318, Eurocode 2 and AASHTO" style="max-width:100%;height:auto;border-radius:8px;"/></p>
+
+<p>The <b>modulus of elasticity of concrete</b>, E<sub>c</sub> — also called <b>Young's modulus of concrete</b> — is one of those numbers that quietly drives a lot of design work. It sets how much a slab deflects, how much a prestressed girder cambers at release, how much prestress is lost to elastic shortening, and how much area the steel "counts for" in a cracked section. Yet most engineers never measure it — they take it from a code formula based on compressive strength.</p>
+<p>This post collects the formulas you are most likely to need — <b>ACI 318</b>, <b>Eurocode 2</b> and <b>AASHTO LRFD</b> — explains what the code value actually represents, compares the three side by side, and works through examples in US and SI units. At the end there is a concrete modulus of elasticity calculator that gives E<sub>c</sub> and the modular ratio for any strength.</p>
+<!--more-->
+
+<h2 class="ecm-h2"><span class="ecm-q">&#10077;</span>What the modulus of elasticity of concrete really is</h2>
+<p>Concrete is not a linear material. Its stress–strain curve bends over almost from the start, because microcracks at the paste–aggregate interface begin to grow under quite low stress. So "the" modulus of elasticity depends on where on the curve you measure it. Three definitions are common:</p>
+<ul>
+<li><b>Initial tangent modulus</b> — the slope at the origin. It is the stiffest value and is mainly used in research and dynamic problems.</li>
+<li><b>Tangent modulus</b> — the slope at a given stress. It falls steadily as the stress rises toward f′<sub>c</sub>.</li>
+<li><b>Secant modulus</b> — the slope of a straight line from the origin to a point on the curve. This is what design codes mean by E<sub>c</sub>.</li>
+</ul>
+<figure class="ecm-fig"><img src="https://macrobim.github.io/macroBIM/blog/concrete-modulus/fig-moduli.png" alt="Concrete stress-strain curve showing initial tangent modulus, tangent modulus and secant modulus" loading="lazy"/><figcaption>The three moduli on a typical concrete stress–strain curve. Design codes use the secant modulus.</figcaption></figure>
+<p>ACI 318 describes E<sub>c</sub> as the slope of the line from zero stress to a compressive stress of 0.45 f′<sub>c</sub>; ASTM C469, the standard US test, measures a chord modulus in the same low-stress range. Eurocode 2 defines E<sub>cm</sub> as the secant between σ<sub>c</sub> = 0 and 0.4 f<sub>cm</sub>. In both cases the idea is the same: a single straight line that represents concrete behavior at service stresses, which is where stiffness matters most.</p>
+
+<h2 class="ecm-h2"><span class="ecm-q">&#10077;</span>ACI 318 formula for concrete modulus of elasticity</h2>
+<p>ACI 318-19 gives the modulus of elasticity in Section 19.2.2.1. The general form includes the unit weight of the concrete, so it covers lightweight, sand-lightweight and normalweight mixes:</p>
+<div class="ecm-eq"><div>E<sub>c</sub> = w<sub>c</sub><sup>1.5</sup> · 33 · √f′<sub>c</sub> &nbsp; (psi) &nbsp;&nbsp;<small>for w<sub>c</sub> = 90 to 160 lb/ft³</small></div><div>E<sub>c</sub> = w<sub>c</sub><sup>1.5</sup> · 0.043 · √f′<sub>c</sub> &nbsp; (MPa) &nbsp;&nbsp;<small>for w<sub>c</sub> = 1,440 to 2,560 kg/m³</small></div></div>
+<p>For normalweight concrete the code permits a simpler expression that does not need the unit weight:</p>
+<div class="ecm-eq"><div>E<sub>c</sub> = 57,000 · √f′<sub>c</sub> &nbsp; (psi)</div><div>E<sub>c</sub> = 4,700 · √f′<sub>c</sub> &nbsp; (MPa)</div></div>
+<p>The simplified version corresponds to a unit weight of roughly 145 lb/ft³. If your concrete is heavier — typical bridge and precast mixes with reinforcement are often closer to 150 lb/ft³ — the general form gives a slightly higher value. Both are empirical fits to test data, not theory, which is why the square root of strength appears: stiffness grows with strength, but much more slowly.</p>
+<h3 class="ecm-h3"><span style="color:#0593d3;">&#9613;</span>Example 1 — ACI, US units</h3>
+<p>A normalweight concrete with f′<sub>c</sub> = 5,000 psi and a measured unit weight of 150 lb/ft³:</p>
+<div class="ecm-eq"><div>General: E<sub>c</sub> = 150<sup>1.5</sup> × 33 × √5,000 = 1,837 × 33 × 70.7 = <b>4,287 ksi</b></div><div>Simplified: E<sub>c</sub> = 57,000 × √5,000 = <b>4,031 ksi</b></div><div>Modular ratio with E<sub>s</sub> = 29,000 ksi: n = 29,000 / 4,287 = <b>6.8</b></div></div>
+<p>The two answers differ by about 6%, simply because the simplified form assumes a lighter concrete. For most building work this difference is lost in the scatter discussed below; for precast girder camber it is worth using the general form with the actual unit weight.</p>
+
+<h2 class="ecm-h2"><span class="ecm-q">&#10077;</span>Eurocode 2 formula for E<sub>cm</sub></h2>
+<p>EN 1992-1-1 (Table 3.1) relates the mean secant modulus to the <i>mean</i> compressive strength rather than the characteristic one:</p>
+<div class="ecm-eq"><div>E<sub>cm</sub> = 22 · (f<sub>cm</sub> / 10)<sup>0.3</sup> &nbsp; (GPa), &nbsp;&nbsp; f<sub>cm</sub> = f<sub>ck</sub> + 8 MPa</div></div>
+<p>The formula is calibrated for <b>quartzite</b> aggregates. Clause 3.1.3(2) tells you to reduce the value by 10% for limestone and by 30% for sandstone, and to increase it by 20% for basalt. That is a much larger effect than the difference between design codes, and it is a useful reminder that the aggregate, not the cement paste, controls most of the stiffness.</p>
+<figure class="ecm-fig"><img src="https://macrobim.github.io/macroBIM/blog/concrete-modulus/fig-aggregate.png" alt="Eurocode 2 aggregate correction factors for modulus of elasticity: basalt, quartzite, limestone, sandstone" loading="lazy"/><figcaption>Effect of aggregate type on E<sub>cm</sub> for a C30/37 concrete</figcaption></figure>
+<h3 class="ecm-h3"><span style="color:#0593d3;">&#9613;</span>Example 2 — Eurocode 2, SI units</h3>
+<div class="ecm-eq"><div>C30/37: f<sub>cm</sub> = 30 + 8 = 38 MPa</div><div>E<sub>cm</sub> = 22 × (3.8)<sup>0.3</sup> = <b>32.8 GPa</b> &nbsp;<small>(quartzite)</small></div><div>Limestone aggregate: 0.9 × 32.8 = <b>29.6 GPa</b></div></div>
+<p>Note that the Eurocode value for C30/37 (32.8 GPa) is noticeably higher than ACI's 4,700√30 = 25.7 GPa for the same cylinder strength. Part of the gap is the use of f<sub>cm</sub> instead of f<sub>ck</sub>, and part is the quartzite reference. With limestone aggregate the two codes come much closer.</p>
+
+<h2 class="ecm-h2"><span class="ecm-q">&#10077;</span>AASHTO LRFD formula — for bridge engineers</h2>
+<p>AASHTO LRFD Article 5.4.2.4 was revised (7th Edition with 2015 Interims) to an equation based on a much larger database that includes high-strength concrete:</p>
+<div class="ecm-eq"><div>E<sub>c</sub> = 120,000 · K<sub>1</sub> · w<sub>c</sub><sup>2.0</sup> · f′<sub>c</sub><sup>0.33</sup> &nbsp; (ksi) &nbsp;&nbsp;<small>w<sub>c</sub> in kcf, f′<sub>c</sub> in ksi</small></div></div>
+<p>K<sub>1</sub> is a correction factor for the source of aggregate, taken as 1.0 unless physical tests show otherwise. Because the exponent on strength is 0.33 instead of 0.5, this equation grows more slowly at high strength than ACI's square root — which matches test data on high-strength girder concrete better. Some state DOTs use their own expressions for high-strength pretensioned beams, so check the bridge manual you are working under.</p>
+<h3 class="ecm-h3"><span style="color:#0593d3;">&#9613;</span>Example 3 — prestressed girder, elastic shortening</h3>
+<p>A pretensioned girder has f′<sub>c</sub> = 8.0 ksi at 28 days and f′<sub>ci</sub> = 6.0 ksi at release. Take w<sub>c</sub> = 0.150 kcf and K<sub>1</sub> = 1.0:</p>
+<div class="ecm-eq"><div>E<sub>c</sub> = 120,000 × 1.0 × 0.150<sup>2</sup> × 8.0<sup>0.33</sup> = <b>5,363 ksi</b></div><div>E<sub>ci</sub> = 120,000 × 1.0 × 0.150<sup>2</sup> × 6.0<sup>0.33</sup> = <b>4,877 ksi</b></div><div>Elastic shortening loss: Δf<sub>pES</sub> = (E<sub>p</sub> / E<sub>ci</sub>) · f<sub>cgp</sub> = (28,500 / 4,877) × 2.0 ksi = <b>11.7 ksi</b></div></div>
+<p>Here f<sub>cgp</sub> = 2.0 ksi is an assumed concrete stress at the strand centroid. If the real E<sub>ci</sub> turns out 15% lower than the formula — not unusual with softer aggregates — the loss rises to 13.7 ksi, and camber at release increases by roughly the same proportion. That is why many precasters measure E<sub>ci</sub> for their own mixes.</p>
+
+<h2 class="ecm-h2"><span class="ecm-q">&#10077;</span>Concrete modulus of elasticity: ACI vs Eurocode 2 vs AASHTO</h2>
+<p>The tables below use the formulas exactly as written above. The US table assumes 145 lb/ft³ (0.145 kcf) for the unit-weight forms; the Eurocode column converts f′<sub>c</sub> to MPa and treats it as f<sub>ck</sub>.</p>
+<div class="ecm-tw"><table class="ecm-t"><thead><tr><th>f′c (psi)</th><th>ACI general, 145 pcf (ksi)</th><th>ACI 57,000√f′c (ksi)</th><th>AASHTO, 0.145 kcf (ksi)</th><th>EC2 quartzite (ksi)</th><th>n = 29,000 / E<sub>c</sub></th></tr></thead><tbody><tr><td>3,000</td><td>3,156</td><td>3,122</td><td>3,625</td><td>4,377</td><td>9.3</td></tr><tr><td>4,000</td><td>3,644</td><td>3,605</td><td>3,987</td><td>4,669</td><td>8.0</td></tr><tr><td>5,000</td><td>4,074</td><td>4,031</td><td>4,291</td><td>4,924</td><td>7.2</td></tr><tr><td>6,000</td><td>4,463</td><td>4,415</td><td>4,557</td><td>5,152</td><td>6.6</td></tr><tr><td>8,000</td><td>5,154</td><td>5,098</td><td>5,011</td><td>5,547</td><td>5.7</td></tr><tr><td>10,000</td><td>5,762</td><td>5,700</td><td>5,394</td><td>5,885</td><td>5.1</td></tr></tbody></table></div><p class="ecm-cap">Table 1 — E<sub>c</sub> in ksi for common US strengths. The last column uses the ACI simplified value.</p>
+<div class="ecm-tw"><table class="ecm-t"><thead><tr><th>f<sub>ck</sub> (MPa)</th><th>EC2 quartzite (GPa)</th><th>EC2 limestone (GPa)</th><th>EC2 basalt (GPa)</th><th>ACI 4,700√f′c (GPa)</th><th>AASHTO, 2,320 kg/m³ (GPa)</th></tr></thead><tbody><tr><td>20 (C20/25)</td><td>30.0</td><td>27.0</td><td>36.0</td><td>21.0</td><td>24.7</td></tr><tr><td>25 (C25/30)</td><td>31.5</td><td>28.3</td><td>37.8</td><td>23.5</td><td>26.5</td></tr><tr><td>30 (C30/37)</td><td>32.8</td><td>29.6</td><td>39.4</td><td>25.7</td><td>28.2</td></tr><tr><td>35 (C35/45)</td><td>34.1</td><td>30.7</td><td>40.9</td><td>27.8</td><td>29.7</td></tr><tr><td>40 (C40/50)</td><td>35.2</td><td>31.7</td><td>42.3</td><td>29.7</td><td>31.0</td></tr><tr><td>45 (C45/55)</td><td>36.3</td><td>32.7</td><td>43.5</td><td>31.5</td><td>32.2</td></tr><tr><td>50 (C50/60)</td><td>37.3</td><td>33.6</td><td>44.7</td><td>33.2</td><td>33.4</td></tr><tr><td>60 (C60/75)</td><td>39.1</td><td>35.2</td><td>46.9</td><td>36.4</td><td>35.4</td></tr></tbody></table></div><p class="ecm-cap">Table 2 — E<sub>c</sub> in GPa for Eurocode strength classes. The AASHTO column is converted from the US equation.</p>
+<div id="ecm-plot" style="width:100%;height:420px;"></div>
+<p class="ecm-cap">Figure — E<sub>c</sub> vs. compressive strength by code (145 lb/ft³ for ACI general and AASHTO)</p>
+<p>Three things stand out. First, below about 6,000 psi the ACI and AASHTO lines are close; above that, AASHTO's flatter curve gives lower values, while the Eurocode quartzite line stays highest throughout. Second, the spread between codes (roughly 10–20%) is smaller than the spread from aggregate type alone. Third, none of these numbers should be quoted to four significant figures — they are estimates of a property that varies from batch to batch.</p>
+
+<h2 class="ecm-h2"><span class="ecm-q">&#10077;</span>Why measured values scatter</h2>
+<p>Measured values commonly land within roughly ±20% of the code formula, and the formulas themselves were fitted to scattered test data. In practice the main reasons are:</p>
+<ul>
+<li><b>Aggregate type and volume</b> — stiff aggregates such as basalt or dense limestone raise E<sub>c</sub>; sandstone and lightweight aggregates lower it. More coarse aggregate per cubic yard also means a stiffer concrete.</li>
+<li><b>Moisture</b> — wet specimens test stiffer than dry ones, because water in the pores carries part of the load.</li>
+<li><b>Age and curing</b> — E<sub>c</sub> develops faster than strength at early ages; at release of a precast girder it may be closer to the 28-day value than the strength ratio suggests.</li>
+<li><b>Test method</b> — loading rate, specimen size and how the chord is defined all shift the result by a few percent.</li>
+</ul>
+<div class="ecm-note">Rule of thumb: if a deflection, camber or prestress-loss check is close to its limit, run it with E<sub>c</sub> ±20% before relying on it — or ask for ASTM C469 tests on the actual mix.</div>
+
+<h2 class="ecm-h2"><span class="ecm-q">&#10077;</span>Where E<sub>c</sub> matters in design</h2>
+<ul>
+<li><b>Deflection</b> — immediate deflection is inversely proportional to E<sub>c</sub>·I, so a 15% error in E<sub>c</sub> is a 15% error in deflection.</li>
+<li><b>Modular ratio</b> — n = E<sub>s</sub>/E<sub>c</sub> converts steel into equivalent concrete area for cracked-section and transformed-section analysis.</li>
+<li><b>Prestress losses and camber</b> — elastic shortening and camber at release both depend on E<sub>ci</sub>.</li>
+<li><b>Frame analysis</b> — relative stiffness of members, drift and P-delta effects all use E<sub>c</sub>.</li>
+</ul>
+<figure class="ecm-fig"><img src="https://macrobim.github.io/macroBIM/blog/concrete-modulus/fig-modular-ratio.png" alt="Transformed section using modular ratio n = Es/Ec for reinforced concrete" loading="lazy"/><figcaption>Transformed section: steel area multiplied by n becomes equivalent concrete</figcaption></figure>
+<p>If you work in spreadsheets, the formulas translate directly:</p>
+<div class="ecm-code"><div class="ecm-bar"><span style="color:#f38ba8">&#9679;</span> <span style="color:#f9e2af">&#9679;</span> <span style="color:#a6e3a1">&#9679;</span><span class="ecm-ctitle">Excel — f′c in B1 (psi), wc in B2 (pcf)</span></div><pre><span class="ecm-ln">1</span>ACI general (psi):      =B2^1.5*33*SQRT(B1)
+<span class="ecm-ln">2</span>ACI normalweight (psi): =57000*SQRT(B1)
+<span class="ecm-ln">3</span>AASHTO LRFD (ksi):      =120000*1.0*(B2/1000)^2*(B1/1000)^0.33
+<span class="ecm-ln">4</span>Modular ratio n:        =29000000/(57000*SQRT(B1))
+</pre></div>
+
+<h2 class="ecm-h2"><span class="ecm-q">&#10077;</span>Modulus of elasticity of concrete calculator</h2>
+<p>Choose units, enter the strength and unit weight, and pick a code. The table shows all methods at once so you can see how much they differ for your concrete.</p>
+<div class="ecm-calc" id="ecm-calc">
+ <div class="ecm-row"><span class="ecm-tog" id="ecm-units"><button type="button" data-u="us" class="ecm-on">US (psi, pcf)</button><button type="button" data-u="si">SI (MPa, kg/m³)</button></span></div>
+ <div class="ecm-row">
+  <label>f′c <input type="number" id="ecm-fc" value="5000" step="any"/> <span id="ecm-fcu">psi</span></label>
+  <label>w<sub>c</sub> <input type="number" id="ecm-wc" value="145" step="any"/> <span id="ecm-wcu">lb/ft³</span></label>
+ </div>
+ <div class="ecm-row">
+  <label>Code <select id="ecm-code"><option value="acig">ACI 318 — general (w<sub>c</sub>)</option><option value="acin">ACI 318 — normalweight</option><option value="ec2">Eurocode 2</option><option value="aas">AASHTO LRFD</option></select></label>
+  <label>EC2 aggregate <select id="ecm-agg"><option value="1.0">Quartzite (1.0)</option><option value="0.9">Limestone (0.9)</option><option value="0.7">Sandstone (0.7)</option><option value="1.2">Basalt (1.2)</option></select></label>
+  <label>AASHTO K<sub>1</sub> <input type="number" id="ecm-k1" value="1.0" step="0.05"/></label>
+ </div>
+ <div class="ecm-big" id="ecm-out"></div>
+ <div id="ecm-warn"></div>
+ <div class="ecm-tw"><table class="ecm-t"><thead><tr><th>Method</th><th>E<sub>c</sub> (ksi)</th><th>E<sub>c</sub> (GPa)</th><th>n = E<sub>s</sub>/E<sub>c</sub></th></tr></thead><tbody id="ecm-tb"></tbody></table></div>
+ <div id="ecm-cplot" style="width:100%;height:360px;"></div>
+ <p class="ecm-cap">E<sub>s</sub> = 29,000 ksi (200 GPa). The marker shows your input on each code curve.</p>
+</div>
+
+<h2 class="ecm-h2"><span class="ecm-q">&#10077;</span>Summary</h2>
+<ul>
+<li>Code values of E<sub>c</sub> are <b>secant moduli</b> at service stress (about 0.4–0.45 f′<sub>c</sub>), not the initial slope.</li>
+<li>ACI 318: E<sub>c</sub> = w<sub>c</sub><sup>1.5</sup>·33√f′<sub>c</sub> psi, or 57,000√f′<sub>c</sub> psi for normalweight concrete.</li>
+<li>Eurocode 2: E<sub>cm</sub> = 22(f<sub>cm</sub>/10)<sup>0.3</sup> GPa, adjusted −10% for limestone, −30% for sandstone, +20% for basalt.</li>
+<li>AASHTO LRFD: E<sub>c</sub> = 120,000·K<sub>1</sub>·w<sub>c</sub><sup>2.0</sup>·f′<sub>c</sub><sup>0.33</sup> ksi — flatter at high strength.</li>
+<li>Expect real values within about ±20% of any formula; test the mix when deflection, camber or losses govern.</li>
+</ul>
+
+<p style="font-size:15px;color:#555;"><b>Sources:</b> ACI 318-19 <i>Building Code Requirements for Structural Concrete</i>, Section 19.2.2.1 and commentary (American Concrete Institute); EN 1992-1-1:2004 Eurocode 2, Clause 3.1.3 and Table 3.1 (<a href="https://eurocodeapplied.com/design/en1992/concrete-design-properties" target="_blank" rel="noopener">summary of Table 3.1 values</a>); AASHTO LRFD Bridge Design Specifications, Article 5.4.2.4 (as quoted in the <a href="https://www.dot.state.mn.us/bridge/pdf/lrfdmanual/section05.pdf" target="_blank" rel="noopener">MnDOT LRFD Bridge Design Manual, Section 5</a>). All table values computed by the author from the formulas shown.</p>
+<p style="font-size:15px;color:#555;"><b>About the author:</b> Yopa is a structural engineer with more than 20 years in bridge design, including project work in the Middle East, and the developer of macroBIM.</p>
+
+<script>
+(function(){
+var PSI=145.0377, ES_KSI=29000, ES_GPA=200;
+var unit='us';
+function $(i){return document.getElementById(i);}
+function sq(x){return Math.sqrt(Math.max(x,0));}
+// all methods: input fc (psi), wc (pcf) -> Ec ksi
+function all(fcPsi,wcPcf,agg,k1){
+  var fcM=fcPsi/PSI;
+  return {
+   acig: Math.pow(wcPcf,1.5)*33*sq(fcPsi)/1000,
+   acin: 57000*sq(fcPsi)/1000,
+   ec2: 22000*Math.pow((fcM+8)/10,0.3)*agg*PSI/1000,
+   aas: 120000*k1*Math.pow(wcPcf/1000,2)*Math.pow(fcPsi/1000,0.33)
+  };
+}
+// SI-native for ACI to avoid rounding of the conversion
+function aciSI(fcM,wcKg){return {acig:Math.pow(wcKg,1.5)*0.043*sq(fcM), acin:4700*sq(fcM)};}
+var NAMES={acig:'ACI 318 general',acin:'ACI 318 normalweight',ec2:'Eurocode 2',aas:'AASHTO LRFD'};
+function read(){
+  var fc=parseFloat($('ecm-fc').value)||0, wc=parseFloat($('ecm-wc').value)||0;
+  var fcPsi=unit==='us'?fc:fc*PSI, wcPcf=unit==='us'?wc:wc/16.01846;
+  return {fc:fc,wc:wc,fcPsi:fcPsi,wcPcf:wcPcf,agg:parseFloat($('ecm-agg').value),k1:parseFloat($('ecm-k1').value)||1};
+}
+function f(x,d){return x.toLocaleString('en-US',{minimumFractionDigits:d,maximumFractionDigits:d});}
+function calc(){
+  var r=read(), res=all(r.fcPsi,r.wcPcf,r.agg,r.k1);
+  if(unit==='si'){var s=aciSI(r.fc,r.wc); res.acig=s.acig/6.894757; res.acin=s.acin/6.894757;}
+  var sel=$('ecm-code').value, E=res[sel], gpa=E*6.894757/1000;
+  var us='<b>'+f(E*1000,0)+' psi</b> = '+f(E,0)+' ksi', si='<b>'+f(gpa*1000,0)+' MPa</b> = '+f(gpa,1)+' GPa';
+  $('ecm-out').innerHTML=NAMES[sel]+': E<sub>c</sub> = '+(unit==='us'?us+' = '+si:si+' = '+us)+' &nbsp;·&nbsp; n = '+f(ES_KSI/E,2);
+  var w=[], fcMPa=r.fcPsi/PSI, wkg=r.wcPcf*16.01846;
+  if((sel==='acig'||sel==='aas') && (r.wcPcf<90||r.wcPcf>160)) w.push('ACI general form applies to w<sub>c</sub> = 90–160 lb/ft³ (1,440–2,560 kg/m³).');
+  if(sel==='acin' && (r.wcPcf<135||r.wcPcf>160)) w.push('The simplified ACI form is for normalweight concrete (about 145 lb/ft³).');
+  if(sel==='ec2' && (fcMPa<12||fcMPa>90)) w.push('Eurocode 2 Table 3.1 covers f<sub>ck</sub> = 12–90 MPa.');
+  if(r.fcPsi<=0) w.push('Enter a compressive strength greater than zero.');
+  $('ecm-warn').innerHTML=w.map(function(t){return '<p class="ecm-warn">'+t+'</p>';}).join('');
+  var h='';['acig','acin','ec2','aas'].forEach(function(k){var e=res[k];h+='<tr'+(k===sel?' class="ecm-sel"':'')+'><td>'+NAMES[k]+(k==='ec2'?' ('+$('ecm-agg').selectedOptions[0].text.split(' ')[0].toLowerCase()+')':'')+'</td><td>'+f(e,0)+'</td><td>'+f(e*6.894757/1000,1)+'</td><td>'+f(ES_KSI/e,2)+'</td></tr>';});
+  $('ecm-tb').innerHTML=h;
+  draw(r);
+  window.__ecmLast={res:res,sel:sel};
+}
+function curves(r){
+  var xs=[],out={acig:[],acin:[],ec2:[],aas:[]};
+  var lo=unit==='us'?2500:17, hi=unit==='us'?12000:85, n=40;
+  for(var i=0;i<=n;i++){var x=lo+(hi-lo)*i/n; xs.push(x); var fp=unit==='us'?x:x*PSI; var a=all(fp,r.wcPcf,r.agg,r.k1);
+    if(unit==='si'){var s=aciSI(x,r.wcPcf*16.01846);a.acig=s.acig/6.894757;a.acin=s.acin/6.894757;}
+    ['acig','acin','ec2','aas'].forEach(function(k){out[k].push(unit==='us'?a[k]:a[k]*6.894757/1000);});}
+  return {xs:xs,ys:out};
+}
+var COL={acig:'#2563eb',acin:'#60a5fa',ec2:'#ea580c',aas:'#16a34a'};
+function draw(r){
+  if(!window.Plotly||!$('ecm-cplot')) return;
+  var c=curves(r), sel=$('ecm-code').value, tr=[], last=null;
+  ['acig','acin','ec2','aas'].forEach(function(k){tr.push({x:c.xs,y:c.ys[k],mode:'lines',name:NAMES[k],line:{color:COL[k],width:k===sel?4:2}});});
+  var res=all(r.fcPsi,r.wcPcf,r.agg,r.k1); if(unit==='si'){var s=aciSI(r.fc,r.wc);res.acig=s.acig/6.894757;res.acin=s.acin/6.894757;}
+  var yv=unit==='us'?res[sel]:res[sel]*6.894757/1000;
+  tr.push({x:[r.fc],y:[yv],mode:'markers',name:'Your input',marker:{size:13,color:'#111',symbol:'diamond'}});
+  var ymax=Math.max.apply(null,c.ys.ec2.concat(c.ys.aas,c.ys.acig,[yv]))*1.2;
+  Plotly.react('ecm-cplot',tr,{font:{family:"'Noto Serif KR',serif",size:13},margin:{t:20,r:20,l:60,b:50},legend:{orientation:'h',y:-0.25},
+    xaxis:{title:unit==='us'?"f′c (psi)":"f′c / fck (MPa)"},yaxis:{title:unit==='us'?'Ec (ksi)':'Ec (GPa)',range:[0,ymax]}},{displayModeBar:false,responsive:true});
+}
+function setUnit(u){
+  if(u===unit) return;
+  var fc=parseFloat($('ecm-fc').value)||0, wc=parseFloat($('ecm-wc').value)||0;
+  if(u==='si'){$('ecm-fc').value=+(fc/PSI).toFixed(1);$('ecm-wc').value=Math.round(wc*16.01846);$('ecm-fcu').textContent='MPa';$('ecm-wcu').textContent='kg/m³';}
+  else{$('ecm-fc').value=Math.round(fc*PSI);$('ecm-wc').value=+(wc/16.01846).toFixed(1);$('ecm-fcu').textContent='psi';$('ecm-wcu').textContent='lb/ft³';}
+  unit=u;
+  [].forEach.call(document.querySelectorAll('#ecm-units button'),function(b){b.className=b.getAttribute('data-u')===u?'ecm-on':'';});
+  calc();
+}
+[].forEach.call(document.querySelectorAll('#ecm-units button'),function(b){b.addEventListener('click',function(){setUnit(b.getAttribute('data-u'));});});
+['ecm-fc','ecm-wc','ecm-k1'].forEach(function(id){$(id).addEventListener('input',calc);});
+['ecm-code','ecm-agg'].forEach(function(id){$(id).addEventListener('change',calc);});
+window.__ecmSetUnit=setUnit; window.__ecmCalc=calc;
+function article(){
+  if(!$('ecm-plot')) return;
+  var xs=[],tr={acig:[],aas:[],ec2:[],ec2l:[]};
+  for(var x=2500;x<=12000;x+=250){xs.push(x);var a=all(x,145,1,1);tr.acig.push(a.acig);tr.aas.push(a.aas);tr.ec2.push(a.ec2);tr.ec2l.push(a.ec2*0.9);}
+  var acin=xs.map(function(x){return 57000*Math.sqrt(x)/1000;});
+  Plotly.newPlot('ecm-plot',[
+   {x:xs,y:tr.acig,name:'ACI general (145 pcf)',line:{color:'#2563eb',width:3}},
+   {x:xs,y:acin,name:'ACI 57,000√f′c',line:{color:'#60a5fa',width:2,dash:'dash'}},
+   {x:xs,y:tr.aas,name:'AASHTO (0.145 kcf, K1 = 1)',line:{color:'#16a34a',width:3}},
+   {x:xs,y:tr.ec2,name:'Eurocode 2 (quartzite)',line:{color:'#ea580c',width:3}},
+   {x:xs,y:tr.ec2l,name:'Eurocode 2 (limestone)',line:{color:'#ea580c',width:2,dash:'dot'}}],
+   {font:{family:"'Noto Serif KR',serif",size:14},margin:{t:30,r:20,l:70,b:60},legend:{orientation:'h',y:-0.2},
+    xaxis:{title:"f′c (psi)"},yaxis:{title:'Ec (ksi)',range:[0,Math.max.apply(null,tr.ec2)*1.2]}},{displayModeBar:false,responsive:true});
+}
+function plots(){article();calc();}
+calc();
+if(window.Plotly){plots();}
+else{var s=document.createElement('script');s.src='https://cdn.plot.ly/plotly-2.35.2.min.js';s.onload=plots;document.head.appendChild(s);}
+})();
+</script>
+</div>
