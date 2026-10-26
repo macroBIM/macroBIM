@@ -1,0 +1,187 @@
+<div class="cast">
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Noto+Serif+KR:wght@400;700&display=swap');
+.cast{font-family:'Noto Serif KR',serif;font-size:17px;line-height:1.85;color:#222;}
+.cast p,.cast li,.cast td,.cast th,.cast figcaption,.cast label,.cast input,.cast select,.cast button{font-family:'Noto Serif KR',serif;}
+.cast-h2{font-family:'Noto Serif KR',serif;font-size:24px;font-weight:400;color:#111;margin:46px 0 18px;padding:0 0 10px;border-bottom:1px solid #cfcfcf;line-height:1.5;}
+.cast-q{display:block;font-size:34px;line-height:1;color:#9a9a9a;margin-bottom:4px;}
+.cast-h3{font-family:'Noto Serif KR',serif;font-size:20px;font-weight:700;color:#111;margin:30px 0 12px;}
+.cast-tw{overflow-x:auto;margin:14px 0;}
+.cast-t{border-collapse:collapse;width:100%;font-size:15px;}
+.cast-t th{background:#f2f2f2;font-weight:700;border:1px solid #ddd;padding:8px 10px;text-align:center;}
+.cast-t td{border:1px solid #ddd;padding:7px 10px;text-align:center;}
+.cast-t td:first-child{text-align:left;}
+.cast-cap,.cast figcaption{font-size:14px;color:#666;text-align:center;margin:4px 0 18px;}
+.cast-fig{margin:22px 0;text-align:center;}
+.cast-fig img{max-width:100%;height:auto;border:1px solid #e5e7eb;border-radius:6px;}
+.cast-note{background:#f7f9fc;border-left:4px solid #5c6bc0;border-radius:6px;padding:12px 18px;margin:16px 0;font-size:16px;}
+.cast-eq{background:#f7f9fc;border-left:4px solid #5c6bc0;border-radius:6px;padding:14px 20px;margin:16px 0;font-family:'Times New Roman','Noto Serif KR',serif;font-size:18px;line-height:2.0;color:#1a237e;overflow-x:auto;}
+.cast-eq div{white-space:nowrap;}
+.cast-eq .cast-c{color:#64748b;font-size:14px;font-family:'Noto Serif KR',serif;margin-left:10px;}
+.cast-tool{border:1px solid #dbe3ee;border-radius:10px;padding:16px 18px;margin:18px 0;background:#fbfcfe;}
+.cast-row{display:flex;flex-wrap:wrap;gap:10px 16px;margin:8px 0;align-items:center;}
+.cast-tool label{font-size:14px;color:#334155;display:flex;align-items:center;gap:6px;}
+.cast-tool input{width:74px;padding:4px 6px;border:1px solid #cbd5e1;border-radius:5px;font-size:14px;text-align:right;}
+.cast-tool select{padding:4px 8px;border:1px solid #cbd5e1;border-radius:5px;font-size:15px;}
+.cast-steps{background:#fff;border:1px solid #e5e7eb;border-radius:8px;padding:10px 16px;margin-top:12px;font-size:15px;line-height:1.9;}
+.cast-steps ol{margin:0;padding-left:22px;}
+.cast-steps .cast-m{font-family:'Times New Roman',serif;font-size:17px;color:#1a237e;}
+.cast-res{font-size:18px;font-weight:700;color:#0f172a;margin-top:6px;}
+.cast-ok{color:#15803d;font-size:14px;}
+.cast-warn{color:#b91c1c;font-size:14px;}
+</style>
+<p><img src="https://macrobim.github.io/macroBIM/blog/castigliano/hero.png" alt="Castigliano's theorem: deflection equals the derivative of strain energy with respect to a load" style="max-width:100%;height:auto;border-radius:8px;"/></p>
+<p>Most deflection methods ask you to integrate a differential equation or memorize a table of beam formulas. <b>Castigliano's theorem</b> — often called <b>Castigliano's method</b> — takes a different route: write down how much elastic energy the structure stores, differentiate it with respect to a load, and the result is the deflection under that load. The same three-line procedure works for cantilevers, simply supported beams, frames, trusses and even statically indeterminate structures.</p>
+<p>This post explains the theorem from the energy idea upward, shows the dummy-load trick that lets you find deflection anywhere, and works four complete examples in U.S. units. At the end there is a beam deflection calculator that shows every step of the integral, so you can check your homework or a quick hand calculation.</p>
+<div class="cast-note">In this post: the strain energy expressions you actually need, Castigliano's second theorem and the dummy (fictitious) load method, worked examples for a cantilever, a simply supported beam, a three-bar truss and a propped cantilever, common mistakes, and a step-by-step beam deflection calculator.</div>
+<!--more-->
+<h2 class="cast-h2"><span class="cast-q">&#10077;</span>What Castigliano's theorem says</h2>
+<p>When a load is applied slowly to a linear elastic structure, the work done by the load is stored as <b>strain energy</b> <i>U</i>. For a single load <i>P</i> that moves through a deflection Δ, the load–deflection line is straight, so the stored energy is the triangle under it: <i>U</i> = ½<i>P</i>Δ. Because Δ = <i>P</i>/<i>k</i>, the energy can be written purely in terms of the load, <i>U</i> = <i>P</i>²/(2<i>k</i>), and differentiating gives ∂<i>U</i>/∂<i>P</i> = <i>P</i>/<i>k</i> = Δ.</p>
+<figure class="cast-fig"><img src="https://macrobim.github.io/macroBIM/blog/castigliano/fig_energy.png" alt="Strain energy as the area under a linear load-deflection line" loading="lazy"/><figcaption>Strain energy is the area under the load–deflection line; its derivative with respect to the load is the deflection.</figcaption></figure>
+<p>Carlo Alberto Castigliano generalized this observation to structures carrying many loads and published it in 1879. His <b>second theorem</b> is the one engineers use for deflections:</p>
+<div class="cast-eq"><div>Δ<sub>i</sub> = ∂U / ∂P<sub>i</sub><span class="cast-c">deflection at the point and in the direction of load P<sub>i</sub></span></div><div>θ<sub>i</sub> = ∂U / ∂M<sub>i</sub><span class="cast-c">rotation at the point of applied moment M<sub>i</sub></span></div></div>
+<p>Here <i>U</i> must be written as a function of the loads, not of the displacements. The theorem holds for linear elastic material and small deflections, which covers almost all serviceability checks in steel and concrete design. It does not include temperature or support settlement effects directly; those are easier to handle with the unit load (virtual work) method.</p>
+<h2 class="cast-h2"><span class="cast-q">&#10077;</span>Strain energy in structural members</h2>
+<p>Every internal force stores energy. For a member of length <i>L</i>, the four contributions are:</p>
+<div class="cast-tw"><table class="cast-t"><thead><tr><th>Action</th><th>Strain energy U</th><th>Typical importance</th></tr></thead><tbody><tr><td>Axial force N</td><td>N²L / (2AE), or ∫ N²/(2AE) dx</td><td>Governs trusses and cables</td></tr><tr><td>Bending moment M</td><td>∫ M²/(2EI) dx</td><td>Governs beams and frames</td></tr><tr><td>Shear force V</td><td>∫ f<sub>s</sub>V²/(2GA) dx</td><td>Small for slender beams (span/depth &gt; 10)</td></tr><tr><td>Torque T</td><td>∫ T²/(2GJ) dx</td><td>Curved girders, grids, shafts</td></tr></tbody></table></div><p class="cast-cap">Table 1 — Strain energy terms. f<sub>s</sub> is the shear form factor (1.2 for a rectangle).</p>
+<p>In ordinary beam problems only the bending term is kept; in pin-jointed trusses only the axial term exists. Mixing them up is one of the most common errors, so decide at the start which terms your structure really needs.</p>
+<h3 class="cast-h3"><span style="color:#0593d3;">&#9613;</span>Differentiate under the integral sign</h3>
+<p>Squaring <i>M</i>(<i>x</i>), integrating and then differentiating is slow. Because the limits of integration do not depend on the load, you can differentiate first. This gives the working forms used in every example below:</p>
+<div class="cast-eq"><div>Δ = ∂U/∂P = (1/EI) ∫ M(x) · (∂M/∂P) dx<span class="cast-c">beams and frames</span></div><div>Δ = Σ N · (∂N/∂P) · L / (AE)<span class="cast-c">trusses</span></div></div>
+<p>The term ∂<i>M</i>/∂<i>P</i> is simply the bending moment produced by a unit value of <i>P</i>. That is exactly the "virtual moment" <i>m</i>(<i>x</i>) of the unit load method, which is why the two methods always give identical answers: Castigliano's theorem is the energy route, the unit load method is the virtual work route, and the arithmetic is the same.</p>
+<h2 class="cast-h2"><span class="cast-q">&#10077;</span>The dummy load trick</h2>
+<p>The theorem gives the deflection at a point where a load acts. To find deflection where there is no load — midspan of a beam under uniform load, or the horizontal movement of a roller — add an imaginary load <i>Q</i> at that point, in the direction you want. Write <i>M</i>(<i>x</i>) including <i>Q</i>, take ∂<i>M</i>/∂<i>Q</i>, and only then set <i>Q</i> = 0. The derivative keeps the effect of <i>Q</i> on the energy even though <i>Q</i> itself vanishes.</p>
+<div class="cast-note">Order matters: <b>differentiate first, then set Q = 0</b>. If you put Q = 0 before differentiating, ∂M/∂Q disappears and the deflection comes out as zero.</div>
+<h2 class="cast-h2"><span class="cast-q">&#10077;</span>Example 1 — Cantilever beam deflection with end load and uniform load</h2>
+<figure class="cast-fig"><img src="https://macrobim.github.io/macroBIM/blog/castigliano/fig_ex1.png" alt="Cantilever beam with end load P and uniform load w" loading="lazy"/><figcaption>Example 1: 10 ft cantilever, P = 5 kip at the tip, w = 0.5 kip/ft, E = 29,000 ksi, I = 500 in⁴.</figcaption></figure>
+<p>Measure <i>x</i> from the free end so that no reactions are needed. With <i>w</i> = 0.5 kip/ft = 0.04167 kip/in and <i>L</i> = 120 in, the moment and its derivative are:</p>
+<div class="cast-eq"><div>M(x) = −P x − w x²/2</div><div>∂M/∂P = −x</div><div>Δ<sub>tip</sub> = (1/EI) ∫<sub>0</sub><sup>L</sup> (P x² + w x³/2) dx = PL³/(3EI) + wL⁴/(8EI)</div></div>
+<div class="cast-tw"><table class="cast-t"><thead><tr><th>Part</th><th>Expression</th><th>Value (in)</th></tr></thead><tbody><tr><td>End load</td><td>PL³/(3EI) = 5(120)³ / (3 · 29,000 · 500)</td><td>0.199</td></tr><tr><td>Uniform load</td><td>wL⁴/(8EI) = 0.04167(120)⁴ / (8 · 29,000 · 500)</td><td>0.074</td></tr><tr><td><b>Tip deflection</b></td><td></td><td><b>0.273</b></td></tr></tbody></table></div><p class="cast-cap">Table 2 — Example 1 results. The tip already carries P, so no dummy load is needed.</p>
+<p>The uniform load has no force at the tip, yet its effect is captured: it appears in <i>M</i>(<i>x</i>), and ∂<i>M</i>/∂<i>P</i> picks it up during integration.</p>
+<h2 class="cast-h2"><span class="cast-q">&#10077;</span>Example 2 — Simply supported beam, midspan, dummy load</h2>
+<figure class="cast-fig"><img src="https://macrobim.github.io/macroBIM/blog/castigliano/fig_ex2.png" alt="Simply supported beam with uniform load and dummy load Q at midspan" loading="lazy"/><figcaption>Example 2: 24 ft span, w = 1.2 kip/ft, E = 29,000 ksi, I = 800 in⁴. A dummy load Q is placed at midspan.</figcaption></figure>
+<p>With <i>Q</i> at midspan each reaction is <i>wL</i>/2 + <i>Q</i>/2. By symmetry, integrate over the left half and double it:</p>
+<div class="cast-eq"><div>M(x) = (wL/2 + Q/2) x − w x²/2,  0 ≤ x ≤ L/2</div><div>∂M/∂Q = x/2</div><div>Δ<sub>mid</sub> = (2/EI) ∫<sub>0</sub><sup>L/2</sup> (wLx/2 − wx²/2)(x/2) dx  (Q = 0)  = 5wL⁴/(384EI)</div></div>
+<p>With <i>w</i> = 0.1 kip/in and <i>L</i> = 288 in: Δ<sub>mid</sub> = 5(0.1)(288)⁴ / (384 · 29,000 · 800) = <b>0.386 in</b>, or <i>L</i>/746 — comfortably inside a typical <i>L</i>/360 live-load limit.</p>
+<h2 class="cast-h2"><span class="cast-q">&#10077;</span>Example 3 — Truss joint deflection</h2>
+<figure class="cast-fig"><img src="https://macrobim.github.io/macroBIM/blog/castigliano/fig_ex3.png" alt="Three-bar truss with load at the apex and dummy load at the roller" loading="lazy"/><figcaption>Example 3: three-bar truss, P = 10 kip at B, all members A = 2.0 in², E = 29,000 ksi.</figcaption></figure>
+<p>For a truss the energy is Σ<i>N</i>²<i>L</i>/(2<i>AE</i>), so the deflection is Σ<i>N</i>(∂<i>N</i>/∂<i>P</i>)<i>L</i>/(<i>AE</i>). Solve the member forces once with the method of joints, then divide each by <i>P</i> to get ∂<i>N</i>/∂<i>P</i>. For the horizontal movement of roller C, add a dummy horizontal load <i>Q</i> at C; only member AC feels it, with ∂<i>N</i><sub>AC</sub>/∂<i>Q</i> = 1.</p>
+<div class="cast-tw"><table class="cast-t"><thead><tr><th>Member</th><th>L (in)</th><th>N (kip)</th><th>∂N/∂P</th><th>N(∂N/∂P)L/AE (in)</th><th>∂N/∂Q</th><th>N(∂N/∂Q)L/AE (in)</th></tr></thead><tbody><tr><td>AB</td><td>120</td><td>−8.333</td><td>−0.833</td><td>0.01437</td><td>0</td><td>0</td></tr><tr><td>BC</td><td>120</td><td>−8.333</td><td>−0.833</td><td>0.01437</td><td>0</td><td>0</td></tr><tr><td>AC</td><td>192</td><td>+6.667</td><td>+0.667</td><td>0.01471</td><td>1</td><td>0.02207</td></tr><tr><td><b>Sum</b></td><td></td><td></td><td></td><td><b>0.0434</b> (B, down)</td><td></td><td><b>0.0221</b> (C, right)</td></tr></tbody></table></div><p class="cast-cap">Table 3 — Example 3. Compression negative. Both members AB and BC shorten, AC stretches.</p>
+<p>Joint B moves down 0.043 in, and the roller at C slides 0.022 in outward — useful when you size bearing movement or check a gap.</p>
+<h2 class="cast-h2"><span class="cast-q">&#10077;</span>Example 4 — Propped cantilever (statically indeterminate)</h2>
+<figure class="cast-fig"><img src="https://macrobim.github.io/macroBIM/blog/castigliano/fig_ex4.png" alt="Propped cantilever with uniform load and redundant roller reaction R" loading="lazy"/><figcaption>Example 4: 20 ft propped cantilever under w = 2 kip/ft. The roller reaction R is treated as an unknown load.</figcaption></figure>
+<p>A support that does not move does no work, so the derivative of the energy with respect to its reaction must be zero. Remove the roller, keep its reaction <i>R</i> as an applied load, and impose ∂<i>U</i>/∂<i>R</i> = 0. Measuring <i>x</i> from the roller end:</p>
+<div class="cast-eq"><div>M(x) = R x − w x²/2,   ∂M/∂R = x</div><div>∂U/∂R = (1/EI) ∫<sub>0</sub><sup>L</sup> (R x² − w x³/2) dx = (1/EI)(RL³/3 − wL⁴/8) = 0</div><div>R = 3wL/8 = 3(2)(20)/8 = 15 kip</div></div>
+<p>The fixed end then carries 2(20) − 15 = 25 kip and a moment of <i>wL</i>²/8 = 100 kip·ft. The same idea extends to two or more redundants: one equation ∂<i>U</i>/∂<i>R<sub>j</sub></i> = 0 per unknown.</p>
+<h2 class="cast-h2"><span class="cast-q">&#10077;</span>Beam deflection calculator using Castigliano's theorem</h2>
+<p>This calculator applies Castigliano's method exactly as in the examples above. Pick a support case, enter the beam and loads, and choose where you want the deflection. The solver writes <i>M</i>(<i>x</i>) and ∂<i>M</i>/∂<i>Q</i> for a dummy load at that point, integrates numerically, and checks the answer against the closed-form formula. For the propped cantilever it first finds the redundant reaction from ∂<i>U</i>/∂<i>R</i> = 0.</p>
+<div class="cast-tool" id="cast-tool">
+ <div class="cast-row"><label>Case <select id="cast-case"><option value="cant">Cantilever (fixed left, free right)</option><option value="ss" selected>Simply supported</option><option value="prop">Propped cantilever (fixed left, roller right)</option></select></label>
+ <label>Units <select id="cast-units"><option value="us">US (kip, ft, in)</option><option value="si">SI (kN, m, mm)</option></select></label></div>
+ <div class="cast-row">
+  <label><span id="cast-lL">L (ft)</span> <input type="number" id="cast-L" value="24" step="any"></label>
+  <label><span id="cast-lE">E (ksi)</span> <input type="number" id="cast-E" value="29000" step="any"></label>
+  <label><span id="cast-lI">I (in⁴)</span> <input type="number" id="cast-I" value="800" step="any"></label></div>
+ <div class="cast-row">
+  <label><span id="cast-lw">w (kip/ft)</span> <input type="number" id="cast-w" value="1.2" step="any"></label>
+  <label><span id="cast-lP">P (kip)</span> <input type="number" id="cast-P" value="0" step="any"></label>
+  <label><span id="cast-la">a, P from left (ft)</span> <input type="number" id="cast-a" value="12" step="any"></label>
+  <label><span id="cast-lx">x₀, deflection point (ft)</span> <input type="number" id="cast-x" value="12" step="any"></label></div>
+ <div class="cast-steps" id="cast-steps"></div>
+ <div id="cast-plot" style="width:100%;height:340px;margin-top:10px;"></div>
+</div>
+<h2 class="cast-h2"><span class="cast-q">&#10077;</span>Common mistakes</h2>
+<ul><li><b>Setting the dummy load to zero too early.</b> Differentiate with respect to Q first; only then substitute Q = 0.</li><li><b>Inconsistent sign conventions.</b> M(x) and ∂M/∂P must use the same convention over the whole beam. A sign slip in one segment can cancel half the answer.</li><li><b>Forgetting segments.</b> A point load or a dummy load splits the beam; write M(x) separately on each side and integrate each part.</li><li><b>Mixing units.</b> Convert w to kip/in when L is in inches. Leaving w in kip/ft while L is in inches makes the uniform-load part 12 times too large.</li><li><b>Using the wrong energy terms.</b> Bending for beams, axial for trusses. Adding axial energy to a beam is rarely wrong, but forgetting bending in a frame is.</li><li><b>Applying it to nonlinear problems.</b> Cracked concrete, yielding steel and large deflections break the linear energy relation the theorem relies on.</li></ul>
+<h2 class="cast-h2"><span class="cast-q">&#10077;</span>Where engineers still use it</h2>
+<p>Nobody designs a bridge girder with hand integrals any more, yet Castigliano's method earns its place in daily practice. It is the fastest independent <b>check of finite element results</b>: one dummy load and one integral tell you whether the program's midspan deflection is in the right range. Bridge engineers use the same energy expressions to estimate <b>camber</b> of steel and precast girders under dead load, to check <b>truss bridge deflections</b> member by member, and to find redundant forces in small indeterminate details such as a propped stringer or a tied arch hanger. For students, it is often the method that makes indeterminate structures click, because one rule — the support does no work — replaces a page of compatibility equations.</p>
+<p>Castigliano's method and the <b>virtual work method</b> (unit load method) always give the same numbers; the choice is about convenience. Virtual work handles temperature change and support settlement more directly, while Castigliano's theorem is quicker when the loads are already symbolic or when you need a redundant reaction.</p>
+<div class="cast-tw"><table class="cast-t"><thead><tr><th>Method</th><th>Best for</th><th>Main effort</th></tr></thead><tbody><tr><td>Castigliano's theorem</td><td>Single deflections, redundants, mixed members</td><td>Write M(x) with symbolic loads</td></tr><tr><td>Virtual work (unit load)</td><td>Same problems, plus temperature and settlement</td><td>Two moment diagrams</td></tr><tr><td>Double integration</td><td>Full deflected shape of simple beams</td><td>Boundary conditions</td></tr><tr><td>Moment-area / conjugate beam</td><td>Slopes and deflections at a few points</td><td>Area and centroid of M/EI</td></tr></tbody></table></div><p class="cast-cap">Table 4 — Choosing a deflection method.</p>
+<h2 class="cast-h2"><span class="cast-q">&#10077;</span>Summary</h2>
+<ul><li>Deflection equals the derivative of strain energy with respect to the load at that point: Δ = ∂U/∂P.</li><li>Differentiate under the integral: Δ = (1/EI)∫M(∂M/∂P)dx for beams, Σ N(∂N/∂P)L/AE for trusses.</li><li>Use a dummy load Q where no real load acts, and set Q = 0 only after differentiating.</li><li>For a redundant reaction, ∂U/∂R = 0 gives the extra equation — R = 3wL/8 for a uniformly loaded propped cantilever.</li></ul>
+<p style="font-size:15px;color:#555;"><b>Sources:</b> R. C. Hibbeler, <i>Structural Analysis</i>, Pearson; J. M. Gere and B. J. Goodno, <i>Mechanics of Materials</i>, Cengage; S. P. Timoshenko, <i>Strength of Materials</i>, Part I, Van Nostrand; C. A. Castigliano, <i>Théorie de l'équilibre des systèmes élastiques</i>, Turin, 1879. Worked examples are by the author.</p>
+<p style="font-size:15px;color:#555;"><b>About the author:</b> Yopa is a structural engineer with more than 20 years in bridge design, including project work in the Middle East, and the developer of macroBIM.</p>
+<script>
+(function(){
+function $(i){return document.getElementById('cast-'+i);}
+if(!$('tool'))return;
+var U={us:{L:'ft',E:'ksi',I:'in⁴',w:'kip/ft',P:'kip',d:'in',M:'kip·ft',lenK:12,EK:1,IK:1,wK:1/12,PK:1,dK:1,ML:12},
+       si:{L:'m',E:'GPa',I:'×10⁶ mm⁴',w:'kN/m',P:'kN',d:'mm',M:'kN·m',lenK:1000,EK:1000,IK:1e6,wK:1,PK:1000,dK:1,ML:1e6}};
+var CONV={L:0.3048,a:0.3048,x:0.3048,E:0.00689476,I:0.416231426,w:14.5939029,P:4.44822162};
+var unit='us';
+function num(id){var v=parseFloat($(id).value);return isFinite(v)?v:0;}
+function fmt(v,d){if(!isFinite(v))return '—';var a=Math.abs(v);if(a!==0&&(a>=1e6||a<1e-3)){var e=v.toExponential(3).split('e');return e[0]+'×10<sup>'+(+e[1])+'</sup>';}return v.toLocaleString('en-US',{minimumFractionDigits:d,maximumFractionDigits:d});}
+function simpson(f,pts){var s=0;for(var k=0;k<pts.length-1;k++){var a=pts[k],b=pts[k+1];if(b-a<1e-12)continue;var n=200,h=(b-a)/n,t=f(a)+f(b);for(var i=1;i<n;i++)t+=f(a+i*h)*(i%2?4:2);s+=t*h/3;}return s;}
+function labels(){var u=U[unit];$('lL').textContent='L ('+u.L+')';$('lE').textContent='E ('+u.E+')';$('lI').textContent='I ('+u.I+')';$('lw').textContent='w ('+u.w+')';$('lP').textContent='P ('+u.P+')';$('la').textContent='a, P from left ('+u.L+')';$('lx').textContent='x₀, deflection point ('+u.L+')';}
+function model(){
+  var u=U[unit],c=$('case').value;
+  var L=num('L')*u.lenK,E=num('E')*u.EK,I=num('I')*u.IK,w=num('w')*u.wK,P=num('P')*u.PK,a=num('a')*u.lenK,x0=num('x')*u.lenK,warn=[];
+  if(L<=0||E<=0||I<=0)return {err:'L, E and I must be positive.'};
+  if(a<0||a>L){warn.push('a was outside the span and has been limited to 0…L.');a=Math.min(Math.max(a,0),L);}
+  if(x0<0||x0>L){warn.push('x₀ was outside the span and has been limited to 0…L.');x0=Math.min(Math.max(x0,0),L);}
+  var EI=E*I,M,R=null,RA,RB,closed;
+  function step(z){return z>0?1:0;}
+  if(c==='ss'){RA=w*L/2+P*(L-a)/L;RB=w*L/2+P*a/L;M=function(x){return RA*x-w*x*x/2-(x>a?P*(x-a):0);};}
+  else{var M0=function(x){return -w*(L-x)*(L-x)/2-(x<a?P*(a-x):0);};
+    if(c==='prop'){var num1=simpson(function(x){return M0(x)*(L-x);},[0,a,L]),den=simpson(function(x){return (L-x)*(L-x);},[0,L]);R=-num1/den;M=function(x){return M0(x)+R*(L-x);};}
+    else M=M0;}
+  function mq(xq){return c==='ss'?function(x){return x<=xq?(L-xq)*x/L:xq*(L-x)/L;}:function(x){return x<xq?-(xq-x):0;};}
+  function defl(xq){var m=mq(xq),pts=[0,a,xq,L].sort(function(p,q){return p-q;});return simpson(function(x){return M(x)*m(x);},pts)/EI;}
+  function cf(xq){ // closed form
+    if(c==='ss'){var b=L-a,dw=w*xq*(L*L*L-2*L*xq*xq+xq*xq*xq)/(24*EI),dp=xq<=a?P*b*xq*(L*L-b*b-xq*xq)/(6*EI*L):P*a*(L-xq)*(L*L-a*a-(L-xq)*(L-xq))/(6*EI*L);return dw+dp;}
+    var dw2=w*xq*xq*(6*L*L-4*L*xq+xq*xq)/(24*EI),dp2=xq<=a?P*xq*xq*(3*a-xq)/(6*EI):P*a*a*(3*xq-a)/(6*EI),d=dw2+dp2;
+    if(c==='prop')d-=R*xq*xq*(3*L-xq)/(6*EI);return d;}
+  var integ=simpson(function(x){return M(x)*mq(x0)(x);},[0,a,x0,L].sort(function(p,q){return p-q;}));
+  return {c:c,L:L,EI:EI,w:w,P:P,a:a,x0:x0,R:R,RA:RA,RB:RB,integ:integ,d:integ/EI,cf:cf(x0),warn:warn,defl:defl,
+          Rcf:c==='prop'?3*w*L/8+P*a*a*(3*L-a)/(2*L*L*L):null};
+}
+function render(){
+  var u=U[unit],r=model(),out=$('steps');
+  if(r.err){out.innerHTML='<p class="cast-warn">'+r.err+'</p>';return;}
+  var Lu=function(v){return fmt(v/u.lenK,2)+' '+u.L;},Fu=function(v){return fmt(v/u.PK,2)+' '+u.P;};
+  var s='<ol>';
+  if(r.c==='ss'){
+    s+='<li>Reactions (x from the left support): R<sub>A</sub> = wL/2 + P(L−a)/L = <b>'+Fu(r.RA)+'</b>, R<sub>B</sub> = wL/2 + Pa/L = <b>'+Fu(r.RB)+'</b>.</li>';
+    s+='<li>Real moment: <span class="cast-m">M(x) = R<sub>A</sub>x − wx²/2 − P⟨x − a⟩</span>, with a = '+Lu(r.a)+'.</li>';
+    s+='<li>Dummy load Q at x₀ = '+Lu(r.x0)+': <span class="cast-m">∂M/∂Q = (L − x₀)x/L</span> for x ≤ x₀ and <span class="cast-m">x₀(L − x)/L</span> for x &gt; x₀.</li>';
+  }else{
+    s+='<li>x is measured from the fixed end (x = 0). '+(r.c==='prop'?'Release the roller and keep its reaction R as a load.':'No reactions are needed.')+'</li>';
+    s+='<li>'+(r.c==='prop'?'Released-structure moment':'Real moment')+': <span class="cast-m">M'+(r.c==='prop'?'<sub>0</sub>':'')+'(x) = −w(L − x)²/2 − P⟨a − x⟩</span>, with a = '+Lu(r.a)+'.</li>';
+    if(r.c==='prop'){
+      s+='<li>Redundant: <span class="cast-m">∂M/∂R = (L − x)</span>, and ∂U/∂R = (1/EI)∫[M<sub>0</sub> + R(L − x)](L − x)dx = 0 → <b>R = '+Fu(r.R)+'</b> <span class="cast-ok">(closed form 3wL/8 + Pa²(3L − a)/2L³ = '+Fu(r.Rcf)+')</span>.</li>';
+      s+='<li>Real moment: <span class="cast-m">M(x) = M<sub>0</sub>(x) + R(L − x)</span>.</li>';
+    }
+    s+='<li>Dummy load Q at x₀ = '+Lu(r.x0)+': <span class="cast-m">∂M/∂Q = −(x₀ − x)</span> for x &lt; x₀, 0 beyond.</li>';
+  }
+  var iu=unit==='us'?'kip·in³':'N·mm³',eu=unit==='us'?'kip·in²':'N·mm²';
+  s+='<li>Integrate: <span class="cast-m">∫<sub>0</sub><sup>L</sup> M · (∂M/∂Q) dx</span> = '+fmt(r.integ,1)+' '+iu+', EI = '+fmt(r.EI,0)+' '+eu+'.</li>';
+  s+='<li>Δ = ∂U/∂Q (Q = 0) = '+fmt(r.integ,1)+' / '+fmt(r.EI,0)+'</li></ol>';
+  var d=r.d/u.dK,dc=r.cf/u.dK,ok=Math.abs(d-dc)<=1e-6*Math.max(1,Math.abs(dc))+1e-9;
+  s+='<div class="cast-res">Deflection at x₀ = '+fmt(d,4)+' '+u.d+' '+(d>=0?'(downward)':'(upward)')+'</div>';
+  s+='<div class="'+(ok?'cast-ok':'cast-warn')+'">Closed-form check: '+fmt(dc,4)+' '+u.d+(ok?' ✓ matches':' — differs')+(Math.abs(d)>0?' · span/deflection = L/'+fmt(r.L/Math.abs(r.d*(unit==='us'?1:1)),0):'')+'</div>';
+  if(r.warn.length)s+='<div class="cast-warn">'+r.warn.join(' ')+'</div>';
+  out.innerHTML=s;
+  // deflected shape
+  var xs=[],ys=[],n=60;for(var i=0;i<=n;i++){var xq=r.L*i/n;xs.push(xq/u.lenK);ys.push(-r.defl(xq)/u.dK);}
+  window.__castLast={d:d,cf:dc,R:r.R,xs:xs,ys:ys};
+  function draw(){if(!window.Plotly||!$('plot'))return;
+    Plotly.react($('plot'),[{x:xs,y:ys,mode:'lines',name:'Deflected shape',line:{color:'#2563eb',width:3}},
+      {x:[0,r.L/u.lenK],y:[0,0],mode:'lines',name:'Undeformed',line:{color:'#94a3b8',dash:'dot'}},
+      {x:[r.x0/u.lenK],y:[-d],mode:'markers+text',name:'x₀',marker:{size:11,color:'#ff7a1a'},text:['Δ = '+fmt(d,3)+' '+u.d],textposition:'top center',cliponaxis:false}],
+      {font:{family:"'Noto Serif KR',serif",size:14},margin:{t:30,r:20,l:70,b:50},showlegend:false,
+       xaxis:{title:'x ('+u.L+')'},yaxis:{title:'Deflection ('+u.d+')',range:[Math.min.apply(null,ys)*1.3-1e-9,Math.max(0,Math.max.apply(null,ys))*1.3+Math.abs(Math.min.apply(null,ys))*0.15+1e-9]}},
+      {displayModeBar:false,responsive:true});}
+  if(window.Plotly)draw();
+  else if(!window.__castPlotlyLoading){window.__castPlotlyLoading=true;var sc=document.createElement('script');sc.src='https://cdn.plot.ly/plotly-2.35.2.min.js';sc.onload=function(){draw();};document.head.appendChild(sc);}
+  else setTimeout(draw,800);
+}
+['case','L','E','I','w','P','a','x'].forEach(function(k){$(k).addEventListener('input',render);$(k).addEventListener('change',render);});
+$('units').addEventListener('change',function(){var nu=$('units').value;if(nu===unit)return;
+  Object.keys(CONV).forEach(function(k){var el=$(k),v=parseFloat(el.value);if(!isFinite(v))return;var f=nu==='si'?CONV[k]:1/CONV[k];el.value=+(v*f).toPrecision(5);});
+  unit=nu;labels();render();});
+$('case').addEventListener('change',function(){var c=$('case').value,u=U[unit],Lv=num('L');
+  if(c==='cant'){ $('a').value=Lv; $('x').value=Lv; } else { $('a').value=+(Lv/2).toPrecision(5); $('x').value=+(Lv/2).toPrecision(5);} render();});
+labels();render();
+})();
+
+</script>
+</div>

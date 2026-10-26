@@ -1,0 +1,190 @@
+<div class="zfm-post">
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Noto+Serif+KR:wght@400;700&display=swap');
+.zfm-post{font-family:'Noto Serif KR',serif;font-size:17px;line-height:1.85;color:#222;}
+.zfm-post p,.zfm-post li,.zfm-post td,.zfm-post th,.zfm-post figcaption,.zfm-post button{font-family:'Noto Serif KR',serif;}
+.zfm-h2{font-family:'Noto Serif KR',serif;font-size:24px;font-weight:400;color:#111;margin:46px 0 18px;padding:0 0 10px;border-bottom:1px solid #cfcfcf;line-height:1.5;}
+.zfm-q{display:block;font-size:34px;line-height:1;color:#9a9a9a;margin-bottom:4px;}
+.zfm-h3{font-family:'Noto Serif KR',serif;font-size:20px;font-weight:700;color:#111;margin:30px 0 12px;}
+.zfm-tw{overflow-x:auto;margin:14px 0;}
+.zfm-t{border-collapse:collapse;width:100%;font-size:15px;}
+.zfm-t th{background:#f2f2f2;font-weight:700;border:1px solid #ddd;padding:8px 10px;text-align:center;}
+.zfm-t td{border:1px solid #ddd;padding:7px 10px;text-align:center;}
+.zfm-tl td{text-align:left;}
+.zfm-cap,.zfm-post figcaption{font-size:14px;color:#666;text-align:center;margin:4px 0 18px;}
+.zfm-fig{margin:22px 0;text-align:center;}
+.zfm-fig img{max-width:100%;height:auto;border:1px solid #e5e7eb;border-radius:6px;}
+.zfm-note{background:#f7f9fc;border-left:4px solid #5c6bc0;border-radius:6px;padding:12px 18px;margin:16px 0;font-size:16px;}
+.zfm-quiz{border:2px solid #1F3864;border-radius:10px;padding:14px;background:#fbfcfe;font-size:15px;margin:18px 0;}
+.zfm-btn{padding:6px 12px;border:1px solid #1F3864;border-radius:6px;cursor:pointer;font-size:14px;margin:2px;background:#fff;color:#1F3864;}
+.zfm-prob{background:#fff8e1;border-left:4px solid #f59f00;border-radius:6px;padding:8px 10px;margin-bottom:10px;line-height:1.7;}
+.zfm-box{background:#f7f9fc;border-left:4px solid #5c6bc0;border-radius:6px;padding:6px 12px;color:#1a237e;line-height:1.9;margin-top:6px;}
+</style>
+<p><img src="https://macrobim.github.io/macroBIM/blog/zero-force-members/hero.png" alt="Pratt truss with zero-force members highlighted as dashed orange lines" style="max-width:100%;height:auto;border-radius:8px;"/></p>
+<p>A <b>zero-force member</b> is a truss member that carries no axial force under a particular set of loads. Spotting them before you start the method of joints or the method of sections removes unknowns, shortens any truss analysis done by hand, and is one of the first skills tested in statics and structural analysis exams.</p>
+<p>The good news is that you rarely need to calculate anything to find them. Two simple rules, both coming straight from equilibrium at a single joint, catch almost every zero-force member in a typical bridge or roof truss. This post explains the rules and why they work, then walks through three worked examples, including one case the rules cannot see. It ends with an interactive quiz where you click the zero-force members yourself and get a step-by-step solution.</p>
+<!--more-->
+<div class="zfm-note">In this post: the two rules and the loaded-joint exception, a step-by-step procedure, three worked examples with full member forces, why zero-force members are still needed in real trusses, the most common mistakes, and a quiz with random trusses.</div>
+
+<h2 class="zfm-h2"><span class="zfm-q">&#10077;</span>What is a zero-force member?</h2>
+<p>The usual truss model makes three assumptions: members are straight, joints are frictionless pins, and loads act only at the joints. Under those assumptions every member is a two-force member, so it carries only axial tension or compression. Each joint is then a small particle in equilibrium, which means two equations must hold at every joint: the forces add up to zero horizontally (ΣF<sub>x</sub> = 0) and vertically (ΣF<sub>y</sub> = 0).</p>
+<p>A zero-force member appears when the geometry of a joint makes it impossible for one member to be balanced by anything else. If a member is the only thing at a joint that can push or pull in a certain direction, and there is no load or reaction in that direction, its force has to be zero. The rules below are just this observation written down for the two joint shapes that come up most often.</p>
+<p>The examples below use the three truss layouts you will meet most often: the <b>Pratt</b> truss (verticals in compression, diagonals sloping down toward the middle), the <b>Howe</b> truss (the mirror image, with diagonals sloping up toward the middle), and the <b>Warren</b> truss (alternating diagonals, here with extra verticals). The rules work the same way for all of them.</p>
+<p>Keep in mind that “zero” always refers to a specific load case. The same member can be zero under one set of loads and heavily loaded under another, which is exactly why engineers never delete them from a real structure.</p>
+
+<h2 class="zfm-h2"><span class="zfm-q">&#10077;</span>The rules for finding zero-force members</h2>
+<figure class="zfm-fig"><img src="https://macrobim.github.io/macroBIM/blog/zero-force-members/rules.png" alt="Zero-force member rules: two-member joint, three-member joint with two collinear members, and the loaded joint exception" loading="lazy"/><figcaption>The two rules and the exception. Both rules apply only to joints with no external load and no support reaction.</figcaption></figure>
+<div class="zfm-tw"><table class="zfm-t"><thead><tr><th></th><th>Joint condition</th><th>Result</th></tr></thead><tbody><tr><td>Rule 1</td><td>No load, no support, exactly <b>two</b> members that are <b>not collinear</b></td><td>Both members are zero</td></tr><tr><td>Rule 2</td><td>No load, no support, exactly <b>three</b> members, <b>two of them collinear</b></td><td>The third (non-collinear) member is zero</td></tr><tr><td>Exception</td><td>Same as Rule 2, but a load P acts along the third member</td><td>The third member carries P, not zero</td></tr><tr><td>Not allowed</td><td>Any joint with a support reaction</td><td>Do not use the rules — the reaction can balance the member</td></tr></tbody></table></div><p class="zfm-cap">Table 1 — Zero-force member rules at a joint</p>
+<h3 class="zfm-h3"><span style="color:#0593d3;">&#9613;</span>Why Rule 1 works</h3>
+<p>Take a joint with only two members, A and B, that do not lie on the same line, and nothing else acting on it. Write the equilibrium equation in the direction perpendicular to member A. Member A has no component in that direction, so the only term left is the component of member B, which is F<sub>B</sub> sin θ, where θ is the angle between the members. Since sin θ is not zero, F<sub>B</sub> must be zero. Repeat the argument perpendicular to B and F<sub>A</sub> is zero as well.</p>
+<h3 class="zfm-h3"><span style="color:#0593d3;">&#9613;</span>Why Rule 2 works</h3>
+<p>Now take a joint with three members, where two of them lie on one straight line (for example two segments of a continuous chord) and the third comes in at an angle. Sum forces perpendicular to the straight line. The two collinear members have no component in that direction; only the third member does. With no load at the joint, that single component must vanish, so the third member is a zero-force member. Summing along the line then shows that the two collinear members carry the same force.</p>
+<h3 class="zfm-h3"><span style="color:#0593d3;">&#9613;</span>The loaded joint exception</h3>
+<p>If a load acts at the joint, the argument changes. Suppose a load P acts along the direction of the third member, such as a floor-beam reaction hanging from a vertical. Summing perpendicular to the chord now gives F<sub>3</sub> = P instead of zero. This is why the rules are stated only for <b>unloaded</b> joints, and why the position of the loads decides which members are zero.</p>
+<h3 class="zfm-h3"><span style="color:#0593d3;">&#9613;</span>The chain effect</h3>
+<p>Once you have found a zero-force member, you can treat it as if it were not there for the current load case. A neighbouring joint that used to have four members may now have three with two collinear, so Rule 2 suddenly applies. Always go around the truss a second time after the first set of zeros.</p>
+
+<h2 class="zfm-h2"><span class="zfm-q">&#10077;</span>How to find zero-force members with the method of joints</h2>
+<p>The method of joints is the standard hand method of truss analysis: you isolate one joint at a time, draw its free-body diagram, and solve ΣF<sub>x</sub> = 0 and ΣF<sub>y</sub> = 0 for at most two unknown member forces. Finding each zero-force member first is simply the method of joints applied to the easiest joints, without writing the numbers down.</p>
+<p>For example, at joint U2 of the Pratt truss in Example 1(a), take the members U1–U2 and U2–U3 along the x-axis and the vertical L2–U2 along the y-axis. With no load at U2, ΣF<sub>y</sub> = 0 gives F<sub>L2U2</sub> = 0 immediately, and ΣF<sub>x</sub> = 0 gives F<sub>U1U2</sub> = F<sub>U2U3</sub>. That is Rule 2 in two lines of algebra. A practical order of work:</p>
+<ol>
+<li>Mark every joint that has a <b>support</b> or an <b>external load</b>. The rules are not used at these joints.</li>
+<li>At each remaining joint, count the members. Two members not on one line → both zero (Rule 1).</li>
+<li>Three members with two on one line → the third is zero (Rule 2).</li>
+<li>Remove the members you found and repeat steps 2–3 at the neighbouring joints until nothing changes.</li>
+<li>If the truss and its loads are symmetric, check the middle panels with the method of sections; zero shear means zero diagonal force (Example 3).</li>
+<li>Continue the method of joints for the remaining members, starting at a support joint where only two forces are unknown.</li>
+</ol>
+
+<h2 class="zfm-h2"><span class="zfm-q">&#10077;</span>Example 1: the same Pratt truss with two load positions</h2>
+<p>Consider a four-panel Pratt truss with 12 ft panels and a depth of 9 ft. In case (a) a 20-kip load acts at each of the three bottom-chord joints, as it would when the deck hangs from the bottom chord. In case (b) the same loads act at the top-chord joints instead, like a deck-type bridge or a roof.</p>
+<figure class="zfm-fig"><img src="https://macrobim.github.io/macroBIM/blog/zero-force-members/ex1.png" alt="Pratt truss zero-force members for bottom chord loads and top chord loads" loading="lazy"/><figcaption>Example 1 — zero-force members change when the loads move from the bottom chord to the top chord</figcaption></figure>
+<p>In case (a), joints U1, U2 and U3 are unloaded. Joint U2 has the two top-chord members on one line and the vertical L2–U2 as the third member, so Rule 2 makes L2–U2 a zero-force member — the joint calculation shown above. Joints U1 and U3 each have four members (end diagonal, top chord, vertical and inner diagonal), so neither rule applies there.</p>
+<p>In case (b), the bottom-chord joints are unloaded. At L1 and L3 the bottom chord is straight and the vertical is the third member, so L1–U1 and L3–U3 are zero. Joint L2 has five members, so it is not covered by either rule, and L2–U2 now carries the full 20-kip load from U2 in compression.</p>
+<div class="zfm-tw"><table class="zfm-t"><thead><tr><th>Member</th><th>(a) bottom-chord loads</th><th>(b) top-chord loads</th></tr></thead><tbody><tr><td>L0–L1</td><td>+40.00</td><td>+40.00</td></tr><tr><td>L1–L2</td><td>+40.00</td><td>+40.00</td></tr><tr><td>L2–L3</td><td>+40.00</td><td>+40.00</td></tr><tr><td>L3–L4</td><td>+40.00</td><td>+40.00</td></tr><tr><td>U1–U2</td><td>−53.33</td><td>−53.33</td></tr><tr><td>U2–U3</td><td>−53.33</td><td>−53.33</td></tr><tr><td>L0–U1</td><td>−50.00</td><td>−50.00</td></tr><tr><td>L4–U3</td><td>−50.00</td><td>−50.00</td></tr><tr><td>U1–L2</td><td>+16.67</td><td>+16.67</td></tr><tr><td>U3–L2</td><td>+16.67</td><td>+16.67</td></tr><tr><td>L1–U1</td><td>+20.00</td><td><b style="color:#c62828">0</b></td></tr><tr><td>L2–U2</td><td><b style="color:#c62828">0</b></td><td>−20.00</td></tr><tr><td>L3–U3</td><td>+20.00</td><td><b style="color:#c62828">0</b></td></tr></tbody></table></div><p class="zfm-cap">Table 2 — Member forces for Example 1 in kips (+ tension, − compression), solved by the method of joints</p>
+<p>The table also confirms something useful: the chords and diagonals do not change at all between the two cases. Moving the loads from one chord to the other only changes the verticals, and each vertical is either a hanger carrying 20 kips or a zero-force member.</p>
+
+<h2 class="zfm-h2"><span class="zfm-q">&#10077;</span>Example 2: Howe truss and Warren truss with verticals</h2>
+<figure class="zfm-fig"><img src="https://macrobim.github.io/macroBIM/blog/zero-force-members/ex2.png" alt="Howe truss with top chord loads and Warren truss with verticals with bottom chord loads, zero-force members highlighted" loading="lazy"/><figcaption>Example 2 — the Howe truss has one zero-force member; the Warren truss with verticals has four</figcaption></figure>
+<p>In the Howe truss with 20 kips at each top-chord joint, the inner diagonals run from L1 and L3 up to the middle top joint U2, so no diagonal reaches joint L2. That joint has only the two bottom-chord members and the vertical. Rule 2 gives L2–U2 = 0. Joints L1 and L3 each have a diagonal arriving as well, so they have four members and stay loaded.</p>
+<p>The Warren truss with verticals is a common pattern for pedestrian bridges and roof trusses. With loads only at the main bottom joints L2, L4 and L6, the joints L1, L3, L5 and L7 are unloaded, have a straight bottom chord, and a single vertical. All four verticals are zero-force members. Designers add these verticals to shorten the top chord's buckling length or to pick up floor beams placed at those joints, which brings us to why they are not useless.</p>
+
+<h2 class="zfm-h2"><span class="zfm-q">&#10077;</span>Example 3: zero-force members the rules cannot see</h2>
+<figure class="zfm-fig"><img src="https://macrobim.github.io/macroBIM/blog/zero-force-members/ex3.png" alt="Warren truss with verticals under symmetric top chord loads showing two middle diagonals with zero force" loading="lazy"/><figcaption>Example 3 — the two middle diagonals are zero because of symmetry, not because of a joint rule</figcaption></figure>
+<p>Load the same Warren truss with 20 kips at each of the four top-chord joints. Rule 2 again finds the four verticals at L1, L3, L5 and L7. But the full solution shows two more zero-force members: the middle diagonals U1–L4 and L4–U2. Joint L4 has four members, so no joint rule applies.</p>
+<p>The reason is shear. The loads are symmetric, so each support takes 40 kips and the shear in the middle panels is 40 − 20 − 20 = 0. In a parallel-chord truss the diagonal in a panel carries the panel shear divided by sin θ, so zero shear means a zero diagonal. Exam questions that ask “how many zero-force members are there?” sometimes count these, so when the answer choices look off, cut a section through the middle panel and check.</p>
+
+<h2 class="zfm-h2"><span class="zfm-q">&#10077;</span>A zero-force member is not a useless member</h2>
+<p>The chart below follows a single 20-kip load as it moves along a six-panel Pratt truss. The orange bars show the force in vertical L1–U1 with the load on the bottom chord; the blue bars show vertical L3–U3 with the load on the top chord. Each vertical is zero for four of the five load positions and carries the whole load for the fifth. A regular member such as L2–U2 (grey) carries force for every position.</p>
+<div id="zfm-plot" style="width:100%;height:420px;"></div>
+<p class="zfm-cap">Figure — Member force vs. position of a single moving 20-kip load, six-panel Pratt truss (12 ft panels, 9 ft deep)</p>
+<div class="zfm-tw"><table class="zfm-t zfm-tl"><thead><tr><th>Reason to keep it</th><th>What happens</th></tr></thead><tbody><tr><td>Moving and changing loads</td><td>A vehicle, crane or snow drift moves the load to another joint — the member then carries force (see the chart above).</td></tr><tr><td>Buckling length of the compression chord</td><td>A vertical at mid-panel halves the unbraced length of the top chord. Euler load ∝ 1/L², so capacity rises about 4×.</td></tr><tr><td>Stability</td><td>A determinate truss needs m + r = 2j. Removing a member from a 4-panel Pratt (13 + 3 = 16 = 2 × 8) leaves a mechanism.</td></tr><tr><td>Real joints are not pins</td><td>Gusset plates, self-weight and deflection create small secondary forces even in “zero” members.</td></tr><tr><td>Erection and handling</td><td>Members hold the geometry while the truss is lifted, transported and connected.</td></tr></tbody></table></div><p class="zfm-cap">Table 3 — Why zero-force members stay in real trusses</p>
+<p>In bridge practice this is the normal situation. Live loads move, so a member that is zero under dead load is checked under every truck position. Light verticals in a Warren truss often exist mainly to brace the top chord, and their size is governed by stiffness and minimum section rules rather than by the analysis force.</p>
+
+<h2 class="zfm-h2"><span class="zfm-q">&#10077;</span>Common mistakes</h2>
+<div class="zfm-tw"><table class="zfm-t zfm-tl"><thead><tr><th>Mistake</th><th>What to check</th></tr></thead><tbody><tr><td>Applying the rules at a support</td><td>Joints L0 and the roller end have reactions; a lone member there is usually loaded.</td></tr><tr><td>Ignoring a load at the joint</td><td>A loaded joint breaks both rules. Check the direction of the load first.</td></tr><tr><td>Stopping after one pass</td><td>After deleting a zero-force member, revisit the neighbouring joints — new zeros often appear.</td></tr><tr><td>Calling “almost collinear” collinear</td><td>Rule 2 needs exactly the same line. A slight kink in the chord means the third member is not automatically zero.</td></tr><tr><td>Removing zero-force members from the design</td><td>They are zero for one load case only and often brace compression members. Keep them.</td></tr></tbody></table></div><p class="zfm-cap">Table 4 — Mistakes that cost points in exams</p>
+
+<h2 class="zfm-h2"><span class="zfm-q">&#10077;</span>Interactive quiz: find the zero-force members</h2>
+<p>Each problem draws a random Pratt, Howe or Warren truss with a random load case. Click the members you think are zero-force members, then press <b>Check</b>. The answer is computed by solving every joint of the truss, and the solution lists the joint and the rule that makes each member zero. Use <b>Same truss, new loads</b> to see how the zero-force members move when the loads move.</p>
+<div id="zfm-quiz" class="zfm-quiz"></div>
+<p style="font-size:14px;color:#607d8b;">Member forces are found from the equilibrium equations of all joints; a force smaller than 0.0001 P is treated as zero.</p>
+
+<h2 class="zfm-h2"><span class="zfm-q">&#10077;</span>Summary</h2>
+<ul>
+<li>At an unloaded, unsupported joint with two non-collinear members, both are zero-force members.</li>
+<li>At an unloaded, unsupported joint with three members, two of them collinear, the third is a zero-force member.</li>
+<li>A load along the third member makes it carry that load instead; supports also break the rules.</li>
+<li>Remove each zero-force member and check the neighbouring joints again; use symmetry and zero shear for the rest.</li>
+<li>Zero-force members depend on the load case and still brace, stabilise and carry other loads, so they stay in the design.</li>
+</ul>
+<p style="font-size:15px;color:#555;"><b>Sources:</b> R. C. Hibbeler, <i>Engineering Mechanics: Statics</i>, Chapter 6 (Structural Analysis — zero-force members); R. C. Hibbeler, <i>Structural Analysis</i>, Chapter 3 (Analysis of Statically Determinate Trusses). Member forces in this post were computed by the author with a joint-equilibrium solver.</p>
+<p style="font-size:15px;color:#555;"><b>About the author:</b> Yopa is a structural engineer with more than 20 years in bridge design, including project work in the Middle East, and the developer of macroBIM.</p>
+<script>
+(function(){
+var R=document.getElementById('zfm-quiz');if(!R||R.getAttribute('data-ok'))return;R.setAttribute('data-ok','1');
+// shared quiz core (geometry, solver, rules) — also embedded in the post
+function zfmGeom(ty,n){var d=12,hh=9,N=[],M=[],B=[],T=[],i;
+ if(ty==='warrenv'){for(i=0;i<=2*n;i++){B.push(N.length);N.push([i*d/2,0,'L'+i]);}for(i=0;i<n;i++){T.push(N.length);N.push([(i+0.5)*d,hh,'U'+i]);}
+  for(i=0;i<2*n;i++)M.push([B[i],B[i+1]]);for(i=0;i<n-1;i++)M.push([T[i],T[i+1]]);for(i=0;i<n;i++){M.push([B[2*i],T[i]]);M.push([T[i],B[2*i+2]]);M.push([T[i],B[2*i+1]]);}
+  var pn=[];for(i=2;i<2*n;i+=2)pn.push(B[i]);return {N:N,M:M,B:B,T:T,pn:pn};}
+ for(i=0;i<=n;i++){B.push(N.length);N.push([i*d,0,'L'+i]);}for(i=1;i<n;i++){T.push(N.length);N.push([i*d,hh,'U'+i]);}
+ var t=function(k){return T[k-1];};for(i=0;i<n;i++)M.push([B[i],B[i+1]]);for(i=1;i<n-1;i++)M.push([t(i),t(i+1)]);for(i=1;i<n;i++)M.push([B[i],t(i)]);M.push([B[0],t(1)]);M.push([B[n],t(n-1)]);
+ for(i=1;i<n-1;i++){var left=(i+0.5)*d<n*d/2;if(ty==='pratt')M.push(left?[t(i),B[i+1]]:[t(i+1),B[i]]);else M.push(left?[B[i],t(i+1)]:[B[i+1],t(i)]);}
+ var pn2=[];for(i=1;i<n;i++)pn2.push(B[i]);return {N:N,M:M,B:B,T:T,pn:pn2};}
+function zfmLoads(G,lc,one,P){var L={};if(lc==='bot')G.pn.forEach(function(k){L[k]=P;});else if(lc==='top')G.T.forEach(function(k){L[k]=P;});else if(lc==='oneb')L[G.pn[one%G.pn.length]]=P;else L[G.T[one%G.T.length]]=P;return L;}
+function zfmSolve(G,L){var N=G.N,M=G.M,j=N.length,m=M.length,A=[],b=[],r,c,p;for(r=0;r<2*j;r++){A.push(new Array(m+3).fill(0));b.push(0);}
+ M.forEach(function(e,k){var a=N[e[0]],q=N[e[1]],Ln=Math.hypot(q[0]-a[0],q[1]-a[1]),ux=(q[0]-a[0])/Ln,uy=(q[1]-a[1])/Ln;A[2*e[0]][k]+=ux;A[2*e[0]+1][k]+=uy;A[2*e[1]][k]-=ux;A[2*e[1]+1][k]-=uy;});
+ A[2*G.B[0]][m]=1;A[2*G.B[0]+1][m+1]=1;A[2*G.B[G.B.length-1]+1][m+2]=1;for(var kk in L)b[2*kk+1]+=L[kk];
+ var n2=m+3;for(p=0;p<n2;p++){var mx=p;for(r=p+1;r<n2;r++)if(Math.abs(A[r][p])>Math.abs(A[mx][p]))mx=r;var tt=A[p];A[p]=A[mx];A[mx]=tt;var tb=b[p];b[p]=b[mx];b[mx]=tb;for(r=p+1;r<n2;r++){var g=A[r][p]/A[p][p];if(!g)continue;for(c=p;c<n2;c++)A[r][c]-=g*A[p][c];b[r]-=g*b[p];}}
+ var x=new Array(n2);for(p=n2-1;p>=0;p--){var s=b[p];for(c=p+1;c<n2;c++)s-=A[p][c]*x[c];x[p]=s/A[p][p];}return x.slice(0,m);}
+function zfmRules(G,L){var N=G.N,M=G.M,act={},steps=[],sup={},k;M.forEach(function(e,i){act[i]=1;});sup[G.B[0]]=1;sup[G.B[G.B.length-1]]=1;
+ function dv(k,nd){var e=M[k],o=e[0]===nd?e[1]:e[0],dx=N[o][0]-N[nd][0],dy=N[o][1]-N[nd][1],l=Math.hypot(dx,dy);return [dx/l,dy/l];}
+ function cr(a,b){return Math.abs(a[0]*b[1]-a[1]*b[0]);}
+ var ch=true;while(ch){ch=false;for(var nd=0;nd<N.length&&!ch;nd++){if(sup[nd]||L[nd])continue;var ms=[];for(k in act)if(M[k][0]===nd||M[k][1]===nd)ms.push(+k);
+  if(ms.length===2&&cr(dv(ms[0],nd),dv(ms[1],nd))>1e-9){steps.push([nd,1,ms]);ms.forEach(function(q){delete act[q];});ch=true;}
+  else if(ms.length===3){for(var i=0;i<3;i++){var o=ms.filter(function(_,j){return j!==i;});if(cr(dv(o[0],nd),dv(o[1],nd))<1e-9){steps.push([nd,2,[ms[i]]]);delete act[ms[i]];ch=true;break;}}}}}
+ return steps;}
+
+var S={ty:'pratt',n:4,lc:'bot',one:1,P:20,pick:{},graded:false,score:0,tries:0,streak:0,showF:false};
+function pick(a){return a[Math.floor(Math.random()*a.length)];}
+function fm(x){var v=Math.round(x*10)/10;if(Math.abs(v)<0.05)v=0;return (v>0?'+':'')+v;}
+R.innerHTML='<div style="font-size:18px;font-weight:700;color:#1F3864;margin-bottom:6px;">Zero-force member quiz — click the members you think carry no force</div>'
++'<div style="font-size:14px;color:#455a64;margin-bottom:8px;">Click a member to mark it <b style="color:#e8590c">orange</b>; click again to unmark. Press <b>Check</b> when you are done. Some problems have no zero-force members at all.</div>'
++'<div style="margin-bottom:8px;"><button type="button" class="zfm-btn" id="zfm-new" style="background:#e8590c;color:#fff;border-color:#e8590c;">New truss</button> <button type="button" class="zfm-btn" id="zfm-load">Same truss, new loads</button> <button type="button" class="zfm-btn" id="zfm-grade" style="background:#2e7d32;color:#fff;border-color:#2e7d32;">Check</button> <button type="button" class="zfm-btn" id="zfm-show">Show member forces</button></div>'
++'<div id="zfm-stat" style="font-size:14px;color:#1F3864;margin-bottom:6px;"></div><div id="zfm-prob" class="zfm-prob"></div><div id="zfm-res"></div>';
+var G,L,F,Z;
+function $(i){return document.getElementById(i);}
+function setup(newG){if(newG){S.ty=pick(['pratt','pratt','howe','warrenv','warrenv']);S.n=S.ty==='warrenv'?pick([3,4]):pick([4,6]);}
+ S.lc=pick(['bot','top','top','oneb','onet']);S.one=Math.floor(Math.random()*6);S.P=pick([10,15,20,25,30,40]);
+ G=zfmGeom(S.ty,S.n);L=zfmLoads(G,S.lc,S.one,S.P);F=zfmSolve(G,L);Z={};F.forEach(function(v,k){if(Math.abs(v)<1e-6*S.P)Z[k]=1;});
+ S.pick={};S.graded=false;S.showF=false;draw();}
+function nm(k){return G.N[G.M[k][0]][2]+G.N[G.M[k][1]][2];}
+function draw(){var N=G.N,W=720,span=0;N.forEach(function(p){span=Math.max(span,p[0]);});var sc=Math.min((W-140)/span,200/9),X0=(W-span*sc)/2,Y=70+9*sc,s='';
+ function X(x){return X0+x*sc;}function Yp(y){return Y-y*sc;}
+ G.M.forEach(function(e,k){var p=N[e[0]],q=N[e[1]],col='#1F3864',w=5,da='';
+  if(S.showF){var v=F[k];col=Math.abs(v)<1e-6*S.P?'#b0bec5':(v>0?'#1565c0':'#c62828');}
+  if(S.pick[k]&&!S.graded){col='#e8590c';w=8;}
+  if(S.graded){if(Z[k]&&S.pick[k]){col='#2e7d32';w=8;}else if(Z[k]){col='#c62828';w=8;da=' stroke-dasharray="10,6"';}else if(S.pick[k]){col='#90a4ae';w=8;}}
+  s+='<line x1="'+X(p[0])+'" y1="'+Yp(p[1])+'" x2="'+X(q[0])+'" y2="'+Yp(q[1])+'" stroke="'+col+'" stroke-width="'+w+'" stroke-linecap="round"'+da+'/>';
+  if(S.showF){var mx=(X(p[0])+X(q[0]))/2,my=(Yp(p[1])+Yp(q[1]))/2;s+='<rect x="'+(mx-22)+'" y="'+(my-9)+'" width="44" height="16" rx="3" fill="#fff" fill-opacity="0.9"/><text x="'+mx+'" y="'+(my+4)+'" font-size="11" text-anchor="middle" fill="'+col+'" font-weight="700">'+fm(F[k])+'</text>';}
+  s+='<line class="zfm-hit" data-m="'+k+'" x1="'+X(p[0])+'" y1="'+Yp(p[1])+'" x2="'+X(q[0])+'" y2="'+Yp(q[1])+'" stroke="#000" stroke-opacity="0" stroke-width="22" style="cursor:pointer"/>';});
+ N.forEach(function(p,i){s+='<circle cx="'+X(p[0])+'" cy="'+Yp(p[1])+'" r="5" fill="#fff" stroke="#1F3864" stroke-width="2" pointer-events="none"/>';
+  s+=p[1]>0?'<text x="'+(X(p[0])+9)+'" y="'+(Yp(p[1])-9)+'" font-size="11" fill="#333" font-weight="700" pointer-events="none">'+p[2]+'</text>':'<text x="'+(X(p[0])-8)+'" y="'+(Yp(p[1])+18)+'" font-size="11" text-anchor="end" fill="#333" font-weight="700" pointer-events="none">'+p[2]+'</text>';});
+ var a=X(0),b=X(span);s+='<polygon points="'+a+','+(Y+5)+' '+(a-11)+','+(Y+23)+' '+(a+11)+','+(Y+23)+'" fill="#fff" stroke="#333" stroke-width="1.8"/><polygon points="'+b+','+(Y+5)+' '+(b-11)+','+(Y+21)+' '+(b+11)+','+(Y+21)+'" fill="#fff" stroke="#333" stroke-width="1.8"/><circle cx="'+(b-6)+'" cy="'+(Y+26)+'" r="4" fill="#fff" stroke="#333"/><circle cx="'+(b+6)+'" cy="'+(Y+26)+'" r="4" fill="#fff" stroke="#333"/>';
+ for(var kk in L){var p2=N[kk],x=X(p2[0]),y=Yp(p2[1]);if(p2[1]>0)s+='<line x1="'+x+'" y1="'+(y-52)+'" x2="'+x+'" y2="'+(y-12)+'" stroke="#e8590c" stroke-width="2.4"/><polygon points="'+x+','+(y-6)+' '+(x-5)+','+(y-16)+' '+(x+5)+','+(y-16)+'" fill="#e8590c"/><text x="'+(x+6)+'" y="'+(y-42)+'" font-size="12" fill="#e8590c" font-weight="700">'+S.P+'</text>';
+  else s+='<line x1="'+x+'" y1="'+(y+26)+'" x2="'+x+'" y2="'+(y+58)+'" stroke="#e8590c" stroke-width="2.4"/><polygon points="'+x+','+(y+64)+' '+(x-5)+','+(y+54)+' '+(x+5)+','+(y+54)+'" fill="#e8590c"/><text x="'+(x+6)+'" y="'+(y+74)+'" font-size="12" fill="#e8590c" font-weight="700">'+S.P+'</text>';}
+ var tn={pratt:'Pratt',howe:'Howe',warrenv:'Warren with verticals'}[S.ty],lc={bot:'at every loaded bottom-chord joint',top:'at every top-chord joint',oneb:'at one bottom-chord joint',onet:'at one top-chord joint'}[S.lc];
+ $('zfm-prob').innerHTML='<svg viewBox="0 0 '+W+' '+(Y+86)+'" style="width:100%;max-width:680px;display:block;margin:0 auto 6px;background:#fff;border:1px solid #eceff1;border-radius:6px;user-select:none;font-family:serif;">'+s+'</svg><b>Problem.</b> '+tn+' truss, '+S.P+' kips '+lc+'. Pin support at the left end, roller at the right end. <b>Select every zero-force member.</b>';
+ [].forEach.call(R.querySelectorAll('.zfm-hit'),function(el){el.addEventListener('click',function(){if(S.graded)return;var k=+this.getAttribute('data-m');if(S.pick[k])delete S.pick[k];else S.pick[k]=1;draw();});});
+ $('zfm-stat').innerHTML='Score <b>'+S.score+' / '+S.tries+'</b> &nbsp;·&nbsp; streak <b style="color:#e8590c">'+S.streak+'</b>';
+ $('zfm-show').textContent=S.showF?'Hide member forces':'Show member forces';if(!S.graded)$('zfm-res').innerHTML='';}
+function grade(){if(S.graded)return;S.graded=true;S.tries++;var zk=Object.keys(Z).map(Number),pk=Object.keys(S.pick).map(Number);
+ var miss=zk.filter(function(k){return !S.pick[k];}),wrong=pk.filter(function(k){return !Z[k];}),ok=!miss.length&&!wrong.length;if(ok){S.score++;S.streak++;}else S.streak=0;
+ S.showF=true;draw();var st=zfmRules(G,L),rs={};st.forEach(function(s){s[2].forEach(function(k){rs[k]=1;});});
+ var r='<div style="font-size:17px;font-weight:700;color:'+(ok?'#2e7d32':'#c62828')+';margin:6px 0;">'+(ok?'Correct — you found every zero-force member.':'Not quite.')+'</div>';
+ r+='<div style="font-size:13px;color:#607d8b;">green = correctly selected · red dashed = missed · grey = selected but not zero · member forces in kips (+ tension, − compression)</div>';
+ r+='<div class="zfm-box">Zero-force members: <b>'+(zk.length?zk.map(nm).join(', '):'none')+'</b>'+(miss.length?'<br>Missed: '+miss.map(nm).join(', '):'')+(wrong.length?'<br>Not zero: '+wrong.map(function(k){return nm(k)+' ('+fm(F[k])+' kips)';}).join(', '):'')+'</div>';
+ r+='<div class="zfm-box"><b>Step-by-step solution</b><br>';
+ st.forEach(function(s,i){var n=G.N[s[0]][2];r+=(i+1)+'. Joint <b>'+n+'</b>: '+(s[1]===1?'unloaded, two non-collinear members → '+s[2].map(nm).join(' and ')+' = 0 (Rule 1)':'unloaded, three members with two collinear → '+s[2].map(nm).join(', ')+' = 0 (Rule 2)')+'<br>';});
+ var calc=zk.filter(function(k){return !rs[k];});if(calc.length)r+='Not visible to the rules, zero by calculation (symmetry, zero panel shear): <b>'+calc.map(nm).join(', ')+'</b><br>';
+ if(!zk.length)r+='No unloaded joint satisfies Rule 1 or Rule 2, and no panel has zero shear — every member carries force.<br>';
+ r+='</div>';$('zfm-res').innerHTML=r;}
+$('zfm-new').onclick=function(){setup(true);};$('zfm-load').onclick=function(){setup(false);};$('zfm-grade').onclick=grade;
+$('zfm-show').onclick=function(){S.showF=!S.showF;var g=S.graded;draw();if(g){}};
+setup(true);
+})();
+</script>
+<script>
+(function(){
+function draw(){var el=document.getElementById('zfm-plot');if(!el||!window.Plotly)return;
+var x=['Joint 1','Joint 2','Joint 3','Joint 4','Joint 5'];
+Plotly.newPlot(el,[
+{type:'bar',name:'L1–U1, load on bottom chord',x:x,y:[20.0, 0.0, 0.0, 0.0, 0.0],marker:{color:'#e8590c'},text:["20.0", "0.0", "0.0", "0.0", "0.0"],textposition:'outside',cliponaxis:false},
+{type:'bar',name:'L3–U3, load on top chord',x:x,y:[0.0, 0.0, -20.0, 0.0, 0.0],marker:{color:'#1565c0'},text:["0.0", "0.0", "-20.0", "0.0", "0.0"],textposition:'outside',cliponaxis:false},
+{type:'bar',name:'L2–U2, load on bottom chord',x:x,y:[3.33, 6.67, -10.0, -6.67, -3.33],marker:{color:'#90a4ae'},text:["3.3", "6.7", "-10.0", "-6.7", "-3.3"],textposition:'outside',cliponaxis:false}],
+{font:{family:"'Noto Serif KR',serif",size:14},barmode:'group',margin:{t:50,r:20,l:70,b:60},legend:{orientation:'h',y:1.18},
+yaxis:{title:'Member force (kips)',range:[-24.00,24.00],zeroline:true},xaxis:{title:'Position of the single 20-kip load'}},{displayModeBar:false,responsive:true});}
+if(window.Plotly)draw();else{var s=document.createElement('script');s.src='https://cdn.plot.ly/plotly-2.35.2.min.js';s.onload=draw;document.head.appendChild(s);}
+})();
+</script>
+</div>

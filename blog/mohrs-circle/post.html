@@ -1,0 +1,226 @@
+<div class="mohr">
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Noto+Serif+KR:wght@400;700&display=swap');
+.mohr{font-family:'Noto Serif KR',serif;font-size:17px;line-height:1.85;color:#222;}
+.mohr p,.mohr li,.mohr td,.mohr th,.mohr figcaption,.mohr label,.mohr input,.mohr select,.mohr button{font-family:'Noto Serif KR',serif;}
+.mohr-h2{font-family:'Noto Serif KR',serif;font-size:24px;font-weight:400;color:#111;margin:46px 0 18px;padding:0 0 10px;border-bottom:1px solid #cfcfcf;line-height:1.5;}
+.mohr-q{display:block;font-size:34px;line-height:1;color:#9a9a9a;margin-bottom:4px;}
+.mohr-h3{font-family:'Noto Serif KR',serif;font-size:20px;font-weight:700;color:#111;margin:30px 0 12px;}
+.mohr-tw{overflow-x:auto;margin:14px 0;}
+.mohr-t{border-collapse:collapse;width:100%;font-size:15px;}
+.mohr-t th{background:#f2f2f2;font-weight:700;border:1px solid #ddd;padding:8px 10px;text-align:center;}
+.mohr-t td{border:1px solid #ddd;padding:7px 10px;text-align:center;}
+.mohr-t td:first-child{text-align:left;}
+.mohr-cap,.mohr figcaption{font-size:14px;color:#666;text-align:center;margin:4px 0 18px;}
+.mohr-fig{margin:22px 0;text-align:center;}
+.mohr-fig img{max-width:100%;height:auto;border:1px solid #e5e7eb;border-radius:6px;}
+.mohr-note{background:#f7f9fc;border-left:4px solid #5c6bc0;border-radius:6px;padding:12px 18px;margin:16px 0;font-size:16px;}
+.mohr-eq{background:#f7f9fc;border-left:4px solid #5c6bc0;border-radius:6px;padding:14px 20px;margin:16px 0;font-family:'Times New Roman','Noto Serif KR',serif;font-size:19px;line-height:2.0;color:#1a237e;overflow-x:auto;}
+.mohr-eq div{white-space:nowrap;}
+.mohr-calc{border:1px solid #dbe3ee;border-radius:10px;padding:16px 18px;margin:18px 0;background:#fbfcfe;}
+.mohr-row{display:flex;flex-wrap:wrap;gap:10px 16px;margin:6px 0 12px;align-items:center;}
+.mohr-calc label{font-size:15px;color:#334155;display:flex;align-items:center;gap:6px;}
+.mohr-calc input{width:74px;padding:4px 6px;border:1px solid #cbd5e1;border-radius:5px;font-size:15px;text-align:right;}
+.mohr-calc select{padding:4px 8px;border:1px solid #cbd5e1;border-radius:5px;font-size:15px;}
+.mohr-calc input[type=range]{width:180px;}
+.mohr-grid{display:flex;flex-wrap:wrap;gap:14px;align-items:flex-start;}
+.mohr-grid > div{flex:1 1 300px;min-width:0;}
+.mohr-svgbox svg{width:100%;height:auto;background:#fff;border:1px solid #e5e7eb;border-radius:8px;}
+.mohr-ex{display:inline-block;margin:2px 6px 2px 0;padding:4px 10px;border:1px solid #cbd5e1;border-radius:14px;background:#fff;font-size:13px;cursor:pointer;}
+.mohr-ex:hover{background:#eef2ff;}
+</style>
+
+<p><img src="https://macrobim.github.io/macroBIM/blog/mohrs-circle/hero.png" alt="Mohr's circle for plane stress showing principal stresses and maximum shear" style="max-width:100%;height:auto;border-radius:8px;"/></p>
+
+<p>Mohr's circle is the picture that turns the stress transformation equations into geometry. Give it the stresses on two perpendicular faces of a small element — σ<sub>x</sub>, σ<sub>y</sub> and τ<sub>xy</sub> — and it tells you, at a glance, the largest and smallest normal stresses anywhere in the material, the planes they act on, and the maximum shear stress.</p>
+<p>Most students lose marks on Mohr's circle not because the math is hard, but because of signs: which way to plot the shear, whether the angle on the circle is θ or 2θ, and which way to turn. This post walks through the construction with one clear sign rule, solves a complete example by hand, and ends with an interactive calculator that draws the circle for any stress state you type in.</p>
+<!--more-->
+<div class="mohr-note">In this post: what the circle represents, the transformation equations, a sign convention you can trust, a four-step drawing method, a fully worked example in ksi and MPa, an interactive Mohr's circle calculator, the most common mistakes, and where engineers actually use it.</div>
+
+<h2 class="mohr-h2"><span class="mohr-q">&#10077;</span>What Mohr's circle actually shows</h2>
+<p>Imagine cutting a tiny square element out of a loaded beam, plate or shaft. On its x-faces there is a normal stress σ<sub>x</sub> and a shear stress τ<sub>xy</sub>; on its y-faces there is σ<sub>y</sub> and the same τ<sub>xy</sub> (shear on perpendicular faces must be equal for the element to stay in equilibrium). Now rotate that element by an angle θ. The stresses on the new faces change — some angles give higher tension, some give more shear.</p>
+<p>Every possible orientation of the element corresponds to one point on a single circle drawn in the σ–τ plane. The horizontal coordinate of the point is the normal stress on that face; the vertical coordinate is the shear stress. The two points where the circle crosses the σ axis have zero shear: those are the <b>principal stresses</b> σ<sub>1</sub> and σ<sub>2</sub>. The top and bottom of the circle are the planes of <b>maximum in-plane shear</b>, and the radius of the circle is that maximum shear value.</p>
+<p>That is the whole idea. Instead of evaluating trigonometric equations for many angles, you draw one circle and read the extremes off it. (You will also see it called simply the Mohr circle — same thing.)</p>
+
+<h2 class="mohr-h2"><span class="mohr-q">&#10077;</span>The stress transformation equations</h2>
+<p>The circle is not a separate theory — it is just a graph of the plane-stress transformation equations. For an element rotated counterclockwise by θ from the x-axis:</p>
+<div class="mohr-eq"><div>σ<sub>x′</sub> = (σ<sub>x</sub> + σ<sub>y</sub>)/2 + (σ<sub>x</sub> − σ<sub>y</sub>)/2 · cos 2θ + τ<sub>xy</sub> · sin 2θ</div><div>τ<sub>x′y′</sub> = −(σ<sub>x</sub> − σ<sub>y</sub>)/2 · sin 2θ + τ<sub>xy</sub> · cos 2θ</div></div>
+<p>If you square both equations and add them, θ disappears and you are left with the equation of a circle:</p>
+<div class="mohr-eq"><div>(σ<sub>x′</sub> − C)<sup>2</sup> + τ<sub>x′y′</sub><sup>2</sup> = R<sup>2</sup></div><div>C = (σ<sub>x</sub> + σ<sub>y</sub>)/2 &nbsp;&nbsp;&nbsp; R = √[ ((σ<sub>x</sub> − σ<sub>y</sub>)/2)<sup>2</sup> + τ<sub>xy</sub><sup>2</sup> ]</div></div>
+<p>So the center sits on the σ axis at the average normal stress C, and the radius R depends only on the difference between the normal stresses and on the shear. Everything else follows from these two numbers:</p>
+<div class="mohr-eq"><div>σ<sub>1</sub>, σ<sub>2</sub> = C ± R &nbsp;&nbsp;&nbsp; τ<sub>max</sub> = R</div><div>tan 2θ<sub>p</sub> = 2τ<sub>xy</sub> / (σ<sub>x</sub> − σ<sub>y</sub>)</div></div>
+
+<h2 class="mohr-h2"><span class="mohr-q">&#10077;</span>The sign convention (read this first)</h2>
+<p>The equations above use the standard mechanics sign convention: tension is positive, and τ<sub>xy</sub> is positive when it acts in the +y direction on the positive x-face (and therefore in the +x direction on the positive y-face). The equations are unambiguous. The trouble starts when you plot shear on the circle, because textbooks use different but equivalent rules for the vertical axis.</p>
+<p>In this post, and in the calculator below, the rule is:</p>
+<div class="mohr-note"><b>Clockwise shear is plotted up.</b> Look at the pair of shear stresses on one set of faces. If they form a couple that would turn the element clockwise, plot that face's point above the σ axis; if counterclockwise, plot it below.</div>
+<figure class="mohr-fig"><img src="https://macrobim.github.io/macroBIM/blog/mohrs-circle/convention.png" alt="Mohr's circle shear sign convention: clockwise shear plotted above the axis" loading="lazy"/><figcaption>The rule used throughout this post</figcaption></figure>
+<p>A positive τ<sub>xy</sub> pushes up on the right face and down on the left face, which turns the element counterclockwise. So for positive τ<sub>xy</sub> the x-face point X is plotted <i>below</i> the axis at (σ<sub>x</sub>, −τ<sub>xy</sub>), and the y-face point Y is plotted above at (σ<sub>y</sub>, +τ<sub>xy</sub>).</p>
+<p>The payoff is simple: with this rule, <b>if the element rotates θ counterclockwise, the point on the circle moves 2θ counterclockwise</b>. Same direction, double the angle. You never have to remember a "reverse the direction" exception.</p>
+<div class="mohr-tw"><table class="mohr-t"><thead><tr><th>Convention</th><th>How shear is plotted</th><th>Rotation on circle</th></tr></thead><tbody><tr><td>Clockwise shear up (this post)</td><td>τ axis positive upward; X at (σx, −τxy)</td><td>Same direction as element, 2θ</td></tr><tr><td>τ axis positive downward (common in US textbooks)</td><td>X at (σx, +τxy) on a downward τ axis</td><td>Same direction as element, 2θ — identical picture</td></tr><tr><td>τxy plotted directly with τ axis up</td><td>X at (σx, +τxy) on an upward τ axis</td><td>Mirror image — rotation direction flips</td></tr></tbody></table></div><p class="mohr-cap">Table 1 — The first two give the same drawing. The third is valid but forces you to reverse every rotation, which is where most sign errors come from.</p>
+
+<h2 class="mohr-h2"><span class="mohr-q">&#10077;</span>How to draw Mohr's circle in four steps</h2>
+<figure class="mohr-fig"><img src="https://macrobim.github.io/macroBIM/blog/mohrs-circle/steps.png" alt="Four steps to draw Mohr's circle" loading="lazy"/><figcaption>Drawing Mohr's circle: center, two face points, circle, results</figcaption></figure>
+<ol>
+<li><b>Draw the axes and mark the center.</b> Horizontal axis σ (tension to the right), vertical axis τ (clockwise up). The center is at C = (σ<sub>x</sub> + σ<sub>y</sub>)/2 on the σ axis.</li>
+<li><b>Plot the two face points.</b> X = (σ<sub>x</sub>, shear on the x-face) and Y = (σ<sub>y</sub>, shear on the y-face), using the clockwise-up rule. X and Y always lie on opposite ends of a diameter, so the line X–Y passes through C — a quick check that you plotted them correctly.</li>
+<li><b>Draw the circle.</b> The radius is the distance from C to X: R = √[((σ<sub>x</sub> − σ<sub>y</sub>)/2)² + τ<sub>xy</sub>²].</li>
+<li><b>Read the answers.</b> The right and left intersections with the σ axis are σ<sub>1</sub> = C + R and σ<sub>2</sub> = C − R. The angle on the circle from X to σ<sub>1</sub> is 2θ<sub>p</sub>; the element turns half of that, in the same direction. The top and bottom points give τ<sub>max</sub> = R, and on those planes the normal stress is C, not zero.</li>
+</ol>
+
+<h2 class="mohr-h2"><span class="mohr-q">&#10077;</span>Worked example: principal stresses step by step</h2>
+<p>A point in a steel plate carries σ<sub>x</sub> = 12 ksi (tension), σ<sub>y</sub> = −4 ksi (compression) and τ<sub>xy</sub> = +6 ksi. Find the principal stresses and their directions, the maximum in-plane shear, and the stresses on a face rotated 30° counterclockwise.</p>
+<figure class="mohr-fig"><img src="https://macrobim.github.io/macroBIM/blog/mohrs-circle/element.png" alt="Plane stress element and principal element for the worked example" loading="lazy"/><figcaption>(a) The given stress state. (b) The same point on the principal planes — no shear, only σ1 and σ2.</figcaption></figure>
+<h3 class="mohr-h3"><span style="color:#0593d3;">&#9613;</span>Center and radius</h3>
+<div class="mohr-eq"><div>C = (12 + (−4)) / 2 = 4 ksi</div><div>R = √[ ((12 − (−4))/2)<sup>2</sup> + 6<sup>2</sup> ] = √(8<sup>2</sup> + 6<sup>2</sup>) = 10 ksi</div><div>σ<sub>1</sub> = 4 + 10 = 14 ksi &nbsp;&nbsp;&nbsp; σ<sub>2</sub> = 4 − 10 = −6 ksi</div></div>
+<p>The positive shear on the x-face turns the element counterclockwise, so X is plotted below the axis at (12, −6) and Y above it at (−4, +6). From the center, X sits 8 units to the right and 6 units down, so the angle between C–X and the σ axis is atan(6/8) = 36.87°.</p>
+<h2 class="mohr-h2"><span class="mohr-q">&#10077;</span>Principal Stresses and Maximum Shear Stress from the Circle</h2>
+<p>Once the circle is drawn, the principal stresses and the maximum shear stress are simply its extreme points: the far right and far left of the circle on the σ axis, and its top and bottom. For our example that gives σ<sub>1</sub> = 14 ksi, σ<sub>2</sub> = −6 ksi and τ<sub>max</sub> = 10 ksi. What the Mohr circle adds beyond those three numbers is the <i>direction</i> of each one.</p>
+<h3 class="mohr-h3"><span style="color:#0593d3;">&#9613;</span>Principal direction</h3>
+<p>To go from X to σ<sub>1</sub> on the circle we turn 2θ<sub>p</sub> = 36.87° counterclockwise. The element therefore turns θ<sub>p</sub> = 18.43° counterclockwise: on faces whose normal is 18.4° above the x-axis, the stress is pure tension of 14 ksi, and on the perpendicular faces it is pure compression of 6 ksi. The formula agrees: tan 2θ<sub>p</sub> = 2(6) / (12 − (−4)) = 0.75, so 2θ<sub>p</sub> = 36.87°.</p>
+<figure class="mohr-fig"><img src="https://macrobim.github.io/macroBIM/blog/mohrs-circle/example.png" alt="Mohr's circle for the worked example with principal stresses and rotated plane" loading="lazy"/><figcaption>The worked example drawn to scale (ksi)</figcaption></figure>
+<h3 class="mohr-h3"><span style="color:#0593d3;">&#9613;</span>Maximum in-plane shear</h3>
+<p>The top of the circle is 90° on the circle — 45° on the element — away from the principal points, so the planes of maximum shear are at θ<sub>s</sub> = θ<sub>p</sub> − 45° = −26.6° (that is, 26.6° clockwise) and at 63.4° counterclockwise. The maximum in-plane shear is τ<sub>max</sub> = R = 10 ksi, and the normal stress on those planes is the center value, 4 ksi. Forgetting that normal stress is a classic mistake when sketching the max-shear element.</p>
+<h2 class="mohr-h2"><span class="mohr-q">&#10077;</span>Stress on a Rotated Plane</h2>
+<p>This is the stress transformation done graphically. Rotating the element 30° counterclockwise moves the point 60° counterclockwise around the circle, from X at −36.87° to X′ at +23.13°. Reading coordinates off the circle:</p>
+<div class="mohr-eq"><div>σ<sub>x′</sub> = 4 + 10 cos 23.13° = 13.20 ksi</div><div>plotted shear = 10 sin 23.13° = 3.93 (above the axis → clockwise)  ⇒  τ<sub>x′y′</sub> = −3.93 ksi</div><div>σ<sub>y′</sub> = 4 − 10 cos 23.13° = −5.20 ksi</div></div>
+<p>The transformation equations give the same result directly: σ<sub>x′</sub> = 4 + 8 cos 60° + 6 sin 60° = 13.20 ksi and τ<sub>x′y′</sub> = −8 sin 60° + 6 cos 60° = −3.93 ksi. A quick sanity check that never fails: σ<sub>x′</sub> + σ<sub>y′</sub> = 13.20 − 5.20 = 8 = σ<sub>x</sub> + σ<sub>y</sub>. The sum of normal stresses is the same on every orientation.</p>
+<div class="mohr-tw"><table class="mohr-t"><thead><tr><th>Result</th><th>ksi</th><th>MPa</th></tr></thead><tbody><tr><td>Given σx, σy, τxy</td><td>12, −4, 6</td><td>82.7, −27.6, 41.4</td></tr><tr><td>Center C</td><td>4.0</td><td>27.6</td></tr><tr><td>Radius R</td><td>10.0</td><td>68.9</td></tr><tr><td>σ1 (major principal)</td><td>14.0</td><td>96.5</td></tr><tr><td>σ2 (minor principal)</td><td>−6.0</td><td>−41.4</td></tr><tr><td>θp (x-axis to σ1)</td><td>18.43° CCW</td><td>18.43° CCW</td></tr><tr><td>τmax in-plane</td><td>10.0</td><td>68.9</td></tr><tr><td>θs</td><td>−26.57° (CW)</td><td>−26.57° (CW)</td></tr><tr><td>σx′, σy′, τx′y′ at θ = 30°</td><td>13.20, −5.20, −3.93</td><td>91.0, −35.8, −27.1</td></tr></tbody></table></div><p class="mohr-cap">Table 2 — Worked example results. Angles do not depend on the unit system.</p>
+
+<h2 class="mohr-h2"><span class="mohr-q">&#10077;</span>Interactive Mohr's Circle and Principal Stress Calculator</h2>
+<p>This Mohr's circle calculator doubles as a principal stress calculator. Type any plane stress state, or pick one of the preset cases, and drag the angle slider to rotate the element. The circle, the rotated element and the results update as you go. Shear is entered with the standard sign (positive τ<sub>xy</sub> acts upward on the right face); the plot uses the clockwise-up rule described above.</p>
+<div class="mohr-calc" id="mohr-calc">
+ <div class="mohr-row">
+  <label>σ<sub>x</sub> <input type="number" id="mohr-sx" value="12" step="any"></label>
+  <label>σ<sub>y</sub> <input type="number" id="mohr-sy" value="-4" step="any"></label>
+  <label>τ<sub>xy</sub> <input type="number" id="mohr-txy" value="6" step="any"></label>
+  <label>Units <select id="mohr-unit"><option value="ksi">ksi</option><option value="MPa">MPa</option></select></label>
+ </div>
+ <div class="mohr-row">
+  <label>Rotate element θ = <input type="number" id="mohr-thn" value="30" step="any" style="width:64px"> °</label>
+  <input type="range" id="mohr-th" min="-90" max="90" step="0.5" value="30" aria-label="rotation angle">
+ </div>
+ <div class="mohr-row" style="margin-top:-4px;">
+  <span class="mohr-ex" data-v="12,-4,6">This post's example</span>
+  <span class="mohr-ex" data-v="10,0,0">Uniaxial tension</span>
+  <span class="mohr-ex" data-v="0,0,8">Pure shear</span>
+  <span class="mohr-ex" data-v="-6,-14,4">Biaxial compression</span>
+  <span class="mohr-ex" data-v="20,0,10">Beam: bending + shear</span>
+ </div>
+ <div class="mohr-grid">
+  <div class="mohr-svgbox"><svg id="mohr-svg" viewBox="0 0 420 380"></svg></div>
+  <div class="mohr-svgbox"><svg id="mohr-el" viewBox="0 0 300 300"></svg></div>
+ </div>
+ <div id="mohr-out"></div>
+ <div id="mohr-plot" style="width:100%;height:340px;margin-top:10px;"></div>
+</div>
+
+<h2 class="mohr-h2"><span class="mohr-q">&#10077;</span>Common mistakes with Mohr's circle</h2>
+<div class="mohr-tw"><table class="mohr-t"><thead><tr><th>Mistake</th><th>What happens</th><th>Fix</th></tr></thead><tbody><tr><td>Using θ on the circle instead of 2θ</td><td>Principal direction comes out double</td><td>Angles on the circle are always 2θ; halve them for the element</td></tr><tr><td>Plotting +τxy above the axis with a τ-up axis</td><td>Circle is mirrored; rotation goes the wrong way</td><td>Use clockwise-up (or a downward τ axis) consistently</td></tr><tr><td>Turning the element opposite to the circle</td><td>θp has the wrong sign</td><td>With clockwise-up, element and circle turn the same way</td></tr><tr><td>Assuming zero normal stress on max-shear planes</td><td>Wrong stress element sketch</td><td>Normal stress there equals C = (σx + σy)/2</td></tr><tr><td>Reporting R as the absolute maximum shear</td><td>Unconservative when σ1 and σ2 have the same sign</td><td>Check out-of-plane: τabs = max(R, |σ1|/2, |σ2|/2)</td></tr><tr><td>Dropping the sign of σy</td><td>Center and radius both wrong</td><td>Compression is negative — keep it in C and in σx − σy</td></tr></tbody></table></div><p class="mohr-cap">Table 3 — Most errors are sign or angle errors, not arithmetic.</p>
+<h3 class="mohr-h3"><span style="color:#0593d3;">&#9613;</span>In-plane versus absolute maximum shear</h3>
+<p>The radius R is the largest shear stress in the plane of the element. Real material is three-dimensional, and for plane stress the third principal stress is zero. If σ<sub>1</sub> and σ<sub>2</sub> have opposite signs, as in our example, R is also the absolute maximum. But if both are tensile (say 30 and 10 ksi), the largest shear acts on a plane tilted out of the x–y plane and equals σ<sub>1</sub>/2 = 15 ksi, larger than the in-plane R = 10 ksi. Drawing the two extra circles through the origin makes this obvious, and it matters for yield checks such as Tresca.</p>
+
+<h2 class="mohr-h2"><span class="mohr-q">&#10077;</span>Where engineers actually use it</h2>
+<p>Outside the classroom, few designers draw Mohr's circles by hand, but the idea behind them is everywhere:</p>
+<ul>
+<li><b>Girder webs.</b> Near the supports of a plate girder or a prestressed concrete beam, the web carries bending stress and shear at the same time. Principal tension in the web is what drives diagonal cracking in concrete, and principal stresses feed the von Mises check in steel.</li>
+<li><b>Bolts, welds and connections.</b> A fillet weld or a bolt group under combined shear and tension is checked with an interaction that comes from the same transformation.</li>
+<li><b>Strain gauge rosettes.</b> Field measurements on bridges give three strains in different directions; converting them into principal strains and stresses is the strain version of Mohr's circle.</li>
+<li><b>Soil and rock.</b> Geotechnical engineers use Mohr's circle together with the Mohr–Coulomb failure envelope to judge when soil will slip.</li>
+</ul>
+<p>Software does these calculations in the background, but when a principal stress result looks strange, a quick circle on paper is still the fastest way to check whether the input signs make sense.</p>
+
+<h2 class="mohr-h2"><span class="mohr-q">&#10077;</span>Summary</h2>
+<ul>
+<li>Mohr's circle is the graph of the plane-stress transformation equations: center C = (σ<sub>x</sub> + σ<sub>y</sub>)/2, radius R = √[((σ<sub>x</sub> − σ<sub>y</sub>)/2)² + τ<sub>xy</sub>²].</li>
+<li>Principal stresses are C ± R; maximum in-plane shear is R, acting with normal stress C.</li>
+<li>Plot clockwise shear up, and the element rotates θ in the same direction as the 2θ rotation on the circle.</li>
+<li>For the example (12, −4, 6 ksi): σ<sub>1</sub> = 14 ksi, σ<sub>2</sub> = −6 ksi, θ<sub>p</sub> = 18.4° CCW, τ<sub>max</sub> = 10 ksi.</li>
+</ul>
+<p style="font-size:15px;color:#555;"><b>Sources:</b> R. C. Hibbeler, <i>Mechanics of Materials</i>, chapter on stress transformation; J. M. Gere and B. J. Goodno, <i>Mechanics of Materials</i>; F. P. Beer, E. R. Johnston et al., <i>Mechanics of Materials</i>. Worked example and calculator by the author.</p>
+<p style="font-size:15px;color:#555;"><b>About the author:</b> Yopa is a structural engineer with more than 20 years in bridge design, including project work in the Middle East, and the developer of macroBIM.</p>
+
+<script>
+(function(){
+ function $(i){return document.getElementById(i);}
+ if(!$('mohr-calc'))return;
+ var K=6.894757, unit='ksi';
+ function v(i){var x=parseFloat($(i).value);return isFinite(x)?x:0;}
+ function f(x,d){d=(d==null)?2:d;var r=Math.abs(x)<5e-10?0:x;return r.toFixed(d).replace(/^-0\.?0*$/,'0');}
+ function solve(sx,sy,t,th){
+  var C=(sx+sy)/2,D=(sx-sy)/2,R=Math.sqrt(D*D+t*t),r2=2*th*Math.PI/180;
+  var tp=0.5*Math.atan2(t,D)*180/Math.PI; if(R<1e-12)tp=0;
+  var ts=tp-45; if(ts<=-90)ts+=180;
+  return {C:C,R:R,s1:C+R,s2:C-R,tp:tp,ts:ts,
+   sxr:C+D*Math.cos(r2)+t*Math.sin(r2), syr:C-D*Math.cos(r2)-t*Math.sin(r2), txr:-D*Math.sin(r2)+t*Math.cos(r2),
+   tabs:Math.max(R,Math.abs(C+R)/2,Math.abs(C-R)/2)};
+ }
+ window.__mohrSolve=solve;
+ function circle(sx,sy,t,th,o){
+  var W=420,H=380,pad=40,R=o.R||1,C=o.C;
+  var lo=Math.min(C-R,0),hi=Math.max(C+R,0),span=Math.max(hi-lo,2*R)*1.15;
+  var s=Math.min((W-2*pad)/span,(H-2*pad)/(2*R*1.15));
+  var cx=W/2-((lo+hi)/2-C)*s, cy=H/2;
+  function X(sig){return cx+(sig-C)*s;} function Y(tp){return cy-tp*s;}
+  var g='';
+  g+='<line x1="10" y1="'+cy+'" x2="'+(W-10)+'" y2="'+cy+'" stroke="#94a3b8"/>';
+  var x0=X(0); if(x0>8&&x0<W-8) g+='<line x1="'+x0+'" y1="10" x2="'+x0+'" y2="'+(H-10)+'" stroke="#94a3b8"/><text x="'+(x0+5)+'" y="20" font-size="12" fill="#64748b">τ (cw +)</text>';
+  g+='<text x="'+(W-12)+'" y="'+(cy-6)+'" font-size="12" fill="#64748b" text-anchor="end">σ</text>';
+  g+='<circle cx="'+cx+'" cy="'+cy+'" r="'+(R*s)+'" fill="#eef4ff" stroke="#2563eb" stroke-width="2"/>';
+  var px=[X(sx),Y(-t)],py=[X(sy),Y(t)];
+  g+='<line x1="'+px[0]+'" y1="'+px[1]+'" x2="'+py[0]+'" y2="'+py[1]+'" stroke="#0f172a" stroke-dasharray="5 4"/>';
+  var rx=[X(o.sxr),Y(-o.txr)],ry=[X(o.syr),Y(o.txr)];
+  g+='<line x1="'+rx[0]+'" y1="'+rx[1]+'" x2="'+ry[0]+'" y2="'+ry[1]+'" stroke="#16a34a" stroke-dasharray="3 4" stroke-width="1.5"/>';
+  function dot(p,c,l,dx,dy){g+='<circle cx="'+p[0]+'" cy="'+p[1]+'" r="5" fill="'+c+'"/><text x="'+(p[0]+dx)+'" y="'+(p[1]+dy)+'" font-size="13" font-weight="700" fill="'+c+'" text-anchor="'+(dx<0?'end':'start')+'">'+l+'</text>';}
+  dot([X(o.s1),cy],'#dc2626','σ1',6,16); dot([X(o.s2),cy],'#dc2626','σ2',-6,16);
+  dot([cx,cy-R*s],'#7c3aed','τmax',6,-6);
+  dot(px,'#0f172a','X',7,-7); dot(py,'#0f172a','Y',-7,-7); dot(rx,'#16a34a',"X′",7,14);
+  g+='<circle cx="'+cx+'" cy="'+cy+'" r="3" fill="#0f172a"/>';
+  $('mohr-svg').innerHTML=g;
+ }
+ function element(th,o){
+  var c=150,a=55,r=th*Math.PI/180,g='';
+  function P(x,y){return [c+x*Math.cos(r)-y*Math.sin(r), c-(x*Math.sin(r)+y*Math.cos(r))];}
+  var q=[P(-a,-a),P(a,-a),P(a,a),P(-a,a)];
+  g+='<defs><marker id="mohr-ab" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M0,1 L10,5 L0,9z" fill="#2563eb"/></marker><marker id="mohr-ar" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M0,1 L10,5 L0,9z" fill="#dc2626"/></marker></defs>';
+  g+='<line x1="'+(c-130)+'" y1="'+c+'" x2="'+(c+130)+'" y2="'+c+'" stroke="#e2e8f0"/><line x1="'+c+'" y1="'+(c-130)+'" x2="'+c+'" y2="'+(c+130)+'" stroke="#e2e8f0"/>';
+  g+='<polygon points="'+q.map(function(p){return p[0].toFixed(1)+','+p[1].toFixed(1);}).join(' ')+'" fill="#e8eef7" stroke="#0f172a" stroke-width="1.8"/>';
+  function ar(x1,y1,x2,y2,col,m){var p1=P(x1,y1),p2=P(x2,y2);g+='<line x1="'+p1[0].toFixed(1)+'" y1="'+p1[1].toFixed(1)+'" x2="'+p2[0].toFixed(1)+'" y2="'+p2[1].toFixed(1)+'" stroke="'+col+'" stroke-width="2.2" marker-end="url(#'+m+')"/>';}
+  var L=36,gp=6,big=Math.max(Math.abs(o.sxr),Math.abs(o.syr),Math.abs(o.txr),1e-9);
+  function nrm(val,axis){if(Math.abs(val)<big*1e-3)return; var l=12+L*Math.abs(val)/big;[1,-1].forEach(function(sg){var a0=a+gp,a1=a+gp+l; if(val>0){axis==='x'?ar(sg*a0,0,sg*a1,0,'#2563eb','mohr-ab'):ar(0,sg*a0,0,sg*a1,'#2563eb','mohr-ab');}else{axis==='x'?ar(sg*a1,0,sg*a0,0,'#2563eb','mohr-ab'):ar(0,sg*a1,0,sg*a0,'#2563eb','mohr-ab');}});}
+  nrm(o.sxr,'x'); nrm(o.syr,'y');
+  if(Math.abs(o.txr)>big*1e-3){var d=o.txr>0?1:-1,h=a*0.7;ar(a+5,-h*d,a+5,h*d,'#dc2626','mohr-ar');ar(-a-5,h*d,-a-5,-h*d,'#dc2626','mohr-ar');ar(-h*d,a+5,h*d,a+5,'#dc2626','mohr-ar');ar(h*d,-a-5,-h*d,-a-5,'#dc2626','mohr-ar');}
+  var lx=P(a+gp+L+30,0); g+='<text x="'+lx[0].toFixed(1)+'" y="'+lx[1].toFixed(1)+'" font-size="12" fill="#2563eb" text-anchor="middle">x′</text>';
+  g+='<text x="150" y="292" font-size="13" fill="#334155" text-anchor="middle">Element rotated θ = '+f(th,1)+'°</text>';
+  $('mohr-el').innerHTML=g;
+ }
+ function plot(sx,sy,t,th){
+  if(!window.Plotly||!$('mohr-plot'))return;
+  var A=[],S=[],T=[];for(var i=0;i<=180;i+=2){var o=solve(sx,sy,t,i);A.push(i);S.push(o.sxr);T.push(o.txr);}
+  var o=solve(sx,sy,t,th),tt=((th%180)+180)%180;
+  var mx=Math.max.apply(null,S.concat(T).map(Math.abs))*1.2||1;
+  Plotly.react('mohr-plot',[{x:A,y:S,name:'σx′(θ)',line:{color:'#2563eb',width:2.5}},{x:A,y:T,name:'τx′y′(θ)',line:{color:'#dc2626',width:2.5}},
+   {x:[tt,tt],y:[solve(sx,sy,t,tt).sxr,solve(sx,sy,t,tt).txr],mode:'markers',marker:{size:10,color:'#16a34a'},name:'θ = '+f(th,1)+'°'}],
+   {font:{family:"'Noto Serif KR',serif",size:14},margin:{t:30,r:20,l:60,b:50},xaxis:{title:'θ (degrees)',range:[0,180],dtick:30},yaxis:{title:'Stress ('+unit+')',range:[-mx,mx],zeroline:true},legend:{orientation:'h',y:1.15}},{displayModeBar:false,responsive:true});
+ }
+ function run(){
+  var sx=v('mohr-sx'),sy=v('mohr-sy'),t=v('mohr-txy'),th=v('mohr-thn');
+  var o=solve(sx,sy,t,th),u=unit;
+  circle(sx,sy,t,th,o); element(th,o); plot(sx,sy,t,th);
+  var rows=[['Center C = (σx+σy)/2',f(o.C)+' '+u],['Radius R',f(o.R)+' '+u],['Major principal stress σ1',f(o.s1)+' '+u],['Minor principal stress σ2',f(o.s2)+' '+u],
+   ['Principal angle θp (x-axis → σ1)',f(o.tp)+'° '+(o.tp>=0?'CCW':'CW')],['Max in-plane shear τmax = R',f(o.R)+' '+u],['Max-shear plane θs',f(o.ts)+'° '+(o.ts>=0?'CCW':'CW')+', normal stress '+f(o.C)+' '+u],
+   ['Absolute max shear (3D, σ3 = 0)',f(o.tabs)+' '+u],['σx′ at θ',f(o.sxr)+' '+u],['σy′ at θ',f(o.syr)+' '+u],['τx′y′ at θ',f(o.txr)+' '+u]];
+  var h='<div class="mohr-tw"><table class="mohr-t"><thead><tr><th>Result</th><th>Value</th></tr></thead><tbody>';
+  rows.forEach(function(r){h+='<tr><td>'+r[0]+'</td><td>'+r[1]+'</td></tr>';});
+  $('mohr-out').innerHTML=h+'</tbody></table></div>';
+ }
+ ['mohr-sx','mohr-sy','mohr-txy'].forEach(function(i){$(i).addEventListener('input',run);});
+ $('mohr-th').addEventListener('input',function(){$('mohr-thn').value=this.value;run();});
+ $('mohr-thn').addEventListener('input',function(){var x=parseFloat(this.value);if(isFinite(x))$('mohr-th').value=Math.max(-90,Math.min(90,x));run();});
+ $('mohr-unit').addEventListener('change',function(){var nu=this.value;if(nu!==unit){var k=nu==='MPa'?K:1/K;['mohr-sx','mohr-sy','mohr-txy'].forEach(function(i){$(i).value=+(v(i)*k).toFixed(nu==='MPa'?2:3);});unit=nu;}run();});
+ Array.prototype.forEach.call(document.querySelectorAll('#mohr-calc .mohr-ex'),function(b){b.addEventListener('click',function(){var a=b.getAttribute('data-v').split(','),k=unit==='MPa'?K:1;$('mohr-sx').value=+(a[0]*k).toFixed(1);$('mohr-sy').value=+(a[1]*k).toFixed(1);$('mohr-txy').value=+(a[2]*k).toFixed(1);run();});});
+ run();
+ if(!window.Plotly){var s=document.createElement('script');s.src='https://cdn.plot.ly/plotly-2.35.2.min.js';s.onload=run;document.head.appendChild(s);}
+})();
+</script>
+</div>
