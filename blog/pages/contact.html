@@ -1,0 +1,43 @@
+<div class="pg">
+<style>
+.pg{font-family:'Noto Serif KR',serif;font-size:17px;line-height:1.85;color:#222;}
+.pg p,.pg li,.pg td,.pg th{font-family:'Noto Serif KR',serif;}
+.pg-h2{font-family:'Noto Serif KR',serif;font-size:22px;font-weight:400;color:#111;margin:36px 0 14px;padding:0 0 8px;border-bottom:1px solid #cfcfcf;}
+.pg-note{background:#f7f9fc;border-left:4px solid #5c6bc0;border-radius:6px;padding:12px 18px;margin:16px 0;font-size:16px;}
+.pg-t{border-collapse:collapse;width:100%;font-size:15px;margin:12px 0;}
+.pg-t th{background:#f2f2f2;border:1px solid #ddd;padding:8px 10px;text-align:left;}
+.pg-t td{border:1px solid #ddd;padding:7px 10px;vertical-align:top;}
+</style>
+<style>
+#pg-contact-slot .widget.ContactForm{margin:0;padding:18px 20px;border:1px solid #dbe3ee;border-radius:10px;background:#fbfcfe;max-width:560px;}
+#pg-contact-slot .widget.ContactForm h3.title{display:none;}
+#pg-contact-slot input[type=text],#pg-contact-slot textarea{width:100%;max-width:100%;box-sizing:border-box;padding:8px 10px;border:1px solid #cbd5e1;border-radius:6px;font-size:15px;font-family:'Noto Serif KR',serif;margin:4px 0 6px;}
+#pg-contact-slot textarea{min-height:150px;}
+#pg-contact-slot .contact-form-button-submit{background:#2563eb;color:#fff;border:0;border-radius:6px;padding:9px 22px;font-size:15px;cursor:pointer;height:auto;}
+#pg-contact-slot div[style*="max-width: 222px"]{max-width:100% !important;text-align:left !important;}
+</style>
+<p>Thank you for visiting <b>macroBIM Engineering</b>. I'm glad to hear from readers. Use the form below to:</p>
+<ul>
+<li>report a mistake in a formula, table or calculator (please include the page and the numbers you used),</li>
+<li>suggest a topic you would like explained,</li>
+<li>ask about the content of an article.</li>
+</ul>
+<p>Your name and email are used only to reply to you; see the <a href="https://macrobim.blogspot.com/p/privacy-policy.html">Privacy Policy</a>. I usually reply within a few days.</p>
+<div id="pg-contact-slot"><p id="pg-contact-fallback" style="color:#555;font-size:15px;">Loading the contact form… If it does not appear, please use the <b>Contact Form</b> in the sidebar of this blog.</p></div>
+<div class="pg-note">Please note that I can't review project-specific designs or provide engineering services through this blog. For design work, consult a licensed engineer in your jurisdiction.</div>
+<script>
+(function(){
+  function move(){
+    var w=document.getElementById('ContactForm1'), slot=document.getElementById('pg-contact-slot');
+    if(!w||!slot) return false;
+    if(w.parentNode!==slot){ slot.appendChild(w); }
+    var fb=document.getElementById('pg-contact-fallback'); if(fb) fb.style.display='none';
+    return true;
+  }
+  if(!move()){
+    var n=0, t=setInterval(function(){ if(move()||++n>40) clearInterval(t); },250);
+    document.addEventListener('DOMContentLoaded', move);
+  }
+})();
+</script>
+</div>
