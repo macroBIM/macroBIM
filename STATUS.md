@@ -325,6 +325,10 @@ git status --short     # 비어 있어야 한다
 
 **맨 위가 최신.** 한 줄에 하나: 날짜 · 커밋 · 무엇이 · 어디까지(테스트/운영).
 
+### 2026-10-29
+
+- **영어 블로그 화서문 3D 글 이미지 · 본문 호스팅** · `blog/hwaseomun-3d/` (hero · uigwe-hwaseomun · parts · build-order · post.html) · 코드 아님 — macrobim.blogspot.com 예약 글이 GitHub Pages 주소로 부른다. 지우거나 옮기면 글 이미지가 깨진다
+
 ### 2026-10-28
 
 - **영어 블로그 한강 다리 글 이미지 · 본문 호스팅** · `blog/han-river-bridges/` (hero · map · spans · post.html) · 코드 아님 — macrobim.blogspot.com 예약 글이 GitHub Pages 주소로 부른다. 지우거나 옮기면 글 이미지가 깨진다

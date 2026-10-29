@@ -1,0 +1,317 @@
+<div class="hws-post">
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Noto+Serif+KR:wght@400;700&display=swap');
+.hws-post{font-family:'Noto Serif KR',serif;font-size:17px;line-height:1.85;color:#222;}
+.hws-post p,.hws-post li,.hws-post td,.hws-post th,.hws-post figcaption{font-family:'Noto Serif KR',serif;}
+.hws-h2{font-family:'Noto Serif KR',serif;font-size:24px;font-weight:400;color:#111;margin:46px 0 18px;padding:0 0 10px;border-bottom:1px solid #cfcfcf;line-height:1.5;}
+.hws-q{display:block;font-size:34px;line-height:1;color:#9a9a9a;margin-bottom:4px;}
+.hws-tw{overflow-x:auto;margin:14px 0;}
+.hws-t{border-collapse:collapse;width:100%;font-size:15px;}
+.hws-t th{background:#f2f2f2;font-weight:700;border:1px solid #ddd;padding:8px 10px;text-align:center;}
+.hws-t td{border:1px solid #ddd;padding:7px 10px;text-align:center;}
+.hws-tl td{text-align:left;}
+.hws-post figcaption{font-size:14px;color:#666;text-align:center;margin:4px 0 18px;}
+.hws-fig{margin:22px 0;text-align:center;}
+.hws-fig img{max-width:100%;height:auto;border:1px solid #e5e7eb;border-radius:6px;}
+.hws-note{background:#f7f9fc;border-left:4px solid #5c6bc0;border-radius:6px;padding:12px 18px;margin:16px 0;font-size:16px;}
+.hws-warn{background:#fff4e6;border-left:4px solid #e8590c;border-radius:6px;padding:12px 18px;margin:16px 0;font-size:16px;}
+.hws-quote{border-left:3px solid #bbb;margin:18px 0;padding:4px 18px;color:#444;font-style:italic;}
+.hws-code{background:#1e1e2e;border-radius:10px;overflow:hidden;margin:14px 0;box-shadow:0 4px 14px rgba(0,0,0,.18);}
+.hws-code-bar{background:#181825;color:#a6adc8;font-size:13px;padding:8px 14px;font-family:'Noto Serif KR',serif;}
+.hws-code pre{margin:0;padding:16px 18px;color:#cdd6f4;font-size:13.5px;line-height:1.7;overflow-x:auto;white-space:pre;font-family:'JetBrains Mono',Consolas,'D2Coding',monospace;background:#1e1e2e;border:0;}
+</style>
+<p><img src="https://macrobim.github.io/macroBIM/blog/hwaseomun-3d/hero.jpg" alt="Hwaseong Fortress in 3D – Hwaseomun Gate block model built with three.js" style="max-width:100%;height:auto;border-radius:8px;"/></p>
+<p><b>Hwaseong Fortress</b> in Suwon, Korea, is one of the best-documented fortifications of its age. A complete construction report, the <b>Hwaseong Seongyeok Uigwe</b>, was printed in 1801, a few years after the walls went up. I am a bridge engineer, and I wanted to see how one of its gates goes together, stone by stone. So I modeled the <b>Hwaseomun Gate</b> (the west gate) in three.js and let the blocks fall into place one course at a time.</p>
+<p>This post shows what Hwaseomun is made of, which drawings I used, the interactive model you can rotate and rebuild, and how the animation and lighting work. The model is still rough. The stone layout is regular and the roof is simplified, and I say exactly where below.</p>
+<!--more-->
+<div class="hws-note"><b>Quick facts</b><br/>• Hwaseong Fortress: built 1794–1796 under King Jeongjo of the Joseon dynasty, about 5.7 km around, UNESCO World Heritage Site since 1997<br/>• Hwaseomun: the west gate, completed in 1796, designated a Treasure of Korea<br/>• This model: 1,412 blocks, dimensions estimated from a 1999 measured survey report, shape checked against the 1801 Uigwe drawing</div>
+<h2 class="hws-h2"><span class="hws-q">&#10077;</span>What is Hwaseomun Gate made of?</h2>
+<p>A Korean fortress gate is a stack of distinct parts, and each has its own name. The Korean terms are worth knowing because you will see them on every sign at the site.</p>
+<div class="hws-tw"><table class="hws-t hws-tl"><tr><th>Part</th><th>Korean</th><th>What it is</th><th>At Hwaseomun</th></tr><tr><td>Stone platform</td><td>육축 (yukchuk)</td><td>The masonry base that carries the gate building</td><td>Dressed granite laid in courses; most of the stone in the model</td></tr><tr><td>Arch</td><td>홍예 (hongye)</td><td>A semicircular arch of wedge-shaped stones; a gate with one is a hongyemun</td><td>The single passage through the platform</td></tr><tr><td>Half-moon enclosure</td><td>옹성 (ongseong)</td><td>A second, smaller wall wrapped around the outside of the gate</td><td>Brick, half-moon shaped, open on one side</td></tr><tr><td>Parapet</td><td>여장 (yeojang)</td><td>The low crenellated wall on top, for cover and firing</td><td>On the platform and along the enclosure</td></tr><tr><td>Gate pavilion</td><td>문루 (mullu)</td><td>The timber building on top of the platform</td><td>Columns, beams, bracket sets and a tiled hip-and-gable roof</td></tr></table></div>
+<p class="hws-quote">The enclosure keeps attackers from reaching the gate head-on. At Hwaseomun it curls around the front like a half moon and leaves one side open, so anyone coming in has to turn.</p>
+<h2 class="hws-h2"><span class="hws-q">&#10077;</span>Sources: the measured survey and the 1801 Uigwe</h2>
+<p>I looked for drawings before writing any code. Two sources did most of the work.</p>
+<div class="hws-tw"><table class="hws-t hws-tl"><tr><th>Source</th><th>What it contains</th><th>Used for</th></tr><tr><td><b>Measured Survey Report of Paldalmun and Hwaseomun, Suwon</b> (Cultural Heritage Administration of Korea, 1999) – <a href="https://www.korea.kr/archive/expDocView.do?docId=27817" target="_blank" rel="noopener">free PDF, in Korean</a></td><td>504 pages. Pages 473–502 are Hwaseomun drawings: site plan, plan, elevations, sections, bracket details, roof curves and parapet detail. Every stone of the platform is drawn.</td><td>Dimensions of the platform, arch, enclosure and pavilion</td></tr><tr><td><b>Hwaseong Seongyeok Uigwe</b> (1801), National Museum of Korea – <a href="https://www.museum.go.kr/MUSEUM/contents/M0502000000.do?schM=view&amp;searchId=search&amp;relicId=2489" target="_blank" rel="noopener">collection page</a></td><td>The official construction report, with woodblock drawings of every gate and structure</td><td>Overall form and arrangement (figure below)</td></tr><tr><td><b>National Heritage digital service – Hwaseomun</b> – <a href="https://digital.khs.go.kr/heri/heriDetail.do?ctptUid=13898859669715200337&amp;ctptNo=1123104030000" target="_blank" rel="noopener">heritage record</a></td><td>Designation details, a plan and photographs</td><td>Basic facts</td></tr></table></div>
+<figure class="hws-fig"><img src="https://macrobim.github.io/macroBIM/blog/hwaseomun-3d/uigwe-hwaseomun.png" alt="Hwaseong Seongyeok Uigwe drawing of Hwaseomun Gate, outer view, 1801"/><figcaption>Hwaseomun from outside the walls, as drawn in 1801. National Museum of Korea, KOGL Type 1.</figcaption></figure>
+<p>The 1801 drawing shows the pavilion on a stone platform pierced by an arch, the brick half-moon enclosure in front, and parapets broken into regular openings. The model follows the same arrangement.</p>
+<div class="hws-tw"><table class="hws-t hws-tl"><tr><th>Survey drawing</th><th>Report pages</th><th>Used in this model</th></tr><tr><td>Site plan · site section · plan</td><td>473–475</td><td>Enclosure radius, platform size, wall direction</td></tr><tr><td>Pavilion plan · front, side and rear elevations</td><td>476–481</td><td>Platform height, number of courses, arch width, pavilion bays</td></tr><tr><td>Longitudinal and cross sections</td><td>482–485</td><td>Passage depth, pavilion height</td></tr><tr><td>Bracket sets, roof truss, eave curves, ridges, tiles</td><td>486–501</td><td>Not yet (next step)</td></tr><tr><td>Parapet detail</td><td>502</td><td>Parapet height and spacing</td></tr></table></div>
+<div class="hws-warn"><b>Why the survey drawings are not reproduced here.</b> The 1999 report is a free public PDF, but it carries no open-license mark, so I only took measurements from it. The Uigwe image is published by the National Museum of Korea under KOGL Type 1, which allows reuse with attribution.</div>
+<h2 class="hws-h2"><span class="hws-q">&#10077;</span>Interactive 3D model of Hwaseomun Gate</h2>
+<p>Blocks are released one at a time and fall 14 m into place. Drag to rotate. <b>Rebuild</b> starts again from an empty site, <b>Slower</b> and <b>Faster</b> halve or double the rate (20 blocks per second to start), and <b>Show finished</b> skips the animation.</p>
+<div id="hw-demo" data-lang="en" style="width:100%;min-height:600px;"></div>
+<script>
+(function(){
+var root=document.getElementById(window.__hwId||'hw-demo');if(!root||root.dataset.done)return;root.dataset.done='1';
+var EN=root.getAttribute('data-lang')==='en';var T=EN?{load:'Loading the 3D model…',tag:'<b>Hwaseomun Gate, Suwon</b> · block model',hint:'Drag to rotate · right-drag (two fingers) to pan · wheel to zoom',b:['Rebuild','Slower','Faster','Show finished'],stat:'Blocks placed ',err:'Could not load the 3D library.'}:{load:'3D 모형을 불러오는 중…',tag:'<b>수원 화서문</b> · 개략 블록 모형',hint:'드래그 회전 · 우클릭(두 손가락) 이동 · 휠 확대',b:['다시 쌓기','천천히','빠르게','완성 보기'],stat:'쌓은 블록 ',err:'3D 라이브러리를 불러오지 못했습니다.'};
+var FONT="'Noto Serif KR',serif";
+root.innerHTML='';
+var wrap=document.createElement('div');wrap.style.cssText='position:relative;width:100%;height:540px;background:#c9d3da;border-radius:10px;overflow:hidden;';
+var msg=document.createElement('div');msg.style.cssText='position:absolute;left:0;right:0;top:45%;text-align:center;font-family:'+FONT+';font-size:15px;color:#3d4a55;';msg.textContent=T.load;wrap.appendChild(msg);
+var tag=document.createElement('div');tag.style.cssText='position:absolute;left:10px;top:10px;font-family:'+FONT+';font-size:13px;background:rgba(255,255,255,.9);border:1px solid #c8c4bc;border-radius:8px;padding:6px 10px;color:#2b2a27;z-index:2;';tag.innerHTML=T.tag;wrap.appendChild(tag);
+var stat=document.createElement('div');stat.style.cssText='position:absolute;right:10px;top:10px;font-family:'+FONT+';font-size:13px;background:rgba(255,255,255,.9);border:1px solid #c8c4bc;border-radius:8px;padding:6px 10px;color:#2b2a27;z-index:2;font-variant-numeric:tabular-nums;';wrap.appendChild(stat);
+var hint=document.createElement('div');hint.style.cssText='position:absolute;left:10px;bottom:8px;font-family:'+FONT+';font-size:12px;color:#3d4a55;pointer-events:none;z-index:2;';hint.textContent=T.hint;wrap.appendChild(hint);
+root.appendChild(wrap);
+var bar=document.createElement('div');bar.style.cssText='display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-top:10px;font-family:'+FONT+';';root.appendChild(bar);
+function btn(t){var b=document.createElement('button');b.type='button';b.textContent=t;b.style.cssText='font-family:'+FONT+';font-size:14px;padding:6px 14px;border-radius:6px;border:1px solid #9c3f25;background:#fff;color:#9c3f25;cursor:pointer;';bar.appendChild(b);return b;}
+var bReplay=btn(T.b[0]),bSlow=btn(T.b[1]),bFast=btn(T.b[2]),bSkip=btn(T.b[3]);
+var LIBS=['https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js','https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js','https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/math/SimplexNoise.js','https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/shaders/CopyShader.js','https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/shaders/SSAOShader.js','https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/postprocessing/EffectComposer.js','https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/postprocessing/ShaderPass.js','https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/postprocessing/SSAOPass.js'];
+function load(i){if(i>=LIBS.length){start();return;}if(i===0&&window.THREE&&THREE.SSAOPass){start();return;}var s=document.createElement('script');s.src=LIBS[i];s.onload=function(){load(i+1)};s.onerror=function(){msg.textContent=T.err};document.head.appendChild(s);}
+load(0);
+
+function start(){
+msg.remove();
+var scene=new THREE.Scene();scene.background=new THREE.Color(0xc9d3da);scene.fog=new THREE.Fog(0xc9d3da,70,160);
+var camera=new THREE.PerspectiveCamera(36,1,0.5,160);
+var renderer=new THREE.WebGLRenderer({antialias:true});
+renderer.setPixelRatio(Math.min(Math.max(window.devicePixelRatio||1,1)*2,3));
+renderer.outputEncoding=THREE.sRGBEncoding;renderer.shadowMap.enabled=true;renderer.shadowMap.type=THREE.PCFSoftShadowMap;
+renderer.toneMapping=THREE.ACESFilmicToneMapping;renderer.toneMappingExposure=0.72;
+renderer.domElement.style.cssText='display:block;width:100%;height:100%;touch-action:none;';
+wrap.insertBefore(renderer.domElement,wrap.firstChild);
+var ANISO=renderer.capabilities.getMaxAnisotropy();
+
+// image-based lighting: outdoor sky dome, warm sun patch, earthy ground
+(function(){var es=new THREE.Scene();
+  es.add(new THREE.Mesh(new THREE.SphereGeometry(30,32,16),new THREE.MeshBasicMaterial({color:new THREE.Color(.55,.62,.72),side:THREE.BackSide})));
+  es.add(new THREE.Mesh(new THREE.PlaneGeometry(80,80).rotateX(-Math.PI/2).translate(0,-2,0),new THREE.MeshBasicMaterial({color:new THREE.Color(.22,.2,.15)})));
+  var s=new THREE.Mesh(new THREE.SphereGeometry(4,16,8),new THREE.MeshBasicMaterial({color:new THREE.Color(6,5.4,4.4)}));s.position.set(-14,18,-12);es.add(s);
+  var pg=new THREE.PMREMGenerator(renderer);scene.environment=pg.fromScene(es,.04).texture;pg.dispose();})();
+scene.add(new THREE.HemisphereLight(0xdfe8f2,0x7a6a52,0.35));
+var sun=new THREE.DirectionalLight(0xffe7cc,2.0);sun.position.set(-26,30,-20);sun.castShadow=true;
+sun.shadow.bias=-.0003;sun.shadow.normalBias=.03;sun.shadow.mapSize.set(4096,4096);
+Object.assign(sun.shadow.camera,{left:-26,right:26,top:26,bottom:-26,near:5,far:100});scene.add(sun);
+
+// procedural textures
+var seed=7;function rand(){seed=(seed*16807)%2147483647;return (seed-1)/2147483646;}
+function rnd(a,b){return a+rand()*(b-a);}
+function cvs(w,h){var c=document.createElement('canvas');c.width=w;c.height=h||w;return [c,c.getContext('2d')];}
+function tex(c,rep,srgb){var t=new THREE.CanvasTexture(c);t.wrapS=t.wrapT=THREE.RepeatWrapping;t.anisotropy=ANISO;if(rep)t.repeat.set(rep[0],rep[1]);if(srgb)t.encoding=THREE.sRGBEncoding;return t;}
+var granite=(function(){var N=512,a=cvs(N),c=a[0],g=a[1],bb=cvs(N),b=bb[0],bg=bb[1];g.fillStyle='#a49e93';g.fillRect(0,0,N,N);bg.fillStyle='#808080';bg.fillRect(0,0,N,N);
+  for(var k=0;k<14;k++){var x=rnd(0,N),y=rnd(0,N),r=rnd(40,140),gr=g.createRadialGradient(x,y,0,x,y,r);gr.addColorStop(0,'rgba('+(rnd(90,130)|0)+','+(rnd(85,120)|0)+','+(rnd(70,100)|0)+',.10)');gr.addColorStop(1,'rgba(0,0,0,0)');g.fillStyle=gr;g.fillRect(0,0,N,N);}
+  for(k=0;k<22000;k++){x=rnd(0,N);y=rnd(0,N);r=rnd(.6,2.2);var t=rand();
+    g.fillStyle=t<.35?'rgba(40,38,36,'+rnd(.35,.8)+')':t<.6?'rgba(235,232,225,'+rnd(.3,.7)+')':'rgba('+(rnd(150,190)|0)+','+(rnd(140,175)|0)+','+(rnd(120,150)|0)+',.4)';g.fillRect(x,y,r,r);
+    var v=rand()*255|0;bg.fillStyle='rgba('+v+','+v+','+v+',.18)';bg.fillRect(x,y,r,r);}
+  return {map:tex(c,null,true),bump:tex(b)};})();
+var brick=(function(){var N=256,a=cvs(N),c=a[0],g=a[1],bb=cvs(N),b=bb[0],bg=bb[1];g.fillStyle='#6f7271';g.fillRect(0,0,N,N);bg.fillStyle='#808080';bg.fillRect(0,0,N,N);
+  for(var k=0;k<9000;k++){var x=rnd(0,N),y=rnd(0,N),v=rnd(-30,30);g.fillStyle='rgba('+(111+v|0)+','+(114+v|0)+','+(113+v|0)+',.25)';g.fillRect(x,y,1.5,1.5);var w=rand()*255|0;bg.fillStyle='rgba('+w+','+w+','+w+',.2)';bg.fillRect(x,y,1.5,1.5);}
+  return {map:tex(c,null,true),bump:tex(b)};})();
+var tileTex=(function(){var N=256,a=cvs(N),c=a[0],g=a[1],bb=cvs(N),b=bb[0],bg=bb[1];
+  for(var x=0;x<N;x++){var p=(x%32)/32,s=Math.sin(p*Math.PI),v=55+s*40;g.fillStyle='rgb('+(v|0)+','+(v+3|0)+','+(v+8|0)+')';g.fillRect(x,0,1,N);var q=s*255|0;bg.fillStyle='rgb('+q+','+q+','+q+')';bg.fillRect(x,0,1,N);}
+  for(var y=0;y<N;y+=32){g.fillStyle='rgba(0,0,0,.25)';g.fillRect(0,y,N,2);}
+  return {map:tex(c,[1,1],true),bump:tex(b)};})();
+var earth=(function(){var N=512,a=cvs(N),c=a[0],g=a[1];g.fillStyle='#8c8a6a';g.fillRect(0,0,N,N);
+  for(var k=0;k<40;k++){var x=rnd(0,N),y=rnd(0,N),r=rnd(30,110),gr=g.createRadialGradient(x,y,0,x,y,r),gs=rand()<.6;gr.addColorStop(0,gs?'rgba(96,120,64,.45)':'rgba(150,132,100,.4)');gr.addColorStop(1,'rgba(0,0,0,0)');g.fillStyle=gr;g.fillRect(0,0,N,N);}
+  for(k=0;k<30000;k++){var v=rnd(-35,35);g.fillStyle='rgba('+(120+v|0)+','+(118+v|0)+','+(90+v|0)+',.25)';g.fillRect(rnd(0,N),rnd(0,N),1.4,1.4);}
+  return tex(c,[14,14],true);})();
+var woodGrain=(function(){var N=256,a=cvs(N),c=a[0],g=a[1];g.fillStyle='#ffffff';g.fillRect(0,0,N,N);
+  for(var i=0;i<60;i++){var p=rand()*N;g.strokeStyle='rgba(0,0,0,'+rnd(.04,.12)+')';g.lineWidth=rnd(.5,2);g.beginPath();for(var s=0;s<=8;s++){var q=s*N/8,o=p+Math.sin(s*.8+i)*rnd(1,3);if(s)g.lineTo(o,q);else g.moveTo(o,q);}g.stroke();}
+  return tex(c,[1,2],true);})();
+
+// materials
+var GRAN=[0,1,2,3,4,5].map(function(){var t=rnd(-.06,.06);return new THREE.MeshStandardMaterial({map:granite.map,bumpMap:granite.bump,bumpScale:.012,roughness:rnd(.82,.94),color:new THREE.Color(1+t,1+t*.9,1+t*.7)});});
+var BRICK=[0,1,2].map(function(){var t=rnd(-.08,.08);return new THREE.MeshStandardMaterial({map:brick.map,bumpMap:brick.bump,bumpScale:.008,roughness:.92,color:new THREE.Color(1+t,1+t,1+t*1.1)});});
+var MORTAR=new THREE.MeshStandardMaterial({color:0x7d786f,map:granite.map,roughness:.97,bumpMap:granite.bump,bumpScale:.01});
+var RED=new THREE.MeshStandardMaterial({color:0x8e3322,roughness:.6,map:woodGrain});
+var GREEN=new THREE.MeshStandardMaterial({color:0x2f6a55,roughness:.55,map:woodGrain});
+var DOOR=new THREE.MeshStandardMaterial({color:0x6a3b22,roughness:.7,map:woodGrain});
+var ROOF=new THREE.MeshStandardMaterial({map:tileTex.map,bumpMap:tileTex.bump,bumpScale:.05,roughness:.62,metalness:.05,side:THREE.DoubleSide});
+var RIDGE=new THREE.MeshStandardMaterial({color:0x3e4247,roughness:.6});
+var FLOOR=new THREE.MeshStandardMaterial({map:brick.map,color:0xb9b6ad,roughness:.9});
+var MATS=GRAN.concat(BRICK);
+
+// rounded-edge stone geometry, cached by quantised size
+var GEO={};
+function rboxGeo(w,h,d,r){var key=[w,h,d].map(function(v){return v.toFixed(2)}).join('_');if(GEO[key])return GEO[key];
+  r=Math.max(.004,Math.min(r,w/2-.004,d/2-.004,h/2-.004));var b=r*.85,iw=w-2*b,id=d-2*b,rc=Math.max(.002,Math.min(r,iw/2-.002,id/2-.002)),x=-iw/2,y=-id/2,sh=new THREE.Shape();
+  sh.moveTo(x+rc,y);sh.lineTo(x+iw-rc,y);sh.quadraticCurveTo(x+iw,y,x+iw,y+rc);sh.lineTo(x+iw,y+id-rc);sh.quadraticCurveTo(x+iw,y+id,x+iw-rc,y+id);
+  sh.lineTo(x+rc,y+id);sh.quadraticCurveTo(x,y+id,x,y+id-rc);sh.lineTo(x,y+rc);sh.quadraticCurveTo(x,y,x+rc,y);
+  var g=new THREE.ExtrudeGeometry(sh,{depth:Math.max(.002,h-2*b),bevelEnabled:true,bevelThickness:b,bevelSize:b,bevelSegments:2,curveSegments:2});
+  g.translate(0,0,-(h-2*b)/2);g.rotateX(-Math.PI/2);
+  var p=g.attributes.position,n=g.attributes.normal,uv=new Float32Array(p.count*2),o=[rnd(0,5),rnd(0,5)];
+  for(var i=0;i<p.count;i++){var ax=Math.abs(n.getX(i)),ay=Math.abs(n.getY(i)),az=Math.abs(n.getZ(i)),u,v;
+    if(ax>=ay&&ax>=az){u=p.getZ(i);v=p.getY(i);}else if(ay>=az){u=p.getX(i);v=p.getZ(i);}else{u=p.getX(i);v=p.getY(i);}uv[i*2]=u*.45+o[0];uv[i*2+1]=v*.45+o[1];}
+  g.setAttribute('uv',new THREE.BufferAttribute(uv,2));g.computeVertexNormals();g.userData.key=key;return GEO[key]=g;}
+function q(v){return Math.round(v*20)/20;}
+
+// every block is recorded first, then drawn as instanced batches (same stone shape + material = one draw call)
+var blocks=[];   // {g,mi,x,y,z,ry,rz}
+var singles=[];  // non-instanced parts that drop in as one piece {m,y}
+var cores=[];
+var PART='';function stone(geo,mi,x,y,z,ry,rz){blocks.push({g:geo,mi:mi,x:x,y:y,z:z,ry:ry||0,rz:rz||0,part:PART});}
+function core(w,h,d,x,y,z){var g=new THREE.BoxGeometry(w,h,d);g.translate(0,h/2,0);var m=new THREE.Mesh(g,MORTAR);m.position.set(x,y-h/2,z);m.receiveShadow=true;scene.add(m);cores.push({m:m,y0:y-h/2,h:h});}
+var G6=function(){return (rand()*6)|0};var B3=function(){return 6+((rand()*3)|0)};
+
+var ground=new THREE.Mesh(new THREE.PlaneGeometry(220,220),new THREE.MeshStandardMaterial({map:earth,roughness:1}));ground.rotation.x=-Math.PI/2;ground.receiveShadow=true;scene.add(ground);
+
+PART='육축';
+// ① 육축 stone base: 16 m (x) × 9 m (z) × 6.8 m, arched passage along z
+var W=16,D=9,H=6.8,rows=12,rh=H/rows,aw=3.6,ah=2.8;
+function inArch(x,y){return Math.abs(x)<aw/2+.15&&(y<ah||Math.hypot(x,y-ah)<aw/2+.45);}
+core((W-aw)/2-.1,H-.05,D-.1,-(aw/2+(W-aw)/4),H/2,0);core((W-aw)/2-.1,H-.05,D-.1,(aw/2+(W-aw)/4),H/2,0);core(aw+.2,H-ah-aw/2-.3,D-.1,0,H-(H-ah-aw/2-.3)/2,0);
+for(var r=0;r<rows;r++){var y=rh*(r+.5),bw=r<3?1.7:1.25,off=(r%2)*bw/2;
+  [-1,1].forEach(function(face){var z=face*(D/2-.35);
+    for(var x=-W/2-off;x<W/2;x+=bw*rnd(.85,1.15)){var x0=Math.max(x,-W/2),x1=Math.min(x+bw,W/2);if(x1-x0<.35)continue;var cx=(x0+x1)/2;if(inArch(cx,y))continue;
+      stone(rboxGeo(q(x1-x0),q(rh),.7,.06),G6(),cx,y,z);}});
+  [-1,1].forEach(function(side){var x=side*(W/2-.35);for(var z=-D/2+.7;z<D/2-.7;z+=1.3)stone(rboxGeo(.7,q(rh),1.25,.06),G6(),x,y,z+.65);});}
+PART='홍예';for(var k=0;k<=14;k++){var a=Math.PI*k/14,rr=aw/2+.35;[-D/2+.35,D/2-.35].forEach(function(z){stone(rboxGeo(.6,.75,.7,.05),k%6,Math.cos(a)*rr,ah+Math.sin(a)*rr,z,0,a-Math.PI/2);});}
+var lining=new THREE.Mesh(new THREE.CylinderGeometry(aw/2+.02,aw/2+.02,D-1.4,32,1,true,-Math.PI/2,Math.PI),new THREE.MeshStandardMaterial({map:granite.map,roughness:.9,side:THREE.BackSide}));lining.rotation.x=Math.PI/2;lining.rotation.y=Math.PI/2;lining.position.set(0,ah,0);lining.receiveShadow=true;scene.add(lining);cores.push({m:lining,thr:ah+1});
+var door=new THREE.Mesh(new THREE.BoxGeometry(aw-.1,ah+aw/2-.25,.25),DOOR);door.position.set(0,(ah+aw/2)/2-.1,1.2);door.castShadow=true;scene.add(door);singles.push({m:door,y:door.position.y,lvl:ah});
+
+PART='성벽';
+// ② 성벽 stubs on both sides
+[-1,1].forEach(function(s){core(7,4.6,3.5,s*(W/2+3.5),2.3,.5);
+  for(var r=0;r<9;r++){var y=.26+r*.52;for(var x=0;x<7;x+=1.15){if(x+1.15>7.05)break;[-1.2,2.2].forEach(function(zf){stone(rboxGeo(1.1,.5,.6,.05),G6(),s*(W/2+x+.58),y,zf);});}}
+  for(var z=-1.2;z<=2.25;z+=.6)stone(rboxGeo(.6,.5,.6,.05),G6(),s*(W/2+6.7),2.3,z);
+  for(var x2=0;x2<7;x2+=1.15){if(x2+1.15>7.05)break;stone(rboxGeo(1.1,.25,3.6,.04),G6(),s*(W/2+x2+.58),4.8,.5);}});
+
+PART='옹성';
+// ③ 옹성 half-moon brick wall in front (−z)
+var oc={x:1,z:-D/2-7},orad=7.5,ot=1.2,oh=4.6,brh=.36;
+for(var r2=0;r2<Math.round(oh/brh);r2++){var y2=brh*(r2+.5),step=.62/orad,off2=(r2%2)*step/2;
+  for(var a2=-.15+off2;a2<Math.PI+.95;a2+=step)stone(rboxGeo(.6,q(brh),ot,.03),B3(),oc.x+Math.cos(a2)*orad,y2,oc.z-Math.sin(a2)*orad,a2+Math.PI/2);}
+PART='옹성 여장';for(var a3=-.15;a3<Math.PI+.95;a3+=1.1/orad)stone(rboxGeo(.95,.9,.45,.03),B3(),oc.x+Math.cos(a3)*(orad+.35),oh+.45,oc.z-Math.sin(a3)*(orad+.35),a3+Math.PI/2);
+
+// ④ 여장 on the base top
+var dg=new THREE.BoxGeometry(W-.2,.08,D-.2);dg.translate(0,.04,0);var deck=new THREE.Mesh(dg,FLOOR);deck.position.y=H-.02;deck.receiveShadow=true;scene.add(deck);cores.push({m:deck,y0:H-.02,h:.08,last:true});
+PART='육축 여장';[-D/2+.25,D/2-.25].forEach(function(z){for(var x=-W/2+.55;x<W/2;x+=1.0){if(Math.round(x+W/2)%3===2)continue;stone(rboxGeo(.9,1.0,.45,.03),B3(),x,H+.55,z);}});
+
+// ⑤ 문루 pavilion: columns, beams, roof — each part drops in on its own
+var bx=[-5.4,-1.8,1.8,5.4],bz=[-2.4,0,2.4];
+bx.forEach(function(x){bz.forEach(function(z){if(z===0&&Math.abs(x)<2)return;
+  var base=new THREE.Mesh(new THREE.CylinderGeometry(.42,.48,.3,16),GRAN[2]);base.position.set(x,H+.15,z);base.castShadow=base.receiveShadow=true;scene.add(base);singles.push({m:base,y:H+.15,lvl:H+.15});
+  var c=new THREE.Mesh(new THREE.CylinderGeometry(.22,.26,3.4,16),RED);c.position.set(x,H+1.98,z);c.castShadow=c.receiveShadow=true;scene.add(c);singles.push({m:c,y:H+1.98,lvl:H+.5});});});
+[-2.4,2.4].forEach(function(z){var b=new THREE.Mesh(new THREE.BoxGeometry(11.8,.5,.38),GREEN);b.position.set(0,H+3.75,z);b.castShadow=b.receiveShadow=true;scene.add(b);singles.push({m:b,y:H+3.75,lvl:H+3.7});});
+[-5.4,5.4].forEach(function(x){var b=new THREE.Mesh(new THREE.BoxGeometry(.38,.5,5.4),GREEN);b.position.set(x,H+3.75,0);b.castShadow=b.receiveShadow=true;scene.add(b);singles.push({m:b,y:H+3.75,lvl:H+3.7});});
+(function(){var L=15.4,Wd=9,ridge=7.6,rH=3.3,N=14,v=[],uv=[],ix=[];
+ for(var j=0;j<=N;j++){var t=j/N,hw=Wd/2*(1-t)+.35*t,hl=L/2*(1-t)+ridge/2*t,y=4.05+rH*Math.pow(t,.75),up=.9*Math.pow(1-t,3);
+  var C=[[-hl,-hw],[hl,-hw],[hl,hw],[-hl,hw],[-hl,-hw]],s=0;
+  for(var k=0;k<5;k++){if(k)s+=Math.hypot(C[k][0]-C[k-1][0],C[k][1]-C[k-1][1]);v.push(C[k][0],y+up,C[k][1]);uv.push(s/1.1,t*rH*1.6);}}
+ for(j=0;j<N;j++)for(k=0;k<4;k++){var a=j*5+k,b=a+1,c=a+5,d=b+5;ix.push(a,b,d,a,d,c);}
+ var g=new THREE.BufferGeometry();g.setAttribute('position',new THREE.Float32BufferAttribute(v,3));g.setAttribute('uv',new THREE.Float32BufferAttribute(uv,2));g.setIndex(ix);g.computeVertexNormals();
+ var roof=new THREE.Group();roof.position.y=H;var rm=new THREE.Mesh(g,ROOF);rm.castShadow=rm.receiveShadow=true;roof.add(rm);
+ var rid=new THREE.Mesh(new THREE.BoxGeometry(ridge+.3,.45,.7),RIDGE);rid.position.y=4.05+rH+.15;rid.castShadow=true;roof.add(rid);
+ [-1,1].forEach(function(s){var yb=new THREE.Mesh(new THREE.BoxGeometry(.5,.7,.6),RIDGE);yb.position.set(s*(ridge/2+.1),4.05+rH+.45,0);roof.add(yb);});
+ scene.add(roof);singles.push({m:roof,y:H,lvl:H+4});})();
+
+// build order: bottom course first (like a mason), a little left-to-right sweep inside each course
+var all=blocks.map(function(b){return {kind:'b',b:b,lvl:b.y,x:b.x}}).concat(singles.map(function(s){return {kind:'s',s:s,lvl:s.lvl,x:0}}));
+all.sort(function(p,q){var dl=Math.round(p.lvl*4)-Math.round(q.lvl*4);return dl!==0?dl:(p.x-q.x);});
+all.forEach(function(it,i){it.t=i;});
+
+// instanced batches
+var batches={};
+all.forEach(function(it){if(it.kind!=='b')return;var key=it.b.g.userData.key+'|'+it.b.mi;(batches[key]=batches[key]||{g:it.b.g,mi:it.b.mi,list:[]}).list.push(it);});
+var dummy=new THREE.Object3D(),IM=[];
+Object.keys(batches).forEach(function(k){var B=batches[k];var im=new THREE.InstancedMesh(B.g,MATS[B.mi],B.list.length);im.castShadow=im.receiveShadow=true;im.frustumCulled=false;
+  B.list.forEach(function(it,i){it.im=im;it.idx=i;});scene.add(im);IM.push(im);});
+var TOTAL=all.length;
+
+// color management (sRGB authoring)
+(function(){var done=new Set();scene.background.convertSRGBToLinear();scene.fog.color.convertSRGBToLinear();
+  scene.traverse(function(o){var ms=o.material?(Array.isArray(o.material)?o.material:[o.material]):[];ms.forEach(function(m){if(done.has(m))return;done.add(m);if(m.color)m.color.convertSRGBToLinear();m.needsUpdate=true;});});})();
+
+camera.position.set(-30,17,-30);
+var ctl=new THREE.OrbitControls(camera,renderer.domElement);ctl.target.set(0,4.5,-3);ctl.enableDamping=true;ctl.maxPolarAngle=Math.PI*.48;ctl.minDistance=8;ctl.maxDistance=80;
+
+// post-processing: SSAO + filmic grade
+var rt=new THREE.WebGLRenderTarget(2,2,{type:THREE.HalfFloatType});
+var composer=new THREE.EffectComposer(renderer,rt);
+var ssao=new THREE.SSAOPass(scene,camera,2,2);
+ssao.kernelRadius=.9;ssao.minDistance=.00004;ssao.maxDistance=.006;ssao.output=THREE.SSAOPass.OUTPUT.Blur;
+ssao.beautyRenderTarget.texture.type=THREE.HalfFloatType;ssao.normalRenderTarget.depthTexture.type=THREE.UnsignedIntType;
+composer.addPass(ssao);
+var grade=new THREE.ShaderPass({
+  uniforms:{tDiffuse:{value:null},tBeauty:{value:null},tAO:{value:null},tDepth:{value:null},aoStrength:{value:1.3},res:{value:new THREE.Vector2(1,1)}},
+  vertexShader:'varying vec2 vUv;void main(){vUv=uv;gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.);}',
+  fragmentShader:'uniform sampler2D tBeauty,tAO,tDepth;uniform float aoStrength;uniform vec2 res;varying vec2 vUv;\n'+
+  'float h(vec2 p){return fract(sin(dot(p,vec2(12.9898,78.233)))*43758.5453);}\n'+
+  'void main(){vec3 c=texture2D(tBeauty,vUv).rgb;float ao=texture2D(tDepth,vUv).r>.9999?1.:texture2D(tAO,vUv).r;\n'+
+  'c*=clamp(mix(1.,ao,aoStrength),0.,1.);c=LinearTosRGB(vec4(c,1.)).rgb;\n'+
+  'c=mix(c,c*c*(3.-2.*c),.18);c*=vec3(1.015,1.,.975);vec2 q=vUv-.5;c*=1.-dot(q,q)*.45;c+=(h(vUv*res)-.5)/255.*2.;gl_FragColor=vec4(c,1.);}'});
+grade.uniforms.tBeauty.value=ssao.beautyRenderTarget.texture;grade.uniforms.tAO.value=ssao.blurRenderTarget.texture;grade.uniforms.tDepth.value=ssao.normalRenderTarget.depthTexture;
+grade.renderToScreen=true;composer.addPass(grade);
+function resize(){var w=wrap.clientWidth,h=wrap.clientHeight;renderer.setSize(w,h,false);camera.aspect=w/h;camera.updateProjectionMatrix();
+  composer.setPixelRatio(renderer.getPixelRatio());composer.setSize(w,h);grade.uniforms.res.value.set(w*renderer.getPixelRatio(),h*renderer.getPixelRatio());}
+if(window.ResizeObserver)new ResizeObserver(resize).observe(wrap);else window.addEventListener('resize',resize);resize();
+
+// build animation: blocks are lowered from 14 m above and settle with a small bounce
+var DROP=14,FALL=1.6;      // seconds a single block takes to fall
+var rate=20,clock=0,last=performance.now(),done=false;   // blocks started per second
+function ease(p){if(p<.8){var u=p/.8;return u*u;}var u2=(p-.8)/.2;return 1-Math.sin(u2*Math.PI)*.04;}
+function place(){var k=clock*rate,n=0,lvl=-1;
+  for(var i=0;i<all.length;i++){var it=all[i],p=Math.min(1,Math.max(0,(k-it.t)/(rate*FALL)));if(p>0)n++;if(p>=1&&it.lvl>lvl)lvl=it.lvl;
+    var dy=p<=0?0:(1-ease(p))*DROP;
+    if(it.kind==='b'){var b=it.b;dummy.position.set(b.x,b.y+dy,b.z);dummy.rotation.set(0,b.ry,b.rz);dummy.scale.setScalar(p>0?1:0);dummy.updateMatrix();it.im.setMatrixAt(it.idx,dummy.matrix);}
+    else{it.s.m.visible=p>0;it.s.m.position.y=it.s.y+dy;}}
+  IM.forEach(function(im){im.instanceMatrix.needsUpdate=true;});
+  cores.forEach(function(c){if(c.thr!==undefined){c.m.visible=lvl>=c.thr;return;}var f=c.last?(lvl>=H-.2?1:0):Math.min(1,Math.max(0,(lvl+.05-c.y0)/c.h));c.m.visible=f>0.001;c.m.scale.y=Math.max(f,.001);});
+  stat.textContent=T.stat+n+' / '+TOTAL;
+  done=(k-all.length)>rate*FALL;}
+bReplay.onclick=function(){clock=0;done=false;};
+bSkip.onclick=function(){clock=(all.length/rate)+FALL+1;};
+bSlow.onclick=function(){rate=Math.max(3,rate/2);};
+bFast.onclick=function(){rate=Math.min(96,rate*2);};
+if(window.matchMedia&&matchMedia('(prefers-reduced-motion: reduce)').matches)clock=1e6;
+
+var counts={};blocks.forEach(function(b){counts[b.part]=(counts[b.part]||0)+1;});counts['문루 부재']=singles.length;
+root.__api={counts:counts,total:TOTAL,snap:function(frac,cam,tgt,w,h,pts){var ow=wrap.clientWidth,oh=wrap.clientHeight;
+  clock=frac*all.length/rate+FALL+.05;done=false;place();
+  if(cam)camera.position.set(cam[0],cam[1],cam[2]);if(tgt)ctl.target.set(tgt[0],tgt[1],tgt[2]);ctl.update();
+  renderer.setSize(w,h,false);camera.aspect=w/h;camera.updateProjectionMatrix();composer.setSize(w,h);grade.uniforms.res.value.set(w*renderer.getPixelRatio(),h*renderer.getPixelRatio());
+  composer.render();var oc2=document.createElement('canvas');oc2.width=w;oc2.height=h;oc2.getContext('2d').drawImage(renderer.domElement,0,0,w,h);var url=oc2.toDataURL('image/jpeg',.9);var P=(pts||[]).map(function(p){var v=new THREE.Vector3(p[0],p[1],p[2]).project(camera);return [(v.x+1)/2*w,(1-v.y)/2*h];});resize();return {url:url,P:P};},
+  proj:function(x,y,z){var v=new THREE.Vector3(x,y,z).project(camera);return [(v.x+1)/2,(1-v.y)/2];},
+  freeze:function(){visible=false;}};
+var visible=true;if(window.IntersectionObserver)new IntersectionObserver(function(e){visible=e[0].isIntersecting;}).observe(wrap);
+(function loop(now){requestAnimationFrame(loop);var dt=Math.min(.1,(now-last)/1000);last=now;if(!visible)return;if(!done)clock+=dt;place();ctl.update();composer.render();})(performance.now());
+}
+})();
+
+</script>
+<h2 class="hws-h2"><span class="hws-q">&#10077;</span>Build order: one course at a time</h2>
+<figure class="hws-fig"><img src="https://macrobim.github.io/macroBIM/blog/hwaseomun-3d/build-order.jpg" alt="Hwaseomun 3D model build order, course by course"/><figcaption>Four frames from the animation.</figcaption></figure>
+<p>All 1,412 blocks are sorted by height. Inside a course they go left to right, so the platform, the enclosure and the wall stubs rise together, course by course. The parapets go on last, and then the pavilion columns, beams and roof. The rubble core behind the facing stones grows with the courses, so you never see an empty box.</p>
+<h2 class="hws-h2"><span class="hws-q">&#10077;</span>Blocks by part</h2>
+<figure class="hws-fig"><img src="https://macrobim.github.io/macroBIM/blog/hwaseomun-3d/parts.jpg" alt="Parts of Hwaseomun Gate: stone platform, arch, half-moon enclosure, parapet, gate pavilion, city wall"/><figcaption>The parts named in the table above.</figcaption></figure>
+<div id="hws-cnt" style="width:100%;height:400px;"></div>
+<script>
+(function(){var L=["Stone platform (yukchuk)", "Arch stones (hongye)", "City wall stubs", "Half-moon enclosure (bricks)", "Enclosure parapet", "Platform parapet", "Pavilion members"],V=[395, 30, 240, 670, 29, 22, 26];
+function draw(){Plotly.newPlot('hws-cnt',[{type:'bar',orientation:'h',y:L,x:V,text:V.map(function(v){return v}),textposition:'outside',cliponaxis:false,
+marker:{color:['#a49e93','#8d877c','#b9b3a6','#6f7271','#5b5e5d','#7d8180','#8e3322']},hovertemplate:'%{y}: %{x} blocks<extra></extra>'}],
+{title:{text:'Hwaseomun model – blocks by part (total 1,412)',font:{size:16}},margin:{l:200,r:50,t:50,b:50},font:{family:'Noto Serif KR, serif',size:13},
+xaxis:{title:'Number of blocks',range:[0,780]},yaxis:{autorange:'reversed'},paper_bgcolor:'#fff',plot_bgcolor:'#fff',showlegend:false},{displayModeBar:false,responsive:true});}
+if(window.Plotly)draw();else{var sc=document.createElement('script');sc.src='https://cdn.plot.ly/plotly-2.35.2.min.js';sc.onload=draw;document.head.appendChild(sc);}
+})();
+</script>
+<p>Almost half of the blocks, <b>670</b>, are bricks in the half-moon enclosure: each brick is small (0.6 m × 0.36 m) and they wrap around the curve in 13 courses. The platform uses large granite blocks (1.25–1.7 m long), so it needs only 395.</p>
+<div class="hws-tw"><table class="hws-t hws-tl"><tr><th>Part</th><th>Model size (approx.)</th><th>Block size</th><th>Notes</th></tr><tr><td>Stone platform</td><td>16 m wide × 9 m deep × 6.8 m high</td><td>1.25–1.7 m × 0.57 m</td><td>12 courses; the bottom 3 use larger stones</td></tr><tr><td>Arch</td><td>Passage 3.6 m wide, springs at 2.8 m</td><td>Wedges 0.6 × 0.75 m</td><td>15 on each face</td></tr><tr><td>Half-moon enclosure</td><td>Radius 7.5 m, 1.2 m thick, 4.6 m high</td><td>Bricks 0.6 × 0.36 m</td><td>Open on one side</td></tr><tr><td>Parapet</td><td>About 1 m high</td><td>0.9 × 1.0 × 0.45 m</td><td>Every third bay left open</td></tr><tr><td>Gate pavilion</td><td>3 bays × 2 bays, columns 3.4 m</td><td>–</td><td>Roof simplified, no bracket sets</td></tr></table></div>
+<div class="hws-note"><b>These are estimates.</b> I scaled them off the scale bars of the scanned survey drawings and rounded them. Real stone sizes and joint positions differ from the model.</div>
+<h2 class="hws-h2"><span class="hws-q">&#10077;</span>How it is built in three.js</h2>
+<p>Stones that share a size and material are drawn as one <b>InstancedMesh</b>. Drawing 1,400 separate meshes would stutter, but grouped this way the scene needs only a few dozen draw calls. The falling animation only changes each instance's matrix.</p>
+<div class="hws-code"><div class="hws-code-bar"><span style="color:#f38ba8">●</span> <span style="color:#f9e2af">●</span> <span style="color:#a6e3a1">●</span> &nbsp;JavaScript</div><pre>// Stones with the same shape and material share one InstancedMesh
+const im = new THREE.InstancedMesh(stoneGeometry, graniteMaterial, stones.length);
+im.castShadow = im.receiveShadow = true;
+scene.add(im);
+
+// Lay them like a mason: bottom course first, left to right inside a course
+stones.sort((a, b) =&gt; a.y - b.y || a.x - b.x);
+
+const DROP = 14, FALL = 1.6;           // each stone falls 14 m in 1.6 s
+const dummy = new THREE.Object3D();
+function place(clock, rate) {          // rate = stones released per second
+  stones.forEach((s, i) =&gt; {
+    const p = Math.min(1, Math.max(0, (clock * rate - i) / (rate * FALL)));
+    const fall = p &lt; 0.8 ? (p / 0.8) ** 2 : 1 - Math.sin((p - 0.8) / 0.2 * Math.PI) * 0.04;
+    dummy.position.set(s.x, s.y + (1 - fall) * DROP, s.z);   // drop, then a tiny settle
+    dummy.rotation.set(0, s.ry, 0);
+    dummy.scale.setScalar(p &gt; 0 ? 1 : 0);                     // not its turn yet: hidden
+    dummy.updateMatrix();
+    im.setMatrixAt(i, dummy.matrix);
+  });
+  im.instanceMatrix.needsUpdate = true;
+}</pre></div>
+<div class="hws-tw"><table class="hws-t hws-tl"><tr><th>Item</th><th>Setting</th><th>Effect</th></tr><tr><td>Lighting</td><td>Sky and ground image-based lighting (PMREM) plus a warm sun with soft 4096 px shadows</td><td>Outdoor daylight</td></tr><tr><td>Tone mapping</td><td>ACES Filmic, exposure 0.72</td><td>Bright granite does not burn out</td></tr><tr><td>SSAO</td><td>Screen-space ambient occlusion, kernel radius 0.9 m</td><td>Dark joints and corners between stones</td></tr><tr><td>Grade pass</td><td>Gentle S-curve, warm balance, vignette, dither</td><td>A photographic finish</td></tr><tr><td>Materials</td><td>Granite, brick and roof-tile textures drawn on canvas in code, with bump maps</td><td>Texture with no image files</td></tr><tr><td>Stone edges</td><td>Bevelled boxes</td><td>Crisp block outlines</td></tr></table></div>
+<h2 class="hws-h2"><span class="hws-q">&#10077;</span>What is still rough, and what comes next</h2>
+<div class="hws-tw"><table class="hws-t hws-tl"><tr><th>Part</th><th>Now</th><th>Next (drawing pages)</th></tr><tr><td>Platform and walls</td><td>Regular courses</td><td>Trace the real stone outlines from the elevations (477–481)</td></tr><tr><td>Arch</td><td>Semicircular wedge stones only</td><td>Passage lining, door leaves and frame (482–485)</td></tr><tr><td>Enclosure</td><td>Uniform bricks on a half circle</td><td>The true curve and height changes from the plan (475)</td></tr><tr><td>Roof</td><td>Plain hip roof</td><td>Eave lift and inward curve, tile rows, hip ridges (495–501)</td></tr><tr><td>Brackets and painting</td><td>None</td><td>Bracket sets as simple blocks, dancheong color approximated (489–494)</td></tr></table></div>
+<p>The next step is to trace the stone outlines from the front elevation and rebuild the platform with the real layout. After that comes the roof curve.</p>
+<p><span style="font-size:14px;color:#607d8b">Sources: Cultural Heritage Administration of Korea, Measured Survey Report of Paldalmun and Hwaseomun, Suwon (1999); Hwaseong Seongyeok Uigwe, National Museum of Korea (KOGL Type 1); Korea Heritage Service digital service. The 3D model is my own simplified reconstruction based on these sources.</span></p>
+</div>
