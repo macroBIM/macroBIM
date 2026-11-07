@@ -325,6 +325,11 @@ git status --short     # 비어 있어야 한다
 
 **맨 위가 최신.** 한 줄에 하나: 날짜 · 커밋 · 무엇이 · 어디까지(테스트/운영).
 
+### 2026-11-07
+- **design: qna_api.php DB 접속정보를 /config/db_config.php 로 분리** · `design` `733fd6c` · **운영(배포·DB 비번 교체 필요)**
+  · 공개 저장소에 DB 비밀번호가 그대로 있었다. 서버 전용 config(웹루트 위)에서 배열로 읽게 바꿈. 이력엔 옛 비번이 남으니 woobi 에서 비번 교체 필요.
+- **(별건 진행) 철근 엔진 PHP 포팅 — 비공개 `macroRebar`** · 기하 원자(slack·clrRes·closestOnSeg·segToPoint) JS 와 bit 일치. 핵심은 서버(PHP)에서 숨기고 그림은 공개로 가는 설계. 논문은 동결 JS(`012ae5c`)가 기준.
+
 ### 2026-10-29
 
 - **영어 블로그 화서문 3D 글 이미지 · 본문 호스팅** · `blog/hwaseomun-3d/` (hero · uigwe-hwaseomun · parts · build-order · post.html) · 코드 아님 — macrobim.blogspot.com 예약 글이 GitHub Pages 주소로 부른다. 지우거나 옮기면 글 이미지가 깨진다
