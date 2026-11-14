@@ -326,6 +326,7 @@ git status --short     # 비어 있어야 한다
 **맨 위가 최신.** 한 줄에 하나: 날짜 · 커밋 · 무엇이 · 어디까지(테스트/운영).
 
 ### 2026-11-14
+- **design: REBAR PARA 를 REBAR 와 같은 틀(엑셀·2D·3D·철근표)의 서버 엔진 화면으로** · `design` `ef26746` · **테스트(index_claude)** — 표준 I/T 거더(AASHTO III·IV, PCI BT) · PSCBOX 박스 · 엑셀 poly, VERIFY(파라메트릭 정답 대조). 계산은 비공개 서버(`macroRebar/php/girder_sheet.php`).
 - **design: 좌측 메뉴 REBAR PARA (논문 시뮬레이션 화면)** · `design` `dbb652f` · **테스트(index_claude)** — `rebar_para.js` 는 그리기만, 계산은 비공개 `macroRebar` 서버(카페24 `rebar_api.php {"mode":"para"}`). 동결 JS(`jfield.js`·`jlong.js`)는 **손대지 않음** — 새 항(⑨ 절곡부 주머니·seat1)은 PHP 에만(사용자 결정: JS 동결, PHP 만 업그레이드).
 - **호스팅 woobi → 카페24(PHP 8.4)** — 카페24 PHP 는 클래스 메서드 호출마다 메모리가 새서 `macroRebar/php/flatten.php` 로 함수 변환 로드. S18 50.7s → 12.3s.
 
