@@ -325,6 +325,10 @@ git status --short     # 비어 있어야 한다
 
 **맨 위가 최신.** 한 줄에 하나: 날짜 · 커밋 · 무엇이 · 어디까지(테스트/운영).
 
+### 2026-11-14
+- **design: 좌측 메뉴 REBAR PARA (논문 시뮬레이션 화면)** · `design` `dbb652f` · **테스트(index_claude)** — `rebar_para.js` 는 그리기만, 계산은 비공개 `macroRebar` 서버(카페24 `rebar_api.php {"mode":"para"}`). 동결 JS(`jfield.js`·`jlong.js`)는 **손대지 않음** — 새 항(⑨ 절곡부 주머니·seat1)은 PHP 에만(사용자 결정: JS 동결, PHP 만 업그레이드).
+- **호스팅 woobi → 카페24(PHP 8.4)** — 카페24 PHP 는 클래스 메서드 호출마다 메모리가 새서 `macroRebar/php/flatten.php` 로 함수 변환 로드. S18 50.7s → 12.3s.
+
 ### 2026-11-07
 - **design: qna_api.php DB 접속정보를 /config/db_config.php 로 분리** · `design` `733fd6c` · **운영(배포·DB 비번 교체 필요)**
   · 공개 저장소에 DB 비밀번호가 그대로 있었다. 서버 전용 config(웹루트 위)에서 배열로 읽게 바꿈. 이력엔 옛 비번이 남으니 woobi 에서 비번 교체 필요.
