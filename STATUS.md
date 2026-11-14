@@ -326,6 +326,7 @@ git status --short     # 비어 있어야 한다
 **맨 위가 최신.** 한 줄에 하나: 날짜 · 커밋 · 무엇이 · 어디까지(테스트/운영).
 
 ### 2026-11-14
+- **design dev: 상단 메뉴에 PSCBOX · REBAR · REBAR PARA 추가** · `design` dev `9179a94` + main `9f1cb6b` · **시험(/dev/)** — 세 화면은 `layout_body_test.js` 의 기존 페이지 그대로. REBAR PARA 의 서버 입구를 절대경로 `/rebar_api.php` 로 바꿔 `/dev/` 하위 경로에서도 계산된다(FIB-72 확인). 운영(`layout_body.js`) 메뉴는 그대로.
 - **design: 운영 첫 화면을 스토어 스타일로 — 상단 메뉴 HOME · PLATE3D · PIER · STORE, 새 Home, 영어 푸터** · `design` `761b5a6` · **운영** — 왼쪽 사이드바 없음(빔 계산 · 표 · 단면 도면은 메뉴에서 뺌, 코드는 남김). `layout_body.js` 에 바뀐 부분만 + 새 `layout_top.css`, 머리줄 · 푸터는 공용 `www.macrobim.com/css/site.css`. index_claude(왼쪽 메뉴)는 그대로. 시험 화면 `www.macrobim.com/dev/` = design **dev 브랜치**(자동 배포). 어디가 어디로 나가는지 · 메뉴 넣는 법은 `design/SYNC.md` 맨 위.
 - **design: REBAR PARA 를 REBAR 와 같은 틀(엑셀·2D·3D·철근표)의 서버 엔진 화면으로** · `design` `ef26746` · **테스트(index_claude)** — 표준 I/T 거더(AASHTO III·IV, PCI BT) · PSCBOX 박스 · 엑셀 poly, VERIFY(파라메트릭 정답 대조). 계산은 비공개 서버(`macroRebar/php/girder_sheet.php`).
 - **design: 좌측 메뉴 REBAR PARA (논문 시뮬레이션 화면)** · `design` `dbb652f` · **테스트(index_claude)** — `rebar_para.js` 는 그리기만, 계산은 비공개 `macroRebar` 서버(카페24 `rebar_api.php {"mode":"para"}`). 동결 JS(`jfield.js`·`jlong.js`)는 **손대지 않음** — 새 항(⑨ 절곡부 주머니·seat1)은 PHP 에만(사용자 결정: JS 동결, PHP 만 업그레이드).
