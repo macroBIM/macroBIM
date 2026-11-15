@@ -259,6 +259,9 @@
       portal: { n: 2, B: 2000, H: 2000, W: 6000 },    // Portal (문형 · 라멘): legs B×H, clear opening W
       flare: { FH: 3000, BT: 5000 },                  // Flared (횃불형): flare height from the column top, top width (front)
       fdnType: "spread",                              // spread | pile
+      // bearing pedestals (받침 콘크리트) on the cap top — the bearings themselves come later.
+      // x: centre of each pedestal from the pier centre (transverse); rows 1 (on the cap centre line) or 2 (±e)
+      ped: { on: false, x: [], rows: 1, e: 600, B: 800, L: 800, H: 300 },
       pile: { D: 1000, L: 12000, NX: 3, NY: 2, SX: 2500, SY: 2500 },
       opt: { tip: false, round: false, groove: false }, _stash: {},
       fdnMode: "combined",   // combined | individual
@@ -652,6 +655,54 @@
         });
       });
       if (any) body.appendChild(og);
+
+      // ── Bearing pedestals (받침 콘크리트) ── checkbox in front of the title, like Bearing step
+      var pd = p.ped || (p.ped = { on: false, x: [], rows: 1, e: 600, B: 800, L: 800, H: 300 });
+      function pedEqual(n) {   // equal spacing: centres of n equal cells across the cap (= bearing-step cells)
+        var a = -(+cp.TLL || 0), w = ((+cp.TLL || 0) + (+cp.TLR || 0)) / n; pd.x = [];
+        for (var i = 0; i < n; i++) pd.x.push(Math.round(a + w * (i + 0.5)));
+      }
+      var phd = h("label", "pr-subhd"); phd.style.cssText = "display:flex;align-items:center;gap:8px;cursor:pointer";
+      var pck = h("input"); pck.type = "checkbox"; pck.checked = !!pd.on; pck.style.cssText = "width:15px;height:15px;accent-color:var(--dim);cursor:pointer";
+      pck.addEventListener("change", function () {
+        pd.on = pck.checked;
+        if (pd.on && !pd.x.length) pedEqual(p.bstep && p.bstep.on && p.bstep.steps ? p.bstep.steps.length : 4);
+        renderPerPier(); draw();
+      });
+      phd.appendChild(pck); phd.appendChild(h("span", null, "Bearing pedestal 받침 콘크리트")); body.appendChild(phd);
+      if (pd.on) {
+        var prow = h("div", "pr-bhd");
+        var rws = h("div", "pr-modes"); rws.style.margin = "0";
+        [[1, "1 row"], [2, "2 rows"]].forEach(function (m) {
+          var b = h("button", "pr-mode" + (pd.rows === m[0] ? " on" : ""), m[1]); b.type = "button"; b.style.flex = "0 0 auto"; b.style.padding = "5px 14px";
+          b.onclick = function () { pd.rows = m[0]; renderPerPier(); draw(); }; rws.appendChild(b);
+        });
+        prow.appendChild(rws);
+        var pst = h("div", "pr-stepper"), pmn = h("button", "pr-step", "−"), pcn = h("input", "pr-cnt"), ppl = h("button", "pr-step", "+"), peq = h("button", "pr-gbtn", "Equal spacing");
+        pmn.type = ppl.type = peq.type = "button"; pcn.type = "number"; pcn.min = 1; pcn.max = 16; pcn.value = pd.x.length;
+        function pedN(n) { n = clamp(n | 0, 1, 16); pedEqual(n); renderPerPier(); draw(); }
+        pmn.onclick = function () { pedN(pd.x.length - 1); }; ppl.onclick = function () { pedN(pd.x.length + 1); };
+        pcn.addEventListener("change", function () { pedN(parseInt(pcn.value, 10)); });
+        peq.onclick = function () { pedN(pd.x.length); };
+        pst.appendChild(h("span", null, "Count")); pst.appendChild(pmn); pst.appendChild(pcn); pst.appendChild(ppl); pst.appendChild(peq);
+        prow.appendChild(pst); body.appendChild(prow);
+        var pg = h("div", "pr-ingrid");
+        pg.appendChild(numRow("PB", "Pedestal width (transverse)", pd.B, function (v) { pd.B = v; }));
+        pg.appendChild(numRow("PL", "Pedestal length (longitudinal)", pd.L, function (v) { pd.L = v; }));
+        pg.appendChild(numRow("PH", "Pedestal height", pd.H, function (v) { pd.H = v; }));
+        if (pd.rows === 2) pg.appendChild(numRow("e", "Row offset from cap centre (each side)", pd.e, function (v) { pd.e = v; }));
+        body.appendChild(pg);
+        var pt = h("table", "pr-btbl"), ph = h("tr"), pr = h("tr");
+        ph.appendChild(h("th", null, "")); pr.appendChild(h("th", null, "x"));
+        pd.x.forEach(function (x, i) {
+          ph.appendChild(h("th", null, String(i + 1)));
+          var td = h("td"), inp = h("input"); inp.type = "number"; inp.step = "50"; inp.value = x;
+          inp.oninput = function () { var v = parseFloat(inp.value); if (!isNaN(v)) { pd.x[i] = v; draw(); } };
+          td.appendChild(inp); pr.appendChild(td);
+        });
+        pt.appendChild(ph); pt.appendChild(pr); body.appendChild(pt);
+        body.appendChild(h("p", "pr-cap", "x: centre of each pedestal from the pier centre (left −, right +). Equal spacing puts them at the centres of equal cells across the cap — the same cells as Bearing step. Each pedestal sits on the cap top of its own step. Bearings themselves are not drawn yet."));
+      }
 
       // ── Bearing step ── (checkbox sits in front of the section title)
       var bs = p.bstep || (p.bstep = { on: false, steps: [[0, 0]] });
