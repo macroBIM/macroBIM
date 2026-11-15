@@ -270,6 +270,7 @@ git status --short     # 비어 있어야 한다
 | **J 엔진** | `jfield.js` · `bench/jbench.js` · `bench/jengine.js` | 논문의 J 최소화를 그대로 짠 **두 번째 엔진**. PSCBOX 일반단면 페이지의 **기본 엔진**이다 (`Solver` 버튼으로 옛 `physics.js` 와 오간다). 격벽 페이지는 아직 옛 엔진만 쓴다 |
 | **Crossbeam 폼** | `plate3d/quick_crossbeam_test.js` | 폼과 그림은 있고, PLATE3D 로 모델 보내기와 워크북 내보내기가 없다 |
 | **Dashboard · PSCBOX · Crossbeam 메뉴** | `design/layout_body_test.js` | `design/SYNC.md` 참조 — 옮기지 않는다 |
+| **PIER 타입 위저드 (교각 하나)** | `bim_pier_dev.js` ← design **dev** `layout_body_test.js` | `/dev/` 전용. 운영 · index_claude 는 `bim_pier_test.js`. 계산을 서버 PHP(비공개 `macroPIER`)로 옮기는 중 — 배포 방식이 정해지면. 운영으로 갈 때는 승격(통째 복사)이라 「잡고 있나」에 적고 한다 |
 
 ---
 
@@ -326,6 +327,7 @@ git status --short     # 비어 있어야 한다
 **맨 위가 최신.** 한 줄에 하나: 날짜 · 커밋 · 무엇이 · 어디까지(테스트/운영).
 
 ### 2026-11-15
+- **PIER: 타입 위저드 · 교각 하나 (/dev/ 전용 사본 `bim_pier_dev.js`)** · macroBIM `(이 커밋)` + design dev · **시험(/dev/)** — 구조물 형태(T형 · 다주식 · 벽식 · 기둥식) → 코핑 형태(사각 · 직선 헌치 · 곡선 헌치) → 기둥 단면 → 기초 를 고르면 그 형태가 쓰는 칸만 나온다. + Add pier · 교각 일람표 삭제(Levels 카드로). 기둥식은 코핑 없음(CH = 기둥 상단 EL − 기초 EL). 아무 데도 안 쓰이던 IHLA·IHL·IHH·IHR·IHSR 칸은 뺐다. `bim_pier_test.js`(운영)는 그대로.
 - **design: 모든 화면(홈 제외) 본문 폭을 1400 으로 통일 (좌우 20)** · `design` main `a5e046a` (`layout_top.css`) + dev `bc3b1a8` (`layout_style.css`) · **운영 + 시험(/dev/)** — PSCBOX · REBAR · REBAR PARA 도 PIER · PLATE3D 와 같은 폭. PIER 전용 규칙을 `.page-view:not([id=page-home])` 하나로.
 - **design: 화면 제목을 한 줄로 통일 (제목 · 경로, PLATE3D 모양) · PLATE3D 본문 폭을 PIER 와 같게 (최대 1400, 좌우 20)** · `design` main `72d5abe` (`layout_top.css`) + dev `f296b5e` (`layout_style.css`) · **운영 + 시험(/dev/)** — 규칙은 `.page-view.active:has(> .page-heading)` 하나로 모든 화면에. PIER 위 여백 24 → 12 (PLATE3D 와 같은 자리).
 
