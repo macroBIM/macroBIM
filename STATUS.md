@@ -298,9 +298,6 @@ git status --short     # 비어 있어야 한다
 > 승격처럼 **파일을 통째로 바꾸는 일**을 시작하기 전에 여기 적고, 끝나면 지운다.
 > 창끼리 안 부딪치게 하는 것이 목적이지 일지가 아니다.
 
-- **PLATE3D 엔진 승격 중** (2026-11-15, 이 창) — `plate_builder_test.js` → `plate_builder.js`, `?v=96 → 97`
-  두 군데(`plate3d/embed.html` · design main `layout_body.js`) + design main `layout_body.js` 의 `sizeFrame`.
-  **이 두 파일과 `layout_body.js` 를 건드리지 말아 주십시오.** 끝나면 이 줄을 지웁니다.
 - **J 엔진 동결 — `jfield.js` · `jlong.js` = `012ae5c`** (2026-10-14 ~ 블라인드 검증이 끝날 때까지).
   논문 검증 : 엔진을 고정한 채 새 단면(격벽 · I형 거더)을 **입력만 만들어** 돌린다. 결함이 나오면 그 자리에서
   고치지 않고 **실패로 적는다** — 고치는 것은 판을 다 돌린 뒤다. 이 두 파일을 건드리기 전에 사용자에게 묻는다.
@@ -355,7 +352,7 @@ git status --short     # 비어 있어야 한다
 **맨 위가 최신.** 한 줄에 하나: 날짜 · 커밋 · 무엇이 · 어디까지(테스트/운영).
 
 ### 2026-11-15
-- **PLATE3D 뷰 높이 수정을 운영으로 — `?v=97`** · `macroBIM` `(이 커밋)` · `design` main `(아래)` · **운영** — `plate_builder_test.js` → `plate_builder.js` 통째 승격, 핀 두 군데(`plate3d/embed.html` · `layout_body.js`) 96 → 97. `layout_body.js` 의 `sizeFrame` 은 **바뀐 부분만** 옮김(`want` 상한·message 리스너 삭제). 검사: lock_format 무변동 · tutorial 62/62 · taper 34/34 · notch 34/34 · samples_draw 17권 · check_sync_scope 이상 없음 · check_menu_reset --prod 25/25.
+- **PLATE3D 뷰 높이 수정을 운영으로 — `?v=97`** · `macroBIM` `5db1400` · `design` main `9878ba7` · **운영** — `plate_builder_test.js` → `plate_builder.js` 통째 승격, 핀 두 군데(`plate3d/embed.html` · `layout_body.js`) 96 → 97. `layout_body.js` 의 `sizeFrame` 은 **바뀐 부분만** 옮김(`want` 상한·message 리스너 삭제). 검사: lock_format 무변동 · tutorial 62/62 · taper 34/34 · notch 34/34 · samples_draw 17권 · check_sync_scope 이상 없음 · check_menu_reset --prod 25/25.
 - **PLATE3D 뷰가 창 아래까지 꽉 찬다 — 16:9 잠금 해제** · `macroBIM` `950d336` · `design` dev `(아래)` · **테스트만** — `fitRenderer` 가 `ch = cw*9/16` 로 높이를 못박던 것을 풀어 받은 상자를 다 쓰게 했고(`plate_builder_test.js`), dev 의 `sizeFrame` 은 `min(want, room)` 대신 `room` 을 쓴다(`layout_body_test.js`, `want` 와 그 message 리스너는 삭제). 폭은 그대로, 높이만 창을 따라간다. **곁딸린 수정:** 비율이 변하자 프레이밍(`fitView`)이 `fitRenderer` 보다 먼저 돌아 초기값 1.6 으로 모델을 잡고 있던 것이 드러나 가로가 잘렸다 — 카메라가 16:9 만큼은 늘 가로로 덮도록 `applyMainCam` 에 묶고, 프레이밍도 그 기준으로 맞췄다. 운영(`plate_builder.js` · `layout_body.js`)은 **안 건드림**.
 - **PIER 운영에 나감** · macroBIM `94c1334` (`bim_pier.js` = `bim_pier_dev.js` 통째 승격, 머리말만) + design main `f662246` (`layout_body.js` 의 PIER 부분만: `bim_pier_test.js?v=71` → `bim_pier.js?v=1`, 버튼 이름) · **운영** — 위저드 · 받침 콘크리트 · A3 도면 미리보기 → DXF · 3D → IFC · STL, 계산은 서버. `check_sync_scope` · `check_menu_reset --prod`(25) 통과, 실제 www.macrobim.com 에서 PIER 끝까지 + 다른 메뉴 확인. 운영 `index.html` 의 `?v=` 가 10분마다 바뀌어 늦어도 10분 안에 모두에게. 다른 메뉴 · index_claude 는 안 건드림(사용자: PIER 만).
 - **STATUS: PIER 현재 상황 정리** — 「테스트에만 있는 것」 PIER 줄 갱신, 「PIER — 지금 어디까지」 추가, 「아직 안 한 것」에 운영 전환 · 교좌장치 · 도면 다듬기 · IFC4X3.
