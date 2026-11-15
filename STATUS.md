@@ -296,7 +296,7 @@ git status --short     # 비어 있어야 한다
 | | 어디에 적혀 있나 |
 |---|---|
 | **스토어 도면 엔진을 공통 도면 작성 기준으로** — `store/api/wall.php` 의 글자 · 치수선 값을 `drawing_standard.json` 에서 가져오게 (PIER 는 이미 그렇게 한다) | `DRAWING_STANDARD.md` 「누가 쓰나」 |
-| **`/dev/` · 운영 첫 화면 로딩 줄이기** — 2026-11-15 **대부분 했다** (design `01e4927` dev · `44220cd` 운영): Pretendard 를 한글에만(unicode-range) → 첫 화면 1MB → 354KB · `/dev/` 첫 화면의 `?action=stats` 뺌 · `/dev/` 로딩 2.5s → 1.1s. **남은 것** ① `dev/_deploy.php`(파일 내용 해시로 `?v=`)를 서버 `/www/dev/` 에 **FTP 로 다시 올려야** 적용 ② (선택 · 2026-11-15 사용자: 지금은 안 함) 운영 `index.html`(서버 파일, 저장소에 없음, 방문자 수 PHP 가 들어 있다)이 메뉴에서 뺀 화면 스크립트 ~30개 + three.js · Konva(unpkg)를 처음부터 다 받는다 — 메뉴는 GitHub 에서 오므로 동작과는 무관, 첫 방문 속도만의 문제. 할 때는 원본을 FTP 에서 받아 PHP 부분을 지키고 고친다 ③ 탭 로딩 표시가 안 멈춤 — 이 환경에선 재현 안 됨(로드 1.1s 에 끝남). 후보: 카페24 에서 받던 글꼴(이제 안 받음) · Cloudflare 방문통계 스크립트(`cloudflareinsights` beacon) — 사용자 확인 대기 | 이 파일 · 2026-11-15 |
+| **`/dev/` · 운영 첫 화면 로딩 줄이기** — 2026-11-15 **대부분 했다** (design `01e4927` dev · `44220cd` 운영): Pretendard 를 한글에만(unicode-range) → 첫 화면 1MB → 354KB · `/dev/` 첫 화면의 `?action=stats` 뺌 · `/dev/` 로딩 2.5s → 1.1s. **남은 것** ① ~~`dev/_deploy.php` 다시 올리기~~ 2026-11-15 올림 — `/dev/` 의 `?v=` 가 파일 내용 해시로 붙는 것 확인 ② **2026-11-15 새 `index.html` 을 만들어 사용자에게 줌(FTP 로 덮어쓰기)** — PHP 는 원본 그대로, 스크립트는 `layout_body.js` 하나 · 10분 자동 `?v=` (첫 화면 요청 10개 · 0.6s, PIER 그림 · 3D · PLATE3D 확인). 설명은 `design/SYNC.md`. 이전 메모: 운영 `index.html`(서버 파일, 저장소에 없음, 방문자 수 PHP 가 들어 있다)이 메뉴에서 뺀 화면 스크립트 ~30개 + three.js · Konva(unpkg)를 처음부터 다 받는다 — 메뉴는 GitHub 에서 오므로 동작과는 무관, 첫 방문 속도만의 문제. 할 때는 원본을 FTP 에서 받아 PHP 부분을 지키고 고친다 ③ 탭 로딩 표시가 안 멈춤 — 이 환경에선 재현 안 됨(로드 1.1s 에 끝남). 후보: 카페24 에서 받던 글꼴(이제 안 받음) · Cloudflare 방문통계 스크립트(`cloudflareinsights` beacon) — 사용자 확인 대기 | 이 파일 · 2026-11-15 |
 | **테스트 페이지가 `main` 이 아닌 브랜치를 보게 하기** — 검증하려고 올리는 것이 검증 전에 공개된다 | `plate3d/README.md` 「테스트본 / 운영본 분리」 |
 | **철근 절곡 · 곡선 경로 sweep** — 직선 변단면으로 구조물을 먼저 만들어 보고 정한다 | `plate3d/DATA_SCHEMA.md` TAPER |
 | **재질별 비중** — `RHO` 가 강재로 고정이라 슬래브·방호벽도 강재로 잰다 | — |
@@ -329,6 +329,7 @@ git status --short     # 비어 있어야 한다
 **맨 위가 최신.** 한 줄에 하나: 날짜 · 커밋 · 무엇이 · 어디까지(테스트/운영).
 
 ### 2026-11-15
+- **운영 `index.html` 정리본** (서버 파일 · 사용자가 FTP 로 덮어씀) — 예전 사이드바 화면용 스크립트 ~30개를 빼고 `layout_body.js` 하나만, `?v=` 는 10분마다 자동. `/dev/_deploy.php` 새 것(파일 내용 해시 `?v=`) 서버에 올림.
 - **PIER(dev): 3D 미리보기에 Download IFC (IFC4, 부재별) · 도면 A-A 화살표** · macroPIER `4cc13ce` + macroBIM `bim_pier_dev.js` + design dev `?v=10` · **시험(/dev/)** — 기둥 · 다리 IfcColumn, 코핑 · 보 IfcBeam, 기초 · 버림 IfcFooting, 말뚝 IfcPile, 받침 콘크리트 IfcBuildingElementProxy. mm, 실제 표고. ifcopenshell 검증 0 건. IFC 도 서버(비공개)가 만든다.
 - **PIER(dev): 받침 콘크리트 입력을 따로 카드로 — 「Bearing pedestals 받침 콘크리트」** · macroBIM `bim_pier_dev.js` + design dev `?v=9` · **시험(/dev/)** — 코핑 카드 안에 있어 문형(Frame 카드)에서는 안 보였다. 이제 코핑이 있는 모든 형태(T · 다주식 · 벽식 · 문형 · 코핑 있는 횃불형)에서 코핑/Frame 카드 바로 아래. 문형 등간격은 보 길이(다리 + 개구부)로.
 - **PIER(dev): 받침 콘크리트 입력 · 도면** · macroPIER `f59d89a` + macroBIM `bim_pier_dev.js` + design dev `?v=8` · **시험(/dev/)** — 코핑 카드 「Bearing pedestal 받침 콘크리트」: 개수(등간격 = 받침 단차 칸 가운데) · 위치 x 하나하나 · 1줄/2줄(±e) · B · L · H. 정면 · 측면 · 평면 · ISO · 3D · DXF 에 그린다. 교좌장치(받침 위 장치)는 아직 — 사용자 결정으로 나중에. 원래 엔진에는 교좌 · 받침이 없었다(받침 단차만).
