@@ -295,6 +295,7 @@ git status --short     # 비어 있어야 한다
 
 | | 어디에 적혀 있나 |
 |---|---|
+| **스토어 도면 엔진을 공통 도면 작성 기준으로** — `store/api/wall.php` 의 글자 · 치수선 값을 `drawing_standard.json` 에서 가져오게 (PIER 는 이미 그렇게 한다) | `DRAWING_STANDARD.md` 「누가 쓰나」 |
 | **`/dev/` · 운영 첫 화면 로딩 줄이기** (2026-11-15 사용자 결정 : dev 에 메뉴 넣는 창의 작업이 **끝난 뒤에**) — 재 보니 ① Pretendard 4 굵기 × 185KB = 첫 화면 1MB 중 730KB → 굵기를 줄이고 첫 화면 것만 preload ② dev 는 `?v=<커밋>` 이라 올릴 때마다 Cloudflare 캐시가 비어 카페24 까지 간다(HIT 0.15s · MISS 0.56s, 글꼴 1.4s) → 파일 내용 해시로 ③ `/dev/` 가 대시보드용 `?action=stats` 로 페이지를 한 번 더 부른다(0.75s, 쓸 데 없음) → 뺀다 ④ **탭의 로딩 표시(왼쪽 위)가 안 멈춘다** — 끝나지 않는 요청이 하나 있다는 뜻, 무엇인지 찾는다(사용자 보고). Cloudflare 탓은 아니다 | 이 파일 · 2026-11-15 |
 | **테스트 페이지가 `main` 이 아닌 브랜치를 보게 하기** — 검증하려고 올리는 것이 검증 전에 공개된다 | `plate3d/README.md` 「테스트본 / 운영본 분리」 |
 | **철근 절곡 · 곡선 경로 sweep** — 직선 변단면으로 구조물을 먼저 만들어 보고 정한다 | `plate3d/DATA_SCHEMA.md` TAPER |
@@ -328,6 +329,7 @@ git status --short     # 비어 있어야 한다
 **맨 위가 최신.** 한 줄에 하나: 날짜 · 커밋 · 무엇이 · 어디까지(테스트/운영).
 
 ### 2026-11-15
+- **macroBIM 도면 작성 기준 — `drawing_standard.json` (값) · `DRAWING_STANDARD.md` (설명) 를 공개로 한 벌** · macroBIM `(이 커밋)` · **기준** — 글자(도면 제목 8 · 뷰 제목 5 · 치수 2.5 …), 치수선(구조물 외곽 → 첫 줄 10 · 사이 7 · 보조선 넘김 0.9), A3 여백 · 뷰 간격, 빗금. 모두 종이 mm(모델 = × 축척). PIER 엔진은 여기서 생성한 상수만 쓴다(`macroPIER/tools/sync_standard.js --check`). **스토어 옹벽 · 암거 엔진(`store/api/wall.php`)은 아직 숫자를 따로 적어 두었다 — 이 JSON 으로 옮길 것** (그 창에서).
 - **PIER(dev): 「도면 미리보기 · 3D 미리보기」 — A3 도면(정면 · 측면 · 평면 · 단면 A-A · ISO · NOTE · 표제란)을 먼저 보고 창 안에서 DXF / STL 받기** · macroPIER `de513d4` + macroBIM `bim_pier_dev.js` + design dev `?v=7` · **시험(/dev/)** — 스토어 상품 화면(도면 미리보기 → 받기) 흐름을 따름. DXF 는 R12, 치수가 DIMENSION 객체(CAD 에서 끌면 값이 따라감), 값만 표기. 축척은 A3 에 자동. 도면 · DXF 생성은 전부 서버(비공개) — 판매할 때 서버에서 막으면 된다. 머리줄의 Download STL / DXF 버튼은 없앰.
 - **서버 엔진 속도 — 결과는 비트 그대로, S18 거더 6.4 s → 2.4 s (로컬)** · `macroRebar` `ed0d38c` · `d6a9e66` · **서버 반영은 pull.php** — 작은 함수 수백만 번 호출을 펼치고, 먼 철근은 계산 전에 거르고, 횡방향 선분 격자. S18 · 격벽 · AASHTO IV · FIB-72 · para 응답이 이전과 같은 해시, JS 대조(jfield 210 · jlong 771 숫자) 차이 0.
 - **PIER(dev): 받은 그림 · 메쉬를 입력별로 기억 — 같은 입력은 서버에 다시 묻지 않음** · macroBIM `bim_pier_dev.js` + design dev `?v=6` · **시험(/dev/)** — Regen 0.5초 남짓 → 0.05초(서버 호출 0), 위저드에서 같은 선택으로 돌아오면 바로, STL 두 번째부터 바로. 최근 40개.
