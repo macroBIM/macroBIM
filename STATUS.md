@@ -329,6 +329,7 @@ git status --short     # 비어 있어야 한다
 **맨 위가 최신.** 한 줄에 하나: 날짜 · 커밋 · 무엇이 · 어디까지(테스트/운영).
 
 ### 2026-11-15
+- **PIER(dev): 위저드 안내 문구** · macroBIM `bim_pier_dev.js` + design dev `?v=11` · **시험(/dev/)** — 「step 1 of 4」 옆에 「Input fields appear automatically once the selection is complete.」 (위저드를 끝내면 사라짐). 처음 보는 사람이 입력칸을 못 찾아 당황하지 않게.
 - **운영 `index.html` 정리본** (서버 파일 · 사용자가 FTP 로 덮어씀) — 예전 사이드바 화면용 스크립트 ~30개를 빼고 `layout_body.js` 하나만, `?v=` 는 10분마다 자동. `/dev/_deploy.php` 새 것(파일 내용 해시 `?v=`) 서버에 올림.
 - **PIER(dev): 3D 미리보기에 Download IFC (IFC4, 부재별) · 도면 A-A 화살표** · macroPIER `4cc13ce` + macroBIM `bim_pier_dev.js` + design dev `?v=10` · **시험(/dev/)** — 기둥 · 다리 IfcColumn, 코핑 · 보 IfcBeam, 기초 · 버림 IfcFooting, 말뚝 IfcPile, 받침 콘크리트 IfcBuildingElementProxy. mm, 실제 표고. ifcopenshell 검증 0 건. IFC 도 서버(비공개)가 만든다.
 - **PIER(dev): 받침 콘크리트 입력을 따로 카드로 — 「Bearing pedestals 받침 콘크리트」** · macroBIM `bim_pier_dev.js` + design dev `?v=9` · **시험(/dev/)** — 코핑 카드 안에 있어 문형(Frame 카드)에서는 안 보였다. 이제 코핑이 있는 모든 형태(T · 다주식 · 벽식 · 문형 · 코핑 있는 횃불형)에서 코핑/Frame 카드 바로 아래. 문형 등간격은 보 길이(다리 + 개구부)로.

@@ -207,6 +207,7 @@
     ".pr-wcount{display:flex;align-items:center;gap:12px;font-size:13px;font-weight:600;margin:0 0 12px}" +
     ".pr-wfoot{display:flex;justify-content:flex-end;gap:8px;margin-top:14px}" +
     ".pr-wsum{display:flex;flex-wrap:wrap;align-items:center;gap:8px}" +
+    ".pr-whint{margin-left:12px;font-size:12.5px;font-weight:600;color:var(--dim);background:#eff6ff;border:1px solid #bfdbfe;border-radius:999px;padding:2px 10px;white-space:normal}" +
     ".pr-wchip{font-size:12.5px;font-weight:600;color:var(--ink);background:var(--chip);border:1px solid var(--hair);border-radius:999px;padding:5px 12px}" +
     ".pr-elin{display:flex;flex-wrap:wrap;gap:12px 22px;align-items:flex-end}" +
     ".pr-elc{display:flex;flex-direction:column;gap:5px}" +
@@ -471,7 +472,8 @@
       if (S.wiz.step >= steps.length) S.wiz.step = steps.length - 1;
       var c = h("div", "pr-card pr-wiz");
       var hd = h("div", "pr-hd", "<span class='pr-ttl'>Pier type <span class='pr-sub'>" +
-        (S.wiz.done ? "the inputs below follow this choice" : "step " + (S.wiz.step + 1) + " of " + steps.length) + "</span></span>");
+        (S.wiz.done ? "the inputs below follow this choice" : "step " + (S.wiz.step + 1) + " of " + steps.length +
+          "</span><span class='pr-whint'>Input fields appear automatically once the selection is complete.") + "</span></span>");
       c.appendChild(hd);
       var body = h("div", "pr-body");
       if (S.wiz.done) {
