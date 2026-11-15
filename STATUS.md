@@ -327,6 +327,7 @@ git status --short     # 비어 있어야 한다
 **맨 위가 최신.** 한 줄에 하나: 날짜 · 커밋 · 무엇이 · 어디까지(테스트/운영).
 
 ### 2026-11-15
+- **PIER 서버 엔진 (PHP) — 비공개 `macroPIER`** · macroPIER `4ac1973` · **서버에 아직 안 올림** — `bim_pier_dev.js` 의 계산부(형상 · 도면 조립 · 3D 메쉬)를 `php/pier_engine.php` 로. 결과는 공개 표준 포맷(RWSVG `MockViewer`: L · A · DL · DR · TX). `tools/parity.js` 12 경우 JS 와 순서까지 숫자 일치. 배포 방식이 정해지면 `bim_pier_dev.js` 에서 계산부를 지우고 `/pier_api.php` 를 부른다.
 - **PIER: 타입 위저드 · 교각 하나 (/dev/ 전용 사본 `bim_pier_dev.js`)** · macroBIM `199ac89` + design dev `5de23e0` · **시험(/dev/)** — 구조물 형태(T형 · 다주식 · 벽식 · 기둥식) → 코핑 형태(사각 · 직선 헌치 · 곡선 헌치) → 기둥 단면 → 기초 를 고르면 그 형태가 쓰는 칸만 나온다. + Add pier · 교각 일람표 삭제(Levels 카드로). 기둥식은 코핑 없음(CH = 기둥 상단 EL − 기초 EL). 아무 데도 안 쓰이던 IHLA·IHL·IHH·IHR·IHSR 칸은 뺐다. `bim_pier_test.js`(운영)는 그대로.
 - **design: 모든 화면(홈 제외) 본문 폭을 1400 으로 통일 (좌우 20)** · `design` main `a5e046a` (`layout_top.css`) + dev `bc3b1a8` (`layout_style.css`) · **운영 + 시험(/dev/)** — PSCBOX · REBAR · REBAR PARA 도 PIER · PLATE3D 와 같은 폭. PIER 전용 규칙을 `.page-view:not([id=page-home])` 하나로.
 - **design: 화면 제목을 한 줄로 통일 (제목 · 경로, PLATE3D 모양) · PLATE3D 본문 폭을 PIER 와 같게 (최대 1400, 좌우 20)** · `design` main `72d5abe` (`layout_top.css`) + dev `f296b5e` (`layout_style.css`) · **운영 + 시험(/dev/)** — 규칙은 `.page-view.active:has(> .page-heading)` 하나로 모든 화면에. PIER 위 여백 24 → 12 (PLATE3D 와 같은 자리).
