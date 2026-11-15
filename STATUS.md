@@ -260,6 +260,15 @@ git status --short     # 비어 있어야 한다
 `design/layout_body.js` 의 `quick_simpleconn.js?v=` 는 **저 쌍에 딸린 것이 아니다.**
 그 파일 하나만 가리키므로 그 파일이 바뀌었을 때만 올린다.
 
+**PIER (2026-11-15 ~)**
+
+| | |
+|---|---|
+| 화면 | `bim_pier.js` · **`?v=1`** — design main `layout_body.js` 가 부른다. `bim_pier_dev.js`(`/dev/`) 를 2026-11-15 통째 승격 (macroBIM `94c1334`, design `f662246`) |
+| 엔진 | 서버 `/pier/api.php` ← 비공개 `macroPIER` (push 하면 자동 배포) — **`/dev/` 와 운영이 같은 엔진을 쓴다.** 엔진을 고치면 운영에도 바로 나간다 |
+| 테스트 화면과의 차이 | **없음** — 승격 직후. `/dev/` 에서 고친 뒤 다시 승격(통째 복사 · 「잡고 있나」에 적고) |
+| index_claude | 아직 옛 `bim_pier_test.js` (공개 JS 엔진) — 사용자가 PIER 만 올리라 해서 손대지 않았다 |
+
 ---
 
 ## 테스트에만 있는 것 — 아직 운영에 없다
@@ -270,10 +279,10 @@ git status --short     # 비어 있어야 한다
 | **J 엔진** | `jfield.js` · `bench/jbench.js` · `bench/jengine.js` | 논문의 J 최소화를 그대로 짠 **두 번째 엔진**. PSCBOX 일반단면 페이지의 **기본 엔진**이다 (`Solver` 버튼으로 옛 `physics.js` 와 오간다). 격벽 페이지는 아직 옛 엔진만 쓴다 |
 | **Crossbeam 폼** | `plate3d/quick_crossbeam_test.js` | 폼과 그림은 있고, PLATE3D 로 모델 보내기와 워크북 내보내기가 없다 |
 | **Dashboard · PSCBOX · Crossbeam 메뉴** | `design/layout_body_test.js` | `design/SYNC.md` 참조 — 옮기지 않는다 |
-| **PIER (/dev/)** — 위저드 · A3 도면 · DXF · IFC · 서버 엔진 | 화면 `bim_pier_dev.js` ← design **dev** `layout_body_test.js` (`?v=11`) · 엔진 비공개 `macroPIER` → 서버 `/pier/api.php` | `/dev/` 전용 — 아래 「PIER — 지금 어디까지」. 운영 · index_claude 는 아직 옛 `bim_pier_test.js`(공개 JS 엔진) |
+| **PIER (/dev/)** | `bim_pier_dev.js` ← design **dev** `layout_body_test.js` | 운영과 같다(2026-11-15 승격). `/dev/` 에서 먼저 고치고 확인한 뒤 `bim_pier.js` 로 다시 승격 |
 
 
-### PIER — 지금 어디까지 (2026-11-15)
+### PIER — 지금 어디까지 (2026-11-15 · **운영에 나감**)
 
 - **계산은 전부 서버(비공개).** 원본 `macroBIM/macroPIER`(private) `php/` → push 하면 Actions 가 카페24 `config/pier/`(웹 루트 밖) · `www/pier/api.php` 로 자동 배포(1분). 공개 `bim_pier_dev.js` 에는 계산이 없다 — 입력 · 그리기 · 내려받기만. 지운 JS 는 `macroPIER/ref/` 에 백업, `tools/parity.js` 로 PHP 와 대조(12 경우 일치).
 - **화면 반영은 두 단계**: design dev push → `/dev/` 가 새 `?v=`(1분) + macroBIM main push → GitHub Pages 가 `bim_pier_dev.js`(1~2분). Pages 가 끝나기 전엔 옛 화면. 엔진만 바꾸면 새로고침으로 바로.
@@ -289,7 +298,6 @@ git status --short     # 비어 있어야 한다
 > 승격처럼 **파일을 통째로 바꾸는 일**을 시작하기 전에 여기 적고, 끝나면 지운다.
 > 창끼리 안 부딪치게 하는 것이 목적이지 일지가 아니다.
 
-- **PIER 운영 승격 진행 중 (2026-11-15, PIER 창)** — `bim_pier_dev.js` → 새 운영 파일 `bim_pier.js` 로 통째 복사 + design main `layout_body.js` 의 PIER 부분만. 끝나면 지운다.
 - **J 엔진 동결 — `jfield.js` · `jlong.js` = `012ae5c`** (2026-10-14 ~ 블라인드 검증이 끝날 때까지).
   논문 검증 : 엔진을 고정한 채 새 단면(격벽 · I형 거더)을 **입력만 만들어** 돌린다. 결함이 나오면 그 자리에서
   고치지 않고 **실패로 적는다** — 고치는 것은 판을 다 돌린 뒤다. 이 두 파일을 건드리기 전에 사용자에게 묻는다.
@@ -306,7 +314,7 @@ git status --short     # 비어 있어야 한다
 
 | | 어디에 적혀 있나 |
 |---|---|
-| **PIER 운영 전환** — 운영 PIER 를 지금 `/dev/` 화면(서버 엔진)으로 바꾸고 공개 `bim_pier_test.js` 를 지운다 (계산 코드가 아직 공개). 사용자가 `/dev/` 에서 충분히 써 본 뒤 | 「PIER — 지금 어디까지」 |
+| **PIER 옛 공개 엔진 `bim_pier_test.js` 지우기** — 운영은 2026-11-15 `bim_pier.js`(계산 없음)로 바꿨다. 남은 건 index_claude 가 아직 부르는 `bim_pier_test.js` (계산 코드 공개). index_claude 를 `bim_pier.js` 로 바꾸고 지울지 사용자 확인 | 「지금 운영에 나가 있는 것」 PIER |
 | **PIER 교좌장치** — 받침 콘크리트 위의 장치 (사용자 결정: 나중에). IFC4X3 의 IfcBearing 도 그때 | 「PIER — 지금 어디까지」 |
 | **PIER 도면 다듬기** — 다주식 · 문형 + 말뚝의 기본 말뚝 수(3×2 가 넓은 기초 가운데에 몰림), T형 곡선 헌치 R 치수선이 길게 뻗음, 말뚝이 길면 축척이 작아짐(끊음 표시?) | — |
 | **PIER IFC4X3** — 지금 IFC4(Building 구조를 빌려 씀). 교량 구조(IfcBridge)가 필요하면 4X3 로 | `macroPIER/php/pier_ifc.php` 머리말 |
@@ -344,6 +352,7 @@ git status --short     # 비어 있어야 한다
 **맨 위가 최신.** 한 줄에 하나: 날짜 · 커밋 · 무엇이 · 어디까지(테스트/운영).
 
 ### 2026-11-15
+- **PIER 운영에 나감** · macroBIM `94c1334` (`bim_pier.js` = `bim_pier_dev.js` 통째 승격, 머리말만) + design main `f662246` (`layout_body.js` 의 PIER 부분만: `bim_pier_test.js?v=71` → `bim_pier.js?v=1`, 버튼 이름) · **운영** — 위저드 · 받침 콘크리트 · A3 도면 미리보기 → DXF · 3D → IFC · STL, 계산은 서버. `check_sync_scope` · `check_menu_reset --prod`(25) 통과, 실제 www.macrobim.com 에서 PIER 끝까지 + 다른 메뉴 확인. 운영 `index.html` 의 `?v=` 가 10분마다 바뀌어 늦어도 10분 안에 모두에게. 다른 메뉴 · index_claude 는 안 건드림(사용자: PIER 만).
 - **STATUS: PIER 현재 상황 정리** — 「테스트에만 있는 것」 PIER 줄 갱신, 「PIER — 지금 어디까지」 추가, 「아직 안 한 것」에 운영 전환 · 교좌장치 · 도면 다듬기 · IFC4X3.
 - **PIER(dev): 위저드 안내 문구** · macroBIM `bim_pier_dev.js` + design dev `?v=11` · **시험(/dev/)** — 「step 1 of 4」 옆에 「Input fields appear automatically once the selection is complete.」 (위저드를 끝내면 사라짐). 처음 보는 사람이 입력칸을 못 찾아 당황하지 않게.
 - **운영 `index.html` 정리본** (서버 파일 · 사용자가 FTP 로 덮어씀) — 예전 사이드바 화면용 스크립트 ~30개를 빼고 `layout_body.js` 하나만, `?v=` 는 10분마다 자동. `/dev/_deploy.php` 새 것(파일 내용 해시 `?v=`) 서버에 올림.
