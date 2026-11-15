@@ -487,9 +487,12 @@
       // type wizard state (dev). type: T | multi | wall | column. copeType: rect | haunch | arc.
       // noCope (Column type) drops the coping entirely: CH runs up to the cap-top EL.
       type: "T", copeType: "haunch", noCope: false,
+      portal: { n: 2, B: 2000, H: 2000, W: 6000 },    // Portal (문형 · 라멘): legs B×H, clear opening W
+      flare: { FH: 3000, BT: 5000 },                  // Flared (횃불형): flare height from the column top, top width (front)
+      fdnType: "spread",                              // spread | pile
+      pile: { D: 1000, L: 12000, NX: 3, NY: 2, SX: 2500, SY: 2500 },
       opt: { tip: false, round: false, groove: false }, _stash: {},
       fdnMode: "combined",   // combined | individual
-      fdnType: "spread",     // spread (직접) | pile (말뚝)
       fdn: { BH: 2000, BLF: 2750, BRF: 2750, FF: 2750, FB: 2750, EFL: 150, EH: 100 },
       // bearing steps on the cap top. One column per step (default 4), laid from the
       // LEFT cap end. Each = [dt, dl]: dt = transverse level step (교축직각, Δt),
@@ -634,14 +637,22 @@
       ["T", "T-type", "One column under a cantilever cap"],
       ["multi", "Multi-column", "Two or more columns under one cap"],
       ["wall", "Wall", "Wide wall shaft under a cap"],
-      ["column", "Column", "Columns only, no cap beam"]
+      ["column", "Column", "Columns only, no cap beam"],
+      ["portal", "Portal", "Rigid frame — legs straight to the footing"],
+      ["flare", "Flared", "Column widening toward the top"]
     ];
+    // types the browser cannot draw: only the server engine knows them (and pile footings)
+    var SERVER_ONLY = { portal: 1, flare: 1 };
+    function needsServer(p) { return !!SERVER_ONLY[p.type] || p.fdnType === "pile"; }
     var COPES = [
       ["rect", "Rectangular", "Flat soffit, no haunch"],
       ["haunch", "Straight haunch", "Tapered cantilever soffit"],
       ["arc", "Curved haunch", "Arc soffit with radius R"]
     ];
     var FDNS = [["combined", "Combined footing", "One footing under all columns"], ["individual", "Individual footings", "One footing per column"]];
+    var FTYPES = [["spread", "Spread footing", "Footing directly on the ground"], ["pile", "Pile footing", "Footing on a pile group"]];
+    var LEGS = [["2", "One opening", "Two legs"], ["3", "Two openings", "Three legs"]];
+    var COPE_NONE = ["none", "No cap", "The flared head is the top"];
     var OPTS = [
       ["tip", "Tip details", [["HEL", 500], ["HER", 500], ["HLU", 300], ["HRU", 300]]],
       ["round", "Rounded tips", [["CR", 1000]]],
@@ -649,6 +660,7 @@
     ];
     function typeName(t) { for (var i = 0; i < TYPES.length; i++) if (TYPES[i][0] === t) return TYPES[i][1]; return t; }
     function copeName(t) { for (var i = 0; i < COPES.length; i++) if (COPES[i][0] === t) return COPES[i][1]; return t; }
+    function copeKey(p) { return p.noCope ? "none" : p.copeType; }
     function shapeName(t) { for (var i = 0; i < SHAPES.length; i++) if (SHAPES[i][0] === t) return SHAPES[i][1]; return t; }
     function setCount(p, n) {
       n = clamp(n | 0, 1, 8);
@@ -663,6 +675,18 @@
     function applyType(p, t) {
       var cp = p.coping;
       p.type = t; p.noCope = (t === "column");
+      if (t === "portal") {
+        setCount(p, p.portal.n); allCols(p, "rect", { B: p.portal.B, H: p.portal.H });
+        applyCope(p, "rect"); cp.THU = 2000; cp.TB = p.portal.H; p.bstep.on = false; p.fdnMode = "combined";
+        p.fdn.BLF = p.fdn.BRF = 1500;
+        return;
+      }
+      if (t === "flare") {
+        setCount(p, 1); allCols(p, "rect", { B: 2500, H: 2000 }); p.flare.BT = Math.max(p.flare.BT, 4000);
+        cp.TLL = cp.TLR = 4500; cp.TB = 2500; cp.HLL = cp.HLR = 1500;
+        if (p.copeType === "rect") { cp.HLL = cp.HLR = 0; }
+        spaceCols(p); return;
+      }
       if (t === "T") { setCount(p, 1); allCols(p, "circle", { D: 2500 }); cp.TLL = cp.TLR = 5000; cp.TB = 3000; cp.HLL = cp.HLR = 3000; }
       else if (t === "multi") { setCount(p, Math.max(2, p.colCount)); allCols(p, "circle", { D: 2500 }); cp.TLL = cp.TLR = 7000; cp.TB = 3000; cp.HLL = cp.HLR = 1500; }
       else if (t === "wall") { setCount(p, 1); allCols(p, "rect", { B: 7000, H: 2000 }); cp.TLL = cp.TLR = 5500; cp.TB = 3000; cp.HLL = cp.HLR = 1500; }
@@ -700,9 +724,11 @@
     }
     function wizSteps(p) {
       var st = [["type", "Structure"]];
-      if (!p.noCope) st.push(["cope", "Coping"]);
-      st.push(["col", p.type === "wall" ? "Wall section" : "Column"]);
-      if (p.colCount > 1) st.push(["fdn", "Footing"]);
+      if (p.type === "portal") st.push(["legs", "Openings"]);
+      else if (p.type !== "column") st.push(["cope", "Coping"]);
+      if (p.type !== "portal") st.push(["col", p.type === "wall" ? "Wall section" : "Column"]);
+      st.push(["fdn", "Footing"]);
+      if (p.colCount > 1 && p.type !== "portal") st.push(["layout", "Footing layout"]);
       return st;
     }
 
@@ -720,11 +746,25 @@
       if (t === "T") g += icoRect(50, 30, 20, 38) + icoPoly(IC_CAP_H);
       else if (t === "multi") g += icoRect(28, 30, 14, 38) + icoRect(78, 30, 14, 38) + icoPoly("10,14 110,14 110,24 102,30 18,30 10,24");
       else if (t === "wall") g += icoRect(30, 30, 60, 38) + icoPoly("14,14 106,14 106,22 94,30 26,30 14,22");
+      else if (t === "portal") g += icoRect(24, 30, 16, 38) + icoRect(80, 30, 16, 38) + icoRect(24, 16, 72, 14);
+      else if (t === "flare") g += "<path d='M51,68 L51,46 Q51,32 36,30 L84,30 Q69,32 69,46 L69,68 Z' fill='" + IC_F + "' stroke='__S__' stroke-width='1.6' stroke-linejoin='round'/>" + icoRect(28, 16, 64, 14);
       else g = icoRect(14, 68, 92, 9) + icoRect(30, 22, 14, 46) + icoRect(76, 22, 14, 46);
+      return g;
+    }
+    function icoLegs(n) {
+      n = +n; var g = icoRect(14, 66, 92, 10), x0 = 18, w = 14, top = 16;
+      var gap = (84 - n * w) / (n - 1);
+      for (var i = 0; i < n; i++) g += icoRect(x0 + i * (w + gap), top + 14, w, 36);
+      return g + icoRect(x0, top, 84, 14);
+    }
+    function icoFtype(t) {
+      var g = icoRect(50, 12, 20, 30) + icoRect(18, 42, 84, 14);
+      if (t === "pile") g += icoRect(26, 56, 8, 22) + icoRect(56, 56, 8, 22) + icoRect(86, 56, 8, 22);
       return g;
     }
     function icoCope(t) {
       var col = icoRect(50, 34, 20, 40);
+      if (t === "none") return "<path d='M51,74 L51,52 Q51,38 34,34 L86,34 Q69,38 69,52 L69,74 Z' fill='" + IC_F + "' stroke='__S__' stroke-width='1.6' stroke-linejoin='round'/>";
       if (t === "rect") return col + icoPoly("8,16 112,16 112,34 8,34");
       if (t === "haunch") return col + icoPoly("8,16 112,16 112,24 76,34 44,34 8,24");
       return col + "<path d='M8,16 L112,16 L112,24 Q86,26 76,34 L44,34 Q34,26 8,24 Z' fill='" + IC_F + "' stroke='__S__' stroke-width='1.6' stroke-linejoin='round'/>";
@@ -751,9 +791,12 @@
       if (S.wiz.done) {
         var sum = h("div", "pr-wsum");
         var bits = [typeName(p.type)];
-        if (!p.noCope) bits.push(copeName(p.copeType) + " cap");
-        bits.push((p.colCount > 1 ? p.colCount + " × " : "") + shapeName(p.cols[0].shape) + (p.type === "wall" ? " wall" : " column"));
-        bits.push(p.fdnMode === "combined" ? "combined footing" : "individual footings");
+        if (p.type === "portal") bits.push(p.portal.n + " legs · " + (p.portal.n - 1) + (p.portal.n > 2 ? " openings" : " opening"));
+        else {
+          if (!p.noCope) bits.push(copeName(p.copeType) + " cap"); else if (p.type === "flare") bits.push("no cap");
+          bits.push((p.colCount > 1 ? p.colCount + " × " : "") + shapeName(p.cols[0].shape) + (p.type === "wall" ? " wall" : " column"));
+        }
+        bits.push((p.fdnType === "pile" ? "pile" : "spread") + (p.colCount > 1 && p.type !== "portal" ? (p.fdnMode === "combined" ? " · combined" : " · individual") : "") + " footing");
         bits.forEach(function (b, i) { sum.appendChild(h("span", "pr-wchip", b)); });
         var chg = h("button", "pr-btn", "Change type"); chg.type = "button"; chg.style.marginLeft = "auto";
         chg.onclick = function () { S.wiz.done = false; S.wiz.step = 0; renderAll(); };
@@ -786,8 +829,13 @@
       }
       if (cur === "type") {
         body.appendChild(opts(TYPES, icoType, function (k) { return p.type === k; }, function (k) { applyType(p, k); }));
+      } else if (cur === "legs") {
+        body.appendChild(opts(LEGS, icoLegs, function (k) { return p.portal.n === +k; }, function (k) { p.portal.n = +k; applyType(p, "portal"); }));
       } else if (cur === "cope") {
-        body.appendChild(opts(COPES, icoCope, function (k) { return p.copeType === k; }, function (k) { applyCope(p, k); }));
+        var cl = p.type === "flare" ? COPES.concat([COPE_NONE]) : COPES;
+        body.appendChild(opts(cl, icoCope, function (k) { return copeKey(p) === k; }, function (k) {
+          if (k === "none") { p.noCope = true; p.bstep.on = false; } else { p.noCope = false; applyCope(p, k); }
+        }));
       } else if (cur === "col") {
         if (p.type === "multi" || p.type === "column") {
           var row = h("div", "pr-wcount"); row.appendChild(h("span", null, "Number of columns"));
@@ -801,13 +849,15 @@
           stp.appendChild(mn); stp.appendChild(cn); stp.appendChild(pl); row.appendChild(stp);
           body.appendChild(row);
         }
-        var shp = SHAPES.filter(function (s2) { return p.type !== "wall" || s2[0] === "rect" || s2[0] === "track"; })
+        var shp = SHAPES.filter(function (s2) { return (p.type !== "wall" && p.type !== "flare") || s2[0] === "rect" || s2[0] === "track"; })
           .map(function (s2) { return [s2[0], s2[1], { rect: "B × H", circle: "Diameter D", track: "Rounded ends", octagon: "Chamfered corners" }[s2[0]]]; });
         body.appendChild(opts(shp, icoShape, function (k) { return p.cols[0].shape === k; }, function (k) {
-          var keep = {}; if (p.type === "wall") { keep.B = +p.cols[0].sect.B || 7000; keep.H = +p.cols[0].sect.H || 2000; }
+          var keep = {}; if (p.type === "wall" || p.type === "flare") { keep.B = +p.cols[0].sect.B || 7000; keep.H = +p.cols[0].sect.H || 2000; }
           p.cols.forEach(function (col) { setColShape(col, k); for (var kk in keep) col.sect[kk] = keep[kk]; });
           spaceCols(p);
         }));
+      } else if (cur === "fdn") {
+        body.appendChild(opts(FTYPES, icoFtype, function (k) { return p.fdnType === k; }, function (k) { p.fdnType = k; }));
       } else {
         body.appendChild(opts(FDNS, icoFdn, function (k) { return p.fdnMode === k; }, function (k) {
           p.fdnMode = k;
@@ -827,6 +877,23 @@
       var sk = h("button", "pr-gbtn", S.wiz.step + 1 >= steps.length ? "Done ›" : "Keep & next ›"); sk.type = "button"; sk.onclick = next; foot.appendChild(sk);
       body.appendChild(foot);
       c.appendChild(body); return c;
+    }
+
+    // Portal frame: legs + beam (the engine places the legs and ends the beam at their outer faces)
+    function cardFrame() {
+      var p = P(), pt = p.portal, cp = p.coping;
+      var c = h("div", "pr-card");
+      c.appendChild(h("div", "pr-hd", "<span class='pr-ttl'>Frame <span class='pr-sub'>" + pt.n + " legs · " + (pt.n - 1) + (pt.n > 2 ? " openings" : " opening") + "</span></span>"));
+      var b = h("div", "pr-body"), g = h("div", "pr-ingrid");
+      function sync() { allCols(p, "rect", { B: pt.B, H: pt.H }); }
+      g.appendChild(numRow("B", "Leg width (transverse)", pt.B, function (v) { pt.B = v; sync(); }));
+      g.appendChild(numRow("H", "Leg thickness (longitudinal)", pt.H, function (v) { pt.H = v; sync(); }));
+      g.appendChild(numRow("W", "Clear opening width", pt.W, function (v) { pt.W = v; }));
+      g.appendChild(numRow("THU", "Beam depth", cp.THU, function (v) { cp.THU = v; }));
+      g.appendChild(numRow("TB", "Beam width (longitudinal)", cp.TB, function (v) { cp.TB = v; }));
+      b.appendChild(g);
+      b.appendChild(h("p", "pr-cap", "Beam length L = legs × B + openings × W. The beam ends at the outer leg faces (no cantilever). Change the number of legs with Change type."));
+      c.appendChild(b); return c;
     }
 
     // single pier: name + elevation datum (replaces the multi-pier schedule)
@@ -982,10 +1049,13 @@
         col.sect = col.sect || sectDefaults(col.shape);
         var row = h("div", "pr-crow");
         row.appendChild(h("span", "cnm", isWall ? "Wall" : (p.cols.length > 1 ? "Column " + (i + 1) : "Column")));
-        row.appendChild(fld("CL", col.CL, function (v) { col.CL = v; }, "50"));
-        row.appendChild(fld("Ang", col.ang || 0, function (v) { col.ang = v; }, "5"));
+        var isFlare = p.type === "flare";
+        if (!isFlare) {
+          row.appendChild(fld("CL", col.CL, function (v) { col.CL = v; }, "50"));
+          row.appendChild(fld("Ang", col.ang || 0, function (v) { col.ang = v; }, "5"));
+        }
         var sel = h("select", "pr-sel");
-        SHAPES.filter(function (s) { return !isWall || s[0] === "rect" || s[0] === "track"; }).forEach(function (s) { var o = h("option"); o.value = s[0]; o.textContent = s[1]; if (col.shape === s[0]) o.selected = true; sel.appendChild(o); });
+        SHAPES.filter(function (s) { return !(isWall || p.type === "flare") || s[0] === "rect" || s[0] === "track"; }).forEach(function (s) { var o = h("option"); o.value = s[0]; o.textContent = s[1]; if (col.shape === s[0]) o.selected = true; sel.appendChild(o); });
         sel.addEventListener("change", function () { setColShape(col, sel.value); renderPerPier(); draw(); });
         row.appendChild(sel);
         // section vars — hollow-only vars appear only when Hollow is checked
@@ -994,7 +1064,11 @@
           var name = v[0];
           row.appendChild(fld(name, (col.sect[name] != null ? col.sect[name] : v[1]), function (val) { col.sect[name] = val; }));
         });
-        row.appendChild(chk("Hollow", col.hollow, function (v) { col.hollow = v; renderPerPier(); }));
+        if (!isFlare) row.appendChild(chk("Hollow", col.hollow, function (v) { col.hollow = v; renderPerPier(); }));
+        else {
+          row.appendChild(fld("FH", p.flare.FH, function (v) { p.flare.FH = v; }));
+          row.appendChild(fld("BT", p.flare.BT, function (v) { p.flare.BT = v; }));
+        }
         var gbtn = h("button", "pr-gbtn", "&#9635; Guide");
         var guide = h("div", "pr-guide"); guide.style.display = "none"; guide.id = "pr-guide-" + i;
         gbtn.onclick = function () {
@@ -1007,7 +1081,8 @@
         row.appendChild(gbtn);
         b.appendChild(row); b.appendChild(guide);
       });
-      b.appendChild(h("p", "pr-cap", "Column height (CH) is auto-computed from the Levels card · CL — transverse position from the pier centre (left −, right +) · Ang — section placement angle (°) · Hollow toggles the wall variables · Guide shows the section diagram."));
+      if (p.type === "flare") b.appendChild(h("p", "pr-cap", "Flared column: B is the width at the bottom, BT the width at the top (front view only — the side stays H thick). FH is the flare height measured down from the column top; the flare is one arc tangent to the column face."));
+      else b.appendChild(h("p", "pr-cap", "Column height (CH) is auto-computed from the Levels card · CL — transverse position from the pier centre (left −, right +) · Ang — section placement angle (°) · Hollow toggles the wall variables · Guide shows the section diagram."));
       c.appendChild(b); return c;
     }
 
@@ -1016,8 +1091,14 @@
       var c = h("div", "pr-card");
       c.appendChild(h("div", "pr-hd", "<span class='pr-ttl'>Foundation <span class='pr-sub'>footing</span></span>"));
       var b = h("div", "pr-body");
-      p.fdnType = "spread";   // only spread (direct) footing is supported
-      if (p.colCount > 1) {
+      var tk = h("div", "pr-modes");
+      FTYPES.forEach(function (m) {
+        var mb = h("button", "pr-mode" + (p.fdnType === m[0] ? " on" : ""), m[1]); mb.type = "button";
+        mb.onclick = function () { p.fdnType = m[0]; renderAll(); };
+        tk.appendChild(mb);
+      });
+      b.appendChild(tk);
+      if (p.colCount > 1 && p.type !== "portal") {
         var md = h("div", "pr-modes");
         [["combined", "Combined"], ["individual", "Individual"]].forEach(function (m) {
           var mb = h("button", "pr-mode" + (p.fdnMode === m[0] ? " on" : ""), m[1]); mb.type = "button";
@@ -1035,6 +1116,19 @@
       ig.appendChild(numRow("EFL", "Blinding projection", f.EFL, function (v) { f.EFL = v; }));
       ig.appendChild(numRow("EH", "Blinding height", f.EH, function (v) { f.EH = v; }));
       b.appendChild(ig);
+      if (p.fdnType === "pile") {
+        var pl = p.pile;
+        b.appendChild(h("div", "pr-subhd", "Piles"));
+        var pg = h("div", "pr-ingrid");
+        pg.appendChild(numRow("PD", "Pile diameter", pl.D, function (v) { pl.D = v; }));
+        pg.appendChild(numRow("PL", "Pile length (below footing)", pl.L, function (v) { pl.L = v; }));
+        pg.appendChild(numRow("NX", "Piles across (transverse), per footing", pl.NX, function (v) { pl.NX = Math.max(1, Math.round(v)); }, "pcs", "1"));
+        pg.appendChild(numRow("NY", "Piles along (longitudinal), per footing", pl.NY, function (v) { pl.NY = Math.max(1, Math.round(v)); }, "pcs", "1"));
+        pg.appendChild(numRow("SX", "Pile spacing, transverse", pl.SX, function (v) { pl.SX = v; }));
+        pg.appendChild(numRow("SY", "Pile spacing, longitudinal", pl.SY, function (v) { pl.SY = v; }));
+        b.appendChild(pg);
+        b.appendChild(h("p", "pr-cap", "The pile group is centred under each footing."));
+      }
       c.appendChild(b); return c;
     }
 
@@ -1150,10 +1244,44 @@
       rec.addText(0, oxCommon, oyF + pbox.maxY + vspan * 0.11, "FOOTING PLAN");
       return { rec: rec, box: bboxOf(rec) };
     }
+    // ── server engine (macroPIER, /pier/api.php) ──
+    // The server returns the drawing in the standard record format (L · A · DL · DR · TX) and the 3D
+    // mesh; this page only draws them. Until the server answers, the old types fall back to the local
+    // engine below (to be removed once the server is confirmed); Portal / Flared / piles need the server.
+    var API = "/pier/api.php", _reqSeq = 0, _drawT = null, _lastComp = null, _srv = "unknown";
+    function fetchCompute(want) {
+      return fetch(API, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ pier: P(), want: want }) })
+        .then(function (r) { if (!r.ok) throw new Error("HTTP " + r.status); return r.json(); })
+        .then(function (j) { if (!j || !j.ok) throw new Error((j && j.error) || "engine"); return j; });
+    }
+    function compFromServer(j) {
+      var rec = new window.RWSVG.MockViewer();
+      rec.L = j.rec.L || []; rec.A = j.rec.A || []; rec.DL = j.rec.DL || []; rec.DR = j.rec.DR || []; rec.TX = j.rec.TX || [];
+      return { rec: rec, box: j.box };
+    }
+    function paintMsg(msg) {
+      _lastComp = null;
+      plotHost.innerHTML = "<div style='padding:48px 16px;text-align:center;color:#64748b;font-size:13px;line-height:1.6'>" + msg + "</div>";
+    }
     function draw() {
       if (!plotHost || !plotHost.isConnected) return;
       if (typeof window.RWSVG === "undefined") { ensureCore(draw); return; }
-      var comp = composeRec(), full = comp.box;
+      var seq = ++_reqSeq;
+      clearTimeout(_drawT);
+      _drawT = setTimeout(function () {
+        fetchCompute(["draw"]).then(function (j) {
+          if (seq !== _reqSeq) return; _srv = "up"; paint(compFromServer(j));
+        }).catch(function () {
+          if (seq !== _reqSeq) return; _srv = "down";
+          if (needsServer(P())) paintMsg("This type is drawn by the server engine, which is not reachable yet.<br>Portal · Flared · pile footings appear once the server is up.");
+          else paint(composeRec());
+        });
+      }, 120);
+    }
+    function paint(comp) {
+      if (!plotHost || !plotHost.isConnected) return;
+      _lastComp = comp;
+      var full = comp.box;
       var bw = Math.max(full.maxX - full.minX, 1), bh = Math.max(full.maxY - full.minY, 1);
       var W = plotHost.clientWidth || 1000, s = (W - 80) / bw;
       var Hpx = Math.max(260, Math.min(440, Math.round(bh * s) + 50));
@@ -1161,7 +1289,7 @@
       var svg = plotHost.querySelector("svg");
       if (svg) window.RWSVG.attachZoomPan(svg);
       var pp = P();
-      if (plotSub) plotSub.textContent = pp.name + " · " + pp.colCount + " col · " + (pp.fdnMode === "combined" ? "combined" : "individual") + " · " + (pp.fdnType === "pile" ? "pile" : "spread") + " ftg · EL " + (+pp.el.top).toFixed(3) + "/" + (+pp.el.fdn).toFixed(3) + " (CH " + (pierCH(pp) / 1000).toFixed(3) + "m)";
+      if (plotSub) plotSub.textContent = pp.name + (_srv === "up" ? " · server" : "") + " · " + pp.colCount + " col · " + (pp.fdnMode === "combined" ? "combined" : "individual") + " · " + (pp.fdnType === "pile" ? "pile" : "spread") + " ftg · EL " + (+pp.el.top).toFixed(3) + "/" + (+pp.el.fdn).toFixed(3) + " (CH " + (pierCH(pp) / 1000).toFixed(3) + "m)";
     }
 
     var _copingGutY = 0;   // absolute Y of the coping-top dim gutter (set by buildFront, reused by buildSide)
@@ -1481,19 +1609,26 @@
       else p.cols.forEach(function (col, i) { foot(cs[i] - colW(col) / 2 - (+f.BLF || 0), cs[i] + colW(col) / 2 + (+f.BRF || 0)); });
       return T;
     }
-    function downloadSTL() {
-      var blob = new Blob([_stl(buildPierMesh())], { type: "application/octet-stream" });
+    function getMesh(cb) {
+      fetchCompute(["mesh"]).then(function (j) { cb(j.mesh); }).catch(function () {
+        if (needsServer(P())) paintMsg("3D for this type needs the server engine, which is not reachable yet."); else cb(buildPierMesh());
+      });
+    }
+    function downloadSTL() { getMesh(saveSTL); }
+    function saveSTL(mesh) {
+      var blob = new Blob([_stl(mesh)], { type: "application/octet-stream" });
       var url = URL.createObjectURL(blob), a = document.createElement("a");
       a.href = url; a.download = (P().name || "pier") + ".stl"; document.body.appendChild(a); a.click();
       document.body.removeChild(a); setTimeout(function () { URL.revokeObjectURL(url); }, 1000);
     }
-    function show3D() {
+    function show3D() { if (plotHost) getMesh(show3DMesh); }
+    function show3DMesh(mesh) {
       if (!plotHost) return;
       var Hpx = 460;
       plotHost.innerHTML = "";
       var d3 = h("div"); d3.id = "pr-3d-host"; d3.style.cssText = "width:100%;height:" + Hpx + "px;background:#1a1a2e;border-radius:8px;overflow:hidden";
       plotHost.appendChild(d3);
-      window.RWSVG.render3d("pr-3d-host", "render_pier_3d", "https://macrobim.github.io/macroBIM/bim_pier_3d.js?v=1", [buildPierMesh()]);
+      window.RWSVG.render3d("pr-3d-host", "render_pier_3d", "https://macrobim.github.io/macroBIM/bim_pier_3d.js?v=1", [mesh]);
       if (plotSub) plotSub.textContent = P().name + " · 3D solid (drag to orbit)";
     }
 
@@ -1525,20 +1660,17 @@
           txt((d.x + rx) / 2 + dx, (d.y + ry) / 2 + dy, (d.t || "R") + Math.round(d.r), TH * 0.9, 0, "DIM");
         });
       }
-      var saved = S.sel, ox = 0;
-      for (var i = 0; i < S.piers.length; i++) {
-        S.sel = i;
-        var comp = composeRec(), b = comp.box, w = b.maxX - b.minX, ht = b.maxY - b.minY;
-        emit(comp.rec, ox - b.minX, -b.minY);                              // left→ox, bottom→0
-        txt(ox + w / 2, -TH * 3, S.piers[i].name, TH * 1.4, 0, "TITLE");   // pier name below
-        ox += w + Math.max(6000, ht * 0.45);                              // gap between piers
-      }
-      S.sel = saved;
+      // one pier: the drawing on screen (from the server, or the local fallback)
+      var comp = _lastComp; if (!comp) return null;
+      var b = comp.box, w = b.maxX - b.minX;
+      emit(comp.rec, -b.minX, -b.minY);
+      txt(w / 2, -TH * 3, P().name, TH * 1.4, 0, "TITLE");
       e.push("0", "ENDSEC", "0", "EOF");
       return e.join("\n");
     }
     function downloadDXF() {
-      var blob = new Blob([pierDXF()], { type: "application/dxf" });
+      var dxf = pierDXF(); if (!dxf) return;
+      var blob = new Blob([dxf], { type: "application/dxf" });
       var url = URL.createObjectURL(blob), a = document.createElement("a");
       a.href = url; a.download = (P().name || "pier") + ".dxf"; document.body.appendChild(a); a.click();
       document.body.removeChild(a); setTimeout(function () { URL.revokeObjectURL(url); }, 1000);
@@ -1551,8 +1683,11 @@
       perWrap.innerHTML = "";
       if (!S.wiz.done) return;               // details appear once the type is chosen
       perWrap.appendChild(cardElevation());
-      if (!P().noCope) perWrap.appendChild(cardCoping());
-      perWrap.appendChild(cardColumns());
+      if (P().type === "portal") perWrap.appendChild(cardFrame());
+      else {
+        if (!P().noCope) perWrap.appendChild(cardCoping());
+        perWrap.appendChild(cardColumns());
+      }
       perWrap.appendChild(cardFoundation());
     }
     function renderAll() {

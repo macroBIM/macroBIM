@@ -327,6 +327,7 @@ git status --short     # 비어 있어야 한다
 **맨 위가 최신.** 한 줄에 하나: 날짜 · 커밋 · 무엇이 · 어디까지(테스트/운영).
 
 ### 2026-11-15
+- **PIER(dev): 위저드에 Portal(문형) · Flared(횃불형) · 기초 종류(직접/말뚝) 단계 · 화면이 서버 엔진(`/pier/api.php`)을 부른다** · macroBIM `bim_pier_dev.js` + macroPIER `002c9d0` + design dev `?v=3` · **시험(/dev/)** — 서버가 답하면 모든 그림 · DXF · STL 을 서버 결과(표준 포맷)로. 서버가 없으면 기존 형태만 로컬 JS 로 그리고, 문형 · 횃불형 · 말뚝은 「서버 필요」 안내. 기초 단계는 이제 항상 나온다(직접/말뚝, 기둥 여럿이면 통합/개별 단계가 이어서). 서버는 아직 미배포 — macroPIER README 「배포」 5단계.
 - **PIER: 곡면 빗금(원기둥 · 트랙 반원 · 코핑 라운딩 CR)을 같은 각도 10° 간격으로** · macroBIM `a83a6da` + macroPIER `b917e7f` + design dev `0582e4c`(`?v=2`) · **시험(/dev/)** — 원 6줄(가장자리로 몰린 식, 가운데 65° 빈칸) → 17줄. JS · PHP 대조 12 경우 일치. 운영 `bim_pier_test.js` 는 그대로.
 - **PIER 서버 엔진 (PHP) — 비공개 `macroPIER`** · macroPIER `4ac1973` · **서버에 아직 안 올림** — `bim_pier_dev.js` 의 계산부(형상 · 도면 조립 · 3D 메쉬)를 `php/pier_engine.php` 로. 결과는 공개 표준 포맷(RWSVG `MockViewer`: L · A · DL · DR · TX). `tools/parity.js` 12 경우 JS 와 순서까지 숫자 일치. 배포 방식이 정해지면 `bim_pier_dev.js` 에서 계산부를 지우고 `/pier_api.php` 를 부른다.
 - **PIER: 타입 위저드 · 교각 하나 (/dev/ 전용 사본 `bim_pier_dev.js`)** · macroBIM `199ac89` + design dev `5de23e0` · **시험(/dev/)** — 구조물 형태(T형 · 다주식 · 벽식 · 기둥식) → 코핑 형태(사각 · 직선 헌치 · 곡선 헌치) → 기둥 단면 → 기초 를 고르면 그 형태가 쓰는 칸만 나온다. + Add pier · 교각 일람표 삭제(Levels 카드로). 기둥식은 코핑 없음(CH = 기둥 상단 EL − 기초 EL). 아무 데도 안 쓰이던 IHLA·IHL·IHH·IHR·IHSR 칸은 뺐다. `bim_pier_test.js`(운영)는 그대로.
