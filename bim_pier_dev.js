@@ -219,7 +219,20 @@
     ".pr-plotwrap.busy > div:last-child{opacity:.55;transition:opacity .15s}" +
     ".pr-plotwrap.busy{cursor:progress}" +
     "@keyframes pr-slide{0%{left:-35%}100%{left:100%}}" +
-    "@media (prefers-reduced-motion:reduce){.pr-busy::before{animation:none;left:0;width:100%;opacity:.6}}";
+    "@media (prefers-reduced-motion:reduce){.pr-busy::before{animation:none;left:0;width:100%;opacity:.6}}" +
+    ".pr-modal{position:fixed;inset:0;z-index:1000;background:rgba(15,23,42,.55);display:flex;align-items:center;justify-content:center;padding:24px}" +
+    ".pr-mbox{background:#fff;border-radius:12px;width:min(1240px,100%);max-height:100%;display:flex;flex-direction:column;overflow:hidden;box-shadow:0 20px 50px rgba(0,0,0,.3)}" +
+    ".pr-mhd{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:12px 16px;border-bottom:1px solid var(--hair)}" +
+    ".pr-mttl{font-size:16px;font-weight:700;color:#0f172a}" +
+    ".pr-mact{display:inline-flex;align-items:center;gap:8px;flex-wrap:wrap}" +
+    ".pr-ghost{background:#fff;color:var(--dim);box-shadow:none}" +
+    ".pr-mx{font:inherit;font-size:22px;line-height:1;color:#64748b;background:none;border:none;cursor:pointer;padding:2px 6px}" +
+    ".pr-mx:hover{color:#0f172a}" +
+    ".pr-mbody{height:min(76vh,860px);overflow:hidden;background:#e5e7eb;padding:12px;position:relative}" +
+    ".pr-mbody > svg{filter:drop-shadow(0 2px 6px rgba(0,0,0,.18))}" +
+    ".pr-mfoot{padding:10px 16px;font-size:12px;color:#64748b;border-top:1px solid var(--hair)}" +
+    ".pr-mwait{padding:60px 16px;text-align:center;color:#64748b;font-size:13px}" +
+    ".pr-mwait .pr-busy{height:3px;max-width:240px;margin:0 auto 12px}";
 
   // ── data model ──────────────────────────────────────────────────────────────
   function newCol() { return { shape: "circle", CH: 8000, CL: 0, ang: 0, hollow: false, sect: sectDefaults("circle") }; }
@@ -809,16 +822,14 @@
       var c = h("div", "pr-card");
       var hd = h("div", "pr-hd", "<span class='pr-ttl'>Elevation <span class='pr-sub' data-pr-sub>front + side</span></span>" +
         "<span style='display:inline-flex;gap:6px;flex-wrap:wrap'>" +
-        "<button type='button' class='pr-btn' data-pr-3d>3D</button>" +
-        "<button type='button' class='pr-btn' data-pr-stl>&#8681; STL</button>" +
-        "<button type='button' class='pr-btn' data-pr-dxf>&#8681; DXF</button>" +
-        "<button type='button' class='pr-btn' data-pr-regen>&#8635; Regen</button></span>");
+        "<button type='button' class='pr-btn' data-pr-sheet>Drawing preview</button>" +
+        "<button type='button' class='pr-btn' data-pr-3d>3D preview</button>" +
+        "<button type='button' class='pr-btn' data-pr-regen>&#8635; Reset</button></span>");
       c.appendChild(hd);
       plotSub = hd.querySelector("[data-pr-sub]");
       hd.querySelector("[data-pr-regen]").addEventListener("click", function () { draw(); });
+      hd.querySelector("[data-pr-sheet]").addEventListener("click", function () { showSheet(); });
       hd.querySelector("[data-pr-3d]").addEventListener("click", function () { show3D(); });
-      hd.querySelector("[data-pr-stl]").addEventListener("click", function () { downloadSTL(); });
-      hd.querySelector("[data-pr-dxf]").addEventListener("click", function () { downloadDXF(); });
       var body = h("div", "pr-body pr-plotwrap");
       busyBar = h("div", "pr-busy"); busyBar.setAttribute("role", "progressbar"); busyBar.setAttribute("aria-label", "Drawing");
       plotHost = h("div"); plotHost.style.cssText = "width:100%;overflow:hidden";
@@ -923,70 +934,79 @@
       busy(true);
       fetchCompute(["mesh"]).then(function (j) { busy(false); memoPut("mesh", key, j.mesh); cb(j.mesh); }).catch(function () {
         busy(false);
-        paintMsg("The drawing engine is not reachable right now — 3D / STL need it.");
+        if (_modal) { var mb = _modal.querySelector(".pr-mbody"); if (mb) mb.innerHTML = "<div class='pr-mwait'>The drawing engine is not reachable right now.</div>"; }
       });
     }
-    function downloadSTL() { getMesh(saveSTL); }
-    function saveSTL(mesh) {
-      var blob = new Blob([_stl(mesh)], { type: "application/octet-stream" });
+    // ── preview windows (A3 drawing / 3D). Downloads live inside them, so the drawing is seen first ──
+    function openModal(title, actions) {
+      closeModal();
+      var ov = h("div", "pr-modal"); ov.setAttribute("role", "dialog"); ov.setAttribute("aria-modal", "true");
+      var box = h("div", "pr-mbox"), hd = h("div", "pr-mhd"), body = h("div", "pr-mbody"), foot = h("div", "pr-mfoot");
+      hd.appendChild(h("span", "pr-mttl", title));
+      var act = h("span", "pr-mact");
+      (actions || []).forEach(function (a) { var b = h("button", "pr-btn" + (a.ghost ? " pr-ghost" : ""), a.label); b.type = "button"; b.onclick = a.on; act.appendChild(b); });
+      var x = h("button", "pr-mx", "&times;"); x.type = "button"; x.setAttribute("aria-label", "Close"); x.onclick = closeModal; act.appendChild(x);
+      hd.appendChild(act); box.appendChild(hd); box.appendChild(body); box.appendChild(foot); ov.appendChild(box);
+      ov.addEventListener("click", function (e) { if (e.target === ov) closeModal(); });
+      (root.querySelector(".pr-root") || root).appendChild(ov); _modal = ov;   // inside .pr-root → same fonts / colours
+      body.innerHTML = "<div class='pr-mwait'><div class='pr-busy' style='opacity:1;position:relative'></div>Preparing…</div>";
+      return { body: body, foot: foot };
+    }
+    var _modal = null;
+    function closeModal() { if (_modal && _modal.parentNode) _modal.parentNode.removeChild(_modal); _modal = null; }
+    document.addEventListener("keydown", function (e) { if (e.key === "Escape") closeModal(); });
+    function saveFile(data, name, type) {
+      var blob = new Blob([data], { type: type });
       var url = URL.createObjectURL(blob), a = document.createElement("a");
-      a.href = url; a.download = (P().name || "pier") + ".stl"; document.body.appendChild(a); a.click();
+      a.href = url; a.download = name; document.body.appendChild(a); a.click();
       document.body.removeChild(a); setTimeout(function () { URL.revokeObjectURL(url); }, 1000);
     }
-    function show3D() { if (plotHost) getMesh(show3DMesh); }
-    function show3DMesh(mesh) {
-      if (!plotHost) return;
-      var Hpx = 460;
-      plotHost.innerHTML = "";
-      var d3 = h("div"); d3.id = "pr-3d-host"; d3.style.cssText = "width:100%;height:" + Hpx + "px;background:#1a1a2e;border-radius:8px;overflow:hidden";
-      plotHost.appendChild(d3);
-      window.RWSVG.render3d("pr-3d-host", "render_pier_3d", "https://macrobim.github.io/macroBIM/bim_pier_3d.js?v=1", [mesh]);
-      if (plotSub) plotSub.textContent = P().name + " · 3D solid (drag to orbit)";
+    function fileBase() { return (P().name || "pier").replace(/[^A-Za-z0-9_.-]+/g, "_"); }
+    // server results that are not the live drawing: sheet SVG / DXF (memoised like the drawing)
+    function getServer(kind, cb, fail) {
+      var key = inputKey(), hit = memoGet(kind, key);
+      if (hit) { cb(hit); return; }
+      fetchCompute([kind]).then(function (j) { var v = kind === "dxf" ? j.dxf : j.sheet; memoPut(kind, key, v); cb(v); }).catch(fail);
+    }
+    _memo.sheet = { k: [], v: {} }; _memo.dxf = { k: [], v: {} };
+
+    // A3 drawing sheet: front · side · plan · section A-A · ISO, title block. DXF has live DIMENSIONs.
+    function showSheet() {
+      var m = openModal("Drawing preview", [
+        { label: "&#8681; Download DXF", on: downloadSheetDXF },
+        { label: "Reset", ghost: true, on: function () { if (_sheetSvg) mountSvg(_sheetSvg); } }
+      ]);
+      var _sheetSvg = null;
+      function mountSvg(svg) {
+        m.body.innerHTML = svg;
+        var el = m.body.querySelector("svg");
+        if (el) { el.setAttribute("width", "100%"); el.setAttribute("height", "100%"); el.style.display = "block"; window.RWSVG && window.RWSVG.attachZoomPan(el); }
+      }
+      getServer("sheet", function (sh) {
+        if (!_modal) return;
+        _sheetSvg = sh.svg; mountSvg(sh.svg);
+        m.foot.textContent = "A3 · S = 1:" + sh.scale + (sh.scaleSection !== sh.scale ? " (section A-A 1:" + sh.scaleSection + ")" : "") +
+          " · wheel to zoom, drag to pan. The DXF keeps the same layout; its dimensions are live CAD dimensions — move a point in CAD and the value follows.";
+      }, function () { m.body.innerHTML = "<div class='pr-mwait'>The drawing engine is not reachable right now.</div>"; });
+    }
+    function downloadSheetDXF() {
+      busy(true);
+      getServer("dxf", function (dxf) { busy(false); saveFile(dxf, fileBase() + "_A3.dxf", "application/dxf"); },
+        function () { busy(false); alert("The drawing engine is not reachable right now."); });
     }
 
-    // DXF of ALL piers laid out left→right in one drawing, spaced apart. Each pier's
-    // composed drawing (front + side + plans) is emitted with a per-pier x-offset.
-    function pierDXF() {
-      var e = ["0", "SECTION", "2", "ENTITIES"], TH = 220;
-      function num(v) { return String(Math.round(v * 1000) / 1000); }
-      function line(x1, y1, x2, y2, lay) { e.push("0", "LINE", "8", lay, "10", num(x1), "20", num(y1), "30", "0", "11", num(x2), "21", num(y2), "31", "0"); }
-      function arc(x, y, r, a1, a2, lay) { e.push("0", "ARC", "8", lay, "10", num(x), "20", num(y), "30", "0", "40", num(r), "50", num(a1), "51", num(a2)); }
-      function circ(x, y, r, lay) { e.push("0", "CIRCLE", "8", lay, "10", num(x), "20", num(y), "30", "0", "40", num(r)); }
-      function txt(x, y, s, hgt, rot, lay) { e.push("0", "TEXT", "8", lay, "10", num(x), "20", num(y), "30", "0", "40", num(hgt), "1", String(s), "50", num(rot || 0)); }
-      function emit(rec, dx, dy) {
-        (rec.L || []).forEach(function (l) { line(l.x1 + dx, l.y1 + dy, l.x2 + dx, l.y2 + dy, l.lay === "hidden" ? "HIDDEN" : (l.lay === "faint" ? "HATCH" : "PIER")); });
-        (rec.A || []).forEach(function (a) { var lay = a.lay === "hidden" ? "HIDDEN" : "PIER", a2 = a.a2 <= a.a1 ? a.a2 + 360 : a.a2; if (a2 - a.a1 >= 360) circ(a.x + dx, a.y + dy, a.r, lay); else arc(a.x + dx, a.y + dy, a.r, a.a1, a.a2, lay); });
-        (rec.TX || []).forEach(function (t) { txt(t.x + dx, t.y + dy, t.t, TH, t.rot, "TEXT"); });
-        (rec.DL || []).forEach(function (d) {
-          var len = Math.hypot(d.x2 - d.x1, d.y2 - d.y1); if (!len) return;
-          var nx = -(d.y2 - d.y1) / len, ny = (d.x2 - d.x1) / len;
-          var p1x = d.x1 + nx * d.gap, p1y = d.y1 + ny * d.gap, p2x = d.x2 + nx * d.gap, p2y = d.y2 + ny * d.gap;
-          line(p1x + dx, p1y + dy, p2x + dx, p2y + dy, "DIM");
-          line(d.x1 + dx, d.y1 + dy, p1x + dx, p1y + dy, "DIM"); line(d.x2 + dx, d.y2 + dy, p2x + dx, p2y + dy, "DIM");
-          var ang = Math.atan2(p2y - p1y, p2x - p1x) * 180 / Math.PI; if (ang > 90 || ang < -90) ang += 180;
-          txt((p1x + p2x) / 2 + dx, (p1y + p2y) / 2 + dy, (d.t ? d.t + "=" : "") + Math.round(len), TH * 0.9, ang, "DIM");
-        });
-        (rec.DR || []).forEach(function (d) {
-          var rx = d.x + d.r * Math.cos(d.ang * Math.PI / 180), ry = d.y + d.r * Math.sin(d.ang * Math.PI / 180);
-          line(d.x + dx, d.y + dy, rx + dx, ry + dy, "DIM");
-          txt((d.x + rx) / 2 + dx, (d.y + ry) / 2 + dy, (d.t || "R") + Math.round(d.r), TH * 0.9, 0, "DIM");
-        });
-      }
-      // one pier: the drawing on screen (as the server returned it)
-      var comp = _lastComp; if (!comp) return null;
-      var b = comp.box, w = b.maxX - b.minX;
-      emit(comp.rec, -b.minX, -b.minY);
-      txt(w / 2, -TH * 3, P().name, TH * 1.4, 0, "TITLE");
-      e.push("0", "ENDSEC", "0", "EOF");
-      return e.join("\n");
+    function show3D() {
+      var m = openModal("3D preview", [{ label: "&#8681; Download STL", on: function () { getMesh(function (mesh) { saveFile(_stl(mesh), fileBase() + ".stl", "application/octet-stream"); }); } }]);
+      getMesh(function (mesh) {
+        if (!_modal) return;
+        m.body.innerHTML = "";
+        var d3 = h("div"); d3.id = "pr-3d-host"; d3.style.cssText = "width:100%;height:min(70vh,640px);background:#1a1a2e;border-radius:8px;overflow:hidden";
+        m.body.appendChild(d3);
+        window.RWSVG.render3d("pr-3d-host", "render_pier_3d", "https://macrobim.github.io/macroBIM/bim_pier_3d.js?v=1", [mesh]);
+        m.foot.textContent = "Drag to orbit, wheel to zoom. STL is the same solid (mm).";
+      });
     }
-    function downloadDXF() {
-      var dxf = pierDXF(); if (!dxf) return;
-      var blob = new Blob([dxf], { type: "application/dxf" });
-      var url = URL.createObjectURL(blob), a = document.createElement("a");
-      a.href = url; a.download = (P().name || "pier") + ".dxf"; document.body.appendChild(a); a.click();
-      document.body.removeChild(a); setTimeout(function () { URL.revokeObjectURL(url); }, 1000);
-    }
+
     _pierDraw = draw;
 
     // ── render orchestration ──
