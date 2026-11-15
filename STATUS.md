@@ -325,6 +325,9 @@ git status --short     # 비어 있어야 한다
 
 **맨 위가 최신.** 한 줄에 하나: 날짜 · 커밋 · 무엇이 · 어디까지(테스트/운영).
 
+### 2026-11-15
+- **design: 화면 제목을 한 줄로 통일 (제목 · 경로, PLATE3D 모양) · PLATE3D 본문 폭을 PIER 와 같게 (최대 1400, 좌우 20)** · `design` main `72d5abe` (`layout_top.css`) + dev `f296b5e` (`layout_style.css`) · **운영 + 시험(/dev/)** — 규칙은 `.page-view.active:has(> .page-heading)` 하나로 모든 화면에. PIER 위 여백 24 → 12 (PLATE3D 와 같은 자리).
+
 ### 2026-11-14
 - **design dev: 그래도 Konva 를 못 받던 브라우저 — 모듈을 부르기 전에 Konva 확인(jsdelivr → unpkg → cdnjs)** · `design` dev · **시험(/dev/)** — 사용자 브라우저에서 머리의 cdnjs Konva 가 붙지 않았다. 머리 태그도 jsdelivr 로.
 - **design dev: /dev/ 에서 PSCBOX · REBAR 의 Rebar Physics 단면 그림이 안 나오던 것** · `design` dev · **시험(/dev/)** — `dev/index.html` 이 Konva 를 걸지 않아 `UI.init` 이 `Konva is not defined` 로 멈췄다. index_claude 처럼 페이지 머리에 Konva(cdnjs 9.3.6)를 건다.
