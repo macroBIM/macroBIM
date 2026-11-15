@@ -211,7 +211,15 @@
     ".pr-elin{display:flex;flex-wrap:wrap;gap:12px 22px;align-items:flex-end}" +
     ".pr-elc{display:flex;flex-direction:column;gap:5px}" +
     ".pr-elc > span:first-child{font-size:10.5px;font-weight:700;letter-spacing:.03em;text-transform:uppercase;color:var(--muted)}" +
-    ".pr-elc .pr-ch{display:inline-block;min-width:80px;padding:5px 0}";
+    ".pr-elc .pr-ch{display:inline-block;min-width:80px;padding:5px 0}" +
+    ".pr-plotwrap{position:relative}" +
+    ".pr-busy{position:absolute;left:0;right:0;top:0;height:3px;overflow:hidden;opacity:0;transition:opacity .15s;pointer-events:none}" +
+    ".pr-busy::before{content:'';position:absolute;top:0;bottom:0;left:-35%;width:35%;background:var(--dim);border-radius:2px;animation:pr-slide 1s ease-in-out infinite}" +
+    ".pr-plotwrap.busy .pr-busy{opacity:1}" +
+    ".pr-plotwrap.busy > div:last-child{opacity:.55;transition:opacity .15s}" +
+    ".pr-plotwrap.busy{cursor:progress}" +
+    "@keyframes pr-slide{0%{left:-35%}100%{left:100%}}" +
+    "@media (prefers-reduced-motion:reduce){.pr-busy::before{animation:none;left:0;width:100%;opacity:.6}}";
 
   // ── data model ──────────────────────────────────────────────────────────────
   function newCol() { return { shape: "circle", CH: 8000, CL: 0, ang: 0, hollow: false, sect: sectDefaults("circle") }; }
@@ -796,7 +804,7 @@
 
     // ── live elevation preview (selected pier) — front + side in ONE drawing
     // so both share a single scale (same structure height) ──
-    var plotHost = null, plotSub = null;
+    var plotHost = null, plotSub = null, busyBar = null;
     function cardPreview() {
       var c = h("div", "pr-card");
       var hd = h("div", "pr-hd", "<span class='pr-ttl'>Elevation <span class='pr-sub' data-pr-sub>front + side</span></span>" +
@@ -811,9 +819,10 @@
       hd.querySelector("[data-pr-3d]").addEventListener("click", function () { show3D(); });
       hd.querySelector("[data-pr-stl]").addEventListener("click", function () { downloadSTL(); });
       hd.querySelector("[data-pr-dxf]").addEventListener("click", function () { downloadDXF(); });
-      var body = h("div", "pr-body");
+      var body = h("div", "pr-body pr-plotwrap");
+      busyBar = h("div", "pr-busy"); busyBar.setAttribute("role", "progressbar"); busyBar.setAttribute("aria-label", "Drawing");
       plotHost = h("div"); plotHost.style.cssText = "width:100%;overflow:hidden";
-      body.appendChild(plotHost); c.appendChild(body);
+      body.appendChild(busyBar); body.appendChild(plotHost); c.appendChild(body);
       return c;
     }
 
@@ -838,6 +847,17 @@
     // All geometry is computed on the server (private). It returns the drawing in the standard record
     // format (L · A · DL · DR · TX, = RWSVG.MockViewer) and the 3D mesh; this page only draws them.
     var API = "/pier/api.php", _reqSeq = 0, _drawT = null, _lastComp = null, _srv = "unknown";
+    // progress: a thin sliding bar over the drawing + dimmed drawing, only when the server takes
+    // longer than BUSY_MS (fast answers never flicker). Counted so overlapping requests stack.
+    var BUSY_MS = 150, _busyN = 0, _busyT = null;
+    function busy(on) {
+      _busyN = Math.max(0, _busyN + (on ? 1 : -1));
+      var wrap = busyBar && busyBar.parentNode;
+      if (!wrap) return;
+      if (_busyN > 0) {
+        if (!_busyT && !wrap.classList.contains("busy")) _busyT = setTimeout(function () { _busyT = null; if (_busyN > 0) wrap.classList.add("busy"); }, BUSY_MS);
+      } else { clearTimeout(_busyT); _busyT = null; wrap.classList.remove("busy"); }
+    }
     function fetchCompute(want) {
       return fetch(API, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ pier: P(), want: want }) })
         .then(function (r) { if (!r.ok) throw new Error("HTTP " + r.status); return r.json(); })
@@ -858,9 +878,12 @@
       var seq = ++_reqSeq;
       clearTimeout(_drawT);
       _drawT = setTimeout(function () {
+        busy(true);
         fetchCompute(["draw"]).then(function (j) {
+          busy(false);
           if (seq !== _reqSeq) return; _srv = "up"; paint(compFromServer(j));
         }).catch(function () {
+          busy(false);
           if (seq !== _reqSeq) return; _srv = "down";
           paintMsg("The drawing engine is not reachable right now. Please try again in a moment.");
         });
@@ -881,7 +904,9 @@
     }
 
     function getMesh(cb) {
-      fetchCompute(["mesh"]).then(function (j) { cb(j.mesh); }).catch(function () {
+      busy(true);
+      fetchCompute(["mesh"]).then(function (j) { busy(false); cb(j.mesh); }).catch(function () {
+        busy(false);
         paintMsg("The drawing engine is not reachable right now — 3D / STL need it.");
       });
     }
