@@ -296,7 +296,7 @@ git status --short     # 비어 있어야 한다
 | | 어디에 적혀 있나 |
 |---|---|
 | **스토어 도면 엔진을 공통 도면 작성 기준으로** — `store/api/wall.php` 의 글자 · 치수선 값을 `drawing_standard.json` 에서 가져오게 (PIER 는 이미 그렇게 한다) | `DRAWING_STANDARD.md` 「누가 쓰나」 |
-| **`/dev/` · 운영 첫 화면 로딩 줄이기** — 2026-11-15 **대부분 했다** (design `01e4927` dev · `44220cd` 운영): Pretendard 를 한글에만(unicode-range) → 첫 화면 1MB → 354KB · `/dev/` 첫 화면의 `?action=stats` 뺌 · `/dev/` 로딩 2.5s → 1.1s. **남은 것** ① `dev/_deploy.php`(파일 내용 해시로 `?v=`)를 서버 `/www/dev/` 에 **FTP 로 다시 올려야** 적용 ② 운영 `index.html`(서버 파일, 저장소에 없음)이 메뉴에서 뺀 화면 스크립트 ~30개 + three.js · Konva(unpkg)를 처음부터 다 받는다 — 지울지 사용자 결정 ③ 탭 로딩 표시가 안 멈춤 — 이 환경에선 재현 안 됨(로드 1.1s 에 끝남). 후보: 카페24 에서 받던 글꼴(이제 안 받음) · Cloudflare 방문통계 스크립트(`cloudflareinsights` beacon) — 사용자 확인 대기 | 이 파일 · 2026-11-15 |
+| **`/dev/` · 운영 첫 화면 로딩 줄이기** — 2026-11-15 **대부분 했다** (design `01e4927` dev · `44220cd` 운영): Pretendard 를 한글에만(unicode-range) → 첫 화면 1MB → 354KB · `/dev/` 첫 화면의 `?action=stats` 뺌 · `/dev/` 로딩 2.5s → 1.1s. **남은 것** ① `dev/_deploy.php`(파일 내용 해시로 `?v=`)를 서버 `/www/dev/` 에 **FTP 로 다시 올려야** 적용 ② (선택 · 2026-11-15 사용자: 지금은 안 함) 운영 `index.html`(서버 파일, 저장소에 없음, 방문자 수 PHP 가 들어 있다)이 메뉴에서 뺀 화면 스크립트 ~30개 + three.js · Konva(unpkg)를 처음부터 다 받는다 — 메뉴는 GitHub 에서 오므로 동작과는 무관, 첫 방문 속도만의 문제. 할 때는 원본을 FTP 에서 받아 PHP 부분을 지키고 고친다 ③ 탭 로딩 표시가 안 멈춤 — 이 환경에선 재현 안 됨(로드 1.1s 에 끝남). 후보: 카페24 에서 받던 글꼴(이제 안 받음) · Cloudflare 방문통계 스크립트(`cloudflareinsights` beacon) — 사용자 확인 대기 | 이 파일 · 2026-11-15 |
 | **테스트 페이지가 `main` 이 아닌 브랜치를 보게 하기** — 검증하려고 올리는 것이 검증 전에 공개된다 | `plate3d/README.md` 「테스트본 / 운영본 분리」 |
 | **철근 절곡 · 곡선 경로 sweep** — 직선 변단면으로 구조물을 먼저 만들어 보고 정한다 | `plate3d/DATA_SCHEMA.md` TAPER |
 | **재질별 비중** — `RHO` 가 강재로 고정이라 슬래브·방호벽도 강재로 잰다 | — |
