@@ -858,8 +858,18 @@
         if (!_busyT && !wrap.classList.contains("busy")) _busyT = setTimeout(function () { _busyT = null; if (_busyN > 0) wrap.classList.add("busy"); }, BUSY_MS);
       } else { clearTimeout(_busyT); _busyT = null; wrap.classList.remove("busy"); }
     }
-    function fetchCompute(want) {
-      return fetch(API, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ pier: P(), want: want }) })
+    // results already received, keyed by the exact input — the same input never goes to the server twice
+    // (Regen, wizard back-and-forth, undoing a value). Small LRU per kind (draw / mesh).
+    var _memo = { draw: { k: [], v: {} }, mesh: { k: [], v: {} } }, MEMO_MAX = 40;
+    function memoGet(kind, key) { return _memo[kind].v[key]; }
+    function memoPut(kind, key, val) {
+      var m = _memo[kind];
+      if (!(key in m.v)) { m.k.push(key); if (m.k.length > MEMO_MAX) delete m.v[m.k.shift()]; }
+      m.v[key] = val;
+    }
+    function inputKey() { return JSON.stringify(P()); }
+    function fetchCompute(want, body) {
+      return fetch(API, { method: "POST", headers: { "Content-Type": "application/json" }, body: body || JSON.stringify({ pier: P(), want: want }) })
         .then(function (r) { if (!r.ok) throw new Error("HTTP " + r.status); return r.json(); })
         .then(function (j) { if (!j || !j.ok) throw new Error((j && j.error) || "engine"); return j; });
     }
@@ -877,11 +887,15 @@
       if (typeof window.RWSVG === "undefined") { ensureCore(draw); return; }
       var seq = ++_reqSeq;
       clearTimeout(_drawT);
+      var hit = memoGet("draw", inputKey());
+      if (hit) { paint(hit); return; }                  // same input as before → no server trip
       _drawT = setTimeout(function () {
+        var key = inputKey(), body = JSON.stringify({ pier: P(), want: ["draw"] });
         busy(true);
-        fetchCompute(["draw"]).then(function (j) {
+        fetchCompute(["draw"], body).then(function (j) {
           busy(false);
-          if (seq !== _reqSeq) return; _srv = "up"; paint(compFromServer(j));
+          var comp = compFromServer(j); memoPut("draw", key, comp);
+          if (seq !== _reqSeq) return; _srv = "up"; paint(comp);
         }).catch(function () {
           busy(false);
           if (seq !== _reqSeq) return; _srv = "down";
@@ -904,8 +918,10 @@
     }
 
     function getMesh(cb) {
+      var key = inputKey(), hit = memoGet("mesh", key);
+      if (hit) { cb(hit); return; }
       busy(true);
-      fetchCompute(["mesh"]).then(function (j) { busy(false); cb(j.mesh); }).catch(function () {
+      fetchCompute(["mesh"]).then(function (j) { busy(false); memoPut("mesh", key, j.mesh); cb(j.mesh); }).catch(function () {
         busy(false);
         paintMsg("The drawing engine is not reachable right now — 3D / STL need it.");
       });
