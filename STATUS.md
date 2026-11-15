@@ -326,6 +326,7 @@ git status --short     # 비어 있어야 한다
 **맨 위가 최신.** 한 줄에 하나: 날짜 · 커밋 · 무엇이 · 어디까지(테스트/운영).
 
 ### 2026-11-15
+- **design: 모든 화면(홈 제외) 본문 폭을 1400 으로 통일 (좌우 20)** · `design` main `a5e046a` (`layout_top.css`) + dev `bc3b1a8` (`layout_style.css`) · **운영 + 시험(/dev/)** — PSCBOX · REBAR · REBAR PARA 도 PIER · PLATE3D 와 같은 폭. PIER 전용 규칙을 `.page-view:not([id=page-home])` 하나로.
 - **design: 화면 제목을 한 줄로 통일 (제목 · 경로, PLATE3D 모양) · PLATE3D 본문 폭을 PIER 와 같게 (최대 1400, 좌우 20)** · `design` main `72d5abe` (`layout_top.css`) + dev `f296b5e` (`layout_style.css`) · **운영 + 시험(/dev/)** — 규칙은 `.page-view.active:has(> .page-heading)` 하나로 모든 화면에. PIER 위 여백 24 → 12 (PLATE3D 와 같은 자리).
 
 ### 2026-11-14
