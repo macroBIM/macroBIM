@@ -327,6 +327,7 @@ git status --short     # 비어 있어야 한다
 **맨 위가 최신.** 한 줄에 하나: 날짜 · 커밋 · 무엇이 · 어디까지(테스트/운영).
 
 ### 2026-11-15
+- **PIER: 곡면 빗금을 가장자리에만 — 8°마다 40°까지, 가운데 비움** · macroPIER `096fa87` (push → 서버 자동 배포 확인) · **시험(/dev/)** — 원 기둥 한쪽 5줄(0.99R~0.77R), 트랙 반원 · 코핑 라운딩도 같은 규칙. 공개 JS 는 손댈 것 없음(계산은 서버).
 - **PIER(dev): 서버를 기다리는 동안 진행 표시** · macroBIM `bim_pier_dev.js` + design dev `?v=5` · **시험(/dev/)** — 0.15초 넘게 걸리면 도면 카드 위에 얇은 진행 막대 + 그림 흐리게 + 커서 진행 중. 3D · STL 도. (느린 까닭은 계산이 아니라 왕복: 엔진 0.2ms, 요청 전체는 정적 파일 하나와 같은 시간)
 - **PIER(dev): 공개 `bim_pier_dev.js` 에서 계산부를 지움 — 그리기만 남김** · macroBIM `eb9a372` + design dev `?v=4` · **시험(/dev/)** — 서버 배포(macroPIER Deploy #5) 확인 뒤. 실제 `/dev/` 에서 T형 · 문형+말뚝 · 횃불형 · 다주식+옵션 · DXF · STL · 3D 모두 서버 응답(200)으로. 지운 JS 는 비공개 `macroPIER/ref/` 에 백업(`bd96a2f`), parity 기준도 그 백업. 서버가 안 닿으면 「엔진에 연결할 수 없음」 안내만 나온다.
 - **PSCBOX · REBAR 를 서버 엔진(비공개 PHP)으로** · `design` dev `57c7a9b` + main `e03c718` · `macroRebar` `645a657` · **시험(/dev/)** — 두 메뉴가 REBAR PARA 와 같은 서버 화면(`rebar_srv`)을 PSCBOX 로 띄운다(엑셀 open 행 → 격벽, 없으면 거더). 서버 단면에 **거더 셀 벽**이 없던 것(격벽에서 옮겨 와서)을 고치고 횡방향을 J-field 로: S18 대조 횡방향 19/19 ≤0.6 mm · 종방향 일치. **갈고리(srebar)는 아직 JS 와 다름**(78 vs 75개, 최대 89 mm — JS 의 ㉢·capLegs·wrap 후처리 미포팅). 서버 반영은 **pull.php** 필요. index_claude · 운영은 그대로(JS).
