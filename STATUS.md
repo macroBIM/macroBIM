@@ -296,7 +296,7 @@ git status --short     # 비어 있어야 한다
 | | 어디에 적혀 있나 |
 |---|---|
 | **스토어 도면 엔진을 공통 도면 작성 기준으로** — `store/api/wall.php` 의 글자 · 치수선 값을 `drawing_standard.json` 에서 가져오게 (PIER 는 이미 그렇게 한다) | `DRAWING_STANDARD.md` 「누가 쓰나」 |
-| **`/dev/` · 운영 첫 화면 로딩 줄이기** (2026-11-15 사용자 결정 : dev 에 메뉴 넣는 창의 작업이 **끝난 뒤에**) — 재 보니 ① Pretendard 4 굵기 × 185KB = 첫 화면 1MB 중 730KB → 굵기를 줄이고 첫 화면 것만 preload ② dev 는 `?v=<커밋>` 이라 올릴 때마다 Cloudflare 캐시가 비어 카페24 까지 간다(HIT 0.15s · MISS 0.56s, 글꼴 1.4s) → 파일 내용 해시로 ③ `/dev/` 가 대시보드용 `?action=stats` 로 페이지를 한 번 더 부른다(0.75s, 쓸 데 없음) → 뺀다 ④ **탭의 로딩 표시(왼쪽 위)가 안 멈춘다** — 끝나지 않는 요청이 하나 있다는 뜻, 무엇인지 찾는다(사용자 보고). Cloudflare 탓은 아니다 | 이 파일 · 2026-11-15 |
+| **`/dev/` · 운영 첫 화면 로딩 줄이기** — 2026-11-15 **대부분 했다** (design `01e4927` dev · `44220cd` 운영): Pretendard 를 한글에만(unicode-range) → 첫 화면 1MB → 354KB · `/dev/` 첫 화면의 `?action=stats` 뺌 · `/dev/` 로딩 2.5s → 1.1s. **남은 것** ① `dev/_deploy.php`(파일 내용 해시로 `?v=`)를 서버 `/www/dev/` 에 **FTP 로 다시 올려야** 적용 ② 운영 `index.html`(서버 파일, 저장소에 없음)이 메뉴에서 뺀 화면 스크립트 ~30개 + three.js · Konva(unpkg)를 처음부터 다 받는다 — 지울지 사용자 결정 ③ 탭 로딩 표시가 안 멈춤 — 이 환경에선 재현 안 됨(로드 1.1s 에 끝남). 후보: 카페24 에서 받던 글꼴(이제 안 받음) · Cloudflare 방문통계 스크립트(`cloudflareinsights` beacon) — 사용자 확인 대기 | 이 파일 · 2026-11-15 |
 | **테스트 페이지가 `main` 이 아닌 브랜치를 보게 하기** — 검증하려고 올리는 것이 검증 전에 공개된다 | `plate3d/README.md` 「테스트본 / 운영본 분리」 |
 | **철근 절곡 · 곡선 경로 sweep** — 직선 변단면으로 구조물을 먼저 만들어 보고 정한다 | `plate3d/DATA_SCHEMA.md` TAPER |
 | **재질별 비중** — `RHO` 가 강재로 고정이라 슬래브·방호벽도 강재로 잰다 | — |
@@ -348,6 +348,9 @@ git status --short     # 비어 있어야 한다
 - **PIER: 타입 위저드 · 교각 하나 (/dev/ 전용 사본 `bim_pier_dev.js`)** · macroBIM `199ac89` + design dev `5de23e0` · **시험(/dev/)** — 구조물 형태(T형 · 다주식 · 벽식 · 기둥식) → 코핑 형태(사각 · 직선 헌치 · 곡선 헌치) → 기둥 단면 → 기초 를 고르면 그 형태가 쓰는 칸만 나온다. + Add pier · 교각 일람표 삭제(Levels 카드로). 기둥식은 코핑 없음(CH = 기둥 상단 EL − 기초 EL). 아무 데도 안 쓰이던 IHLA·IHL·IHH·IHR·IHSR 칸은 뺐다. `bim_pier_test.js`(운영)는 그대로.
 - **design: 모든 화면(홈 제외) 본문 폭을 1400 으로 통일 (좌우 20)** · `design` main `a5e046a` (`layout_top.css`) + dev `bc3b1a8` (`layout_style.css`) · **운영 + 시험(/dev/)** — PSCBOX · REBAR · REBAR PARA 도 PIER · PLATE3D 와 같은 폭. PIER 전용 규칙을 `.page-view:not([id=page-home])` 하나로.
 - **design: 화면 제목을 한 줄로 통일 (제목 · 경로, PLATE3D 모양) · PLATE3D 본문 폭을 PIER 와 같게 (최대 1400, 좌우 20)** · `design` main `72d5abe` (`layout_top.css`) + dev `f296b5e` (`layout_style.css`) · **운영 + 시험(/dev/)** — 규칙은 `.page-view.active:has(> .page-heading)` 하나로 모든 화면에. PIER 위 여백 24 → 12 (PLATE3D 와 같은 자리).
+
+### 2026-11-15
+- **design: 첫 화면 로딩 — 한글 글꼴은 한글이 있을 때만, /dev/ 의 쓸데없는 통계 요청 뺌** · `design` `44220cd` · **운영** (+ dev `01e4927`) — 첫 화면 1MB → 354KB. 남은 것은 「아직 안 한 것」.
 
 ### 2026-11-14
 - **design dev: 그래도 Konva 를 못 받던 브라우저 — 모듈을 부르기 전에 Konva 확인(jsdelivr → unpkg → cdnjs)** · `design` dev `893671a` · **시험(/dev/)** — 사용자 브라우저에서 머리의 cdnjs Konva 가 붙지 않았다. 머리 태그도 jsdelivr 로.
