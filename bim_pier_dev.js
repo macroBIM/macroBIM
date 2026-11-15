@@ -1027,9 +1027,9 @@
     function getServer(kind, cb, fail) {
       var key = inputKey(), hit = memoGet(kind, key);
       if (hit) { cb(hit); return; }
-      fetchCompute([kind]).then(function (j) { var v = kind === "dxf" ? j.dxf : j.sheet; memoPut(kind, key, v); cb(v); }).catch(fail);
+      fetchCompute([kind]).then(function (j) { var v = j[kind]; memoPut(kind, key, v); cb(v); }).catch(fail);
     }
-    _memo.sheet = { k: [], v: {} }; _memo.dxf = { k: [], v: {} };
+    _memo.sheet = { k: [], v: {} }; _memo.dxf = { k: [], v: {} }; _memo.ifc = { k: [], v: {} };
 
     // A3 drawing sheet: front · side · plan · section A-A · ISO, title block. DXF has live DIMENSIONs.
     function showSheet() {
@@ -1056,15 +1056,23 @@
         function () { busy(false); alert("The drawing engine is not reachable right now."); });
     }
 
+    function downloadIFC() {
+      busy(true);
+      getServer("ifc", function (ifc) { busy(false); saveFile(ifc, fileBase() + ".ifc", "application/x-step"); },
+        function () { busy(false); alert("The drawing engine is not reachable right now."); });
+    }
     function show3D() {
-      var m = openModal("3D preview", [{ label: "&#8681; Download STL", on: function () { getMesh(function (mesh) { saveFile(_stl(mesh), fileBase() + ".stl", "application/octet-stream"); }); } }]);
+      var m = openModal("3D preview", [
+        { label: "&#8681; Download IFC", on: downloadIFC },
+        { label: "&#8681; Download STL", ghost: true, on: function () { getMesh(function (mesh) { saveFile(_stl(mesh), fileBase() + ".stl", "application/octet-stream"); }); } }
+      ]);
       getMesh(function (mesh) {
         if (!_modal) return;
         m.body.innerHTML = "";
         var d3 = h("div"); d3.id = "pr-3d-host"; d3.style.cssText = "width:100%;height:min(70vh,640px);background:#1a1a2e;border-radius:8px;overflow:hidden";
         m.body.appendChild(d3);
         window.RWSVG.render3d("pr-3d-host", "render_pier_3d", "https://macrobim.github.io/macroBIM/bim_pier_3d.js?v=1", [mesh]);
-        m.foot.textContent = "Drag to orbit, wheel to zoom. STL is the same solid (mm).";
+        m.foot.textContent = "Drag to orbit, wheel to zoom. IFC4: one element per member (IfcColumn · IfcBeam · IfcFooting · IfcPile · pedestals), mm, real elevations. STL: the same solid as one mesh.";
       });
     }
 

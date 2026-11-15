@@ -329,6 +329,7 @@ git status --short     # 비어 있어야 한다
 **맨 위가 최신.** 한 줄에 하나: 날짜 · 커밋 · 무엇이 · 어디까지(테스트/운영).
 
 ### 2026-11-15
+- **PIER(dev): 3D 미리보기에 Download IFC (IFC4, 부재별) · 도면 A-A 화살표** · macroPIER `4cc13ce` + macroBIM `bim_pier_dev.js` + design dev `?v=10` · **시험(/dev/)** — 기둥 · 다리 IfcColumn, 코핑 · 보 IfcBeam, 기초 · 버림 IfcFooting, 말뚝 IfcPile, 받침 콘크리트 IfcBuildingElementProxy. mm, 실제 표고. ifcopenshell 검증 0 건. IFC 도 서버(비공개)가 만든다.
 - **PIER(dev): 받침 콘크리트 입력을 따로 카드로 — 「Bearing pedestals 받침 콘크리트」** · macroBIM `bim_pier_dev.js` + design dev `?v=9` · **시험(/dev/)** — 코핑 카드 안에 있어 문형(Frame 카드)에서는 안 보였다. 이제 코핑이 있는 모든 형태(T · 다주식 · 벽식 · 문형 · 코핑 있는 횃불형)에서 코핑/Frame 카드 바로 아래. 문형 등간격은 보 길이(다리 + 개구부)로.
 - **PIER(dev): 받침 콘크리트 입력 · 도면** · macroPIER `f59d89a` + macroBIM `bim_pier_dev.js` + design dev `?v=8` · **시험(/dev/)** — 코핑 카드 「Bearing pedestal 받침 콘크리트」: 개수(등간격 = 받침 단차 칸 가운데) · 위치 x 하나하나 · 1줄/2줄(±e) · B · L · H. 정면 · 측면 · 평면 · ISO · 3D · DXF 에 그린다. 교좌장치(받침 위 장치)는 아직 — 사용자 결정으로 나중에. 원래 엔진에는 교좌 · 받침이 없었다(받침 단차만).
 - **macroBIM 도면 작성 기준 — `drawing_standard.json` (값) · `DRAWING_STANDARD.md` (설명) 를 공개로 한 벌** · macroBIM `c367469` · **기준** — 글자(도면 제목 8 · 뷰 제목 5 · 치수 2.5 …), 치수선(구조물 외곽 → 첫 줄 10 · 사이 7 · 보조선 넘김 0.9), A3 여백 · 뷰 간격, 빗금. 모두 종이 mm(모델 = × 축척). PIER 엔진은 여기서 생성한 상수만 쓴다(`macroPIER/tools/sync_standard.js --check`). **스토어 옹벽 · 암거 엔진(`store/api/wall.php`)은 아직 숫자를 따로 적어 두었다 — 이 JSON 으로 옮길 것** (그 창에서).
