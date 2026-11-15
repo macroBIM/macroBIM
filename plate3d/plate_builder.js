@@ -9966,7 +9966,33 @@
     } else cam.aspect = aspect;
     cam.updateProjectionMatrix();
   }
-  function applyMainCam() { fitCam(camera, mainAspect); }
+  /* 뷰가 16:9 보다 «좁아지면» 가로로 보이던 것이 잘린다. THREE 의 fov 는 «세로»
+     각이라, 높이를 늘려 비율이 내려가면 가로 화각이 같이 줄기 때문이다. 뷰가 늘
+     16:9 로 못박혀 있던 동안에는 이 일이 없었고, 그래서 프레이밍이 fitRenderer
+     보다 «먼저» 도는 것도 드러나지 않았다 — 비율이 안 변하니 언제 재든 같았다.
+
+     그래서 카메라가 «적어도 16:9 만큼은 가로로 덮도록» 고정한다. 좁아진 만큼
+     세로 화각을 넓히면 가로 범위가 그대로 남는다. 넓어질 때는 손대지 않는다 —
+     그쪽은 옆이 더 보일 뿐 잘리지 않는다. 프레이밍도 이 기준(BASE)으로 잡으므로
+     언제 재든 들어맞는다. 줌·팬은 건드리지 않는다. */
+  var MAIN_ASPECT_BASE = 16 / 9;
+  function aspectBoost() {
+    return mainAspect < MAIN_ASPECT_BASE ? MAIN_ASPECT_BASE / mainAspect : 1;
+  }
+  function applyMainCam() {
+    if (!camera) return;
+    var k = aspectBoost();
+    if (k === 1) { fitCam(camera, mainAspect); return; }
+    if (camera.isOrthographicCamera) {
+      var half = (camera.userData.viewH || 1000) / 2 * k;
+      camera.left = -half * mainAspect; camera.right = half * mainAspect;
+      camera.top = half; camera.bottom = -half;
+    } else {
+      camera.fov = 2 * Math.atan(Math.tan(MAIN_FOV * Math.PI / 360) * k) * 180 / Math.PI;
+      camera.aspect = mainAspect;
+    }
+    camera.updateProjectionMatrix();
+  }
 
   // Look at target from the direction of pos, framing what a perspective camera
   // would cover from there. An ortho camera is also set back to at least backOff:
@@ -10010,7 +10036,8 @@
     // each view gets its own distance - the same model is not the same size
     // seen down its length as it is across it
     var off = viewOffset(v);
-    var f = fitView(sceneCloud, off.clone().negate(), camera.up, MAIN_FOV, mainAspect, CENTER);
+    // 비율은 실제 뷰가 아니라 BASE 로 잰다 — 카메라가 그만큼은 늘 덮으므로
+    var f = fitView(sceneCloud, off.clone().negate(), camera.up, MAIN_FOV, MAIN_ASPECT_BASE, CENTER);
     camera.position.copy(f.target).addScaledVector(off, f.dist);
     controls.target.copy(f.target);
     frameCam(camera, f.target, camera.position.clone(), f.dist);
@@ -12067,7 +12094,7 @@
       VDIST = 0;
       Object.keys(VIEWDIR).forEach(function (k) {
         VDIST = Math.max(VDIST, fitView(sceneCloud, viewOffset(k).negate(),
-                                        camPersp.up, MAIN_FOV, mainAspect, CENTER).dist);
+                                        camPersp.up, MAIN_FOV, MAIN_ASPECT_BASE, CENTER).dist);
       });
     }
     setClip([camPersp, camOrtho], size, VDIST);
@@ -12134,8 +12161,12 @@
     function fitRenderer() {                      // no-op while the pane has no size yet
       var aw = wrap.clientWidth - wpx, ah = wrap.clientHeight - wpy;
       if (!(aw > 0) || !(ah > 0)) return;
-      var cw = Math.floor(Math.min(aw, ah * 16 / 9));
-      var ch = Math.floor(cw * 9 / 16);
+      /* 뷰는 받은 상자를 다 쓴다. 전에는 ch = cw * 9/16 으로 16:9 에 못박아
+         두었는데, 그러면 창이 아무리 높아도 뷰는 그 높이에서 멈추고 아래가
+         비었다. 호스트가 프레임을 창 아래까지 늘려도 허연 띠가 남던 이유다.
+         비율은 mainAspect 가 받아 카메라에 넘기므로 형상은 안 찌그러진다 —
+         높은 창에서는 위아래로 더 보일 뿐이다. */
+      var cw = Math.floor(aw), ch = Math.floor(ah);
       if (cw < 2 || ch < 2 || (cw === fitW && ch === fitH)) return;
       fitW = cw; fitH = ch;
       container.style.width = cw + 'px';
