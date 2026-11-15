@@ -133,9 +133,11 @@
     rec.addLine(0, x0, y1 - r, x0, y0 + r, lay); rec.addArc(0, x0 + r, y0 + r, r, 180, 270, lay);
   }
   // edge-biased offsets (0..r) for rounded-edge hatch, dense near the silhouette (offset 0)
+  // 곡면 빗금은 같은 각도 간격(HATCH_DEG)으로 — 투영하면 실루엣 쪽으로 저절로 촘촘해진다
+  var HATCH_DEG = 10;
   function tipHatch(r) {
-    var N = 6, G = 1.9, a = [];
-    for (var i = 1; i < N; i++) a.push(r * (1 - Math.cos(Math.PI / 2 * Math.pow(i / N, G))));
+    var a = [];
+    for (var k = 1; k * HATCH_DEG < 90; k++) a.push(r * (1 - Math.cos(k * HATCH_DEG * Math.PI / 180)));
     return a;
   }
 
@@ -293,14 +295,11 @@
   // Returns transverse (front) and longitudinal (side) offsets where a round
   // surface projects, bunched toward the silhouette. Empty for flat sections.
   function curveGens(col) {
-    var s = col.sect || {}, shape = col.shape, N = 7, G = 1.9;   // G>1: edge-bias strength (all curved surfaces)
-    // full round: lines across (−R..R), bunched toward BOTH ±R silhouettes
+    var s = col.sect || {}, shape = col.shape;
+    // full round: a line every HATCH_DEG of arc, projected → x = R·cos θ (dense at both ±R silhouettes)
     function bRound(R) {
       var a = [];
-      for (var i = 1; i < N; i++) {
-        var u = i / N, w = 0.5 + 0.5 * Math.sign(u - 0.5) * Math.pow(Math.abs(2 * u - 1), 1 / G);
-        a.push(R * Math.cos(Math.PI * w));
-      }
+      for (var k = 1; k * HATCH_DEG < 180; k++) a.push(R * Math.cos(k * HATCH_DEG * Math.PI / 180));
       return a;
     }
     if (shape === "circle") { var R = (+s.D || 2500) / 2, g = bRound(R); return { front: g, side: g }; }
@@ -308,7 +307,7 @@
       // front: two end caps, angle edge-biased toward the ±B/2 silhouette.
       // side: the caps seen end-on = a full round of radius H/2 (same bias).
       var B = +s.B || 2500, H = +s.H || 2500, rr = H / 2, sx = Math.max(0, B / 2 - rr), fg = [];
-      for (var i = 1; i < N; i++) { var x = sx + rr * Math.cos(Math.PI / 2 * Math.pow(i / N, G)); fg.push(x); fg.push(-x); }
+      for (var k = 1; k * HATCH_DEG < 90; k++) { var x = sx + rr * Math.cos(k * HATCH_DEG * Math.PI / 180); fg.push(x); fg.push(-x); }
       return { front: fg, side: bRound(rr) };
     }
     return { front: [], side: [] };
