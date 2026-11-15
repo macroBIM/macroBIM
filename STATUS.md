@@ -270,8 +270,18 @@ git status --short     # 비어 있어야 한다
 | **J 엔진** | `jfield.js` · `bench/jbench.js` · `bench/jengine.js` | 논문의 J 최소화를 그대로 짠 **두 번째 엔진**. PSCBOX 일반단면 페이지의 **기본 엔진**이다 (`Solver` 버튼으로 옛 `physics.js` 와 오간다). 격벽 페이지는 아직 옛 엔진만 쓴다 |
 | **Crossbeam 폼** | `plate3d/quick_crossbeam_test.js` | 폼과 그림은 있고, PLATE3D 로 모델 보내기와 워크북 내보내기가 없다 |
 | **Dashboard · PSCBOX · Crossbeam 메뉴** | `design/layout_body_test.js` | `design/SYNC.md` 참조 — 옮기지 않는다 |
-| **PIER 타입 위저드 (교각 하나) · 서버 엔진** | `bim_pier_dev.js` ← design **dev** `layout_body_test.js` · 엔진 비공개 `macroPIER` → 서버 `/pier/api.php` | `/dev/` 전용. **`bim_pier_dev.js` 에는 계산이 없다** — 엔진은 macroPIER 에서만 고친다(push 하면 카페24 로 자동 배포). 운영 · index_claude 는 아직 `bim_pier_test.js`(공개 JS 엔진) |
+| **PIER (/dev/)** — 위저드 · A3 도면 · DXF · IFC · 서버 엔진 | 화면 `bim_pier_dev.js` ← design **dev** `layout_body_test.js` (`?v=11`) · 엔진 비공개 `macroPIER` → 서버 `/pier/api.php` | `/dev/` 전용 — 아래 「PIER — 지금 어디까지」. 운영 · index_claude 는 아직 옛 `bim_pier_test.js`(공개 JS 엔진) |
 
+
+### PIER — 지금 어디까지 (2026-11-15)
+
+- **계산은 전부 서버(비공개).** 원본 `macroBIM/macroPIER`(private) `php/` → push 하면 Actions 가 카페24 `config/pier/`(웹 루트 밖) · `www/pier/api.php` 로 자동 배포(1분). 공개 `bim_pier_dev.js` 에는 계산이 없다 — 입력 · 그리기 · 내려받기만. 지운 JS 는 `macroPIER/ref/` 에 백업, `tools/parity.js` 로 PHP 와 대조(12 경우 일치).
+- **화면 반영은 두 단계**: design dev push → `/dev/` 가 새 `?v=`(1분) + macroBIM main push → GitHub Pages 가 `bim_pier_dev.js`(1~2분). Pages 가 끝나기 전엔 옛 화면. 엔진만 바꾸면 새로고침으로 바로.
+- **위저드**: 구조물(T · 다주식 · 벽식 · 기둥식 · 문형 · 횃불형) → 코핑(사각 · 직선 헌치 · 곡선 헌치 · 횃불형은 없음도) → 기둥 단면 → 기초(직접 · 말뚝) → (기둥 여럿이면) 통합 · 개별. 교각 하나(+ Add pier 없음). 고른 형태가 쓰는 칸만.
+- **입력 카드**: Levels · Coping(Options · Bearing step) · **Bearing pedestals 받침 콘크리트**(개수 · 위치 x · 1/2줄 · B L H) · Columns(횃불형 FH · BT) / Frame(문형) · Foundation(말뚝 PD PL NX NY SX SY).
+- **미리보기 → 내려받기**: Drawing preview = A3 한 장(정면 · 측면 · 평면 · 단면 A-A · ISO · NOTE · 표제란) → **DXF**(R12, 치수가 DIMENSION — 끌면 값이 따라감). 3D preview → **IFC4**(부재별) · STL. 판매 대비: DXF · IFC 는 서버 한 곳(`pier_compute` 의 dxf · ifc)에서 나간다 — 막을 때 거기서.
+- **도면 작성 기준은 공개 한 벌** `drawing_standard.json` · `DRAWING_STANDARD.md` — PIER 는 거기서 생성한 상수만 쓴다(`macroPIER/tools/sync_standard.js --check`). 치수선은 뷰마다 구조물 외곽에서 첫 줄 10 · 사이 7 (종이 mm × 축척), 값만 표기.
+- **교좌장치는 없다** — 원래 엔진에도 없었다(받침 단차만). 받침 콘크리트까지만 그리고 교좌장치는 나중(사용자 결정).
 ---
 
 ## 지금 누가 무엇을 잡고 있나
@@ -295,6 +305,10 @@ git status --short     # 비어 있어야 한다
 
 | | 어디에 적혀 있나 |
 |---|---|
+| **PIER 운영 전환** — 운영 PIER 를 지금 `/dev/` 화면(서버 엔진)으로 바꾸고 공개 `bim_pier_test.js` 를 지운다 (계산 코드가 아직 공개). 사용자가 `/dev/` 에서 충분히 써 본 뒤 | 「PIER — 지금 어디까지」 |
+| **PIER 교좌장치** — 받침 콘크리트 위의 장치 (사용자 결정: 나중에). IFC4X3 의 IfcBearing 도 그때 | 「PIER — 지금 어디까지」 |
+| **PIER 도면 다듬기** — 다주식 · 문형 + 말뚝의 기본 말뚝 수(3×2 가 넓은 기초 가운데에 몰림), T형 곡선 헌치 R 치수선이 길게 뻗음, 말뚝이 길면 축척이 작아짐(끊음 표시?) | — |
+| **PIER IFC4X3** — 지금 IFC4(Building 구조를 빌려 씀). 교량 구조(IfcBridge)가 필요하면 4X3 로 | `macroPIER/php/pier_ifc.php` 머리말 |
 | **스토어 도면 엔진을 공통 도면 작성 기준으로** — `store/api/wall.php` 의 글자 · 치수선 값을 `drawing_standard.json` 에서 가져오게 (PIER 는 이미 그렇게 한다) | `DRAWING_STANDARD.md` 「누가 쓰나」 |
 | **`/dev/` · 운영 첫 화면 로딩 줄이기** — 2026-11-15 **대부분 했다** (design `01e4927` dev · `44220cd` 운영): Pretendard 를 한글에만(unicode-range) → 첫 화면 1MB → 354KB · `/dev/` 첫 화면의 `?action=stats` 뺌 · `/dev/` 로딩 2.5s → 1.1s. **남은 것** ① ~~`dev/_deploy.php` 다시 올리기~~ 2026-11-15 올림 — `/dev/` 의 `?v=` 가 파일 내용 해시로 붙는 것 확인 ② **2026-11-15 새 `index.html` 을 만들어 사용자에게 줌(FTP 로 덮어쓰기)** — PHP 는 원본 그대로, 스크립트는 `layout_body.js` 하나 · 10분 자동 `?v=` (첫 화면 요청 10개 · 0.6s, PIER 그림 · 3D · PLATE3D 확인). 설명은 `design/SYNC.md`. 이전 메모: 운영 `index.html`(서버 파일, 저장소에 없음, 방문자 수 PHP 가 들어 있다)이 메뉴에서 뺀 화면 스크립트 ~30개 + three.js · Konva(unpkg)를 처음부터 다 받는다 — 메뉴는 GitHub 에서 오므로 동작과는 무관, 첫 방문 속도만의 문제. 할 때는 원본을 FTP 에서 받아 PHP 부분을 지키고 고친다 ③ 탭 로딩 표시가 안 멈춤 — 이 환경에선 재현 안 됨(로드 1.1s 에 끝남). 후보: 카페24 에서 받던 글꼴(이제 안 받음) · Cloudflare 방문통계 스크립트(`cloudflareinsights` beacon) — 사용자 확인 대기 | 이 파일 · 2026-11-15 |
 | **테스트 페이지가 `main` 이 아닌 브랜치를 보게 하기** — 검증하려고 올리는 것이 검증 전에 공개된다 | `plate3d/README.md` 「테스트본 / 운영본 분리」 |
@@ -329,6 +343,7 @@ git status --short     # 비어 있어야 한다
 **맨 위가 최신.** 한 줄에 하나: 날짜 · 커밋 · 무엇이 · 어디까지(테스트/운영).
 
 ### 2026-11-15
+- **STATUS: PIER 현재 상황 정리** — 「테스트에만 있는 것」 PIER 줄 갱신, 「PIER — 지금 어디까지」 추가, 「아직 안 한 것」에 운영 전환 · 교좌장치 · 도면 다듬기 · IFC4X3.
 - **PIER(dev): 위저드 안내 문구** · macroBIM `bim_pier_dev.js` + design dev `?v=11` · **시험(/dev/)** — 「step 1 of 4」 옆에 「Input fields appear automatically once the selection is complete.」 (위저드를 끝내면 사라짐). 처음 보는 사람이 입력칸을 못 찾아 당황하지 않게.
 - **운영 `index.html` 정리본** (서버 파일 · 사용자가 FTP 로 덮어씀) — 예전 사이드바 화면용 스크립트 ~30개를 빼고 `layout_body.js` 하나만, `?v=` 는 10분마다 자동. `/dev/_deploy.php` 새 것(파일 내용 해시 `?v=`) 서버에 올림.
 - **PIER(dev): 3D 미리보기에 Download IFC (IFC4, 부재별) · 도면 A-A 화살표** · macroPIER `4cc13ce` + macroBIM `bim_pier_dev.js` + design dev `?v=10` · **시험(/dev/)** — 기둥 · 다리 IfcColumn, 코핑 · 보 IfcBeam, 기초 · 버림 IfcFooting, 말뚝 IfcPile, 받침 콘크리트 IfcBuildingElementProxy. mm, 실제 표고. ifcopenshell 검증 0 건. IFC 도 서버(비공개)가 만든다.
