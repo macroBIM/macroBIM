@@ -264,7 +264,7 @@ git status --short     # 비어 있어야 한다
 
 | | |
 |---|---|
-| 화면 | `bim_pier.js` · **`?v=1`** — design main `layout_body.js` 가 부른다. `bim_pier_dev.js`(`/dev/`) 를 2026-11-15 통째 승격 (macroBIM `94c1334`, design `f662246`) |
+| 화면 | `bim_pier.js` · **`?v=2`** — design main `layout_body.js` 가 부른다. `bim_pier_dev.js`(`/dev/`) 를 통째 승격 (1차 2026-11-15 macroBIM `94c1334` · design `f662246`, 2차 2026-11-16 macroBIM `505a3e9` · design `e99093b`) |
 | 엔진 | 서버 `/pier/api.php` ← 비공개 `macroPIER` (push 하면 자동 배포) — **`/dev/` 와 운영이 같은 엔진을 쓴다.** 엔진을 고치면 운영에도 바로 나간다 |
 | 테스트 화면과의 차이 | **없음** — 승격 직후. `/dev/` 에서 고친 뒤 다시 승격(통째 복사 · 「잡고 있나」에 적고) |
 | index_claude | 아직 옛 `bim_pier_test.js` (공개 JS 엔진) — 사용자가 PIER 만 올리라 해서 손대지 않았다 |
@@ -298,7 +298,6 @@ git status --short     # 비어 있어야 한다
 > 승격처럼 **파일을 통째로 바꾸는 일**을 시작하기 전에 여기 적고, 끝나면 지운다.
 > 창끼리 안 부딪치게 하는 것이 목적이지 일지가 아니다.
 
-- **PIER 운영 승격 진행 중 (2026-11-16, PIER 창)** — `bim_pier_dev.js` → `bim_pier.js` 통째 복사(머리말 유지) + design main `layout_body.js` 의 `bim_pier.js?v=`. 끝나면 지운다.
 - **J 엔진 동결 — `jfield.js` · `jlong.js` = `012ae5c`** (2026-10-14 ~ 블라인드 검증이 끝날 때까지).
   논문 검증 : 엔진을 고정한 채 새 단면(격벽 · I형 거더)을 **입력만 만들어** 돌린다. 결함이 나오면 그 자리에서
   고치지 않고 **실패로 적는다** — 고치는 것은 판을 다 돌린 뒤다. 이 두 파일을 건드리기 전에 사용자에게 묻는다.
@@ -353,7 +352,8 @@ git status --short     # 비어 있어야 한다
 **맨 위가 최신.** 한 줄에 하나: 날짜 · 커밋 · 무엇이 · 어디까지(테스트/운영).
 
 ### 2026-11-16
-- **PIER(dev): 위저드 Back / Next · Done 을 단계 줄 오른쪽으로 — 아래 버튼 줄 없앰, 카드 높이 줄임** · macroBIM `bim_pier_dev.js` + design dev `?v=12` · **시험(/dev/)** — 운영(`bim_pier.js`)에는 아직 (승격 때 같이).
+- **PIER 운영 승격(2차) — 위저드 버튼을 단계 줄로** · macroBIM `505a3e9` (`bim_pier.js` ← `bim_pier_dev.js`, 머리말 유지 · 본문 같음) + design main `e99093b` (`bim_pier.js?v=2`) · **운영**
+- **PIER(dev): 위저드 Back / Next · Done 을 단계 줄 오른쪽으로 — 아래 버튼 줄 없앰, 카드 높이 줄임** · macroBIM `465a441` + design dev `?v=12` · **시험(/dev/)** → 위 2차 승격으로 운영에도.
 - **PIER: 곡면 빗금을 참고 도면대로 — 실루엣에서 20°~60°, 10°마다 (한쪽 5줄), 가운데 절반 비움, 중심선 없음** · macroBIM `drawing_standard.json` + macroPIER · **운영 + 시험** (엔진은 하나) — 3분할(6°마다 11줄)은 첫 선이 외곽선에 붙어 외곽이 두꺼워 보였다. 사용자가 준 참고 이미지를 재서 맞춤(0.95 · 0.87 · 0.80 · 0.68 · 0.50 R).
 
 ### 2026-11-15
