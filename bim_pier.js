@@ -189,7 +189,8 @@
     "background:var(--dim);border:1px solid var(--dim);border-radius:6px;padding:5px 12px;cursor:pointer;" +
     "box-shadow:0 1px 3px rgba(37,99,235,.35);transition:filter .12s,transform .06s}" +
     ".pr-btn:hover{filter:brightness(1.12)}.pr-btn:active{filter:brightness(.94);transform:translateY(1px)}" +
-    ".pr-wnav{display:flex;flex-wrap:wrap;align-items:center;gap:6px;margin:2px 0 14px}" +
+    ".pr-wnav{display:flex;flex-wrap:wrap;align-items:center;gap:6px;margin:0 0 12px}" +
+    ".pr-wact{margin-left:auto;display:inline-flex;gap:8px}" +
     ".pr-wpill{font:inherit;font-size:12px;font-weight:600;padding:5px 12px;border:1px solid var(--line);border-radius:999px;background:var(--panel);color:var(--muted);cursor:pointer}" +
     ".pr-wpill b{display:inline-block;min-width:16px;font-weight:700}" +
     ".pr-wpill.on{background:var(--dim);border-color:var(--dim);color:#fff}" +
@@ -558,10 +559,11 @@
           } else restoreEdges(p);
         }));
       }
-      var foot = h("div", "pr-wfoot");
+      // Back / Next sit on the step row (right side) — no footer row, so the card stays short
+      var foot = h("span", "pr-wact");
       if (S.wiz.step > 0) { var bk = h("button", "pr-gbtn", "‹ Back"); bk.type = "button"; bk.onclick = function () { S.wiz.step--; renderAll(); }; foot.appendChild(bk); }
       var sk = h("button", "pr-gbtn", S.wiz.step + 1 >= steps.length ? "Done ›" : "Keep & next ›"); sk.type = "button"; sk.onclick = next; foot.appendChild(sk);
-      body.appendChild(foot);
+      nav.appendChild(foot);
       c.appendChild(body); return c;
     }
 
