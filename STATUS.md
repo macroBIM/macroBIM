@@ -351,6 +351,9 @@ git status --short     # 비어 있어야 한다
 
 **맨 위가 최신.** 한 줄에 하나: 날짜 · 커밋 · 무엇이 · 어디까지(테스트/운영).
 
+### 2026-11-16
+- **PIER: 곡면 빗금을 참고 도면대로 — 실루엣에서 20°~60°, 10°마다 (한쪽 5줄), 가운데 절반 비움, 중심선 없음** · macroBIM `drawing_standard.json` + macroPIER · **운영 + 시험** (엔진은 하나) — 3분할(6°마다 11줄)은 첫 선이 외곽선에 붙어 외곽이 두꺼워 보였다. 사용자가 준 참고 이미지를 재서 맞춤(0.95 · 0.87 · 0.80 · 0.68 · 0.50 R).
+
 ### 2026-11-15
 - **PLATE3D 뷰 높이 수정을 운영으로 — `?v=97`** · `macroBIM` `5db1400` · `design` main `9878ba7` · **운영** — `plate_builder_test.js` → `plate_builder.js` 통째 승격, 핀 두 군데(`plate3d/embed.html` · `layout_body.js`) 96 → 97. `layout_body.js` 의 `sizeFrame` 은 **바뀐 부분만** 옮김(`want` 상한·message 리스너 삭제). 검사: lock_format 무변동 · tutorial 62/62 · taper 34/34 · notch 34/34 · samples_draw 17권 · check_sync_scope 이상 없음 · check_menu_reset --prod 25/25.
 - **PLATE3D 뷰가 창 아래까지 꽉 찬다 — 16:9 잠금 해제** · `macroBIM` `950d336` · `design` dev `(아래)` · **테스트만** — `fitRenderer` 가 `ch = cw*9/16` 로 높이를 못박던 것을 풀어 받은 상자를 다 쓰게 했고(`plate_builder_test.js`), dev 의 `sizeFrame` 은 `min(want, room)` 대신 `room` 을 쓴다(`layout_body_test.js`, `want` 와 그 message 리스너는 삭제). 폭은 그대로, 높이만 창을 따라간다. **곁딸린 수정:** 비율이 변하자 프레이밍(`fitView`)이 `fitRenderer` 보다 먼저 돌아 초기값 1.6 으로 모델을 잡고 있던 것이 드러나 가로가 잘렸다 — 카메라가 16:9 만큼은 늘 가로로 덮도록 `applyMainCam` 에 묶고, 프레이밍도 그 기준으로 맞췄다. 운영(`plate_builder.js` · `layout_body.js`)은 **안 건드림**.

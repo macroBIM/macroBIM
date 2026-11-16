@@ -26,7 +26,7 @@
 | A3 여백 (철 · 나머지) | `sheet.margin_binding` / `sheet.margin` | 20 / 10 |
 | 뷰 사이 (좌우 / 위아래) | `sheet.view_gap_x` / `sheet.view_gap_y` | 20 / 14 |
 | 뷰 제목 밑 ↔ 뷰(맨 바깥 치수 글자) | `sheet.view_title_clear` | 5.0 |
-| 곡면 빗금 | `hatch.curved_step_deg` · `hatch.curved_band` | 6° 마다 · 바깥 1/3 씩 (가운데 1/3 비움) |
+| 곡면 빗금 (원 · 반원 · 라운딩) | `hatch.curved_start_deg` ~ `curved_end_deg`, `curved_step_deg` 마다 | 실루엣에서 20° ~ 60°, 10° 마다 (한쪽 5줄: 0.94R · 0.87R · 0.77R · 0.64R · 0.50R). 외곽선 바로 옆(10°)은 비워 외곽이 두꺼워 보이지 않게, 가운데 절반(±0.5R)은 비움. 중심선은 긋지 않는다 |
 | 단면 빗금 | `hatch.section_deg` | 45° |
 
 글자 크기는 2026-11-15 스토어 옹벽 도면(미리보기 SVG 의 `data-mm`)에서 역산해 맞췄다. 치수선 간격은 역산값(첫 6.4 · 사이 5.4)이 A3 에서 좁아 보여
