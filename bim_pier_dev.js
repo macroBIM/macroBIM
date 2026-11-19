@@ -235,7 +235,34 @@
     ".pr-mbody > svg{filter:drop-shadow(0 2px 6px rgba(0,0,0,.18))}" +
     ".pr-mfoot{padding:10px 16px;font-size:12px;color:#64748b;border-top:1px solid var(--hair)}" +
     ".pr-mwait{padding:60px 16px;text-align:center;color:#64748b;font-size:13px}" +
-    ".pr-mwait .pr-busy{height:3px;max-width:240px;margin:0 auto 12px}";
+    ".pr-mwait .pr-busy{height:3px;max-width:240px;margin:0 auto 12px}" +
+    ".pr-rbtbl{width:100%;border-collapse:collapse;font-size:13px}" +
+    ".pr-rbtbl th{font-size:10.5px;font-weight:700;letter-spacing:.03em;text-transform:uppercase;color:var(--muted);text-align:left;padding:5px 8px;border-bottom:1px solid var(--line)}" +
+    ".pr-rbtbl td{padding:5px 8px;border-bottom:1px dashed var(--hair);white-space:nowrap}" +
+    ".pr-rbtbl td:first-child{white-space:normal}" +
+    ".pr-rbtbl .ko{color:var(--muted);font-size:11.5px;margin-left:4px}" +
+    ".pr-rbtbl tr.off td:first-child{color:#94a3b8}" +
+    ".pr-rbtbl input{width:78px;text-align:right;padding:5px 7px;margin-left:6px;border:1px solid var(--line);border-radius:6px;font-size:13px}" +
+    ".pr-rbtbl .pr-q{padding:5px 4px}" +
+    ".pr-lens{border-collapse:collapse;font-size:12.5px;margin:10px 0 6px}" +
+    ".pr-lens th{font-size:11px;font-weight:600;color:var(--muted);padding:4px 10px;text-align:right;border-bottom:1px solid var(--line)}" +
+    ".pr-lens th:first-child,.pr-lens td.b{text-align:left;font-weight:700;color:var(--dim)}" +
+    ".pr-lens td{padding:3px 10px;text-align:right;border-bottom:1px dashed var(--hair);font-variant-numeric:tabular-nums}" +
+    ".pr-lens input{width:76px;text-align:right;padding:3px 6px;border:1px solid var(--line);border-radius:5px;font-size:12px}" +
+    ".pr-lens input.ed{background:#fff7ed;border-color:#fb923c}" +
+    ".pr-rbdet{margin:4px 0 2px;font-size:12.5px}" +
+    ".pr-rbdet summary{cursor:pointer;color:var(--dim);font-weight:600;font-size:12px;margin-bottom:6px}" +
+    ".pr-rbtot{font-size:13px;margin-bottom:6px}.pr-rbtot b{font-size:15px}" +
+    ".pr-rbdia{display:block;color:var(--muted);font-size:12px;margin-top:3px}" +
+    ".pr-rbwarn{color:#b45309;font-size:12.5px;margin:3px 0}" +
+    ".pr-rbnote{color:var(--muted);font-size:12px;margin:3px 0}" +
+    ".pr-rbact{display:flex;gap:8px;margin-top:10px}" +
+    ".pr-sched{border-collapse:collapse;font-size:12.5px;margin:0 0 16px;min-width:100%}" +
+    ".pr-sched th{position:sticky;top:-12px;background:#f1f5f9;font-size:11px;font-weight:700;color:var(--muted);text-align:left;padding:6px 10px;border-bottom:1px solid var(--line)}" +
+    ".pr-sched td{padding:4px 10px;border-bottom:1px solid var(--hair);white-space:nowrap}" +
+    ".pr-sched .n{text-align:right;font-variant-numeric:tabular-nums}" +
+    ".pr-sched .mk{font-weight:700;color:var(--dim)}" +
+    ".pr-sum{min-width:0;width:auto}.pr-sched tr.tot td{font-weight:700;border-top:1px solid var(--line)}";
 
   // ── data model ──────────────────────────────────────────────────────────────
   function newCol() { return { shape: "circle", CH: 8000, CL: 0, ang: 0, hollow: false, sect: sectDefaults("circle") }; }
@@ -243,6 +270,40 @@
     var d = sectDefaults(shape);
     if (col.sect) for (var k in d) { if (col.sect[k] != null) d[k] = col.sect[k]; }   // keep shared vars
     col.shape = shape; col.sect = d;
+  }
+  // ── rebar (배근) ── bar tables match design/mod_rebar.js (the anchorage / lap sheet): [name, nominal dia mm]
+  var BARS = {
+    KS: [["D10", 9.53], ["D13", 12.7], ["D16", 15.9], ["D19", 19.1], ["D22", 22.2], ["D25", 25.4], ["D29", 28.6], ["D32", 31.8], ["D35", 34.9], ["D38", 38.1], ["D41", 41.3], ["D51", 50.8]],
+    ASTM: [["#3", 9.53], ["#4", 12.7], ["#5", 15.9], ["#6", 19.1], ["#7", 22.2], ["#8", 25.4], ["#9", 28.7], ["#10", 32.3], ["#11", 35.8], ["#14", 43.0], ["#18", 57.3]],
+    BS: [["10", 10], ["12", 12], ["16", 16], ["20", 20], ["25", 25], ["32", 32], ["40", 40], ["50", 50]]
+  };
+  function barDia(sys, bar) { var L = BARS[sys] || BARS.KS; for (var i = 0; i < L.length; i++) if (L[i][0] === bar) return L[i][1]; return 0; }
+  function nearestBar(sys, db) { var L = BARS[sys] || BARS.KS, b = L[0][0], e = 1e9; L.forEach(function (x) { var d = Math.abs(x[1] - db); if (d < e) { e = d; b = x[0]; } }); return b; }
+  // roles per member: [code, English, Korean, has layers]
+  var RB_ROLES = {
+    cap: [["top", "Top main bars", "상면 주철근", 1], ["bot", "Bottom main bars", "하면 주철근", 1], ["stir", "Stirrups", "스터럽", 0], ["side", "Side bars", "측면 철근", 0]],
+    col: [["main", "Main bars (dowel + lap)", "주철근", 0], ["tie", "Ties", "띠철근", 0]],
+    fdn: [["bx", "Bottom, transverse", "하면 교축직각", 0], ["by", "Bottom, longitudinal", "하면 교축", 0], ["tx", "Top, transverse", "상면 교축직각", 0], ["ty", "Top, longitudinal", "상면 교축", 0]]
+  };
+  // starting levels — example values only (KS names; other standards take the nearest diameter)
+  var RB_LEVELS = [["light", "Light"], ["std", "Standard"], ["heavy", "Heavy"]];
+  var RB_PRESET = {
+    light: { cap: { top: ["D25", 200, 1], bot: ["D25", 200, 1], stir: ["D13", 200], side: ["D13", 300] }, col: { main: ["D25", 200], tie: ["D13", 200] }, fdn: { bx: ["D22", 200], by: ["D22", 200], tx: ["D16", 300], ty: ["D16", 300] } },
+    std: { cap: { top: ["D29", 150, 1], bot: ["D29", 150, 1], stir: ["D16", 150], side: ["D16", 250] }, col: { main: ["D32", 150], tie: ["D16", 150] }, fdn: { bx: ["D25", 150], by: ["D25", 150], tx: ["D19", 250], ty: ["D19", 250] } },
+    heavy: { cap: { top: ["D32", 125, 2], bot: ["D32", 125, 1], stir: ["D16", 100], side: ["D19", 200] }, col: { main: ["D35", 125], tie: ["D16", 100] }, fdn: { bx: ["D29", 125], by: ["D29", 125], tx: ["D22", 200], ty: ["D22", 200] } }
+  };
+  function presetRows(level, sys) {
+    var P0 = RB_PRESET[level] || RB_PRESET.std, rows = [];
+    ["cap", "col", "fdn"].forEach(function (m) { RB_ROLES[m].forEach(function (r) {
+      var v = P0[m][r[0]]; rows.push({ m: m, r: r[0], bar: sys === "KS" ? v[0] : nearestBar(sys, barDia("KS", v[0])), q: "s", v: v[1], ly: v[2] || 1 });
+    }); });
+    return rows;
+  }
+  function newRebar() {
+    return { on: false, level: "std", cover: { cap: 60, col: 75, fdn: 100 }, stock: 12000,
+      lap: { sys: "KS", std: "gujo", fck: 30, fy: 400, mode: "auto", grade: "B",
+        calc: { cover: 50, ctc: 125, ktr: 0, lam: 1, way: "equ", phic: 0.65, eta1: 1, K: 0, lamTr: 0, p: 0, a1: 1, a6: 1, asreq: 1, asprov: 1 }, table: {} },
+      rows: presetRows("std", "KS") };
   }
   function newPier(name) {
     return {
@@ -276,7 +337,8 @@
       bstep: {
         on: false,
         steps: [[0, 0], [-160, 0], [-160, 0], [-160, 0]]
-      }
+      },
+      rebar: newRebar()      // 배근 — the server places the bars (pier_rebar.php); off until switched on
     };
   }
   function clamp(v, lo, hi) { return Math.max(lo, Math.min(hi, v)); }
@@ -883,6 +945,199 @@
       c.appendChild(b); return c;
     }
 
+    // ── Rebar 배근 ── the user's own arrangement (bar · spacing or count · layers) per member and role; the server
+    // places every bar on the geometry, adds anchorage and laps, and returns the schedule. No design check (no
+    // required-steel calculation) — the presets are starting values only.
+    var rbSum = null, rbLens = null, _rbT = null, _rbSeq = 0;
+    function rbChanged() { clearTimeout(_rbT); _rbT = setTimeout(refreshRebar, 250); }
+    function refreshRebar() {
+      var p = P(); if (!p.rebar || !p.rebar.on || !rbSum || !rbSum.isConnected) return;
+      var seq = ++_rbSeq;
+      getServer("rebar", function (rb) { if (seq === _rbSeq) paintRebar(rb); }, function () {
+        if (seq === _rbSeq && rbSum) rbSum.innerHTML = "<span class='pr-rbwarn'>The engine is not reachable right now.</span>";
+      });
+    }
+    function paintRebar(rb) {
+      if (!rbSum || !rbSum.isConnected) return;
+      var t = "<div class='pr-rbtot'><b>" + fmtKg(rb.total) + "</b> · " + rb.bars.length + " bars · " + rb.marks.length + " marks";
+      t += "<span class='pr-rbdia'>" + rb.sum.map(function (s2) { return s2.bar + " " + fmtKg(s2.wt); }).join(" · ") + "</span></div>";
+      (rb.warn || []).forEach(function (w) { t += "<div class='pr-rbwarn'>&#9888; " + w + "</div>"; });
+      (rb.note || []).forEach(function (w) { t += "<div class='pr-rbnote'>" + w + "</div>"; });
+      rbSum.innerHTML = t;
+      paintLens(rb);
+    }
+    // anchorage / lap table: the values in use per bar size. Auto = from the calculation sheet's formulas (read only);
+    // Manual / Auto + edit = type over a cell — mm, or a multiple of the bar diameter such as 40d.
+    function paintLens(rb) {
+      if (!rbLens || !rbLens.isConnected) return;
+      var R = P().rebar, L = R.lap, ed = L.mode !== "auto";
+      var used = {}; R.rows.forEach(function (r) { if (r.bar) used[r.bar] = 1; });
+      var cols = [["ld", "Tension l<sub>d</sub>"], ["ldh", "Hook l<sub>dh</sub>"], ["ldc", "Compr. l<sub>dc</sub>"], ["lap", "Lap"]];
+      var tb = h("table", "pr-lens");
+      var hr = "<tr><th>Bar</th>" + cols.map(function (c) { return "<th>" + c[1] + "</th>"; }).join("") + "</tr>";
+      tb.innerHTML = "<thead>" + hr + "</thead>";
+      var body = h("tbody");
+      (rb.lens || []).forEach(function (u) {
+        if (!used[u.bar] && !(L.table[u.bar])) return;          // only the sizes the rows use (and any edited)
+        var tr = h("tr"); tr.appendChild(h("td", "b", u.bar));
+        cols.forEach(function (c) {
+          var td = h("td"), mine = L.table[u.bar] && L.table[u.bar][c[0]];
+          if (!ed) { td.textContent = fmtN(u[c[0]]); if (c[0] === "lap" && u.lapBan) td.innerHTML = "<span class='pr-rbwarn' title='Tension lap not allowed above D35 — use a mechanical splice'>coupler</span>"; }
+          else {
+            var inp = h("input"); inp.type = "text"; inp.value = mine || ""; inp.placeholder = L.mode === "edit" ? fmtN(u[c[0]]) : "";
+            if (mine) inp.className = "ed";
+            inp.addEventListener("change", function () {
+              var v = inp.value.trim(); L.table[u.bar] = L.table[u.bar] || {};
+              if (v === "") delete L.table[u.bar][c[0]]; else L.table[u.bar][c[0]] = v;
+              inp.className = v ? "ed" : ""; rbChanged();
+            });
+            td.appendChild(inp);
+          }
+          tr.appendChild(td);
+        });
+        body.appendChild(tr);
+      });
+      tb.appendChild(body);
+      rbLens.innerHTML = ""; rbLens.appendChild(tb);
+      rbLens.appendChild(h("p", "pr-cap", L.mode === "manual" ? "Manual: type each value in mm or as a multiple of the bar diameter (e.g. 40d). Empty cells use 50d." :
+        L.mode === "edit" ? "Auto + edit: the grey value is the calculated one — type over it to change that cell only (mm or 40d)." :
+          "Same formulas as the anchorage / lap calculation sheet (" + (L.std === "doro" ? "Road bridge design code 2016" : "Concrete structural design code 2012 · 2021") + ")."));
+    }
+    function cardRebar() {
+      var p = P(), R = p.rebar, L = R.lap;
+      var c = h("div", "pr-card");
+      var hd = h("div", "pr-hd", "<span class='pr-ttl'>Rebar <span class='pr-sub'>배근</span></span>");
+      var tg = h("label", "pr-bapply"); var ck = h("input"); ck.type = "checkbox"; ck.checked = !!R.on;
+      tg.appendChild(ck); tg.appendChild(document.createTextNode("Place rebar")); tg.style.margin = "0"; hd.appendChild(tg);
+      ck.addEventListener("change", function () { R.on = ck.checked; renderPerPier(); });
+      c.appendChild(hd);
+      var b = h("div", "pr-body");
+      if (!R.on) { b.appendChild(h("p", "pr-cap", "Switch on to place bars in the cap, columns and footing — shown in the 3D preview, in the IFC and in a bar schedule. Anchorage and lap lengths come from the calculation sheet or from your own values.")); c.appendChild(b); return c; }
+      // starting level
+      b.appendChild(h("div", "pr-subhd", "Start from"));
+      var lv = h("div", "pr-tabs");
+      RB_LEVELS.forEach(function (o) {
+        var t = h("button", "pr-tab" + (R.level === o[0] ? " on" : ""), o[1]); t.type = "button";
+        t.onclick = function () { R.level = o[0]; R.rows = presetRows(o[0], L.sys); renderPerPier(); };
+        lv.appendChild(t);
+      });
+      if (R.level === "custom") lv.appendChild(h("span", "pr-tab on", "Custom"));
+      b.appendChild(lv);
+      b.appendChild(h("p", "pr-cap", "Example arrangements to start from — replace them with your design. Nothing here checks the required steel."));
+      // common
+      b.appendChild(h("div", "pr-subhd", "Common"));
+      var g = h("div", "pr-ingrid");
+      var sr = h("div", "pr-inrow"); sr.appendChild(h("label", null, "<span class='var'>Std</span><span class='desc'>Bar standard</span>"));
+      var ss = h("select", "pr-sel"); [["KS", "KS D 3504 (D13…)"], ["ASTM", "ASTM A615 (#4…)"], ["BS", "BS 4449 (12…)"]].forEach(function (o) { var op = h("option", null, o[1]); op.value = o[0]; if (L.sys === o[0]) op.selected = true; ss.appendChild(op); });
+      ss.addEventListener("change", function () {
+        var from = L.sys; L.sys = ss.value; L.table = {};
+        R.rows.forEach(function (r) { if (r.bar) r.bar = nearestBar(L.sys, barDia(from, r.bar)); });
+        renderPerPier();
+      });
+      sr.appendChild(ss); g.appendChild(sr);
+      function rbNum(code, desc, val, on, unit, step) { return numRow(code, desc, val, function (v) { on(v); rbChanged(); }, unit, step); }
+      g.appendChild(rbNum("fck", "Concrete strength", L.fck, function (v) { L.fck = v; }, "MPa", "1"));
+      g.appendChild(rbNum("fy", L.std === "doro" ? "Steel design stress σsd" : "Steel yield strength", L.fy, function (v) { L.fy = v; }, "MPa", "10"));
+      g.appendChild(rbNum("Ls", "Stock bar length (laps beyond this)", R.stock, function (v) { R.stock = v; }, "mm", "500"));
+      if (!p.noCope) g.appendChild(rbNum("c₁", "Cover — " + (p.type === "portal" ? "beam" : "cap"), R.cover.cap, function (v) { R.cover.cap = v; }));
+      g.appendChild(rbNum("c₂", "Cover — " + (p.type === "portal" ? "legs" : "columns"), R.cover.col, function (v) { R.cover.col = v; }));
+      g.appendChild(rbNum("c₃", "Cover — footing", R.cover.fdn, function (v) { R.cover.fdn = v; }));
+      b.appendChild(g);
+      // anchorage / laps
+      b.appendChild(h("div", "pr-subhd", "Anchorage & laps"));
+      var md = h("div", "pr-modes");
+      [["auto", "Auto (calculation sheet)"], ["edit", "Auto + edit"], ["manual", "Manual"]].forEach(function (o) {
+        var t = h("button", "pr-mode" + (L.mode === o[0] ? " on" : ""), o[1]); t.type = "button";
+        t.onclick = function () { L.mode = o[0]; renderPerPier(); }; md.appendChild(t);
+      });
+      b.appendChild(md);
+      if (L.mode !== "manual") {
+        var g2 = h("div", "pr-ingrid");
+        var cr = h("div", "pr-inrow"); cr.appendChild(h("label", null, "<span class='var'>Code</span><span class='desc'>Design code</span>"));
+        var cs = h("select", "pr-sel"); [["gujo", "Concrete structural 2012 · 2021"], ["doro", "Road bridge 2016 (LSD)"]].forEach(function (o) { var op = h("option", null, o[1]); op.value = o[0]; if (L.std === o[0]) op.selected = true; cs.appendChild(op); });
+        cs.addEventListener("change", function () { L.std = cs.value; renderPerPier(); });
+        cr.appendChild(cs); g2.appendChild(cr);
+        if (L.std === "gujo") {
+          var gr = h("div", "pr-inrow"); gr.appendChild(h("label", null, "<span class='var'>Lap</span><span class='desc'>Tension lap class</span>"));
+          var gs = h("select", "pr-sel"); [["B", "Class B (1.3 ld)"], ["A", "Class A (1.0 ld)"]].forEach(function (o) { var op = h("option", null, o[1]); op.value = o[0]; if (L.grade === o[0]) op.selected = true; gs.appendChild(op); });
+          gs.addEventListener("change", function () { L.grade = gs.value; rbChanged(); });
+          gr.appendChild(gs); g2.appendChild(gr);
+        }
+        b.appendChild(g2);
+        // the sheet's own factors, folded away (defaults = the sheet's defaults)
+        var det = h("details", "pr-rbdet"); det.appendChild(h("summary", null, "Sheet factors"));
+        var g3 = h("div", "pr-ingrid"), C = L.calc;
+        g3.appendChild(rbNum("c", "Cover used in the formula", C.cover, function (v) { C.cover = v; }));
+        g3.appendChild(rbNum("ctc", "Bar spacing used in the formula", C.ctc, function (v) { C.ctc = v; }));
+        if (L.std === "gujo") {
+          g3.appendChild(rbNum("Ktr", "Transverse reinforcement index", C.ktr, function (v) { C.ktr = v; }, "", "1"));
+          g3.appendChild(rbNum("λ", "Lightweight factor", C.lam, function (v) { C.lam = v; }, "", "0.05"));
+          var wr = h("div", "pr-inrow"); wr.appendChild(h("label", null, "<span class='var'>ld</span><span class='desc'>Development length method</span>"));
+          var ws = h("select", "pr-sel"); [["equ", "Formula (detailed)"], ["fac", "Factors (simplified)"]].forEach(function (o) { var op = h("option", null, o[1]); op.value = o[0]; if (C.way === o[0]) op.selected = true; ws.appendChild(op); });
+          ws.addEventListener("change", function () { C.way = ws.value; rbChanged(); }); wr.appendChild(ws); g3.appendChild(wr);
+        } else {
+          g3.appendChild(rbNum("φc", "Concrete material factor", C.phic, function (v) { C.phic = v; }, "", "0.05"));
+          [["eta1", "η₁", "Bond condition", [[1, "Good (1.0)"], [0.7, "Other / slip form (0.7)"]]],
+           ["K", "K", "Transverse confinement α₃", [[0.1, "0.1"], [0.05, "0.05"], [0, "0.0"]]],
+           ["a1", "α₁", "Anchorage shape (other)", [[1, "Straight 1.0"], [0.7, "Hook / bend 0.7"], [0.5, "0.5"], [0.4, "0.4"]]],
+           ["a6", "α₆", "Lapped proportion", [[1, "1.0 (<25%)"], [1.15, "1.15 (33%)"], [1.4, "1.4 (50%)"], [1.5, "1.5 (>50%)"]]]].forEach(function (f) {
+            var rr = h("div", "pr-inrow"); rr.appendChild(h("label", null, "<span class='var'>" + f[1] + "</span><span class='desc'>" + f[2] + "</span>"));
+            var se = h("select", "pr-sel"); f[3].forEach(function (o) { var op = h("option", null, o[1]); op.value = o[0]; if (+C[f[0]] === o[0]) op.selected = true; se.appendChild(op); });
+            se.addEventListener("change", function () { C[f[0]] = +se.value; rbChanged(); }); rr.appendChild(se); g3.appendChild(rr);
+          });
+          g3.appendChild(rbNum("λ", "(ΣAst − ΣAst,min) / As", C.lamTr, function (v) { C.lamTr = v; }, "", "0.1"));
+          g3.appendChild(rbNum("p", "Transverse pressure", C.p, function (v) { C.p = v; }, "MPa", "0.5"));
+          g3.appendChild(rbNum("As,req", "Required steel", C.asreq, function (v) { C.asreq = v; }, "mm²", "1"));
+          g3.appendChild(rbNum("As,prov", "Provided steel", C.asprov, function (v) { C.asprov = v; }, "mm²", "1"));
+        }
+        det.appendChild(g3); b.appendChild(det);
+      }
+      rbLens = h("div", "pr-rblens"); rbLens.innerHTML = "<p class='pr-cap'>…</p>"; b.appendChild(rbLens);
+      // members
+      var bars = (BARS[L.sys] || BARS.KS).map(function (x) { return x[0]; });
+      function memberRows(m, title) {
+        b.appendChild(h("div", "pr-subhd", title));
+        var tb = h("table", "pr-rbtbl"); tb.innerHTML = "<thead><tr><th>Role</th><th>Bar</th><th>Spacing / count</th><th>" + (m === "cap" ? "Layers" : "") + "</th></tr></thead>";
+        var body = h("tbody");
+        RB_ROLES[m].forEach(function (role) {
+          var row = null; R.rows.forEach(function (r) { if (r.m === m && r.r === role[0]) row = r; });
+          if (!row) { row = { m: m, r: role[0], bar: "", q: "s", v: 200, ly: 1 }; R.rows.push(row); }
+          var tr = h("tr"); tr.appendChild(h("td", null, role[1] + " <span class='ko'>" + role[2] + "</span>"));
+          var td = h("td"), bs = h("select", "pr-sel"); var o0 = h("option", null, "—"); o0.value = ""; bs.appendChild(o0);
+          bars.forEach(function (bn) { var op = h("option", null, bn); op.value = bn; if (row.bar === bn) op.selected = true; bs.appendChild(op); });
+          td.appendChild(bs); tr.appendChild(td);
+          var td2 = h("td"), qs = h("select", "pr-sel pr-q"); [["s", "@"], ["n", "EA"]].forEach(function (o) { var op = h("option", null, o[1]); op.value = o[0]; if (row.q === o[0]) op.selected = true; qs.appendChild(op); });
+          var vi = h("input"); vi.type = "number"; vi.value = row.v; vi.step = row.q === "n" ? "1" : "25"; vi.className = "pr-mono";
+          var un = h("span", "pr-unit", row.q === "n" ? (m === "col" ? "per column" : "") : "mm");
+          td2.appendChild(qs); td2.appendChild(vi); td2.appendChild(un); tr.appendChild(td2);
+          var td3 = h("td");
+          if (role[3]) { var ls = h("select", "pr-sel"); [1, 2].forEach(function (n) { var op = h("option", null, String(n)); op.value = n; if (row.ly === n) op.selected = true; ls.appendChild(op); }); ls.addEventListener("change", function () { row.ly = +ls.value; custom(); }); td3.appendChild(ls); }
+          tr.appendChild(td3);
+          function custom() { R.level = "custom"; rbChanged(); }
+          bs.addEventListener("change", function () { row.bar = bs.value; custom(); tr.classList.toggle("off", !row.bar); paintLensSoon(); });
+          qs.addEventListener("change", function () { row.q = qs.value; row.v = row.q === "n" ? (m === "col" ? 24 : 12) : 150; vi.value = row.v; un.textContent = row.q === "n" ? (m === "col" ? "per column" : "") : "mm"; custom(); });
+          vi.addEventListener("input", function () { var v = parseFloat(vi.value); if (!isNaN(v) && v > 0) { row.v = v; custom(); } });
+          if (!row.bar) tr.className = "off";
+          body.appendChild(tr);
+        });
+        tb.appendChild(body); b.appendChild(tb);
+      }
+      function paintLensSoon() { var key = inputKey("rebar"), hit = memoGet("rebar", key); if (hit) paintLens(hit); }
+      if (!p.noCope) memberRows("cap", p.type === "portal" ? "Beam" : "Cap");
+      memberRows("col", p.type === "portal" ? "Legs" : "Columns");
+      memberRows("fdn", "Footing");
+      // result
+      b.appendChild(h("div", "pr-subhd", "Result"));
+      rbSum = h("div", "pr-rbsum", "<span class='pr-cap'>Placing bars…</span>"); b.appendChild(rbSum);
+      var act = h("div", "pr-rbact");
+      var b3 = h("button", "pr-btn", "3D preview"); b3.type = "button"; b3.onclick = show3D;
+      var bs2 = h("button", "pr-btn pr-ghost", "Bar schedule"); bs2.type = "button"; bs2.onclick = showSchedule;
+      act.appendChild(b3); act.appendChild(bs2); b.appendChild(act);
+      c.appendChild(b);
+      setTimeout(refreshRebar, 0);
+      return c;
+    }
+
     // ── live elevation preview (selected pier) — front + side in ONE drawing
     // so both share a single scale (same structure height) ──
     var plotHost = null, plotSub = null, busyBar = null;
@@ -946,9 +1201,16 @@
       if (!(key in m.v)) { m.k.push(key); if (m.k.length > MEMO_MAX) delete m.v[m.k.shift()]; }
       m.v[key] = val;
     }
-    function inputKey() { return JSON.stringify(P()); }
+    // the rebar input only matters for the 3D (mesh + bars), IFC and the bar schedule — the drawing and the A3 sheet
+    // don't use it, so they neither send it nor refetch when only the rebar changes
+    function usesRebar(kind) { return kind === "mesh" || kind === "ifc" || kind === "rebar"; }
+    function pierFor(kind) {
+      var p = P(); if (usesRebar(kind) && p.rebar && p.rebar.on) return p;
+      var o = {}; for (var k in p) if (k !== "rebar") o[k] = p[k]; return o;
+    }
+    function inputKey(kind) { return JSON.stringify(pierFor(kind || "draw")); }
     function fetchCompute(want, body) {
-      return fetch(API, { method: "POST", headers: { "Content-Type": "application/json" }, body: body || JSON.stringify({ pier: P(), want: want, labels: "own" }) })
+      return fetch(API, { method: "POST", headers: { "Content-Type": "application/json" }, body: body || JSON.stringify({ pier: pierFor(want[0]), want: want, labels: "own" }) })
         .then(function (r) { if (!r.ok) throw new Error("HTTP " + r.status); return r.json(); })
         .then(function (j) { if (!j || !j.ok) throw new Error((j && j.error) || "engine"); return j; });
     }
@@ -962,6 +1224,7 @@
       plotHost.innerHTML = "<div style='padding:48px 16px;text-align:center;color:#64748b;font-size:13px;line-height:1.6'>" + msg + "</div>";
     }
     function draw() {
+      if (P().rebar && P().rebar.on) rbChanged();          // geometry changed → the bars and the schedule follow
       if (!plotHost || !plotHost.isConnected) return;
       if (typeof window.RWSVG === "undefined") { ensureCore(draw); return; }
       var seq = ++_reqSeq;
@@ -969,7 +1232,7 @@
       var hit = memoGet("draw", inputKey());
       if (hit) { paint(hit); return; }                  // same input as before → no server trip
       _drawT = setTimeout(function () {
-        var key = inputKey(), body = JSON.stringify({ pier: P(), want: ["draw"], labels: "own" });   // labels: macroBIM's own codes on dims
+        var key = inputKey(), body = JSON.stringify({ pier: pierFor("draw"), want: ["draw"], labels: "own" });   // labels: macroBIM's own codes on dims
         busy(true);
         fetchCompute(["draw"], body).then(function (j) {
           busy(false);
@@ -996,11 +1259,17 @@
       if (plotSub) plotSub.textContent = pp.name + (_srv === "up" ? " · server" : "") + " · " + pp.colCount + " col · " + (pp.fdnMode === "combined" ? "combined" : "individual") + " · " + (pp.fdnType === "pile" ? "pile" : "spread") + " ftg · EL " + (+pp.el.top).toFixed(3) + "/" + (+pp.el.fdn).toFixed(3) + " (CH " + (pierCH(pp) / 1000).toFixed(3) + "m)";
     }
 
+    // 3D: the solid, plus the bars when rebar is on (one request) → cb(mesh, rebar|null)
     function getMesh(cb) {
-      var key = inputKey(), hit = memoGet("mesh", key);
-      if (hit) { cb(hit); return; }
+      var key = inputKey("mesh"), hit = memoGet("mesh", key);
+      if (hit) { cb(hit.mesh, hit.rebar); return; }
       busy(true);
-      fetchCompute(["mesh"]).then(function (j) { busy(false); memoPut("mesh", key, j.mesh); cb(j.mesh); }).catch(function () {
+      var rbOn = P().rebar && P().rebar.on;
+      fetchCompute(rbOn ? ["mesh", "rebar"] : ["mesh"]).then(function (j) {
+        busy(false); var v = { mesh: j.mesh, rebar: rbOn ? j.rebar : null }; memoPut("mesh", key, v);
+        if (rbOn) memoPut("rebar", inputKey("rebar"), j.rebar);
+        cb(v.mesh, v.rebar);
+      }).catch(function () {
         busy(false);
         if (_modal) { var mb = _modal.querySelector(".pr-mbody"); if (mb) mb.innerHTML = "<div class='pr-mwait'>The drawing engine is not reachable right now.</div>"; }
       });
@@ -1032,11 +1301,11 @@
     function fileBase() { return (P().name || "pier").replace(/[^A-Za-z0-9_.-]+/g, "_"); }
     // server results that are not the live drawing: sheet SVG / DXF (memoised like the drawing)
     function getServer(kind, cb, fail) {
-      var key = inputKey(), hit = memoGet(kind, key);
+      var key = inputKey(kind), hit = memoGet(kind, key);
       if (hit) { cb(hit); return; }
       fetchCompute([kind]).then(function (j) { var v = j[kind]; memoPut(kind, key, v); cb(v); }).catch(fail);
     }
-    _memo.sheet = { k: [], v: {} }; _memo.dxf = { k: [], v: {} }; _memo.ifc = { k: [], v: {} };
+    _memo.sheet = { k: [], v: {} }; _memo.dxf = { k: [], v: {} }; _memo.ifc = { k: [], v: {} }; _memo.rebar = { k: [], v: {} };
 
     // A3 drawing sheet: front · side · plan · section A-A · ISO, title block. DXF has live DIMENSIONs.
     function showSheet() {
@@ -1069,18 +1338,56 @@
         function () { busy(false); alert("The drawing engine is not reachable right now."); });
     }
     function show3D() {
-      var m = openModal("3D preview", [
+      var rbOn = P().rebar && P().rebar.on, acts = [
         { label: "&#8681; Download IFC", on: downloadIFC },
         { label: "&#8681; Download STL", ghost: true, on: function () { getMesh(function (mesh) { saveFile(_stl(mesh), fileBase() + ".stl", "application/octet-stream"); }); } }
-      ]);
-      getMesh(function (mesh) {
+      ];
+      if (rbOn) acts.unshift({ label: "Bar schedule", ghost: true, on: showSchedule });
+      var m = openModal("3D preview", acts);
+      getMesh(function (mesh, rb) {
         if (!_modal) return;
         m.body.innerHTML = "";
-        var d3 = h("div"); d3.id = "pr-3d-host"; d3.style.cssText = "width:100%;height:min(70vh,640px);background:#1a1a2e;border-radius:8px;overflow:hidden";
+        var d3 = h("div"); d3.id = "pr-3d-host"; d3.style.cssText = "width:100%;height:min(70vh,640px);background:#1a1a2e;border-radius:8px;overflow:hidden;position:relative";
         m.body.appendChild(d3);
-        window.RWSVG.render3d("pr-3d-host", "render_pier_3d", "https://macrobim.github.io/macroBIM/bim_pier_3d.js?v=1", [mesh]);
-        m.foot.textContent = "Drag to orbit, wheel to zoom. IFC4: one element per member (IfcColumn · IfcBeam · IfcFooting · IfcPile · pedestals), mm, real elevations. STL: the same solid as one mesh.";
+        // 3rd argument: the bars (centre lines) — older viewers ignore it
+        window.RWSVG.render3d("pr-3d-host", "render_pier_3d", "https://macrobim.github.io/macroBIM/bim_pier_3d.js?v=2", rb ? [mesh, rb] : [mesh]);
+        m.foot.textContent = "Drag to orbit, wheel to zoom. IFC4: one element per member (IfcColumn · IfcBeam · IfcFooting · IfcPile · pedestals" +
+          (rb ? ", and every bar as IfcReinforcingBar" : "") + "), mm, real elevations. STL: the concrete solid as one mesh." +
+          (rb ? " Rebar: " + rb.bars.length + " bars · " + fmtKg(rb.total) + " — see Bar schedule." : "");
       });
+    }
+
+    // ── bar schedule (재료표) — the server's marks: one row per mark; lengths vary along haunches → min ~ max ──
+    function fmtN(v) { return Math.round(v).toLocaleString("en-US"); }
+    function fmtKg(v) { return (v >= 1000 ? (v / 1000).toFixed(2) + " t" : v.toFixed(1) + " kg"); }
+    var MEMBER = { cap: "Cap", col: "Column", fdn: "Footing" };
+    function roleName(m, r) { var L = RB_ROLES[m] || []; for (var i = 0; i < L.length; i++) if (L[i][0] === r) return L[i][1]; return r; }
+    function memberName(m) { return m === "cap" && P().type === "portal" ? "Beam" : (m === "col" && P().type === "portal" ? "Leg" : MEMBER[m]); }
+    var SHAPE_NM = { I: "straight", L: "L (1 bend)", U: "U (2 bends)", P: "bent (follows soffit)", O: "closed hoop" };
+    function scheduleCSV(rb) {
+      var L = ["Mark,Member,Role,Bar,Dia (mm),Shape,Length min (mm),Length max (mm),Length avg (mm),No.,Unit wt (kg/m),Weight (kg)"];
+      rb.marks.forEach(function (k) { L.push([k.mark, memberName(k.m), roleName(k.m, k.r), k.bar, k.db, SHAPE_NM[k.shape] || k.shape, k.lmin, k.lmax, k.len, k.n, k.w1, k.wt].join(",")); });
+      L.push(""); L.push("Bar,Total length (m),Weight (kg)"); rb.sum.forEach(function (s2) { L.push([s2.bar, s2.len, s2.wt].join(",")); }); L.push("Total,," + rb.total);
+      L.push(""); L.push('"' + rb.basis + '"');
+      return "\ufeff" + L.join("\r\n");
+    }
+    function showSchedule() {
+      var rbx = null;
+      var m = openModal("Bar schedule", [{ label: "&#8681; Download CSV", on: function () { if (rbx) saveFile(scheduleCSV(rbx), fileBase() + "_rebar.csv", "text/csv"); } }]);
+      getServer("rebar", function (rb) {
+        if (!_modal) return; rbx = rb;
+        m.body.style.overflow = "auto"; m.body.style.background = "#fff";
+        var t = "<table class='pr-sched'><thead><tr><th>Mark</th><th>Member</th><th>Role</th><th>Bar</th><th>Shape</th><th class='n'>Length (mm)</th><th class='n'>No.</th><th class='n'>kg/m</th><th class='n'>Weight (kg)</th></tr></thead><tbody>";
+        rb.marks.forEach(function (k) {
+          t += "<tr><td class='mk'>" + k.mark + "</td><td>" + memberName(k.m) + "</td><td>" + roleName(k.m, k.r) + "</td><td>" + k.bar + "</td><td>" + (SHAPE_NM[k.shape] || k.shape) + "</td><td class='n'>" +
+            (k.lmin !== k.lmax ? fmtN(k.lmin) + " ~ " + fmtN(k.lmax) : fmtN(k.len)) + "</td><td class='n'>" + k.n + "</td><td class='n'>" + k.w1.toFixed(3) + "</td><td class='n'>" + k.wt.toFixed(1) + "</td></tr>";
+        });
+        t += "</tbody></table><table class='pr-sched pr-sum'><thead><tr><th>Bar</th><th class='n'>Total length (m)</th><th class='n'>Weight (kg)</th></tr></thead><tbody>";
+        rb.sum.forEach(function (s2) { t += "<tr><td>" + s2.bar + "</td><td class='n'>" + s2.len.toFixed(1) + "</td><td class='n'>" + s2.wt.toFixed(1) + "</td></tr>"; });
+        t += "<tr class='tot'><td>Total</td><td></td><td class='n'>" + rb.total.toFixed(1) + "</td></tr></tbody></table>";
+        m.body.innerHTML = t;
+        m.foot.textContent = rb.basis + " · Lengths are bar centre lines; closed hoops include two 135° hooks. Where lengths vary (haunch, rounded tips, steps) one mark covers the range — weights add the real length of every bar.";
+      }, function () { m.body.innerHTML = "<div class='pr-mwait'>The drawing engine is not reachable right now.</div>"; });
     }
 
     _pierDraw = draw;
@@ -1097,6 +1404,7 @@
         perWrap.appendChild(cardColumns());
       }
       perWrap.appendChild(cardFoundation());
+      perWrap.appendChild(cardRebar());
     }
     function renderAll() {
       stack.innerHTML = "";
