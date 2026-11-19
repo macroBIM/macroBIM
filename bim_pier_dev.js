@@ -22,7 +22,8 @@
     already shipped as bim_rect/circle/track/octagon). Foundation is either one
     combined footing or individual footings per column.
     Pure vanilla JS + inline SVG (no deps). Styles scoped to .pr-root.
-    build: v27 (asymmetric cap: TLL/TLR half-widths from pier centre)
+    Input codes are macroBIM's own (C = cap, F = footing, K = piles, B = pedestals, R = portal frame, P = flared column);
+    the data model keeps its internal keys (sent to the server as is).
 */
 (function () {
   "use strict";
@@ -608,10 +609,10 @@
         pst.appendChild(h("span", null, "Count")); pst.appendChild(pmn); pst.appendChild(pcn); pst.appendChild(ppl); pst.appendChild(peq);
         prow.appendChild(pst); body.appendChild(prow);
         var pg = h("div", "pr-ingrid");
-        pg.appendChild(numRow("PB", "Pedestal width (transverse)", pd.B, function (v) { pd.B = v; }));
-        pg.appendChild(numRow("PL", "Pedestal length (longitudinal)", pd.L, function (v) { pd.L = v; }));
-        pg.appendChild(numRow("PH", "Pedestal height", pd.H, function (v) { pd.H = v; }));
-        if (pd.rows === 2) pg.appendChild(numRow("e", "Row offset from cap centre (each side)", pd.e, function (v) { pd.e = v; }));
+        pg.appendChild(numRow("B1", "Pedestal width (transverse)", pd.B, function (v) { pd.B = v; }));
+        pg.appendChild(numRow("B2", "Pedestal length (longitudinal)", pd.L, function (v) { pd.L = v; }));
+        pg.appendChild(numRow("B3", "Pedestal height", pd.H, function (v) { pd.H = v; }));
+        if (pd.rows === 2) pg.appendChild(numRow("B4", "Row offset from cap centre (each side)", pd.e, function (v) { pd.e = v; }));
         body.appendChild(pg);
         var pt = h("table", "pr-btbl"), ph = h("tr"), pr = h("tr");
         ph.appendChild(h("th", null, "")); pr.appendChild(h("th", null, "x"));
@@ -634,11 +635,11 @@
       c.appendChild(h("div", "pr-hd", "<span class='pr-ttl'>Frame <span class='pr-sub'>" + pt.n + " legs · " + (pt.n - 1) + (pt.n > 2 ? " openings" : " opening") + "</span></span>"));
       var b = h("div", "pr-body"), g = h("div", "pr-ingrid");
       function sync() { allCols(p, "rect", { B: pt.B, H: pt.H }); }
-      g.appendChild(numRow("B", "Leg width (transverse)", pt.B, function (v) { pt.B = v; sync(); }));
-      g.appendChild(numRow("H", "Leg thickness (longitudinal)", pt.H, function (v) { pt.H = v; sync(); }));
-      g.appendChild(numRow("W", "Clear opening width", pt.W, function (v) { pt.W = v; }));
-      g.appendChild(numRow("THU", "Beam depth", cp.THU, function (v) { cp.THU = v; }));
-      g.appendChild(numRow("TB", "Beam width (longitudinal)", cp.TB, function (v) { cp.TB = v; }));
+      g.appendChild(numRow("R1", "Leg width (transverse)", pt.B, function (v) { pt.B = v; sync(); }));
+      g.appendChild(numRow("R2", "Leg thickness (longitudinal)", pt.H, function (v) { pt.H = v; sync(); }));
+      g.appendChild(numRow("R3", "Clear opening width", pt.W, function (v) { pt.W = v; }));
+      g.appendChild(numRow("C4", "Beam depth", cp.THU, function (v) { cp.THU = v; }));
+      g.appendChild(numRow("C3", "Beam width (longitudinal)", cp.TB, function (v) { cp.TB = v; }));
       b.appendChild(g);
       b.appendChild(h("p", "pr-cap", "Beam length L = legs × B + openings × W. The beam ends at the outer leg faces (no cantilever). Change the number of legs with Change type."));
       c.appendChild(b); return c;
@@ -665,8 +666,8 @@
       cell("Footing EL", elIn("fdn"));
       chOut.textContent = (pierCH(p) / 1000).toFixed(3); cell("CH (m)", chOut);
       b.appendChild(g);
-      b.appendChild(h("p", "pr-cap", p.noCope ? "CH (column height) = Column top EL − Footing EL, computed automatically."
-        : "CH (column height) = Cap top EL − cap depth (THU+THL) − Footing EL, computed automatically."));
+      b.appendChild(h("p", "pr-cap", p.noCope ? "Hc (column height) = Column top EL − Footing EL, computed automatically."
+        : "Hc (column height) = Cap top EL − cap depth (C4 + C5) − Footing EL, computed automatically."));
       c.appendChild(b); return c;
     }
 
@@ -678,21 +679,23 @@
       var isRect = p.copeType === "rect";
       body.appendChild(h("div", "pr-subhd", copeName(p.copeType) + " cap"));
       var b = h("div", "pr-ingrid");
-      b.appendChild(numRow("TLL", "Cap half-length left (from centre)", cp.TLL, function (v) { cp.TLL = v; }));
-      b.appendChild(numRow("TLR", "Cap half-length right (from centre)", cp.TLR, function (v) { cp.TLR = v; }));
-      b.appendChild(numRow("TB", "Cap width (longitudinal)", cp.TB, function (v) { cp.TB = v; }));
-      b.appendChild(numRow("THU", isRect ? "Cap depth" : "Cantilever tip thickness", cp.THU, function (v) { cp.THU = v; }));
+      b.appendChild(numRow("C1", "Cap half-length left (from centre)", cp.TLL, function (v) { cp.TLL = v; }));
+      b.appendChild(numRow("C2", "Cap half-length right (from centre)", cp.TLR, function (v) { cp.TLR = v; }));
+      b.appendChild(numRow("C3", "Cap width (longitudinal)", cp.TB, function (v) { cp.TB = v; }));
+      b.appendChild(numRow("C4", isRect ? "Cap depth" : "Cantilever tip thickness", cp.THU, function (v) { cp.THU = v; }));
       if (!isRect) {
-        b.appendChild(numRow("THL", "Haunch depth (tip soffit → centre soffit)", cp.THL, function (v) { cp.THL = v; }));
-        b.appendChild(numRow("HLL", "Left cantilever haunch length", cp.HLL, function (v) { cp.HLL = v; }));
-        b.appendChild(numRow("HLR", "Right cantilever haunch length", cp.HLR, function (v) { cp.HLR = v; }));
+        b.appendChild(numRow("C5", "Haunch depth (tip soffit → centre soffit)", cp.THL, function (v) { cp.THL = v; }));
+        b.appendChild(numRow("C6", "Left cantilever haunch length", cp.HLL, function (v) { cp.HLL = v; }));
+        b.appendChild(numRow("C7", "Right cantilever haunch length", cp.HLR, function (v) { cp.HLR = v; }));
       }
       if (p.copeType === "arc") {
-        b.appendChild(numRow("HRL", "Left haunch arc radius R", cp.HRL, function (v) { cp.HRL = v; }));
-        b.appendChild(numRow("HRR", "Right haunch arc radius R", cp.HRR, function (v) { cp.HRR = v; }));
+        b.appendChild(numRow("C8", "Left haunch arc radius R", cp.HRL, function (v) { cp.HRL = v; }));
+        b.appendChild(numRow("C9", "Right haunch arc radius R", cp.HRR, function (v) { cp.HRR = v; }));
       }
       body.appendChild(b);
       // optional details — off by default; each switch shows its own inputs
+      // input codes are macroBIM's own (member letter + number); the engine keeps its internal keys
+      var OPT_CODE = { HEL: "C10", HER: "C11", HLU: "C12", HRU: "C13", CR: "C14", HD: "C15", HW: "C16", HS: "C17" };
       var OPT_ROWS = {
         HEL: ["Left tip flat length"], HER: ["Right tip flat length"], HLU: ["Left top flat length"], HRU: ["Right top flat length"],
         CR: ["Tip edge round"], HD: ["Centre groove depth"], HW: ["Centre groove width"], HS: ["Centre groove slope", "1:s", "0.1"]
@@ -713,7 +716,7 @@
           var k = kv[0], meta = OPT_ROWS[k];
           if (isRect && (k === "HEL" || k === "HER")) return;   // tip flats belong to a haunched soffit
           any = true;
-          og.appendChild(numRow(k, meta[0], cp[k], function (v) { cp[k] = v; }, meta[1], meta[2]));
+          og.appendChild(numRow(OPT_CODE[k] || k, meta[0], cp[k], function (v) { cp[k] = v; }, meta[1], meta[2]));
         });
       });
       if (any) body.appendChild(og);
@@ -729,7 +732,7 @@
         var ap2 = h("label", "pr-bapply"); ap2.style.marginLeft = "18px";
         var ck2 = h("input"); ck2.type = "checkbox"; ck2.checked = !!bs.uniformTHU; ck2.style.cssText = "width:16px;height:16px;accent-color:var(--dim);cursor:pointer";
         ck2.addEventListener("change", function () { bs.uniformTHU = ck2.checked; draw(); });
-        ap2.appendChild(ck2); ap2.appendChild(h("span", null, "Uniform outer thickness (THU fixed → THL adjusts)")); body.appendChild(ap2);
+        ap2.appendChild(ck2); ap2.appendChild(h("span", null, "Uniform outer thickness (C4 fixed → C5 adjusts)")); body.appendChild(ap2);
         var wSeg = Math.round(((+cp.TLL || 0) + (+cp.TLR || 0)) / Math.max(1, bs.steps.length));
         var hdr = h("div", "pr-bhd"); hdr.appendChild(h("span", null, ""));   // (label removed; empty span keeps the stepper right-aligned)
         var stp = h("div", "pr-stepper"); var mn = h("button", "pr-step", "−"), cn = h("input", "pr-cnt"), pl = h("button", "pr-step", "+");
@@ -755,7 +758,7 @@
           tbl.appendChild(tr);
         });
         body.appendChild(tbl);
-        body.appendChild(h("p", "pr-cap", "w: segment width = (TLL+TLR)/steps (auto) · Δt: transverse level step (step 1 is the reference = 0) · Δl: longitudinal step (front/back, +Δl raises the back). Δt cumulates from the left cap end; + up / − down."));
+        body.appendChild(h("p", "pr-cap", "w: segment width = (C1+C2)/steps (auto) · Δt: transverse level step (step 1 is the reference = 0) · Δl: longitudinal step (front/back, +Δl raises the back). Δt cumulates from the left cap end; + up / − down."));
       }
       c.appendChild(body); return c;
     }
@@ -799,8 +802,8 @@
         row.appendChild(h("span", "cnm", isWall ? "Wall" : (p.cols.length > 1 ? "Column " + (i + 1) : "Column")));
         var isFlare = p.type === "flare";
         if (!isFlare) {
-          row.appendChild(fld("CL", col.CL, function (v) { col.CL = v; }, "50"));
-          row.appendChild(fld("Ang", col.ang || 0, function (v) { col.ang = v; }, "5"));
+          row.appendChild(fld("x", col.CL, function (v) { col.CL = v; }, "50"));
+          row.appendChild(fld("θ", col.ang || 0, function (v) { col.ang = v; }, "5"));
         }
         var sel = h("select", "pr-sel");
         SHAPES.filter(function (s) { return !(isWall || p.type === "flare") || s[0] === "rect" || s[0] === "track"; }).forEach(function (s) { var o = h("option"); o.value = s[0]; o.textContent = s[1]; if (col.shape === s[0]) o.selected = true; sel.appendChild(o); });
@@ -814,8 +817,8 @@
         });
         if (!isFlare) row.appendChild(chk("Hollow", col.hollow, function (v) { col.hollow = v; renderPerPier(); }));
         else {
-          row.appendChild(fld("FH", p.flare.FH, function (v) { p.flare.FH = v; }));
-          row.appendChild(fld("BT", p.flare.BT, function (v) { p.flare.BT = v; }));
+          row.appendChild(fld("P3", p.flare.FH, function (v) { p.flare.FH = v; }));
+          row.appendChild(fld("P4", p.flare.BT, function (v) { p.flare.BT = v; }));
         }
         var gbtn = h("button", "pr-gbtn", "&#9635; Guide");
         var guide = h("div", "pr-guide"); guide.style.display = "none"; guide.id = "pr-guide-" + i;
@@ -829,8 +832,8 @@
         row.appendChild(gbtn);
         b.appendChild(row); b.appendChild(guide);
       });
-      if (p.type === "flare") b.appendChild(h("p", "pr-cap", "Flared column: B is the width at the bottom, BT the width at the top (front view only — the side stays H thick). FH is the flare height measured down from the column top; the flare is one arc tangent to the column face."));
-      else b.appendChild(h("p", "pr-cap", "Column height (CH) is auto-computed from the Levels card · CL — transverse position from the pier centre (left −, right +) · Ang — section placement angle (°) · Hollow toggles the wall variables · Guide shows the section diagram."));
+      if (p.type === "flare") b.appendChild(h("p", "pr-cap", "Flared column: B is the width at the bottom, P4 the width at the top (front view only — the side stays H thick). P3 is the flare height measured down from the column top; the flare is one arc tangent to the column face."));
+      else b.appendChild(h("p", "pr-cap", "Column height (Hc) is auto-computed from the Levels card · x — transverse position from the pier centre (left −, right +) · θ — section placement angle (°) · Hollow toggles the wall variables · Guide shows the section diagram."));
       c.appendChild(b); return c;
     }
 
@@ -856,24 +859,24 @@
         b.appendChild(md);
       }
       var ig = h("div", "pr-ingrid");
-      ig.appendChild(numRow("BH", "Footing height", f.BH, function (v) { f.BH = v; }));
-      ig.appendChild(numRow("BLF", "Edge to col, left (transv.)", f.BLF, function (v) { f.BLF = v; }));
-      ig.appendChild(numRow("BRF", "Edge to col, right (transv.)", f.BRF, function (v) { f.BRF = v; }));
-      ig.appendChild(numRow("FF", "Edge to col, left (longit.)", f.FF, function (v) { f.FF = v; }));
-      ig.appendChild(numRow("FB", "Edge to col, right (longit.)", f.FB, function (v) { f.FB = v; }));
-      ig.appendChild(numRow("EFL", "Blinding projection", f.EFL, function (v) { f.EFL = v; }));
-      ig.appendChild(numRow("EH", "Blinding height", f.EH, function (v) { f.EH = v; }));
+      ig.appendChild(numRow("F1", "Footing height", f.BH, function (v) { f.BH = v; }));
+      ig.appendChild(numRow("F2", "Edge to col, left (transv.)", f.BLF, function (v) { f.BLF = v; }));
+      ig.appendChild(numRow("F3", "Edge to col, right (transv.)", f.BRF, function (v) { f.BRF = v; }));
+      ig.appendChild(numRow("F4", "Edge to col, left (longit.)", f.FF, function (v) { f.FF = v; }));
+      ig.appendChild(numRow("F5", "Edge to col, right (longit.)", f.FB, function (v) { f.FB = v; }));
+      ig.appendChild(numRow("F6", "Blinding projection", f.EFL, function (v) { f.EFL = v; }));
+      ig.appendChild(numRow("F7", "Blinding height", f.EH, function (v) { f.EH = v; }));
       b.appendChild(ig);
       if (p.fdnType === "pile") {
         var pl = p.pile;
         b.appendChild(h("div", "pr-subhd", "Piles"));
         var pg = h("div", "pr-ingrid");
-        pg.appendChild(numRow("PD", "Pile diameter", pl.D, function (v) { pl.D = v; }));
-        pg.appendChild(numRow("PL", "Pile length (below footing)", pl.L, function (v) { pl.L = v; }));
-        pg.appendChild(numRow("NX", "Piles across (transverse), per footing", pl.NX, function (v) { pl.NX = Math.max(1, Math.round(v)); }, "pcs", "1"));
-        pg.appendChild(numRow("NY", "Piles along (longitudinal), per footing", pl.NY, function (v) { pl.NY = Math.max(1, Math.round(v)); }, "pcs", "1"));
-        pg.appendChild(numRow("SX", "Pile spacing, transverse", pl.SX, function (v) { pl.SX = v; }));
-        pg.appendChild(numRow("SY", "Pile spacing, longitudinal", pl.SY, function (v) { pl.SY = v; }));
+        pg.appendChild(numRow("K1", "Pile diameter", pl.D, function (v) { pl.D = v; }));
+        pg.appendChild(numRow("K2", "Pile length (below footing)", pl.L, function (v) { pl.L = v; }));
+        pg.appendChild(numRow("K3", "Piles across (transverse), per footing", pl.NX, function (v) { pl.NX = Math.max(1, Math.round(v)); }, "pcs", "1"));
+        pg.appendChild(numRow("K4", "Piles along (longitudinal), per footing", pl.NY, function (v) { pl.NY = Math.max(1, Math.round(v)); }, "pcs", "1"));
+        pg.appendChild(numRow("K5", "Pile spacing, transverse", pl.SX, function (v) { pl.SX = v; }));
+        pg.appendChild(numRow("K6", "Pile spacing, longitudinal", pl.SY, function (v) { pl.SY = v; }));
         b.appendChild(pg);
         b.appendChild(h("p", "pr-cap", "The pile group is centred under each footing."));
       }
@@ -945,7 +948,7 @@
     }
     function inputKey() { return JSON.stringify(P()); }
     function fetchCompute(want, body) {
-      return fetch(API, { method: "POST", headers: { "Content-Type": "application/json" }, body: body || JSON.stringify({ pier: P(), want: want }) })
+      return fetch(API, { method: "POST", headers: { "Content-Type": "application/json" }, body: body || JSON.stringify({ pier: P(), want: want, labels: "own" }) })
         .then(function (r) { if (!r.ok) throw new Error("HTTP " + r.status); return r.json(); })
         .then(function (j) { if (!j || !j.ok) throw new Error((j && j.error) || "engine"); return j; });
     }
@@ -966,7 +969,7 @@
       var hit = memoGet("draw", inputKey());
       if (hit) { paint(hit); return; }                  // same input as before → no server trip
       _drawT = setTimeout(function () {
-        var key = inputKey(), body = JSON.stringify({ pier: P(), want: ["draw"] });
+        var key = inputKey(), body = JSON.stringify({ pier: P(), want: ["draw"], labels: "own" });   // labels: macroBIM's own codes on dims
         busy(true);
         fetchCompute(["draw"], body).then(function (j) {
           busy(false);
