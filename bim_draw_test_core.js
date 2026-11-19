@@ -87,6 +87,7 @@
     rec.L.forEach(function (l) {
       if (l.lay === 'hidden') line(SX(l.x1), SY(l.y1), SX(l.x2), SY(l.y2), HID, 1, '6 3');
       else if (l.lay === 'faint') line(SX(l.x1), SY(l.y1), SX(l.x2), SY(l.y2), FNT, 0.7);
+      else if (l.lay === 'thin') line(SX(l.x1), SY(l.y1), SX(l.x2), SY(l.y2), mapColor(l.col), 0.8);   // thin coloured (rebar)
       else line(SX(l.x1), SY(l.y1), SX(l.x2), SY(l.y2), mapColor(l.col), 1.8);
     });
     rec.A.forEach(function (a) {
@@ -94,6 +95,7 @@
       for (var i = 0; i <= n; i++) { var t = (a1 + (a2 - a1) * i / n) * Math.PI / 180; pts.push(f(SX(a.x + a.r * Math.cos(t))) + ',' + f(SY(a.y + a.r * Math.sin(t)))); }
       if (a.lay === 'hidden') poly(pts.join(' '), HID, 1, '6 3');
       else if (a.lay === 'faint') poly(pts.join(' '), FNT, 0.7);
+      else if (a.lay === 'thin') poly(pts.join(' '), mapColor(a.col), 0.8);
       else poly(pts.join(' '), mapColor(a.col), 1.8);
     });
     rec.DL.forEach(function (d) {

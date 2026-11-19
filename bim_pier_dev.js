@@ -73,7 +73,7 @@
     if (window._rwCoreLoading) { (window._rwCoreCbs = window._rwCoreCbs || []).push(cb); return; }
     window._rwCoreLoading = true; window._rwCoreCbs = [cb];
     var sc = document.createElement("script");
-    sc.src = "https://macrobim.github.io/macroBIM/bim_draw_test_core.js?v=6";
+    sc.src = "https://macrobim.github.io/macroBIM/bim_draw_test_core.js?v=7";
     sc.onload = function () { window._rwCoreLoading = false; var q = window._rwCoreCbs || []; window._rwCoreCbs = []; q.forEach(function (f) { f(); }); };
     sc.onerror = function () { window._rwCoreLoading = false; window._rwCoreCbs = []; };
     document.head.appendChild(sc);
@@ -257,6 +257,7 @@
     ".pr-rbwarn{color:#b45309;font-size:12.5px;margin:3px 0}" +
     ".pr-rbnote{color:var(--muted);font-size:12px;margin:3px 0}" +
     ".pr-rbact{display:flex;gap:8px;margin-top:10px}" +
+    ".pr-rblm{display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin:10px 0 2px}.pr-rblml{font-size:12px;font-weight:600;color:var(--muted);margin-right:6px}" +
     ".pr-rbdfl{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin:0 0 4px}.pr-rbdfl .pr-cap{margin:0}" +
     ".pr-sched{border-collapse:collapse;font-size:12.5px;margin:0 0 16px;min-width:100%}" +
     ".pr-sched th{position:sticky;top:-12px;background:#f1f5f9;font-size:11px;font-weight:700;color:var(--muted);text-align:left;padding:6px 10px;border-bottom:1px solid var(--line)}" +
@@ -300,7 +301,7 @@
     return rows;
   }
   function newRebar() {
-    return { on: false, cover: { cap: 60, col: 75, fdn: 100 }, stock: 12000,
+    return { on: false, line: "double", cover: { cap: 60, col: 75, fdn: 100 }, stock: 12000,
       lap: { sys: "KS", std: "gujo", fck: 30, fy: 400, mode: "auto", grade: "B",
         calc: { cover: 50, ctc: 125, ktr: 0, lam: 1, way: "equ", phic: 0.65, eta1: 1, K: 0, lamTr: 0, p: 0, a1: 1, a6: 1, asreq: 1, asprov: 1 }, table: {} },
       rows: defaultRows("KS") };
@@ -949,7 +950,7 @@
     // places every bar on the geometry, adds anchorage and laps, and returns the schedule. No design check (no
     // required-steel calculation) — the presets are starting values only.
     var rbSum = null, rbLens = null, _rbT = null, _rbSeq = 0;
-    function rbChanged() { clearTimeout(_rbT); _rbT = setTimeout(refreshRebar, 250); }
+    function rbChanged() { clearTimeout(_rbT); _rbT = setTimeout(function () { refreshRebar(); draw(true); }, 250); }
     function refreshRebar() {
       var p = P(); if (!p.rebar || !p.rebar.on || !rbSum || !rbSum.isConnected) return;
       var seq = ++_rbSeq;
@@ -1010,7 +1011,7 @@
       var hd = h("div", "pr-hd", "<span class='pr-ttl'>Rebar <span class='pr-sub'>배근</span></span>");
       var tg = h("label", "pr-bapply"); var ck = h("input"); ck.type = "checkbox"; ck.checked = !!R.on;
       tg.appendChild(ck); tg.appendChild(document.createTextNode("Place rebar")); tg.style.margin = "0"; hd.appendChild(tg);
-      ck.addEventListener("change", function () { R.on = ck.checked; renderPerPier(); });
+      ck.addEventListener("change", function () { R.on = ck.checked; renderPerPier(); draw(); });
       c.appendChild(hd);
       var b = h("div", "pr-body");
       if (!R.on) { b.appendChild(h("p", "pr-cap", "Switch on to place bars in the cap, columns and footing — shown in the 3D preview, in the IFC and in a bar schedule. Anchorage and lap lengths come from the calculation sheet or from your own values.")); c.appendChild(b); return c; }
@@ -1024,6 +1025,14 @@
       dfl.appendChild(db0);
       dfl.appendChild(h("span", "pr-cap", "The rows start from common values — change them to your design. Nothing here checks the required steel."));
       b.appendChild(dfl);
+      // bars on the drawing: double line (bar diameter wide) or single line (centre line) — as in the store's wall / culvert
+      var lm = h("div", "pr-rblm"); lm.appendChild(h("span", "pr-rblml", "Bars on the drawing"));
+      [["double", "Double line"], ["single", "Single line"], ["none", "Hide"]].forEach(function (o) {
+        var t = h("button", "pr-tab" + ((R.line || "double") === o[0] ? " on" : ""), o[1]); t.type = "button";
+        t.onclick = function () { R.line = o[0]; lm.querySelectorAll(".pr-tab").forEach(function (x) { x.classList.toggle("on", x === t); }); draw(true); };
+        lm.appendChild(t);
+      });
+      b.appendChild(lm);
       // common
       b.appendChild(h("div", "pr-subhd", "Common"));
       var g = h("div", "pr-ingrid");
@@ -1217,9 +1226,9 @@
       if (!(key in m.v)) { m.k.push(key); if (m.k.length > MEMO_MAX) delete m.v[m.k.shift()]; }
       m.v[key] = val;
     }
-    // the rebar input only matters for the 3D (mesh + bars), IFC and the bar schedule — the drawing and the A3 sheet
-    // don't use it, so they neither send it nor refetch when only the rebar changes
-    function usesRebar(kind) { return kind === "mesh" || kind === "ifc" || kind === "rebar"; }
+    // the rebar input matters for the elevation (bars drawn), the 3D (mesh + bars), IFC and the bar schedule — the
+    // A3 sheet doesn't use it yet, so it neither sends it nor refetches when only the rebar changes
+    function usesRebar(kind) { return kind === "draw" || kind === "mesh" || kind === "ifc" || kind === "rebar"; }   // the elevation shows the bars too
     function pierFor(kind) {
       var p = P(); if (usesRebar(kind) && p.rebar && p.rebar.on) return p;
       var o = {}; for (var k in p) if (k !== "rebar") o[k] = p[k]; return o;
@@ -1239,8 +1248,8 @@
       _lastComp = null;
       plotHost.innerHTML = "<div style='padding:48px 16px;text-align:center;color:#64748b;font-size:13px;line-height:1.6'>" + msg + "</div>";
     }
-    function draw() {
-      if (P().rebar && P().rebar.on) rbChanged();          // geometry changed → the bars and the schedule follow
+    function draw(fromRebar) {
+      if (!fromRebar && P().rebar && P().rebar.on) { clearTimeout(_rbT); _rbT = setTimeout(refreshRebar, 250); }   // geometry changed → the schedule follows
       if (!plotHost || !plotHost.isConnected) return;
       if (typeof window.RWSVG === "undefined") { ensureCore(draw); return; }
       var seq = ++_reqSeq;
