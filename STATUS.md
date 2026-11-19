@@ -266,7 +266,7 @@ git status --short     # 비어 있어야 한다
 |---|---|
 | 화면 | `bim_pier.js` · **`?v=2`** — design main `layout_body.js` 가 부른다. `bim_pier_dev.js`(`/dev/`) 를 통째 승격 (1차 2026-11-15 macroBIM `94c1334` · design `f662246`, 2차 2026-11-16 macroBIM `505a3e9` · design `e99093b`) |
 | 엔진 | 서버 `/pier/api.php` ← 비공개 `macroPIER` (push 하면 자동 배포) — **`/dev/` 와 운영이 같은 엔진을 쓴다.** 엔진을 고치면 운영에도 바로 나간다 |
-| 테스트 화면과의 차이 | **없음** — 승격 직후. `/dev/` 에서 고친 뒤 다시 승격(통째 복사 · 「잡고 있나」에 적고) |
+| 테스트 화면과의 차이 | **있다 (2026-11-19~)** — `/dev/` 에만: ① 입력 · 치수 기호 자체 체계(C1… · Hc · F · K · B · R · P, 요청에 `labels:"own"`) ② **배근 1단계**(Rebar 카드 · 3D 철근 · 재료표 · IFC 철근 · 정착/이음). 엔진 쪽 끊음 · 수량표는 운영에도 이미 나감. 승격은 사용자가 「올려」 할 때 — 통째 복사 · 「잡고 있나」에 적고 |
 | index_claude | 아직 옛 `bim_pier_test.js` (공개 JS 엔진) — 사용자가 PIER 만 올리라 해서 손대지 않았다 |
 
 ---
@@ -279,15 +279,16 @@ git status --short     # 비어 있어야 한다
 | **J 엔진** | `jfield.js` · `bench/jbench.js` · `bench/jengine.js` | 논문의 J 최소화를 그대로 짠 **두 번째 엔진**. PSCBOX 일반단면 페이지의 **기본 엔진**이다 (`Solver` 버튼으로 옛 `physics.js` 와 오간다). 격벽 페이지는 아직 옛 엔진만 쓴다 |
 | **Crossbeam 폼** | `plate3d/quick_crossbeam_test.js` | 폼과 그림은 있고, PLATE3D 로 모델 보내기와 워크북 내보내기가 없다 |
 | **Dashboard · PSCBOX · Crossbeam 메뉴** | `design/layout_body_test.js` | `design/SYNC.md` 참조 — 옮기지 않는다 |
-| **PIER (/dev/)** | `bim_pier_dev.js` ← design **dev** `layout_body_test.js` | 운영과 같다(2026-11-15 승격). `/dev/` 에서 먼저 고치고 확인한 뒤 `bim_pier.js` 로 다시 승격 |
+| **PIER (/dev/)** | `bim_pier_dev.js` (`?v=14`) ← design **dev** `layout_body_test.js` | 운영에 없는 것: 자체 기호 체계 · 배근 1단계(2026-11-19). `/dev/` 에서 확인한 뒤 `bim_pier.js` 로 다시 승격 |
 
 
-### PIER — 지금 어디까지 (2026-11-15 · **운영에 나감**)
+### PIER — 지금 어디까지 (2026-11-19 · 운영은 11-16 2차 승격본 · `/dev/` 는 배근 1단계까지)
 
 - **계산은 전부 서버(비공개).** 원본 `macroBIM/macroPIER`(private) `php/` → push 하면 Actions 가 카페24 `config/pier/`(웹 루트 밖) · `www/pier/api.php` 로 자동 배포(1분). 공개 `bim_pier_dev.js` 에는 계산이 없다 — 입력 · 그리기 · 내려받기만. 지운 JS 는 `macroPIER/ref/` 에 백업, `tools/parity.js` 로 PHP 와 대조(12 경우 일치).
 - **화면 반영은 두 단계**: design dev push → `/dev/` 가 새 `?v=`(1분) + macroBIM main push → GitHub Pages 가 `bim_pier_dev.js`(1~2분). Pages 가 끝나기 전엔 옛 화면. 엔진만 바꾸면 새로고침으로 바로.
 - **위저드**: 구조물(T · 다주식 · 벽식 · 기둥식 · 문형 · 횃불형) → 코핑(사각 · 직선 헌치 · 곡선 헌치 · 횃불형은 없음도) → 기둥 단면 → 기초(직접 · 말뚝) → (기둥 여럿이면) 통합 · 개별. 교각 하나(+ Add pier 없음). 고른 형태가 쓰는 칸만.
-- **입력 카드**: Levels · Coping(Options · Bearing step) · **Bearing pedestals 받침 콘크리트**(개수 · 위치 x · 1/2줄 · B L H) · Columns(횃불형 FH · BT) / Frame(문형) · Foundation(말뚝 PD PL NX NY SX SY).
+- **입력 카드**: Levels · Coping(C1~C17 · Bearing step) · **Bearing pedestals 받침 콘크리트**(B1~B4) · Columns(x · θ · 횃불형 P3 · P4) / Frame(문형 R1~R3) · Foundation(F1~F7 · 말뚝 K1~K6) · **Rebar 배근**(/dev/). 기호는 그쪽 프로그램(AAbutPier)과 겹치지 않게 자체 체계 — 엔진 표 `PR_LABELS`.
+- **A3 도면**: 긴 기둥 · 말뚝은 물결선으로 끊고 치수는 실제 길이, NOTE 아래 콘크리트 수량표(말뚝 빼고 합계).
 - **미리보기 → 내려받기**: Drawing preview = A3 한 장(정면 · 측면 · 평면 · 단면 A-A · ISO · NOTE · 표제란) → **DXF**(R12, 치수가 DIMENSION — 끌면 값이 따라감). 3D preview → **IFC4**(부재별) · STL. 판매 대비: DXF · IFC 는 서버 한 곳(`pier_compute` 의 dxf · ifc)에서 나간다 — 막을 때 거기서.
 - **도면 작성 기준은 공개 한 벌** `drawing_standard.json` · `DRAWING_STANDARD.md` — PIER 는 거기서 생성한 상수만 쓴다(`macroPIER/tools/sync_standard.js --check`). 치수선은 뷰마다 구조물 외곽에서 첫 줄 10 · 사이 7 (종이 mm × 축척), 값만 표기.
 - **교좌장치는 없다** — 원래 엔진에도 없었다(받침 단차만). 받침 콘크리트까지만 그리고 교좌장치는 나중(사용자 결정).
@@ -320,7 +321,9 @@ git status --short     # 비어 있어야 한다
 |---|---|
 | **PIER 옛 공개 엔진 `bim_pier_test.js` 지우기** — 운영은 2026-11-15 `bim_pier.js`(계산 없음)로 바꿨다. 남은 건 index_claude 가 아직 부르는 `bim_pier_test.js` (계산 코드 공개). index_claude 를 `bim_pier.js` 로 바꾸고 지울지 사용자 확인 | 「지금 운영에 나가 있는 것」 PIER |
 | **PIER 교좌장치** — 받침 콘크리트 위의 장치 (사용자 결정: 나중에). IFC4X3 의 IfcBearing 도 그때 | 「PIER — 지금 어디까지」 |
-| **PIER 도면 다듬기** — 다주식 · 문형 + 말뚝의 기본 말뚝 수(3×2 가 넓은 기초 가운데에 몰림), T형 곡선 헌치 R 치수선이 길게 뻗음, 말뚝이 길면 축척이 작아짐(끊음 표시?) | — |
+| **PIER 도면 다듬기** — 다주식 · 문형 + 말뚝의 기본 말뚝 수(3×2 가 넓은 기초 가운데에 몰림), T형 곡선 헌치 R 치수선이 길게 뻗음. ~~말뚝이 길면 축척이 작아짐~~ 2026-11-19 끊음 표시로 해결 | — |
+| **PIER 배근 2단계** — 철근 구조도 A3(배근도 · 가공도 · 재료표 → DXF), 그다음 횃불형 머리 · 중공 안쪽 면 · crosstie · 나선 · 받침 콘크리트 철근 · KDS 정착 자동 세분 | 「PIER — 지금 어디까지」 배근 |
+| **PIER 가져올 만한 것(AAbutPier 참고)** — 위아래 단면이 다른 기둥, 교축으로 넓어지는 코핑, 기초 윗면 경사 | — |
 | **PIER IFC4X3** — 지금 IFC4(Building 구조를 빌려 씀). 교량 구조(IfcBridge)가 필요하면 4X3 로 | `macroPIER/php/pier_ifc.php` 머리말 |
 | **스토어 도면 엔진을 공통 도면 작성 기준으로** — `store/api/wall.php` 의 글자 · 치수선 값을 `drawing_standard.json` 에서 가져오게 (PIER 는 이미 그렇게 한다) | `DRAWING_STANDARD.md` 「누가 쓰나」 |
 | **`/dev/` · 운영 첫 화면 로딩 줄이기** — 2026-11-15 **대부분 했다** (design `01e4927` dev · `44220cd` 운영): Pretendard 를 한글에만(unicode-range) → 첫 화면 1MB → 354KB · `/dev/` 첫 화면의 `?action=stats` 뺌 · `/dev/` 로딩 2.5s → 1.1s. **남은 것** ① ~~`dev/_deploy.php` 다시 올리기~~ 2026-11-15 올림 — `/dev/` 의 `?v=` 가 파일 내용 해시로 붙는 것 확인 ② **2026-11-15 새 `index.html` 을 만들어 사용자에게 줌(FTP 로 덮어쓰기)** — PHP 는 원본 그대로, 스크립트는 `layout_body.js` 하나 · 10분 자동 `?v=` (첫 화면 요청 10개 · 0.6s, PIER 그림 · 3D · PLATE3D 확인). 설명은 `design/SYNC.md`. 이전 메모: 운영 `index.html`(서버 파일, 저장소에 없음, 방문자 수 PHP 가 들어 있다)이 메뉴에서 뺀 화면 스크립트 ~30개 + three.js · Konva(unpkg)를 처음부터 다 받는다 — 메뉴는 GitHub 에서 오므로 동작과는 무관, 첫 방문 속도만의 문제. 할 때는 원본을 FTP 에서 받아 PHP 부분을 지키고 고친다 ③ 탭 로딩 표시가 안 멈춤 — 이 환경에선 재현 안 됨(로드 1.1s 에 끝남). 후보: 카페24 에서 받던 글꼴(이제 안 받음) · Cloudflare 방문통계 스크립트(`cloudflareinsights` beacon) — 사용자 확인 대기 | 이 파일 · 2026-11-15 |
@@ -356,6 +359,7 @@ git status --short     # 비어 있어야 한다
 **맨 위가 최신.** 한 줄에 하나: 날짜 · 커밋 · 무엇이 · 어디까지(테스트/운영).
 
 ### 2026-11-19
+- **STATUS: PIER 현재 상황 정리** — 운영 표 「테스트 화면과의 차이」(없음 → 기호 · 배근), 「테스트에만 있는 것」 PIER 줄, 「PIER — 지금 어디까지」(기호 · 끊음 · 수량표), 「아직 안 한 것」에 배근 2단계 · AAbutPier 참고 항목.
 - **design: 서버 엔진 화면(rebar_srv)에 예제 단면 3가지 — 같은 철근 행을 T형보 · I거더 · 박스 복부에 그대로** · `design` `4c9efae` + `macroRebar` (43) · **테스트(/dev/ REBAR PARA · index_claude 의 REBAR PARA) — 서버 엔진은 그대로(pull 불필요)** — Section 목록에서 예제를 고르면 REBAR 표의 같은 행(직선 1 · ∩ 1 · U 1 · 종방향 4줄 · 덕트 3)을 단면만 바꿔 계산. 「덕트」 체크로 덕트 있고 없고. 거더(I/T/poly) 경로가 엑셀의 duct · seat1 · ductescape 행도 서버로 넘긴다(전에는 trebar · lrebar 만). 엑셀: `macroRebar/docs/tbeam/xlsx/` 입력 3개 + 파라메트릭 수식 통합문서(수식 대 엔진 0.1 mm 이내, 절곡부 종방향 1.56 mm 이내).
 - **PIER(dev): 배근 1단계 — Rebar 카드 · 3D 철근 · 재료표 · IFC 철근 · 정착/이음(산정시트 식 · 직접 입력 · 40d)** · macroPIER `004d539` `cd67727` + macroBIM `bim_pier_dev.js` `bim_pier_3d.js` + design dev `?v=14` · **시험(/dev/)** — 사용자가 정한 배근(부재 · 역할 · 지름 · @간격/EA · 단)을 서버가 형상에 놓는다: 코핑 상·하면 주철근(밑면 · 받침 단차 기울기를 따라) · 스터럽 · 측면, 기둥 다월(기초에 90° 갈고리) + 주철근(정척마다 겹이음, 코핑 정착 모자라면 갈고리) · 띠철근, 기초 상·하면 양방향. 이음은 기둥 자리를 피해 둔다. 정착·이음은 design `mod_rebar_leng.js` 식을 PHP 로 옮겨 시트와 219 경우 대조(`macroPIER/tools/lap_parity.js`), 자동 · 자동+수정 · 직접(mm 또는 40d). 정착 부족 · D35 초과 인장 겹이음은 경고. 구조계산(필요 철근량)은 하지 않는다. 아직 없는 것: 철근 구조도 A3(2단계) · 횃불형 머리 철근 · 중공 안쪽 면 · crosstie · 나선 · 받침 콘크리트 철근. `bim_pier_3d.js` 는 운영도 쓰는 파일 — 세 번째 인자(철근)가 없으면 예전과 같다.
 - **계획서 증빙 예제 — 같은 철근 행 7개를 T형보 · I거더 · 박스 복부 한 개에 그대로 (엔진 변경 없음)** · `macroRebar` (42) `docs/tbeam/types.js` · **로컬 시험만** — 복부 두께 500 · 300 · 450, 꺾임점 정답 대비 0.00 mm. 끝 종방향 철근의 절곡부 진입은 I거더에서만(시작이 절곡부 근처일 때).
