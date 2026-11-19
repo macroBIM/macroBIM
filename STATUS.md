@@ -308,6 +308,9 @@ git status --short     # 비어 있어야 한다
 - **검증 시트는 엑셀이 원본** (2026-10-18 사용자 결정) — `PSCBOX_YANGPYEONG_S18.xlsx` · `PSCBOX_BUKSIL_DIAPHRAGM_P1.xlsx`.
   고칠 때는 **엑셀을 직접** 고친다 (사람이 엑셀에서, Claude 는 openpyxl 로 그 행만). `tools/make_yangpyeong.py` ·
   `tools/make_dia_p1.py` 는 처음 만들 때만 쓴 것이라, 엑셀이 있으면 덮어쓰지 않고 멈춘다. 출처 설명은 엑셀의 `#` 주석 행에 있다.
+- **철근 자동배치 창 (계획서 증빙 예제 · 2026-11-19 ~)** — 이 창이 고치는 파일은 셋뿐이다:
+  `design/rebar_srv/rebar_server.js` (main · 서버 엔진 화면) · `macroRebar` 저장소(PHP 엔진 · `docs/tbeam/`) · 이 파일의 「기록」.
+  **PIER · PLATE3D · `layout_body*.js` · dev 브랜치는 안 건드린다.** 다른 창이 `rebar_server.js` 를 고쳐야 하면 먼저 `git pull` 하고 그 함수만 고친다.
 
 ---
 
