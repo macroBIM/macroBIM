@@ -351,6 +351,9 @@ git status --short     # 비어 있어야 한다
 
 **맨 위가 최신.** 한 줄에 하나: 날짜 · 커밋 · 무엇이 · 어디까지(테스트/운영).
 
+### 2026-11-19
+- **서버 엔진: T형보 예제 탐색 · 덕트 사이 철근 시험용 옵션 + 시트 꺾임각(angs) 이식 누락 수리** · `macroRebar` `91a0afc` · **로컬 시험만(서버 미반영 — pull.php 전)** — 옵션을 끄면 결과 동일(S18 · 격벽 · AASHTO IV · FIB-72 · para). 다각형 단면 경로에 덕트 행 연결, 면에 붙지 않는 조각(nors 0), 종방향 덕트 탈출(J → 중력 → 축). 확인된 것과 실패한 경우는 `macroRebar/STATUS.md` (34) · `docs/tbeam`.
+
 ### 2026-11-16
 - **PIER 운영 승격(2차) — 위저드 버튼을 단계 줄로** · macroBIM `505a3e9` (`bim_pier.js` ← `bim_pier_dev.js`, 머리말 유지 · 본문 같음) + design main `e99093b` (`bim_pier.js?v=2`) · **운영**
 - **PIER(dev): 위저드 Back / Next · Done 을 단계 줄 오른쪽으로 — 아래 버튼 줄 없앰, 카드 높이 줄임** · macroBIM `465a441` + design dev `?v=12` · **시험(/dev/)** → 위 2차 승격으로 운영에도.
