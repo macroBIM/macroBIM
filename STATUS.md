@@ -279,7 +279,7 @@ git status --short     # 비어 있어야 한다
 | **J 엔진** | `jfield.js` · `bench/jbench.js` · `bench/jengine.js` | 논문의 J 최소화를 그대로 짠 **두 번째 엔진**. PSCBOX 일반단면 페이지의 **기본 엔진**이다 (`Solver` 버튼으로 옛 `physics.js` 와 오간다). 격벽 페이지는 아직 옛 엔진만 쓴다 |
 | **Crossbeam 폼** | `plate3d/quick_crossbeam_test.js` | 폼과 그림은 있고, PLATE3D 로 모델 보내기와 워크북 내보내기가 없다 |
 | **Dashboard · PSCBOX · Crossbeam 메뉴** | `design/layout_body_test.js` | `design/SYNC.md` 참조 — 옮기지 않는다 |
-| **PIER (/dev/)** | `bim_pier_dev.js` (`?v=14`) ← design **dev** `layout_body_test.js` | 운영에 없는 것: 자체 기호 체계 · 배근 1단계(2026-11-19). `/dev/` 에서 확인한 뒤 `bim_pier.js` 로 다시 승격 |
+| **PIER (/dev/)** | `bim_pier_dev.js` (`?v=15`) ← design **dev** `layout_body_test.js` | 운영에 없는 것: 자체 기호 체계 · 배근 1단계(2026-11-19). `/dev/` 에서 확인한 뒤 `bim_pier.js` 로 다시 승격 |
 
 
 ### PIER — 지금 어디까지 (2026-11-19 · 운영은 11-16 2차 승격본 · `/dev/` 는 배근 1단계까지)
@@ -359,6 +359,7 @@ git status --short     # 비어 있어야 한다
 **맨 위가 최신.** 한 줄에 하나: 날짜 · 커밋 · 무엇이 · 어디까지(테스트/운영).
 
 ### 2026-11-19
+- **PIER(dev): 배근 — 시작값 버튼(Light · Standard · Heavy) 없앰 → 처음부터 기본값(Standard) + 「Default values」 버튼 하나, 기둥 띠철근은 위 · 아래 끝 구간 L0 @끝 · 가운데 @가운데 따로 (L0 빈칸 = 자동 max(단면 최대 치수, 기둥 높이/6, 450))** · macroPIER `3b0bea0` + macroBIM `bim_pier_dev.js` + design dev `?v=15` · **시험(/dev/)** — 사용자 요청: 「사용자가 알아서 수정하게」. 정착·이음의 자동 · 자동+수정 · 직접 버튼은 그대로.
 - **STATUS: PIER 현재 상황 정리** — 운영 표 「테스트 화면과의 차이」(없음 → 기호 · 배근), 「테스트에만 있는 것」 PIER 줄, 「PIER — 지금 어디까지」(기호 · 끊음 · 수량표), 「아직 안 한 것」에 배근 2단계 · AAbutPier 참고 항목.
 - **design: 서버 엔진 화면(rebar_srv)에 예제 단면 3가지 — 같은 철근 행을 T형보 · I거더 · 박스 복부에 그대로** · `design` `4c9efae` + `macroRebar` (43) · **테스트(/dev/ REBAR PARA · index_claude 의 REBAR PARA) — 서버 엔진은 그대로(pull 불필요)** — Section 목록에서 예제를 고르면 REBAR 표의 같은 행(직선 1 · ∩ 1 · U 1 · 종방향 4줄 · 덕트 3)을 단면만 바꿔 계산. 「덕트」 체크로 덕트 있고 없고. 거더(I/T/poly) 경로가 엑셀의 duct · seat1 · ductescape 행도 서버로 넘긴다(전에는 trebar · lrebar 만). 엑셀: `macroRebar/docs/tbeam/xlsx/` 입력 3개 + 파라메트릭 수식 통합문서(수식 대 엔진 0.1 mm 이내, 절곡부 종방향 1.56 mm 이내).
 - **PIER(dev): 배근 1단계 — Rebar 카드 · 3D 철근 · 재료표 · IFC 철근 · 정착/이음(산정시트 식 · 직접 입력 · 40d)** · macroPIER `004d539` `cd67727` + macroBIM `bim_pier_dev.js` `bim_pier_3d.js` + design dev `?v=14` · **시험(/dev/)** — 사용자가 정한 배근(부재 · 역할 · 지름 · @간격/EA · 단)을 서버가 형상에 놓는다: 코핑 상·하면 주철근(밑면 · 받침 단차 기울기를 따라) · 스터럽 · 측면, 기둥 다월(기초에 90° 갈고리) + 주철근(정척마다 겹이음, 코핑 정착 모자라면 갈고리) · 띠철근, 기초 상·하면 양방향. 이음은 기둥 자리를 피해 둔다. 정착·이음은 design `mod_rebar_leng.js` 식을 PHP 로 옮겨 시트와 219 경우 대조(`macroPIER/tools/lap_parity.js`), 자동 · 자동+수정 · 직접(mm 또는 40d). 정착 부족 · D35 초과 인장 겹이음은 경고. 구조계산(필요 철근량)은 하지 않는다. 아직 없는 것: 철근 구조도 A3(2단계) · 횃불형 머리 철근 · 중공 안쪽 면 · crosstie · 나선 · 받침 콘크리트 철근. `bim_pier_3d.js` 는 운영도 쓰는 파일 — 세 번째 인자(철근)가 없으면 예전과 같다.

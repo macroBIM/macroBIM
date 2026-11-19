@@ -257,6 +257,7 @@
     ".pr-rbwarn{color:#b45309;font-size:12.5px;margin:3px 0}" +
     ".pr-rbnote{color:var(--muted);font-size:12px;margin:3px 0}" +
     ".pr-rbact{display:flex;gap:8px;margin-top:10px}" +
+    ".pr-rbdfl{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin:0 0 4px}.pr-rbdfl .pr-cap{margin:0}" +
     ".pr-sched{border-collapse:collapse;font-size:12.5px;margin:0 0 16px;min-width:100%}" +
     ".pr-sched th{position:sticky;top:-12px;background:#f1f5f9;font-size:11px;font-weight:700;color:var(--muted);text-align:left;padding:6px 10px;border-bottom:1px solid var(--line)}" +
     ".pr-sched td{padding:4px 10px;border-bottom:1px solid var(--hair);white-space:nowrap}" +
@@ -285,25 +286,24 @@
     col: [["main", "Main bars (dowel + lap)", "주철근", 0], ["tie", "Ties", "띠철근", 0]],
     fdn: [["bx", "Bottom, transverse", "하면 교축직각", 0], ["by", "Bottom, longitudinal", "하면 교축", 0], ["tx", "Top, transverse", "상면 교축직각", 0], ["ty", "Top, longitudinal", "상면 교축", 0]]
   };
-  // starting levels — example values only (KS names; other standards take the nearest diameter)
-  var RB_LEVELS = [["light", "Light"], ["std", "Standard"], ["heavy", "Heavy"]];
-  var RB_PRESET = {
-    light: { cap: { top: ["D25", 200, 1], bot: ["D25", 200, 1], stir: ["D13", 200], side: ["D13", 300] }, col: { main: ["D25", 200], tie: ["D13", 200] }, fdn: { bx: ["D22", 200], by: ["D22", 200], tx: ["D16", 300], ty: ["D16", 300] } },
-    std: { cap: { top: ["D29", 150, 1], bot: ["D29", 150, 1], stir: ["D16", 150], side: ["D16", 250] }, col: { main: ["D32", 150], tie: ["D16", 150] }, fdn: { bx: ["D25", 150], by: ["D25", 150], tx: ["D19", 250], ty: ["D19", 250] } },
-    heavy: { cap: { top: ["D32", 125, 2], bot: ["D32", 125, 1], stir: ["D16", 100], side: ["D19", 200] }, col: { main: ["D35", 125], tie: ["D16", 100] }, fdn: { bx: ["D29", 125], by: ["D29", 125], tx: ["D22", 200], ty: ["D22", 200] } }
-  };
-  function presetRows(level, sys) {
-    var P0 = RB_PRESET[level] || RB_PRESET.std, rows = [];
+  // default values (the "Default values" button and a new pier) — common starting values only, not a design;
+  // KS names, other standards take the nearest diameter. Column ties: ends (L0) @ve, middle @v, L0 auto (le 0).
+  var RB_DEFAULT = { cap: { top: ["D29", 150, 1], bot: ["D29", 150, 1], stir: ["D16", 150], side: ["D16", 250] },
+    col: { main: ["D32", 150], tie: ["D16", 150, 1, 100] }, fdn: { bx: ["D25", 150], by: ["D25", 150], tx: ["D19", 250], ty: ["D19", 250] } };
+  function defaultRows(sys) {
+    var rows = [];
     ["cap", "col", "fdn"].forEach(function (m) { RB_ROLES[m].forEach(function (r) {
-      var v = P0[m][r[0]]; rows.push({ m: m, r: r[0], bar: sys === "KS" ? v[0] : nearestBar(sys, barDia("KS", v[0])), q: "s", v: v[1], ly: v[2] || 1 });
+      var v = RB_DEFAULT[m][r[0]], row = { m: m, r: r[0], bar: sys === "KS" ? v[0] : nearestBar(sys, barDia("KS", v[0])), q: "s", v: v[1], ly: v[2] || 1 };
+      if (m === "col" && r[0] === "tie") { row.ve = v[3]; row.le = 0; }
+      rows.push(row);
     }); });
     return rows;
   }
   function newRebar() {
-    return { on: false, level: "std", cover: { cap: 60, col: 75, fdn: 100 }, stock: 12000,
+    return { on: false, cover: { cap: 60, col: 75, fdn: 100 }, stock: 12000,
       lap: { sys: "KS", std: "gujo", fck: 30, fy: 400, mode: "auto", grade: "B",
         calc: { cover: 50, ctc: 125, ktr: 0, lam: 1, way: "equ", phic: 0.65, eta1: 1, K: 0, lamTr: 0, p: 0, a1: 1, a6: 1, asreq: 1, asprov: 1 }, table: {} },
-      rows: presetRows("std", "KS") };
+      rows: defaultRows("KS") };
   }
   function newPier(name) {
     return {
@@ -962,6 +962,7 @@
       var t = "<div class='pr-rbtot'><b>" + fmtKg(rb.total) + "</b> · " + rb.bars.length + " bars · " + rb.marks.length + " marks";
       t += "<span class='pr-rbdia'>" + rb.sum.map(function (s2) { return s2.bar + " " + fmtKg(s2.wt); }).join(" · ") + "</span></div>";
       (rb.warn || []).forEach(function (w) { t += "<div class='pr-rbwarn'>&#9888; " + w + "</div>"; });
+      (rb.info || []).forEach(function (w) { t += "<div class='pr-rbnote'>" + w + "</div>"; });
       (rb.note || []).forEach(function (w) { t += "<div class='pr-rbnote'>" + w + "</div>"; });
       rbSum.innerHTML = t;
       paintLens(rb);
@@ -1013,17 +1014,16 @@
       c.appendChild(hd);
       var b = h("div", "pr-body");
       if (!R.on) { b.appendChild(h("p", "pr-cap", "Switch on to place bars in the cap, columns and footing — shown in the 3D preview, in the IFC and in a bar schedule. Anchorage and lap lengths come from the calculation sheet or from your own values.")); c.appendChild(b); return c; }
-      // starting level
-      b.appendChild(h("div", "pr-subhd", "Start from"));
-      var lv = h("div", "pr-tabs");
-      RB_LEVELS.forEach(function (o) {
-        var t = h("button", "pr-tab" + (R.level === o[0] ? " on" : ""), o[1]); t.type = "button";
-        t.onclick = function () { R.level = o[0]; R.rows = presetRows(o[0], L.sys); renderPerPier(); };
-        lv.appendChild(t);
-      });
-      if (R.level === "custom") lv.appendChild(h("span", "pr-tab on", "Custom"));
-      b.appendChild(lv);
-      b.appendChild(h("p", "pr-cap", "Example arrangements to start from — replace them with your design. Nothing here checks the required steel."));
+      // one button back to the default values (rows, covers, stock length) — then the user edits
+      var dfl = h("div", "pr-rbdfl");
+      var db0 = h("button", "pr-btn pr-ghost", "&#8634; Default values"); db0.type = "button";
+      db0.onclick = function () {
+        if (!confirm("Replace every rebar row, the covers and the stock length with the default values?")) return;
+        R.rows = defaultRows(L.sys); R.cover = { cap: 60, col: 75, fdn: 100 }; R.stock = 12000; renderPerPier();
+      };
+      dfl.appendChild(db0);
+      dfl.appendChild(h("span", "pr-cap", "The rows start from common values — change them to your design. Nothing here checks the required steel."));
+      b.appendChild(dfl);
       // common
       b.appendChild(h("div", "pr-subhd", "Common"));
       var g = h("div", "pr-ingrid");
@@ -1097,7 +1097,7 @@
       var bars = (BARS[L.sys] || BARS.KS).map(function (x) { return x[0]; });
       function memberRows(m, title) {
         b.appendChild(h("div", "pr-subhd", title));
-        var tb = h("table", "pr-rbtbl"); tb.innerHTML = "<thead><tr><th>Role</th><th>Bar</th><th>Spacing / count</th><th>" + (m === "cap" ? "Layers" : "") + "</th></tr></thead>";
+        var tb = h("table", "pr-rbtbl"); tb.innerHTML = "<thead><tr><th>Role</th><th>Bar</th><th>Spacing / count</th><th>" + (m === "cap" ? "Layers" : (m === "col" ? "End zone L0" : "")) + "</th></tr></thead>";
         var body = h("tbody");
         RB_ROLES[m].forEach(function (role) {
           var row = null; R.rows.forEach(function (r) { if (r.m === m && r.r === role[0]) row = r; });
@@ -1111,9 +1111,25 @@
           var un = h("span", "pr-unit", row.q === "n" ? (m === "col" ? "per column" : "") : "mm");
           td2.appendChild(qs); td2.appendChild(vi); td2.appendChild(un); tr.appendChild(td2);
           var td3 = h("td");
+          if (m === "col" && role[0] === "tie") {
+            // ties: dense at the top and bottom ends (L0), wider in the middle
+            if (row.ve == null) row.ve = row.v; if (row.le == null) row.le = 0;
+            var ve = h("input"); ve.type = "number"; ve.step = "25"; ve.value = row.ve; ve.className = "pr-mono"; ve.title = "Spacing at the top and bottom ends";
+            vi.title = "Spacing in the middle";
+            var tz = function () { var on = row.q === "s"; ve.style.display = on ? "" : "none"; lbE.style.display = on ? "" : "none"; lbM.style.display = on ? "" : "none"; td3.style.visibility = on ? "" : "hidden"; };
+            var lbE = h("span", "pr-unit", "ends ·"), lbM = h("span", "pr-unit", "middle");
+            td2.insertBefore(ve, vi); td2.insertBefore(lbE, vi); td2.insertBefore(lbM, vi);
+            un.textContent = row.q === "n" ? "per column" : "mm";
+            ve.addEventListener("input", function () { var v = parseFloat(ve.value); if (!isNaN(v) && v > 0) { row.ve = v; custom(); } });
+            var le = h("input"); le.type = "number"; le.step = "50"; le.placeholder = "auto"; le.value = row.le > 0 ? row.le : ""; le.className = "pr-mono";
+            le.title = "Length of each end zone. Empty = auto: max(largest section size, column height / 6, 450)";
+            le.addEventListener("input", function () { var v = parseFloat(le.value); row.le = !isNaN(v) && v > 0 ? v : 0; custom(); });
+            td3.appendChild(le); td3.appendChild(h("span", "pr-unit", "mm"));
+            qs.addEventListener("change", tz); tz();
+          }
           if (role[3]) { var ls = h("select", "pr-sel"); [1, 2].forEach(function (n) { var op = h("option", null, String(n)); op.value = n; if (row.ly === n) op.selected = true; ls.appendChild(op); }); ls.addEventListener("change", function () { row.ly = +ls.value; custom(); }); td3.appendChild(ls); }
           tr.appendChild(td3);
-          function custom() { R.level = "custom"; rbChanged(); }
+          function custom() { rbChanged(); }
           bs.addEventListener("change", function () { row.bar = bs.value; custom(); tr.classList.toggle("off", !row.bar); paintLensSoon(); });
           qs.addEventListener("change", function () { row.q = qs.value; row.v = row.q === "n" ? (m === "col" ? 24 : 12) : 150; vi.value = row.v; un.textContent = row.q === "n" ? (m === "col" ? "per column" : "") : "mm"; custom(); });
           vi.addEventListener("input", function () { var v = parseFloat(vi.value); if (!isNaN(v) && v > 0) { row.v = v; custom(); } });
