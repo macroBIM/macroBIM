@@ -359,6 +359,7 @@ git status --short     # 비어 있어야 한다
 **맨 위가 최신.** 한 줄에 하나: 날짜 · 커밋 · 무엇이 · 어디까지(테스트/운영).
 
 ### 2026-11-23
+- **서버 엔진 화면 — 철근이 자리를 잡는 동안 J 값을 보여 준다 + 「J 수렴 기록」 표** · `design` `5661872` + `macroRebar` (51) · **테스트(/dev/ REBAR · REBAR PARA) · 서버 반영 필요(pull.php 또는 PULL_KEY 시크릿 — (45)(46)(48)(49)(51))** — 재생 중 2D 오른쪽 위에 지금 움직이는 조각 · 줄의 J 값, 걸음 번호, 단계, 변화 그래프(log 눈금). 아래 카드에 조각 · 줄마다 걸음 수 · 단계별 J 시작 → 끝 · 작은 그래프. 값은 엔진이 풀이 중에 적은 것 그대로(기록만 추가 · S18 · 격벽 · IV · FIB 숫자 그대로). 옛 엔진이면 J 없이 예전처럼 재생.
 - **REBAR PARA 의 Section 목록을 예제만 남김** · `design` `834c60a` · **테스트(/dev/ · index_claude 의 REBAR PARA) — pull 불필요(화면만)** — 표준 거더(AASHTO · FDOT) · 엑셀 poly · PSCBOX 항목을 뺐다(사용자 「예제 빼고는 다 지워 · 필요없어 일단」). 엑셀을 올리면 그때만 「엑셀 poly (올린 파일의 단면)」 한 줄이 생긴다. REBAR 메뉴의 목록은 그대로.
 - **엔진 자동 배포 설정 — `macroRebar` 에 올리면 GitHub Actions 가 pull.php 를 대신 연다** · `macroRebar` (50) `.github/workflows/deploy-engine.yml` · **아직 안 돎 — 저장소 Secrets 에 `PULL_KEY` 가 없어 첫 실행 실패(11-23).** 사용자가 `macroRebar` 저장소 Settings → Secrets and variables → Actions 에 `PULL_KEY`(서버 `/config/pull_config.php` 의 값)를 넣으면 다음 엔진 push 부터 자동. 그때까지는 지금처럼 pull 링크를 손으로.
 - **엔진: 절곡부 안 종방향 철근 자리를 원호 가운데 → 곡선이 시작하는 자리로** · `macroRebar` (49) · **서버 반영 필요(pull.php — (45)(46)(48)(49))** · 화면 변경 없음 — 사용자 지적(「곡선 시작부에 있어야 하는데 중앙부에 있다」). 예전 규칙은 철근이 원호 가운데에 닿아 줄보다 안쪽으로 내려앉았다. 지금은 줄과 나란한 다리의 접점에 붙어 줄과 한 줄에 선다. 예제 · 엑셀(시트 철근) 경로만 바뀜(`pocket | mid` 로 예전 규칙). 식과 차이 0.00 ~ 0.04 mm. **표준 거더 검증(AASHTO 자동 · FIB)은 아직 예전 규칙** — 정답 식까지 같이 바꿔야 해서 사용자 결정 대기. S18 · 격벽 · IV · FIB 숫자 그대로.
