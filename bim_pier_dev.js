@@ -261,6 +261,18 @@
     ".pr-rbch{display:flex;align-items:center;gap:9px;font-size:14px;font-weight:700;color:#0f172a;margin:22px 0 8px;padding-bottom:7px;border-bottom:2px solid var(--line)}" +
     ".pr-rbch .n{display:inline-flex;align-items:center;justify-content:center;min-width:22px;height:22px;padding:0 6px;border-radius:6px;background:var(--dim);color:#fff;font-size:12px;font-variant-numeric:tabular-nums}" +
     ".pr-rbtbl td .no{display:inline-block;min-width:34px;color:var(--dim);font-weight:700;font-size:12px;font-family:ui-monospace,Menlo,Consolas,monospace}" +
+    ".pr-rbsub{display:flex;align-items:center;gap:8px;font-size:13px;font-weight:700;color:#334155;margin:14px 0 6px}" +
+    ".pr-rbsub .no{color:var(--dim);font-family:ui-monospace,Menlo,Consolas,monospace;font-size:12px;min-width:34px}" +
+    ".pr-rbsubk{font-weight:400;color:var(--muted);font-size:12px}" +
+    ".pr-rbt2 td{padding:4px 8px}.pr-rbt2 .no{color:var(--dim);font-weight:700;font-family:ui-monospace,Menlo,Consolas,monospace;font-size:12px}" +
+    ".pr-rbin{width:78px;text-align:right;padding:5px 7px;margin:0 4px;border:1px solid var(--line);border-radius:6px;font-size:13px}" +
+    ".pr-rbgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:2px 24px;margin:0 0 4px 8px}" +
+    ".pr-rbf0{justify-content:flex-start}" +
+    ".pr-rbf{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:5px 0;border-bottom:1px dashed var(--hair);font-size:13px}" +
+    ".pr-rbf .l{color:var(--muted);font-size:12.5px}.pr-rbf .v{display:inline-flex;align-items:center;gap:2px}" +
+    ".pr-rbchk{display:inline-flex;align-items:center;gap:7px;font-size:13px;cursor:pointer}" +
+    ".pr-rbnone{color:var(--muted);font-size:12.5px;margin:2px 0 6px 8px}" +
+    ".pr-rbsub + .pr-rbtbl, .pr-rbsub ~ .pr-gbtn{margin-left:0}" +
     ".pr-rblm{display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin:10px 0 2px}.pr-rblml{font-size:12px;font-weight:600;color:var(--muted);margin-right:6px}" +
     ".pr-rbdfl{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin:0 0 4px}.pr-rbdfl .pr-cap{margin:0}" +
     ".pr-sched{border-collapse:collapse;font-size:12.5px;margin:0 0 16px;min-width:100%}" +
@@ -288,27 +300,42 @@
   // roles per member: [code, label, Korean (for us — not shown), has layers]
   var RB_ROLES = {
     cap: [["top", "Top main bars", "상면 주철근", 1], ["bot", "Bottom main bars", "하면 주철근", 1], ["stir", "Stirrups", "스터럽", 0], ["side", "Side bars", "측면 철근", 0]],
-    col: [["main", "Main bars (dowel + lap)", "주철근", 0], ["tie", "Ties", "띠철근", 0]],
+    col: [["start", "Starter bars", "스타터(기초 정착)", 0], ["main", "Main bars", "주철근", 0], ["tie", "Ties", "띠철근", 0], ["spiral", "Spiral", "나선철근", 0],
+      ["tie2", "Ties (inner layers)", "안쪽 단 띠철근", 0], ["cross", "Crossties", "크로스타이", 0]],   // names only — chapter 4 has its own inputs
     fdn: [["bx", "Bottom, transverse", "하면 교축직각", 0], ["by", "Bottom, longitudinal", "하면 교축", 0], ["tx", "Top, transverse", "상면 교축직각", 0], ["ty", "Top, longitudinal", "상면 교축", 0]]
   };
   // default values (the "Default values" button and a new pier) — common starting values only, not a design;
-  // KS names, other standards take the nearest diameter. Column ties: ends (L0) @ve, middle @v, L0 auto (le 0).
+  // KS names, other standards take the nearest diameter.
   var RB_DEFAULT = { cap: { top: ["D29", 150, 1], bot: ["D29", 150, 1], stir: ["D16", 150], side: ["D16", 250] },
-    col: { main: ["D32", 150], tie: ["D16", 150, 1, 100] }, fdn: { bx: ["D25", 150], by: ["D25", 150], tx: ["D19", 250], ty: ["D19", 250] } };
+    fdn: { bx: ["D25", 150], by: ["D25", 150], tx: ["D19", 250], ty: ["D19", 250] } };
+  function kb(sys, b) { return sys === "KS" ? b : nearestBar(sys, barDia("KS", b)); }
   function defaultRows(sys) {
     var rows = [];
-    ["cap", "col", "fdn"].forEach(function (m) { RB_ROLES[m].forEach(function (r) {
-      var v = RB_DEFAULT[m][r[0]], row = { m: m, r: r[0], bar: sys === "KS" ? v[0] : nearestBar(sys, barDia("KS", v[0])), q: "s", v: v[1], ly: v[2] || 1 };
-      if (m === "col" && r[0] === "tie") { row.ve = v[3]; row.le = 0; }
-      rows.push(row);
+    ["cap", "fdn"].forEach(function (m) { RB_ROLES[m].forEach(function (r) {
+      var v = RB_DEFAULT[m][r[0]]; rows.push({ m: m, r: r[0], bar: kb(sys, v[0]), q: "s", v: v[1], ly: v[2] || 1 });
     }); });
     return rows;
+  }
+  // columns (chapter 4): main-bar layers · starter bars · splices along the height · ties (zones) · crossties.
+  // Zone length L: -1 = L0 auto (max(section, height/6, 450)), 0 = the rest, else mm. 0 elsewhere = auto.
+  function defaultCol(sys) {
+    return { layers: [{ bar: kb(sys, "D32"), q: "s", v: 150, nb: 8, nh: 8, bundle: 1, d: 0 }],
+      starter: { on: true, hook: "out", hl: 0, proj: 0, splice: "lap", stag: true, soff: 0, straightIn: true },
+      splices: [],
+      ties: { bar: kb(sys, "D16"), type: "hoop", zones: [{ L: -1, s: 100 }, { L: 0, s: 150 }, { L: -1, s: 100 }], inner: 2 },
+      cross: { on: true, bar: kb(sys, "D16"), sup: "alt", every: 1 } };
+  }
+  function colBars(C) {
+    if (!C) return []; var o = [];
+    C.layers.forEach(function (x) { if (x.bar) o.push(x.bar); }); C.splices.forEach(function (x) { if (x.bar) o.push(x.bar); });
+    if (C.ties && C.ties.bar) o.push(C.ties.bar); if (C.cross && C.cross.on && C.cross.bar) o.push(C.cross.bar);
+    return o;
   }
   function newRebar() {
     return { on: false, line: "double", cover: { cap: 60, col: 75, fdn: 100 }, stock: 12000,
       lap: { sys: "KS", std: "gujo", fck: 30, fy: 400, mode: "auto", grade: "B",
         calc: { cover: 50, ctc: 125, ktr: 0, lam: 1, way: "equ", phic: 0.65, eta1: 1, K: 0, lamTr: 0, p: 0, a1: 1, a6: 1, asreq: 1, asprov: 1 }, table: {} },
-      rows: defaultRows("KS") };
+      rows: defaultRows("KS"), col: defaultCol("KS") };
   }
   function newPier(name) {
     return {
@@ -966,6 +993,7 @@
       if (!rbSum || !rbSum.isConnected) return;
       var t = "<div class='pr-rbtot'><b>" + fmtKg(rb.total) + "</b> · " + rb.bars.length + " bars · " + rb.marks.length + " marks";
       t += "<span class='pr-rbdia'>" + rb.sum.map(function (s2) { return s2.bar + " " + fmtKg(s2.wt); }).join(" · ") + "</span></div>";
+      if (rb.couplers && rb.couplers.length) t += "<div class='pr-rbnote'>Couplers: " + rb.couplers.map(function (c) { return c.bar + " × " + c.n; }).join(" · ") + "</div>";
       (rb.warn || []).forEach(function (w) { t += "<div class='pr-rbwarn'>&#9888; " + w + "</div>"; });
       (rb.info || []).forEach(function (w) { t += "<div class='pr-rbnote'>" + w + "</div>"; });
       (rb.note || []).forEach(function (w) { t += "<div class='pr-rbnote'>" + w + "</div>"; });
@@ -978,6 +1006,7 @@
       if (!rbLens || !rbLens.isConnected) return;
       var R = P().rebar, L = R.lap, ed = L.mode !== "auto";
       var used = {}; R.rows.forEach(function (r) { if (r.bar) used[r.bar] = 1; });
+      colBars(R.col).forEach(function (b) { used[b] = 1; });
       var cols = [["ld", "Tension l<sub>d</sub>"], ["ldh", "Hook l<sub>dh</sub>"], ["ldc", "Compr. l<sub>dc</sub>"], ["lap", "Lap"]];
       var tb = h("table", "pr-lens");
       var hr = "<tr><th>Bar</th><th class='u'>Used</th>" + cols.map(function (c) { return "<th>" + c[1] + "</th>"; }).join("") + "</tr>";
@@ -1023,7 +1052,7 @@
       var db0 = h("button", "pr-btn pr-ghost", "&#8634; Default values"); db0.type = "button";
       db0.onclick = function () {
         if (!confirm("Replace every rebar row, the covers and the stock length with the default values?")) return;
-        R.rows = defaultRows(L.sys); R.cover = { cap: 60, col: 75, fdn: 100 }; R.stock = 12000; renderPerPier();
+        R.rows = defaultRows(L.sys); R.col = defaultCol(L.sys); R.cover = { cap: 60, col: 75, fdn: 100 }; R.stock = 12000; renderPerPier();
       };
       dfl.appendChild(db0);
       dfl.appendChild(h("span", "pr-cap", "The rows start from common values — change them to your design. Nothing here checks the required steel."));
@@ -1047,6 +1076,8 @@
       ss.addEventListener("change", function () {
         var from = L.sys; L.sys = ss.value; L.table = {};
         R.rows.forEach(function (r) { if (r.bar) r.bar = nearestBar(L.sys, barDia(from, r.bar)); });
+        var cv = function (b) { return b ? nearestBar(L.sys, barDia(from, b)) : b; }, C = R.col;
+        C.layers.forEach(function (x) { x.bar = cv(x.bar); }); C.splices.forEach(function (x) { x.bar = cv(x.bar); }); C.ties.bar = cv(C.ties.bar); C.cross.bar = cv(C.cross.bar);
         renderPerPier();
       });
       sr.appendChild(ss); g.appendChild(sr);
@@ -1153,9 +1184,121 @@
         });
         tb.appendChild(body); b.appendChild(tb);
       }
+      // ── chapter 4: columns ──
+      function colChapter(title) {
+        var p2 = P(), C = R.col || (R.col = defaultCol(L.sys)), no = chapter(title), sub = 0;
+        var anyCircle = p2.cols.some(function (c2) { return c2.shape === "circle"; }), allCircle = p2.cols.every(function (c2) { return c2.shape === "circle"; });
+        var anyRect = p2.cols.some(function (c2) { return c2.shape === "rect"; });
+        function sh(t) { sub++; b.appendChild(h("div", "pr-rbsub", "<span class='no'>" + no + "." + sub + "</span>" + t)); }
+        function ch() { rbChanged(); }
+        function num(val, on, ph, step, w) {
+          var i = h("input"); i.type = "number"; i.className = "pr-mono pr-rbin"; i.step = step || "10"; if (w) i.style.width = w + "px";
+          i.value = val > 0 ? val : ""; if (ph) i.placeholder = ph;
+          i.addEventListener("input", function () { var v = parseFloat(i.value); on(isNaN(v) ? 0 : v); ch(); }); return i;
+        }
+        function sel(opts, val, on, cls) {
+          var e = h("select", "pr-sel" + (cls ? " " + cls : "")); opts.forEach(function (o) { var op = h("option", null, o[1]); op.value = o[0]; if (String(val) === String(o[0])) op.selected = true; e.appendChild(op); });
+          e.addEventListener("change", function () { on(e.value); }); return e;
+        }
+        function barSel(val, on, blank) { var o = (blank ? [["", blank]] : []).concat(bars.map(function (x) { return [x, x]; })); return sel(o, val, on); }
+        function chk(label, val, on) { var w = h("label", "pr-rbchk"); var c2 = h("input"); c2.type = "checkbox"; c2.checked = !!val; c2.addEventListener("change", function () { on(c2.checked); }); w.appendChild(c2); w.appendChild(document.createTextNode(label)); return w; }
+        function field(label, el, unit) { var w = h("div", "pr-rbf" + (label ? "" : " pr-rbf0")); w.appendChild(h("span", "l", label)); var v = h("span", "v"); [].concat(el).forEach(function (x) { v.appendChild(typeof x === "string" ? h("span", "pr-unit", x) : x); }); if (unit) v.appendChild(h("span", "pr-unit", unit)); w.appendChild(v); return w; }
+        function del(on) { var x = h("button", "pr-del", "&times;"); x.type = "button"; x.title = "Remove"; x.onclick = on; return x; }
+        function add(label, on) { var x = h("button", "pr-gbtn", "+ " + label); x.type = "button"; x.onclick = on; return x; }
+
+        // 4.1 main bars — layers 1 to 3
+        sh("Main bars");
+        var t1 = h("table", "pr-rbtbl pr-rbt2");
+        t1.innerHTML = "<colgroup><col style='width:9%'><col style='width:12%'><col style='width:47%'><col style='width:12%'><col style='width:16%'><col style='width:4%'></colgroup>" +
+          "<thead><tr><th>Layer</th><th>Bar</th><th>Arrangement</th><th>Bundle</th><th>Face → bar</th><th></th></tr></thead>";
+        var tb1 = h("tbody");
+        C.layers.forEach(function (Ly, k) {
+          var tr = h("tr"); tr.appendChild(h("td", null, "<span class='no'>" + (k + 1) + "</span>"));
+          var td = h("td"); td.appendChild(barSel(Ly.bar, function (v) { Ly.bar = v; ch(); })); tr.appendChild(td);
+          var ta = h("td"), qOpts = [["s", "@ spacing"], ["n", "EA total"]]; if (anyRect) qOpts.push(["f", "per face"]);
+          ta.appendChild(sel(qOpts, Ly.q, function (v) { Ly.q = v; if (v === "n" && Ly.v < 4) Ly.v = 24; if (v === "s" && Ly.v < 50) Ly.v = 150; renderPerPier(); }, "pr-q"));
+          if (Ly.q === "f") { ta.appendChild(h("span", "pr-unit", "B face")); ta.appendChild(num(Ly.nb, function (v) { Ly.nb = Math.round(v); }, "", "1", 56)); ta.appendChild(h("span", "pr-unit", "H face")); ta.appendChild(num(Ly.nh, function (v) { Ly.nh = Math.round(v); }, "", "1", 56)); ta.appendChild(h("span", "pr-unit", "incl. corners")); }
+          else { ta.appendChild(num(Ly.v, function (v) { Ly.v = v; }, "", Ly.q === "n" ? "1" : "25")); ta.appendChild(h("span", "pr-unit", Ly.q === "n" ? "per column" : "mm")); }
+          tr.appendChild(ta);
+          var tbd = h("td"); tbd.appendChild(sel([[1, "1"], [2, "2"], [3, "3"], [4, "4"]], Ly.bundle || 1, function (v) { Ly.bundle = +v; ch(); })); tr.appendChild(tbd);
+          var tdd = h("td"); tdd.appendChild(num(Ly.d, function (v) { Ly.d = v; }, "auto", "5", 70)); tdd.appendChild(h("span", "pr-unit", "mm")); tr.appendChild(tdd);
+          var tx = h("td"); if (k > 0 && k === C.layers.length - 1) tx.appendChild(del(function () { C.layers.pop(); renderPerPier(); ch(); })); tr.appendChild(tx);
+          tb1.appendChild(tr);
+        });
+        t1.appendChild(tb1); b.appendChild(t1);
+        if (C.layers.length < 3) b.appendChild(add("Add layer", function () { var lst = C.layers[C.layers.length - 1]; C.layers.push({ bar: lst.bar, q: lst.q, v: lst.v, nb: lst.nb, nh: lst.nh, bundle: 1, d: 0 }); renderPerPier(); ch(); }));
+
+        // 4.2 starter bars
+        sh("Starter bars <span class='pr-rbsubk'>into the footing</span>");
+        var S0 = C.starter, g2 = h("div", "pr-rbgrid");
+        g2.appendChild(field("", chk("Use starter bars", S0.on, function (v) { S0.on = v; renderPerPier(); ch(); })));
+        g2.appendChild(field("Hook direction", sel([["out", "Outward"], ["in", "Inward"]], S0.hook, function (v) { S0.hook = v; ch(); })));
+        g2.appendChild(field("Hook length", num(S0.hl, function (v) { S0.hl = v; }, "auto 12db", "10", 104), "mm"));
+        if (S0.on) {
+          g2.appendChild(field("Splice", sel([["lap", "Lap splice"], ["coupler", "Coupler"]], S0.splice, function (v) { S0.splice = v; ch(); })));
+          g2.appendChild(field("Projection above footing", num(S0.proj, function (v) { S0.proj = v; }, "auto", "50", 90), "mm"));
+          g2.appendChild(field("", chk("Stagger 50%", S0.stag, function (v) { S0.stag = v; renderPerPier(); ch(); })));
+          if (S0.stag) g2.appendChild(field("Stagger offset", num(S0.soff, function (v) { S0.soff = v; }, "auto", "50", 90), "mm"));
+        }
+        if (C.layers.length > 1) g2.appendChild(field("", chk("Inner layers: straight end (no hook)", S0.straightIn, function (v) { S0.straightIn = v; ch(); })));
+        b.appendChild(g2);
+
+        // 4.3 splices along the height (bar size may change there)
+        sh("Splices along the height");
+        if (C.splices.length) {
+          var t3 = h("table", "pr-rbtbl pr-rbt2");
+          t3.innerHTML = "<colgroup><col style='width:9%'><col style='width:30%'><col style='width:57%'><col style='width:4%'></colgroup><thead><tr><th>#</th><th>Height from footing top</th><th>Bar above</th><th></th></tr></thead>";
+          var tb3 = h("tbody");
+          C.splices.forEach(function (sp, i) {
+            var tr = h("tr"); tr.appendChild(h("td", null, "<span class='no'>" + (i + 1) + "</span>"));
+            var tz = h("td"); tz.appendChild(num(sp.z, function (v) { sp.z = v; }, "", "100", 90)); tz.appendChild(h("span", "pr-unit", "mm")); tr.appendChild(tz);
+            var tbb = h("td"); tbb.appendChild(barSel(sp.bar, function (v) { sp.bar = v; ch(); }, "same")); tr.appendChild(tbb);
+            var tx = h("td"); tx.appendChild(del(function () { C.splices.splice(i, 1); renderPerPier(); ch(); })); tr.appendChild(tx);
+            tb3.appendChild(tr);
+          });
+          t3.appendChild(tb3); b.appendChild(t3);
+        } else b.appendChild(h("div", "pr-rbnone", "None — the main bars are spliced only where they exceed the stock length."));
+        if (C.splices.length < 4) b.appendChild(add("Add splice", function () { var last = C.splices.length ? C.splices[C.splices.length - 1].z : 0; C.splices.push({ z: Math.round((last + Math.max(3000, pierCH(p2) / 2)) / 100) * 100, bar: "" }); renderPerPier(); ch(); }));
+
+        // 4.4 ties — zones from the bottom
+        sh("Ties");
+        var T = C.ties, g4 = h("div", "pr-rbgrid");
+        g4.appendChild(field("Bar", barSel(T.bar, function (v) { T.bar = v; ch(); })));
+        if (anyCircle) g4.appendChild(field("Type", sel([["hoop", "Closed hoops"], ["spiral", "Spiral" + (allCircle ? "" : " (circular columns)")]], T.type, function (v) { T.type = v; ch(); })));
+        if (C.layers.length > 1) g4.appendChild(field("Inner-layer ties", [h("span", "pr-unit", "every"), sel([[1, "1st"], [2, "2nd"], [3, "3rd"], [4, "4th"]], T.inner, function (v) { T.inner = +v; ch(); })], "tie"));
+        b.appendChild(g4);
+        var t4 = h("table", "pr-rbtbl pr-rbt2");
+        t4.innerHTML = "<colgroup><col style='width:9%'><col style='width:42%'><col style='width:45%'><col style='width:4%'></colgroup><thead><tr><th>Zone</th><th>Length (from the bottom)</th><th>Spacing</th><th></th></tr></thead>";
+        var tb4 = h("tbody");
+        T.zones.forEach(function (zn, i) {
+          var tr = h("tr"); tr.appendChild(h("td", null, "<span class='no'>" + (i + 1) + "</span>"));
+          var tl = h("td"), kind = zn.L < 0 ? "L0" : (zn.L === 0 ? "rest" : "mm");
+          tl.appendChild(sel([["L0", "L0 (auto)"], ["rest", "Rest"], ["mm", "mm"]], kind, function (v) { zn.L = v === "L0" ? -1 : (v === "rest" ? 0 : 2000); renderPerPier(); ch(); }));
+          if (kind === "mm") { tl.appendChild(num(zn.L, function (v) { zn.L = v > 0 ? v : 2000; }, "", "100", 80)); tl.appendChild(h("span", "pr-unit", "mm")); }
+          tr.appendChild(tl);
+          var ts = h("td"); ts.appendChild(h("span", "pr-unit", "@")); ts.appendChild(num(zn.s, function (v) { zn.s = v > 0 ? v : 150; }, "", "25", 80)); ts.appendChild(h("span", "pr-unit", "mm")); tr.appendChild(ts);
+          var tx = h("td"); if (T.zones.length > 1) tx.appendChild(del(function () { T.zones.splice(i, 1); renderPerPier(); ch(); })); tr.appendChild(tx);
+          tb4.appendChild(tr);
+        });
+        t4.appendChild(tb4); b.appendChild(t4);
+        if (T.zones.length < 6) b.appendChild(add("Add zone", function () { T.zones.splice(T.zones.length - 1, 0, { L: 2000, s: 150 }); renderPerPier(); ch(); }));
+
+        // 4.5 crossties — rectangular / track / octagon columns
+        if (!allCircle) {
+          sh("Crossties");
+          var X = C.cross, g5 = h("div", "pr-rbgrid");
+          g5.appendChild(field("", chk("Use crossties", X.on, function (v) { X.on = v; renderPerPier(); ch(); })));
+          if (X.on) {
+            g5.appendChild(field("Bar", barSel(X.bar, function (v) { X.bar = v; ch(); })));
+            g5.appendChild(field("Bars held", sel([["alt", "Every other bar"], ["all", "Every bar"]], X.sup, function (v) { X.sup = v; ch(); })));
+            g5.appendChild(field("At", sel([[1, "every tie"], [2, "every 2nd tie"], [3, "every 3rd tie"]], X.every, function (v) { X.every = +v; ch(); })));
+          }
+          b.appendChild(g5);
+        }
+      }
       function paintLensSoon() { var key = inputKey("rebar"), hit = memoGet("rebar", key); if (hit) paintLens(hit); }
       if (!p.noCope) memberRows("cap", p.type === "portal" ? "Beam" : "Cap");
-      memberRows("col", p.type === "portal" ? "Legs" : "Columns");
+      colChapter(p.type === "portal" ? "Legs" : "Columns");
       memberRows("fdn", "Footing");
       // result
       chapter("Result");
@@ -1394,11 +1537,12 @@
     var MEMBER = { cap: "Cap", col: "Column", fdn: "Footing" };
     function roleName(m, r) { var L = RB_ROLES[m] || []; for (var i = 0; i < L.length; i++) if (L[i][0] === r) return L[i][1]; return r; }
     function memberName(m) { return m === "cap" && P().type === "portal" ? "Beam" : (m === "col" && P().type === "portal" ? "Leg" : MEMBER[m]); }
-    var SHAPE_NM = { I: "straight", L: "L (1 bend)", U: "U (2 bends)", P: "bent (follows soffit)", O: "closed hoop" };
+    var SHAPE_NM = { I: "straight", L: "L (1 bend)", U: "U (2 bends)", P: "bent (follows soffit)", O: "closed hoop", C: "crosstie (hooked ends)", S: "spiral" };
     function scheduleCSV(rb) {
       var L = ["Mark,Member,Role,Bar,Dia (mm),Shape,Length min (mm),Length max (mm),Length avg (mm),No.,Unit wt (kg/m),Weight (kg)"];
       rb.marks.forEach(function (k) { L.push([k.mark, memberName(k.m), roleName(k.m, k.r), k.bar, k.db, SHAPE_NM[k.shape] || k.shape, k.lmin, k.lmax, k.len, k.n, k.w1, k.wt].join(",")); });
       L.push(""); L.push("Bar,Total length (m),Weight (kg)"); rb.sum.forEach(function (s2) { L.push([s2.bar, s2.len, s2.wt].join(",")); }); L.push("Total,," + rb.total);
+      if (rb.couplers && rb.couplers.length) { L.push(""); L.push("Coupler,No."); rb.couplers.forEach(function (c) { L.push(c.bar + "," + c.n); }); }
       L.push(""); L.push('"' + rb.basis + '"');
       return "\ufeff" + L.join("\r\n");
     }
@@ -1416,6 +1560,7 @@
         t += "</tbody></table><table class='pr-sched pr-sum'><thead><tr><th>Bar</th><th class='n'>Total length (m)</th><th class='n'>Weight (kg)</th></tr></thead><tbody>";
         rb.sum.forEach(function (s2) { t += "<tr><td>" + s2.bar + "</td><td class='n'>" + s2.len.toFixed(1) + "</td><td class='n'>" + s2.wt.toFixed(1) + "</td></tr>"; });
         t += "<tr class='tot'><td>Total</td><td></td><td class='n'>" + rb.total.toFixed(1) + "</td></tr></tbody></table>";
+        if (rb.couplers && rb.couplers.length) t += "<table class='pr-sched pr-sum'><thead><tr><th>Coupler</th><th class='n'>No.</th></tr></thead><tbody>" + rb.couplers.map(function (c) { return "<tr><td>" + c.bar + "</td><td class='n'>" + c.n + "</td></tr>"; }).join("") + "</tbody></table>";
         m.body.innerHTML = t;
         m.foot.textContent = rb.basis + " · Lengths are bar centre lines; closed hoops include two 135° hooks. Where lengths vary (haunch, rounded tips, steps) one mark covers the range — weights add the real length of every bar.";
       }, function () { m.body.innerHTML = "<div class='pr-mwait'>The drawing engine is not reachable right now.</div>"; });

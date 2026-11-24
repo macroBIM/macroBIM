@@ -279,7 +279,7 @@ git status --short     # 비어 있어야 한다
 | **J 엔진** | `jfield.js` · `bench/jbench.js` · `bench/jengine.js` | 논문의 J 최소화를 그대로 짠 **두 번째 엔진**. PSCBOX 일반단면 페이지의 **기본 엔진**이다 (`Solver` 버튼으로 옛 `physics.js` 와 오간다). 격벽 페이지는 아직 옛 엔진만 쓴다 |
 | **Crossbeam 폼** | `plate3d/quick_crossbeam_test.js` | 폼과 그림은 있고, PLATE3D 로 모델 보내기와 워크북 내보내기가 없다 |
 | **Dashboard · PSCBOX · Crossbeam 메뉴** | `design/layout_body_test.js` | `design/SYNC.md` 참조 — 옮기지 않는다 |
-| **PIER (/dev/)** | `bim_pier_dev.js` (`?v=21`) ← design **dev** `layout_body_test.js` | 운영에 없는 것: 자체 기호 체계 · 배근 1단계(2026-11-19). `/dev/` 에서 확인한 뒤 `bim_pier.js` 로 다시 승격 |
+| **PIER (/dev/)** | `bim_pier_dev.js` (`?v=22`) ← design **dev** `layout_body_test.js` | 운영에 없는 것: 자체 기호 체계 · 배근 1단계(2026-11-19). `/dev/` 에서 확인한 뒤 `bim_pier.js` 로 다시 승격 |
 
 
 ### PIER — 지금 어디까지 (2026-11-19 · 운영은 11-16 2차 승격본 · `/dev/` 는 배근 1단계까지)
@@ -359,6 +359,7 @@ git status --short     # 비어 있어야 한다
 **맨 위가 최신.** 한 줄에 하나: 날짜 · 커밋 · 무엇이 · 어디까지(테스트/운영).
 
 ### 2026-11-24
+- **PIER(dev): 배근 4장 기둥 다시 — 4.1 주철근 1~3단(단마다 면→철근 거리, 다발 1~4, 간격 · 개수 · 사각 면별 개수) · 4.2 Starter bar(사용 여부, 갈고리 방향 · 길이, 기초 위 돌출, 겹이음/커플러, 50% 엇갈림 · 거리, 안쪽 단 직선 끝) · 4.3 높이 방향 이음(높이 · 위 철근 지름) · 4.4 띠철근 구간 목록(L0 자동 · 나머지 · mm, 간격) · 원형은 나선 · 안쪽 단 띠철근 n 번째마다 · 4.5 크로스타이(하나 걸러 / 전부, n 번째 띠철근마다)** · macroPIER `85ac956` `b44a052 85ac956 ` + macroBIM `bim_pier_dev.js` + design dev `?v=22` · **시험(/dev/)** — 사용자: 「매뉴얼 보고 한 거 맞아? starter bar 상세도 없고」 → AAbutPier 매뉴얼 3.10 · 3.11 의 항목을 우리 입력 구성으로. 재료표에 Starter bars · Crossties · Spiral · 커플러 개수, IFC 는 starter ANCHORING · 띠철근류 LIGATURE. 지름이 다른 겹이음 = max(작은 쪽 겹이음, 큰 쪽 정착). 마주 보는 면은 같은 개수(크로스타이가 마주 보는 철근을 잇게). 다음: 5장 기초, 3장 코핑.
 - **PIER(dev): Rebar 카드에 장 번호 — 1 Common · 2 Anchorage & laps · 3 Cap · 4 Columns · 5 Footing · 6 Result, 철근 행은 3.1 · 3.2 …, 「Role」 머리 뺌, 세 표의 칸 위치 맞춤** · macroBIM `bim_pier_dev.js` + design dev `?v=21` · **시험(/dev/)** — 사용자: 상위(부재)와 하위(철근 행)가 한눈에 안 갈렸다. 코핑이 없는 형태는 번호가 하나씩 당겨진다.
 - **PIER(dev): 철근 그리기에서 「Hide」 버튼 뺌 — Double line · Single line 둘만** · macroBIM `bim_pier_dev.js` + design dev `?v=20` · **시험(/dev/)** — 사용자 요청. 엔진의 `line:'none'` 은 남아 있지만 화면에서 보내지 않는다.
 - **PIER(dev): 정착·이음 표 — 「Used」 칸(✓)으로 쓰는 크기 표시, 음영 · ● · 표 아래 설명 뺌** · macroBIM `bim_pier_dev.js` + design dev `?v=19` · **시험(/dev/)** — 사용자 요청. 직접 입력 안내(mm 또는 40d)는 칸의 placeholder · 툴팁으로.
