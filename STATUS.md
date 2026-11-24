@@ -279,7 +279,7 @@ git status --short     # 비어 있어야 한다
 | **J 엔진** | `jfield.js` · `bench/jbench.js` · `bench/jengine.js` | 논문의 J 최소화를 그대로 짠 **두 번째 엔진**. PSCBOX 일반단면 페이지의 **기본 엔진**이다 (`Solver` 버튼으로 옛 `physics.js` 와 오간다). 격벽 페이지는 아직 옛 엔진만 쓴다 |
 | **Crossbeam 폼** | `plate3d/quick_crossbeam_test.js` | 폼과 그림은 있고, PLATE3D 로 모델 보내기와 워크북 내보내기가 없다 |
 | **Dashboard · PSCBOX · Crossbeam 메뉴** | `design/layout_body_test.js` | `design/SYNC.md` 참조 — 옮기지 않는다 |
-| **PIER (/dev/)** | `bim_pier_dev.js` (`?v=20`) ← design **dev** `layout_body_test.js` | 운영에 없는 것: 자체 기호 체계 · 배근 1단계(2026-11-19). `/dev/` 에서 확인한 뒤 `bim_pier.js` 로 다시 승격 |
+| **PIER (/dev/)** | `bim_pier_dev.js` (`?v=21`) ← design **dev** `layout_body_test.js` | 운영에 없는 것: 자체 기호 체계 · 배근 1단계(2026-11-19). `/dev/` 에서 확인한 뒤 `bim_pier.js` 로 다시 승격 |
 
 
 ### PIER — 지금 어디까지 (2026-11-19 · 운영은 11-16 2차 승격본 · `/dev/` 는 배근 1단계까지)
@@ -359,6 +359,7 @@ git status --short     # 비어 있어야 한다
 **맨 위가 최신.** 한 줄에 하나: 날짜 · 커밋 · 무엇이 · 어디까지(테스트/운영).
 
 ### 2026-11-24
+- **PIER(dev): Rebar 카드에 장 번호 — 1 Common · 2 Anchorage & laps · 3 Cap · 4 Columns · 5 Footing · 6 Result, 철근 행은 3.1 · 3.2 …, 「Role」 머리 뺌, 세 표의 칸 위치 맞춤** · macroBIM `bim_pier_dev.js` + design dev `?v=21` · **시험(/dev/)** — 사용자: 상위(부재)와 하위(철근 행)가 한눈에 안 갈렸다. 코핑이 없는 형태는 번호가 하나씩 당겨진다.
 - **PIER(dev): 철근 그리기에서 「Hide」 버튼 뺌 — Double line · Single line 둘만** · macroBIM `bim_pier_dev.js` + design dev `?v=20` · **시험(/dev/)** — 사용자 요청. 엔진의 `line:'none'` 은 남아 있지만 화면에서 보내지 않는다.
 - **PIER(dev): 정착·이음 표 — 「Used」 칸(✓)으로 쓰는 크기 표시, 음영 · ● · 표 아래 설명 뺌** · macroBIM `bim_pier_dev.js` + design dev `?v=19` · **시험(/dev/)** — 사용자 요청. 직접 입력 안내(mm 또는 40d)는 칸의 placeholder · 툴팁으로.
 - **PIER(dev): 정착·이음 표에 규격의 모든 철근 크기 (KS D6~D51 · ASTM #3~#18 · BS 10~50), 행에서 쓰는 크기는 음영 + ●** · macroBIM `bim_pier_dev.js` + design dev `?v=18` · **시험(/dev/)** — 사용자 요청. 전에는 행에서 쓰는 크기만 보였다.

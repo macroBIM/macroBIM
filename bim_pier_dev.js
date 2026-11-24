@@ -236,7 +236,7 @@
     ".pr-mfoot{padding:10px 16px;font-size:12px;color:#64748b;border-top:1px solid var(--hair)}" +
     ".pr-mwait{padding:60px 16px;text-align:center;color:#64748b;font-size:13px}" +
     ".pr-mwait .pr-busy{height:3px;max-width:240px;margin:0 auto 12px}" +
-    ".pr-rbtbl{width:100%;border-collapse:collapse;font-size:13px}" +
+    ".pr-rbtbl{width:100%;border-collapse:collapse;font-size:13px;table-layout:fixed}" +
     ".pr-rbtbl th{font-size:10.5px;font-weight:700;letter-spacing:.03em;text-transform:uppercase;color:var(--muted);text-align:left;padding:5px 8px;border-bottom:1px solid var(--line)}" +
     ".pr-rbtbl td{padding:5px 8px;border-bottom:1px dashed var(--hair);white-space:nowrap}" +
     ".pr-rbtbl td:first-child{white-space:normal}" +
@@ -258,6 +258,9 @@
     ".pr-rbwarn{color:#b45309;font-size:12.5px;margin:3px 0}" +
     ".pr-rbnote{color:var(--muted);font-size:12px;margin:3px 0}" +
     ".pr-rbact{display:flex;gap:8px;margin-top:10px}" +
+    ".pr-rbch{display:flex;align-items:center;gap:9px;font-size:14px;font-weight:700;color:#0f172a;margin:22px 0 8px;padding-bottom:7px;border-bottom:2px solid var(--line)}" +
+    ".pr-rbch .n{display:inline-flex;align-items:center;justify-content:center;min-width:22px;height:22px;padding:0 6px;border-radius:6px;background:var(--dim);color:#fff;font-size:12px;font-variant-numeric:tabular-nums}" +
+    ".pr-rbtbl td .no{display:inline-block;min-width:34px;color:var(--dim);font-weight:700;font-size:12px;font-family:ui-monospace,Menlo,Consolas,monospace}" +
     ".pr-rblm{display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin:10px 0 2px}.pr-rblml{font-size:12px;font-weight:600;color:var(--muted);margin-right:6px}" +
     ".pr-rbdfl{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin:0 0 4px}.pr-rbdfl .pr-cap{margin:0}" +
     ".pr-sched{border-collapse:collapse;font-size:12.5px;margin:0 0 16px;min-width:100%}" +
@@ -1035,7 +1038,9 @@
       });
       b.appendChild(lm);
       // common
-      b.appendChild(h("div", "pr-subhd", "Common"));
+      var chN = 0;   // chapter numbers: 1 Common · 2 Anchorage & laps · 3… members · last Result (rows inside a member are 3.1, 3.2 …)
+      function chapter(t) { chN++; b.appendChild(h("div", "pr-rbch", "<span class='n'>" + chN + "</span>" + t)); return chN; }
+      chapter("Common");
       var g = h("div", "pr-ingrid");
       var sr = h("div", "pr-inrow"); sr.appendChild(h("label", null, "<span class='var'>Std</span><span class='desc'>Bar standard</span>"));
       var ss = h("select", "pr-sel"); [["KS", "KS D 3504 (D13…)"], ["ASTM", "ASTM A615 (#4…)"], ["BS", "BS 4449 (12…)"]].forEach(function (o) { var op = h("option", null, o[1]); op.value = o[0]; if (L.sys === o[0]) op.selected = true; ss.appendChild(op); });
@@ -1054,7 +1059,7 @@
       g.appendChild(rbNum("c₃", "Cover — footing", R.cover.fdn, function (v) { R.cover.fdn = v; }));
       b.appendChild(g);
       // anchorage / laps
-      b.appendChild(h("div", "pr-subhd", "Anchorage & laps"));
+      chapter("Anchorage &amp; laps");
       var md = h("div", "pr-modes");
       [["auto", "Auto (calculation sheet)"], ["edit", "Auto + edit"], ["manual", "Manual"]].forEach(function (o) {
         var t = h("button", "pr-mode" + (L.mode === o[0] ? " on" : ""), o[1]); t.type = "button";
@@ -1106,13 +1111,13 @@
       // members
       var bars = (BARS[L.sys] || BARS.KS).map(function (x) { return x[0]; });
       function memberRows(m, title) {
-        b.appendChild(h("div", "pr-subhd", title));
-        var tb = h("table", "pr-rbtbl"); tb.innerHTML = "<thead><tr><th>Role</th><th>Bar</th><th>Spacing / count</th><th>" + (m === "cap" ? "Layers" : (m === "col" ? "End zone L0" : "")) + "</th></tr></thead>";
+        var no = chapter(title), k = 0;
+        var tb = h("table", "pr-rbtbl"); tb.innerHTML = "<colgroup><col style='width:30%'><col style='width:12%'><col style='width:40%'><col style='width:18%'></colgroup><thead><tr><th></th><th>Bar</th><th>Spacing / count</th><th>" + (m === "cap" ? "Layers" : (m === "col" ? "End zone L0" : "")) + "</th></tr></thead>";
         var body = h("tbody");
         RB_ROLES[m].forEach(function (role) {
           var row = null; R.rows.forEach(function (r) { if (r.m === m && r.r === role[0]) row = r; });
           if (!row) { row = { m: m, r: role[0], bar: "", q: "s", v: 200, ly: 1 }; R.rows.push(row); }
-          var tr = h("tr"); tr.appendChild(h("td", null, role[1]));
+          k++; var tr = h("tr"); tr.appendChild(h("td", null, "<span class='no'>" + no + "." + k + "</span>" + role[1]));
           var td = h("td"), bs = h("select", "pr-sel"); var o0 = h("option", null, "—"); o0.value = ""; bs.appendChild(o0);
           bars.forEach(function (bn) { var op = h("option", null, bn); op.value = bn; if (row.bar === bn) op.selected = true; bs.appendChild(op); });
           td.appendChild(bs); tr.appendChild(td);
@@ -1153,7 +1158,7 @@
       memberRows("col", p.type === "portal" ? "Legs" : "Columns");
       memberRows("fdn", "Footing");
       // result
-      b.appendChild(h("div", "pr-subhd", "Result"));
+      chapter("Result");
       rbSum = h("div", "pr-rbsum", "<span class='pr-cap'>Placing bars…</span>"); b.appendChild(rbSum);
       var act = h("div", "pr-rbact");
       var b3 = h("button", "pr-btn", "3D preview"); b3.type = "button"; b3.onclick = show3D;
