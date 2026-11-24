@@ -250,7 +250,7 @@
     ".pr-lens td{padding:3px 10px;text-align:right;border-bottom:1px dashed var(--hair);font-variant-numeric:tabular-nums}" +
     ".pr-lens input{width:76px;text-align:right;padding:3px 6px;border:1px solid var(--line);border-radius:5px;font-size:12px}" +
     ".pr-lens input.ed{background:#fff7ed;border-color:#fb923c}" +
-    ".pr-lens tr.used td{background:#eff6ff}.pr-lens tr.used td.b::after{content:' \\25CF';font-size:8px;vertical-align:middle;color:var(--dim)}" +
+    ".pr-lens th.u,.pr-lens td.u{text-align:center;color:var(--dim);font-weight:700}" +
     ".pr-rbdet{margin:4px 0 2px;font-size:12.5px}" +
     ".pr-rbdet summary{cursor:pointer;color:var(--dim);font-weight:600;font-size:12px;margin-bottom:6px}" +
     ".pr-rbtot{font-size:13px;margin-bottom:6px}.pr-rbtot b{font-size:15px}" +
@@ -977,16 +977,18 @@
       var used = {}; R.rows.forEach(function (r) { if (r.bar) used[r.bar] = 1; });
       var cols = [["ld", "Tension l<sub>d</sub>"], ["ldh", "Hook l<sub>dh</sub>"], ["ldc", "Compr. l<sub>dc</sub>"], ["lap", "Lap"]];
       var tb = h("table", "pr-lens");
-      var hr = "<tr><th>Bar</th>" + cols.map(function (c) { return "<th>" + c[1] + "</th>"; }).join("") + "</tr>";
+      var hr = "<tr><th>Bar</th><th class='u'>Used</th>" + cols.map(function (c) { return "<th>" + c[1] + "</th>"; }).join("") + "</tr>";
       tb.innerHTML = "<thead>" + hr + "</thead>";
       var body = h("tbody");
       (rb.lens || []).forEach(function (u) {
-        var tr = h("tr", used[u.bar] ? "used" : null); tr.appendChild(h("td", "b", u.bar));   // every size; the ones the rows use are marked
+        var tr = h("tr"); tr.appendChild(h("td", "b", u.bar));   // every size of the standard
+        tr.appendChild(h("td", "u", used[u.bar] ? "&#10003;" : ""));   // used by a rebar row below
         cols.forEach(function (c) {
           var td = h("td"), mine = L.table[u.bar] && L.table[u.bar][c[0]];
           if (!ed) { td.textContent = fmtN(u[c[0]]); if (c[0] === "lap" && u.lapBan) td.innerHTML = "<span class='pr-rbwarn' title='Tension lap not allowed above D35 — use a mechanical splice'>coupler</span>"; }
           else {
-            var inp = h("input"); inp.type = "text"; inp.value = mine || ""; inp.placeholder = L.mode === "edit" ? fmtN(u[c[0]]) : "";
+            var inp = h("input"); inp.type = "text"; inp.value = mine || ""; inp.placeholder = L.mode === "edit" ? fmtN(u[c[0]]) : "mm / 40d";
+            inp.title = "mm, or a multiple of the bar diameter (e.g. 40d)" + (L.mode === "edit" ? " — empty = the calculated value" : " — empty = 50d");
             if (mine) inp.className = "ed";
             inp.addEventListener("change", function () {
               var v = inp.value.trim(); L.table[u.bar] = L.table[u.bar] || {};
@@ -1001,9 +1003,7 @@
       });
       tb.appendChild(body);
       rbLens.innerHTML = ""; rbLens.appendChild(tb);
-      rbLens.appendChild(h("p", "pr-cap", "All bar sizes of the standard; the shaded rows (●) are the sizes used in the rows below. " + (L.mode === "manual" ? "Manual: type each value in mm or as a multiple of the bar diameter (e.g. 40d). Empty cells use 50d." :
-        L.mode === "edit" ? "Auto + edit: the grey value is the calculated one — type over it to change that cell only (mm or 40d)." :
-          "Same formulas as the anchorage / lap calculation sheet (" + (L.std === "doro" ? "Road bridge design code 2016" : "Concrete structural design code 2012 · 2021") + ").")));
+      // no caption under the table (user): the "Used" column says which sizes the rows use; input hints are on the cells
     }
     function cardRebar() {
       var p = P(), R = p.rebar, L = R.lap;
