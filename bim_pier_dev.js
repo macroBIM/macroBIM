@@ -250,6 +250,7 @@
     ".pr-lens td{padding:3px 10px;text-align:right;border-bottom:1px dashed var(--hair);font-variant-numeric:tabular-nums}" +
     ".pr-lens input{width:76px;text-align:right;padding:3px 6px;border:1px solid var(--line);border-radius:5px;font-size:12px}" +
     ".pr-lens input.ed{background:#fff7ed;border-color:#fb923c}" +
+    ".pr-lens tr.used td{background:#eff6ff}.pr-lens tr.used td.b::after{content:' \\25CF';font-size:8px;vertical-align:middle;color:var(--dim)}" +
     ".pr-rbdet{margin:4px 0 2px;font-size:12.5px}" +
     ".pr-rbdet summary{cursor:pointer;color:var(--dim);font-weight:600;font-size:12px;margin-bottom:6px}" +
     ".pr-rbtot{font-size:13px;margin-bottom:6px}.pr-rbtot b{font-size:15px}" +
@@ -980,8 +981,7 @@
       tb.innerHTML = "<thead>" + hr + "</thead>";
       var body = h("tbody");
       (rb.lens || []).forEach(function (u) {
-        if (!used[u.bar] && !(L.table[u.bar])) return;          // only the sizes the rows use (and any edited)
-        var tr = h("tr"); tr.appendChild(h("td", "b", u.bar));
+        var tr = h("tr", used[u.bar] ? "used" : null); tr.appendChild(h("td", "b", u.bar));   // every size; the ones the rows use are marked
         cols.forEach(function (c) {
           var td = h("td"), mine = L.table[u.bar] && L.table[u.bar][c[0]];
           if (!ed) { td.textContent = fmtN(u[c[0]]); if (c[0] === "lap" && u.lapBan) td.innerHTML = "<span class='pr-rbwarn' title='Tension lap not allowed above D35 — use a mechanical splice'>coupler</span>"; }
@@ -1001,9 +1001,9 @@
       });
       tb.appendChild(body);
       rbLens.innerHTML = ""; rbLens.appendChild(tb);
-      rbLens.appendChild(h("p", "pr-cap", L.mode === "manual" ? "Manual: type each value in mm or as a multiple of the bar diameter (e.g. 40d). Empty cells use 50d." :
+      rbLens.appendChild(h("p", "pr-cap", "All bar sizes of the standard; the shaded rows (●) are the sizes used in the rows below. " + (L.mode === "manual" ? "Manual: type each value in mm or as a multiple of the bar diameter (e.g. 40d). Empty cells use 50d." :
         L.mode === "edit" ? "Auto + edit: the grey value is the calculated one — type over it to change that cell only (mm or 40d)." :
-          "Same formulas as the anchorage / lap calculation sheet (" + (L.std === "doro" ? "Road bridge design code 2016" : "Concrete structural design code 2012 · 2021") + ")."));
+          "Same formulas as the anchorage / lap calculation sheet (" + (L.std === "doro" ? "Road bridge design code 2016" : "Concrete structural design code 2012 · 2021") + ").")));
     }
     function cardRebar() {
       var p = P(), R = p.rebar, L = R.lap;
