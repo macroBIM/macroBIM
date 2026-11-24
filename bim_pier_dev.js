@@ -281,7 +281,7 @@
   };
   function barDia(sys, bar) { var L = BARS[sys] || BARS.KS; for (var i = 0; i < L.length; i++) if (L[i][0] === bar) return L[i][1]; return 0; }
   function nearestBar(sys, db) { var L = BARS[sys] || BARS.KS, b = L[0][0], e = 1e9; L.forEach(function (x) { var d = Math.abs(x[1] - db); if (d < e) { e = d; b = x[0]; } }); return b; }
-  // roles per member: [code, English, Korean, has layers]
+  // roles per member: [code, label, Korean (for us — not shown), has layers]
   var RB_ROLES = {
     cap: [["top", "Top main bars", "상면 주철근", 1], ["bot", "Bottom main bars", "하면 주철근", 1], ["stir", "Stirrups", "스터럽", 0], ["side", "Side bars", "측면 철근", 0]],
     col: [["main", "Main bars (dowel + lap)", "주철근", 0], ["tie", "Ties", "띠철근", 0]],
@@ -538,7 +538,7 @@
       var c = h("div", "pr-card pr-wiz");
       var hd = h("div", "pr-hd", "<span class='pr-ttl'>Pier type <span class='pr-sub'>" +
         (S.wiz.done ? "the inputs below follow this choice" : "step " + (S.wiz.step + 1) + " of " + steps.length +
-          "</span><span class='pr-whint'>Input fields appear automatically once the selection is complete.") + "</span></span>");
+          "</span><span class='pr-whint'>Rebar details can be entered after the wizard has set the shape (dimensions too).") + "</span></span>");
       c.appendChild(hd);
       var body = h("div", "pr-body");
       if (S.wiz.done) {
@@ -652,7 +652,7 @@
         if (pd.on && !pd.x.length) pedEqual(p.bstep && p.bstep.on && p.bstep.steps ? p.bstep.steps.length : 4);
         renderPerPier(); draw();
       });
-      phd.appendChild(pck); phd.appendChild(h("span", null, "Bearing pedestals <span class='pr-sub'>받침 콘크리트 · on the cap top</span>"));
+      phd.appendChild(pck); phd.appendChild(h("span", null, "Bearing pedestals <span class='pr-sub'>on the cap top</span>"));
       hd.appendChild(phd); c.appendChild(hd);
       if (!pd.on) body.appendChild(h("p", "pr-cap", "Tick to place bearing pedestals on the cap. Bearings themselves are not drawn yet."));
       if (pd.on) {
@@ -1008,7 +1008,7 @@
     function cardRebar() {
       var p = P(), R = p.rebar, L = R.lap;
       var c = h("div", "pr-card");
-      var hd = h("div", "pr-hd", "<span class='pr-ttl'>Rebar <span class='pr-sub'>배근</span></span>");
+      var hd = h("div", "pr-hd", "<span class='pr-ttl'>Rebar</span>");
       var tg = h("label", "pr-bapply"); var ck = h("input"); ck.type = "checkbox"; ck.checked = !!R.on;
       tg.appendChild(ck); tg.appendChild(document.createTextNode("Place rebar")); tg.style.margin = "0"; hd.appendChild(tg);
       ck.addEventListener("change", function () { R.on = ck.checked; renderPerPier(); draw(); });
@@ -1111,7 +1111,7 @@
         RB_ROLES[m].forEach(function (role) {
           var row = null; R.rows.forEach(function (r) { if (r.m === m && r.r === role[0]) row = r; });
           if (!row) { row = { m: m, r: role[0], bar: "", q: "s", v: 200, ly: 1 }; R.rows.push(row); }
-          var tr = h("tr"); tr.appendChild(h("td", null, role[1] + " <span class='ko'>" + role[2] + "</span>"));
+          var tr = h("tr"); tr.appendChild(h("td", null, role[1]));
           var td = h("td"), bs = h("select", "pr-sel"); var o0 = h("option", null, "—"); o0.value = ""; bs.appendChild(o0);
           bars.forEach(function (bn) { var op = h("option", null, bn); op.value = bn; if (row.bar === bn) op.selected = true; bs.appendChild(op); });
           td.appendChild(bs); tr.appendChild(td);

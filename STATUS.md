@@ -279,7 +279,7 @@ git status --short     # 비어 있어야 한다
 | **J 엔진** | `jfield.js` · `bench/jbench.js` · `bench/jengine.js` | 논문의 J 최소화를 그대로 짠 **두 번째 엔진**. PSCBOX 일반단면 페이지의 **기본 엔진**이다 (`Solver` 버튼으로 옛 `physics.js` 와 오간다). 격벽 페이지는 아직 옛 엔진만 쓴다 |
 | **Crossbeam 폼** | `plate3d/quick_crossbeam_test.js` | 폼과 그림은 있고, PLATE3D 로 모델 보내기와 워크북 내보내기가 없다 |
 | **Dashboard · PSCBOX · Crossbeam 메뉴** | `design/layout_body_test.js` | `design/SYNC.md` 참조 — 옮기지 않는다 |
-| **PIER (/dev/)** | `bim_pier_dev.js` (`?v=16`) ← design **dev** `layout_body_test.js` | 운영에 없는 것: 자체 기호 체계 · 배근 1단계(2026-11-19). `/dev/` 에서 확인한 뒤 `bim_pier.js` 로 다시 승격 |
+| **PIER (/dev/)** | `bim_pier_dev.js` (`?v=17`) ← design **dev** `layout_body_test.js` | 운영에 없는 것: 자체 기호 체계 · 배근 1단계(2026-11-19). `/dev/` 에서 확인한 뒤 `bim_pier.js` 로 다시 승격 |
 
 
 ### PIER — 지금 어디까지 (2026-11-19 · 운영은 11-16 2차 승격본 · `/dev/` 는 배근 1단계까지)
@@ -357,6 +357,9 @@ git status --short     # 비어 있어야 한다
 ## 기록
 
 **맨 위가 최신.** 한 줄에 하나: 날짜 · 커밋 · 무엇이 · 어디까지(테스트/운영).
+
+### 2026-11-24
+- **PIER(dev): 화면에서 한글 뺌 · 위저드 안내 문구** · macroPIER `2a36cac` + macroBIM `bim_pier_dev.js` + design dev `?v=17` · **시험(/dev/)** — 화면이 영어인데 「Rebar 배근」 · 철근 역할 이름 · 「받침 콘크리트」 · 서버의 배근 경고/안내/근거 줄이 한글이었다 → 영어로. 위저드 안내는 사용자 문장 「철근상세 입력은 위자드를 통해 형상을 결정하고 난 후에 입력할 수 있다」를 옮겨 "Rebar details can be entered after the wizard has set the shape (dimensions too)." A3 도면 안의 한글(NOTE 등)은 그대로.
 
 ### 2026-11-23
 - **서버 엔진 화면 — 철근이 자리를 잡는 동안 J 값을 보여 준다 + 「J 수렴 기록」 표** · `design` `5661872` + `macroRebar` (51) · **테스트(/dev/ REBAR · REBAR PARA) · 서버 반영 필요(pull.php 또는 PULL_KEY 시크릿 — (45)(46)(48)(49)(51))** — 재생 중 2D 오른쪽 위에 지금 움직이는 조각 · 줄의 J 값, 걸음 번호, 단계, 변화 그래프(log 눈금). 아래 카드에 조각 · 줄마다 걸음 수 · 단계별 J 시작 → 끝 · 작은 그래프. 값은 엔진이 풀이 중에 적은 것 그대로(기록만 추가 · S18 · 격벽 · IV · FIB 숫자 그대로). 옛 엔진이면 J 없이 예전처럼 재생.
