@@ -1027,7 +1027,8 @@
       b.appendChild(dfl);
       // bars on the drawing: double line (bar diameter wide) or single line (centre line) — as in the store's wall / culvert
       var lm = h("div", "pr-rblm"); lm.appendChild(h("span", "pr-rblml", "Bars on the drawing"));
-      [["double", "Double line"], ["single", "Single line"], ["none", "Hide"]].forEach(function (o) {
+      if (R.line !== "single") R.line = "double";
+      [["double", "Double line"], ["single", "Single line"]].forEach(function (o) {
         var t = h("button", "pr-tab" + ((R.line || "double") === o[0] ? " on" : ""), o[1]); t.type = "button";
         t.onclick = function () { R.line = o[0]; lm.querySelectorAll(".pr-tab").forEach(function (x) { x.classList.toggle("on", x === t); }); draw(true); };
         lm.appendChild(t);

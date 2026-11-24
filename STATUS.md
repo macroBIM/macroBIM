@@ -279,7 +279,7 @@ git status --short     # 비어 있어야 한다
 | **J 엔진** | `jfield.js` · `bench/jbench.js` · `bench/jengine.js` | 논문의 J 최소화를 그대로 짠 **두 번째 엔진**. PSCBOX 일반단면 페이지의 **기본 엔진**이다 (`Solver` 버튼으로 옛 `physics.js` 와 오간다). 격벽 페이지는 아직 옛 엔진만 쓴다 |
 | **Crossbeam 폼** | `plate3d/quick_crossbeam_test.js` | 폼과 그림은 있고, PLATE3D 로 모델 보내기와 워크북 내보내기가 없다 |
 | **Dashboard · PSCBOX · Crossbeam 메뉴** | `design/layout_body_test.js` | `design/SYNC.md` 참조 — 옮기지 않는다 |
-| **PIER (/dev/)** | `bim_pier_dev.js` (`?v=19`) ← design **dev** `layout_body_test.js` | 운영에 없는 것: 자체 기호 체계 · 배근 1단계(2026-11-19). `/dev/` 에서 확인한 뒤 `bim_pier.js` 로 다시 승격 |
+| **PIER (/dev/)** | `bim_pier_dev.js` (`?v=20`) ← design **dev** `layout_body_test.js` | 운영에 없는 것: 자체 기호 체계 · 배근 1단계(2026-11-19). `/dev/` 에서 확인한 뒤 `bim_pier.js` 로 다시 승격 |
 
 
 ### PIER — 지금 어디까지 (2026-11-19 · 운영은 11-16 2차 승격본 · `/dev/` 는 배근 1단계까지)
@@ -359,6 +359,7 @@ git status --short     # 비어 있어야 한다
 **맨 위가 최신.** 한 줄에 하나: 날짜 · 커밋 · 무엇이 · 어디까지(테스트/운영).
 
 ### 2026-11-24
+- **PIER(dev): 철근 그리기에서 「Hide」 버튼 뺌 — Double line · Single line 둘만** · macroBIM `bim_pier_dev.js` + design dev `?v=20` · **시험(/dev/)** — 사용자 요청. 엔진의 `line:'none'` 은 남아 있지만 화면에서 보내지 않는다.
 - **PIER(dev): 정착·이음 표 — 「Used」 칸(✓)으로 쓰는 크기 표시, 음영 · ● · 표 아래 설명 뺌** · macroBIM `bim_pier_dev.js` + design dev `?v=19` · **시험(/dev/)** — 사용자 요청. 직접 입력 안내(mm 또는 40d)는 칸의 placeholder · 툴팁으로.
 - **PIER(dev): 정착·이음 표에 규격의 모든 철근 크기 (KS D6~D51 · ASTM #3~#18 · BS 10~50), 행에서 쓰는 크기는 음영 + ●** · macroBIM `bim_pier_dev.js` + design dev `?v=18` · **시험(/dev/)** — 사용자 요청. 전에는 행에서 쓰는 크기만 보였다.
 - **PIER(dev): 화면에서 한글 뺌 · 위저드 안내 문구** · macroPIER `2a36cac` + macroBIM `bim_pier_dev.js` + design dev `?v=17` · **시험(/dev/)** — 화면이 영어인데 「Rebar 배근」 · 철근 역할 이름 · 「받침 콘크리트」 · 서버의 배근 경고/안내/근거 줄이 한글이었다 → 영어로. 위저드 안내는 사용자 문장 「철근상세 입력은 위자드를 통해 형상을 결정하고 난 후에 입력할 수 있다」를 옮겨 "Rebar details can be entered after the wizard has set the shape (dimensions too)." A3 도면 안의 한글(NOTE 등)은 그대로.
