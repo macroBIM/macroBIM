@@ -251,6 +251,10 @@
     ".pr-lens input{width:76px;text-align:right;padding:3px 6px;border:1px solid var(--line);border-radius:5px;font-size:12px}" +
     ".pr-lens input.ed{background:#fff7ed;border-color:#fb923c}" +
     ".pr-lenstools{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin:10px 0 0}.pr-lenstools .pr-gbtn:disabled{opacity:.5;cursor:default}" +
+    ".pr-pastebox{margin:10px 0 4px;padding:12px 14px;border:1px solid #bfdbfe;background:#f5f9ff;border-radius:8px;max-width:640px}" +
+    ".pr-pastebox .st{font-size:12.5px;margin:0 0 6px;color:var(--ink)}.pr-pastebox .st > b:first-child{display:inline-flex;align-items:center;justify-content:center;width:18px;height:18px;border-radius:50%;background:var(--dim);color:#fff;font-size:11px;margin-right:6px}" +
+    ".pr-pastebox textarea{width:100%;font:12px ui-monospace,Menlo,Consolas,monospace;padding:8px;border:1px dashed var(--dim);border-radius:6px;background:#fff;resize:vertical;margin-top:4px}" +
+    ".pr-pastebox .msg{font-size:12px;color:#b45309;margin:4px 0}.pr-pastebox .bt{display:flex;gap:8px;margin-top:6px}" +
     ".pr-lenshint{font-size:12px;color:var(--muted)}.pr-lens input::placeholder{color:#c2410c}" +
     ".pr-lens th.u,.pr-lens td.u{text-align:center;color:var(--dim);font-weight:700}" +
     ".pr-rbdet{margin:4px 0 2px;font-size:12.5px}" +
@@ -1023,6 +1027,7 @@
     // goes back to the calculated value. Values in mm, or as a multiple of the bar diameter (40d).
     // A block copied from Excel (tab / new-line separated) can be pasted into any cell: it fills from that cell right and
     // down; a row that starts with a bar name (D25, #8 …) goes to that bar's row whatever the order.
+    var _lensOpen = false;
     var LENS_COLS = [["ld", "Tension l<sub>d</sub>", "Tension ld"], ["ldh", "Hook l<sub>dh</sub>", "Hook ldh"], ["ldc", "Compr. l<sub>dc</sub>", "Compr. ldc"], ["lap", "Lap", "Lap"]];
     function lensSet(L, bar, key, v) {
       v = String(v == null ? "" : v).replace(/,/g, "").trim();
@@ -1077,14 +1082,35 @@
         saveFile(csv, "anchorage_laps_" + L.sys + ".csv", "text/csv");
       };
       tools.appendChild(smp);
+      // Paste from Excel: opens a box right here — Ctrl+V into it applies at once (switches to Edit)
+      var pb = h("button", "pr-btn", "&#128203; Paste from Excel"); pb.type = "button";
+      tools.appendChild(pb);
+      var box = h("div", "pr-pastebox");
+      box.innerHTML = "<div class='st'><b>1</b> In Excel, select the cells from <b>Bar</b> to <b>Lap</b> (the header row may be included) and press <b>Ctrl+C</b>.</div>" +
+        "<div class='st'><b>2</b> Click in the box below and press <b>Ctrl+V</b> — the values go into the table at once.</div>";
+      var ta = h("textarea"); ta.rows = 5; ta.placeholder = "Ctrl+V here\n\nBar\tTension ld\tHook ldh\tCompr. ldc\tLap\nD25\t850\t450\t470\t1200\nD29\t45d\t510\t530\t1400";
+      var msg = h("div", "msg"), bx = h("div", "bt");
+      var ap = h("button", "pr-btn", "Apply"); ap.type = "button"; var cl = h("button", "pr-gbtn", "Close"); cl.type = "button";
+      bx.appendChild(ap); bx.appendChild(cl); box.appendChild(ta); box.appendChild(msg); box.appendChild(bx);
+      function apply(t) {
+        if (!t || !t.trim()) { msg.textContent = "Nothing to apply — paste the Excel cells first."; return; }
+        var n = lensPaste(L, rb, (rb.lens[0] || {}).bar, 0, t.indexOf("\t") < 0 && t.indexOf(",") >= 0 ? t.replace(/,(?=\S)/g, "\t") : t);
+        if (!n) { msg.textContent = "No changed values found. Each row should start with the bar name (D25, #8 …) followed by ld, ldh, ldc, lap."; return; }
+        L.mode = "edit"; _lensOpen = false; renderPerPier(); rbChanged();
+      }
+      ta.addEventListener("paste", function (e) { var t = (e.clipboardData || window.clipboardData).getData("text"); e.preventDefault(); ta.value = t; apply(t); });
+      ap.onclick = function () { apply(ta.value); };
+      cl.onclick = function () { _lensOpen = false; box.style.display = "none"; };
+      pb.onclick = function () { _lensOpen = true; box.style.display = "block"; ta.focus(); };
+      box.style.display = _lensOpen ? "block" : "none";
       if (ed) {
         var nEd = 0; for (var k in L.table) nEd += Object.keys(L.table[k]).length;
         var rs = h("button", "pr-gbtn", "Reset to calculated" + (nEd ? " (" + nEd + ")" : "")); rs.type = "button"; rs.disabled = !nEd;
         rs.onclick = function () { L.table = {}; rbChanged(); };
         tools.appendChild(rs);
-        tools.appendChild(h("span", "pr-lenshint", "Type over a cell (mm or 40d), or copy the cells Bar → Lap from the Excel sample and paste into any cell."));
+        tools.appendChild(h("span", "pr-lenshint", "Or type over a cell (mm or 40d)."));
       }
-      rbLens.appendChild(tools);
+      rbLens.appendChild(tools); rbLens.appendChild(box);
       var tb = h("table", "pr-lens");
       var hr = "<tr><th>Bar</th><th class='u'>Used</th>" + cols.map(function (c) { return "<th>" + c[1] + "</th>"; }).join("") + "</tr>";
       tb.innerHTML = "<thead>" + hr + "</thead>";
