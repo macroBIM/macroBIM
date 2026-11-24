@@ -250,6 +250,8 @@
     ".pr-lens td{padding:3px 10px;text-align:right;border-bottom:1px dashed var(--hair);font-variant-numeric:tabular-nums}" +
     ".pr-lens input{width:76px;text-align:right;padding:3px 6px;border:1px solid var(--line);border-radius:5px;font-size:12px}" +
     ".pr-lens input.ed{background:#fff7ed;border-color:#fb923c}" +
+    ".pr-lenstools{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin:10px 0 0}.pr-lenstools .pr-gbtn:disabled{opacity:.5;cursor:default}" +
+    ".pr-lenshint{font-size:12px;color:var(--muted)}.pr-lens input::placeholder{color:#c2410c}" +
     ".pr-lens th.u,.pr-lens td.u{text-align:center;color:var(--dim);font-weight:700}" +
     ".pr-rbdet{margin:4px 0 2px;font-size:12.5px}" +
     ".pr-rbdet summary{cursor:pointer;color:var(--dim);font-weight:600;font-size:12px;margin-bottom:6px}" +
@@ -1016,12 +1018,60 @@
     }
     // anchorage / lap table: the values in use per bar size. Auto = from the calculation sheet's formulas (read only);
     // Manual / Auto + edit = type over a cell — mm, or a multiple of the bar diameter such as 40d.
+    // anchorage / lap table: the values in use per bar size. Auto = from the calculation sheet's formulas (read only).
+    // Edit = the same values in input cells; a cell the user changes overrides the calculation (orange), an emptied cell
+    // goes back to the calculated value. Values in mm, or as a multiple of the bar diameter (40d).
+    // A block copied from Excel (tab / new-line separated) can be pasted into any cell: it fills from that cell right and
+    // down; a row that starts with a bar name (D25, #8 …) goes to that bar's row whatever the order.
+    var LENS_COLS = [["ld", "Tension l<sub>d</sub>", "Tension ld"], ["ldh", "Hook l<sub>dh</sub>", "Hook ldh"], ["ldc", "Compr. l<sub>dc</sub>", "Compr. ldc"], ["lap", "Lap", "Lap"]];
+    function lensSet(L, bar, key, v) {
+      v = String(v == null ? "" : v).replace(/,/g, "").trim();
+      L.table[bar] = L.table[bar] || {};
+      if (v === "" || !/^\d+(\.\d+)?\s*(d|db)?$/i.test(v)) delete L.table[bar][key]; else L.table[bar][key] = v;
+      if (!Object.keys(L.table[bar]).length) delete L.table[bar];
+    }
+    function lensPaste(L, rb, bar0, col0, text) {
+      var names = (rb.lens || []).map(function (u) { return u.bar; }), rows = text.replace(/\r/g, "").split("\n").filter(function (r) { return r.trim() !== ""; });
+      var start = names.indexOf(bar0), n = 0;
+      rows.forEach(function (line, i) {
+        var cells = line.split("\t").map(function (x) { return x.trim(); }), bar = names[start + i], c0 = col0;
+        // a row that carries its bar name: D25 / #8 always; a plain number (BS 25) only when the row has 5 cells
+        if (names.indexOf(cells[0]) >= 0 && (/[^0-9.]/.test(cells[0]) || cells.length === 5)) { bar = cells[0]; cells = cells.slice(1); c0 = 0; }
+        if (cells.length > 4 && names.indexOf(cells[0]) < 0 && !/\d/.test(cells[0])) { cells = cells.slice(1); }                              // a label column
+        if (!bar || !cells.some(function (x) { return /\d/.test(x); })) return;                                                               // header / empty row
+        cells.forEach(function (v, j) { var k = c0 + j; if (k < 4 && v !== "") { lensSet(L, bar, LENS_COLS[k][0], v); n++; } });
+      });
+      return n;
+    }
+    function lensTSV(rb) {
+      var o = ["Bar\t" + LENS_COLS.map(function (c) { return c[2]; }).join("\t")];
+      (rb.lens || []).forEach(function (u) { o.push(u.bar + "\t" + LENS_COLS.map(function (c) { return u[c[0]]; }).join("\t")); });
+      return o.join("\n");
+    }
+    function copyText(t, done) {
+      function fb() { var ta = document.createElement("textarea"); ta.value = t; ta.style.cssText = "position:fixed;left:-9999px"; document.body.appendChild(ta); ta.select(); try { document.execCommand("copy"); } catch (e) { } document.body.removeChild(ta); done(); }
+      if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(t).then(done, fb); else fb();
+    }
     function paintLens(rb) {
       if (!rbLens || !rbLens.isConnected) return;
       var R = P().rebar, L = R.lap, ed = L.mode !== "auto";
       var used = {}; R.rows.forEach(function (r) { if (r.bar) used[r.bar] = 1; });
       colBars(R.col).concat(fdnBars(R.fdn)).forEach(function (b) { used[b] = 1; });
-      var cols = [["ld", "Tension l<sub>d</sub>"], ["ldh", "Hook l<sub>dh</sub>"], ["ldc", "Compr. l<sub>dc</sub>"], ["lap", "Lap"]];
+      var cols = LENS_COLS;
+      rbLens.innerHTML = "";
+      // tools above the table: copy (for Excel) · back to the calculation
+      var tools = h("div", "pr-lenstools");
+      var cp = h("button", "pr-gbtn", "Copy table"); cp.type = "button"; cp.title = "Copy the values as tab-separated text — paste into Excel";
+      cp.onclick = function () { copyText(lensTSV(rb), function () { cp.textContent = "Copied ✓"; setTimeout(function () { cp.textContent = "Copy table"; }, 1500); }); };
+      tools.appendChild(cp);
+      if (ed) {
+        var nEd = 0; for (var k in L.table) nEd += Object.keys(L.table[k]).length;
+        var rs = h("button", "pr-gbtn", "Reset to calculated" + (nEd ? " (" + nEd + ")" : "")); rs.type = "button"; rs.disabled = !nEd;
+        rs.onclick = function () { L.table = {}; rbChanged(); };
+        tools.appendChild(rs);
+        tools.appendChild(h("span", "pr-lenshint", "Type over a cell (mm or 40d), or paste a block copied from Excel into any cell."));
+      }
+      rbLens.appendChild(tools);
       var tb = h("table", "pr-lens");
       var hr = "<tr><th>Bar</th><th class='u'>Used</th>" + cols.map(function (c) { return "<th>" + c[1] + "</th>"; }).join("") + "</tr>";
       tb.innerHTML = "<thead>" + hr + "</thead>";
@@ -1029,17 +1079,25 @@
       (rb.lens || []).forEach(function (u) {
         var tr = h("tr"); tr.appendChild(h("td", "b", u.bar));   // every size of the standard
         tr.appendChild(h("td", "u", used[u.bar] ? "&#10003;" : ""));   // used by a rebar row below
-        cols.forEach(function (c) {
+        cols.forEach(function (c, ci) {
           var td = h("td"), mine = L.table[u.bar] && L.table[u.bar][c[0]];
           if (!ed) { td.textContent = fmtN(u[c[0]]); if (c[0] === "lap" && u.lapBan) td.innerHTML = "<span class='pr-rbwarn' title='Tension lap not allowed above D35 — use a mechanical splice'>coupler</span>"; }
           else {
-            var inp = h("input"); inp.type = "text"; inp.value = mine || ""; inp.placeholder = L.mode === "edit" ? fmtN(u[c[0]]) : "mm / 40d";
-            inp.title = "mm, or a multiple of the bar diameter (e.g. 40d)" + (L.mode === "edit" ? " — empty = the calculated value" : " — empty = 50d");
+            var ban = c[0] === "lap" && u.lapBan && !mine;   // tension lap not allowed (above D35): empty, "coupler" — a typed value overrides
+            var inp = h("input"); inp.type = "text"; inp.value = mine || (ban ? "" : String(u[c[0]])); if (ban) inp.placeholder = "coupler";
+            inp.title = "mm, or a multiple of the bar diameter (e.g. 40d). Empty = back to the calculated value.";
             if (mine) inp.className = "ed";
+            inp.addEventListener("focus", function () { inp.select(); });
             inp.addEventListener("change", function () {
-              var v = inp.value.trim(); L.table[u.bar] = L.table[u.bar] || {};
-              if (v === "") delete L.table[u.bar][c[0]]; else L.table[u.bar][c[0]] = v;
-              inp.className = v ? "ed" : ""; rbChanged();
+              var v = inp.value.trim();
+              if (v !== "" && String(Number(v.replace(/,/g, ""))) === String(u[c[0]]) && !mine) return;   // unchanged
+              lensSet(L, u.bar, c[0], v); rbChanged();
+            });
+            inp.addEventListener("paste", function (e) {
+              var t = (e.clipboardData || window.clipboardData).getData("text");
+              if (!/[\t\n]/.test(t.replace(/\n$/, ""))) return;            // a single value: ordinary paste
+              e.preventDefault();
+              if (lensPaste(L, rb, u.bar, ci, t)) rbChanged();
             });
             td.appendChild(inp);
           }
@@ -1048,8 +1106,7 @@
         body.appendChild(tr);
       });
       tb.appendChild(body);
-      rbLens.innerHTML = ""; rbLens.appendChild(tb);
-      // no caption under the table (user): the "Used" column says which sizes the rows use; input hints are on the cells
+      rbLens.appendChild(tb);
     }
     function cardRebar() {
       var p = P(), R = p.rebar, L = R.lap;
@@ -1107,12 +1164,13 @@
       // anchorage / laps
       chapter("Anchorage &amp; laps");
       var md = h("div", "pr-modes");
-      [["auto", "Auto (calculation sheet)"], ["edit", "Auto + edit"], ["manual", "Manual"]].forEach(function (o) {
+      if (L.mode === "manual") L.mode = "edit";   // Manual was folded into Edit (start from the calculation, change any cell)
+      [["auto", "Auto (calculation sheet)"], ["edit", "Edit"]].forEach(function (o) {
         var t = h("button", "pr-mode" + (L.mode === o[0] ? " on" : ""), o[1]); t.type = "button";
         t.onclick = function () { L.mode = o[0]; renderPerPier(); }; md.appendChild(t);
       });
       b.appendChild(md);
-      if (L.mode !== "manual") {
+      {
         var g2 = h("div", "pr-ingrid");
         var cr = h("div", "pr-inrow"); cr.appendChild(h("label", null, "<span class='var'>Code</span><span class='desc'>Design code</span>"));
         var cs = h("select", "pr-sel"); [["gujo", "Concrete structural 2012 · 2021"], ["doro", "Road bridge 2016 (LSD)"]].forEach(function (o) { var op = h("option", null, o[1]); op.value = o[0]; if (L.std === o[0]) op.selected = true; cs.appendChild(op); });
