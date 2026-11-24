@@ -279,7 +279,7 @@ git status --short     # 비어 있어야 한다
 | **J 엔진** | `jfield.js` · `bench/jbench.js` · `bench/jengine.js` | 논문의 J 최소화를 그대로 짠 **두 번째 엔진**. PSCBOX 일반단면 페이지의 **기본 엔진**이다 (`Solver` 버튼으로 옛 `physics.js` 와 오간다). 격벽 페이지는 아직 옛 엔진만 쓴다 |
 | **Crossbeam 폼** | `plate3d/quick_crossbeam_test.js` | 폼과 그림은 있고, PLATE3D 로 모델 보내기와 워크북 내보내기가 없다 |
 | **Dashboard · PSCBOX · Crossbeam 메뉴** | `design/layout_body_test.js` | `design/SYNC.md` 참조 — 옮기지 않는다 |
-| **PIER (/dev/)** | `bim_pier_dev.js` (`?v=24`) ← design **dev** `layout_body_test.js` | 운영에 없는 것: 자체 기호 체계 · 배근 1단계(2026-11-19). `/dev/` 에서 확인한 뒤 `bim_pier.js` 로 다시 승격 |
+| **PIER (/dev/)** | `bim_pier_dev.js` (`?v=25`) ← design **dev** `layout_body_test.js` | 운영에 없는 것: 자체 기호 체계 · 배근 1단계(2026-11-19). `/dev/` 에서 확인한 뒤 `bim_pier.js` 로 다시 승격 |
 
 
 ### PIER — 지금 어디까지 (2026-11-19 · 운영은 11-16 2차 승격본 · `/dev/` 는 배근 1단계까지)
@@ -359,6 +359,7 @@ git status --short     # 비어 있어야 한다
 **맨 위가 최신.** 한 줄에 하나: 날짜 · 커밋 · 무엇이 · 어디까지(테스트/운영).
 
 ### 2026-11-24
+- **PIER(dev): 정착·이음 표에 「Excel sample (.csv)」 받기 — 표와 같은 열(Bar · Tension ld · Hook ldh · Compr. ldc · Lap), 지금 값, D35 초과 겹이음은 coupler. 엑셀에서 고쳐 Bar~Lap 을 복사해 Edit 표 아무 칸에 붙여 넣으면 바뀐 값만 수정으로 잡힌다** · macroBIM `bim_pier_dev.js` + design dev `?v=25` · **시험(/dev/)** — 사용자: 「엑셀에 어떤 식으로 넣어야 하지? 샘플이 있어야」. 계산값과 같은 값은 수정으로 치지 않게 고침.
 - **PIER(dev): 정착·이음 — Auto · Edit 두 가지만 (Manual 없앰), Edit 는 계산값이 칸에 들어 있고 고친 칸만 주황 · 비우면 계산값으로, 「Reset to calculated」, 「Copy table」(엑셀로 붙여 넣는 탭 구분 글자), 엑셀에서 복사한 덩어리를 아무 칸에 붙여 넣으면 오른쪽 · 아래로 채움(줄 앞에 D25 · #8 같은 이름이 있으면 그 철근 줄로, 머리 줄 · 쉼표 1,110 · 40d 처리)** · macroBIM `bim_pier_dev.js` + design dev `?v=24` · **시험(/dev/)** — 사용자 요청. D35 초과 겹이음 칸은 비워 두고 "coupler" 표시, 값을 넣으면 그 값으로.
 - **PIER(dev): 배근 5장 기초 다시 — 5.1 주철근 하면 · 상면 × 교축직각 · 교축(지름 · 간격 · 1~2단 · 2Cycle 사이 철근) + 바깥 방향 선택 · 5.2 철근 끝(갈고리 12db / 반대 철근망까지 / 길이 / 직선) · 5.3 측면 철근(둘레 수평, 간격) · 5.4 전단철근(닫힌 스터럽 / 한 가닥, 교축직각 · 교축 간격, 지그재그, 기둥 자리 비움)** · macroPIER `17ed6b5` `b4dde06` + macroBIM `bim_pier_dev.js` + design dev `?v=23` · **시험(/dev/)** — AAbutPier 매뉴얼 3.12 의 항목을 우리 입력 구성으로. 기둥 철근은 새 하면 철근망 두께 위에 앉는다. 측면 철근이 있으면 주철근 끝이 그 안쪽. 구간별 간격(BU · OU 같은)은 아직 — 고른 간격만. 다음: 3장 코핑.
 - **PIER(dev): 배근 4장 기둥 다시 — 4.1 주철근 1~3단(단마다 면→철근 거리, 다발 1~4, 간격 · 개수 · 사각 면별 개수) · 4.2 Starter bar(사용 여부, 갈고리 방향 · 길이, 기초 위 돌출, 겹이음/커플러, 50% 엇갈림 · 거리, 안쪽 단 직선 끝) · 4.3 높이 방향 이음(높이 · 위 철근 지름) · 4.4 띠철근 구간 목록(L0 자동 · 나머지 · mm, 간격) · 원형은 나선 · 안쪽 단 띠철근 n 번째마다 · 4.5 크로스타이(하나 걸러 / 전부, n 번째 띠철근마다)** · macroPIER `85ac956` `b44a052 85ac956 ` + macroBIM `bim_pier_dev.js` + design dev `?v=22` · **시험(/dev/)** — 사용자: 「매뉴얼 보고 한 거 맞아? starter bar 상세도 없고」 → AAbutPier 매뉴얼 3.10 · 3.11 의 항목을 우리 입력 구성으로. 재료표에 Starter bars · Crossties · Spiral · 커플러 개수, IFC 는 starter ANCHORING · 띠철근류 LIGATURE. 지름이 다른 겹이음 = max(작은 쪽 겹이음, 큰 쪽 정착). 마주 보는 면은 같은 개수(크로스타이가 마주 보는 철근을 잇게). 다음: 5장 기초, 3장 코핑.

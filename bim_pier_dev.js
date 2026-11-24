@@ -1039,13 +1039,19 @@
         if (names.indexOf(cells[0]) >= 0 && (/[^0-9.]/.test(cells[0]) || cells.length === 5)) { bar = cells[0]; cells = cells.slice(1); c0 = 0; }
         if (cells.length > 4 && names.indexOf(cells[0]) < 0 && !/\d/.test(cells[0])) { cells = cells.slice(1); }                              // a label column
         if (!bar || !cells.some(function (x) { return /\d/.test(x); })) return;                                                               // header / empty row
-        cells.forEach(function (v, j) { var k = c0 + j; if (k < 4 && v !== "") { lensSet(L, bar, LENS_COLS[k][0], v); n++; } });
+        var u = (rb.lens || []).filter(function (x) { return x.bar === bar; })[0];
+        cells.forEach(function (v, j) {
+          var k = c0 + j; if (k >= 4 || v === "") return; var key = LENS_COLS[k][0], num = Number(v.replace(/,/g, ""));
+          var had = L.table[bar] && L.table[bar][key];
+          if (!had && u && (num === u[key] || (key === "lap" && u.lapBan && !/\d/.test(v)))) return;   // same as the calculation → not an edit
+          lensSet(L, bar, key, v); n++;
+        });
       });
       return n;
     }
     function lensTSV(rb) {
       var o = ["Bar\t" + LENS_COLS.map(function (c) { return c[2]; }).join("\t")];
-      (rb.lens || []).forEach(function (u) { o.push(u.bar + "\t" + LENS_COLS.map(function (c) { return u[c[0]]; }).join("\t")); });
+      (rb.lens || []).forEach(function (u) { o.push(u.bar + "\t" + LENS_COLS.map(function (c) { return c[0] === "lap" && u.lapBan ? "coupler" : u[c[0]]; }).join("\t")); });
       return o.join("\n");
     }
     function copyText(t, done) {
@@ -1064,12 +1070,19 @@
       var cp = h("button", "pr-gbtn", "Copy table"); cp.type = "button"; cp.title = "Copy the values as tab-separated text — paste into Excel";
       cp.onclick = function () { copyText(lensTSV(rb), function () { cp.textContent = "Copied ✓"; setTimeout(function () { cp.textContent = "Copy table"; }, 1500); }); };
       tools.appendChild(cp);
+      // a sample file for Excel: the same columns as the table, current values — edit it, copy the block, paste here (Edit)
+      var smp = h("button", "pr-gbtn", "&#8681; Excel sample (.csv)"); smp.type = "button"; smp.title = "Open in Excel, change the values, copy the cells from Bar to Lap and paste them into a cell of this table (Edit)";
+      smp.onclick = function () {
+        var csv = "\ufeff" + lensTSV(rb).split("\n").map(function (l) { return l.split("\t").join(","); }).join("\r\n");
+        saveFile(csv, "anchorage_laps_" + L.sys + ".csv", "text/csv");
+      };
+      tools.appendChild(smp);
       if (ed) {
         var nEd = 0; for (var k in L.table) nEd += Object.keys(L.table[k]).length;
         var rs = h("button", "pr-gbtn", "Reset to calculated" + (nEd ? " (" + nEd + ")" : "")); rs.type = "button"; rs.disabled = !nEd;
         rs.onclick = function () { L.table = {}; rbChanged(); };
         tools.appendChild(rs);
-        tools.appendChild(h("span", "pr-lenshint", "Type over a cell (mm or 40d), or paste a block copied from Excel into any cell."));
+        tools.appendChild(h("span", "pr-lenshint", "Type over a cell (mm or 40d), or copy the cells Bar → Lap from the Excel sample and paste into any cell."));
       }
       rbLens.appendChild(tools);
       var tb = h("table", "pr-lens");
