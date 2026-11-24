@@ -267,7 +267,7 @@
     ".pr-rbt2 td{padding:4px 8px}.pr-rbt2 .no{color:var(--dim);font-weight:700;font-family:ui-monospace,Menlo,Consolas,monospace;font-size:12px}" +
     ".pr-rbin{width:78px;text-align:right;padding:5px 7px;margin:0 4px;border:1px solid var(--line);border-radius:6px;font-size:13px}" +
     ".pr-rbgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:2px 24px;margin:0 0 4px 8px}" +
-    ".pr-rbf0{justify-content:flex-start}" +
+    ".pr-rbf.pr-rbf0{justify-content:flex-start}" +
     ".pr-rbf{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:5px 0;border-bottom:1px dashed var(--hair);font-size:13px}" +
     ".pr-rbf .l{color:var(--muted);font-size:12.5px}.pr-rbf .v{display:inline-flex;align-items:center;gap:2px}" +
     ".pr-rbchk{display:inline-flex;align-items:center;gap:7px;font-size:13px;cursor:pointer}" +
@@ -302,16 +302,16 @@
     cap: [["top", "Top main bars", "상면 주철근", 1], ["bot", "Bottom main bars", "하면 주철근", 1], ["stir", "Stirrups", "스터럽", 0], ["side", "Side bars", "측면 철근", 0]],
     col: [["start", "Starter bars", "스타터(기초 정착)", 0], ["main", "Main bars", "주철근", 0], ["tie", "Ties", "띠철근", 0], ["spiral", "Spiral", "나선철근", 0],
       ["tie2", "Ties (inner layers)", "안쪽 단 띠철근", 0], ["cross", "Crossties", "크로스타이", 0]],   // names only — chapter 4 has its own inputs
-    fdn: [["bx", "Bottom, transverse", "하면 교축직각", 0], ["by", "Bottom, longitudinal", "하면 교축", 0], ["tx", "Top, transverse", "상면 교축직각", 0], ["ty", "Top, longitudinal", "상면 교축", 0]]
+    fdn: [["bx", "Bottom, transverse", "하면 교축직각", 0], ["by", "Bottom, longitudinal", "하면 교축", 0], ["tx", "Top, transverse", "상면 교축직각", 0], ["ty", "Top, longitudinal", "상면 교축", 0],
+      ["fside", "Side bars", "측면 철근", 0], ["shear", "Shear bars", "전단철근", 0]]   // names only — chapter 5 has its own inputs
   };
   // default values (the "Default values" button and a new pier) — common starting values only, not a design;
   // KS names, other standards take the nearest diameter.
-  var RB_DEFAULT = { cap: { top: ["D29", 150, 1], bot: ["D29", 150, 1], stir: ["D16", 150], side: ["D16", 250] },
-    fdn: { bx: ["D25", 150], by: ["D25", 150], tx: ["D19", 250], ty: ["D19", 250] } };
+  var RB_DEFAULT = { cap: { top: ["D29", 150, 1], bot: ["D29", 150, 1], stir: ["D16", 150], side: ["D16", 250] } };
   function kb(sys, b) { return sys === "KS" ? b : nearestBar(sys, barDia("KS", b)); }
   function defaultRows(sys) {
     var rows = [];
-    ["cap", "fdn"].forEach(function (m) { RB_ROLES[m].forEach(function (r) {
+    ["cap"].forEach(function (m) { RB_ROLES[m].forEach(function (r) {
       var v = RB_DEFAULT[m][r[0]]; rows.push({ m: m, r: r[0], bar: kb(sys, v[0]), q: "s", v: v[1], ly: v[2] || 1 });
     }); });
     return rows;
@@ -325,6 +325,20 @@
       ties: { bar: kb(sys, "D16"), type: "hoop", zones: [{ L: -1, s: 100 }, { L: 0, s: 150 }, { L: -1, s: 100 }], inner: 2 },
       cross: { on: true, bar: kb(sys, "D16"), sup: "alt", every: 1 } };
   }
+  // footing (chapter 5): main bars per face and direction (x = transverse, y = longitudinal), 2nd-cycle bars in between,
+  // which direction lies outside, bar ends, side bars, shear bars
+  function defaultFdn(sys) {
+    return { bot: [{ dir: "x", bar: kb(sys, "D25"), s: 150, ly: 1, bar2: "" }, { dir: "y", bar: kb(sys, "D25"), s: 150, ly: 1, bar2: "" }],
+      top: [{ dir: "x", bar: kb(sys, "D19"), s: 250, ly: 1, bar2: "" }, { dir: "y", bar: kb(sys, "D19"), s: 250, ly: 1, bar2: "" }],
+      outer: "x", endB: { t: "hook", L: 0 }, endT: { t: "hook", L: 0 },
+      side: { on: true, bar: kb(sys, "D16"), s: 300 }, shear: { on: false, bar: kb(sys, "D16"), type: "closed", sx: 600, sy: 600, zig: false } };
+  }
+  function fdnBars(F) {
+    if (!F) return []; var o = [];
+    ["bot", "top"].forEach(function (k) { F[k].forEach(function (r) { if (r.bar) o.push(r.bar); if (r.bar2) o.push(r.bar2); }); });
+    if (F.side.on && F.side.bar) o.push(F.side.bar); if (F.shear.on && F.shear.bar) o.push(F.shear.bar);
+    return o;
+  }
   function colBars(C) {
     if (!C) return []; var o = [];
     C.layers.forEach(function (x) { if (x.bar) o.push(x.bar); }); C.splices.forEach(function (x) { if (x.bar) o.push(x.bar); });
@@ -335,7 +349,7 @@
     return { on: false, line: "double", cover: { cap: 60, col: 75, fdn: 100 }, stock: 12000,
       lap: { sys: "KS", std: "gujo", fck: 30, fy: 400, mode: "auto", grade: "B",
         calc: { cover: 50, ctc: 125, ktr: 0, lam: 1, way: "equ", phic: 0.65, eta1: 1, K: 0, lamTr: 0, p: 0, a1: 1, a6: 1, asreq: 1, asprov: 1 }, table: {} },
-      rows: defaultRows("KS"), col: defaultCol("KS") };
+      rows: defaultRows("KS"), col: defaultCol("KS"), fdn: defaultFdn("KS") };
   }
   function newPier(name) {
     return {
@@ -1006,7 +1020,7 @@
       if (!rbLens || !rbLens.isConnected) return;
       var R = P().rebar, L = R.lap, ed = L.mode !== "auto";
       var used = {}; R.rows.forEach(function (r) { if (r.bar) used[r.bar] = 1; });
-      colBars(R.col).forEach(function (b) { used[b] = 1; });
+      colBars(R.col).concat(fdnBars(R.fdn)).forEach(function (b) { used[b] = 1; });
       var cols = [["ld", "Tension l<sub>d</sub>"], ["ldh", "Hook l<sub>dh</sub>"], ["ldc", "Compr. l<sub>dc</sub>"], ["lap", "Lap"]];
       var tb = h("table", "pr-lens");
       var hr = "<tr><th>Bar</th><th class='u'>Used</th>" + cols.map(function (c) { return "<th>" + c[1] + "</th>"; }).join("") + "</tr>";
@@ -1052,7 +1066,7 @@
       var db0 = h("button", "pr-btn pr-ghost", "&#8634; Default values"); db0.type = "button";
       db0.onclick = function () {
         if (!confirm("Replace every rebar row, the covers and the stock length with the default values?")) return;
-        R.rows = defaultRows(L.sys); R.col = defaultCol(L.sys); R.cover = { cap: 60, col: 75, fdn: 100 }; R.stock = 12000; renderPerPier();
+        R.rows = defaultRows(L.sys); R.col = defaultCol(L.sys); R.fdn = defaultFdn(L.sys); R.cover = { cap: 60, col: 75, fdn: 100 }; R.stock = 12000; renderPerPier();
       };
       dfl.appendChild(db0);
       dfl.appendChild(h("span", "pr-cap", "The rows start from common values — change them to your design. Nothing here checks the required steel."));
@@ -1078,6 +1092,7 @@
         R.rows.forEach(function (r) { if (r.bar) r.bar = nearestBar(L.sys, barDia(from, r.bar)); });
         var cv = function (b) { return b ? nearestBar(L.sys, barDia(from, b)) : b; }, C = R.col;
         C.layers.forEach(function (x) { x.bar = cv(x.bar); }); C.splices.forEach(function (x) { x.bar = cv(x.bar); }); C.ties.bar = cv(C.ties.bar); C.cross.bar = cv(C.cross.bar);
+        var F = R.fdn; ["bot", "top"].forEach(function (k) { F[k].forEach(function (r) { r.bar = cv(r.bar); r.bar2 = cv(r.bar2); }); }); F.side.bar = cv(F.side.bar); F.shear.bar = cv(F.shear.bar);
         renderPerPier();
       });
       sr.appendChild(ss); g.appendChild(sr);
@@ -1184,28 +1199,29 @@
         });
         tb.appendChild(body); b.appendChild(tb);
       }
+      // ── small input helpers for chapters 4 and 5 ──
+      function ch() { rbChanged(); }
+      function num(val, on, ph, step, w) {
+        var i = h("input"); i.type = "number"; i.className = "pr-mono pr-rbin"; i.step = step || "10"; if (w) i.style.width = w + "px";
+        i.value = val > 0 ? val : ""; if (ph) i.placeholder = ph;
+        i.addEventListener("input", function () { var v = parseFloat(i.value); on(isNaN(v) ? 0 : v); ch(); }); return i;
+      }
+      function sel(opts, val, on, cls) {
+        var e = h("select", "pr-sel" + (cls ? " " + cls : "")); opts.forEach(function (o) { var op = h("option", null, o[1]); op.value = o[0]; if (String(val) === String(o[0])) op.selected = true; e.appendChild(op); });
+        e.addEventListener("change", function () { on(e.value); }); return e;
+      }
+      function barSel(val, on, blank) { var o = (blank ? [["", blank]] : []).concat(bars.map(function (x) { return [x, x]; })); return sel(o, val, on); }
+      function chk(label, val, on) { var w = h("label", "pr-rbchk"); var c2 = h("input"); c2.type = "checkbox"; c2.checked = !!val; c2.addEventListener("change", function () { on(c2.checked); }); w.appendChild(c2); w.appendChild(document.createTextNode(label)); return w; }
+      function field(label, el, unit) { var w = h("div", "pr-rbf" + (label ? "" : " pr-rbf0")); w.appendChild(h("span", "l", label)); var v = h("span", "v"); [].concat(el).forEach(function (x) { v.appendChild(typeof x === "string" ? h("span", "pr-unit", x) : x); }); if (unit) v.appendChild(h("span", "pr-unit", unit)); w.appendChild(v); return w; }
+      function del(on) { var x = h("button", "pr-del", "&times;"); x.type = "button"; x.title = "Remove"; x.onclick = on; return x; }
+      function add(label, on) { var x = h("button", "pr-gbtn", "+ " + label); x.type = "button"; x.onclick = on; return x; }
+
       // ── chapter 4: columns ──
       function colChapter(title) {
         var p2 = P(), C = R.col || (R.col = defaultCol(L.sys)), no = chapter(title), sub = 0;
         var anyCircle = p2.cols.some(function (c2) { return c2.shape === "circle"; }), allCircle = p2.cols.every(function (c2) { return c2.shape === "circle"; });
         var anyRect = p2.cols.some(function (c2) { return c2.shape === "rect"; });
         function sh(t) { sub++; b.appendChild(h("div", "pr-rbsub", "<span class='no'>" + no + "." + sub + "</span>" + t)); }
-        function ch() { rbChanged(); }
-        function num(val, on, ph, step, w) {
-          var i = h("input"); i.type = "number"; i.className = "pr-mono pr-rbin"; i.step = step || "10"; if (w) i.style.width = w + "px";
-          i.value = val > 0 ? val : ""; if (ph) i.placeholder = ph;
-          i.addEventListener("input", function () { var v = parseFloat(i.value); on(isNaN(v) ? 0 : v); ch(); }); return i;
-        }
-        function sel(opts, val, on, cls) {
-          var e = h("select", "pr-sel" + (cls ? " " + cls : "")); opts.forEach(function (o) { var op = h("option", null, o[1]); op.value = o[0]; if (String(val) === String(o[0])) op.selected = true; e.appendChild(op); });
-          e.addEventListener("change", function () { on(e.value); }); return e;
-        }
-        function barSel(val, on, blank) { var o = (blank ? [["", blank]] : []).concat(bars.map(function (x) { return [x, x]; })); return sel(o, val, on); }
-        function chk(label, val, on) { var w = h("label", "pr-rbchk"); var c2 = h("input"); c2.type = "checkbox"; c2.checked = !!val; c2.addEventListener("change", function () { on(c2.checked); }); w.appendChild(c2); w.appendChild(document.createTextNode(label)); return w; }
-        function field(label, el, unit) { var w = h("div", "pr-rbf" + (label ? "" : " pr-rbf0")); w.appendChild(h("span", "l", label)); var v = h("span", "v"); [].concat(el).forEach(function (x) { v.appendChild(typeof x === "string" ? h("span", "pr-unit", x) : x); }); if (unit) v.appendChild(h("span", "pr-unit", unit)); w.appendChild(v); return w; }
-        function del(on) { var x = h("button", "pr-del", "&times;"); x.type = "button"; x.title = "Remove"; x.onclick = on; return x; }
-        function add(label, on) { var x = h("button", "pr-gbtn", "+ " + label); x.type = "button"; x.onclick = on; return x; }
-
         // 4.1 main bars — layers 1 to 3
         sh("Main bars");
         var t1 = h("table", "pr-rbtbl pr-rbt2");
@@ -1296,10 +1312,66 @@
           b.appendChild(g5);
         }
       }
+      // ── chapter 5: footing ──
+      function fdnChapter(title) {
+        var F = R.fdn || (R.fdn = defaultFdn(L.sys)), no = chapter(title), sub = 0;
+        function sh(t) { sub++; b.appendChild(h("div", "pr-rbsub", "<span class='no'>" + no + "." + sub + "</span>" + t)); }
+        // 5.1 main bars — bottom and top, each direction
+        sh("Main bars");
+        var t1 = h("table", "pr-rbtbl pr-rbt2");
+        t1.innerHTML = "<colgroup><col style='width:24%'><col style='width:12%'><col style='width:22%'><col style='width:12%'><col style='width:30%'></colgroup>" +
+          "<thead><tr><th></th><th>Bar</th><th>Spacing</th><th>Layers</th><th>2nd cycle (in between)</th></tr></thead>";
+        var tb1 = h("tbody"), k = 0;
+        [["bot", "Bottom"], ["top", "Top"]].forEach(function (fc) {
+          F[fc[0]].forEach(function (r) {
+            k++; var tr = h("tr");
+            tr.appendChild(h("td", null, "<span class='no'>" + k + "</span>" + fc[1] + ", " + (r.dir === "x" ? "transverse" : "longitudinal")));
+            var td = h("td"); td.appendChild(barSel(r.bar, function (v) { r.bar = v; ch(); })); tr.appendChild(td);
+            var ts = h("td"); ts.appendChild(h("span", "pr-unit", "@")); ts.appendChild(num(r.s, function (v) { r.s = v > 0 ? v : 150; }, "", "25", 80)); ts.appendChild(h("span", "pr-unit", "mm")); tr.appendChild(ts);
+            var tl = h("td"); tl.appendChild(sel([[1, "1"], [2, "2"]], r.ly, function (v) { r.ly = +v; ch(); })); tr.appendChild(tl);
+            var t2 = h("td"); t2.appendChild(barSel(r.bar2, function (v) { r.bar2 = v; ch(); }, "—")); tr.appendChild(t2);
+            tb1.appendChild(tr);
+          });
+        });
+        t1.appendChild(tb1); b.appendChild(t1);
+        var g1 = h("div", "pr-rbgrid");
+        g1.appendChild(field("Outer bars (top and bottom)", sel([["x", "Transverse"], ["y", "Longitudinal"]], F.outer, function (v) { F.outer = v; ch(); })));
+        b.appendChild(g1);
+        // 5.2 bar ends
+        sh("Bar ends");
+        var g2 = h("div", "pr-rbgrid");
+        [["endB", "Bottom bars", "up", "Up to the top mat"], ["endT", "Top bars", "down", "Down to the bottom mat"]].forEach(function (e) {
+          var E = F[e[0]], parts = [sel([["hook", "Hook " + e[2] + " 12db"], ["full", e[3]], ["mm", "Length"], ["none", "Straight"]], E.t, function (v) { E.t = v; if (v === "mm" && !E.L) E.L = 500; renderPerPier(); ch(); })];
+          if (E.t === "mm") { parts.push(num(E.L, function (v) { E.L = v; }, "", "50", 80)); parts.push("mm"); }
+          g2.appendChild(field(e[1], parts));
+        });
+        b.appendChild(g2);
+        // 5.3 side bars
+        sh("Side bars");
+        var g3 = h("div", "pr-rbgrid"), SD = F.side;
+        g3.appendChild(field("", chk("Use side bars", SD.on, function (v) { SD.on = v; renderPerPier(); ch(); })));
+        if (SD.on) {
+          g3.appendChild(field("Bar", barSel(SD.bar, function (v) { SD.bar = v; ch(); })));
+          g3.appendChild(field("Vertical spacing", [h("span", "pr-unit", "@"), num(SD.s, function (v) { SD.s = v > 0 ? v : 300; }, "", "25", 80)], "mm"));
+        }
+        b.appendChild(g3);
+        // 5.4 shear bars
+        sh("Shear bars");
+        var g4 = h("div", "pr-rbgrid"), H = F.shear;
+        g4.appendChild(field("", chk("Use shear bars", H.on, function (v) { H.on = v; renderPerPier(); ch(); })));
+        if (H.on) {
+          g4.appendChild(field("Bar", barSel(H.bar, function (v) { H.bar = v; ch(); })));
+          g4.appendChild(field("Type", sel([["closed", "Closed stirrup"], ["single", "Single leg (hooked)"]], H.type, function (v) { H.type = v; ch(); })));
+          g4.appendChild(field("Spacing, transverse", [h("span", "pr-unit", "@"), num(H.sx, function (v) { H.sx = v > 0 ? v : 600; }, "", "50", 80)], "mm"));
+          g4.appendChild(field("Spacing, longitudinal", [h("span", "pr-unit", "@"), num(H.sy, function (v) { H.sy = v > 0 ? v : 600; }, "", "50", 80)], "mm"));
+          g4.appendChild(field("", chk("Zig-zag rows", H.zig, function (v) { H.zig = v; ch(); })));
+        }
+        b.appendChild(g4);
+      }
       function paintLensSoon() { var key = inputKey("rebar"), hit = memoGet("rebar", key); if (hit) paintLens(hit); }
       if (!p.noCope) memberRows("cap", p.type === "portal" ? "Beam" : "Cap");
       colChapter(p.type === "portal" ? "Legs" : "Columns");
-      memberRows("fdn", "Footing");
+      fdnChapter("Footing");
       // result
       chapter("Result");
       rbSum = h("div", "pr-rbsum", "<span class='pr-cap'>Placing bars…</span>"); b.appendChild(rbSum);
