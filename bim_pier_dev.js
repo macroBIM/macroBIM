@@ -267,6 +267,27 @@
     ".pr-rbch{display:flex;align-items:center;gap:9px;font-size:14px;font-weight:700;color:#0f172a;margin:22px 0 8px;padding-bottom:7px;border-bottom:2px solid var(--line)}" +
     ".pr-rbch .n{display:inline-flex;align-items:center;justify-content:center;min-width:22px;height:22px;padding:0 6px;border-radius:6px;background:var(--dim);color:#fff;font-size:12px;font-variant-numeric:tabular-nums}" +
     ".pr-rbtbl td .no{display:inline-block;min-width:34px;color:var(--dim);font-weight:700;font-size:12px;font-family:ui-monospace,Menlo,Consolas,monospace}" +
+    ".pr-fbox{display:flex;gap:22px;align-items:flex-start;flex-wrap:wrap;margin:2px 0 8px}" +
+    ".pr-fig{flex:0 0 340px;max-width:340px;background:#fbfcfe;border:1px solid var(--hair);border-radius:8px;padding:8px}" +
+    ".pr-fin{flex:1 1 460px;min-width:0}" +
+    ".pr-figsvg{display:block;width:100%;height:auto}" +
+    ".pr-figsvg .fc{fill:#eef2f6;stroke:#94a3b8;stroke-width:1}.pr-figsvg .fcol{fill:#dfe6ee;stroke:#94a3b8;stroke-width:.8}" +
+    ".pr-figsvg .rb{fill:none;stroke:currentColor;stroke-width:2.2;color:#c2410c;stroke-linejoin:round;stroke-linecap:round}" +
+    ".pr-figsvg .rm{color:#9a3412;stroke-width:1.6}.pr-figsvg .rs{stroke-dasharray:4 3}.pr-figsvg .rthin{stroke-width:1.3}" +
+    ".pr-figsvg .rt{fill:none;stroke:currentColor;stroke-width:1.2;color:#0f766e}" +
+    ".pr-figsvg .rx{fill:none;stroke:currentColor;stroke-width:1.4;color:#7c3aed}" +
+    ".pr-figsvg .rq{fill:none;stroke:#94a3b8;stroke-width:1.2;stroke-dasharray:3 2}" +
+    ".pr-figsvg .rd{fill:currentColor;color:#c2410c}.pr-figsvg .rd2{opacity:.55}.pr-figsvg .rg{color:#94a3b8}.pr-figsvg .rh{fill:#fff;stroke:#c2410c;stroke-width:1}" +
+    ".pr-figsvg .brace{fill:none;stroke:#64748b;stroke-width:.9}" +
+    ".pr-figsvg .cl{stroke:#94a3b8;stroke-width:.8;stroke-dasharray:8 3 2 3}" +
+    ".pr-figsvg .dim{stroke:#64748b;stroke-width:.8;fill:none;marker-start:url(#prfa);marker-end:url(#prfa)}" +
+    ".pr-figsvg .ft{font:9px ui-sans-serif,system-ui,sans-serif;fill:#475569}.pr-figsvg .fton{fill:#2563eb;font-weight:700}" +
+    ".pr-figsvg .tag rect{fill:#2563eb}.pr-figsvg .tag text{font:700 8px ui-monospace,Menlo,Consolas,monospace;fill:#fff}" +
+    ".pr-figsvg .opt.on .fc{stroke:#2563eb;stroke-width:1.6}" +
+    ".pr-figsvg .hl{color:#2563eb!important}.pr-figsvg .rb.hl,.pr-figsvg .rt.hl,.pr-figsvg .rx.hl{stroke-width:3.2}.pr-figsvg .rq.hl{stroke:#2563eb;stroke-width:2.2}" +
+    ".pr-figsvg circle.hl{r:3.6}.pr-figsvg .rh.hl{stroke:#2563eb}.pr-figsvg .ft.hl{fill:#2563eb;font-weight:700}.pr-figsvg .tag.hl rect{fill:#f97316}" +
+    ".pr-figsvg .dim.hl{stroke:#2563eb;stroke-width:1.4}.pr-figsvg .brace.hl{stroke:#2563eb;stroke-width:1.6}" +
+    ".pr-fin tr[data-k]:hover td,.pr-fin [data-k]:focus-within{background:#f5f9ff}" +
     ".pr-rbsub{display:flex;align-items:center;gap:8px;font-size:13px;font-weight:700;color:#334155;margin:14px 0 6px}" +
     ".pr-rbsub .no{color:var(--dim);font-family:ui-monospace,Menlo,Consolas,monospace;font-size:12px;min-width:34px}" +
     ".pr-rbsubk{font-weight:400;color:var(--muted);font-size:12px}" +
@@ -397,6 +418,163 @@
   // coping total height (mm) and derived column height (mm) from the elevation datum
   function copeHmm(p) { return p.noCope ? 0 : (+p.coping.THU || 0) + (+p.coping.THL || 0); }
   function pierCH(p) { var e = p.el || {}; return Math.max(0, Math.round(((+e.top || 0) - (+e.fdn || 0)) * 1000 - copeHmm(p))); }
+
+  // ── rebar figures: one small drawing per input section, so every input shows what it is. Elements carry data-k;
+  // hovering / focusing an input row with the same data-k turns them blue. Coordinates are drawing units, not mm. ──
+  var FIG = (function () {
+    var DEF = "<defs><marker id='prfa' viewBox='0 0 8 8' refX='4' refY='4' markerWidth='5' markerHeight='5' orient='auto-start-reverse'><path d='M0,1 L7,4 L0,7 z' fill='#64748b'/></marker></defs>";
+    function S(w, hh, body) { return "<svg viewBox='0 0 " + w + " " + hh + "' class='pr-figsvg' role='img'>" + DEF + body + "</svg>"; }
+    function C(d) { return "<path class='fc' d='" + d + "'/>"; }
+    function B(d, k, cls) { return "<path class='" + (cls || "rb") + "'" + (k ? " data-k='" + k + "'" : "") + " d='" + d + "'/>"; }
+    function D(x, y, k, cls, r) { return "<circle class='" + (cls || "rd") + "'" + (k ? " data-k='" + k + "'" : "") + " cx='" + x + "' cy='" + y + "' r='" + (r || 2.6) + "'/>"; }
+    function T(x, y, t, k, a, cls) { return "<text class='" + (cls || "ft") + "'" + (k ? " data-k='" + k + "'" : "") + " x='" + x + "' y='" + y + "'" + (a ? " text-anchor='" + a + "'" : "") + ">" + t + "</text>"; }
+    function G(x, y, code, k) { var w = 6 + code.length * 5.2; return "<g class='tag' data-k='" + k + "'><rect x='" + x + "' y='" + y + "' width='" + w + "' height='11' rx='2.5'/><text x='" + (x + w / 2) + "' y='" + (y + 8.2) + "' text-anchor='middle'>" + code + "</text></g>"; }
+    function M(x1, y1, x2, y2, k) { return "<line class='dim'" + (k ? " data-k='" + k + "'" : "") + " x1='" + x1 + "' y1='" + y1 + "' x2='" + x2 + "' y2='" + y2 + "'/>"; }
+    function stir(x) { var yb = x <= 50 ? 44 : (x >= 110 ? 79 : 44 + (x - 50) * 35 / 60); return "M" + x + "," + yb.toFixed(1) + " L" + x + ",21 "; }
+    var F = {};
+    // 1 Common — covers and stock length
+    F.cover = function (noCap) {
+      var s = "";
+      if (!noCap) s += C("M20,10 L140,10 L140,34 L20,34 Z") + B("M24,14 L136,14 L136,30 L24,30 Z", "c1", "rq") + M(128, 10, 128, 14, "c1") + T(144, 15, "c₁", "c1");
+      s += C("M65," + (noCap ? 10 : 34) + " L95," + (noCap ? 10 : 34) + " L95,80 L65,80 Z") + B("M70," + (noCap ? 14 : 34) + " L70,80 M90," + (noCap ? 14 : 34) + " L90,80", "c2", "rq") + M(65, 58, 70, 58, "c2") + T(60, 61, "c₂", "c2", "end");
+      s += C("M30,80 L130,80 L130,100 L30,100 Z") + B("M34,95 L126,95", "c3", "rq") + M(118, 100, 118, 95, "c3") + T(136, 99, "c₃", "c3");
+      s += T(165, 20, "c₁ c₂ c₃ — cover: concrete face", "", "") + T(165, 31, "to the outermost bar", "") + T(165, 55, "Ls — bars longer than the stock", "Ls") + T(165, 66, "length are lapped (spliced)", "Ls");
+      s += B("M165,82 L235,82", "Ls") + B("M222,85 L290,85", "Ls") + M(222, 92, 235, 92, "Ls") + T(229, 103, "lap", "Ls", "middle");
+      return S(300, 108, s);
+    };
+    // 3 Cap — half elevation + section A-A
+    F.cap = function () {
+      var s = C("M10,15 L185,15 L185,85 L180,85 L180,112 L130,112 L130,85 L110,85 L50,50 L10,50 Z");
+      s += "<line class='cl' x1='185' y1='6' x2='185' y2='116'/>" + T(185, 5, "CL", "", "middle");
+      var st = ""; [28, 40, 52, 64, 76, 88, 100, 112, 126, 140, 154, 168, 180].forEach(function (x) { st += stir(x); }); s += B(st, "stir", "rt");
+      s += B("M72,55 L185,55 M93,67 L185,67", "side", "rb rs");
+      s += B("M16,44 L16,21 L185,21", "top") + B("M20,34 L20,44 L50,44 L110,79 L185,79", "bot");
+      s += T(95, 125, "Elevation (half)", "", "middle");
+      s += C("M215,15 L285,15 L285,85 L215,85 Z") + B("M221,21 L279,21 L279,79 L221,79 Z", "stir", "rt");
+      [226, 238, 250, 262, 274].forEach(function (x) { s += D(x, 26, "top") + D(x, 74, "bot"); });
+      [43, 57].forEach(function (y) { s += D(226, y, "side") + D(274, y, "side"); });
+      s += T(250, 100, "Section", "", "middle");
+      s += G(289, 21, "3.1", "top") + G(289, 34, "3.3", "stir") + G(289, 47, "3.4", "side") + G(289, 69, "3.2", "bot");
+      return S(312, 130, s);
+    };
+    // 4.1 Columns — main bars (layers, bundles, face → bar)
+    F.colMain = function (circle) {
+      var s = "", i, a;
+      if (circle) {
+        s += "<circle class='fc' cx='75' cy='75' r='60'/>" + "<circle class='rt' data-k='tie' cx='75' cy='75' r='54'/>";
+        for (i = 0; i < 16; i++) { a = i * Math.PI / 8; s += D((75 + 48 * Math.cos(a)).toFixed(1), (75 + 48 * Math.sin(a)).toFixed(1), "L1"); }
+        for (i = 0; i < 12; i++) { a = i * Math.PI / 6 + 0.26; s += D((75 + 34 * Math.cos(a)).toFixed(1), (75 + 34 * Math.sin(a)).toFixed(1), "L2", "rd rd2"); }
+        s += M(15, 75, 27, 75, "face") + T(2, 68, "face→bar", "face");
+      } else {
+        s += C("M15,15 L135,15 L135,135 L15,135 Z") + B("M21,21 L129,21 L129,129 L21,129 Z", "tie", "rt");
+        [27, 43, 59, 75, 91, 107, 123].forEach(function (v) { s += D(v, 27, "L1") + D(v, 123, "L1"); if (v > 27 && v < 123) s += D(27, v, "L1") + D(123, v, "L1"); });
+        [41, 58, 75, 92, 109].forEach(function (v) { s += D(v, 41, "L2", "rd rd2") + D(v, 109, "L2", "rd rd2"); if (v > 41 && v < 109) s += D(41, v, "L2", "rd rd2") + D(109, v, "L2", "rd rd2"); });
+        s += T(75, 10, "B face (count incl. corners)", "nb", "middle") + "<text class='ft' data-k='nh' transform='translate(9,75) rotate(-90)' text-anchor='middle'>H face</text>";
+        s += M(15, 142, 27, 142, "face") + T(31, 145, "face → bar centre", "face");
+      }
+      s += T(165, 22, "Bundle (bars per position)", "bundle");
+      s += D(175, 40, "bundle") + D(197, 40, "bundle") + D(203, 40, "bundle") + D(225, 42, "bundle") + D(231, 42, "bundle") + D(228, 37, "bundle") + D(255, 37, "bundle") + D(261, 37, "bundle") + D(255, 43, "bundle") + D(261, 43, "bundle");
+      s += T(175, 56, "1", "bundle", "middle") + T(200, 56, "2", "bundle", "middle") + T(228, 56, "3", "bundle", "middle") + T(258, 56, "4", "bundle", "middle");
+      s += D(170, 80, "L1") + T(180, 83, "Layer 1", "L1") + D(170, 96, "L2", "rd rd2") + T(180, 99, "Layer 2 (inner)", "L2") + B("M163,112 L177,112", "tie", "rt") + T(180, 115, "Tie", "tie");
+      return S(300, 150, s);
+    };
+    // 4.2 starter bars
+    F.starter = function () {
+      var s = C("M10,115 L290,115 L290,165 L10,165 Z") + C("M110,0 L190,0 L190,115 L110,115 Z");
+      s += B("M16,158 L284,158", "", "rq") + T(284, 111, "footing top", "", "end");
+      s += B("M80,151 L122,151 L122,70", "start") + B("M220,151 L178,151 L178,45", "start");
+      s += B("M126,88 L126,0", "main", "rb rm") + B("M174,63 L174,0", "main", "rb rm");
+      s += B("M150,151 L150,80", "straightIn", "rb rs");
+      s += M(80, 143, 122, 143, "hl") + T(101, 139, "Hook length", "hl", "middle");
+      s += T(16, 109, "Hook direction: outward ←", "hook") + "<path class='dim' data-k='hook' d='M76,151 L60,151'/>";
+      s += M(100, 115, 100, 70, "proj") + T(96, 95, "Projection", "proj", "end");
+      s += M(136, 70, 136, 88, "lap") + T(139, 82, "Lap", "lap");
+      s += M(205, 70, 205, 45, "soff") + T(209, 55, "Stagger", "soff") + T(209, 65, "offset", "soff");
+      s += T(156, 132, "inner layer, straight", "straightIn");
+      s += T(16, 20, "Starter bar (A)", "start") + T(16, 31, "Main bar", "main") + B("M80,17 L95,17", "start") + B("M80,28 L95,28", "main", "rb rm");
+      s += T(232, 20, "50% staggered:", "soff") + T(232, 31, "B starts higher", "soff");
+      return S(300, 170, s);
+    };
+    // 4.3 splices along the height
+    F.splice = function () {
+      var s = C("M60,125 L240,125 L240,145 L60,145 Z") + C("M120,0 L180,0 L180,125 L120,125 Z");
+      s += B("M140,138 L140,55", "", "rb") + B("M146,72 L146,0", "barAbove", "rb rthin");
+      s += M(105, 125, 105, 72, "z") + T(101, 96, "Height from", "z", "end") + T(101, 107, "footing top", "z", "end");
+      s += M(160, 55, 160, 72, "") + T(164, 67, "lap", "");
+      s += T(186, 20, "Bar above", "barAbove") + T(186, 31, "(size may change)", "barAbove");
+      s += T(186, 112, "Stock-length laps", "") + T(186, 123, "are added anyway", "");
+      return S(300, 150, s);
+    };
+    // 4.4 ties — zones from the bottom
+    F.ties = function (spiral) {
+      var s = C("M95,0 L205,0 L205,14 L95,14 Z") + C("M120,14 L180,14 L180,150 L120,150 Z") + C("M80,150 L220,150 L220,168 L80,168 Z");
+      s += B("M126,14 L126,150 M174,14 L174,150", "", "rq");
+      var z = function (a, b2, st, k) { var d = ""; for (var y = a; y >= b2; y -= st) d += spiral ? "M124," + y + " L176," + (y - st / 2) + " " : "M124," + y + " L176," + y + " "; return B(d, k, "rt"); };
+      s += z(146, 116, 5, "z1") + z(104, 56, 12, "z2") + z(49, 19, 5, "z3");
+      s += B("M188,150 L192,150 L192,114 L188,114", "z1", "brace") + T(196, 135, "Zone 1 · L0", "z1");
+      s += B("M188,112 L192,112 L192,52 L188,52", "z2", "brace") + T(196, 85, "Zone 2 · Rest", "z2");
+      s += B("M188,50 L192,50 L192,14 L188,14", "z3", "brace") + T(196, 35, "Zone 3 · L0", "z3");
+      s += T(114, 135, "@100", "z1", "end") + T(114, 83, "@150", "z2", "end") + T(114, 35, "@100", "z3", "end");
+      s += T(6, 178, "L0 auto = max(section size, height/6, 450) · Rest = the remainder", "");
+      return S(300, 182, s);
+    };
+    // 4.5 crossties
+    F.cross = function () {
+      var s = C("M15,15 L135,15 L135,135 L15,135 Z") + B("M21,21 L129,21 L129,129 L21,129 Z", "", "rt");
+      [27, 43, 59, 75, 91, 107, 123].forEach(function (v) { s += D(v, 27) + D(v, 123); if (v > 27 && v < 123) s += D(27, v) + D(123, v); });
+      var ct = ""; [59, 91].forEach(function (v) { ct += "M" + v + ",31 L" + v + ",119 M" + v + ",31 L" + (v + 6) + ",37 M" + v + ",119 L" + (v + 7) + ",119 "; ct += "M31," + v + " L119," + v + " M31," + v + " L37," + (v - 6) + " M119," + v + " L119," + (v - 7) + " "; });
+      s += B(ct, "cross", "rx");
+      s += T(150, 30, "Crossties tie opposite faces", "cross") + T(150, 42, "through the intermediate bars.", "cross");
+      s += T(150, 62, "Every other bar: held bars", "sup") + T(150, 74, "alternate (shown).", "sup");
+      s += T(150, 94, "One end 135° hook, the other 90°.", "cross") + T(150, 114, "At: every / every 2nd tie level", "every");
+      return S(300, 150, s);
+    };
+    // 5.1 footing main bars
+    F.fdnMain = function () {
+      var s = C("M125,0 L175,0 L175,40 L125,40 Z") + C("M10,40 L290,40 L290,125 L10,125 Z"), i;
+      s += B("M16,61 L16,47 L284,47 L284,61", "f3");
+      var d4 = "", d2 = "", c2 = ""; for (i = 22; i <= 278; i += 20) { s += D(i, 53, "f4") + D(i, 112, "f2"); if (i + 10 < 280) c2 += "<circle class='rh' data-k='c2' cx='" + (i + 10) + "' cy='112' r='2'/>"; }
+      s += c2 + B("M16,104 L16,118 L284,118 L284,104", "f1");
+      s += G(294, 42, "3", "f3") + G(294, 52, "4", "f4") + G(294, 104, "2", "f2") + G(294, 114, "1", "f1");
+      s += T(16, 137, "1 · 3 transverse (outer, shown)  ·  2 · 4 longitudinal", "outer") + T(16, 149, "◦ 2nd cycle: extra bars between the bars of a row", "c2");
+      return S(312, 152, s);
+    };
+    // 5.2 bar ends — the four kinds, the chosen ones marked
+    F.fdnEnds = function (eb, et) {
+      var s = "", kinds = [["hook", "Hook 12db"], ["full", "To the other mat"], ["mm", "Length"], ["none", "Straight"]];
+      kinds.forEach(function (k, i) {
+        var x = 5 + i * 74, r = x + 62, on = (eb === k[0] ? "bottom" : "") + (et === k[0] ? (eb === k[0] ? " + top" : "top") : "");
+        s += "<g class='opt" + (on ? " on" : "") + "'>" + C("M" + x + ",10 L" + r + ",10 L" + r + ",70 L" + x + ",70 Z");
+        var ub = k[0] === "hook" ? 50 : k[0] === "full" ? 20 : k[0] === "mm" ? 40 : 62, dt = k[0] === "hook" ? 30 : k[0] === "full" ? 60 : k[0] === "mm" ? 40 : 18;
+        s += B("M" + x + ",62 L" + (r - 6) + ",62" + (k[0] !== "none" ? " L" + (r - 6) + "," + ub : ""), "eb") + B("M" + x + ",18 L" + (r - 6) + ",18" + (k[0] !== "none" ? " L" + (r - 6) + "," + dt : ""), "et", "rb rm");
+        if (k[0] === "mm") s += M(r - 2, 62, r - 2, 40, "");
+        s += T(x + 31, 83, k[1], "", "middle") + (on ? T(x + 31, 94, on, "", "middle", "ft fton") : "") + "</g>";
+      });
+      return S(300, 98, s);
+    };
+    // 5.3 side bars
+    F.fdnSide = function () {
+      var s = C("M10,10 L190,10 L190,100 L10,100 Z") + B("M16,17 L184,17 M16,93 L184,93", "", "rq");
+      [33, 47, 61, 75].forEach(function (y) { s += D(16, y, "side") + D(184, y, "side"); });
+      s += M(30, 47, 30, 61, "s") + T(34, 57, "@ vertical spacing", "s");
+      s += C("M215,20 L290,20 L290,95 L215,95 Z") + B("M220,25 L285,25 L285,90 L220,90 L220,25 L240,25", "side");
+      s += T(252, 106, "plan: around", "side", "middle") + T(100, 112, "Section", "", "middle");
+      return S(300, 116, s);
+    };
+    // 5.4 shear bars
+    F.fdnShear = function () {
+      var s = C("M10,10 L170,10 L170,100 L10,100 Z") + B("M16,17 L164,17 M16,93 L164,93", "", "rq"), x, y;
+      for (x = 22; x <= 160; x += 14) s += D(x, 23, "", "rd rg", 2.2) + D(x, 87, "", "rd rg", 2.2);
+      s += B("M38,13 L58,13 L58,97 L38,97 Z", "closed") + T(48, 110, "Closed stirrup", "closed", "middle");
+      s += B("M112,13 L118,19 M112,13 L112,97 L119,97", "single") + T(114, 110, "Single leg", "single", "middle");
+      s += C("M185,12 L295,12 L295,100 L185,100 Z") + "<rect x='225' y='40' width='30' height='30' class='fcol'/>";
+      for (y = 20; y <= 92; y += 14) for (x = 195; x <= 287; x += 14) { var zx = x + ((y - 20) / 14 % 2 ? 7 : 0); if (zx > 222 && zx < 258 && y > 37 && y < 73) continue; if (zx < 290) s += D(zx, y, "grid", "rd", 1.8); }
+      s += M(195, 5, 209, 5, "sx") + T(212, 8, "sx", "sx") + M(299, 20, 299, 34, "sy") + T(302, 30, "sy", "sy");
+      s += T(240, 112, "plan, zig-zag rows", "zig", "middle");
+      return S(312, 116, s);
+    };
+    return F;
+  })();
 
   window.fdraw_pier = function (mountId) {
     var root = document.getElementById(mountId || "mount-draw-pier");
@@ -1177,9 +1355,25 @@
       });
       b.appendChild(lm);
       // common
+      // a section with its explanatory figure: figure left, inputs right. Inputs go into the returned box until figClose().
+      // Hover / focus on anything with data-k lights the figure parts with the same data-k.
+      var B0 = b;
+      function figOpen(svg) {
+        var w = h("div", "pr-fbox"), f = h("div", "pr-fig", svg), inner = h("div", "pr-fin");
+        w.appendChild(f); w.appendChild(inner); B0.appendChild(w);
+        function lit(k) { f.querySelectorAll("[data-k]").forEach(function (e) { e.classList.toggle("hl", !!k && e.getAttribute("data-k") === k); }); }
+        function from(e) { var t = e.target.closest && e.target.closest("[data-k]"); return t && w.contains(t) ? t.getAttribute("data-k") : null; }
+        w.addEventListener("mouseover", function (e) { lit(from(e)); });
+        w.addEventListener("focusin", function (e) { lit(from(e)); });
+        w.addEventListener("mouseleave", function () { var a = document.activeElement; lit(a && w.contains(a) && a.closest("[data-k]") ? a.closest("[data-k]").getAttribute("data-k") : null); });
+        b = inner; return inner;
+      }
+      function figClose() { b = B0; }
+      function fk(el, k) { el.setAttribute("data-k", k); return el; }
       var chN = 0;   // chapter numbers: 1 Common · 2 Anchorage & laps · 3… members · last Result (rows inside a member are 3.1, 3.2 …)
       function chapter(t) { chN++; b.appendChild(h("div", "pr-rbch", "<span class='n'>" + chN + "</span>" + t)); return chN; }
       chapter("Common");
+      figOpen(FIG.cover(!!p.noCope));
       var g = h("div", "pr-ingrid");
       var sr = h("div", "pr-inrow"); sr.appendChild(h("label", null, "<span class='var'>Std</span><span class='desc'>Bar standard</span>"));
       var ss = h("select", "pr-sel"); [["KS", "KS D 3504 (D13…)"], ["ASTM", "ASTM A615 (#4…)"], ["BS", "BS 4449 (12…)"]].forEach(function (o) { var op = h("option", null, o[1]); op.value = o[0]; if (L.sys === o[0]) op.selected = true; ss.appendChild(op); });
@@ -1195,11 +1389,12 @@
       function rbNum(code, desc, val, on, unit, step) { return numRow(code, desc, val, function (v) { on(v); rbChanged(); }, unit, step); }
       g.appendChild(rbNum("fck", "Concrete strength", L.fck, function (v) { L.fck = v; }, "MPa", "1"));
       g.appendChild(rbNum("fy", L.std === "doro" ? "Steel design stress σsd" : "Steel yield strength", L.fy, function (v) { L.fy = v; }, "MPa", "10"));
-      g.appendChild(rbNum("Ls", "Stock bar length (laps beyond this)", R.stock, function (v) { R.stock = v; }, "mm", "500"));
-      if (!p.noCope) g.appendChild(rbNum("c₁", "Cover — " + (p.type === "portal" ? "beam" : "cap"), R.cover.cap, function (v) { R.cover.cap = v; }));
-      g.appendChild(rbNum("c₂", "Cover — " + (p.type === "portal" ? "legs" : "columns"), R.cover.col, function (v) { R.cover.col = v; }));
-      g.appendChild(rbNum("c₃", "Cover — footing", R.cover.fdn, function (v) { R.cover.fdn = v; }));
+      g.appendChild(fk(rbNum("Ls", "Stock bar length (laps beyond this)", R.stock, function (v) { R.stock = v; }, "mm", "500"), "Ls"));
+      if (!p.noCope) g.appendChild(fk(rbNum("c₁", "Cover — " + (p.type === "portal" ? "beam" : "cap"), R.cover.cap, function (v) { R.cover.cap = v; }), "c1"));
+      g.appendChild(fk(rbNum("c₂", "Cover — " + (p.type === "portal" ? "legs" : "columns"), R.cover.col, function (v) { R.cover.col = v; }), "c2"));
+      g.appendChild(fk(rbNum("c₃", "Cover — footing", R.cover.fdn, function (v) { R.cover.fdn = v; }), "c3"));
       b.appendChild(g);
+      figClose();
       // anchorage / laps
       chapter("Anchorage &amp; laps");
       var md = h("div", "pr-modes");
@@ -1255,12 +1450,13 @@
       var bars = (BARS[L.sys] || BARS.KS).map(function (x) { return x[0]; });
       function memberRows(m, title) {
         var no = chapter(title), k = 0;
+        if (m === "cap") figOpen(FIG.cap());
         var tb = h("table", "pr-rbtbl"); tb.innerHTML = "<colgroup><col style='width:30%'><col style='width:12%'><col style='width:40%'><col style='width:18%'></colgroup><thead><tr><th></th><th>Bar</th><th>Spacing / count</th><th>" + (m === "cap" ? "Layers" : (m === "col" ? "End zone L0" : "")) + "</th></tr></thead>";
         var body = h("tbody");
         RB_ROLES[m].forEach(function (role) {
           var row = null; R.rows.forEach(function (r) { if (r.m === m && r.r === role[0]) row = r; });
           if (!row) { row = { m: m, r: role[0], bar: "", q: "s", v: 200, ly: 1 }; R.rows.push(row); }
-          k++; var tr = h("tr"); tr.appendChild(h("td", null, "<span class='no'>" + no + "." + k + "</span>" + role[1]));
+          k++; var tr = h("tr"); tr.setAttribute("data-k", role[0]); tr.appendChild(h("td", null, "<span class='no'>" + no + "." + k + "</span>" + role[1]));
           var td = h("td"), bs = h("select", "pr-sel"); var o0 = h("option", null, "—"); o0.value = ""; bs.appendChild(o0);
           bars.forEach(function (bn) { var op = h("option", null, bn); op.value = bn; if (row.bar === bn) op.selected = true; bs.appendChild(op); });
           td.appendChild(bs); tr.appendChild(td);
@@ -1295,6 +1491,7 @@
           body.appendChild(tr);
         });
         tb.appendChild(body); b.appendChild(tb);
+        figClose();
       }
       // ── small input helpers for chapters 4 and 5 ──
       function ch() { rbChanged(); }
@@ -1320,52 +1517,54 @@
         var anyRect = p2.cols.some(function (c2) { return c2.shape === "rect"; });
         function sh(t) { sub++; b.appendChild(h("div", "pr-rbsub", "<span class='no'>" + no + "." + sub + "</span>" + t)); }
         // 4.1 main bars — layers 1 to 3
-        sh("Main bars");
+        sh("Main bars"); figOpen(FIG.colMain(allCircle));
         var t1 = h("table", "pr-rbtbl pr-rbt2");
         t1.innerHTML = "<colgroup><col style='width:9%'><col style='width:12%'><col style='width:47%'><col style='width:12%'><col style='width:16%'><col style='width:4%'></colgroup>" +
           "<thead><tr><th>Layer</th><th>Bar</th><th>Arrangement</th><th>Bundle</th><th>Face → bar</th><th></th></tr></thead>";
         var tb1 = h("tbody");
         C.layers.forEach(function (Ly, k) {
-          var tr = h("tr"); tr.appendChild(h("td", null, "<span class='no'>" + (k + 1) + "</span>"));
+          var tr = h("tr"); tr.setAttribute("data-k", "L" + (k + 1)); tr.appendChild(h("td", null, "<span class='no'>" + (k + 1) + "</span>"));
           var td = h("td"); td.appendChild(barSel(Ly.bar, function (v) { Ly.bar = v; ch(); })); tr.appendChild(td);
           var ta = h("td"), qOpts = [["s", "@ spacing"], ["n", "EA total"]]; if (anyRect) qOpts.push(["f", "per face"]);
           ta.appendChild(sel(qOpts, Ly.q, function (v) { Ly.q = v; if (v === "n" && Ly.v < 4) Ly.v = 24; if (v === "s" && Ly.v < 50) Ly.v = 150; renderPerPier(); }, "pr-q"));
           if (Ly.q === "f") { ta.appendChild(h("span", "pr-unit", "B face")); ta.appendChild(num(Ly.nb, function (v) { Ly.nb = Math.round(v); }, "", "1", 56)); ta.appendChild(h("span", "pr-unit", "H face")); ta.appendChild(num(Ly.nh, function (v) { Ly.nh = Math.round(v); }, "", "1", 56)); ta.appendChild(h("span", "pr-unit", "incl. corners")); }
           else { ta.appendChild(num(Ly.v, function (v) { Ly.v = v; }, "", Ly.q === "n" ? "1" : "25")); ta.appendChild(h("span", "pr-unit", Ly.q === "n" ? "per column" : "mm")); }
           tr.appendChild(ta);
-          var tbd = h("td"); tbd.appendChild(sel([[1, "1"], [2, "2"], [3, "3"], [4, "4"]], Ly.bundle || 1, function (v) { Ly.bundle = +v; ch(); })); tr.appendChild(tbd);
-          var tdd = h("td"); tdd.appendChild(num(Ly.d, function (v) { Ly.d = v; }, "auto", "5", 70)); tdd.appendChild(h("span", "pr-unit", "mm")); tr.appendChild(tdd);
+          var tbd = fk(h("td"), "bundle"); tbd.appendChild(sel([[1, "1"], [2, "2"], [3, "3"], [4, "4"]], Ly.bundle || 1, function (v) { Ly.bundle = +v; ch(); })); tr.appendChild(tbd);
+          var tdd = fk(h("td"), "face"); tdd.appendChild(num(Ly.d, function (v) { Ly.d = v; }, "auto", "5", 70)); tdd.appendChild(h("span", "pr-unit", "mm")); tr.appendChild(tdd);
           var tx = h("td"); if (k > 0 && k === C.layers.length - 1) tx.appendChild(del(function () { C.layers.pop(); renderPerPier(); ch(); })); tr.appendChild(tx);
           tb1.appendChild(tr);
         });
         t1.appendChild(tb1); b.appendChild(t1);
         if (C.layers.length < 3) b.appendChild(add("Add layer", function () { var lst = C.layers[C.layers.length - 1]; C.layers.push({ bar: lst.bar, q: lst.q, v: lst.v, nb: lst.nb, nh: lst.nh, bundle: 1, d: 0 }); renderPerPier(); ch(); }));
 
+        figClose();
         // 4.2 starter bars
-        sh("Starter bars <span class='pr-rbsubk'>into the footing</span>");
+        sh("Starter bars <span class='pr-rbsubk'>into the footing</span>"); figOpen(FIG.starter());
         var S0 = C.starter, g2 = h("div", "pr-rbgrid");
-        g2.appendChild(field("", chk("Use starter bars", S0.on, function (v) { S0.on = v; renderPerPier(); ch(); })));
-        g2.appendChild(field("Hook direction", sel([["out", "Outward"], ["in", "Inward"]], S0.hook, function (v) { S0.hook = v; ch(); })));
-        g2.appendChild(field("Hook length", num(S0.hl, function (v) { S0.hl = v; }, "auto 12db", "10", 104), "mm"));
+        g2.appendChild(fk(field("", chk("Use starter bars", S0.on, function (v) { S0.on = v; renderPerPier(); ch(); })), "start"));
+        g2.appendChild(fk(field("Hook direction", sel([["out", "Outward"], ["in", "Inward"]], S0.hook, function (v) { S0.hook = v; ch(); })), "hook"));
+        g2.appendChild(fk(field("Hook length", num(S0.hl, function (v) { S0.hl = v; }, "auto 12db", "10", 104), "mm"), "hl"));
         if (S0.on) {
-          g2.appendChild(field("Splice", sel([["lap", "Lap splice"], ["coupler", "Coupler"]], S0.splice, function (v) { S0.splice = v; ch(); })));
-          g2.appendChild(field("Projection above footing", num(S0.proj, function (v) { S0.proj = v; }, "auto", "50", 90), "mm"));
-          g2.appendChild(field("", chk("Stagger 50%", S0.stag, function (v) { S0.stag = v; renderPerPier(); ch(); })));
-          if (S0.stag) g2.appendChild(field("Stagger offset", num(S0.soff, function (v) { S0.soff = v; }, "auto", "50", 90), "mm"));
+          g2.appendChild(fk(field("Splice", sel([["lap", "Lap splice"], ["coupler", "Coupler"]], S0.splice, function (v) { S0.splice = v; ch(); })), "lap"));
+          g2.appendChild(fk(field("Projection above footing", num(S0.proj, function (v) { S0.proj = v; }, "auto", "50", 90), "mm"), "proj"));
+          g2.appendChild(fk(field("", chk("Stagger 50%", S0.stag, function (v) { S0.stag = v; renderPerPier(); ch(); })), "soff"));
+          if (S0.stag) g2.appendChild(fk(field("Stagger offset", num(S0.soff, function (v) { S0.soff = v; }, "auto", "50", 90), "mm"), "soff"));
         }
-        if (C.layers.length > 1) g2.appendChild(field("", chk("Inner layers: straight end (no hook)", S0.straightIn, function (v) { S0.straightIn = v; ch(); })));
+        if (C.layers.length > 1) g2.appendChild(fk(field("", chk("Inner layers: straight end (no hook)", S0.straightIn, function (v) { S0.straightIn = v; ch(); })), "straightIn"));
         b.appendChild(g2);
+        figClose();
 
         // 4.3 splices along the height (bar size may change there)
-        sh("Splices along the height");
+        sh("Splices along the height"); figOpen(FIG.splice());
         if (C.splices.length) {
           var t3 = h("table", "pr-rbtbl pr-rbt2");
           t3.innerHTML = "<colgroup><col style='width:9%'><col style='width:30%'><col style='width:57%'><col style='width:4%'></colgroup><thead><tr><th>#</th><th>Height from footing top</th><th>Bar above</th><th></th></tr></thead>";
           var tb3 = h("tbody");
           C.splices.forEach(function (sp, i) {
             var tr = h("tr"); tr.appendChild(h("td", null, "<span class='no'>" + (i + 1) + "</span>"));
-            var tz = h("td"); tz.appendChild(num(sp.z, function (v) { sp.z = v; }, "", "100", 90)); tz.appendChild(h("span", "pr-unit", "mm")); tr.appendChild(tz);
-            var tbb = h("td"); tbb.appendChild(barSel(sp.bar, function (v) { sp.bar = v; ch(); }, "same")); tr.appendChild(tbb);
+            var tz = fk(h("td"), "z"); tz.appendChild(num(sp.z, function (v) { sp.z = v; }, "", "100", 90)); tz.appendChild(h("span", "pr-unit", "mm")); tr.appendChild(tz);
+            var tbb = fk(h("td"), "barAbove"); tbb.appendChild(barSel(sp.bar, function (v) { sp.bar = v; ch(); }, "same")); tr.appendChild(tbb);
             var tx = h("td"); tx.appendChild(del(function () { C.splices.splice(i, 1); renderPerPier(); ch(); })); tr.appendChild(tx);
             tb3.appendChild(tr);
           });
@@ -1373,8 +1572,9 @@
         } else b.appendChild(h("div", "pr-rbnone", "None — the main bars are spliced only where they exceed the stock length."));
         if (C.splices.length < 4) b.appendChild(add("Add splice", function () { var last = C.splices.length ? C.splices[C.splices.length - 1].z : 0; C.splices.push({ z: Math.round((last + Math.max(3000, pierCH(p2) / 2)) / 100) * 100, bar: "" }); renderPerPier(); ch(); }));
 
+        figClose();
         // 4.4 ties — zones from the bottom
-        sh("Ties");
+        sh("Ties"); figOpen(FIG.ties(allCircle && C.ties.type === "spiral"));
         var T = C.ties, g4 = h("div", "pr-rbgrid");
         g4.appendChild(field("Bar", barSel(T.bar, function (v) { T.bar = v; ch(); })));
         if (anyCircle) g4.appendChild(field("Type", sel([["hoop", "Closed hoops"], ["spiral", "Spiral" + (allCircle ? "" : " (circular columns)")]], T.type, function (v) { T.type = v; ch(); })));
@@ -1384,7 +1584,7 @@
         t4.innerHTML = "<colgroup><col style='width:9%'><col style='width:42%'><col style='width:45%'><col style='width:4%'></colgroup><thead><tr><th>Zone</th><th>Length (from the bottom)</th><th>Spacing</th><th></th></tr></thead>";
         var tb4 = h("tbody");
         T.zones.forEach(function (zn, i) {
-          var tr = h("tr"); tr.appendChild(h("td", null, "<span class='no'>" + (i + 1) + "</span>"));
+          var tr = h("tr"); tr.setAttribute("data-k", "z" + (i + 1)); tr.appendChild(h("td", null, "<span class='no'>" + (i + 1) + "</span>"));
           var tl = h("td"), kind = zn.L < 0 ? "L0" : (zn.L === 0 ? "rest" : "mm");
           tl.appendChild(sel([["L0", "L0 (auto)"], ["rest", "Rest"], ["mm", "mm"]], kind, function (v) { zn.L = v === "L0" ? -1 : (v === "rest" ? 0 : 2000); renderPerPier(); ch(); }));
           if (kind === "mm") { tl.appendChild(num(zn.L, function (v) { zn.L = v > 0 ? v : 2000; }, "", "100", 80)); tl.appendChild(h("span", "pr-unit", "mm")); }
@@ -1396,17 +1596,19 @@
         t4.appendChild(tb4); b.appendChild(t4);
         if (T.zones.length < 6) b.appendChild(add("Add zone", function () { T.zones.splice(T.zones.length - 1, 0, { L: 2000, s: 150 }); renderPerPier(); ch(); }));
 
+        figClose();
         // 4.5 crossties — rectangular / track / octagon columns
         if (!allCircle) {
-          sh("Crossties");
+          sh("Crossties"); figOpen(FIG.cross());
           var X = C.cross, g5 = h("div", "pr-rbgrid");
           g5.appendChild(field("", chk("Use crossties", X.on, function (v) { X.on = v; renderPerPier(); ch(); })));
           if (X.on) {
-            g5.appendChild(field("Bar", barSel(X.bar, function (v) { X.bar = v; ch(); })));
-            g5.appendChild(field("Bars held", sel([["alt", "Every other bar"], ["all", "Every bar"]], X.sup, function (v) { X.sup = v; ch(); })));
-            g5.appendChild(field("At", sel([[1, "every tie"], [2, "every 2nd tie"], [3, "every 3rd tie"]], X.every, function (v) { X.every = +v; ch(); })));
+            g5.appendChild(fk(field("Bar", barSel(X.bar, function (v) { X.bar = v; ch(); })), "cross"));
+            g5.appendChild(fk(field("Bars held", sel([["alt", "Every other bar"], ["all", "Every bar"]], X.sup, function (v) { X.sup = v; ch(); })), "sup"));
+            g5.appendChild(fk(field("At", sel([[1, "every tie"], [2, "every 2nd tie"], [3, "every 3rd tie"]], X.every, function (v) { X.every = +v; ch(); })), "every"));
           }
           b.appendChild(g5);
+          figClose();
         }
       }
       // ── chapter 5: footing ──
@@ -1414,56 +1616,60 @@
         var F = R.fdn || (R.fdn = defaultFdn(L.sys)), no = chapter(title), sub = 0;
         function sh(t) { sub++; b.appendChild(h("div", "pr-rbsub", "<span class='no'>" + no + "." + sub + "</span>" + t)); }
         // 5.1 main bars — bottom and top, each direction
-        sh("Main bars");
+        sh("Main bars"); figOpen(FIG.fdnMain());
         var t1 = h("table", "pr-rbtbl pr-rbt2");
         t1.innerHTML = "<colgroup><col style='width:24%'><col style='width:12%'><col style='width:22%'><col style='width:12%'><col style='width:30%'></colgroup>" +
           "<thead><tr><th></th><th>Bar</th><th>Spacing</th><th>Layers</th><th>2nd cycle (in between)</th></tr></thead>";
         var tb1 = h("tbody"), k = 0;
         [["bot", "Bottom"], ["top", "Top"]].forEach(function (fc) {
           F[fc[0]].forEach(function (r) {
-            k++; var tr = h("tr");
+            k++; var tr = h("tr"); tr.setAttribute("data-k", "f" + k);
             tr.appendChild(h("td", null, "<span class='no'>" + k + "</span>" + fc[1] + ", " + (r.dir === "x" ? "transverse" : "longitudinal")));
             var td = h("td"); td.appendChild(barSel(r.bar, function (v) { r.bar = v; ch(); })); tr.appendChild(td);
             var ts = h("td"); ts.appendChild(h("span", "pr-unit", "@")); ts.appendChild(num(r.s, function (v) { r.s = v > 0 ? v : 150; }, "", "25", 80)); ts.appendChild(h("span", "pr-unit", "mm")); tr.appendChild(ts);
             var tl = h("td"); tl.appendChild(sel([[1, "1"], [2, "2"]], r.ly, function (v) { r.ly = +v; ch(); })); tr.appendChild(tl);
-            var t2 = h("td"); t2.appendChild(barSel(r.bar2, function (v) { r.bar2 = v; ch(); }, "—")); tr.appendChild(t2);
+            var t2 = fk(h("td"), "c2"); t2.appendChild(barSel(r.bar2, function (v) { r.bar2 = v; ch(); }, "—")); tr.appendChild(t2);
             tb1.appendChild(tr);
           });
         });
         t1.appendChild(tb1); b.appendChild(t1);
         var g1 = h("div", "pr-rbgrid");
-        g1.appendChild(field("Outer bars (top and bottom)", sel([["x", "Transverse"], ["y", "Longitudinal"]], F.outer, function (v) { F.outer = v; ch(); })));
+        g1.appendChild(fk(field("Outer bars (top and bottom)", sel([["x", "Transverse"], ["y", "Longitudinal"]], F.outer, function (v) { F.outer = v; ch(); })), "outer"));
         b.appendChild(g1);
+        figClose();
         // 5.2 bar ends
-        sh("Bar ends");
+        sh("Bar ends"); figOpen(FIG.fdnEnds(F.endB.t, F.endT.t));
         var g2 = h("div", "pr-rbgrid");
         [["endB", "Bottom bars", "up", "Up to the top mat"], ["endT", "Top bars", "down", "Down to the bottom mat"]].forEach(function (e) {
           var E = F[e[0]], parts = [sel([["hook", "Hook " + e[2] + " 12db"], ["full", e[3]], ["mm", "Length"], ["none", "Straight"]], E.t, function (v) { E.t = v; if (v === "mm" && !E.L) E.L = 500; renderPerPier(); ch(); })];
           if (E.t === "mm") { parts.push(num(E.L, function (v) { E.L = v; }, "", "50", 80)); parts.push("mm"); }
-          g2.appendChild(field(e[1], parts));
+          g2.appendChild(fk(field(e[1], parts), e[0] === "endB" ? "eb" : "et"));
         });
         b.appendChild(g2);
+        figClose();
         // 5.3 side bars
-        sh("Side bars");
+        sh("Side bars"); figOpen(FIG.fdnSide());
         var g3 = h("div", "pr-rbgrid"), SD = F.side;
         g3.appendChild(field("", chk("Use side bars", SD.on, function (v) { SD.on = v; renderPerPier(); ch(); })));
         if (SD.on) {
           g3.appendChild(field("Bar", barSel(SD.bar, function (v) { SD.bar = v; ch(); })));
-          g3.appendChild(field("Vertical spacing", [h("span", "pr-unit", "@"), num(SD.s, function (v) { SD.s = v > 0 ? v : 300; }, "", "25", 80)], "mm"));
+          g3.appendChild(fk(field("Vertical spacing", [h("span", "pr-unit", "@"), num(SD.s, function (v) { SD.s = v > 0 ? v : 300; }, "", "25", 80)], "mm"), "s"));
         }
         b.appendChild(g3);
+        figClose();
         // 5.4 shear bars
-        sh("Shear bars");
+        sh("Shear bars"); figOpen(FIG.fdnShear());
         var g4 = h("div", "pr-rbgrid"), H = F.shear;
         g4.appendChild(field("", chk("Use shear bars", H.on, function (v) { H.on = v; renderPerPier(); ch(); })));
         if (H.on) {
           g4.appendChild(field("Bar", barSel(H.bar, function (v) { H.bar = v; ch(); })));
-          g4.appendChild(field("Type", sel([["closed", "Closed stirrup"], ["single", "Single leg (hooked)"]], H.type, function (v) { H.type = v; ch(); })));
-          g4.appendChild(field("Spacing, transverse", [h("span", "pr-unit", "@"), num(H.sx, function (v) { H.sx = v > 0 ? v : 600; }, "", "50", 80)], "mm"));
-          g4.appendChild(field("Spacing, longitudinal", [h("span", "pr-unit", "@"), num(H.sy, function (v) { H.sy = v > 0 ? v : 600; }, "", "50", 80)], "mm"));
-          g4.appendChild(field("", chk("Zig-zag rows", H.zig, function (v) { H.zig = v; ch(); })));
+          g4.appendChild(fk(field("Type", sel([["closed", "Closed stirrup"], ["single", "Single leg (hooked)"]], H.type, function (v) { H.type = v; ch(); })), H.type));
+          g4.appendChild(fk(field("Spacing, transverse", [h("span", "pr-unit", "@"), num(H.sx, function (v) { H.sx = v > 0 ? v : 600; }, "", "50", 80)], "mm"), "sx"));
+          g4.appendChild(fk(field("Spacing, longitudinal", [h("span", "pr-unit", "@"), num(H.sy, function (v) { H.sy = v > 0 ? v : 600; }, "", "50", 80)], "mm"), "sy"));
+          g4.appendChild(fk(field("", chk("Zig-zag rows", H.zig, function (v) { H.zig = v; ch(); })), "zig"));
         }
         b.appendChild(g4);
+        figClose();
       }
       function paintLensSoon() { var key = inputKey("rebar"), hit = memoGet("rebar", key); if (hit) paintLens(hit); }
       if (!p.noCope) memberRows("cap", p.type === "portal" ? "Beam" : "Cap");

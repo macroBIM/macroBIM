@@ -279,7 +279,7 @@ git status --short     # 비어 있어야 한다
 | **J 엔진** | `jfield.js` · `bench/jbench.js` · `bench/jengine.js` | 논문의 J 최소화를 그대로 짠 **두 번째 엔진**. PSCBOX 일반단면 페이지의 **기본 엔진**이다 (`Solver` 버튼으로 옛 `physics.js` 와 오간다). 격벽 페이지는 아직 옛 엔진만 쓴다 |
 | **Crossbeam 폼** | `plate3d/quick_crossbeam_test.js` | 폼과 그림은 있고, PLATE3D 로 모델 보내기와 워크북 내보내기가 없다 |
 | **Dashboard · PSCBOX · Crossbeam 메뉴** | `design/layout_body_test.js` | `design/SYNC.md` 참조 — 옮기지 않는다 |
-| **PIER (/dev/)** | `bim_pier_dev.js` (`?v=26`) ← design **dev** `layout_body_test.js` | 운영에 없는 것: 자체 기호 체계 · 배근 1단계(2026-11-19). `/dev/` 에서 확인한 뒤 `bim_pier.js` 로 다시 승격 |
+| **PIER (/dev/)** | `bim_pier_dev.js` (`?v=27`) ← design **dev** `layout_body_test.js` | 운영에 없는 것: 자체 기호 체계 · 배근 1단계(2026-11-19). `/dev/` 에서 확인한 뒤 `bim_pier.js` 로 다시 승격 |
 
 
 ### PIER — 지금 어디까지 (2026-11-19 · 운영은 11-16 2차 승격본 · `/dev/` 는 배근 1단계까지)
@@ -357,6 +357,9 @@ git status --short     # 비어 있어야 한다
 ## 기록
 
 **맨 위가 최신.** 한 줄에 하나: 날짜 · 커밋 · 무엇이 · 어디까지(테스트/운영).
+
+### 2026-11-25
+- **PIER(dev): 배근 입력에 설명 그림 — 1 Common(피복 c₁ c₂ c₃ · 정척) · 3 Cap(반 입면 + 단면, 3.1~3.4 표식) · 4.1 주철근(단 · 다발 · 면→철근, 원형/사각) · 4.2 Starter(갈고리 길이 · 방향 · 돌출 · 겹이음 · 엇갈림 · 안쪽 단 직선) · 4.3 높이 방향 이음 · 4.4 띠철근 구간(L0 · Rest) · 4.5 크로스타이 · 5.1 기초 주철근(1~4 · 2Cycle) · 5.2 끝 처리(고른 것 표시) · 5.3 측면 · 5.4 전단철근. 입력 줄에 마우스를 올리거나 칸을 누르면 그림의 해당 철근이 파랗게** · macroBIM `bim_pier_dev.js` + design dev `?v=27` · **시험(/dev/)** — 사용자: 「그림이 없으니까 뭘 넣는 건지 전혀 모르겠어」. 그림은 SVG(화면 코드 안, 서버 안 거침).
 
 ### 2026-11-24
 - **PIER(dev): 정착·이음 「Paste from Excel」 버튼 — 누르면 표 위에 붙여 넣는 칸(1 엑셀에서 Bar~Lap 복사 · 2 여기에 Ctrl+V)이 열리고, 붙여 넣는 순간 적용 · Edit 로 바뀜** · macroBIM `bim_pier_dev.js` + design dev `?v=26` · **시험(/dev/)** — 사용자: 「어떻게 붙여 넣으라는 거야」 — 표 칸을 눌러 Ctrl+V 하는 것을 알 수 없었다. 칸에 바로 붙여 넣는 것도 그대로 된다.
